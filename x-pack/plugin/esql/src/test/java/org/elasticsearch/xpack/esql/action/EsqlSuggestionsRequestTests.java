@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.suggestions.CursorMarker;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -52,10 +53,26 @@ public class EsqlSuggestionsRequestTests extends ESTestCase {
     }
 
     public void testSerializationRoundTrip() throws Exception {
-        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query("FROM foo | WHERE a == \"x\"")
-            .cursor(12)
+        // Cursor sits right before the 'x' literal, matching the position used pre-marker.
+        CursorMarker marker = CursorMarker.of("FROM foo | WHERE a == \"<*>x\"");
+        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query(marker.query())
+            .cursor(marker.cursor())
             .size(25)
             .includeSampleValues(true);
+        assertRoundTrip(request);
+    }
+
+    public void testSerializationRoundTripWithMultilineQuery() throws Exception {
+        // Confirms serialization doesn't mangle an embedded real newline in the query text.
+        CursorMarker marker = CursorMarker.of("FROM foo\n| WHERE a == \"<*>x\"\n| KEEP a");
+        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query(marker.query())
+            .cursor(marker.cursor())
+            .size(25)
+            .includeSampleValues(true);
+        assertRoundTrip(request);
+    }
+
+    private void assertRoundTrip(EsqlSuggestionsRequest request) throws Exception {
         EsqlSuggestionsRequest read;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);

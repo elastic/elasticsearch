@@ -59,6 +59,21 @@ field name slot after IP_LOCATION lists dotted output fields:
   - match: { fields.g\.city_name.type: "keyword" }
 
 ---
+multiline query via block scalar:
+  - do:
+      esql.suggestions:
+        body:
+          # cursor is right after "chr" on line 2 (inside the string literal)
+          query: |
+            FROM test
+            | WHERE agent == "chr"
+            | KEEP agent
+          cursor: 31
+
+  - exists: fields
+  - length: { warnings: 0 }
+
+---
 missing query is rejected:
   - do:
       catch: bad_request

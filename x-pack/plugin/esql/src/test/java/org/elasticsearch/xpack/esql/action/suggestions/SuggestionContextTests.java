@@ -31,39 +31,35 @@ public class SuggestionContextTests extends ESTestCase {
         return plan;
     }
 
-    private SuggestionContext detect(String query, int cursor) {
-        LogicalPlan plan = analyze(query);
-        return SuggestionContext.detect(plan, new CursorLocation(query), cursor);
+    private SuggestionContext detect(CursorMarker marker) {
+        LogicalPlan plan = analyze(marker.query());
+        return SuggestionContext.detect(plan, new CursorLocation(marker.query()), marker.cursor());
     }
 
     public void testCursorInStringLiteralEquality() {
-        String query = "FROM test | WHERE first_name == \"Ale\"";
-        int cursor = query.indexOf("Ale") + 1; // inside the string literal
-        SuggestionContext context = detect(query, cursor);
+        // Cursor sits inside the string literal.
+        SuggestionContext context = detect(CursorMarker.of("FROM test | WHERE first_name == \"A<*>le\""));
         assertEquals(Kind.STRING_LITERAL_EQUALITY, context.kind());
         assertEquals("first_name", context.targetField());
     }
 
     public void testCursorOnNumericLiteralRange() {
-        String query = "FROM test | WHERE salary > 500";
-        int cursor = query.indexOf("500") + 1; // on the numeric literal
-        SuggestionContext context = detect(query, cursor);
+        // Cursor sits on the numeric literal.
+        SuggestionContext context = detect(CursorMarker.of("FROM test | WHERE salary > 5<*>00"));
         assertEquals(Kind.NUMERIC_LITERAL_RANGE, context.kind());
         assertEquals("salary", context.targetField());
     }
 
     public void testCursorAtFieldNameSlotInWhere() {
-        String query = "FROM test | WHERE first_name == \"x\"";
-        int cursor = query.indexOf("first_name") + 3; // on the field name, not the literal
-        SuggestionContext context = detect(query, cursor);
+        // Cursor sits on the field name, not the literal.
+        SuggestionContext context = detect(CursorMarker.of("FROM test | WHERE fir<*>st_name == \"x\""));
         assertEquals(Kind.FIELD_NAME, context.kind());
         assertNull(context.targetField());
     }
 
     public void testCursorAtPipePosition() {
-        String query = "FROM test | KEEP first_name\n";
-        int cursor = query.length(); // past the last command
-        SuggestionContext context = detect(query, cursor);
+        // Cursor is past the last command; "end of string" is inherently a trailing marker.
+        SuggestionContext context = detect(CursorMarker.of("FROM test | KEEP first_name\n<*>"));
         assertEquals(Kind.PIPE_POSITION, context.kind());
         assertNull(context.command());
     }
@@ -73,9 +69,7 @@ public class SuggestionContextTests extends ESTestCase {
         // 2 UTF-16 units. This exercises the containment-range bug described in the suggestions
         // API spec directly, since the literal's own Source range must still contain the cursor.
         String emoji = "\uD83D\uDE00";
-        String query = "FROM test | WHERE first_name == \"" + emoji + "Ale\"";
-        int cursor = query.indexOf("Ale") + 1; // inside the string literal, after the emoji
-        SuggestionContext context = detect(query, cursor);
+        SuggestionContext context = detect(CursorMarker.of("FROM test | WHERE first_name == \"" + emoji + "A<*>le\""));
         assertEquals(Kind.STRING_LITERAL_EQUALITY, context.kind());
         assertEquals("first_name", context.targetField());
     }
@@ -84,19 +78,24 @@ public class SuggestionContextTests extends ESTestCase {
         // The emoji sits earlier in the query, before the cursor's target token, so every
         // downstream Source range must already be shifted correctly for this to resolve.
         String emoji = "\uD83D\uDE00";
-        String query = "FROM test | WHERE first_name == \"" + emoji + "\" OR last_name == \"x\"";
-        int cursor = query.indexOf("last_name") + 3; // on the field name, not the literal
-        SuggestionContext context = detect(query, cursor);
+        SuggestionContext context = detect(CursorMarker.of("FROM test | WHERE first_name == \"" + emoji + "\" OR las<*>t_name == \"x\""));
         assertEquals(Kind.FIELD_NAME, context.kind());
     }
 
     public void testCursorWithBmpNonAsciiCharacterBeforeIt() {
         // Accented Latin/CJK stay within the BMP: UTF-16 units and code points coincide, so this
         // already works without the code-point fix. Contrast with the supplementary-plane cases.
-        String query = "FROM test | WHERE first_name == \"caf\u00e9\" OR last_name == \"x\"";
-        int cursor = query.indexOf("last_name") + 3;
-        SuggestionContext context = detect(query, cursor);
+        SuggestionContext context = detect(CursorMarker.of("FROM test | WHERE first_name == \"caf\u00e9\" OR las<*>t_name == \"x\""));
         assertEquals(Kind.FIELD_NAME, context.kind());
+    }
+
+    public void testCursorInStringLiteralEqualityAcrossMultipleLines() {
+        // The query spans 3 lines and the cursor sits on a non-first line, inside the string
+        // literal — the case most likely to break if line/column translation (CursorLocation) and
+        // context detection disagree about newline handling.
+        SuggestionContext context = detect(CursorMarker.of("FROM test\n| WHERE first_name == \"<*>Ale\"\n| KEEP first_name"));
+        assertEquals(Kind.STRING_LITERAL_EQUALITY, context.kind());
+        assertEquals("first_name", context.targetField());
     }
 
     /**
@@ -107,11 +106,10 @@ public class SuggestionContextTests extends ESTestCase {
      */
     public void testFieldNameContextAroundIpLocationCommand() {
         assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
-        String query = "ROW ip = \"1.2.3.4\" | IP_LOCATION g = ip | KEEP g.country_iso_code";
-        LogicalPlan plan = analyzer().query(query);
+        CursorMarker marker = CursorMarker.of("ROW ip = \"1.2.3.4\" | IP_LOCATION g = ip | KEEP g.cou<*>ntry_iso_code");
+        LogicalPlan plan = analyzer().query(marker.query());
         assertWarnings("No limit defined, adding default limit of [1000]");
-        int cursor = query.indexOf("g.country_iso_code") + 3; // inside the KEEP field name, on the IP_LOCATION output
-        SuggestionContext context = SuggestionContext.detect(plan, new CursorLocation(query), cursor);
+        SuggestionContext context = SuggestionContext.detect(plan, new CursorLocation(marker.query()), marker.cursor());
         assertEquals(Kind.FIELD_NAME, context.kind());
         assertNull(context.targetField());
 

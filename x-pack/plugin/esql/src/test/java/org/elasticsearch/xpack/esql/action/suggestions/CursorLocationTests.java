@@ -32,12 +32,12 @@ public class CursorLocationTests extends ESTestCase {
     }
 
     public void testMultiLineOffsets() {
-        // Offsets: 0123456 7890123456789012 34...
-        String query = "FROM foo\n| WHERE a == 1\n| KEEP a";
+        // The marker sits right at the start of line 2, on the '|'.
+        CursorMarker marker = CursorMarker.of("FROM foo\n<*>| WHERE a == 1\n| KEEP a");
+        String query = marker.query();
         CursorLocation locations = new CursorLocation(query);
 
-        // Offset 9 is '|' at the start of line 2 (offset 8 is the newline).
-        Location line2 = locations.toLocation(9);
+        Location line2 = locations.toLocation(marker.cursor());
         assertEquals(2, line2.getLineNumber());
         assertEquals(1, line2.getColumnNumber());
 

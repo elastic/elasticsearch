@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.io.StringWriter;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
@@ -96,8 +98,21 @@ public class ExternalCompressedMultiFileCountWarmFoldIT extends AbstractExternal
         try {
             return client(internalCluster().getMasterName()).execute(EsqlQueryAction.INSTANCE, request).actionGet(timeout);
         } catch (ElasticsearchTimeoutException e) {
+            dumpRelevantThreads();
             throw new AssertionError("timeout", e);
         }
+    }
+
+    private void dumpRelevantThreads() {
+        logger.error("=== DIAGNOSTIC THREAD DUMP (query timeout) ===");
+        try {
+            StringWriter writer = new StringWriter();
+            new HotThreads().busiestThreads(9999).ignoreIdleThreads(false).detect(writer);
+            logger.error("{}", writer);
+        } catch (Exception ex) {
+            logger.error("failed to capture hot threads", ex);
+        }
+        logger.error("=== END DIAGNOSTIC THREAD DUMP ===");
     }
 
     public void testGzipNdjsonManyStripeMultiFileCountShortCircuits() throws Exception {

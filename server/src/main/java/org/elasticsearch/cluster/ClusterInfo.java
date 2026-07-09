@@ -70,7 +70,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     private static final TransportVersion DEFAULT_SHARD_HEAP_USAGE_WHEN_MISSING_IN_CLUSTER_INFO = TransportVersion.fromName(
         "default_shard_heap_usage_when_missing_in_cluster_info"
     );
-    static final TransportVersion CACHE_USAGE_IN_CLUSTER_INFO = TransportVersion.fromName("cache_usage_in_cluster_info");
+    static final TransportVersion CACHE_METADATA_IN_CLUSTER_INFO = TransportVersion.fromName("cache_metadata_in_cluster_info");
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -255,12 +255,12 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         }
         this.nodeMaxShardWriteLoadProportion = new ObjectDoubleHashMap<>(this.nodeIdsWriteLoadHotspotting.size());
         this.shardToNodeIds = computeShardToNodeIds(dataPath);
-        if (in.getTransportVersion().supports(CACHE_USAGE_IN_CLUSTER_INFO)) {
+        if (in.getTransportVersion().supports(CACHE_METADATA_IN_CLUSTER_INFO)) {
             this.shardCacheSizes = in.readImmutableMap(ShardId::new, BoostedAndUnboostedCacheSizes::new);
         } else {
             this.shardCacheSizes = Map.of();
         }
-        if (in.getTransportVersion().supports(CACHE_USAGE_IN_CLUSTER_INFO)) {
+        if (in.getTransportVersion().supports(CACHE_METADATA_IN_CLUSTER_INFO)) {
             this.nodeCacheUsage = in.readImmutableMap(StreamInput::readString, CurrentCacheUsage::new);
         } else {
             this.nodeCacheUsage = Map.of();
@@ -342,10 +342,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         if (out.getTransportVersion().supports(DEFAULT_SHARD_HEAP_USAGE_WHEN_MISSING_IN_CLUSTER_INFO)) {
             out.writeWriteable(this.defaultShardHeapUsageForShardsWithoutMetrics);
         }
-        if (out.getTransportVersion().supports(CACHE_USAGE_IN_CLUSTER_INFO)) {
+        if (out.getTransportVersion().supports(CACHE_METADATA_IN_CLUSTER_INFO)) {
             out.writeMap(this.shardCacheSizes, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
         }
-        if (out.getTransportVersion().supports(CACHE_USAGE_IN_CLUSTER_INFO)) {
+        if (out.getTransportVersion().supports(CACHE_METADATA_IN_CLUSTER_INFO)) {
             out.writeMap(this.nodeCacheUsage, StreamOutput::writeString, StreamOutput::writeWriteable);
         }
     }

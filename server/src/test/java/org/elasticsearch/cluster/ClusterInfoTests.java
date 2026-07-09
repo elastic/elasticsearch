@@ -86,7 +86,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         assertThat(currentVersionCopy.getShardCacheSizes(), equalTo(shardCacheSizes));
         assertThat(currentVersionCopy.getNodeCacheUsage(), equalTo(nodeCacheUsage));
 
-        final var preCacheUsageVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.CACHE_USAGE_IN_CLUSTER_INFO);
+        final var preCacheUsageVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.CACHE_METADATA_IN_CLUSTER_INFO);
         final var preCacheUsageCopy = copyInstance(clusterInfo, preCacheUsageVersion);
         assertThat(preCacheUsageCopy.getShardCacheSizes(), equalTo(Map.of()));
         assertThat(preCacheUsageCopy.getNodeCacheUsage(), equalTo(Map.of()));

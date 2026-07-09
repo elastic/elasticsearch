@@ -158,20 +158,6 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         leafIteratorExhausted = leafDocIdIteratorDoc == DocIdSetIterator.NO_MORE_DOCS;
     }
 
-    private static int lowerBound(int[] values, int from, int to, int target) {
-        int low = from;
-        int high = to;
-        while (low < high) {
-            int mid = (low + high) >>> 1;
-            if (values[mid] < target) {
-                low = mid + 1;
-            } else {
-                high = mid;
-            }
-        }
-        return low;
-    }
-
     @Override
     public SortedNumericDoubleValues getLeaf(LeafReaderContext context) {
         LeafNumericFieldData numericFieldData = (LeafNumericFieldData) fieldData.load(context);

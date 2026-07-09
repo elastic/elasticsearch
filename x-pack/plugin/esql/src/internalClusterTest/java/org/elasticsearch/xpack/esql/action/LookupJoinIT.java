@@ -101,12 +101,12 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(TestEncryptionServicePlugin.class);
         plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
         plugins.add(MapperExtrasPlugin.class);
         plugins.add(LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
         plugins.add(ReindexPlugin.class);
-        plugins.add(TestEncryptionServicePlugin.class);
         return plugins;
     }
 

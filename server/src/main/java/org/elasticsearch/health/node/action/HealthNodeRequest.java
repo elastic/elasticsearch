@@ -9,7 +9,7 @@
 
 package org.elasticsearch.health.node.action;
 
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -21,7 +21,7 @@ import java.util.Map;
 /**
  * This is a base class for all the requests that will be sent to the health node.
  */
-public abstract class HealthNodeRequest extends LegacyActionRequest {
+public abstract class HealthNodeRequest extends UntypedActionRequest {
 
     public HealthNodeRequest() {}
 

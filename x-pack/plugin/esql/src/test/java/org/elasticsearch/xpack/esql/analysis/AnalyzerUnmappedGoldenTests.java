@@ -863,7 +863,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | KEEP message
             """;
-        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
         runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
@@ -872,7 +873,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | EVAL x = message :: LONG
             """;
-        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
         runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
@@ -881,7 +883,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | KEEP event_duration
             """;
-        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
         runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
@@ -907,7 +910,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | WHERE message::keyword LIKE "Connected*"
             | KEEP message
             """;
-        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
         runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
@@ -918,7 +922,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         String query = """
             FROM sample_data, no_mapping_sample_data
             """;
-        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
         runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
@@ -929,7 +934,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | KEEP *
             """;
-        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
         runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
@@ -938,7 +944,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | KEEP @timestamp, event_duration
             """;
-        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
         runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
@@ -1043,7 +1050,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | DROP message
             """;
-        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
         runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
@@ -1053,7 +1061,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | DROP event_duration
             """;
-        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
         runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
@@ -1063,7 +1072,8 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | DROP *_ip, *_duration, @timestamp
             """;
-        runTests(query, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
         runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 

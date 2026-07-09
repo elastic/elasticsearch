@@ -40,7 +40,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.logging.LogManager;
@@ -64,12 +63,11 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
 import static org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias.has6DigitSuffix;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Rollover the various .ml-anomalies result indices updating the read and write aliases.

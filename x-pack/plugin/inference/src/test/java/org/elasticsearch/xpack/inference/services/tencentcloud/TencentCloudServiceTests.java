@@ -220,12 +220,9 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
                 TIMEOUT,
                 listener
             );
-            InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT))
-                .hasFinishedStream()
-                .hasNoErrors()
-                .hasEvent("""
-                    {"id":"12345","choices":[{"delta":{"content":"hello","role":"assistant"},"index":0}],""" + """
-                    "model":"deepseek-v3","object":"chat.completion.chunk"}""");
+            InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream().hasNoErrors().hasEvent("""
+                {"id":"12345","choices":[{"delta":{"content":"hello","role":"assistant"},"index":0}],""" + """
+                "model":"deepseek-v3","object":"chat.completion.chunk"}""");
         }
     }
 
@@ -256,7 +253,10 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
                 ElasticsearchStatusException.class,
                 () -> service.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
             );
-            assertThat(e.getMessage(), is(format("The [%s] service does not support task type [%s]", "tencentcloud", TaskType.SPARSE_EMBEDDING)));
+            assertThat(
+                e.getMessage(),
+                is(format("The [%s] service does not support task type [%s]", "tencentcloud", TaskType.SPARSE_EMBEDDING))
+            );
         }
     }
 

@@ -23,7 +23,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<TencentCloudEmbeddingsServiceSettings> {
+public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
+    TencentCloudEmbeddingsServiceSettings> {
 
     private static final String TEST_MODEL_ID = "bge-m3";
     private static final int TEST_DIMENSIONS = 1024;
@@ -105,10 +106,7 @@ public class TencentCloudEmbeddingsServiceSettingsTests extends AbstractBWCWireS
         var maxInputTokens = instance.maxInputTokens();
 
         switch (between(0, 3)) {
-            case 0 -> commonSettings = randomValueOtherThan(
-                commonSettings,
-                TencentCloudCommonServiceSettingsTests::createRandom
-            );
+            case 0 -> commonSettings = randomValueOtherThan(commonSettings, TencentCloudCommonServiceSettingsTests::createRandom);
             case 1 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(SimilarityMeasure.values()));
             case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomIntBetween(32, 4096));
             case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomIntBetween(16, 8192));

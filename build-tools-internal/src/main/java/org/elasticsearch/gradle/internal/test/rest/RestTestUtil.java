@@ -43,7 +43,10 @@ public class RestTestUtil {
             project.getPlugins().withType(JavaPlugin.class, t -> testTask.mustRunAfter(project.getTasks().named("test")));
             testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
             testTask.setClasspath(sourceSet.getRuntimeClasspath());
-            // Preserve cacheability: plain Test tasks are not @CacheableTask, so opt in explicitly
+            // Preserve cacheability: plain Test tasks are not @CacheableTask, so opt in explicitly.
+            // The explicit cast to TaskOutputs (a public API type) is intentional: it forces the compiler
+            // to resolve cacheIf against the public interface rather than the internal TaskOutputsInternal
+            // returned by AbstractTask.getOutputs(), keeping RestTestUtil free of Gradle internal API deps.
             ((TaskOutputs) testTask.getOutputs()).cacheIf("REST integ test", t -> true);
         });
     }

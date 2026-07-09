@@ -247,6 +247,12 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     }
 
     @Override
+    public Page tryAdvance() {
+        Page raw = delegate.tryAdvance();
+        return raw != null ? inject(raw) : null;
+    }
+
+    @Override
     public SubscribableListener<Void> waitForReady() {
         return delegate.waitForReady();
     }

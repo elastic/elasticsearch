@@ -222,6 +222,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     protected void doStop() {
+        // Best-effort flush of buffered spans, but keep the SDK alive: node shutdown stops all lifecycle components
+        // before closing any of them, so leaving the tracer running until doClose() lets spans emitted during the rest
+        // of the shutdown sequence (e.g. shard relocations draining in IndicesService) still be recorded and exported.
         if (enabled) {
             try {
                 traceSupplier.attemptFlushTraces().join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
@@ -229,6 +232,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 logger.warn("Exception flushing trace supplier", e);
             }
         }
+    }
+
+    @Override
+    protected void doClose() {
         try {
             traceSupplier.close();
         } catch (Exception e) {
@@ -236,9 +243,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
         destroyApmServices();
     }
-
-    @Override
-    protected void doClose() {}
 
     // package-private for tests
     APMServices createApmServices() {

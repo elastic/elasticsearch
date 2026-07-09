@@ -2112,8 +2112,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     public void testCustomizerCanAddAuditEntryField() throws Exception {
-        final String customField = "x_" + randomAlphaOfLength(8);
-        final String customValue = randomAlphaOfLength(8);
+        final String addedField = LoggingAuditTrail.PRINCIPAL_FIELD_NAME;
+        final String addedValue = randomAlphaOfLength(8);
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
             settings,
             clusterService,
@@ -2122,9 +2122,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             new AuditLogCustomizer() {
                 @Override
                 public void enrich(AuditEventContext ctx, AuditEntry entry) {
-                    // the field does not exist yet, so this adds a brand-new field rather than overwriting one
-                    assertThat(entry.get(customField), nullValue());
-                    entry.set(customField, customValue);
+                    assertThat(entry.get(addedField), nullValue());
+                    entry.set(addedField, addedValue);
                 }
             }
         );
@@ -2132,8 +2131,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.anonymousAccessDenied(randomRequestId(), "_action", new MockIndicesRequest(threadContext));
 
         final String logLine = singleLogLine(logger);
-        // the new field is present
-        assertThat(logLine, containsString("\"" + customField + "\":\"" + customValue + "\""));
+        // the newly added field is present
+        assertThat(logLine, containsString("\"" + addedField + "\":\"" + addedValue + "\""));
         // and existing fields set by the builder are left untouched
         assertThat(logLine, containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"_action\""));
     }

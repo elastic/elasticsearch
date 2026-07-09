@@ -125,6 +125,8 @@ public class SharedBlobCacheWarmingService {
     public static final String SEARCH_RECOVERY_WAIT_DURATION_METRIC =
         "es.blob_cache_warming.search_recovery.wait_for_resume_duration.histogram";
     public static final String SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY = "es_search_recovery_wait_outcome";
+    public static final String BLOB_CACHE_WARMING_DURATION_METRIC = "es.blob_cache_warming.duration.histogram";
+    public static final String WARMING_TYPE_ATTRIBUTE_KEY = "warming_type";
 
     /**
      * Why {@link #warmCacheForSearchShardRecovery} stopped waiting and resumed recovery, recorded as an attribute on
@@ -377,6 +379,7 @@ public class SharedBlobCacheWarmingService {
     private final LongCounter idLookupPrewarmReqsTotalMetric;
     private final DoubleHistogram searchRecoveryWarmDurationMetric;
     private final DoubleHistogram searchRecoveryWaitDurationMetric;
+    private final DoubleHistogram warmingDurationMetric;
     private final long prewarmingRangeMinimizationStep;
     private volatile boolean prefetchCommitsForSearchShardRecovery;
     // just to make sure that the initial settings update to the default value is logged
@@ -444,6 +447,12 @@ public class SharedBlobCacheWarmingService {
             .registerDoubleHistogram(
                 SEARCH_RECOVERY_WAIT_DURATION_METRIC,
                 "Time search shard recovery waited for blob cache warming before resuming",
+                "s"
+            );
+        this.warmingDurationMetric = telemetryProvider.getMeterRegistry()
+            .registerDoubleHistogram(
+                BLOB_CACHE_WARMING_DURATION_METRIC,
+                "Time taken for a blob cache warming operation to complete, broken down by [" + WARMING_TYPE_ATTRIBUTE_KEY + "]",
                 "s"
             );
         this.prewarmingRangeMinimizationStep = clusterSettings.get(PREWARMING_RANGE_MINIMIZATION_STEP).getBytes();
@@ -1193,6 +1202,7 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
+            warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "header/footer"));
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "header/footer warming {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} skipped tasks, {} bytes)",
@@ -1433,6 +1443,7 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
+            warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "merge"));
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "merge warming {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
@@ -1477,6 +1488,7 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
+            warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "offline"));
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "offline warming {} {} warming {} completed in {} ms ({}, {} tasks, {} bytes copied to cache)",
@@ -1525,6 +1537,7 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
+            warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "region 0 pre-warm"));
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "{} {} pre-warming region 0 of {} blobs completed in {} ms ({} bytes copied to cache)",

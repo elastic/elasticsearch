@@ -914,8 +914,7 @@ public class MoreLikeThisQueryBuilder extends LeafQueryBuilder<MoreLikeThisQuery
         } else {
             for (String field : fields) {
                 MappedFieldType fieldType = context.getFieldType(field);
-                if (fieldType != null
-                    && (fieldType instanceof TextFieldType || fieldType instanceof KeywordFieldType) == false) {
+                if (fieldType != null && (fieldType instanceof TextFieldType || fieldType instanceof KeywordFieldType) == false) {
                     if (failOnUnsupportedField) {
                         throw new IllegalArgumentException("more_like_this only supports text/keyword fields: [" + field + "]");
                     } else {

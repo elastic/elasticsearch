@@ -42,7 +42,17 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     @Before
     public void setup() {
-        scriptEngine = new PainlessScriptEngine(scriptEngineSettings(), scriptContexts());
+        scriptEngine = buildScriptEngine();
+    }
+
+    /**
+     * Builds the shared engine cached in {@link #scriptEngine} for use by {@link #exec}. The default builds one engine from
+     * {@link #scriptEngineSettings()} and {@link #scriptContexts()}, which suits the vast majority of subclasses. Override to
+     * return {@code null} when a subclass builds its own engines per test instead (e.g. to vary settings between tests) and so
+     * has no use for a shared one; {@link #exec} is then unavailable.
+     */
+    protected PainlessScriptEngine buildScriptEngine() {
+        return new PainlessScriptEngine(scriptEngineSettings(), scriptContexts());
     }
 
     /**

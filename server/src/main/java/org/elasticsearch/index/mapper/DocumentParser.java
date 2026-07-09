@@ -172,6 +172,11 @@ public final class DocumentParser {
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }
+            // Required-field enforcement is per Lucene document, not per _source document. This is done in order to accommodate nested
+            // objects. A nested object yields one Lucene doc per array element, each enforced at its own close (see parseObjectOrNested)
+            // against a fresh per-doc tally. A non-nested mapping yields exactly one Lucene doc, so the root check here covers it; the
+            // empty-doc ({}) short-circuit above still reaches this call.
+            context.enforceRequiredFields();
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
         }
@@ -244,7 +249,7 @@ public final class DocumentParser {
     }
 
     private static Mapper.SourceKeepMode getSourceKeepMode(DocumentParserContext context, Optional<Mapper.SourceKeepMode> mapperMode) {
-        return mapperMode.orElseGet(context::sourceKeepModeFromIndexSettings);
+        return mapperMode.isPresent() ? mapperMode.get() : context.sourceKeepModeFromIndexSettings();
     }
 
     private static void throwNotAtEnd(XContentParser.Token token) {
@@ -296,6 +301,14 @@ public final class DocumentParser {
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {
+        parseObjectOrNested(context, null);
+    }
+
+    /**
+     * Parse an object from the current token, prepending {@code flatParentName + "."} to every
+     * immediate child field name. Pass {@code null} when no prefix is needed.
+     */
+    private static void parseObjectOrNested(DocumentParserContext context, String flatParentName) throws IOException {
         XContentParser parser = context.parser();
         String currentFieldName = parser.currentName();
         if (context.parent().isEnabled() == false) {
@@ -354,10 +367,12 @@ public final class DocumentParser {
             parser.nextToken();
         }
 
-        innerParseObject(context);
+        innerParseObject(context, flatParentName == null ? null : flatParentName.concat("."));
         // restore the enable path flag
         if (context.parent().isNested()) {
             copyNestedFields(context, (NestedObjectMapper) context.parent());
+            // This nested instance is its own Lucene doc: enforce its required fields here, against its own per-doc tally and nested scope.
+            context.enforceRequiredFields();
         }
     }
 
@@ -372,8 +387,8 @@ public final class DocumentParser {
         );
     }
 
-    private static void innerParseObject(DocumentParserContext context) throws IOException {
-
+    private static void innerParseObject(DocumentParserContext context, String flatPrefix) throws IOException {
+        assert flatPrefix == null || flatPrefix.length() > 1 && flatPrefix.endsWith(".");
         final XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
@@ -384,7 +399,7 @@ public final class DocumentParser {
             }
             switch (token) {
                 case FIELD_NAME:
-                    currentFieldName = parser.currentName();
+                    currentFieldName = flatPrefix != null ? flatPrefix.concat(parser.currentName()) : parser.currentName();
                     if (currentFieldName.isEmpty()) {
                         throw new IllegalArgumentException("Field name cannot be an empty string");
                     }
@@ -474,10 +489,9 @@ public final class DocumentParser {
             parseObjectOrNested(context.createChildContext(objectMapper));
         } else if (mapper instanceof FieldMapper fieldMapper) {
             if (shouldFlattenObject(context, fieldMapper)) {
-                // we pass the mapper's simpleName as parentName to the new DocumentParserContext
                 String currentFieldName = fieldMapper.leafName();
                 context.path().remove();
-                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                parseObjectOrNested(context, currentFieldName);
                 context.path().add(currentFieldName);
             } else {
                 var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
@@ -553,7 +567,7 @@ public final class DocumentParser {
             final ObjectMapper parent = context.parent();
             boolean subobjectsDisabled = parent.subobjects() == ObjectMapper.Subobjects.DISABLED;
             if (subobjectsDisabled && parent.hasMappedFieldsWithPrefix(currentFieldName)) {
-                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                parseObjectOrNested(context, currentFieldName);
             } else {
                 parseObjectDynamic(context, currentFieldName);
             }
@@ -578,8 +592,7 @@ public final class DocumentParser {
         // For [subobjects:false], intermediate objects get flattened so we can't skip parsing children.
         if (dynamic == ObjectMapper.Dynamic.FALSE && context.parent().subobjects() != ObjectMapper.Subobjects.DISABLED) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
-            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
+            if (context.canAddIgnoredField()) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -623,10 +636,9 @@ public final class DocumentParser {
                     );
                 }
                 if (dynamicObjectBuilder == null || dynamicObjectBuilder instanceof ObjectMapper.Builder) {
-                    // We have an ObjectMapper builder (or a RUNTIME no-op) but subobjects are disallowed
-                    // therefore we create a new DocumentParserContext that
-                    // prepends currentFieldName to any immediate children.
-                    parseObjectOrNested(context.createFlattenContext(currentFieldName));
+                    // We have an ObjectMapper builder (or a RUNTIME no-op) but subobjects are disallowed;
+                    // parse children with currentFieldName prepended to their field names.
+                    parseObjectOrNested(context, currentFieldName);
                     return;
                 }
 
@@ -684,8 +696,7 @@ public final class DocumentParser {
         ObjectMapper.Dynamic dynamic = context.resolveDynamic(currentFieldName);
         ensureNotStrict(dynamic, context, currentFieldName);
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
-            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
-            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
+            if (context.canAddIgnoredField()) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -935,8 +946,7 @@ public final class DocumentParser {
         ensureNotStrict(dynamic, context, currentFieldName);
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
-            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
+            if (context.canAddIgnoredField()) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -1000,7 +1010,7 @@ public final class DocumentParser {
             }
             assert targetDoc != null;
             final DocumentParserContext copyToContext = context.createCopyToContext(field, targetDoc);
-            innerParseObject(copyToContext);
+            innerParseObject(copyToContext, null);
             context.markFieldAsCopyTo(field);
         }
     }
@@ -1184,7 +1194,7 @@ public final class DocumentParser {
             IndexSettings indexSettings = mappingParserContext.getIndexSettings();
             BytesRef tsid = source.tsid();
             if (tsid == null
-                && indexSettings.getMode() == IndexMode.TIME_SERIES
+                && indexSettings.getMode().isTsdb()
                 && indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions) {
                 // the tsid is normally set on the coordinating node during shard routing and passed to the data node via the index request
                 // but when applying a translog operation, shard routing is not happening, and we have to create the tsid from source
@@ -1193,8 +1203,7 @@ public final class DocumentParser {
                 tsid = forIndexDimensions.buildTsid(sourceObject.xContentType(), sourceObject.originalBytes());
             }
             this.tsid = tsid;
-            assert this.tsid == null || indexSettings.getMode() == IndexMode.TIME_SERIES
-                : "tsid should only be set for time series indices";
+            assert this.tsid == null || indexSettings.getMode().isTsdb() : "tsid should only be set for time series indices";
             XContentParserDecorator parserDecorator = source.getMeteringParserDecorator();
             Mapping mapping = mappingLookup.getMapping();
             if (mapping.getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {

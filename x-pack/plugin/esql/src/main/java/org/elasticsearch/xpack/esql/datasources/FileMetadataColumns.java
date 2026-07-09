@@ -31,6 +31,15 @@ public final class FileMetadataColumns {
     public static final String DIRECTORY = "_file.directory";
     public static final String SIZE = "_file.size";
     public static final String MODIFIED = "_file.modified";
+    /**
+     * Opaque, stable, per-record reference. Unlike the other {@code _file.*} columns (per-file
+     * constants via {@link #extractValues}), this one varies per record and is sourced from the
+     * reader's row-position channel
+     * ({@link org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor#ROW_POSITION_COLUMN}).
+     * Shape is format-defined and opaque to consumers — equality is the only defined relation,
+     * independent of split layout. Deliberately excluded from {@link #extractValues}.
+     */
+    public static final String RECORD_REF = "_file.record_ref";
 
     public static final Map<String, DataType> COLUMNS;
 
@@ -41,6 +50,7 @@ public final class FileMetadataColumns {
         map.put(DIRECTORY, DataType.KEYWORD);
         map.put(SIZE, DataType.LONG);
         map.put(MODIFIED, DataType.DATETIME);
+        map.put(RECORD_REF, DataType.LONG);
         COLUMNS = Collections.unmodifiableMap(map);
     }
 

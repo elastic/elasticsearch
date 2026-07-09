@@ -3412,7 +3412,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3424,7 +3424,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3449,7 +3449,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3464,7 +3464,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false, true),
                 false,
                 IndexResolver.DO_NOT_GROUP
             );
@@ -3945,6 +3945,35 @@ public class AnalyzerTests extends ESTestCase {
                 containsString(
                     "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
                         + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
+    }
+
+    /**
+     * TO_TEXT only accepts {@code keyword}/{@code text} inputs (see {@code ToText#EVALUATORS}). When
+     * a union-typed field has a leg outside that set (here {@code ip} vs {@code keyword}), the
+     * conversion function can't resolve every leg, so the field falls through to the generic
+     * ambiguous-type-conflict error rather than being implicitly converted. This pins that
+     * "forbid for now" boundary so intentionally widening TO_TEXT's accepted union legs is a
+     * deliberate, test-breaking change. See union_types.csv-spec#multiIndexIpToTextWithExplicitCast
+     * for the supported workaround (an explicit inner cast to a type TO_TEXT does accept).
+     */
+    public void testToTextOnNonStringUnionTypeFails() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "ip")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "keyword"))
+            ),
+            List.of()
+        );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
+        analyzer().addIndex(resolution)
+            .error(
+                "FROM foo, bar | EVAL x = TO_TEXT(value)",
+                equalTo(
+                    "Found 1 problem\n"
+                        + "line 1:34: Cannot use field [value] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[ip] in [foo], [keyword] in [bar]"
                 )
             );
     }
@@ -5514,7 +5543,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps, boolean hasTimeSeriesAggregation) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation);
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation, true);
     }
 
     private static TestAnalyzer basic() {

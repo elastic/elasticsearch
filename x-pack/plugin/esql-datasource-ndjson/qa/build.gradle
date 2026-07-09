@@ -5,7 +5,10 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -119,3 +122,39 @@ tasks.named('javaRestTest') {
     showStandardStreams = false
   }
 }
+
+// The csvSpecTest source set (created by the plugin above) hosts NdJsonFormatSpecIT and
+// NdJsonCompressedFormatSpecIT plus their shared abstract base. Keeping them out of
+// javaRestTest prevents tests in that JVM fork from poisoning the JVM-global INGEST guard.
+// No variants are declared — the IT classes are hand-written in src/csvSpecTest/java/ because
+// the generator hardcodes a 6-parameter constructor and these tests need 7+ (StorageBackend,
+// format).
+esqlCsvSpecTests {
+  specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
+  packageName = 'org.elasticsearch.xpack.esql.qa.ndjson'
+}
+
+// Provide the generated NDJSON fixtures as test resources for the csvSpecTest source set,
+// mirroring the javaRestTest resource wiring above.
+sourceSets.csvSpecTest.resources.srcDir ndjsonFixtureOutputRoot
+tasks.named('processCsvSpecTestResources').configure {
+  dependsOn 'generateStandaloneNdjsonFixtures'
+}
+
+// Runs the two csv-spec ITs (NdJsonFormatSpecIT, NdJsonCompressedFormatSpecIT) in their own
+// JVM, separate from javaRestTest. Both extend AbstractNdJsonExternalSpecTestCase, which
+// declares the shared ElasticsearchCluster at the abstract-class level — INGEST fires exactly
+// once for the entire suite.
+def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+  dependsOn 'generateStandaloneNdjsonFixtures'
+  dependsOn generateEsqlSpecTests
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+}
+
+tasks.named('check').configure { dependsOn csvSpecTests }

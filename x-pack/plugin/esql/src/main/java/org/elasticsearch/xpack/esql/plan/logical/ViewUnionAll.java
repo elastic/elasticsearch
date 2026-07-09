@@ -11,11 +11,11 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.SequencedSet;
 import java.util.function.Predicate;
 
 /**
@@ -58,13 +58,18 @@ public class ViewUnionAll extends UnionAll {
     }
 
     private LinkedHashMap<String, LogicalPlan> asSubqueryMap(List<LogicalPlan> children) {
-        SequencedSet<String> names = namedSubqueries.sequencedKeySet();
-        assert children.size() == names.size()
-            : "ViewUnionAll.replaceChildren expects a 1:1 positional replacement; use pruneEmptyBranches"
-                + " to drop branches and preserve the named-subqueries invariant.";
+        if (children.size() != namedSubqueries.size()) {
+            throw new IllegalArgumentException(
+                "ViewUnionAll.replaceChildren expects a 1:1 positional replacement; use pruneEmptyBranches"
+                    + " to drop branches and preserve the named-subqueries invariant."
+            );
+        }
+        // Read-only iterator: unlike sequencedKeySet(), calling next() here does not remove
+        // entries from (and therefore does not corrupt) this instance's own namedSubqueries.
+        Iterator<String> names = namedSubqueries.keySet().iterator();
         LinkedHashMap<String, LogicalPlan> newSubqueries = new LinkedHashMap<>();
         for (LogicalPlan child : children) {
-            newSubqueries.put(names.removeFirst(), child);
+            newSubqueries.put(names.next(), child);
         }
         return newSubqueries;
     }

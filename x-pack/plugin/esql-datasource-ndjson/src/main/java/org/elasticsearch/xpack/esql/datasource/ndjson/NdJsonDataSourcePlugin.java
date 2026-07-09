@@ -32,7 +32,7 @@ public class NdJsonDataSourcePlugin extends Plugin implements DataSourcePlugin {
      * Must stay in sync with {@code NdJsonFormatReader.RECOGNIZED_KEYS}; verified
      * by {@code NdJsonFormatReaderRecognizedKeysTests.testFormatSpecConfigKeysMatchRecognizedKeys}.
      */
-    static final Set<String> FORMAT_CONFIG_KEYS = Set.of("schema_sample_size", "segment_size");
+    static final Set<String> FORMAT_CONFIG_KEYS = Set.of("schema_sample_size", "segment_size", "datetime_format");
 
     @Override
     public Set<FormatSpec> formatSpecs() {

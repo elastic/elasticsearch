@@ -15,13 +15,17 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.AfterClass;
 import org.junit.AssumptionViolatedException;
@@ -30,6 +34,8 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -45,10 +51,13 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.FlattenedJunkConfig;
 
 /**
  * Integration test that runs the {@link CsvIT} csv-spec corpus against indices where every field
@@ -217,22 +226,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         indexLoadStrategy = new KeywordToFlattenedStrategy();
     }
 
-    /**
-     * Logs a single human-readable summary of how the {@code field_extract()} variant routed
-     * the tests in this JVM: how many were launched (and therefore exercised the rewriter
-     * end-to-end), how many were short-circuited because the query had nothing for the
-     * rewriter to wrap, how many were short-circuited because the only keyword references
-     * were inside {@code LOOKUP JOIN ... ON ...} clauses, and how many were silenced as known
-     * limitations. The silenced count is broken out per {@code skip_flattened_rewrite:} reason so
-     * a reason-by-reason tally is visible in the same place &mdash; useful both as a smoke
-     * check after a fix lands and as the baseline reading when un-silencing a reason locally
-     * by removing the directive from the relevant csv-spec entries.
-     * <p>
-     * The summary line is emitted at {@code INFO} so it lands in the standard internal-cluster
-     * test JVM stdout and the JUnit XML {@code <system-out>}; the line begins with the literal
-     * {@code keyword→flattened summary:} prefix so it can be grepped out of a long Gradle log
-     * without any additional filter.
-     */
     @AfterClass
     public static void logKeywordToFlattenedSummary() {
         int silenced = 0;
@@ -327,6 +320,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         private final Map<String, Set<String>> protectedKeywordPathsByDatasetIndexName;
         private final Map<String, Set<String>> keywordPathsByDatasetIndexName;
         private final Map<String, Set<String>> nonKeywordPathsByDatasetIndexName;
+        private final Map<String, FlattenedJunkConfig> junkConfigByDatasetIndexName;
 
         KeywordToFlattenedStrategy() {
             EnrichExclusionResult enrichResult = computeEnrichMatchFieldExclusions();
@@ -336,6 +330,16 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             DatasetPathsResult datasetPaths = computeDatasetPaths(protectedKeywordPathsByDatasetIndexName);
             this.keywordPathsByDatasetIndexName = datasetPaths.keywordPathsByDatasetIndexName();
             this.nonKeywordPathsByDatasetIndexName = datasetPaths.nonKeywordPathsByDatasetIndexName();
+
+            // Compute per-dataset junk configuration: flip one coin per dataset.
+            // selectJunkFields already returns EMPTY for an empty input set, and
+            // datasets without a mapping file have no converted paths so they also get EMPTY.
+            Map<String, FlattenedJunkConfig> junkMap = new HashMap<>();
+            for (CsvTestsDataLoader.TestDataset dataset : CsvTestsDataLoader.CSV_DATASET.values()) {
+                Set<String> kw = this.keywordPathsByDatasetIndexName.getOrDefault(dataset.indexName(), Set.of());
+                junkMap.put(dataset.indexName(), FlattenedJunkConfig.selectJunkFields(kw));
+            }
+            this.junkConfigByDatasetIndexName = Map.copyOf(junkMap);
 
             // Emit one INFO line for every keyword field that this variant will
             // intentionally never convert. The user can grep for "skip-convert" to inventory the
@@ -350,6 +354,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             logEnrichMatchFieldExclusions(enrichResult.exclusions());
             logLookupJoinFieldExclusions(lookupResult.exclusions());
             logMappingDenylistHits(datasetPaths.skippedFieldsByDataset());
+            logJunkConfig(this.junkConfigByDatasetIndexName);
         }
 
         /**
@@ -586,10 +591,10 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * propagating the unchecked exceptions out of here is acceptable because the strategy
          * cannot operate without knowing which fields participate in any {@code LOOKUP JOIN}.
          */
-        private static List<CsvSpecReader.CsvTestCase> loadAllCsvSpecTestCases() {
+        static List<CsvSpecReader.CsvTestCase> loadAllCsvSpecTestCases() {
             try {
                 List<URL> urls = classpathResources("/*.csv-spec");
-                List<Object[]> rows = SpecReader.readScriptSpec(urls, specParser());
+                List<Object[]> rows = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
                 List<CsvSpecReader.CsvTestCase> cases = new ArrayList<>(rows.size());
                 for (Object[] row : rows) {
                     if (row[4] instanceof CsvSpecReader.CsvTestCase tc) {
@@ -669,11 +674,13 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         @Override
         public String transformDocument(CsvTestsDataLoader.TestDataset dataset, String originalDocumentJson) throws IOException {
             Set<String> paths = keywordPathsByDatasetIndexName.getOrDefault(dataset.indexName(), Set.of());
-            return KeywordToFlattenedTransformer.wrapKeywordValuesAsFlattened(originalDocumentJson, paths);
+            FlattenedJunkConfig junk = junkConfigByDatasetIndexName.get(dataset.indexName());
+            assert junk != null : "no junk config for dataset: " + dataset.indexName();
+            return KeywordToFlattenedTransformer.wrapKeywordValuesAsFlattened(originalDocumentJson, paths, junk);
         }
 
         @Override
-        public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
+        public IndexLoadStrategy.TransformedQuery transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
             // Tests requiring ts_info_command or metrics_info_command expose TSDB dimension names
             // directly in query output (e.g. _timeseries, _tsid). After the keyword→flattened
             // rewrite those names change from "cluster" to "cluster.v", so the expected results
@@ -721,6 +728,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 // Logged at INFO so the launched/skipped split is visible in the test JVM stdout, alongside the
                 // assumption-violation message that surfaces in the JUnit XML <skipped> element.
                 logger.info("keyword→flattened: skipping; no keyword field references in query");
+                // TODO this should probably not skip the test - just not build a test at all
                 throw new StacklessAssumptionViolatedException("skipping: no keyword fields");
             }
             // Even when the query was modified (typically by tail-end EVAL/KEEP recovery
@@ -854,7 +862,9 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             if (Booleans.parseBoolean(System.getProperty(LOG_REWRITTEN_QUERIES_PROPERTY, "false"))) {
                 logger.info("keyword→flattened: rewritten query:\n{}", result.rewrittenQuery());
             }
-            return result.rewrittenQuery();
+
+            Settings extraPragmas = Settings.EMPTY;
+            return new IndexLoadStrategy.TransformedQuery(result.rewrittenQuery(), extraPragmas);
         }
 
         /**
@@ -1062,6 +1072,22 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         /**
+         * Emits one INFO line per dataset listing which fields (if any) will have junk keys
+         * injected into their wrapped flattened objects. An empty junk-fields list means the
+         * coin came up tails for that dataset and no junk is injected.
+         */
+        private static void logJunkConfig(Map<String, FlattenedJunkConfig> junkConfigByDatasetIndexName) {
+            List<String> datasets = new ArrayList<>(junkConfigByDatasetIndexName.keySet());
+            datasets.sort(Comparator.naturalOrder());
+            for (String dataset : datasets) {
+                FlattenedJunkConfig cfg = junkConfigByDatasetIndexName.get(dataset);
+                List<String> fields = new ArrayList<>(cfg.junkFields());
+                fields.sort(Comparator.naturalOrder());
+                logger.info("keyword\u2192flattened: junk-config; dataset={}; junk-fields={}", dataset, fields);
+            }
+        }
+
+        /**
          * Emits one INFO line per keyword field declaration that
          * {@link KeywordToFlattenedTransformer} left untouched because the field declared a
          * {@link KeywordToFlattenedTransformer#PARAMS_INCOMPATIBLE_WITH_FLATTENED}
@@ -1114,7 +1140,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * whose expected column order matters will then surface a column-order failure rather
          * than silently changing behavior.
          */
-        private static List<String> parseExpectedColumnOrder(String expectedResults) {
+        static List<String> parseExpectedColumnOrder(String expectedResults) {
             if (expectedResults == null || expectedResults.isBlank()) {
                 return List.of();
             }
@@ -1183,7 +1209,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * The opposite direction (under-scoping) only loses an opportunity to exercise
          * {@code field_extract} on a particular field for that one query, which is preferable.
          */
-        private Set<String> resolveKeywordPathsForQuery(String query) {
+        Set<String> resolveKeywordPathsForQuery(String query) {
             Set<CsvTestsDataLoader.TestDataset> datasets = EsqlQueryDatasetResolver.resolveDatasetsForQuery(
                 query,
                 CsvTestsDataLoader.CSV_DATASET
@@ -1277,5 +1303,230 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 // (single, identical) seed frame to the otherwise empty trace.
             }
         }
+    }
+
+    public static final java.util.List<String> EXPECTED_ERRORS = java.util.List.of(
+        "ABSENT_OVER_TIME:field is missing",
+        "BUCKET:from is missing",
+        "BUCKET:to is missing",
+        "CIDR_MATCH:blockX is missing",
+        "CLAMP:field is missing",
+        "CLAMP:max is missing",
+        "CLAMP:min is missing",
+        "CLAMP_MAX:field is missing",
+        "CLAMP_MAX:max is missing",
+        "CLAMP_MIN:field is missing",
+        "CLAMP_MIN:min is missing",
+        "COUNT_DISTINCT_OVER_TIME:field is missing",
+        "COUNT_OVER_TIME:field is missing",
+        "DATE_DIFF:unit is missing",
+        "DECAY:scale is missing",
+        "EMBEDDING:value is missing",
+        "FIELD_EXTRACT:path is missing",
+        "FIRST_OVER_TIME:field is missing",
+        "FROM_BASE64:string is missing",
+        "GREATER_THAN:rhs is missing",
+        "GREATER_THAN_OR_EQUAL:rhs is missing",
+        "GREATEST:first is missing",
+        "GREATEST:rest is missing",
+        "HASH:algorithm is missing",
+        "IN:field is missing",
+        "JSON_EXTRACT:string is missing",
+        "KNN:field is missing",
+        "KQL:query is missing",
+        "LAST_OVER_TIME:field is missing",
+        "LEAST:first is missing",
+        "LEAST:rest is missing",
+        "LESS_THAN:rhs is missing",
+        "LESS_THAN_OR_EQUAL:rhs is missing",
+        "LIKE:pattern is missing",
+        "MATCH:query is missing",
+        "MATCH_OPERATOR:field is missing",
+        "MATCH_OPERATOR:query is missing",
+        "MATCH_PHRASE:query is missing",
+        "MAX_OVER_TIME:field is missing",
+        "MIN_OVER_TIME:field is missing",
+        // MV_SORT's order argument must be foldable (MvSort#resolveType calls Validations.isFoldable
+        // on it), so a field_extract(...) call there is rejected by the verifier regardless of
+        // flattened rewriting; no csv-spec entry can exercise this slot with a field reference.
+        "MV_SORT:order is missing",
+        "NETWORK_DIRECTION:internal_networks is missing",
+        "NOT_EQUALS:lhs is missing",
+        "NOT_EQUALS:rhs is missing",
+        "NOT_IN:field is missing",
+        "NOT_IN:inlist is missing",
+        "NOT_LIKE:pattern is missing",
+        "NOT_LIKE:str is missing",
+        "NOT_RLIKE:pattern is missing",
+        "NOT_RLIKE:str is missing",
+        "PRESENT_OVER_TIME:field is missing",
+        "QSTR:query is missing",
+        "RLIKE:pattern is missing",
+        "SPARKLINE:from is missing",
+        "SPARKLINE:to is missing",
+        "TBUCKET:from is missing", // THESE are constant and https://github.com/elastic/elasticsearch/pull/151930 should let us skip it
+        "TBUCKET:to is missing",
+        "TEXT_EMBEDDING:text is missing",
+        "TOP:order is missing",
+        "TOP_SNIPPETS:query is missing",
+        "TO_CARTESIANPOINT:field is missing",
+        "TO_CARTESIANSHAPE:field is missing",
+        "TO_DATEPERIOD:field is missing",
+        "TO_DATETIME:field is missing",
+        "TO_DATE_NANOS:field is missing",
+        "TO_DATE_RANGE:field is missing",
+        "TO_DENSE_VECTOR:field is missing",
+        "TO_DOUBLE:field is missing",
+        "TO_GEOHASH:field is missing",
+        "TO_GEOHEX:field is missing",
+        "TO_GEOSHAPE:field is missing",
+        "TO_GEOTILE:field is missing",
+        "TO_TIMEDURATION:field is missing",
+        "TO_UNSIGNED_LONG:field is missing",
+        "TO_VERSION:field is missing",
+        "TRANGE:end_time is missing",
+        "TRANGE:start_time_or_offset is missing",
+        "TSTEP:from is missing",
+        "TSTEP:to is missing",
+        "WITHOUT:dimension is missing"
+    );
+
+    @AfterClass
+    @SuppressWarnings("unchecked")
+    public static void verifyFieldExtractCoverage() throws Exception {
+        if (org.elasticsearch.Build.current().isSnapshot() == false) {
+            return;
+        }
+
+        String kibanaDirProp = System.getProperty("esql.kibana.docs.dir");
+        if (kibanaDirProp == null) {
+            throw new IllegalStateException("System property esql.kibana.docs.dir is not set");
+        }
+        Path kibanaDir = PathUtils.get(kibanaDirProp);
+        if (Files.isDirectory(kibanaDir) == false) {
+            throw new IllegalStateException("Could not find docs/reference/query-languages/esql/kibana/generated at " + kibanaDir);
+        }
+
+        KeywordToFlattenedStrategy strategy = (KeywordToFlattenedStrategy) indexLoadStrategy;
+
+        Set<String> coveredArguments = new HashSet<>();
+        for (CsvSpecReader.CsvTestCase testCase : KeywordToFlattenedStrategy.loadAllCsvSpecTestCases()) {
+            coveredArguments.addAll(getCoveredArguments(strategy, testCase));
+        }
+
+        Set<String> candidates = new HashSet<>();
+        Map<String, Set<String>> paramNamesByIndex = new HashMap<>();
+
+        try (Stream<Path> paths = Files.walk(kibanaDir)) {
+            paths.filter(Files::isRegularFile).filter(p -> p.toString().endsWith(".json")).forEach(p -> {
+                try {
+                    try (
+                        XContentParser parser = JsonXContent.jsonXContent.createParser(
+                            NamedXContentRegistry.EMPTY,
+                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                            Files.newInputStream(p)
+                        )
+                    ) {
+                        Map<String, Object> map = parser.map();
+                        String name = (String) map.get("name");
+                        if (name == null) return;
+                        name = name.toUpperCase(Locale.ROOT);
+
+                        List<Map<String, Object>> signatures = (List<Map<String, Object>>) map.get("signatures");
+                        if (signatures == null) return;
+                        for (Map<String, Object> sig : signatures) {
+                            List<Map<String, Object>> params = (List<Map<String, Object>>) sig.get("params");
+                            if (params != null) {
+                                for (int i = 0; i < params.size(); i++) {
+                                    String indexKey = name + ":" + i;
+                                    String paramName = (String) params.get(i).get("name");
+                                    if (paramName != null) {
+                                        paramNamesByIndex.computeIfAbsent(indexKey, k -> new TreeSet<>()).add(paramName);
+                                    }
+
+                                    Map<String, Object> hint = (Map<String, Object>) params.get(i).get("hint");
+                                    if (hint != null) {
+                                        Object kind = hint.get("kind");
+                                        if ("entity".equals(kind) || "aggregation".equals(kind)) {
+                                            continue;
+                                        }
+                                    }
+                                    if (params.get(i).containsKey("mapParams")) {
+                                        continue;
+                                    }
+
+                                    Object typeObj = params.get(i).get("type");
+                                    if (typeObj instanceof String) {
+                                        String t = (String) typeObj;
+                                        if ("keyword".equals(t) || "text".equals(t)) {
+                                            candidates.add(indexKey);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException("Error parsing " + p, e);
+                }
+            });
+        }
+
+        Map<String, String> indexToName = new HashMap<>();
+        for (Map.Entry<String, Set<String>> entry : paramNamesByIndex.entrySet()) {
+            indexToName.put(entry.getKey(), entry.getKey().split(":")[0] + ":" + String.join("|", entry.getValue()));
+        }
+
+        Set<String> mappedCandidates = new HashSet<>();
+        for (String c : candidates) {
+            mappedCandidates.add(indexToName.getOrDefault(c, c));
+        }
+
+        Set<String> mappedCovered = new HashSet<>();
+        for (String c : coveredArguments) {
+            mappedCovered.add(indexToName.getOrDefault(c, c));
+        }
+
+        List<String> errors = new ArrayList<>();
+        for (String candidate : mappedCandidates) {
+            if (mappedCovered.contains(candidate) == false) {
+                errors.add(candidate + " is missing");
+            }
+        }
+        for (String covered : mappedCovered) {
+            if (mappedCandidates.contains(covered) == false) {
+                errors.add(covered + " is unexpected");
+            }
+        }
+        errors.sort(Comparator.naturalOrder());
+
+        assertMap("Missing field_extract coverage for parameters\n", errors, matchesList(EXPECTED_ERRORS));
+    }
+
+    private static Set<String> getCoveredArguments(KeywordToFlattenedStrategy strategy, CsvSpecReader.CsvTestCase testCase) {
+        for (String cap : testCase.requiredCapabilities) {
+            if (cap.equals("ts_info_command") || cap.equals("metrics_info_command")) {
+                return Set.of();
+            }
+        }
+
+        String skipReason = testCase.skipFlattenedRewrite;
+        if (skipReason != null && skipReason.isBlank() == false) {
+            return Set.of();
+        }
+
+        String originalQuery = testCase.query;
+        if (originalQuery == null || originalQuery.isBlank()) {
+            return Set.of();
+        }
+
+        List<String> expectedColumnOrder = KeywordToFlattenedStrategy.parseExpectedColumnOrder(testCase.expectedResults);
+        AstKeywordFieldRewriter.RewriteResult result = AstKeywordFieldRewriter.rewrite(
+            originalQuery,
+            strategy::resolveKeywordPathsForQuery,
+            KeywordToFlattenedTransformer.WRAPPER_SUBKEY,
+            expectedColumnOrder
+        );
+        return result.coveredArguments();
     }
 }

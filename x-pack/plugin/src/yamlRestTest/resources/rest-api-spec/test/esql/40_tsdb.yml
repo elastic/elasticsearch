@@ -986,6 +986,65 @@ PromQL rate on counter field:
   - match: {values.3.1: "2021-04-28T18:52:00.000Z"}
 
 ---
+PromQL with unmapped_fields nullify is unaffected for mapped fields:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2, optional_fields_nullify_tech_preview]
+      reason: "PromQL support with unmapped_fields=nullify"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="nullify"; PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+
+---
+PromQL missing field outside the command fails under nullify:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2, optional_fields_nullify_tech_preview]
+      reason: "PromQL support with unmapped_fields=nullify"
+  # PromQL collapses to an aggregate, so a field after the pipe is not nullified.
+  - do:
+      catch: /Unknown column \[does_not_exist\]/
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="nullify"; PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx[1m]))) | EVAL x = does_not_exist'
+
+---
+PromQL unmapped metric inside the command returns no rows under nullify:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2, promql_unmapped_fields_filter_nulls, optional_fields_nullify_tech_preview]
+      reason: "PromQL support with unmapped_fields=nullify"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="nullify"; PROMQL index=test step=1m r=(sum(does_not_exist))'
+
+  - match: {columns.0.name: "r"}
+  - match: {columns.0.type: "double"}
+  - length: {values: 0}
+
+---
 PromQL irate on counter field:
   - requires:
       test_runner_features: [capabilities]

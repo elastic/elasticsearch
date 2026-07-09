@@ -33,6 +33,7 @@ public class Tanh extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Tanh::new)
         .description("Calculates the hyperbolic tangent of all elements in the input vector.")
         .example("tanh(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("tanh");
 
     @FunctionInfo(

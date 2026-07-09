@@ -51,6 +51,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.ESAcceptDocs.SliceAcceptDocs;
@@ -100,7 +101,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     @Before
     @Override
     public void setUp() throws Exception {
-        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = randomFrom(ESNextDiskBBQVectorsFormat.QuantEncoding.values());
+        QuantEncoding encoding = randomFrom(QuantEncoding.values());
         boolean disableFlatOnFlush = random().nextBoolean();
         if (rarely()) {
             int vectorPerCluster = random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
@@ -562,9 +563,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         String filterValue = "match";
         String filterMiss = "miss";
         String docIdField = "_doc_id";
-        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.values().length
-        )];
+        QuantEncoding encoding = QuantEncoding.values()[random().nextInt(QuantEncoding.values().length)];
         int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER);
         ESNextDiskBBQVectorsFormat localFormat = new ESNextDiskBBQVectorsFormat(
             encoding,

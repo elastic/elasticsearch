@@ -569,6 +569,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         public int getBulkSize() {
             return bulkSize;
         }
+
+        public int numSlices() {
+            return -1;
+        }
     }
 
     /**

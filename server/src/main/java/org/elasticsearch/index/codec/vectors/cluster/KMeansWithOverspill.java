@@ -9,14 +9,13 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
-import org.elasticsearch.index.codec.vectors.diskbbq.SoarAssignments;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.PrimitiveIterator;
 
-public record KMeansWithOverspill<V>(KMeansResult<V> result, @Nullable OverspillAssignments overspill) {
+public record KMeansWithOverspill<V>(KMeansResult<V> result, OverspillAssignments overspill) {
 
     public V[] centroids() {
         return result.centroids();
@@ -24,10 +23,6 @@ public record KMeansWithOverspill<V>(KMeansResult<V> result, @Nullable Overspill
 
     public int[] assignments() {
         return result.assignments();
-    }
-
-    public int[] soarAssignments() {
-        return overspill != null ? ((SoarAssignments) overspill).assignments() : new int[0];
     }
 
     /**
@@ -43,30 +38,109 @@ public record KMeansWithOverspill<V>(KMeansResult<V> result, @Nullable Overspill
             numCentroids += result.centroids().length;
             numAssignments += result.assignments().length;
         }
+
         V[] centroids = ops.newCentroidArrayShallow(numCentroids);
         int[] assignments = new int[numAssignments];
-        int[] spillAssignments = new int[numAssignments];
+        int[] spillAssignmentOffsets = new int[numAssignments];
+        int[] spillCentroidOffsets = new int[numAssignments];
+        OverspillAssignments[] overspills = new OverspillAssignments[numAssignments];
+
         int centroidOffset = 0;
         int assignmentOffset = 0;
+        int spillAssignmentIdx = 0;
         for (KMeansWithOverspill<V> result : results) {
             V[] resultCentroids = result.centroids();
             int[] resultAssignments = result.assignments();
-            int[] resultSoarAssignments = result.soarAssignments();
             ops.arrayCopy(resultCentroids, 0, centroids, centroidOffset, resultCentroids.length);
             for (int i = 0; i < resultAssignments.length; i++) {
                 assignments[assignmentOffset + i] = resultAssignments[i] + centroidOffset;
             }
-            if (resultSoarAssignments.length > 0) {
-                for (int i = 0; i < resultAssignments.length; i++) {
-                    int soarAssignment = resultSoarAssignments[i];
-                    spillAssignments[assignmentOffset + i] = soarAssignment == -1 ? -1 : soarAssignment + centroidOffset;
-                }
-            } else {
-                Arrays.fill(spillAssignments, assignmentOffset, assignmentOffset + resultAssignments.length, -1);
+
+            OverspillAssignments overspill = result.overspill();
+            if (overspill.size() > 0) {
+                spillAssignmentOffsets[spillAssignmentIdx] = assignmentOffset;
+                spillCentroidOffsets[spillAssignmentIdx] = centroidOffset;
+                overspills[spillAssignmentIdx] = overspill;
+                spillAssignmentIdx++;
             }
+
             centroidOffset += resultCentroids.length;
             assignmentOffset += resultAssignments.length;
         }
-        return new KMeansWithOverspill<>(new KMeansResult<>(centroids, assignments), new SoarAssignments(spillAssignments));
+
+        OverspillAssignments overspill = spillAssignmentIdx == 0
+            ? OverspillAssignments.NONE
+            : new MergedOverspillAssignments(
+                numAssignments,
+                Arrays.copyOf(spillAssignmentOffsets, spillAssignmentIdx),
+                Arrays.copyOf(spillCentroidOffsets, spillAssignmentIdx),
+                Arrays.copyOf(overspills, spillAssignmentIdx)
+            );
+
+        return new KMeansWithOverspill<>(new KMeansResult<>(centroids, assignments), overspill);
+    }
+
+    private static class MergedOverspillAssignments implements OverspillAssignments {
+
+        private final int[] assignmentOffsets;
+        private final int[] centroidOffsets;
+        private final OverspillAssignments[] assignments;
+        private final int size;
+
+        private MergedOverspillAssignments(
+            int totalSize,
+            int[] assignmentOffsets,
+            int[] centroidOffsets,
+            OverspillAssignments[] assignments
+        ) {
+            assert assignmentOffsets.length == assignments.length;
+            assert centroidOffsets.length == assignmentOffsets.length;
+
+            this.assignmentOffsets = assignmentOffsets;
+            this.centroidOffsets = centroidOffsets;
+            this.assignments = assignments;
+            this.size = totalSize;
+        }
+
+        @Override
+        public int size() {
+            return size;
+        }
+
+        @Override
+        public PrimitiveIterator.OfInt getAssignmentsFor(int ordinal) {
+            int index = Arrays.binarySearch(assignmentOffsets, ordinal);
+            if (index == -1) {
+                // ordinal is before the first tracked offset — no overspill for this position
+                return EMPTY_ITERATOR;
+            }
+            if (index < 0) {
+                index = -index - 2; // go back one to the offset < ordinal, as that's the assignment containing this ordinal
+            }
+            // if this ordinal is out of range for the indexed assignment, that's ok, it'll just return an empty iterator
+            var iterator = assignments[index].getAssignmentsFor(ordinal - assignmentOffsets[index]);
+            return new MappingIntIterator(iterator, centroidOffsets[index]);
+        }
+    }
+
+    private static class MappingIntIterator implements PrimitiveIterator.OfInt {
+
+        private final PrimitiveIterator.OfInt iterator;
+        private final int resultOffset;
+
+        private MappingIntIterator(OfInt iterator, int resultOffset) {
+            this.iterator = iterator;
+            this.resultOffset = resultOffset;
+        }
+
+        @Override
+        public int nextInt() {
+            return iterator.nextInt() + resultOffset;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return iterator.hasNext();
+        }
     }
 }

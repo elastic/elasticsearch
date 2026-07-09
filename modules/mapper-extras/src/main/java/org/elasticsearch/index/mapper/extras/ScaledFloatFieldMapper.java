@@ -91,7 +91,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         true,
         FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
         true,
-        true
+        true,
+        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
     );
 
     public static class Builder extends FieldMapper.Builder {

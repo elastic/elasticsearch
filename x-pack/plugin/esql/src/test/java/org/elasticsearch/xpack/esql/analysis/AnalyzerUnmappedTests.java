@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -125,26 +126,27 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             """, "Unknown column [does_not_exist_field]");
     }
 
-    public void testFailDropWithNonMatchingStar() {
-        assertUnmappedFailure(test(), """
-            FROM test
-            | DROP does_not_exist_field*
-            """, "No matches found for pattern [does_not_exist_field*]");
-    }
-
-    public void testFailDropWithMatchingAndNonMatchingStar() {
-        assertUnmappedFailure(test(), """
-            FROM test
-            | DROP emp_*, does_not_exist_field*
-            """, "No matches found for pattern [does_not_exist_field*]");
-    }
-
     public void testFailEvalAfterDrop() {
         assertUnmappedFailure(test(), """
             FROM test
             | DROP does_not_exist_field
             | EVAL x = does_not_exist_field + 1
             """, "3:12: Unknown column [does_not_exist_field]");
+    }
+
+    // A DROP wildcard matching an existing but unsupported-typed field (which reports resolved()==false) must still drop it under
+    // nullify/load (so not be mistaken for a non-matching pattern and skipped).
+    public void testDropWildcardMatchingUnsupportedField() {
+        TestAnalyzer analyzer = analyzer().addIndex("test", "mapping-multi-field-variation.json");
+        for (Function<String, String> setUnmapped : List.<Function<String, String>>of(
+            AnalyzerUnmappedTestBase::setUnmappedNullify,
+            AnalyzerUnmappedTestBase::setUnmappedLoad
+        )) {
+            assertThat(
+                Expressions.names(analyzer.statement(setUnmapped.apply("FROM test | DROP unsupp*")).output()),
+                equalTo(Expressions.names(analyzer.statement(setUnmapped.apply("FROM test | DROP unsupported")).output()))
+            );
+        }
     }
 
     public void testFailFilterAfterDrop() {

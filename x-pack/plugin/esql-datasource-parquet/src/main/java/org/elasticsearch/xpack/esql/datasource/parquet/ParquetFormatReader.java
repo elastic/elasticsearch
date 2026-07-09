@@ -101,6 +101,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 /**
  * FormatReader implementation for Parquet files.
@@ -1265,7 +1266,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // own row-group ordering already matches the file footer.
                 null,
                 filter -> openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(filter).build()),
-                resolveErrorPolicy(context.errorPolicy())
+                resolveErrorPolicy(context.errorPolicy()),
+                context.informationalWarningSink()
             );
         } finally {
             // read_nanos covers the synchronous setup phase only; per-page decode/decompress time
@@ -1443,6 +1445,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * in-memory representation — the scan path already applies this same encoding to every value
      * it reads, so stats must match or MIN/MAX pushdown and split-skip classification would
      * compare against the wrong domain.
+     * <p>
+     * A Binary-backed FLOAT16 or DECIMAL column (logical type over BINARY/FIXED_LEN_BYTE_ARRAY,
+     * resolved ESQL type DOUBLE) has its stat decoded to the same {@code double} the scan path
+     * produces (see {@link ParquetColumnDecoding#decodeBinaryNumericStat}) — otherwise the stat
+     * would fall through to the generic {@link Binary}-to-String conversion below, and the
+     * DOUBLE-typed aggregate would fail trying to read it as a {@code Double}.
      */
     private static Object normalizeStatValue(Object value, PrimitiveType primitiveType) {
         if (ParquetColumnDecoding.hasTemporalStatEncoding(primitiveType)) {
@@ -1453,6 +1461,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
         if (value instanceof Long l && ParquetColumnDecoding.isUnsignedInt64(primitiveType)) {
             return ParquetColumnDecoding.encodeUnsignedLong(l);
+        }
+        Double binaryNumeric = ParquetColumnDecoding.decodeBinaryNumericStat(value, primitiveType);
+        if (binaryNumeric != null) {
+            return binaryNumeric;
         }
         if (value instanceof Binary binary) {
             return binary.toStringUsingUTF8();
@@ -1591,7 +1603,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     readOptionsBuilder().withRange(rangeStart, rangeEnd).withRecordFilter(filter).build(),
                     filterBlocksByRange(fullFooter, rangeStart, rangeEnd)
                 ),
-                resolveErrorPolicy(context.errorPolicy())
+                resolveErrorPolicy(context.errorPolicy()),
+                context.informationalWarningSink()
             );
         } finally {
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
@@ -1651,7 +1664,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ParquetMetadata fullFooter,
         long[] rangeBlockGlobalOffsets,
         FilteredReopener reopener,
-        ErrorPolicy errorPolicy
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         counters.setLateMaterializationEnabled(lateMaterializationEnabled);
         try {
@@ -1717,7 +1731,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     recordFilter,
                     rangeBlockGlobalOffsets,
                     fullFooter,
-                    errorPolicy
+                    errorPolicy,
+                    warningSink
                 );
             }
             return new ParquetColumnIterator(
@@ -1734,7 +1749,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 counters,
                 declaredDateFormats,
                 declaredTypeColumns,
-                errorPolicy
+                errorPolicy,
+                warningSink
             );
         } catch (Throwable t) {
             reader.close();
@@ -1755,7 +1771,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         FilterCompat.Filter recordFilter,
         long[] rowGroupFirstRowGlobalOverride,
         ParquetMetadata fullFooter,
-        ErrorPolicy errorPolicy
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> warningSink
     ) {
         if (inputFile instanceof ParquetStorageObjectAdapter == false) {
             throw new ElasticsearchException(
@@ -1770,7 +1787,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             reader,
             projectedAttributes,
             columnInfos,
-            declaredTypeColumns
+            declaredTypeColumns,
+            warningSink
         );
 
         // Pass the predicate column names so the metadata preload also batch-fetches dictionary
@@ -2523,7 +2541,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ParquetFileReader reader,
         List<Attribute> attributes,
         ColumnInfo[] columnInfos,
-        Set<String> declaredTypeColumns
+        Set<String> declaredTypeColumns,
+        @Nullable Consumer<String> warningSink
     ) {
         MessageType fullSchema = reader.getFileMetaData().getSchema();
         SkipWarnings skipWarnings = null;
@@ -2549,7 +2568,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         "Parquet file ["
                             + fileLocation
                             + "] has columns whose on-disk type is incompatible with the planner type; "
-                            + "they are returned as null"
+                            + "they are returned as null",
+                        warningSink
                     );
                 }
                 skipWarnings.add(
@@ -2672,7 +2692,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ParquetReaderCounters counters,
             Map<String, String> declaredDateFormats,
             Set<String> declaredTypeColumns,
-            ErrorPolicy errorPolicy
+            ErrorPolicy errorPolicy,
+            @Nullable Consumer<String> warningSink
         ) {
             this.errorPolicy = errorPolicy;
             this.reader = reader;
@@ -2735,7 +2756,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             } else {
                 this.rowGroupFirstRowGlobal = null;
             }
-            validatePlannerTypesAgainstFile(logger, fileLocation, reader, attributes, columnInfos, declaredTypeColumns);
+            validatePlannerTypesAgainstFile(logger, fileLocation, reader, attributes, columnInfos, declaredTypeColumns, warningSink);
         }
 
         @Override

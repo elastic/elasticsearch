@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -309,6 +308,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_UNMAPPED_LOAD_AUTO_CAST_TWO_LEGGED_PUNKS,
 
         /**
+         * Fixes a bug when using an EVAL on the grouped by columns after a STATS.
+         *
+         * See https://github.com/elastic/elasticsearch/issues/152496.
+         */
+        OPTIONAL_FIELDS_UNMAPPED_EVAL_AFTER_STATS_FIX,
+
+        /**
          * Fix for a {@code ClassCastException} when an explicitly cast or implicitly widened partially unmapped small numeric field.
          * See https://github.com/elastic/elasticsearch/issues/151525.
          */
@@ -340,6 +346,20 @@ public class EsqlCapabilities {
          * KEYWORD converter and so cannot be loaded from _source: it falls back to null in the indices where it is unmapped.
          */
         OPTIONAL_FIELDS_WARN_NON_LOADABLE_PUNK,
+
+        /**
+         * With {@code unmapped_fields="nullify"} or {@code "load"}, a {@code DROP} wildcard that matches no field is a no-op
+         * instead of failing with "No matches found for pattern".
+         * See https://github.com/elastic/elasticsearch/issues/143226
+         */
+        OPTIONAL_FIELDS_DROP_NON_MATCHING_PATTERN_NOOP,
+
+        /**
+         * Fixes count on an unmapped field. Previously, it tried to push down a query filter on the unmapped field, leading to a 0-count
+         * since the field isn't mapped.
+         * See https://github.com/elastic/elasticsearch/issues/152884.
+         */
+        OPTIONAL_FIELDS_FIX_COUNT_ON_UNMAPPED,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -2646,25 +2666,32 @@ public class EsqlCapabilities {
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_COMMAND(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_COMMAND,
 
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_CSV_IP_SUPPORT(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_CSV_IP_SUPPORT,
 
         /**
          * Support for the {@code header_row} (and the related {@code column_prefix}) CSV options
          * on the {@code EXTERNAL} command, used to read headerless CSV files.
          */
-        EXTERNAL_CSV_HEADER_ROW_OPTION(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_CSV_HEADER_ROW_OPTION,
+
+        /**
+         * The CSV/TSV file-level {@code datetime_format} option compiles to an Elasticsearch
+         * {@code DateFormatter} rather than a raw JDK {@code DateTimeFormatter}: zone offsets are honored,
+         * date-only patterns parse, and named formats and {@code a||b} composites are accepted.
+         */
+        EXTERNAL_CSV_DATETIME_FORMAT_ES_DATE_FORMATTER,
 
         /**
          * Per-file planner-resolved read schema is threaded down to runtime readers via
          * {@code FileSplit.readSchema()}. Pins each file's column layout to the planner's view,
          * preventing reader self-inference that drifts across files in a multi-file glob.
          */
-        EXTERNAL_SOURCE_READ_SCHEMA(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_READ_SCHEMA,
 
         /**
          * Always-on {@code _file.*} virtual columns ({@code _file.path}, {@code _file.name}, {@code _file.directory},
@@ -2673,7 +2700,7 @@ public class EsqlCapabilities {
          * against a remote cluster on a pre-feature build, so {@code fileMetadata*} csv-spec tests must be gated on
          * this capability rather than on {@link #EXTERNAL_COMMAND}.
          */
-        EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_FILE_METADATA_COLUMNS,
 
         /**
          * Standard ES metadata columns ({@code _id}, {@code _index}, {@code _version}, {@code _source}, ...)
@@ -2681,7 +2708,7 @@ public class EsqlCapabilities {
          * coordinators reject the names with {@code Unknown column}; tests exercising these columns
          * gate on this capability.
          */
-        EXTERNAL_SOURCE_STANDARD_METADATA_COLUMNS(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_STANDARD_METADATA_COLUMNS,
 
         /**
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
@@ -2692,7 +2719,7 @@ public class EsqlCapabilities {
          * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
          * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
          */
-        EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION,
 
         /**
          * Correct decoding of a {@code LIST} leaf reached through a {@code STRUCT}
@@ -2704,7 +2731,7 @@ public class EsqlCapabilities {
          *
          * <p>Tracks: elastic/esql-planning#1055 (correctness gap for Parquet-Java list-under-struct).
          */
-        EXTERNAL_SOURCE_LIST_UNDER_STRUCT(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_LIST_UNDER_STRUCT,
 
         /**
          * Multi-file external UNION_BY_NAME widens cross-file type disagreements to KEYWORD
@@ -2713,13 +2740,12 @@ public class EsqlCapabilities {
          * reader's output is adapted via SchemaAdaptingIterator. STRICT mode still throws.
          * See esql-planning#794.
          */
-        EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK,
 
         /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
-         * Gated on the same flag as {@link #EXTERNAL_COMMAND}.
          */
-        DATASET_IN_FROM_COMMAND(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        DATASET_IN_FROM_COMMAND,
 
         /**
          * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings} rebuilds a pruned
@@ -2727,7 +2753,15 @@ public class EsqlCapabilities {
          * pre-aggregate attribute it no longer surfaces, fixing the {@code optimized incorrectly due to missing references}
          * verification failure that old coordinators in a mixed cluster still hit.
          */
-        FIX_PRUNE_RENAMED_DERIVED_EXTERNAL_GROUPING(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        FIX_PRUNE_RENAMED_DERIVED_EXTERNAL_GROUPING,
+
+        /**
+         * A present-but-empty field on a string (KEYWORD/TEXT) column in an external CSV/TSV datasource reads as the empty
+         * string {@code ""} instead of {@code null}. Genuinely missing fields (a row shorter than the schema) and empty
+         * fields on non-string columns still read as {@code null}. Used to gate the affected external csv-spec tests so they
+         * are skipped on mixed clusters where a pre-change node still maps empty string cells to {@code null}.
+         */
+        EXTERNAL_CSV_EMPTY_STRING_NOT_NULL,
 
         /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
@@ -3274,10 +3308,10 @@ public class EsqlCapabilities {
         PROMQL_SUM_ON_HISTOGRAM,
 
         /**
-         * Support for the {@code HIGHLIGHT} command: grammar, plan nodes, serialization, and execution that exposes the
-         * generated {@code highlight_*} columns. Snapshot-only.
+         * Support for the {@code HIGHLIGHT} command: grammar, plan nodes, serialization, and execution that exposes
+         * generated columns named {@code <prefix><field>} ({@code highlight_} by default). Snapshot-only.
          */
-        HIGHLIGHT_V1(Build.current().isSnapshot()),
+        HIGHLIGHT_V3(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.

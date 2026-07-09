@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -292,17 +293,42 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
     /**
      * The whole point of the central cap: many independent per-segment/per-chunk {@link SkipWarnings}
      * instances feeding the same buffer must not multiply the header count by the segment/chunk count.
-     * Regression coverage for the streaming per-chunk flood.
+     * <p>
+     * Uses the same real-thread-contention pattern as {@link #testNoLostWakeupUnderConcurrentAddAndPoll}
+     * rather than a sequential loop, so the cap is exercised under genuine concurrent access to the
+     * shared counter — matching how independent parse-worker threads actually drive
+     * {@link AsyncExternalSourceBuffer#recordInformationalWarning} for one chunk/segment each. Regression
+     * coverage for the streaming per-chunk flood.
      */
-    public void testRecordInformationalWarningAppliesOneGlobalCapAcrossManyCallers() {
+    public void testRecordInformationalWarningAppliesOneGlobalCapAcrossManyCallers() throws Exception {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
-        // Simulate 50 chunks each independently emitting a summary + a detail, as 50 independent
-        // SkipWarnings instances would on the streaming-parallel path.
+        // One thread per chunk, as 50 independent SkipWarnings instances would drive this method
+        // concurrently on the streaming-parallel path.
         int chunks = 50;
+        CyclicBarrier barrier = new CyclicBarrier(chunks);
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        Thread[] threads = new Thread[chunks];
         for (int c = 0; c < chunks; c++) {
-            buffer.recordInformationalWarning("chunk " + c + " summary");
-            buffer.recordInformationalWarning("chunk " + c + " detail");
+            int chunk = c;
+            threads[c] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    buffer.recordInformationalWarning("chunk " + chunk + " summary");
+                    buffer.recordInformationalWarning("chunk " + chunk + " detail");
+                } catch (Throwable t) {
+                    error.set(t);
+                }
+            }, "informational-warning-chunk-" + chunk);
+            threads[c].setDaemon(true);
         }
+        for (Thread t : threads) {
+            t.start();
+        }
+        for (Thread t : threads) {
+            t.join(TimeUnit.SECONDS.toMillis(10));
+            assertFalse("chunk thread should have exited", t.isAlive());
+        }
+        assertNull("chunk thread threw", error.get());
 
         List<String> drained = new ArrayList<>();
         String w;
@@ -311,7 +337,11 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         }
 
         int maxInformationalWarnings = SkipWarnings.MAX_ADDED_WARNINGS + 2;
-        assertEquals("total lines must be bounded regardless of how many chunks contributed", maxInformationalWarnings, drained.size());
+        assertEquals(
+            "total lines must be bounded regardless of how many chunk threads raced to contribute",
+            maxInformationalWarnings,
+            drained.size()
+        );
         assertTrue("the last line must note suppression", drained.get(drained.size() - 1).contains("further reader warnings suppressed"));
         assertFalse(buffer.isPartial());
     }

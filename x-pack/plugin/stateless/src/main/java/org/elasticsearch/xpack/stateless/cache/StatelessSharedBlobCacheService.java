@@ -120,6 +120,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         );
     }
 
+    // for tests
     protected StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,

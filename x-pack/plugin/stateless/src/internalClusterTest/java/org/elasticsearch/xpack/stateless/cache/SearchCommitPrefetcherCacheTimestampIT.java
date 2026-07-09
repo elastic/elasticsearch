@@ -64,7 +64,6 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(disableIndexingDiskAndMemoryControllersNodeSettings())
             // Full control over how and when VBCCs are uploaded to the blob store.
-            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
             .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueHours(12))
             // Online prewarming could create traffic in the prewarm pool and stamp regions ahead of the prefetcher.
@@ -75,7 +74,7 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
             .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
             // Always prefetch data from the indexing node when required.
             .put(SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING.getKey(), ByteSizeValue.ofGb(20))
-            // Foreground prefetch so the prefetcher populates the cache deterministically.
+            // Foreground prefetch so the prefetcher populates the cache deterministically, before the on-demand refresh.
             .put(SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING.getKey(), false)
             // Prefetch from the indexing node on the first notification (before the refresh opens the new segments on-demand), so the
             // prefetcher is the first to populate (and thus stamp) the new BCC blob's regions with the commit timestamp.
@@ -110,8 +109,7 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
             null,
             () -> Map.<String, Object>of("@timestamp", timestamp, "field", randomAlphaOfLength(10))
         );
-        refresh(indexName);
-        flush(indexName);
+        flushAndRefresh(indexName);
 
         var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
         var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(latestCommitGeneration);

@@ -14,6 +14,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.test-build-info'
 apply plugin: 'elasticsearch.transport-version-references'
 apply plugin: 'elasticsearch.transport-version-resources'
+apply plugin: 'elasticsearch.foreign-api'
 
 publishing {
   publications {
@@ -90,6 +91,7 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
+
   internalClusterTestImplementation(project(':modules:reindex'))
   internalClusterTestImplementation(project(':modules:mapper-extras'))
   internalClusterTestImplementation(project(':modules:data-streams'))

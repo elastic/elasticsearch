@@ -14,6 +14,7 @@ import org.elasticsearch.painless.api.ValueIterator;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.annotation.AllocatesConstantAnnotation;
 import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
 
@@ -21,6 +22,7 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Method;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,6 +69,10 @@ public final class Def {
     private static final MethodHandle LIST_INDEX_NORMALIZE;
     /** factory for arraylength MethodHandle (intrinsic) */
     private static final MethodHandle ARRAY_LENGTH;
+    /** pointer to {@link PainlessScript#$checkAllocBytes(long)}, used to charge def-dispatched allocations against the limit */
+    private static final MethodHandle SCRIPT_CHECK_ALLOC_BYTES;
+    /** pointer to {@link AllocationGuard#sanitizeEstimate(long)}, used to clamp {@code @allocates_dynamic} estimator results */
+    private static final MethodHandle SANITIZE_ALLOC_ESTIMATE;
 
     public static final Map<Class<?>, MethodHandle> DEF_TO_BOXED_TYPE_IMPLICIT_CAST;
 
@@ -96,6 +102,16 @@ public final class Def {
                 MethodHandles.class,
                 "arrayLength",
                 MethodType.methodType(MethodHandle.class, Class.class)
+            );
+            SCRIPT_CHECK_ALLOC_BYTES = methodHandlesLookup.findVirtual(
+                PainlessScript.class,
+                "$checkAllocBytes",
+                MethodType.methodType(void.class, long.class)
+            );
+            SANITIZE_ALLOC_ESTIMATE = methodHandlesLookup.findStatic(
+                AllocationGuard.class,
+                "sanitizeEstimate",
+                MethodType.methodType(long.class, long.class)
             );
         } catch (ReflectiveOperationException roe) {
             throw new AssertionError(roe);
@@ -177,6 +193,81 @@ public final class Def {
             reorder[i] = i;
         }
         return MethodHandles.permuteArguments(handle, swapped, reorder);
+    }
+
+    /**
+     * Unreflects an {@code @allocates_dynamic} estimator (validated {@code public static long ...} at allowlist load) into a
+     * {@link MethodHandle}. Built-in estimators live in this module (full access via this lookup); plugin estimators live in
+     * their own module, reached via {@link MethodHandles#publicLookup} scoped to the estimator's class — the same two-branch
+     * rule the allowlist builder uses for method handles.
+     */
+    private static MethodHandle unreflectAllocationEstimator(Method estimator) {
+        Class<?> declaringClass = estimator.getDeclaringClass();
+        MethodHandles.Lookup lookup = declaringClass.getModule() == Def.class.getModule()
+            ? MethodHandles.lookup()
+            : MethodHandles.publicLookup().in(declaringClass);
+        try {
+            return lookup.unreflect(estimator);
+        } catch (IllegalAccessException iae) {
+            throw new IllegalStateException("could not access allocation estimator [" + estimator + "]", iae);
+        }
+    }
+
+    /**
+     * When the def call site pushed the script receiver (the {@code 'S'} recipe) and {@code method} is an allocation-annotated
+     * allowlist target, wraps {@code handle} so it charges the declared/estimated allocation against the script's per-context
+     * limit (via {@link PainlessScript#$checkAllocBytes(long)}) before the underlying call runs. The incoming {@code handle}
+     * shape is {@code (receiver, scriptThis, userArgs...)} with {@code scriptThis} a {@link PainlessScript}. Returns
+     * {@code handle} unchanged when {@code method} carries no allocation annotation (including {@code @allocates_constant[0]},
+     * an audited no-op). Only the no-lambda call shape is charged (see {@link #lookupMethod}).
+     */
+    private static MethodHandle chargeAllocationBeforeCall(
+        MethodHandle handle,
+        PainlessMethod method,
+        PainlessLookup painlessLookup,
+        Object[] injections,
+        boolean methodTakesScriptThis
+    ) {
+        AllocatesConstantAnnotation constant = method.annotation(AllocatesConstantAnnotation.class);
+        if (constant != null) {
+            if (constant.bytes() == 0) {
+                return handle;
+            }
+            // combiner (receiver, scriptThis) -> void ==> scriptThis.$checkAllocBytes(bytes); consumes the handle's leading
+            // receiver/scriptThis prefix, leaving userArgs for the real call.
+            MethodHandle charge = MethodHandles.insertArguments(SCRIPT_CHECK_ALLOC_BYTES, 1, constant.bytes());
+            charge = MethodHandles.dropArguments(charge, 0, handle.type().parameterType(0));
+            return MethodHandles.foldArguments(handle, charge);
+        }
+
+        Method estimator = painlessLookup.getAllocationEstimator(method);
+        if (estimator == null) {
+            return handle;
+        }
+
+        // The estimator shares the raw method handle's parameter shape (it was resolved against methodType.parameterArray()),
+        // so apply the same injection binding and scriptThis adaptation; afterwards it has the same (receiver, scriptThis,
+        // userArgs...) shape as `handle` and reads the same call-site arguments.
+        MethodHandle estimate = MethodHandles.filterReturnValue(unreflectAllocationEstimator(estimator), SANITIZE_ALLOC_ESTIMATE);
+        if (injections.length > 0) {
+            estimate = MethodHandles.insertArguments(estimate, methodTakesScriptThis ? 2 : 1, injections);
+        }
+        estimate = methodTakesScriptThis ? swapFirstTwoArguments(estimate) : MethodHandles.dropArguments(estimate, 1, PainlessScript.class);
+
+        // Fold the estimate into $checkAllocBytes' size parameter. collectArguments leaves a spare leading scriptThis slot
+        // (from $checkAllocBytes' own receiver) that permuteArguments then unifies with the estimator's scriptThis slot so
+        // both read the single pushed receiver; the combiner consumes all of the handle's arguments and returns void.
+        MethodHandle combiner = MethodHandles.collectArguments(SCRIPT_CHECK_ALLOC_BYTES, 1, estimate);
+        int parameterCount = handle.type().parameterCount();
+        int[] reorder = new int[parameterCount + 1];
+        reorder[0] = 1; // $checkAllocBytes receiver <- scriptThis
+        reorder[1] = 0; // estimator receiver <- receiver
+        reorder[2] = 1; // estimator scriptThis <- scriptThis
+        for (int i = 3; i <= parameterCount; i++) {
+            reorder[i] = i - 1; // estimator userArgs shift past the spare leading slot
+        }
+        combiner = MethodHandles.permuteArguments(combiner, MethodType.methodType(void.class, handle.type().parameterList()), reorder);
+        return MethodHandles.foldArguments(handle, combiner);
     }
 
     /**
@@ -262,11 +353,14 @@ public final class Def {
             // shadowing the augmentation name) drop the call site's extra scriptThis slot
             // instead so the call still proceeds.
             if (scriptThisPushed) {
-                if (painlessMethod.annotations().containsKey(ScriptAwareAnnotation.class)) {
+                boolean methodTakesScriptThis = painlessMethod.annotations().containsKey(ScriptAwareAnnotation.class);
+                if (methodTakesScriptThis) {
                     handle = swapFirstTwoArguments(handle);
                 } else {
                     handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
                 }
+                // scriptThis is now available on the handle, so charge any allocation the resolved target declares.
+                handle = chargeAllocationBeforeCall(handle, painlessMethod, painlessLookup, injections, methodTakesScriptThis);
             }
 
             return handle;
@@ -324,6 +418,9 @@ public final class Def {
 
         // Same script-first → receiver-first swap as the simple case above when the resolved
         // method carries @script_aware; drop the extra slot when it doesn't.
+        // NOTE: unlike the simple case, allocation is not charged here — a def method call that also takes a functional-interface
+        // (lambda) argument reshapes the handle below, and no allocation-annotated allowlist target takes a lambda argument.
+        // Documented as a v1 gap; revisit if such a target is ever added.
         if (scriptThisPushed) {
             if (methodTakesScriptThis) {
                 handle = swapFirstTwoArguments(handle);

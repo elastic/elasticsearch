@@ -1629,6 +1629,32 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertTrue("warning should name the conflicting field, got: " + warnings, warnings.stream().anyMatch(w -> w.contains("user")));
     }
 
+    /**
+     * Same fixture as {@link #testScalarThenObjectConflictLenientNullFillsAndWarns}, but with
+     * {@link FormatReadContext#informationalWarningSink()} supplied: the shape-conflict warning must route
+     * through the sink instead of {@link org.elasticsearch.common.logging.HeaderWarning}, since
+     * {@code read} can be invoked from a background reader thread whose thread-local response
+     * headers never reach the client (see {@code SkipWarnings}).
+     */
+    public void testScalarThenObjectConflictLenientRoutesThroughWarningSinkWhenSupplied() throws IOException {
+        String ndjson = """
+            {"event":1,"user":"alice"}
+            {"event":2,"user":{"id":"bob","tier":"gold"}}
+            {"event":3,"user":"carol"}
+            """;
+        var object = new BytesStorageObject("memory://scalar-then-object-sink.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<String> sunk = new ArrayList<>();
+        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).informationalWarningSink(sunk::add).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            iterator.next();
+        }
+        assertFalse("expected a warning for the shape conflict routed through the sink", sunk.isEmpty());
+        assertTrue("warning should name the conflicting field, got: " + sunk, sunk.stream().anyMatch(w -> w.contains("user")));
+        assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
+    }
+
     private static int indexOf(List<Attribute> schema, String name) {
         for (int i = 0; i < schema.size(); i++) {
             if (schema.get(i).name().equals(name)) {
@@ -2425,6 +2451,33 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertEquals(1, tsBlock.getPositionCount());
             long expected = Instant.parse("2023-12-25T10:30:00Z").toEpochMilli();
             assertEquals(expected, tsBlock.getLong(0));
+        }
+    }
+
+    /**
+     * The zone-offset and date-only cases of {@code datetime_format}, pinned here against the identical pattern and
+     * bytes used by {@code CsvDirectBlockParityTests}. Both readers compile the option to an ES {@code DateFormatter},
+     * so the two formats must agree on the instant exactly; these two tests and their CSV twins are that contract.
+     */
+    public void testDatetimeFormatHonorsZoneOffset() throws IOException {
+        assertDatetimeFormatDecodesTo("yyyy-MM-dd HH:mm:ssXXX", "2024-01-01 10:00:00+05:00", "2024-01-01T05:00:00Z");
+    }
+
+    public void testDatetimeFormatDateOnly() throws IOException {
+        assertDatetimeFormatDecodesTo("yyyy-MM-dd", "2024-01-01", "2024-01-01T00:00:00Z");
+    }
+
+    private void assertDatetimeFormatDecodesTo(String pattern, String value, String expectedInstant) throws IOException {
+        String ndjson = "{\"ts\":\"" + value + "\"}\n";
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", pattern)
+        );
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            Page page = iterator.next();
+            LongBlock tsBlock = page.getBlock(0);
+            assertEquals(Instant.parse(expectedInstant).toEpochMilli(), tsBlock.getLong(0));
         }
     }
 

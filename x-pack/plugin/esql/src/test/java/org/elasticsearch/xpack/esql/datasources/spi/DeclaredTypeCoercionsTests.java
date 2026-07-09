@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -497,6 +498,52 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         try (Block source = bytesBlock("10/Oct/2000:13:55:36 -0700")) {
             try (Block cast = DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.DATETIME, fmt, blockFactory, null, null)) {
                 assertThat(((LongBlock) cast).getLong(0), equalTo(971211336000L));
+            }
+        }
+    }
+
+    /**
+     * The date_nanos arm of {@link DeclaredTypeCoercions#scalarCoercer} must honor the declared format exactly as the
+     * datetime arm above it does. It used to call the no-format overload, so a declared format on a date_nanos column
+     * was silently ignored on every columnar reader (Parquet, ORC) and the cell fell back to ISO-8601 and failed.
+     */
+    public void testCastStringToDateNanosHonorsDeclaredFormat() {
+        DateFormatter fmt = DateFormatter.forPattern("dd/MMM/yyyy:HH:mm:ss Z");
+        try (Block source = bytesBlock("10/Oct/2000:13:55:36 -0700")) {
+            try (
+                Block cast = DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.DATE_NANOS, fmt, blockFactory, null, null)
+            ) {
+                assertThat(((LongBlock) cast).getLong(0), equalTo(EsqlDataTypeConverter.dateNanosToLong("2000-10-10T20:55:36Z")));
+            }
+        }
+    }
+
+    /**
+     * Sub-millisecond digits survive the declared-format date_nanos parse — the whole point of the type. A millisecond
+     * conversion would silently truncate here.
+     */
+    public void testCastStringToDateNanosDeclaredFormatKeepsNanoPrecision() {
+        DateFormatter fmt = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
+        try (Block source = bytesBlock("2024-01-15 12:34:56.123456789")) {
+            try (
+                Block cast = DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.DATE_NANOS, fmt, blockFactory, null, null)
+            ) {
+                assertThat(((LongBlock) cast).getLong(0), equalTo(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z")));
+            }
+        }
+    }
+
+    /**
+     * A null declared format means ISO-8601, not a NullPointerException. {@code dateNanosToLong(String, DateFormatter)}
+     * dereferenced the formatter unguarded while its {@code dateTimeToLong} sibling defaulted; the two converters have
+     * to agree on the null contract, because this call site threads an optional format into both.
+     */
+    public void testCastStringToDateNanosWithoutDeclaredFormatUsesIso() {
+        try (Block source = bytesBlock("2024-01-15T12:34:56.123456789Z")) {
+            try (
+                Block cast = DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.DATE_NANOS, null, blockFactory, null, null)
+            ) {
+                assertThat(((LongBlock) cast).getLong(0), equalTo(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z")));
             }
         }
     }

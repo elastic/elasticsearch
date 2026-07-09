@@ -38,6 +38,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     public static final String ENRICH_RESOLUTION = "enrich_resolution";
     public static final String INFERENCE_RESOLUTION = "inference_resolution";
     public static final String ANALYSIS = "analysis";
+    public static final String SPLIT_DISCOVERY = "split_discovery";
 
     /** Time elapsed since start of query till the final result rendering */
     private final TimeSpanMarker totalMarker;
@@ -59,6 +60,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private final TimeSpanMarker inferenceResolutionMarker;
     /** Time elapsed for plan analysis */
     private final TimeSpanMarker analysisMarker;
+    /** Time elapsed discovering external splits (external source footer/metadata reads) */
+    private final TimeSpanMarker splitDiscoveryMarker;
     private final AtomicInteger fieldCapsCalls;
     /** Distinct external files scanned after coordinator-side pruning (file-based sources only). */
     private final AtomicInteger filesScanned;
@@ -91,9 +94,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private static final TransportVersion ESQL_EXTERNAL_WARM_AGGREGATE_PROFILE = TransportVersion.fromName(
         "esql_external_warm_aggregate_profile"
     );
+    private static final TransportVersion ESQL_SPLIT_DISCOVERY_PROFILE = TransportVersion.fromName("esql_split_discovery_profile");
 
     public EsqlQueryProfile() {
-        this(null, null, null, null, null, null, null, null, null, null, 0, 0, 0, 0L, UnmappedResolution.DEFAULT, 0);
+        this(null, null, null, null, null, null, null, null, null, null, 0, 0, 0, 0L, UnmappedResolution.DEFAULT, 0, null);
     }
 
     // For testing
@@ -113,7 +117,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         int splitsScanned,
         long bytesScanned,
         UnmappedResolution unmappedResolution,
-        int externalWarmAggregates
+        int externalWarmAggregates,
+        TimeSpan splitDiscovery
     ) {
         this.totalMarker = new TimeSpanMarker(QUERY, true, query);
         this.planningMarker = new TimeSpanMarker(PLANNING, false, planning);
@@ -125,6 +130,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         this.enrichResolutionMarker = new TimeSpanMarker(ENRICH_RESOLUTION, true, enrichResolution);
         this.inferenceResolutionMarker = new TimeSpanMarker(INFERENCE_RESOLUTION, true, inferenceResolution);
         this.analysisMarker = new TimeSpanMarker(ANALYSIS, true, analysis);
+        this.splitDiscoveryMarker = new TimeSpanMarker(SPLIT_DISCOVERY, true, splitDiscovery);
         this.fieldCapsCalls = new AtomicInteger(fieldCapsCalls);
         this.filesScanned = new AtomicInteger(filesScanned);
         this.splitsScanned = new AtomicInteger(splitsScanned);
@@ -180,6 +186,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         if (in.getTransportVersion().supports(ESQL_EXTERNAL_WARM_AGGREGATE_PROFILE)) {
             externalWarmAggregates = in.readVInt();
         }
+        TimeSpan splitDiscovery = null;
+        if (in.getTransportVersion().supports(ESQL_SPLIT_DISCOVERY_PROFILE)) {
+            splitDiscovery = in.readOptionalWriteable(TimeSpan::readFrom);
+        }
         return new EsqlQueryProfile(
             query,
             planning,
@@ -196,7 +206,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             splitsScanned,
             bytesScanned,
             unmappedResolution,
-            externalWarmAggregates
+            externalWarmAggregates,
+            splitDiscovery
         );
     }
 
@@ -242,6 +253,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_WARM_AGGREGATE_PROFILE)) {
             out.writeVInt(externalWarmAggregates.get());
         }
+        if (out.getTransportVersion().supports(ESQL_SPLIT_DISCOVERY_PROFILE)) {
+            out.writeOptionalWriteable(splitDiscoveryMarker.timeSpan());
+        }
     }
 
     @Override
@@ -258,6 +272,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             && Objects.equals(enrichResolutionMarker, that.enrichResolutionMarker)
             && Objects.equals(inferenceResolutionMarker, that.inferenceResolutionMarker)
             && Objects.equals(analysisMarker, that.analysisMarker)
+            && Objects.equals(splitDiscoveryMarker, that.splitDiscoveryMarker)
             && Objects.equals(fieldCapsCalls.get(), that.fieldCapsCalls.get())
             && filesScanned.get() == that.filesScanned.get()
             && splitsScanned.get() == that.splitsScanned.get()
@@ -279,6 +294,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             enrichResolutionMarker,
             inferenceResolutionMarker,
             analysisMarker,
+            splitDiscoveryMarker,
             fieldCapsCalls.get(),
             filesScanned.get(),
             splitsScanned.get(),
@@ -311,6 +327,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             + inferenceResolutionMarker
             + ", analysisMarker="
             + analysisMarker
+            + ", splitDiscoveryMarker="
+            + splitDiscoveryMarker
             + ", fieldCapsCalls="
             + fieldCapsCalls.get()
             + ", filesScanned="
@@ -397,6 +415,14 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         return analysisMarker;
     }
 
+    /**
+     * Span for discovering external splits (external source footer/metadata reads), run on the
+     * coordinator once planning completes and before data node compute plans are dispatched.
+     */
+    public TimeSpanMarker splitDiscovery() {
+        return splitDiscoveryMarker;
+    }
+
     public int fieldCapsCalls() {
         return fieldCapsCalls.get();
     }
@@ -453,7 +479,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             indicesResolutionMarker,
             enrichResolutionMarker,
             inferenceResolutionMarker,
-            analysisMarker
+            analysisMarker,
+            splitDiscoveryMarker
         );
     }
 

@@ -812,6 +812,9 @@ public class ComputeService {
     ) {
         final PhysicalPlan splitPlan;
         final ExternalDistributionResult distributionResult;
+        if (execInfo != null) {
+            execInfo.queryProfile().splitDiscovery().start();
+        }
         try {
             // Phase 2 split discovery runs synchronously here and can be long (thousands of footer
             // reads); thread the query's cancellation signal so a cancel aborts it promptly. A cancel
@@ -821,6 +824,10 @@ public class ComputeService {
         } catch (Exception e) {
             listener.onFailure(e);
             return;
+        } finally {
+            if (execInfo != null) {
+                execInfo.queryProfile().splitDiscovery().stop();
+            }
         }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(

@@ -45,7 +45,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             randomIntBetween(0, 1000),
             randomNonNegativeLong(),
             randomFrom(UnmappedResolution.values()),
-            randomIntBetween(0, 100)
+            randomIntBetween(0, 100),
+            randomTimeSpan()
         );
     }
 
@@ -67,7 +68,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
         long bytesScanned = instance.bytesScanned();
         UnmappedResolution unmappedResolution = instance.unmappedResolution();
         int externalWarmAggregates = instance.externalWarmAggregates();
-        switch (randomIntBetween(0, 15)) {
+        TimeSpan splitDiscovery = instance.splitDiscovery().timeSpan();
+        switch (randomIntBetween(0, 16)) {
             case 0 -> query = randomValueOtherThan(query, EsqlQueryProfileTests::randomTimeSpan);
             case 1 -> planning = randomValueOtherThan(planning, EsqlQueryProfileTests::randomTimeSpan);
             case 2 -> parsing = randomValueOtherThan(parsing, EsqlQueryProfileTests::randomTimeSpan);
@@ -84,6 +86,7 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             case 13 -> bytesScanned = randomValueOtherThan(bytesScanned, () -> randomNonNegativeLong());
             case 14 -> unmappedResolution = randomValueOtherThan(unmappedResolution, () -> randomFrom(UnmappedResolution.values()));
             case 15 -> externalWarmAggregates = randomValueOtherThan(externalWarmAggregates, () -> randomIntBetween(0, 100));
+            case 16 -> splitDiscovery = randomValueOtherThan(splitDiscovery, EsqlQueryProfileTests::randomTimeSpan);
         }
         return new EsqlQueryProfile(
             query,
@@ -101,7 +104,8 @@ public class EsqlQueryProfileTests extends AbstractWireSerializingTestCase<EsqlQ
             splitsScanned,
             bytesScanned,
             unmappedResolution,
-            externalWarmAggregates
+            externalWarmAggregates,
+            splitDiscovery
         );
     }
 

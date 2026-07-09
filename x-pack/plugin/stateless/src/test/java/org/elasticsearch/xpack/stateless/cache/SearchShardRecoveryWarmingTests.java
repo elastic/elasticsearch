@@ -47,6 +47,7 @@ import org.elasticsearch.threadpool.FakeTimeThreadPool;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.SearchRecoveryWaitOutcome;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -109,11 +110,15 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     }
 
     private static SharedBlobCacheWarmingService newWarmingService(ThreadPool threadPool) {
+        return newWarmingService(threadPool, TelemetryProvider.NOOP);
+    }
+
+    private static SharedBlobCacheWarmingService newWarmingService(ThreadPool threadPool, TelemetryProvider telemetryProvider) {
         ClusterSettings clusterSettings = newClusterSettings();
         return new SharedBlobCacheWarmingService(
             Mockito.mock(StatelessSharedBlobCacheService.class),
             threadPool,
-            TelemetryProvider.NOOP,
+            telemetryProvider,
             clusterSettings,
             new DefaultWarmingRatioProviderFactory().create(clusterSettings)
         );
@@ -611,14 +616,27 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     /**
      * Asserts that exactly one measurement was recorded for {@code metricName} and that its value (in seconds) is at least
      * {@code minMillis} (the artificial delay every caller injects via {@link #newWarmingServiceWithWarmCache}) and, generously,
-     * under a minute (catches gross unit/overflow errors without being sensitive to CI slowness).
+     * under a minute (catches gross unit/overflow errors without being sensitive to CI slowness). Returns the measurement so callers
+     * can additionally assert on its attributes.
      */
-    private static void assertSingleDurationMeasurementAtLeast(RecordingMeterRegistry meterRegistry, String metricName, long minMillis) {
+    private static Measurement assertSingleDurationMeasurementAtLeast(
+        RecordingMeterRegistry meterRegistry,
+        String metricName,
+        long minMillis
+    ) {
         List<Measurement> measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, metricName);
         assertThat(measurements, hasSize(1));
-        double value = measurements.get(0).getDouble();
-        assertThat(value, greaterThanOrEqualTo(minMillis / 1000.0));
-        assertThat(value, lessThan(TimeValue.timeValueMinutes(1).millis() / 1000.0));
+        Measurement measurement = measurements.get(0);
+        assertThat(measurement.getDouble(), greaterThanOrEqualTo(minMillis / 1000.0));
+        assertThat(measurement.getDouble(), lessThan(TimeValue.timeValueMinutes(1).millis() / 1000.0));
+        return measurement;
+    }
+
+    private static void assertWaitOutcome(Measurement waitDurationMeasurement, SearchRecoveryWaitOutcome outcome) {
+        assertThat(
+            waitDurationMeasurement.attributes(),
+            equalTo(Map.of(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY, outcome.name()))
+        );
     }
 
     /**
@@ -647,18 +665,20 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARM_DURATION_METRIC,
                 delayMillis
             );
-            assertSingleDurationMeasurementAtLeast(
+            Measurement wait = assertSingleDurationMeasurementAtLeast(
                 meterRegistry,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC,
                 delayMillis
             );
+            assertWaitOutcome(wait, SearchRecoveryWaitOutcome.NO_WAIT);
         }
     }
 
     /**
      * Await-warming path (another active search copy exists): both metrics must reflect the delay injected before {@code warmCache}
      * completes its listener, since {@code resumeRecoveryListener} is invoked via the race listener only once warming completes
-     * (the default 5-minute await timeout is nowhere close to firing first).
+     * (the default 5-minute await timeout is nowhere close to firing first). The wait outcome must be {@code WARMING_COMPLETED} since
+     * warming (not the timeout) is what completed the race.
      */
     public void testWarmCacheForSearchShardRecoveryRecordsMetricsWhenAwaitingWarming() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
@@ -688,11 +708,43 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARM_DURATION_METRIC,
                 delayMillis
             );
-            assertSingleDurationMeasurementAtLeast(
+            Measurement wait = assertSingleDurationMeasurementAtLeast(
                 meterRegistry,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC,
                 delayMillis
             );
+            assertWaitOutcome(wait, SearchRecoveryWaitOutcome.WARMING_COMPLETE);
+        }
+    }
+
+    /**
+     * Directly exercises {@link SharedBlobCacheWarmingService#searchRecoveryWarmingListener} with a timeout so short that it always
+     * fires before the listener passed in (simulating warming) is ever completed: the wait outcome must be {@code TIMED_OUT}.
+     */
+    public void testSearchRecoveryWarmingListenerRecordsTimedOutOutcome() {
+        try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
+            RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+            var service = newWarmingService(threadPool, telemetryProvider(meterRegistry));
+            ClusterState state = clusterStateInitializingSearchReplicaWithActivePeer("idx");
+            ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
+            ShardRouting self = initializingSearchReplica(state, shardId);
+            long startedMillis = threadPool.rawRelativeTimeInMillis();
+            PlainActionFuture<Void> resumeFuture = new PlainActionFuture<>();
+            // never completed: simulates warming that is still in flight when the timeout below elapses
+            service.searchRecoveryWarmingListener(
+                TimeValue.timeValueMillis(1),
+                "test: timing out",
+                mockIndexShard(self),
+                startedMillis,
+                resumeFuture
+            );
+            safeGet(resumeFuture);
+            Measurement wait = assertSingleDurationMeasurementAtLeast(
+                meterRegistry,
+                SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC,
+                0
+            );
+            assertWaitOutcome(wait, SearchRecoveryWaitOutcome.TIMEOUT);
         }
     }
 }

@@ -87,6 +87,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
@@ -123,6 +124,22 @@ public class SharedBlobCacheWarmingService {
     public static final String SEARCH_RECOVERY_WARM_DURATION_METRIC = "es.blob_cache_warming.search_recovery.warm_duration.histogram";
     public static final String SEARCH_RECOVERY_WAIT_DURATION_METRIC =
         "es.blob_cache_warming.search_recovery.wait_for_resume_duration.histogram";
+    public static final String SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY = "es_search_recovery_wait_outcome";
+
+    /**
+     * Why {@link #warmCacheForSearchShardRecovery} stopped waiting and resumed recovery, recorded as an attribute on
+     * {@link #SEARCH_RECOVERY_WAIT_DURATION_METRIC}.
+     */
+    public enum SearchRecoveryWaitOutcome {
+        /** {@link SearchRecoveryTimeout#awaitWarming()} was {@code false}: recovery never waited, warming ran fire-and-forget. */
+        NO_WAIT,
+        /** The timeout scheduled by {@link #searchRecoveryWarmingListener} elapsed before warming finished.
+         * Warming continues alongside recovery.
+         **/
+        TIMEOUT,
+        /** Warming completed before the deadline timeout elapsed, and then recovery started immediately. */
+        WARMING_COMPLETE
+    }
 
     /** Region of a blob **/
     private record BlobRegion(BlobFile blob, int region) {}
@@ -680,10 +697,6 @@ public class SharedBlobCacheWarmingService {
         ActionListener<Void> resumeRecoveryListener
     ) {
         final long startedMillis = threadPool.rawRelativeTimeInMillis();
-        final ActionListener<Void> timedResumeRecoveryListener = ActionListener.runBefore(
-            resumeRecoveryListener,
-            () -> searchRecoveryWaitDurationMetric.record((threadPool.rawRelativeTimeInMillis() - startedMillis) / 1000.0)
-        );
         SearchRecoveryTimeout plan = endTargetsToWarm != null
             ? searchRecoveryTimeout(clusterState, indexShard)
             : SearchRecoveryTimeout.skip();
@@ -697,7 +710,7 @@ public class SharedBlobCacheWarmingService {
                 false,
                 timeSearchRecoveryWarming(
                     startedMillis,
-                    searchRecoveryWarmingListener(plan.timeout(), plan.timeoutContext(), indexShard, timedResumeRecoveryListener)
+                    searchRecoveryWarmingListener(plan.timeout(), plan.timeoutContext(), indexShard, startedMillis, resumeRecoveryListener)
                 )
             );
         } else {
@@ -710,8 +723,20 @@ public class SharedBlobCacheWarmingService {
                 false,
                 timeSearchRecoveryWarming(startedMillis, ActionListener.noop())
             );
-            timedResumeRecoveryListener.onResponse(null);
+            recordSearchRecoveryWaitDuration(startedMillis, SearchRecoveryWaitOutcome.NO_WAIT);
+            resumeRecoveryListener.onResponse(null);
         }
+    }
+
+    /**
+     * Records {@link #searchRecoveryWaitDurationMetric} with {@code outcome} as the {@link #SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY}
+     * attribute.
+     */
+    private void recordSearchRecoveryWaitDuration(long startedMillis, SearchRecoveryWaitOutcome outcome) {
+        searchRecoveryWaitDurationMetric.record(
+            (threadPool.rawRelativeTimeInMillis() - startedMillis) / 1000.0,
+            Map.of(SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY, outcome.name())
+        );
     }
 
     /**
@@ -900,16 +925,20 @@ public class SharedBlobCacheWarmingService {
     }
 
     /**
-     * Completes {@code resumeRecoveryListener} when warming finishes, or when {@code timeout} elapses (whichever comes first).
+     * Completes {@code resumeRecoveryListener} when warming finishes, or when {@code timeout} elapses (whichever comes first). Records
+     * {@link #searchRecoveryWaitDurationMetric} with {@link SearchRecoveryWaitOutcome#TIMEOUT} or
+     * {@link SearchRecoveryWaitOutcome#WARMING_COMPLETE} depending on which of those two won the race.
      */
     public ActionListener<Void> searchRecoveryWarmingListener(
         TimeValue timeout,
         String timeoutContext,
         IndexShard indexShard,
+        long startedMillis,
         ActionListener<Void> resumeRecoveryListener
     ) {
         assert timeout.millis() > 0;
         final SubscribableListener<Void> race = new SubscribableListener<>();
+        final AtomicBoolean timedOut = new AtomicBoolean(false);
         final var cancellable = threadPool.schedule(() -> {
             logger.warn(
                 "Search shard recovery cache warming timed out after [{}] ({}) for {}",
@@ -917,11 +946,16 @@ public class SharedBlobCacheWarmingService {
                 timeoutContext.isEmpty() ? "default" : timeoutContext,
                 indexShard.shardId()
             );
+            timedOut.set(true);
             race.onResponse(null);
         }, timeout, threadPool.generic());
-        race.addListener(
-            ActionListener.runBefore(new ThreadedActionListener<>(threadPool.generic(), resumeRecoveryListener), cancellable::cancel)
-        );
+        race.addListener(ActionListener.runBefore(new ThreadedActionListener<>(threadPool.generic(), resumeRecoveryListener), () -> {
+            cancellable.cancel();
+            recordSearchRecoveryWaitDuration(
+                startedMillis,
+                timedOut.get() ? SearchRecoveryWaitOutcome.TIMEOUT : SearchRecoveryWaitOutcome.WARMING_COMPLETE
+            );
+        }));
         return race;
     }
 

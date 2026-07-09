@@ -87,7 +87,6 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseFlatQuantizedKnnV
     @Before
     public void initVectorsFormat() throws Exception {
         format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, random().nextBoolean());
-        super.setUp();
     }
 
     @Override

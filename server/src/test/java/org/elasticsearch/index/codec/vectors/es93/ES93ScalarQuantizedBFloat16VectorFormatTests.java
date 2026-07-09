@@ -48,7 +48,6 @@ public class ES93ScalarQuantizedBFloat16VectorFormatTests extends BaseQuantizedB
     @Before
     public void initVectorsFormat() throws Exception {
         format = new ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16);
-        super.setUp();
     }
 
     @Override

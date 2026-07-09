@@ -90,7 +90,6 @@ public class ES940DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
             );
         }
-        super.setUp();
     }
 
     @Override

@@ -138,7 +138,6 @@ public class ES950DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                 flatVectorThreshold
             );
         }
-        super.setUp();
     }
 
     @Override

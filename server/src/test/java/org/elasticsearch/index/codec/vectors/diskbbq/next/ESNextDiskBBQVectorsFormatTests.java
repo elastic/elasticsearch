@@ -152,7 +152,6 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 null
             );
         }
-        super.setUp();
     }
 
     @Override

@@ -89,7 +89,6 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
                 null
             );
         }
-        super.setUp();
     }
 
     @Override

@@ -59,7 +59,6 @@ public class ES940v2DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCa
             0,
             ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
         );
-        super.setUp();
     }
 
     @Override

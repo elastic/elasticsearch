@@ -50,7 +50,6 @@ public class ES94ScalarQuantizedBFloat16VectorsFormatTests extends BaseQuantized
     public void initVectorsFormat() throws Exception {
         int bits = randomFrom(1, 2, 4, 7);
         format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, bits, false);
-        super.setUp();
     }
 
     @Override

@@ -106,7 +106,6 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                 numMergingThreads
             );
         }
-        super.setUp();
     }
 
     @After
@@ -114,7 +113,6 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         if (executorService != null) {
             executorService.shutdownNow();
         }
-        super.tearDown();
     }
 
     @Override

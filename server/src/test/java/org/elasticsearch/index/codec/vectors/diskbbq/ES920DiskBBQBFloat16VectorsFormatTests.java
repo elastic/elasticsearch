@@ -70,7 +70,6 @@ public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
                 numMergingThreads
             );
         }
-        super.setUp();
     }
 
     @After
@@ -78,7 +77,6 @@ public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
         if (executorService != null) {
             executorService.shutdownNow();
         }
-        super.tearDown();
     }
 
     @Override

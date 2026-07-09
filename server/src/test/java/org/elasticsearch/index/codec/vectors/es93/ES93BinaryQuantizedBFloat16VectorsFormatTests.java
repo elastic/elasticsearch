@@ -77,7 +77,6 @@ public class ES93BinaryQuantizedBFloat16VectorsFormatTests extends BaseQuantized
     @Before
     public void initVectorsFormat() throws Exception {
         format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, random().nextBoolean());
-        super.setUp();
     }
 
     @Override

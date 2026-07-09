@@ -1,20 +1,10 @@
 // This test file covers type conflict resolution with unmapped fields, which is similar to union types.
 
-// Many tests below have "- old data node" / "- old coordinator" siblings that pin the
-// missing_capability_data_node / missing_capability_coordinator directive, exercising
-// MultiClusterSpecIT against a real old-version cluster to prove that auto-casting a two-legged
-// PUNK is decided solely by the coordinating node's own version, regardless of the data node's.
-// Siblings whose query includes "METADATA _index" also declare
-// required_capability: metadata_fields_remote_test. MultiClusterSpecIT otherwise skips any test
-// whose query contains "METADATA _index" (see hasIndexMetadata()/shouldSkipTest() in
-// MultiClusterSpecIT), because a projected _index value depends on which physical cluster the
-// randomized dataLocation happened to place the data on; that's also why those siblings strip the
-// "remote_cluster:" prefix via EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), ...).
-// "- old data node" siblings declare both required_capability_coordinator and
-// missing_capability_data_node. Technically, missing_capability_data_node alone is enough for the
-// test to only run in the intended version pairing (given how the newToOld/oldToNew BWC tasks are
-// set up), but the coordinator requirement is kept anyway because it documents the test's intent
-// and doesn't rely on that pairing setup remaining what it is today.
+// Some tests below have "- old data node" / "- old coordinator" siblings to prove that auto-casting a two-legged
+// PUNK is decided solely by the coordinating node's own version and even works with 9.4 remote clusters.
+// "METADATA _index" requires required_capability: metadata_fields_remote_test to avoid skipping in MultiClusterSpecIT.
+// EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), ...) normalized the index name in MultiClusterSpecIT,
+// which generally places indices randomly on the remote or local cluster.
 
 ######################################
 # Mapped and unmapped conflict tests #
@@ -50,6 +40,8 @@ typeConflictWithUnmappedJustFrom - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -134,6 +126,8 @@ typeConflictWithUnmappedJustKeepWildcard - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -220,6 +214,8 @@ typeConflictWithUnmappedJustKeepWildcardPrefix - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -696,6 +692,8 @@ typeConflictPartiallyUnmappedNonKeywordFieldsNotLoadedWithoutExplicitMention - o
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -934,6 +932,8 @@ event_duration:long
 typeConflictPartiallyUnmappedKeywordFieldKept - old data node
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -2403,6 +2403,8 @@ typeConflictLongUnmappedSortWithCastToLong - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -2489,6 +2491,8 @@ typeConflictLongUnmappedSortWithCastToKeyword - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -2966,6 +2970,8 @@ typeConflictLongUnmappedTimeseriesSortWithCast - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -3338,6 +3344,8 @@ autocast two-legged long punk - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -3388,6 +3396,8 @@ autocast two-legged double punk - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -3432,6 +3442,8 @@ autocast two-legged punk in WHERE - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -3474,6 +3486,8 @@ autocast two-legged punk in EVAL - old data node
 required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
@@ -3509,6 +3523,8 @@ avg_cost:double | max_cost:long | min_cost:long
 autocast two-legged punk in STATS - old data node
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;

@@ -9,7 +9,6 @@
 
 
 import org.elasticsearch.gradle.OS
-import org.gradle.api.tasks.testing.Test
 
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -131,8 +130,7 @@ tasks.named('javaRestTest').configure {
   classpath = sourceSets.javaRestTest.runtimeClasspath + configurations.hdfsFixture3
 }
 
-restTests.enroll("javaRestTestHdfs2")
-tasks.register("javaRestTestHdfs2", Test) {
+restTests.register("javaRestTestHdfs2") {
   description = "Runs rest tests against an elasticsearch cluster with HDFS version 2"
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   classpath = sourceSets.javaRestTest.runtimeClasspath + configurations.hdfsFixture2

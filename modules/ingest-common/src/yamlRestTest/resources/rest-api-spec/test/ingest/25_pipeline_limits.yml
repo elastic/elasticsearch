@@ -24,6 +24,10 @@ teardown:
 
 ---
 "Pipeline exceeding max_pipeline_size is rejected":
+  - requires:
+      cluster_features: [ "ingest.pipeline_size_limits" ]
+      reason: "This test relies on the ingest pipeline size limits, which didn't exist in earlier versions"
+
   - do:
       cluster.put_settings:
         body:
@@ -67,6 +71,10 @@ teardown:
 
 ---
 "Number of pipelines is bounded by max_pipelines":
+  - requires:
+      cluster_features: [ "ingest.pipeline_size_limits" ]
+      reason: "This test relies on the ingest pipeline size limits, which didn't exist in earlier versions"
+
   # Create a pipeline first, under the default (high) limit, then lower the cap below the current count. This keeps the test
   # independent of any managed pipelines the cluster may already have.
   - do:
@@ -120,6 +128,10 @@ teardown:
 
 ---
 "Aggregate pipeline metadata size is bounded by max_total_metadata_size":
+  - requires:
+      cluster_features: [ "ingest.pipeline_size_limits" ]
+      reason: "This test relies on the ingest pipeline size limits, which didn't exist in earlier versions"
+
   - do:
       ingest.put_pipeline:
         id: "existing_pipeline"

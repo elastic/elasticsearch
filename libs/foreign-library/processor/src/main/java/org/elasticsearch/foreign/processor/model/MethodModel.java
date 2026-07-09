@@ -9,8 +9,11 @@
 
 package org.elasticsearch.foreign.processor.model;
 
+import org.elasticsearch.foreign.CaptureErrno;
 import org.elasticsearch.foreign.Critical;
 import org.elasticsearch.foreign.Function;
+import org.elasticsearch.foreign.StructFactory;
+import org.elasticsearch.foreign.Variadic;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,15 +32,22 @@ import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
 
 /**
- * Models a single {@code @Function}-annotated method on a {@code @LibrarySpecification} interface.
+ * Models a single method on a {@code @LibrarySpecification} interface. The method is either a
+ * {@code @Function}-annotated native binding or a {@code @StructFactory} struct constructor.
  *
  * @param methodName the Java method name
- * @param cSymbol the exact C symbol name
- * @param returnType the return type
- * @param paramTypes the parameter types in order
+ * @param cSymbol the exact C symbol name; {@code null} for struct factory methods
+ * @param returnType the return type; {@code null} for struct factory methods
+ * @param paramTypes the parameter types in order; empty for struct factory methods
  * @param isCritical whether the method is annotated with {@code @Critical}
  * @param fallbackAdapterClassName fully-qualified name of the JDK 21 {@code @Critical} fallback adapter class,
  *        or {@code null} if none was specified
+ * @param capturesErrno whether the method is annotated with {@code @CaptureErrno}
+ * @param firstVariadicArg 0-based index of the first variadic argument, or {@code -1} if not variadic
+ * @param isStructFactory whether the method is annotated with {@code @StructFactory}
+ * @param structReturnSimpleName simple name of the struct return type; non-null only when {@code isStructFactory}
+ * @param packedElementSimpleName simple name of the array element record; non-null only when {@code isStructFactory}
+ *        and the return struct declares an {@code @ArrayField} accessor
  */
 public record MethodModel(
     String methodName,
@@ -45,7 +55,12 @@ public record MethodModel(
     NativeType returnType,
     List<NativeType> paramTypes,
     boolean isCritical,
-    String fallbackAdapterClassName
+    String fallbackAdapterClassName,
+    boolean capturesErrno,
+    int firstVariadicArg,
+    boolean isStructFactory,
+    String structReturnSimpleName,
+    String packedElementSimpleName
 ) {
 
     /** Name of the static {@code MethodHandle} field generated for this method in the {@code $Impl} class. */
@@ -56,17 +71,49 @@ public record MethodModel(
     /**
      * Builds a {@code MethodModel} from a method on a {@code @LibrarySpecification} interface.
      * Emits {@link Kind#ERROR} diagnostics for any validation failure and returns null.
+     *
+     * @param method the method element to model
+     * @param env the processing environment
+     * @param enclosingStructNames simple names of {@code @StructSpecification} types enclosed in the same interface,
+     *        used to validate {@code @StructFactory} return types
      */
-    public static MethodModel from(ExecutableElement method, ProcessingEnvironment env) {
+    public static MethodModel from(ExecutableElement method, ProcessingEnvironment env, List<String> enclosingStructNames) {
         Messager messager = env.getMessager();
         String methodName = method.getSimpleName().toString();
 
         Function function = method.getAnnotation(Function.class);
-        if (function == null) {
-            messager.printMessage(Kind.ERROR, "Method '" + methodName + "' must be annotated with @Function", method);
+        boolean isStructFactory = method.getAnnotation(StructFactory.class) != null;
+        boolean capturesErrno = method.getAnnotation(CaptureErrno.class) != null;
+        Variadic variadicAnnotation = method.getAnnotation(Variadic.class);
+        int firstVariadicArg = variadicAnnotation != null ? variadicAnnotation.firstArg() : -1;
+
+        if (function == null && isStructFactory == false) {
+            messager.printMessage(Kind.ERROR, "Method '" + methodName + "' must be annotated with @Function or @StructFactory", method);
             return null;
         }
 
+        if (variadicAnnotation != null && function == null) {
+            messager.printMessage(Kind.ERROR, "@Variadic requires @Function on method '" + methodName + "'", method);
+            return null;
+        }
+
+        if (isStructFactory) {
+            if (function != null) {
+                messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must not also have @Function", method);
+                return null;
+            }
+            if (capturesErrno) {
+                messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must not have @CaptureErrno", method);
+                return null;
+            }
+            if (method.getAnnotation(Critical.class) != null) {
+                messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must not have @Critical", method);
+                return null;
+            }
+            return buildStructFactoryModel(method, methodName, enclosingStructNames, messager);
+        }
+
+        // @Function method
         NativeType returnType = classifyType(method.getReturnType());
         if (returnType == null) {
             messager.printMessage(
@@ -100,7 +147,109 @@ public record MethodModel(
             }
         }
 
-        return new MethodModel(methodName, function.value(), returnType, paramTypes, isCritical, fallbackAdapter);
+        return new MethodModel(
+            methodName,
+            function.value(),
+            returnType,
+            paramTypes,
+            isCritical,
+            fallbackAdapter,
+            capturesErrno,
+            firstVariadicArg,
+            false,
+            null,
+            null
+        );
+    }
+
+    /**
+     * Backward-compatible overload that passes an empty struct name list. Used by existing call
+     * sites that predate struct support.
+     */
+    public static MethodModel from(ExecutableElement method, ProcessingEnvironment env) {
+        return from(method, env, List.of());
+    }
+
+    private static MethodModel buildStructFactoryModel(
+        ExecutableElement method,
+        String methodName,
+        List<String> enclosingStructNames,
+        Messager messager
+    ) {
+        TypeMirror returnMirror = method.getReturnType();
+        if (returnMirror.getKind() != TypeKind.DECLARED) {
+            messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must return a @StructSpecification type", method);
+            return null;
+        }
+        TypeElement returnTypeElement = (TypeElement) ((DeclaredType) returnMirror).asElement();
+        String structReturnSimpleName = returnTypeElement.getSimpleName().toString();
+        if (enclosingStructNames.contains(structReturnSimpleName) == false) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@StructFactory method '"
+                    + methodName
+                    + "' return type '"
+                    + structReturnSimpleName
+                    + "' is not a @StructSpecification type enclosed in the same interface",
+                method
+            );
+            return null;
+        }
+
+        // Find the return interface's @ArrayField method to determine the element type this
+        // factory populates. Only interfaces with an @ArrayField method are currently supported.
+        String packedElementSimpleName = null;
+        for (var enclosed : returnTypeElement.getEnclosedElements()) {
+            if (enclosed.getKind() != ElementKind.METHOD) {
+                continue;
+            }
+            ExecutableElement arrayMethod = (ExecutableElement) enclosed;
+            AnnotationMirror arrayFieldMirror = findAnnotationMirror(arrayMethod, "org.elasticsearch.foreign.ArrayField");
+            if (arrayFieldMirror == null) {
+                continue;
+            }
+            TypeMirror elementMirror = arrayMethod.getReturnType();
+            if (elementMirror.getKind() == TypeKind.DECLARED) {
+                TypeElement elementTypeElement = (TypeElement) ((DeclaredType) elementMirror).asElement();
+                packedElementSimpleName = elementTypeElement.getSimpleName().toString();
+                break;
+            }
+        }
+        if (packedElementSimpleName == null) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@StructFactory method '"
+                    + methodName
+                    + "' return type '"
+                    + structReturnSimpleName
+                    + "' has no @ArrayField method; @StructFactory is only supported for @StructSpecification interfaces with an @ArrayField accessor",
+                method
+            );
+            return null;
+        }
+        // Validate: must have exactly one parameter (the element array)
+        if (method.getParameters().size() != 1) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@StructFactory method '" + methodName + "' must declare exactly one parameter (the element array)",
+                method
+            );
+            return null;
+        }
+
+        return new MethodModel(
+            methodName,
+            null,
+            null,
+            List.of(),
+            false,
+            null,
+            false,
+            -1,
+            true,
+            structReturnSimpleName,
+            packedElementSimpleName
+        );
     }
 
     /**
@@ -108,7 +257,7 @@ public record MethodModel(
      * supported. {@link NativeType#STRING} is returned for {@code java.lang.String} and validity in
      * a given position (e.g. return-only) is enforced at the call site.
      */
-    private static NativeType classifyType(TypeMirror mirror) {
+    static NativeType classifyType(TypeMirror mirror) {
         if (mirror.getKind() == TypeKind.VOID) {
             return NativeType.VOID;
         }
@@ -117,6 +266,7 @@ public record MethodModel(
             return switch (fqn) {
                 case "java.lang.foreign.MemorySegment" -> NativeType.ADDRESS;
                 case "java.lang.String" -> NativeType.STRING;
+                case "org.elasticsearch.foreign.Addressable" -> NativeType.ADDRESSABLE;
                 default -> null;
             };
         }
@@ -194,8 +344,8 @@ public record MethodModel(
         return adapterFqn;
     }
 
-    private static AnnotationMirror findAnnotationMirror(ExecutableElement method, String annotationFqn) {
-        for (AnnotationMirror mirror : method.getAnnotationMirrors()) {
+    private static AnnotationMirror findAnnotationMirror(javax.lang.model.element.Element element, String annotationFqn) {
+        for (AnnotationMirror mirror : element.getAnnotationMirrors()) {
             TypeElement annotationType = (TypeElement) mirror.getAnnotationType().asElement();
             if (annotationType.getQualifiedName().contentEquals(annotationFqn)) {
                 return mirror;

@@ -189,4 +189,97 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         assertEquals("sandboxInit must return int", int.class, method.getReturnType());
         assertEquals("first param must be String", String.class, method.getParameterTypes()[0]);
     }
+
+    /**
+     * A {@code @CaptureErrno @Function} method must generate a class WITHOUT a per-class
+     * {@code errnoState} field — the shared {@code LinkerHelper.ERRNO_STATE} is used instead.
+     */
+    public void testCaptureErrnoDoesNotGeneratePerClassField() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.CaptureErrno;
+            @LibrarySpecification(name = "testlib")
+            public interface ErrnoLib {
+                @CaptureErrno
+                @Function("foo")
+                int foo(int x);
+            }
+            """;
+
+        CompilationResult result = compile("test.ErrnoLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClassNoInit("test.ErrnoLib$Impl");
+        assertNotNull("Generated ErrnoLib$Impl class not found", implClass);
+
+        // Must NOT have a field named errnoState
+        try {
+            implClass.getDeclaredField("errnoState");
+            fail("ErrnoLib$Impl must not have a per-class errnoState field");
+        } catch (NoSuchFieldException e) {
+            // expected
+        }
+
+        // Must have a $mh field
+        java.lang.reflect.Field mhField = implClass.getDeclaredField("foo$mh");
+        assertEquals("foo$mh must be a MethodHandle", MethodHandle.class, mhField.getType());
+    }
+
+    /**
+     * A minimal {@code @LibrarySpecification} with a {@code @StructSpecification} record element,
+     * a {@code @StructSpecification} interface with an {@code @ArrayField} method, and a
+     * {@code @StructFactory} method must generate a loadable {@code $Impl} class for the library
+     * and for the struct interface, plus a {@code $Pack} class for the record.
+     */
+    public void testStructFactoryGeneratesLoadableImplClass() throws Exception {
+        String source = """
+            package test;
+            import org.elasticsearch.foreign.Addressable;
+            import org.elasticsearch.foreign.ArrayField;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.StructFactory;
+            import org.elasticsearch.foreign.StructSpecification;
+            @LibrarySpecification
+            public interface BufLib {
+                @StructSpecification
+                record Elem(short x) {}
+
+                @StructSpecification
+                interface Buf extends Addressable {
+                    short len();
+
+                    @ArrayField(lengthField = "len")
+                    Elem elem(int index);
+                }
+
+                @StructFactory
+                Buf newBuf(Elem[] elems);
+            }
+            """;
+
+        CompilationResult result = compile("test.BufLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        // Library $Impl
+        Class<?> implClass = result.loadClassNoInit("test.BufLib$Impl");
+        assertNotNull("Generated BufLib$Impl class not found", implClass);
+
+        // $Pack companion for Elem record
+        Class<?> packClass = result.loadClassNoInit("test.BufLib$Elem$Pack");
+        assertNotNull("Generated BufLib$Elem$Pack class not found", packClass);
+
+        // $Impl for Buf struct
+        Class<?> bufImplClass = result.loadClassNoInit("test.BufLib$Buf$Impl");
+        assertNotNull("Generated BufLib$Buf$Impl class not found", bufImplClass);
+
+        // Buf$Impl must declare the expected static VarHandle fields
+        java.lang.reflect.Field lenVh = bufImplClass.getDeclaredField("len$vh");
+        assertEquals("len$vh must be a VarHandle", java.lang.invoke.VarHandle.class, lenVh.getType());
+        java.lang.reflect.Field elemPtrVh = bufImplClass.getDeclaredField("elem$ptr$vh");
+        assertEquals("elem$ptr$vh must be a VarHandle", java.lang.invoke.VarHandle.class, elemPtrVh.getType());
+    }
 }

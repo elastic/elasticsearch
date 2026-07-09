@@ -101,6 +101,7 @@ public class RestIntegTestsExtension {
     }
 
     private boolean isRestIntegTest(Test task) {
+        // TODO: remove StandaloneRestIntegTestTask instanceof check once all projects use JUnit-rule-based clusters
         return task instanceof StandaloneRestIntegTestTask || restTestTaskNames.contains(task.getName());
     }
 }

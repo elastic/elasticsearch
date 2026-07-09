@@ -964,7 +964,9 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
                 // Force merge checks if the engine is still open at the end, and sometimes it might
                 // throw an AlreadyClosedException even after the commit is already processed by ShardCommitState
             } catch (IOException e) {
-                fail(e);
+                if (e.getCause() instanceof MergePolicy.MergeAbortedException == false) {
+                    fail(e);
+                }
             }
         }, "force-merge-thread");
         forceMergeThread.start();

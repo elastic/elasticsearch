@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
@@ -128,6 +129,32 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         );
 
         assertThat(rows.size(), equalTo(0));
+    }
+
+    public void testBufferedRowsSurviveNoFurtherCandidatesFlipBetweenHasNextAndNext() throws Exception {
+        // Deterministic reproduction of the intermittent NoSuchElementException from next(): a single row
+        // group of materialized rows, and a bound that prunes nothing so the first hasNext() decodes the
+        // group and leaves rowsRemainingInGroup > 0. We then flip the early-termination flag (as a
+        // concurrent TopN worker would) between hasNext() and next(). next() must still drain the
+        // already-decoded batch; before the fix hasNext() consulted the flag first and turned the
+        // available batch into a NoSuchElementException.
+        byte[] data = writeLongParquet(REQUIRED_LONG_SCHEMA, 64L * 1024 * 1024, 1024, 500, i -> (long) i);
+        SharedNumericThreshold channel = new SharedNumericThreshold.Supplier(true, false).get();
+        channel.offer(10_000L); // bound above every value, so no row group is skipped
+        DynamicThreshold threshold = new DynamicThreshold("id", ElementType.LONG, true, false, channel);
+        try (
+            threshold;
+            CloseableIterator<Page> iterator = reader(threshold).read(storageObject(data), FormatReadContext.of(List.of("id"), 128))
+        ) {
+            assertTrue("first hasNext() must materialize the row group", iterator.hasNext());
+            channel.markNoFurtherCandidates();
+            Page page = iterator.next();
+            try {
+                assertThat(page.getPositionCount(), greaterThan(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
     }
 
     public void testNullsLastCanSkipNullAndDominatedRowGroups() throws Exception {

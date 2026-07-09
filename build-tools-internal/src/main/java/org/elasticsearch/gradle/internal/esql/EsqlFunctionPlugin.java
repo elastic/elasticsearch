@@ -126,13 +126,14 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
             String pluginName = project.getExtensions().getByType(PluginPropertiesExtension.class).getName();
             FileTree mdFiles = project.fileTree(
                 new File(
-                    project.getRootDir(),
+                    project.getLayout().getSettingsDirectory().getAsFile(),
                     "docs/reference/query-languages/" + folder + "/_snippets/generated/" + pluginName + "/commands/examples/"
                 ),
                 tree -> tree.include("**/*.csv-spec/*.md")
             );
 
-            Path docFolder = new File(project.getRootDir(), "docs/reference/query-languages/" + folder).toPath();
+            Path docFolder = new File(project.getLayout().getSettingsDirectory().getAsFile(), "docs/reference/query-languages/" + folder)
+                .toPath();
             File snippetsDocFolder = docFolder.resolve("_snippets/generated/" + pluginName).toFile();
             File imagesDocFolder = docFolder.resolve("images/generated/" + pluginName).toFile();
             File kibanaDocFolder = docFolder.resolve("kibana/generated/" + pluginName).toFile();

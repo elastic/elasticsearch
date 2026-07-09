@@ -237,14 +237,7 @@ ctx.write(message).addListener(f -> { if (f.isSuccess() ...)});
 
 The [`ThreadPool`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java) class
 is a central registry that owns most executors in a node and is the entry point for getting one. Rather than holding
-references to raw `ExecutorService`s, code asks the `ThreadPool` for a named executor and submits work to it:
-
-```java
-threadPool.executor(ThreadPool.Names.SEARCH).execute(runnable);
-threadPool.generic().execute(runnable);
-threadPool.schedule(runnable, delay, executor);
-threadPool.scheduleWithFixedDelay(runnable, interval, executor);
-```
+references to raw `ExecutorService`s, code asks the `ThreadPool` for a named executor and submits work to it.
 
 #### Two pool types
 
@@ -263,17 +256,14 @@ The built-in pools are declared as string constants in
 [`ThreadPool.Names`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java#L77).
 Plugins register additional pools at startup by overriding
 [`Plugin::getExecutorBuilders(Settings)`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/plugins/Plugin.java#L304).
-Notable pools and their purpose:
 
-- `GENERIC` (scaling) is the catch-all for recovery, housekeeping, and ad-hoc work.
-- `SEARCH` (fixed) runs user search queries on the data nodes.
-- `SEARCH_COORDINATION` (fixed) coordinates the search fan-out across shards.
-- `WRITE` (fixed) handles indexing, bulk, and delete operations.
-- `CLUSTER_COORDINATION` carries all cluster state updates. It is sized to a **single thread by design** so that
-  cluster state updates, master elections and cluster membership updates are serialized and correctness is guaranteed (see the [Cluster Coordination](#cluster-coordination) section).
-- `MANAGEMENT` (scaling) serves health, monitoring, and admin read APIs.
-- `FLUSH` / `REFRESH` / `MERGE` (scaling) run the corresponding shard maintenance operations, described under
-  [Segments, Refresh, and Flush](#segments-refresh-and-flush) and [Segment Merges](#segment-merges).
+`CLUSTER_COORDINATION` carries all cluster state updates. It is sized to a **single thread by design** so that
+cluster state updates, master elections and cluster membership updates are serialized and correctness is guaranteed (see the [Cluster Coordination](#cluster-coordination) section).
+`GENERIC` scales up to
+[somewhere between 128 and 512 threads](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/DefaultBuiltInExecutorBuilders.java#L33)
+depending on the number of processors, and is used throughout the codebase. That high limit makes it tempting to
+block on a `Future`. Doing so risks deadlock if that future's completion
+itself depends on other work queued on `GENERIC`.
 
 #### `AbstractRunnable` and `ActionRunnable`
 
@@ -290,12 +280,6 @@ something later calls `get()` on it. ES therefore prefers two richer abstraction
   capacity limit.
 - [`ActionRunnable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/ActionRunnable.java)
   extends `AbstractRunnable` and bridges it to an `ActionListener`, so `onFailure` is routed to `listener.onFailure`.
-  Factory methods cover the common cases:
-
-```java
-executor.execute(ActionRunnable.supply(listener, () -> computeResult()));
-executor.execute(ActionRunnable.run(listener, () -> doSomething()));
-```
 
 #### ThreadContext propagation
 
@@ -372,64 +356,7 @@ events. The two most common are
 
 ### Chunk Encoding
 
-Chunked transfer encoding, HTTP's `Transfer-Encoding: chunked`, lets either side of an HTTP exchange send a body
-without knowing its total length up front. The body is instead broken into a sequence of length-prefixed chunks
-terminated by a final zero-length chunk. Elasticsearch deals with this on both the request and the response side, and
-the two are handled very differently.
-
-On the request side, chunked request bodies are decoded transparently by Netty's built-in `HttpRequestDecoder`
-([`Netty4HttpServerTransport`](https://github.com/elastic/elasticsearch/blob/v9.3.0/modules/transport-netty4/src/main/java/org/elasticsearch/http/netty4/Netty4HttpServerTransport.java)),
-which parses chunked and `Content-Length`-based bodies into the same stream of `HttpContent` objects followed by a
-`LastHttpContent`. Netty removes the chunk framing itself, so Elasticsearch only ever sees the decoded body delivered
-incrementally. Elasticsearch does not implement its own chunk-framing logic for incoming requests.
-
-The response side is more interesting, because it lets Elasticsearch produce a chunked response without ever
-materializing the full response body in memory. A handler whose response implements
-[`ChunkedToXContent`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/xcontent/ChunkedToXContent.java)
-returns an iterator of `ToXContent` chunks rather than a single fully-built document.
-[`ChunkedRestResponseBodyPart`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/ChunkedRestResponseBodyPart.java)
-drives that iterator, serializing only as many chunks as are needed to keep the outbound network buffer full and
-pausing once it fills up. This lets Elasticsearch stream arbitrarily large responses without ever materializing the
-whole serialized response as one large in-memory buffer before sending the first byte.
-[`RestChunkedToXContentListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/RestChunkedToXContentListener.java)
-is the common integration point a REST handler uses to return a `ChunkedToXContent` response this way. The resulting
-`HttpContent`s are ultimately written out by Netty's built-in
-[`HttpResponseEncoder`](https://github.com/elastic/elasticsearch/blob/v9.3.0/modules/transport-netty4/src/main/java/org/elasticsearch/http/netty4/Netty4HttpServerTransport.java#L422),
-which handles the real `Transfer-Encoding: chunked` framing on the wire. This is the write-side counterpart to the
-decoder used on the request path above.
-
-### XContent
-
-**Writing** is done through two interfaces, both requiring
-`XContentBuilder toXContent(XContentBuilder builder, Params params)`:
-
-- [`ToXContentObject`](https://github.com/elastic/elasticsearch/blob/v9.3.0/libs/x-content/src/main/java/org/elasticsearch/xcontent/ToXContentObject.java)
-  wraps the content with `builder.startObject()` / `builder.endObject()`, and is the standard for top-level
-  request/response objects. It guarantees that the emitted content is a complete valid object rather than a fragment.
-- [`ToXContentFragment`](https://github.com/elastic/elasticsearch/blob/v9.3.0/libs/x-content/src/main/java/org/elasticsearch/xcontent/ToXContentFragment.java)
-  writes bare key/value pairs without an enclosing object, for objects that are always embedded inside a larger object
-  managed by the caller.
-
-**Parsing** is preferentially done with a static `ConstructingObjectParser` declared on the class, which preserves
-immutability by collecting constructor arguments before applying any setters:
-
-```java
-private static final ConstructingObjectParser<Thing, Void> PARSER = new ConstructingObjectParser<>(
-    "thing",
-    a -> new Thing((String) a[0], (Integer) a[1])
-);
-static {
-    PARSER.declareString(constructorArg(), new ParseField("name"));         // required
-    PARSER.declareInt(optionalConstructorArg(), new ParseField("count"));   // optional
-    PARSER.declareString(Thing::setLabel, new ParseField("label"));         // applied after construction
-}
-```
-
-Fields declared with `constructorArg()` are required and `optionalConstructorArg()` may be absent. Fields declared with a
-setter are applied after the object has been constructed. The two-argument constructor shown above defaults to strict
-parsing, where any undeclared field is a parsing error. A three-argument overload takes an explicit
-`ignoreUnknownFields` flag instead, which should generally only be set to `true` when parsing responses from external
-systems, never when parsing requests from users.
+#### XContent
 
 ### Wire Serialization
 

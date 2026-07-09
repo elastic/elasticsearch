@@ -781,9 +781,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {delta_byte_array}
   issue: https://github.com/elastic/elasticsearch/issues/153841
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/42_knn_search_bbq_flat_bfloat16/Test knn search}
-  issue: https://github.com/elastic/elasticsearch/issues/153850
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153555

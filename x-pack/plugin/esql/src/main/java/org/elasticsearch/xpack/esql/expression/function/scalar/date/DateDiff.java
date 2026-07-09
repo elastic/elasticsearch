@@ -302,7 +302,7 @@ public class DateDiff extends EsqlConfigurationFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        ZoneId zoneId = QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
+        ZoneId zoneId = configuration().setting(QuerySettings.TIME_ZONE);
         if (startTimestamp.dataType() == DATETIME && endTimestamp.dataType() == DATETIME) {
             return toEvaluator(toEvaluator, DateDiffConstantMillisEvaluator.Factory::new, DateDiffMillisEvaluator.Factory::new, zoneId);
         } else if (startTimestamp.dataType() == DATE_NANOS && endTimestamp.dataType() == DATE_NANOS) {

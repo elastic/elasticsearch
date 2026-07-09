@@ -257,7 +257,7 @@ public class Configuration implements Writeable {
         // Exactly one of {legacy slots, resolvedSettings block} is written, so there is no redundant double-write.
         boolean writeLegacySettings = out.getTransportVersion().supports(ESQL_RESOLVED_SETTINGS) == false;
         if (writeLegacySettings) {
-            out.writeZoneId(QuerySettings.TIME_ZONE.get(resolvedSettings));
+            out.writeZoneId(setting(QuerySettings.TIME_ZONE));
         }
         out.writeVLong(now.getEpochSecond());
         out.writeVInt(now.getNano());
@@ -279,7 +279,7 @@ public class Configuration implements Writeable {
             out.writeVInt(resultTruncationDefaultSizeTimeseries);
         }
         if (writeLegacySettings && out.getTransportVersion().supports(QUERY_APPROXIMATION)) {
-            out.writeOptionalWriteable(QuerySettings.APPROXIMATION.get(resolvedSettings));
+            out.writeOptionalWriteable(setting(QuerySettings.APPROXIMATION));
         }
         if (out.getTransportVersion().supports(ESQL_VIEW_QUERIES)) {
             out.writeMap(viewQueries, StreamOutput::writeString);
@@ -295,7 +295,7 @@ public class Configuration implements Writeable {
     /**
      * The resolved view of every {@link org.elasticsearch.xpack.esql.plan.QuerySettingDef} for this
      * query. Reads of any SET-mirror knob (time_zone, project_routing, approximation, unmapped_fields,
-     * any future setting) go through this — e.g. {@code QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())}.
+     * any future setting) go through this — e.g. {@code configuration.setting(QuerySettings.TIME_ZONE)}.
      */
     public ResolvedSettings resolvedSettings() {
         return resolvedSettings;
@@ -417,6 +417,14 @@ public class Configuration implements Writeable {
      */
     public <T> Configuration withSetting(QuerySettingDef<T> def, T value) {
         return new ConfigurationBuilder(this).setting(def, value).build();
+    }
+
+    /**
+     * Reads one resolved {@link QuerySettingDef} value — the preferred way to read any per-query
+     * setting, e.g. {@code configuration.setting(QuerySettings.TIME_ZONE)}.
+     */
+    public <T> T setting(QuerySettingDef<T> def) {
+        return def.get(resolvedSettings());
     }
 
     /**

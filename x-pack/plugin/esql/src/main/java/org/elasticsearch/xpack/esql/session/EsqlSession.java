@@ -439,7 +439,7 @@ public class EsqlSession {
 
         analyzedPlan(
             plan,
-            QuerySettings.UNMAPPED_FIELDS.get(finalConfiguration.resolvedSettings()),
+            finalConfiguration.setting(QuerySettings.UNMAPPED_FIELDS),
             finalConfiguration,
             executionInfo,
             request.filter(),
@@ -483,11 +483,7 @@ public class EsqlSession {
                         )
                         .<Result>andThen((l, p) -> {
                             columnMetadata.set(
-                                createColumnMetadata(
-                                    p,
-                                    foldContext,
-                                    QuerySettings.COLUMN_METADATA.get(finalConfiguration.resolvedSettings())
-                                )
+                                createColumnMetadata(p, foldContext, finalConfiguration.setting(QuerySettings.COLUMN_METADATA))
                             );
                             executeOptimizedPlan(
                                 request,
@@ -889,7 +885,7 @@ public class EsqlSession {
         LogicalPlan plan = subPlanAndCallback != null ? subPlanAndCallback.subPlan() : mainPlan;
         if (ApproximationPlan.is(plan)) {
             if (approximation.get() == null) {
-                approximation.set(ApproximationDriver.create(plan, QuerySettings.APPROXIMATION.get(configuration.resolvedSettings())));
+                approximation.set(ApproximationDriver.create(plan, configuration.setting(QuerySettings.APPROXIMATION)));
             }
             LogicalPlan subPlan = approximation.get().firstSubPlan();
             if (subPlan != null) {
@@ -1867,7 +1863,7 @@ public class EsqlSession {
                 (e, r, l) -> preAnalyzeFlatMainIndices(
                     e.getKey(),
                     e.getValue(),
-                    QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
+                    configuration.setting(QuerySettings.PROJECT_ROUTING),
                     preAnalysis,
                     executionInfo,
                     trackUnmappedFieldIndices,
@@ -1881,7 +1877,7 @@ public class EsqlSession {
                         strictResult,
                         (sp, r, ll) -> preAnalyzeLinkedIndices(
                             sp,
-                            QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
+                            configuration.setting(QuerySettings.PROJECT_ROUTING),
                             preAnalysis,
                             executionInfo,
                             trackUnmappedFieldIndices,

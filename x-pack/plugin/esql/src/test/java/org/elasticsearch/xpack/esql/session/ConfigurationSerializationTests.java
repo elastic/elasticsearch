@@ -59,7 +59,7 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
         switch (between(0, 10)) {
             case 0 -> builder.setting(
                 QuerySettings.TIME_ZONE,
-                randomValueOtherThan(QuerySettings.TIME_ZONE.get(in.resolvedSettings()), () -> randomZone().normalized())
+                randomValueOtherThan(in.setting(QuerySettings.TIME_ZONE), () -> randomZone().normalized())
             );
             case 1 -> builder.now(
                 randomValueOtherThan(in.now(), () -> randomInstantBetween(Instant.EPOCH, Instant.ofEpochMilli(Long.MAX_VALUE)))
@@ -112,8 +112,8 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
         // Tier 1 — both peers understand esql_resolved_settings. Settings cross only in the generic resolvedSettings
         // block; the legacy time_zone/approximation slots are not written. Both values must survive intact.
         Configuration roundTripped = copyInstance(configWithTimeZoneAndApproximation(), TransportVersion.current());
-        assertThat(QuerySettings.TIME_ZONE.get(roundTripped.resolvedSettings()), equalTo(ZoneId.of("Europe/Paris")));
-        assertThat(QuerySettings.APPROXIMATION.get(roundTripped.resolvedSettings()).rows(), equalTo(10000));
+        assertThat(roundTripped.setting(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Paris")));
+        assertThat(roundTripped.setting(QuerySettings.APPROXIMATION).rows(), equalTo(10000));
     }
 
     public void testOldNodeSynthesizesResolvedSettingsFromLegacyWire() throws IOException {
@@ -123,8 +123,8 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             TransportVersion.fromName("esql_resolved_settings")
         );
         Configuration roundTripped = copyInstance(configWithTimeZoneAndApproximation(), preResolvedSettings);
-        assertThat(QuerySettings.TIME_ZONE.get(roundTripped.resolvedSettings()), equalTo(ZoneId.of("Europe/Paris")));
-        assertThat(QuerySettings.APPROXIMATION.get(roundTripped.resolvedSettings()).rows(), equalTo(10000));
+        assertThat(roundTripped.setting(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Paris")));
+        assertThat(roundTripped.setting(QuerySettings.APPROXIMATION).rows(), equalTo(10000));
     }
 
     public void testVeryOldNodeWithoutApproximationSlot() throws IOException {
@@ -132,7 +132,7 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
         // its legacy field-1 slot, but approximation has nowhere to go on the wire and is dropped (back to default).
         TransportVersion preApproximation = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_query_approximation"));
         Configuration roundTripped = copyInstance(configWithTimeZoneAndApproximation(), preApproximation);
-        assertThat(QuerySettings.TIME_ZONE.get(roundTripped.resolvedSettings()), equalTo(ZoneId.of("Europe/Paris")));
-        assertThat(QuerySettings.APPROXIMATION.get(roundTripped.resolvedSettings()), is(nullValue()));
+        assertThat(roundTripped.setting(QuerySettings.TIME_ZONE), equalTo(ZoneId.of("Europe/Paris")));
+        assertThat(roundTripped.setting(QuerySettings.APPROXIMATION), is(nullValue()));
     }
 }

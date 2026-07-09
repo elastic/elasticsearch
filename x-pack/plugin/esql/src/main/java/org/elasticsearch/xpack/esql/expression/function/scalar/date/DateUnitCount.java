@@ -154,7 +154,7 @@ public class DateUnitCount extends EsqlConfigurationFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var dateEvaluator = toEvaluator.apply(date);
-        var zoneId = QuerySettings.TIME_ZONE.get(configuration().resolvedSettings());
+        var zoneId = configuration().setting(QuerySettings.TIME_ZONE);
 
         DateDiff.Part dst = foldedPart(toUnit, toEvaluator.foldCtx());
         DateDiff.Part src = foldedPart(fromUnit, toEvaluator.foldCtx());

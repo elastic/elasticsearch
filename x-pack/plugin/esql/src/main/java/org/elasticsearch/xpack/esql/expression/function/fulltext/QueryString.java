@@ -340,7 +340,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
     }
 
     private Map<String, Object> queryStringOptions() throws InvalidArgumentException {
-        if (options() == null && QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).equals(ZoneOffset.UTC)) {
+        if (options() == null && configuration.setting(QuerySettings.TIME_ZONE).equals(ZoneOffset.UTC)) {
             return null;
         }
 
@@ -348,10 +348,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         if (options() != null) {
             Options.populateMap((MapExpression) options(), queryStringOptions, source(), SECOND, ALLOWED_OPTIONS);
         }
-        queryStringOptions.putIfAbsent(
-            TIME_ZONE_FIELD.getPreferredName(),
-            QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).getId()
-        );
+        queryStringOptions.putIfAbsent(TIME_ZONE_FIELD.getPreferredName(), configuration.setting(QuerySettings.TIME_ZONE).getId());
         return queryStringOptions;
     }
 

@@ -119,7 +119,7 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
         long randomMillis = randomMillisUpToYear9999();
         Configuration cfg = configurationForTimezoneAndLocale(randomZone(), randomLocale(random()));
         String expected = Instant.ofEpochMilli(randomMillis)
-            .atZone(QuerySettings.TIME_ZONE.get(cfg.resolvedSettings()))
+            .atZone(cfg.setting(QuerySettings.TIME_ZONE))
             .getDayOfWeek()
             .getDisplayName(TextStyle.FULL, cfg.locale());
 

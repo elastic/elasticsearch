@@ -117,14 +117,14 @@ public class DayName extends EsqlConfigurationFunction {
             return new DayNameNanosEvaluator.Factory(
                 source(),
                 fieldEvaluator,
-                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+                configuration().setting(QuerySettings.TIME_ZONE),
                 configuration().locale()
             );
         }
         return new DayNameMillisEvaluator.Factory(
             source(),
             fieldEvaluator,
-            QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+            configuration().setting(QuerySettings.TIME_ZONE),
             configuration().locale()
         );
     }

@@ -111,7 +111,14 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
         final Transport.Connection connection,
         final SearchActionListener<DfsSearchResult> listener
     ) {
-        getSearchTransport().sendExecuteDfs(connection, buildShardSearchRequest(shardIt, listener.requestIndex), getTask(), listener);
+        getSearchTransport().sendExecuteDfs(
+            connection,
+            buildShardSearchRequest(shardIt, listener.requestIndex),
+            getTask(),
+            listener,
+            this::trackPhaseResultBytesRead,
+            this::trackPhaseRequestBytesWritten
+        );
     }
 
     @Override

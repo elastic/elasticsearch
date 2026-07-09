@@ -15,7 +15,6 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
@@ -24,7 +23,6 @@ import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatSelector;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
-import org.elasticsearch.index.codec.tsdb.pipeline.MappedFieldType;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
@@ -32,7 +30,6 @@ import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
-import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -197,7 +194,7 @@ public class PerFieldFormatSupplier {
             // but based on dimension fields and timestamp field, so during indexing
             // version/seq_no/term needs to be looked up and having a bloom filter
             // can speed this up significantly.
-            return indexSettings.getMode() == IndexMode.TIME_SERIES
+            return indexSettings.getMode().isTsdb()
                 && IdFieldMapper.NAME.equals(field)
                 && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
         } else {
@@ -239,15 +236,12 @@ public class PerFieldFormatSupplier {
         if (mapper instanceof NumberFieldMapper numberFieldMapper) {
             final PipelineDescriptor.DataType dataType = toPipelineDataType(numberFieldMapper.type());
             final MetricRole metricRole = toMetricRole(numberFieldMapper.fieldType().getMetricType());
-            return new FieldContext(blockSize, fieldName, dataType, metricRole, null, false);
+            return new FieldContext(blockSize, fieldName, dataType, metricRole);
         }
         if (mapper instanceof DateFieldMapper) {
-            return new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.LONG, null, null, false);
+            return new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.LONG, null);
         }
-        if (mapper instanceof IpFieldMapper ipFieldMapper) {
-            return new FieldContext(blockSize, fieldName, null, null, MappedFieldType.IP, ipFieldMapper.fieldType().isDimension());
-        }
-        return new FieldContext(blockSize, fieldName, null, null, null, false);
+        return new FieldContext(blockSize, fieldName, null, null);
     }
 
     private static PipelineDescriptor.DataType toPipelineDataType(final NumberFieldMapper.NumberType type) {

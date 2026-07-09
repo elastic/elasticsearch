@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.TransportAction;
@@ -186,7 +186,7 @@ public class TransportReloadRemoteClusterCredentialsAction extends TransportActi
         return clusterState.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
-    public static class Request extends LegacyActionRequest {
+    public static class Request extends UntypedActionRequest {
         private final Settings settings;
 
         public Request(Settings settings) {

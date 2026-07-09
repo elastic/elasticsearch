@@ -46,6 +46,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
@@ -88,6 +90,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -107,8 +110,11 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.bccSizeBucket;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.bccTimestampSpanMinutes;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration.ZERO;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -3153,5 +3159,80 @@ public class StatelessCommitServiceTests extends ESTestCase {
             future
         );
         return safeGet(future);
+    }
+
+    public void testBccSizeBucketBoundaries() {
+        assertThat(bccSizeBucket(1), equalTo("<=16MiB"));
+        assertThat(bccSizeBucket(ByteSizeUnit.MB.toBytes(16)), equalTo("<=16MiB"));
+        assertThat(bccSizeBucket(ByteSizeUnit.MB.toBytes(16) + 1), equalTo("<=64MiB"));
+        assertThat(bccSizeBucket(ByteSizeUnit.MB.toBytes(64)), equalTo("<=64MiB"));
+        assertThat(bccSizeBucket(ByteSizeUnit.MB.toBytes(64) + 1), equalTo("<=256MiB"));
+        assertThat(bccSizeBucket(ByteSizeUnit.MB.toBytes(256)), equalTo("<=256MiB"));
+        assertThat(bccSizeBucket(ByteSizeUnit.MB.toBytes(256) + 1), equalTo(">256MiB"));
+
+        assertThat(bccSizeBucket(randomLongBetween(1, ByteSizeUnit.MB.toBytes(16))), equalTo("<=16MiB"));
+        assertThat(bccSizeBucket(randomLongBetween(ByteSizeUnit.MB.toBytes(16) + 1, ByteSizeUnit.MB.toBytes(64))), equalTo("<=64MiB"));
+        assertThat(bccSizeBucket(randomLongBetween(ByteSizeUnit.MB.toBytes(64) + 1, ByteSizeUnit.MB.toBytes(256))), equalTo("<=256MiB"));
+        assertThat(bccSizeBucket(randomLongBetween(ByteSizeUnit.MB.toBytes(256) + 1, Long.MAX_VALUE)), equalTo(">256MiB"));
+    }
+
+    public void testBccTimestampSpanMinutesEmptyWhenNoTimestamps() {
+        assertThat(bccTimestampSpanMinutes(Collections.emptyIterator()), equalTo(OptionalDouble.empty()));
+        assertThat(
+            bccTimestampSpanMinutes(Arrays.<TimestampFieldValueRange>asList(null, null).iterator()),
+            equalTo(OptionalDouble.empty())
+        );
+    }
+
+    public void testBccTimestampSpanMinutesAggregatesAcrossCommits() {
+        final long tenYearsMillis = TimeUnit.DAYS.toMillis(3650);
+        final long oneYearMillis = TimeUnit.DAYS.toMillis(365);
+
+        // single range: span is exactly (max - min) / 60000
+        {
+            final long min = randomLongBetween(0, tenYearsMillis);
+            final long max = min + randomLongBetween(0, oneYearMillis);
+            final OptionalDouble span = bccTimestampSpanMinutes(List.of(new TimestampFieldValueRange(min, max)).iterator());
+            assertThat(span.isPresent(), is(true));
+            assertThat(span.getAsDouble(), closeTo((double) (max - min) / 60_000d, 1e-9));
+        }
+
+        // zero-width range -> 0.0
+        {
+            final long ts = randomLongBetween(0, tenYearsMillis);
+            final OptionalDouble span = bccTimestampSpanMinutes(List.of(new TimestampFieldValueRange(ts, ts)).iterator());
+            assertThat(span.isPresent(), is(true));
+            assertThat(span.getAsDouble(), closeTo(0.0, 1e-9));
+        }
+
+        // multiple ranges aggregate to the overall [min, max]; interspersed nulls must be ignored
+        {
+            final int n = randomIntBetween(1, 6);
+            final List<TimestampFieldValueRange> ranges = new ArrayList<>();
+            long expectedMin = Long.MAX_VALUE;
+            long expectedMax = Long.MIN_VALUE;
+            for (int i = 0; i < n; i++) {
+                final long min = randomLongBetween(0, tenYearsMillis);
+                final long max = min + randomLongBetween(0, oneYearMillis);
+                expectedMin = Math.min(expectedMin, min);
+                expectedMax = Math.max(expectedMax, max);
+                ranges.add(new TimestampFieldValueRange(min, max));
+            }
+            ranges.add(null);
+            ranges.add(null);
+            Collections.shuffle(ranges, random());
+
+            final OptionalDouble span = bccTimestampSpanMinutes(ranges.iterator());
+            assertThat(span.isPresent(), is(true));
+            assertThat(span.getAsDouble(), closeTo((double) (expectedMax - expectedMin) / 60_000d, 1e-9));
+        }
+    }
+
+    public void testBccTimestampSpanMinutesDoesNotThrowOnHugeSpan() {
+        final OptionalDouble span = bccTimestampSpanMinutes(
+            List.of(new TimestampFieldValueRange(Long.MIN_VALUE + 1, Long.MAX_VALUE)).iterator()
+        );
+        assertThat(span.isPresent(), is(true));
+        assertThat(span.getAsDouble(), closeTo(((double) Long.MAX_VALUE - (double) (Long.MIN_VALUE + 1)) / 60_000d, 1.0));
     }
 }

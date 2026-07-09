@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentClo
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
@@ -278,7 +279,7 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
         return createService();
     }
 
-    private TencentCloudChatCompletionModel createChatCompletionModel(TaskType taskType) {
+    private TencentCloudChatCompletionModel createChatCompletionModel(TaskType taskType) throws URISyntaxException {
         var commonSettings = new TencentCloudCommonServiceSettings(
             "deepseek-v3",
             webServer.getUri(null),
@@ -292,7 +293,7 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
         );
     }
 
-    private TencentCloudRerankModel createRerankModel(String modelId) {
+    private TencentCloudRerankModel createRerankModel(String modelId) throws URISyntaxException {
         var commonSettings = new TencentCloudCommonServiceSettings(
             modelId,
             webServer.getUri(null),

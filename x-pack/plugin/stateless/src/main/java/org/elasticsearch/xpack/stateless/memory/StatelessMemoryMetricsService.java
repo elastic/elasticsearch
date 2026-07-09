@@ -343,9 +343,9 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     private record NodeHeapEstimateSnapshot(String nodeId, String nodeName, long heapBytes) {}
 
     /**
-     * Estimates a shard's fixed/adaptive memory overhead (segment, field, live-doc byte counts, and points memory metrics), <b>excluding</b> postings memory
-     * ({@link ShardMemoryMetrics#getPostingsInMemoryBytes()}); callers that need the full shard heap usage, postings included, should
-     * use {@link #computeShardHeapUsage} instead.
+     * Estimates a shard's fixed/adaptive memory overhead (segment, field, live-doc byte counts, and points memory metrics),
+     * <b>excluding</b> postings memory ({@link ShardMemoryMetrics#getPostingsInMemoryBytes()}); callers that need the full shard heap
+     * usage, postings included, should use {@link #computeShardHeapUsage} instead.
      * <p>
      * Called by {@link EstimatedHeapUsageBuilder#add} (node-level estimate) and {@link #computeShardHeapUsage} (shard-level estimate) —
      * see those methods for how each consumes the result.

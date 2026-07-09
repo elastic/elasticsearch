@@ -48,15 +48,6 @@ public class LinkerHelper {
         return LINKER.downcallHandle(functionAddress(function), functionDescriptor, options);
     }
 
-    /**
-     * Default symbol resolver: looks up a single symbol by exact name and creates a downcall handle.
-     * This is the method called by the generated {@code $Impl} class when no custom
-     * {@link SymbolResolverClass @SymbolResolverClass} is specified.
-     */
-    public static MethodHandle resolve(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
-        return downcallHandle(function, functionDescriptor, options);
-    }
-
     public static MethodHandle downcallHandle(
         MemorySegment functionAddress,
         FunctionDescriptor functionDescriptor,

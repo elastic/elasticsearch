@@ -14,30 +14,30 @@ import org.elasticsearch.core.SuppressForbidden;
 import java.lang.invoke.MethodHandle;
 
 /**
- * Tests for the {@code @SymbolResolverClass} annotation support in the processor.
+ * Tests for the {@code symbolResolver} parameter on {@code @LibrarySpecification}.
  */
 @SuppressForbidden(reason = "tests verify private fields of processor-generated classes")
 public class SymbolResolverClassTests extends ProcessorTestCase {
 
     /**
-     * A valid resolver with the correct signature compiles cleanly and the $Impl class is generated.
+     * A valid resolver implementing NativeSymbolResolver with a no-arg constructor compiles cleanly.
      */
     public void testValidResolverCompiles() throws Exception {
         String source = """
             package test;
-            import java.lang.foreign.FunctionDescriptor;
-            import java.lang.foreign.Linker;
-            import java.lang.invoke.MethodHandle;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.SymbolResolverClass;
-            class MyResolver {
-                public static MethodHandle resolve(String functionName, FunctionDescriptor descriptor, Linker.Option... options) {
-                    return null;
+            import org.elasticsearch.foreign.NativeSymbolResolver;
+            class MyResolver implements NativeSymbolResolver {
+                public MyResolver() {}
+                @Override
+                public MemorySegment resolve(String symbolName, SymbolLookup lookup) {
+                    return lookup.find(symbolName).orElseThrow();
                 }
             }
-            @LibrarySpecification(name = "testlib")
-            @SymbolResolverClass(MyResolver.class)
+            @LibrarySpecification(name = "testlib", symbolResolver = MyResolver.class)
             public interface MyLib {
                 @Function("native_add")
                 int add(int a, int b);
@@ -56,19 +56,19 @@ public class SymbolResolverClassTests extends ProcessorTestCase {
     }
 
     /**
-     * The resolver class must have a method named 'resolve'. Missing it is an error.
+     * The resolver class must implement NativeSymbolResolver. The type bound on the annotation
+     * parameter ({@code Class<? extends NativeSymbolResolver>}) causes javac to reject a class
+     * that doesn't implement the interface before the processor even runs.
      */
-    public void testResolverMissingResolveMethodEmitsError() {
+    public void testResolverNotImplementingInterfaceEmitsError() {
         String source = """
             package test;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.SymbolResolverClass;
             class BadResolver {
-                public static void doSomething() {}
+                public BadResolver() {}
             }
-            @LibrarySpecification(name = "testlib")
-            @SymbolResolverClass(BadResolver.class)
+            @LibrarySpecification(name = "testlib", symbolResolver = BadResolver.class)
             public interface MyLib {
                 @Function("native_add")
                 int add(int a, int b);
@@ -77,30 +77,30 @@ public class SymbolResolverClassTests extends ProcessorTestCase {
 
         CompilationResult result = compile("test.MyLib", source);
 
-        assertFalse("Expected compilation to fail when resolver has no 'resolve' method", result.success());
-        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("has no public static method named 'resolve'"));
-        assertTrue("Expected error about missing 'resolve' method but got: " + result.errors(), hasError);
+        assertFalse("Expected compilation to fail when resolver doesn't implement NativeSymbolResolver", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("cannot be converted to"));
+        assertTrue("Expected type mismatch error but got: " + result.errors(), hasError);
     }
 
     /**
-     * The resolve method must be public and static.
+     * The resolver class must have a public no-arg constructor.
      */
-    public void testResolverNonStaticMethodEmitsError() {
+    public void testResolverMissingNoArgConstructorEmitsError() {
         String source = """
             package test;
-            import java.lang.foreign.FunctionDescriptor;
-            import java.lang.foreign.Linker;
-            import java.lang.invoke.MethodHandle;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.SymbolResolverClass;
-            class BadResolver {
-                public MethodHandle resolve(String functionName, FunctionDescriptor descriptor, Linker.Option... options) {
-                    return null;
+            import org.elasticsearch.foreign.NativeSymbolResolver;
+            class BadResolver implements NativeSymbolResolver {
+                public BadResolver(String config) {}
+                @Override
+                public MemorySegment resolve(String symbolName, SymbolLookup lookup) {
+                    return lookup.find(symbolName).orElseThrow();
                 }
             }
-            @LibrarySpecification(name = "testlib")
-            @SymbolResolverClass(BadResolver.class)
+            @LibrarySpecification(name = "testlib", symbolResolver = BadResolver.class)
             public interface MyLib {
                 @Function("native_add")
                 int add(int a, int b);
@@ -109,108 +109,13 @@ public class SymbolResolverClassTests extends ProcessorTestCase {
 
         CompilationResult result = compile("test.MyLib", source);
 
-        assertFalse("Expected compilation to fail when resolve is not static", result.success());
-        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("has no public static method named 'resolve'"));
-        assertTrue("Expected error about missing static 'resolve' method but got: " + result.errors(), hasError);
+        assertFalse("Expected compilation to fail when resolver has no no-arg constructor", result.success());
+        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must have a public no-arg constructor"));
+        assertTrue("Expected error about no-arg constructor but got: " + result.errors(), hasError);
     }
 
     /**
-     * The resolve method must have the correct parameter types. Wrong first param → error.
-     */
-    public void testResolverWrongParamTypesEmitsError() {
-        String source = """
-            package test;
-            import java.lang.foreign.FunctionDescriptor;
-            import java.lang.foreign.Linker;
-            import java.lang.invoke.MethodHandle;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.SymbolResolverClass;
-            class BadResolver {
-                public static MethodHandle resolve(int x, FunctionDescriptor descriptor, Linker.Option... options) {
-                    return null;
-                }
-            }
-            @LibrarySpecification(name = "testlib")
-            @SymbolResolverClass(BadResolver.class)
-            public interface MyLib {
-                @Function("native_add")
-                int add(int a, int b);
-            }
-            """;
-
-        CompilationResult result = compile("test.MyLib", source);
-
-        assertFalse("Expected compilation to fail when resolve has wrong param types", result.success());
-        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must have signature"));
-        assertTrue("Expected error about resolver signature but got: " + result.errors(), hasError);
-    }
-
-    /**
-     * The resolve method must return MethodHandle, not void.
-     */
-    public void testResolverWrongReturnTypeEmitsError() {
-        String source = """
-            package test;
-            import java.lang.foreign.FunctionDescriptor;
-            import java.lang.foreign.Linker;
-            import java.lang.invoke.MethodHandle;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.SymbolResolverClass;
-            class BadResolver {
-                public static void resolve(String functionName, FunctionDescriptor descriptor, Linker.Option... options) {}
-            }
-            @LibrarySpecification(name = "testlib")
-            @SymbolResolverClass(BadResolver.class)
-            public interface MyLib {
-                @Function("native_add")
-                int add(int a, int b);
-            }
-            """;
-
-        CompilationResult result = compile("test.MyLib", source);
-
-        assertFalse("Expected compilation to fail when resolve returns void", result.success());
-        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must have signature"));
-        assertTrue("Expected error about resolver signature but got: " + result.errors(), hasError);
-    }
-
-    /**
-     * The resolve method must be varargs. A fixed 3-param method without varargs → error.
-     */
-    public void testResolverNonVarargsEmitsError() {
-        String source = """
-            package test;
-            import java.lang.foreign.FunctionDescriptor;
-            import java.lang.foreign.Linker;
-            import java.lang.invoke.MethodHandle;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.SymbolResolverClass;
-            class BadResolver {
-                public static MethodHandle resolve(String functionName, FunctionDescriptor descriptor, Linker.Option[] options) {
-                    return null;
-                }
-            }
-            @LibrarySpecification(name = "testlib")
-            @SymbolResolverClass(BadResolver.class)
-            public interface MyLib {
-                @Function("native_add")
-                int add(int a, int b);
-            }
-            """;
-
-        CompilationResult result = compile("test.MyLib", source);
-
-        assertFalse("Expected compilation to fail when resolve is not varargs", result.success());
-        boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("must have signature"));
-        assertTrue("Expected error about resolver signature but got: " + result.errors(), hasError);
-    }
-
-    /**
-     * Without @SymbolResolverClass, the generated code uses the default LinkerHelper.downcallHandle path.
-     * This verifies that existing behavior is preserved (no resolver = standard path compiles).
+     * Without a custom symbolResolver, the generated code uses DefaultSymbolResolver.
      */
     public void testNoResolverUsesDefault() throws Exception {
         String source = """
@@ -228,5 +133,43 @@ public class SymbolResolverClassTests extends ProcessorTestCase {
 
         assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
         assertNotNull(result.loadClassNoInit("test.MyLib$Impl"));
+    }
+
+    /**
+     * A resolver that transforms symbol names (prefix mangling) compiles and generates correctly.
+     */
+    public void testPrefixResolverCompiles() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.NativeSymbolResolver;
+            class PrefixResolver implements NativeSymbolResolver {
+                public PrefixResolver() {}
+                @Override
+                public MemorySegment resolve(String symbolName, SymbolLookup lookup) {
+                    return lookup.find("mylib_" + symbolName).orElseThrow(
+                        () -> new UnsatisfiedLinkError(symbolName));
+                }
+            }
+            @LibrarySpecification(name = "testlib", symbolResolver = PrefixResolver.class)
+            public interface MyLib {
+                @Function("compress")
+                int compress(long src, int len);
+                @Function("decompress")
+                int decompress(long src, int len);
+            }
+            """;
+
+        CompilationResult result = compile("test.MyLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClassNoInit("test.MyLib$Impl");
+        assertNotNull(implClass);
+        assertNotNull(implClass.getDeclaredField("compress$mh"));
+        assertNotNull(implClass.getDeclaredField("decompress$mh"));
     }
 }

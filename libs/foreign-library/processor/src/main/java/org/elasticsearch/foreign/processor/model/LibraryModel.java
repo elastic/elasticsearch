@@ -42,8 +42,8 @@ import javax.tools.Diagnostic.Kind;
  * @param libraryName the native library name from {@code @LibrarySpecification.name()} (may be empty)
  * @param methods all native methods in declaration order
  * @param unavailableOn enum constant names of platforms where this library is unavailable (empty means available everywhere)
- * @param symbolResolverClassName fully-qualified name of the symbol resolver class (never null; defaults to
- *        {@code org.elasticsearch.foreign.LinkerHelper})
+ * @param symbolResolverClassName fully-qualified name of the {@code NativeSymbolResolver} implementation
+ *        (defaults to {@code org.elasticsearch.foreign.DefaultSymbolResolver})
  */
 public record LibraryModel(
     String qualifiedName,
@@ -64,8 +64,8 @@ public record LibraryModel(
         "WINDOWS_X64"
     );
 
-    private static final String SYMBOL_RESOLVER_FQN = "org.elasticsearch.foreign.SymbolResolverClass";
-    private static final String DEFAULT_RESOLVER = "org.elasticsearch.foreign.LinkerHelper";
+    private static final String RESOLVER_INTERFACE_FQN = "org.elasticsearch.foreign.NativeSymbolResolver";
+    private static final String DEFAULT_RESOLVER = "org.elasticsearch.foreign.DefaultSymbolResolver";
 
     /** Fully-qualified name of the {@code $Impl} class generated for this library. */
     public String implQualifiedName() {
@@ -140,53 +140,53 @@ public record LibraryModel(
     }
 
     /**
-     * Resolves and validates the {@code @SymbolResolverClass} annotation on the interface.
-     * Returns the default ({@code LinkerHelper}) when no annotation is present.
-     * The resolver class must declare a {@code public static MethodHandle resolve(String, FunctionDescriptor,
-     * Linker.Option...)} method.
+     * Resolves and validates the {@code symbolResolver} attribute from {@code @LibrarySpecification}.
+     * Returns the default ({@code DefaultSymbolResolver}) when no custom resolver is specified.
+     * The resolver class must implement {@code NativeSymbolResolver} and have a public no-arg constructor.
      *
      * @return the resolver's fully-qualified name (never null on success), or {@code null} if validation failed
      *         (error already emitted).
      */
     private static String resolveAndValidateSymbolResolver(TypeElement element, Messager messager, Types types) {
-        AnnotationMirror resolverMirror = findAnnotationMirror(element, SYMBOL_RESOLVER_FQN);
-        if (resolverMirror == null) {
+        AnnotationMirror specMirror = findAnnotationMirror(element, "org.elasticsearch.foreign.LibrarySpecification");
+        if (specMirror == null) {
             return DEFAULT_RESOLVER;
         }
 
-        TypeMirror resolverTypeMirror = ModelUtil.annotationClassValue(resolverMirror, "value");
+        TypeMirror resolverTypeMirror = ModelUtil.annotationClassValue(specMirror, "symbolResolver");
         if (resolverTypeMirror == null) {
             return DEFAULT_RESOLVER;
         }
 
         TypeElement resolverElement = types.asElement(resolverTypeMirror) instanceof TypeElement te ? te : null;
         if (resolverElement == null) {
-            messager.printMessage(Kind.ERROR, "@SymbolResolverClass value must reference a class", element, resolverMirror);
+            messager.printMessage(Kind.ERROR, "symbolResolver must reference a class", element, specMirror);
             return null;
         }
 
         String resolverFqn = resolverElement.getQualifiedName().toString();
 
-        ExecutableElement resolveMethod = ModelUtil.findPublicStaticMethod(resolverElement, "resolve");
-        if (resolveMethod == null) {
+        if (resolverFqn.equals(DEFAULT_RESOLVER)) {
+            return DEFAULT_RESOLVER;
+        }
+
+        TypeElement resolverInterface = findTypeElement(resolverElement, types, RESOLVER_INTERFACE_FQN);
+        if (resolverInterface == null) {
             messager.printMessage(
                 Kind.ERROR,
-                "@SymbolResolverClass class '" + resolverFqn + "' has no public static method named 'resolve'",
+                "symbolResolver class '" + resolverFqn + "' must implement NativeSymbolResolver",
                 element,
-                resolverMirror
+                specMirror
             );
             return null;
         }
 
-        if (resolverMethodSignatureMatches(resolveMethod) == false) {
+        if (hasPublicNoArgConstructor(resolverElement) == false) {
             messager.printMessage(
                 Kind.ERROR,
-                "@SymbolResolverClass class '"
-                    + resolverFqn
-                    + "' method 'resolve' must have signature "
-                    + "(String, FunctionDescriptor, Linker.Option...) -> MethodHandle",
+                "symbolResolver class '" + resolverFqn + "' must have a public no-arg constructor",
                 element,
-                resolverMirror
+                specMirror
             );
             return null;
         }
@@ -194,45 +194,35 @@ public record LibraryModel(
         return resolverFqn;
     }
 
-    /**
-     * Validates that a resolver {@code resolve} method has the expected signature:
-     * {@code MethodHandle resolve(String, FunctionDescriptor, Linker.Option...)}.
-     */
-    private static boolean resolverMethodSignatureMatches(ExecutableElement method) {
-        var params = method.getParameters();
-        if (params.size() != 3) {
-            return false;
+    /** Checks whether the given type implements (directly or transitively) the interface with the given FQN. */
+    private static TypeElement findTypeElement(TypeElement type, Types types, String interfaceFqn) {
+        for (TypeMirror iface : type.getInterfaces()) {
+            if (iface.getKind() != TypeKind.DECLARED) {
+                continue;
+            }
+            TypeElement ifaceElement = (TypeElement) ((DeclaredType) iface).asElement();
+            if (ifaceElement.getQualifiedName().contentEquals(interfaceFqn)) {
+                return ifaceElement;
+            }
+            TypeElement found = findTypeElement(ifaceElement, types, interfaceFqn);
+            if (found != null) {
+                return found;
+            }
         }
-        if (isType(params.get(0).asType(), "java.lang.String") == false) {
-            return false;
-        }
-        if (isType(params.get(1).asType(), "java.lang.foreign.FunctionDescriptor") == false) {
-            return false;
-        }
-        // Third param must be Linker.Option[] (varargs)
-        if (method.isVarArgs() == false) {
-            return false;
-        }
-        if (isArrayOfType(params.get(2).asType(), "java.lang.foreign.Linker.Option") == false) {
-            return false;
-        }
-        // Return type must be MethodHandle
-        return isType(method.getReturnType(), "java.lang.invoke.MethodHandle");
+        return null;
     }
 
-    private static boolean isType(TypeMirror mirror, String fqn) {
-        if (mirror.getKind() != TypeKind.DECLARED) {
-            return false;
+    private static boolean hasPublicNoArgConstructor(TypeElement type) {
+        for (var enclosed : type.getEnclosedElements()) {
+            if (enclosed.getKind() != ElementKind.CONSTRUCTOR) {
+                continue;
+            }
+            ExecutableElement ctor = (ExecutableElement) enclosed;
+            if (ctor.getParameters().isEmpty() && ctor.getModifiers().contains(Modifier.PUBLIC)) {
+                return true;
+            }
         }
-        return ((TypeElement) ((DeclaredType) mirror).asElement()).getQualifiedName().contentEquals(fqn);
-    }
-
-    private static boolean isArrayOfType(TypeMirror mirror, String componentFqn) {
-        if (mirror.getKind() != javax.lang.model.type.TypeKind.ARRAY) {
-            return false;
-        }
-        TypeMirror componentType = ((javax.lang.model.type.ArrayType) mirror).getComponentType();
-        return isType(componentType, componentFqn);
+        return false;
     }
 
     /**

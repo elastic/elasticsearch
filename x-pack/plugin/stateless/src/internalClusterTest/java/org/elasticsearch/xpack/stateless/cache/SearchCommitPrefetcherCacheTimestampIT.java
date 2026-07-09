@@ -109,7 +109,8 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
             null,
             () -> Map.<String, Object>of("@timestamp", timestamp, "field", randomAlphaOfLength(10))
         );
-        flushAndRefresh(indexName);
+        refresh(indexName);
+        flush(indexName);
 
         var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
         var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(latestCommitGeneration);

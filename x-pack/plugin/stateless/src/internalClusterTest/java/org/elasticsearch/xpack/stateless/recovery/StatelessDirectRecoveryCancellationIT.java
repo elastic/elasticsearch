@@ -105,7 +105,6 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         prepareCreate(indexName).setSettings(indexSettings(1, 0).build()).execute();
 
-        // Wait for recovery to be blocked
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
 
@@ -158,7 +157,6 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -200,7 +198,6 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -244,7 +241,6 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -255,6 +251,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         safeAwait(shardFailureReceived);
         assertThat(directCancellationMetric(node), equalTo(1L));
 
+        // delete the index to speed up cleanup (avoids a big wait for the cluster to become green)
         assertAcked(indicesAdmin().prepareDelete(indexName));
     }
 
@@ -294,16 +291,18 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
         );
-        // Set the cancellation flag, then release restoreShard so the checkpoint fires after it completes
+
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         BlockingFsRepositoryPlugin.proceedWithRestore.release();
 
         safeAwait(shardFailureReceived);
         assertThat(directCancellationMetric(node), equalTo(1L));
 
+        // delete the index to speed up cleanup (avoids a big wait for the cluster to become green)
         assertAcked(indicesAdmin().prepareDelete(indexName));
     }
 
+    /// Tests [TransportStatelessPrimaryRelocationAction]
     public void testDirectCancellationOfPrimaryRelocation() {
         final var masterNode = startMasterOnlyNode();
         final var sourceNode = startIndexNode();
@@ -328,7 +327,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         TestRecoveryBlockerPlugin.afterShardCreatedEntered.release();
 
         // Request cancellation directly on the shard object while still on the (blocked) cluster applier thread's
-        // capture of it, rather than going through CancelRecoveriesAction, which would be racy.
+        // capture of it, rather than going through CancelRecoveriesAction, which is gonna be racy for this specific test.
         final var shard = TestRecoveryBlockerPlugin.latestCreatedIndexShard.get();
         final var shardId = shard.shardId();
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(masterNode, shardId);
@@ -391,7 +390,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         assertThat(directCancellationMetric(targetNode), equalTo(0L));
     }
 
-    /// Cancels the `PEER` typed recovery of a brand-new search shard.
+    /// Tests [TransportStatelessUnpromotableRelocationAction]
     public void testDirectCancellationOfSearchShardPeerRecovery() throws Exception {
         final var masterNode = startMasterOnlyNode();
         final var indexNode = startIndexNode();

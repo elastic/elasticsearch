@@ -28,7 +28,7 @@ public final class HistogramBuckets {
     public static final List<Long> APM_DEFAULT_LONGS;
 
     static {
-        List<Double> doubles = new ArrayList<>(MAX_EXPONENT_HALVES + Math.abs(MIN_EXPONENT_HALVES) + 1);
+        List<Double> doubles = new ArrayList<>(MAX_EXPONENT_HALVES - MIN_EXPONENT_HALVES + 1);
         for (int k = MIN_EXPONENT_HALVES; k <= MAX_EXPONENT_HALVES; k++) {
             doubles.add(Math.pow(2.0, k / 2.0));
         }

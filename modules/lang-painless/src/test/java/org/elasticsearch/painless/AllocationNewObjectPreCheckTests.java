@@ -27,12 +27,12 @@ public class AllocationNewObjectPreCheckTests extends AllocationTestCase {
     }
 
     public void testUnannotatedConstructorNotCharged() {
-        // Annotation-only sizing: an un-annotated constructor charges nothing (documented v1 gap).
-        assertEquals(0L, allocatedBytes("new StringBuilder(); return \"x\";"));
+        // Annotation-only sizing: an un-annotated constructor (ArrayDeque) charges nothing (documented v1 gap).
+        assertEquals(0L, allocatedBytes("new ArrayDeque(); return \"x\";"));
     }
 
     public void testUnannotatedConstructorDoesNotTripLimit() {
-        PainlessTestScript script = compile("new StringBuilder(); return \"x\";", "1b");
+        PainlessTestScript script = compile("new ArrayDeque(); return \"x\";", "1b");
         script.execute();
         assertEquals(0L, ((PainlessScript) script).getAllocBytes());
     }

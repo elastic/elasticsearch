@@ -66,13 +66,11 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
                 e
             );
         });
-        loadException.ifPresent(e -> { throw new RuntimeException("Load mode failed (but nullify succeeded)", e); });
+        throwOnFailure(loadException, "Load mode failed (but nullify succeeded)");
     }
 
     protected void runTestsNullifyOnly(String query, EnumSet<Stage> stages, String... nestedPaths) {
-        tryRunTestsNullifyOnly(query, stages, null, Map.of(), nestedPaths).ifPresent(
-            e -> { throw new RuntimeException("Nullify mode failed", e); }
-        );
+        throwOnFailure(tryRunTestsNullifyOnly(query, stages, null, Map.of(), nestedPaths), "Nullify mode failed");
     }
 
     protected void runTestsNullifyOnly(
@@ -81,23 +79,21 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         TransportVersion minimumSupportedVersion,
         String... nestedPaths
     ) {
-        tryRunTestsNullifyOnly(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths).ifPresent(
-            e -> {
-                throw new RuntimeException("Nullify mode failed", e);
-            }
+        throwOnFailure(
+            tryRunTestsNullifyOnly(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths),
+            "Nullify mode failed"
         );
     }
 
     protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, String... nestedPaths) {
-        tryRunTestsLoadOnly(query, stages, null, Map.of(), nestedPaths).ifPresent(
-            e -> { throw new RuntimeException("Load mode failed", e); }
-        );
+        throwOnFailure(tryRunTestsLoadOnly(query, stages, null, Map.of(), nestedPaths), "Load mode failed");
     }
 
     protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, TransportVersion minimumSupportedVersion, String... nestedPaths) {
-        tryRunTestsLoadOnly(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths).ifPresent(e -> {
-            throw new RuntimeException("Load mode failed", e);
-        });
+        throwOnFailure(
+            tryRunTestsLoadOnly(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths),
+            "Load mode failed"
+        );
     }
 
     /**
@@ -106,10 +102,16 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
      * exercise a version that predates a given wire-format change.
      */
     protected void runTestsLoadOnlyBelow(String query, EnumSet<Stage> stages, TransportVersion maxVersionExclusive, String... nestedPaths) {
-        tryRunTestsLoadOnly(query, stages, TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive), Map.of(), nestedPaths)
-            .ifPresent(e -> {
-                throw new RuntimeException("Load mode failed", e);
-            });
+        throwOnFailure(
+            tryRunTestsLoadOnly(
+                query,
+                stages,
+                TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive),
+                Map.of(),
+                nestedPaths
+            ),
+            "Load mode failed"
+        );
     }
 
     /** Runs NULLIFY mode at the given exact transport version, or a builder-default random version if {@code null}. */
@@ -144,6 +146,10 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
 
     private static TransportVersion randomVersionSupportingOrNull(TransportVersion minimumSupportedVersion) {
         return minimumSupportedVersion == null ? null : TransportVersionUtils.randomVersionSupporting(minimumSupportedVersion);
+    }
+
+    private static void throwOnFailure(Optional<Throwable> exception, String message) {
+        exception.ifPresent(e -> { throw new RuntimeException(message, e); });
     }
 
     private static String setUnmappedNullify(String query) {

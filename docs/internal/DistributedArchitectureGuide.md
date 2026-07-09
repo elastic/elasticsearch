@@ -377,14 +377,11 @@ without knowing its total length up front. The body is instead broken into a seq
 terminated by a final zero-length chunk. Elasticsearch deals with this on both the request and the response side, and
 the two are handled very differently.
 
-On the request side, chunked request bodies are decoded transparently by Netty's stock `HttpRequestDecoder`
+On the request side, chunked request bodies are decoded transparently by Netty's built-in `HttpRequestDecoder`
 ([`Netty4HttpServerTransport`](https://github.com/elastic/elasticsearch/blob/v9.3.0/modules/transport-netty4/src/main/java/org/elasticsearch/http/netty4/Netty4HttpServerTransport.java)),
 which parses chunked and `Content-Length`-based bodies into the same stream of `HttpContent` objects followed by a
 `LastHttpContent`. Netty removes the chunk framing itself, so Elasticsearch only ever sees the decoded body delivered
 incrementally. Elasticsearch does not implement its own chunk-framing logic for incoming requests.
-[`Netty4HttpRequestBodyStream`](https://github.com/elastic/elasticsearch/blob/v9.3.0/modules/transport-netty4/src/main/java/org/elasticsearch/http/netty4/Netty4HttpRequestBodyStream.java)
-then exposes those chunks to the rest of the HTTP layer as an incremental `HttpBody.Stream` (see the Sync/Async IO
-discussion above).
 
 The response side is more interesting, because it lets Elasticsearch produce a chunked response without ever
 materializing the full response body in memory. A handler whose response implements
@@ -392,11 +389,11 @@ materializing the full response body in memory. A handler whose response impleme
 returns an iterator of `ToXContent` chunks rather than a single fully-built document.
 [`ChunkedRestResponseBodyPart`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/ChunkedRestResponseBodyPart.java)
 drives that iterator, serializing only as many chunks as are needed to keep the outbound network buffer full and
-pausing once it fills up. This lets Elasticsearch stream arbitrarily large responses at roughly constant memory,
-instead of building the whole response as one large in-memory buffer before sending the first byte.
+pausing once it fills up. This lets Elasticsearch stream arbitrarily large responses without ever materializing the
+whole serialized response as one large in-memory buffer before sending the first byte.
 [`RestChunkedToXContentListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/RestChunkedToXContentListener.java)
 is the common integration point a REST handler uses to return a `ChunkedToXContent` response this way. The resulting
-`HttpContent`s are ultimately written out by Netty's stock
+`HttpContent`s are ultimately written out by Netty's built-in
 [`HttpResponseEncoder`](https://github.com/elastic/elasticsearch/blob/v9.3.0/modules/transport-netty4/src/main/java/org/elasticsearch/http/netty4/Netty4HttpServerTransport.java#L422),
 which handles the real `Transfer-Encoding: chunked` framing on the wire. This is the write-side counterpart to the
 decoder used on the request path above.

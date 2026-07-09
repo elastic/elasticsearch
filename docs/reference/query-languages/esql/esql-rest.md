@@ -101,9 +101,14 @@ Query results only, without metadata. Useful for quick and manual data previews.
 | `csv` | `text/csv` | [Comma-separated values](https://en.wikipedia.org/wiki/Comma-separated_values) |
 | `tsv` | `text/tab-separated-values` | [Tab-separated values](https://en.wikipedia.org/wiki/Tab-separated_values) |
 | `txt` | `text/plain` | CLI-like representation |
+| `md` | `text/markdown` | Markdown/GitHub-flavored pipe table |
 
 ::::{tip}
 The `csv` format accepts a formatting URL query attribute, `delimiter`, which indicates which character should be used to separate the CSV values. It defaults to comma (`,`) and cannot take any of the following values: double quote (`"`), carriage-return (`\r`) and new-line (`\n`). The tab (`\t`) can also not be used. Use the `tsv` format instead.
+::::
+
+::::{tip}
+The `md` format always includes a header row. Requesting `header=absent` (for example, via `Accept: text/markdown; header=absent`) returns a `400` error, unlike `csv`, `tsv`, and `txt`, which support both `header=present` and `header=absent`.
 ::::
 
 ### Binary formats

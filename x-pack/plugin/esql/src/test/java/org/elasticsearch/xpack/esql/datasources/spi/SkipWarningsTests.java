@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class SkipWarningsTests extends ESTestCase {
@@ -78,6 +79,51 @@ public class SkipWarningsTests extends ESTestCase {
         assertEquals(2, emitted.size());
         assertEquals("live summary", emitted.get(0));
         assertEquals("a detail", emitted.get(1));
+    }
+
+    /**
+     * A supplied sink must receive every emitted message instead of {@link HeaderWarning}, so
+     * warnings raised on a background reader thread (whose {@code ThreadContext} response headers
+     * never reach the client) can be relayed back to the driver thread by the caller.
+     */
+    public void testSinkReceivesMessagesInsteadOfHeaderWarning() {
+        List<String> sunk = new ArrayList<>();
+        SkipWarnings warnings = new SkipWarnings("the summary", sunk::add);
+        warnings.add("first detail");
+        warnings.add("second detail");
+
+        assertEquals(List.of("the summary", "first detail", "second detail"), sunk);
+        assertNull("no message should reach the thread-local response headers", threadContext.getResponseHeaders().get("Warning"));
+    }
+
+    public void testOfWithSinkRoutesThroughSinkForLenientPolicy() {
+        List<String> sunk = new ArrayList<>();
+        SkipWarnings warnings = SkipWarnings.of(ErrorPolicy.LENIENT, "live summary", sunk::add);
+        assertNotSame(SkipWarnings.NOOP, warnings);
+        warnings.add("a detail");
+
+        assertEquals(List.of("live summary", "a detail"), sunk);
+        assertNull(threadContext.getResponseHeaders().get("Warning"));
+    }
+
+    public void testOfWithSinkStrictPolicyReturnsNoopAndIgnoresSink() {
+        List<String> sunk = new ArrayList<>();
+        SkipWarnings warnings = SkipWarnings.of(ErrorPolicy.STRICT, "summary ignored", sunk::add);
+        assertSame(SkipWarnings.NOOP, warnings);
+        warnings.add("dropped");
+        assertTrue(sunk.isEmpty());
+    }
+
+    public void testSinkAlsoReceivesOverflowMessage() {
+        List<String> sunk = new ArrayList<>();
+        SkipWarnings warnings = new SkipWarnings("summary", sunk::add);
+        int total = SkipWarnings.MAX_ADDED_WARNINGS + 5;
+        for (int i = 0; i < total; i++) {
+            warnings.add("detail " + i);
+        }
+        // 1 summary + MAX_ADDED_WARNINGS details + 1 overflow notice
+        assertEquals(SkipWarnings.MAX_ADDED_WARNINGS + 2, sunk.size());
+        assertTrue(sunk.get(sunk.size() - 1).contains("further warnings suppressed"));
     }
 
     /**

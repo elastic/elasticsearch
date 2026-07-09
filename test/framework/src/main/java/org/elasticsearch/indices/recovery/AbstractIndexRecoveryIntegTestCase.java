@@ -34,6 +34,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.store.MockFSIndexStore;
@@ -92,6 +94,8 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         internalCluster().assertSameDocIdsOnShards();
     }
 
+    /// Waits until the given recovery stats predicates are all satisfied, re-checking on every recovery scheduling
+    /// event on all given nodes.
     protected void awaitRecoveryCountStats(Map<String, Predicate<RecoveryStats>> predicatePerNode) {
         final CountDownLatch conditionLatch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean();
@@ -148,6 +152,56 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             predicates.put(nodeName, RecoveryStats::noCurrentRecoveries);
         }
         awaitRecoveryCountStats(predicates);
+    }
+
+    protected void awaitRecoveryCountMetrics(String nodeName, TestTelemetryPlugin nodeTelemetry, Map<String, Long> expectedMetrics) {
+        awaitRecoveryCountMetrics(Map.of(nodeName, nodeTelemetry), Map.of(nodeName, expectedMetrics));
+    }
+
+    /// Waits until `expectedMetrics` matches the provided telemetries' values, re-checking on every recovery
+    /// scheduling event on the given nodes.
+    protected void awaitRecoveryCountMetrics(Map<String, TestTelemetryPlugin> telemetries, Map<String, Map<String, Long>> expectedMetrics) {
+        final var conditionLatch = new CountDownLatch(1);
+        final Map<String, CompositeRecoverySchedulingListener> schedulingListeners = new ConcurrentHashMap<>();
+        for (String nodeName : expectedMetrics.keySet()) {
+            schedulingListeners.put(nodeName, internalCluster().getInstance(CompositeRecoverySchedulingListener.class, nodeName));
+        }
+
+        final var listener = new TestRecoverySchedulingListener() {
+            @Override
+            public void onRecoverySchedulingChange() {
+                if (conditionLatch.getCount() == 0) {
+                    return;
+                }
+                for (var entry : expectedMetrics.entrySet()) {
+                    final var telemetry = telemetries.get(entry.getKey());
+                    final var nodeExpectedMetrics = entry.getValue();
+                    for (var expectedMetric : nodeExpectedMetrics.entrySet()) {
+                        if (getLongUpDownCounter(telemetry, expectedMetric.getKey()) != expectedMetric.getValue()
+                            && getLongCounter(telemetry, expectedMetric.getKey()) != expectedMetric.getValue()) {
+                            return;
+                        }
+                    }
+                }
+                conditionLatch.countDown();
+            }
+        };
+
+        schedulingListeners.values().forEach(s -> s.addListener(listener));
+        try {
+            listener.onRecoverySchedulingChange();
+            safeAwait(conditionLatch);
+        } finally {
+            schedulingListeners.values().forEach(s -> s.removeListener(listener));
+        }
+    }
+
+    private long getLongUpDownCounter(TestTelemetryPlugin telemetry, String key) {
+        return telemetry.getLongUpDownCounterMeasurement(key).stream().mapToLong(Measurement::getLong).sum();
+    }
+
+    private long getLongCounter(TestTelemetryPlugin telemetry, String key) {
+        return telemetry.getLongCounterMeasurement(key).stream().mapToLong(Measurement::getLong).sum();
     }
 
     protected void checkTransientErrorsDuringRecoveryAreRetried(String recoveryActionToBlock) throws Exception {

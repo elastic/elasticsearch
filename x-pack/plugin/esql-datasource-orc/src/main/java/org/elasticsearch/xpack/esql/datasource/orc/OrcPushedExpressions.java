@@ -73,7 +73,7 @@ record OrcPushedExpressions(List<Expression> expressions) {
 
         List<Expression> convertible = new ArrayList<>();
         for (Expression filter : expressions) {
-            if (OrcPushdownFilters.canConvert(filter)) {
+            if (OrcPushdownFilters.canConvert(filter) && allLeavesPhysicallyCompatible(filter, columnTypes)) {
                 convertible.add(filter);
             }
         }
@@ -94,14 +94,65 @@ record OrcPushedExpressions(List<Expression> expressions) {
         return builder.build();
     }
 
-    private static Map<String, TypeDescription.Category> buildColumnTypeMap(TypeDescription schema) {
+    /**
+     * Maximum recursion depth for nested STRUCT flattening; mirrors
+     * {@code OrcFormatReader.MAX_STRUCT_FLATTENING_DEPTH}. The two must stay in lock-step:
+     * a path the reader-side flattener emits as UNSUPPORTED has no corresponding ESQL
+     * attribute, so publishing a column-type entry for it here would yield a stat that no
+     * predicate could ever bind to. We re-declare the value rather than depend on the reader
+     * class so the pushdown package stays free of reader-internal coupling; the
+     * {@code OrcFormatReader} class has a regression test that asserts the two values agree.
+     */
+    static final int MAX_STRUCT_FLATTENING_DEPTH = 64;
+
+    /**
+     * Builds a map from dotted attribute name to the leaf {@link TypeDescription.Category}.
+     * Recurses into STRUCT children so {@code event.action} resolves to the leaf's category,
+     * not the parent STRUCT. Per the prior PR's D2 precedence (same as Parquet T1), a literal
+     * top-level field literally named {@code "event.action"} wins over a nested STRUCT walk
+     * to {@code event -> action} — produce a single entry keyed by the literal name and skip
+     * the conflicting nested traversal at that path. Stops descending at non-STRUCT types
+     * (LIST, MAP, primitives), matching {@code OrcFormatReader.walkDottedLeaves}.
+     *
+     * <p>The map carries both top-level entries (e.g. {@code "id" -> LONG}) and dotted leaves
+     * (e.g. {@code "event.action" -> STRING}); top-level non-STRUCT names retain their old
+     * shape for backward compatibility with the existing tests.
+     */
+    static Map<String, TypeDescription.Category> buildColumnTypeMap(TypeDescription schema) {
         Map<String, TypeDescription.Category> map = new HashMap<>();
         List<String> fieldNames = schema.getFieldNames();
         List<TypeDescription> children = schema.getChildren();
         for (int i = 0; i < fieldNames.size(); i++) {
-            map.put(fieldNames.get(i), children.get(i).getCategory());
+            collectColumnTypes(children.get(i), fieldNames.get(i), 1, map);
         }
         return map;
+    }
+
+    private static void collectColumnTypes(TypeDescription type, String dottedPath, int depth, Map<String, TypeDescription.Category> out) {
+        // D2 precedence: a literal field name already registered at this path wins over a
+        // deeper recursion that would otherwise compose the same dotted string.
+        if (out.containsKey(dottedPath)) {
+            return;
+        }
+        if (depth > MAX_STRUCT_FLATTENING_DEPTH) {
+            // The flattener emits the over-cap group as a single UNSUPPORTED attribute. There
+            // is no corresponding ESQL attribute for any leaf below it, so no predicate can
+            // bind to one — leave the entry off the map entirely.
+            return;
+        }
+        if (type.getCategory() == TypeDescription.Category.STRUCT) {
+            // STRUCT itself is not addressable as a leaf — record its category at the dotted
+            // path so the resolver returns null for any predicate landing on it (mirrors the
+            // Parquet T1 "lands on group" rule), then recurse into children.
+            out.put(dottedPath, TypeDescription.Category.STRUCT);
+            List<String> childNames = type.getFieldNames();
+            List<TypeDescription> children = type.getChildren();
+            for (int i = 0; i < childNames.size(); i++) {
+                collectColumnTypes(children.get(i), dottedPath + "." + childNames.get(i), depth + 1, out);
+            }
+            return;
+        }
+        out.put(dottedPath, type.getCategory());
     }
 
     /**
@@ -143,6 +194,90 @@ record OrcPushedExpressions(List<Expression> expressions) {
             return new HiveDecimalWritable(HiveDecimal.create(BigDecimal.valueOf(d)));
         }
         return OrcPushdownFilters.convertLiteral(value, dataType);
+    }
+
+    /**
+     * True iff every value-comparing leaf in {@code expr} references a column whose physical ORC
+     * category is compatible with its declared ESQL type. A declared retype (e.g. {@code keyword}
+     * over a physical {@code LONG}) reaches the leaf builders, where a STRING {@link PredicateLeaf}
+     * over a LONG column <b>mis-prunes</b>: ORC's stripe evaluator stringifies the integer stats for
+     * the STRING comparison, so {@code == "42"} is tested lexicographically against stringified
+     * integer bounds — {@code "42" > "100"} lexicographically — and the stripe that actually holds
+     * {@code 42} is dropped, silently losing rows.
+     *
+     * <p>Since ORC pushdown is RECHECK ({@code OrcFilterPushdownSupport} → {@code Pushability.RECHECK}),
+     * declining such a conjunct only makes the SearchArgument less selective — never changes the
+     * answer — and {@code FilterExec} re-applies the real ESQL semantics. Genuine columns
+     * ({@code keyword}=STRING, {@code long}=LONG, {@code datetime}=TIMESTAMP/DATE, …) stay compatible,
+     * so no legitimate pushdown is lost. IS NULL / IS NOT NULL are type-independent (they consult the
+     * column's null stat, not its value bounds), so they never mis-prune and stay pushable. Mirrors
+     * the Parquet {@code physicalPrimitiveIs} guard.
+     */
+    private static boolean allLeavesPhysicallyCompatible(Expression expr, Map<String, TypeDescription.Category> columnTypes) {
+        if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne) {
+            return leafPhysicallyCompatible(ne.dataType(), ne.name(), columnTypes);
+        }
+        if (expr instanceof In inExpr && inExpr.value() instanceof NamedExpression ne) {
+            return leafPhysicallyCompatible(ne.dataType(), ne.name(), columnTypes);
+        }
+        if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
+            return leafPhysicallyCompatible(ne.dataType(), ne.name(), columnTypes);
+        }
+        if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne) {
+            return leafPhysicallyCompatible(ne.dataType(), ne.name(), columnTypes);
+        }
+        if (expr instanceof IsNull || expr instanceof IsNotNull) {
+            return true; // null-pruning is type-independent — never mis-prunes on a retype
+        }
+        if (expr instanceof And and) {
+            return allLeavesPhysicallyCompatible(and.left(), columnTypes) && allLeavesPhysicallyCompatible(and.right(), columnTypes);
+        }
+        if (expr instanceof Or or) {
+            return allLeavesPhysicallyCompatible(or.left(), columnTypes) && allLeavesPhysicallyCompatible(or.right(), columnTypes);
+        }
+        if (expr instanceof Not not) {
+            return allLeavesPhysicallyCompatible(not.field(), columnTypes);
+        }
+        return true; // an unknown shape canConvert accepted — canConvert already vetted pushability
+    }
+
+    /**
+     * Whether the file's physical ORC category at {@code columnName} can back a pruning predicate
+     * for the declared ESQL {@code dataType} without the stat-stringification mis-prune described on
+     * {@link #allLeavesPhysicallyCompatible}. A column absent from this file's schema (an unconvertible
+     * leaf, or glob drift) has no stats, so the mis-prune this guard prevents cannot occur — ORC
+     * evaluates a leaf on an unknown column as {@code YES_NO} (no pruning). Treat it as compatible so a
+     * partial {@code AND} still pushes its convertible, in-schema leaves (the unconvertible side is
+     * dropped by {@code canConvert}/{@code buildPredicate}); declining here would drop the whole
+     * conjunction. The mis-prune guard only bites an <b>in-schema</b> column whose physical category
+     * disagrees with the declared type.
+     */
+    private static boolean leafPhysicallyCompatible(
+        DataType dataType,
+        String columnName,
+        Map<String, TypeDescription.Category> columnTypes
+    ) {
+        TypeDescription.Category cat = columnTypes.get(columnName);
+        if (cat == null) {
+            return true;
+        }
+        return switch (dataType) {
+            case BOOLEAN -> cat == TypeDescription.Category.BOOLEAN;
+            case INTEGER, LONG -> cat == TypeDescription.Category.BYTE
+                || cat == TypeDescription.Category.SHORT
+                || cat == TypeDescription.Category.INT
+                || cat == TypeDescription.Category.LONG;
+            case DOUBLE -> cat == TypeDescription.Category.FLOAT
+                || cat == TypeDescription.Category.DOUBLE
+                || cat == TypeDescription.Category.DECIMAL;
+            case KEYWORD, TEXT -> cat == TypeDescription.Category.STRING
+                || cat == TypeDescription.Category.CHAR
+                || cat == TypeDescription.Category.VARCHAR;
+            case DATETIME -> cat == TypeDescription.Category.TIMESTAMP
+                || cat == TypeDescription.Category.TIMESTAMP_INSTANT
+                || cat == TypeDescription.Category.DATE;
+            default -> false;
+        };
     }
 
     private static void buildPredicate(SearchArgument.Builder builder, Expression expr, Map<String, TypeDescription.Category> columnTypes) {

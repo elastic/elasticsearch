@@ -20,6 +20,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -81,7 +82,12 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             };
             items[i] = new BulkItemRequest(i, request);
         }
-        return new BulkShardRequest(new ShardId("index", "_na_", 0), randomFrom(WriteRequest.RefreshPolicy.values()), items);
+        return new BulkShardRequest(
+            new ShardId("index", "_na_", 0),
+            SplitShardCountSummary.fromInt(randomInt(1024)),
+            randomFrom(WriteRequest.RefreshPolicy.values()),
+            items
+        );
     }
 
     public void testTranslogLocation() {

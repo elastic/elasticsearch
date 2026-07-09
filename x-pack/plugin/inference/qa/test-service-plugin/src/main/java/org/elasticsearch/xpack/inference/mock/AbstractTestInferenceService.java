@@ -105,8 +105,8 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     protected abstract ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap);
 
     @Override
-    public void start(Model model, TimeValue timeout, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
+    public void start(Model model, TimeValue timeout, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
 
     @Override

@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -338,7 +339,23 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public List<String> defaultFields() {
-        return indexSettings.getDefaultFields();
+        List<String> fields = indexSettings.getDefaultFields();
+        if (indexSettings.getMode().isStrictColumnar() && fields.size() == 1 && "*".equals(fields.getFirst())) {
+            List<String> indexedFields = new ArrayList<>();
+            for (var mapper : mappingLookup.fieldMappers()) {
+                if (mapper instanceof FieldMapper fieldMapper) {
+                    if (mapper instanceof MetadataFieldMapper) {
+                        continue;
+                    }
+                    var fieldType = fieldMapper.fieldType();
+                    if (fieldType.indexType().hasDenseIndex()) {
+                        indexedFields.add(fieldType.name());
+                    }
+                }
+            }
+            return indexedFields;
+        }
+        return fields;
     }
 
     public boolean queryStringLenient() {
@@ -846,5 +863,19 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (memoryToRelease > 0 && circuitBreaker != null) {
             circuitBreaker.addWithoutBreaking(-memoryToRelease);
         }
+    }
+
+    /**
+     * Release {@code bytes} of accumulated query construction memory back to the circuit breaker.
+     *
+     * @param bytes the number of bytes to refund; must be {@code >= 0}
+     */
+    public void releaseQueryConstructionMemory(long bytes) {
+        assert bytes >= 0 : "negative refund: " + bytes;
+        if (circuitBreaker == null || bytes <= 0) {
+            return;
+        }
+        circuitBreaker.addWithoutBreaking(-bytes);
+        queryConstructionMemoryUsed.addAndGet(-bytes);
     }
 }

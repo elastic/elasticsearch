@@ -25,8 +25,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -179,7 +179,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
                 .onSliceResponse(
                     neverCalledListener(),
                     i,
-                    new BulkByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false)
+                    new BulkByPaginatedSearchResponse(timeValueMillis(10), status, emptyList(), emptyList(), false)
                 );
             sliceStatuses.add(new BulkByPaginatedSearchTask.StatusOrException(status));
         }
@@ -215,13 +215,17 @@ public class TransportRethrottleActionTests extends ESTestCase {
         List<BulkByPaginatedSearchTask.StatusOrException> sliceStatuses = new ArrayList<>(slices);
         for (int i = 0; i < slices; i++) {
             @SuppressWarnings("unchecked")
-            ActionListener<BulkByScrollResponse> listener = i < slices - 1 ? neverCalledListener() : mock(ActionListener.class);
+            ActionListener<BulkByPaginatedSearchResponse> listener = i < slices - 1 ? neverCalledListener() : mock(ActionListener.class);
             BulkByPaginatedSearchTask.Status status = believeableCompletedStatus(i);
             task.getLeaderState()
-                .onSliceResponse(listener, i, new BulkByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false));
+                .onSliceResponse(
+                    listener,
+                    i,
+                    new BulkByPaginatedSearchResponse(timeValueMillis(10), status, emptyList(), emptyList(), false)
+                );
             if (i == slices - 1) {
                 // The whole thing succeeded so we should have got the success
-                captureResponse(BulkByScrollResponse.class, listener).getStatus();
+                captureResponse(BulkByPaginatedSearchResponse.class, listener).getStatus();
             }
             sliceStatuses.add(new BulkByPaginatedSearchTask.StatusOrException(status));
         }

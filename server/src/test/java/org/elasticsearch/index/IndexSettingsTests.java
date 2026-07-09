@@ -269,6 +269,7 @@ public class IndexSettingsTests extends ESTestCase {
                     "index",
                     Settings.builder()
                         .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
                         .put(IndexSettings.SLICE_ENABLED.getKey(), true)
                         .build()
                 ),
@@ -1204,9 +1205,7 @@ public class IndexSettingsTests extends ESTestCase {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.LOGSDB));
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
-        }
+        modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
         IndexMode mode = randomFrom(modes);
         Settings.Builder builder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), mode.getName())
@@ -1253,7 +1252,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersDefaultForColumnarModes() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         // Test COLUMNAR mode
@@ -1284,8 +1282,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDynamicStringsAutoTextDefaultByIndexMode() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         // COLUMNAR and LOGSDB_COLUMNAR default to false (keyword, high-cardinality)
         for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();

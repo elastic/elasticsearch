@@ -138,9 +138,6 @@ The `album` table should contain **347** entries and the `artist` table should c
 
 ::::
 
-
-This tutorial uses a very basic setup. Refer to postgresql-connector-client-tutorial for more details.
-
 Now it’s time for the real fun! We’ll set up a connector to create a searchable mirror of our PostgreSQL data in {{es}}.
 
 ## Create a connector [es-connectors-tutorial-api-create-connector]
@@ -161,7 +158,6 @@ PUT _connector/my-connector-id
 
 ::::{tip}
 `service_type` refers to the third-party data source you’re connecting to.
-
 ::::
 
 
@@ -284,7 +280,7 @@ Configuration updates via the API are possible only *after schema registration*.
 ::::
 
 
-Run the following API call to configure the connector with our connectors-postgresql-client-configuration,PostgreSQL configuration details:
+Run the following API call to configure the connector with our PostgreSQL configuration details:
 
 ```console
 PUT _connector/my-connector-id/_configuration
@@ -303,8 +299,7 @@ PUT _connector/my-connector-id/_configuration
 % TEST[skip:TODO]
 
 ::::{note}
-Configuration details are specific to the connector type. The keys and values will differ depending on which third-party data source you’re connecting to. Refer to the individual connectors-references,connector references for these configuration details.
-
+Configuration details are specific to the connector type. The keys and values will differ depending on which third-party data source you’re connecting to. Refer to the individual [connector references](/reference/search-connectors/connector-reference.md) for these configuration details.
 ::::
 
 ## Sync your data [es-connectors-tutorial-api-sync]

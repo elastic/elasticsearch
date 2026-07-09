@@ -251,12 +251,146 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
         }
     }
 
+    /**
+     * Returns the position-0 cell of the parse-path evaluator as a Java object. Multi-value
+     * positions surface as a {@code List<BytesRef>}; single values as a {@code BytesRef};
+     * null positions as {@code null}. Used by the multi-value tests below to assert both the
+     * arity (single vs multi) and the elements without depending on block internals.
+     */
+    private Object extractFromBytesAsObject(BytesRef bytes, String path) {
+        try (
+            var eval = evaluator(new FieldExtract(Source.EMPTY, field("field", DataType.FLATTENED), field("path", DataType.KEYWORD))).get(
+                driverContext()
+            );
+            Block block = eval.eval(row(List.of(bytes, new BytesRef(path))))
+        ) {
+            return block.isNull(0) ? null : BlockUtils.toJavaObject(block, 0);
+        }
+    }
+
     public void testLiteralDottedKeyMatchesFlatStorage() {
         // The doc-values shape of a flattened root: every leaf is one top-level key with a dotted name.
         // This test also pins down the literal-key semantics. If the implementation accidentally
         // treated `.` as a navigation separator, the "literal dotted key" supplier above would also
         // start failing, since its input has no nested object to walk into.
         assertThat(extractFromBytes(new BytesRef("{\"foo.bar.baz\":\"x\"}"), "foo.bar.baz"), equalTo("x"));
+    }
+
+    public void testMultiValueArrayOfStringsProducesMultiValuePosition() {
+        // The CsvFlattenedKeywordIT variant wraps every multi-value keyword as {"v": [...]};
+        // the parse path must produce a real multi-value keyword block to match what the
+        // pushdown path returns from the keyed sub-field doc-values reader.
+        Object result = extractFromBytesAsObject(new BytesRef("{\"v\":[\"a\",\"b\",\"c\"]}"), "v");
+        assertThat(result, instanceOf(List.class));
+        assertThat(((List<?>) result).stream().map(o -> ((BytesRef) o).utf8ToString()).toList(), equalTo(List.of("a", "b", "c")));
+    }
+
+    public void testMultiValueArrayOfNumbersProducesStringifiedMultiValue() {
+        // Per the function's documented contract numbers come through as their string
+        // representation. Multi-value numeric arrays must keep that promise per element.
+        Object result = extractFromBytesAsObject(new BytesRef("{\"v\":[1,2,3.5]}"), "v");
+        assertThat(result, instanceOf(List.class));
+        assertThat(((List<?>) result).stream().map(o -> ((BytesRef) o).utf8ToString()).toList(), equalTo(List.of("1", "2", "3.5")));
+    }
+
+    public void testMultiValueArrayOfBooleansUsesCanonicalLiterals() {
+        // Booleans are emitted via the TRUE_BYTES / FALSE_BYTES singletons rather than the
+        // parser's text representation, matching the JsonExtract policy and avoiding any
+        // chance of locale-dependent rendering.
+        Object result = extractFromBytesAsObject(new BytesRef("{\"v\":[true,false,true]}"), "v");
+        assertThat(result, instanceOf(List.class));
+        assertThat(((List<?>) result).stream().map(o -> ((BytesRef) o).utf8ToString()).toList(), equalTo(List.of("true", "false", "true")));
+    }
+
+    public void testSingleElementArrayCollapsesToScalarPosition() {
+        // Symmetric to CsvTestsDataLoader.parseDocument's single-element multi-value collapse:
+        // a doc that started life as `[x]` round-trips through the parse path as the scalar
+        // `x`, so MV_COUNT(field_extract(...)) returns 1 regardless of whether the underlying
+        // sub-field stored the value as a list or as a scalar.
+        Object result = extractFromBytesAsObject(new BytesRef("{\"v\":[\"only\"]}"), "v");
+        assertThat(result, instanceOf(BytesRef.class));
+        assertThat(((BytesRef) result).utf8ToString(), equalTo("only"));
+    }
+
+    public void testEmptyArrayProducesNullPosition() {
+        // Empty arrays carry no value; the function's contract says "Returns null ... if no
+        // sub-field with that name exists, or if the stored value is JSON null", and an empty
+        // array is the natural extension of that "no value" reading.
+        assertNull(extractFromBytesAsObject(new BytesRef("{\"v\":[]}"), "v"));
+    }
+
+    public void testJsonNullValueProducesNullPosition() {
+        // VALUE_NULL was previously unhandled and crashed parser.text() on the BytesRef
+        // constructor. Now it appends a null position, matching the documented behavior.
+        assertNull(extractFromBytesAsObject(new BytesRef("{\"v\":null}"), "v"));
+    }
+
+    public void testJsonNullsInsideArrayAreDropped() {
+        // Multi-value keyword positions cannot represent null elements. Dropping is the only
+        // representable option that does not silently substitute an empty BytesRef for a null,
+        // and is symmetrical with the empty-array-becomes-null rule below.
+        Object result = extractFromBytesAsObject(new BytesRef("{\"v\":[\"a\",null,\"b\"]}"), "v");
+        assertThat(result, instanceOf(List.class));
+        assertThat(((List<?>) result).stream().map(o -> ((BytesRef) o).utf8ToString()).toList(), equalTo(List.of("a", "b")));
+    }
+
+    public void testArrayOfAllNullsCollapsesToNullPosition() {
+        // After dropping null elements per testJsonNullsInsideArrayAreDropped, an
+        // all-null array is indistinguishable from an empty array, so it collapses to null.
+        assertNull(extractFromBytesAsObject(new BytesRef("{\"v\":[null,null]}"), "v"));
+    }
+
+    public void testNestedObjectAtSubKeyReturnsNull() {
+        // The flattened mapper indexes leaves of a nested object under extended dotted keys
+        // (here {@code v.a} and {@code v.b}), so the pushdown path sees no value at the
+        // requested key {@code v}. The parse path is aligned to return null for the same
+        // shape so the two paths produce interchangeable results.
+        assertNull(extractFromBytesAsObject(new BytesRef("{\"v\":{\"a\":1,\"b\":\"x\"}}"), "v"));
+    }
+
+    public void testNestedObjectInsideArrayIsSkipped() {
+        // Object elements of a multi-value sub-field are indexed under extended dotted keys,
+        // so they are absent from the flat storage at the requested key. The parse path skips
+        // them so the returned multi-value position lists only the scalar leaves that the
+        // pushdown path would have read.
+        Object result = extractFromBytesAsObject(new BytesRef("{\"v\":[\"x\",{\"k\":1},\"y\"]}"), "v");
+        assertThat(result, instanceOf(List.class));
+        assertThat(((List<?>) result).stream().map(o -> ((BytesRef) o).utf8ToString()).toList(), equalTo(List.of("x", "y")));
+    }
+
+    public void testArrayOfOnlyObjectsReturnsNull() {
+        // A multi-value sub-field whose elements are all embedded objects has no leaves at
+        // the requested key in the flat storage and the function returns null, matching how
+        // the pushdown path would see no value.
+        assertNull(extractFromBytesAsObject(new BytesRef("{\"v\":[{\"a\":1},{\"b\":2}]}"), "v"));
+    }
+
+    public void testNestedArrayInsideArrayFlattensScalars() {
+        // The flattened mapper iterates nested arrays without extending the storage key, so
+        // every scalar leaf ends up under the outer key. The parse path matches by recursing
+        // into nested arrays and surfacing their scalar leaves in document order.
+        Object result = extractFromBytesAsObject(new BytesRef("{\"v\":[[\"a\",\"b\"],\"c\"]}"), "v");
+        assertThat(result, instanceOf(List.class));
+        assertThat(((List<?>) result).stream().map(o -> ((BytesRef) o).utf8ToString()).toList(), equalTo(List.of("a", "b", "c")));
+    }
+
+    public void testNestedArrayContainingObjectsSkipsObjectsButFlattensScalars() {
+        // Mixed structure: nested-array scalars survive (they share the outer key) but
+        // object leaves inside the nested array do not (they live at extended dotted keys).
+        Object result = extractFromBytesAsObject(new BytesRef("{\"v\":[[\"a\",{\"x\":1}],\"c\"]}"), "v");
+        assertThat(result, instanceOf(List.class));
+        assertThat(((List<?>) result).stream().map(o -> ((BytesRef) o).utf8ToString()).toList(), equalTo(List.of("a", "c")));
+    }
+
+    public void testMultiValueArrayPreservesOtherKeysWhenScanningPastTarget() {
+        // The find-key loop must consume the entire matched-array sub-tree before returning;
+        // a regression that returned mid-scan would corrupt the parser cursor for any siblings
+        // (this matters for the constant-evaluator path, which reuses parsers under load).
+        // Sanity-check by extracting the second of two keys; the result must reflect the
+        // second key's array, not the first's.
+        Object result = extractFromBytesAsObject(new BytesRef("{\"a\":[\"skip\"],\"v\":[\"x\",\"y\"]}"), "v");
+        assertThat(result, instanceOf(List.class));
+        assertThat(((List<?>) result).stream().map(o -> ((BytesRef) o).utf8ToString()).toList(), equalTo(List.of("x", "y")));
     }
 
     private static List<DataType> types(DataType firstType, DataType secondType) {

@@ -12,7 +12,7 @@ package org.elasticsearch.reindex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.tasks.Task;
 
@@ -20,7 +20,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
-public record LoggingReindexTaskListener(Task task) implements ActionListener<BulkByScrollResponse> {
+public record LoggingReindexTaskListener(Task task) implements ActionListener<BulkByPaginatedSearchResponse> {
 
     private static final Logger logger = LogManager.getLogger(LoggingReindexTaskListener.class);
 
@@ -29,7 +29,7 @@ public record LoggingReindexTaskListener(Task task) implements ActionListener<Bu
     }
 
     @Override
-    public void onResponse(BulkByScrollResponse resp) {
+    public void onResponse(BulkByPaginatedSearchResponse resp) {
         logger.info("{} finished with response {}", task.getId(), resp);
     }
 

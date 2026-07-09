@@ -140,7 +140,7 @@ required_capability: tdigest_time_series_metric
 required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS min = MIN(responseTime),
          max = MAX(responseTime),
          p90 = PERCENTILE(responseTime,90),
@@ -159,7 +159,7 @@ Count ungrouped (standard mode)
 required_capability: count_of_histogram_types
 
 FROM tdigest_standard_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS cnt = Count(responseTime)
  | KEEP cnt
 ;
@@ -174,7 +174,7 @@ Count grouped (standard mode)
 required_capability: count_of_histogram_types
 
 FROM tdigest_standard_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS cnt = Count(responseTime) BY instance
  | KEEP instance, cnt
 ;
@@ -193,7 +193,7 @@ required_capability: ts_command_v0
 required_capability: tdigest_time_series_metric
 
 TS tdigest_timeseries_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td" 
  | STATS cnt = Count(responseTime)
  | KEEP cnt
 ;
@@ -209,7 +209,7 @@ required_capability: ts_command_v0
 required_capability: tdigest_time_series_metric
 
 TS tdigest_timeseries_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS cnt = Count(responseTime) BY instance
  | KEEP instance, cnt
 ;
@@ -228,7 +228,7 @@ required_capability: tdigest_time_series_metric
 required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS min = MIN(responseTime),
          max = MAX(responseTime),
          p95 = PERCENTILE(responseTime,95),
@@ -283,7 +283,7 @@ required_capability: tdigest_time_series_metric
 required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS p0 = PERCENTILE(responseTime,0),  p50 = PERCENTILE(responseTime,50),  p95 = PERCENTILE(responseTime, 95),  p100 = PERCENTILE(responseTime,100)
  | KEEP p0, p50, p95, p100
 ;
@@ -298,7 +298,7 @@ bwcUngroupedPercentile
 required_capability: tdigest_time_series_metric
 
 FROM tdigest_standard_index
- | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS p90 = PERCENTILE(responseTime,90)
  | KEEP p90
 ;
@@ -314,7 +314,7 @@ required_capability: tdigest_time_series_metric
 required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index
- | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS p0 = PERCENTILE(responseTime,0),  p50 = PERCENTILE(responseTime,50),  p95 = PERCENTILE(responseTime, 95),  p100 = PERCENTILE(responseTime,100) BY instance
  | KEEP instance, p0, p50, p95, p100
  | SORT instance
@@ -366,7 +366,7 @@ required_capability: tdigest_median
 required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS median = MEDIAN(responseTime)
  | KEEP median
 ;
@@ -383,7 +383,7 @@ required_capability: tdigest_median
 required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index
- | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS median = MEDIAN(responseTime) BY instance
  | KEEP instance, median
  | SORT instance
@@ -404,7 +404,7 @@ required_capability: ts_command_v0
 required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index
- | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS median = MEDIAN(responseTime)
  | KEEP median
 ;
@@ -422,7 +422,7 @@ required_capability: ts_command_v0
 required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index
- | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS median = MEDIAN(responseTime) BY instance
  | KEEP instance, median
  | SORT instance
@@ -460,7 +460,7 @@ required_capability: tdigest_time_series_metric
 required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td" 
  | STATS min = MIN(responseTime) WHERE instance == "instance-0",
          max = MAX(responseTime) WHERE instance == "instance-1",
          p95 = PERCENTILE(responseTime,95) WHERE instance == "instance-0",
@@ -539,7 +539,7 @@ required_capability: ts_command_v0
 required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td" 
  | STATS min = MIN(responseTime), max = MAX(responseTime), p90 = PERCENTILE(responseTime,90), sum = SUM(responseTime), avg = AVG(responseTime)
  | KEEP min, max, p90, sum, avg
 ;
@@ -557,7 +557,7 @@ required_capability: count_of_histogram_types
 required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td" 
  | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
  | STATS min = MIN(responseTime), 
          max = MAX(responseTime), 
@@ -594,7 +594,7 @@ required_capability: count_of_histogram_types
 required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td" 
  | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
  | STATS min = MIN(responseTime), 
          max = MAX(responseTime), 
@@ -632,7 +632,7 @@ required_capability: count_of_histogram_types
 required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td" 
  | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
  | STATS min = MIN(responseTime), 
          max = MAX(responseTime), 
@@ -667,7 +667,7 @@ required_capability: count_of_histogram_types
 required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td" 
  | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
  | STATS min = MIN(responseTime), 
          max = MAX(responseTime), 
@@ -707,7 +707,7 @@ required_capability: count_of_histogram_types
 required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
- | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td" 
  | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
  | STATS min = MIN(responseTime), 
          max = MAX(responseTime), 
@@ -746,7 +746,7 @@ required_capability: tdigest_time_series_metric
 required_capability: count_of_histogram_types
 
 FROM tdigest_standard_index
- | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td" 
  | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
  | STATS count = Count(responseTime) by time = Bucket(@timestamp, 10m)
  | KEEP time, count
@@ -769,7 +769,7 @@ required_capability: ts_command_v0
 required_capability: count_of_histogram_types
 
 TS tdigest_timeseries_index
- | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td" 
  | WHERE TRANGE(to_datetime("2025-09-25T00:30:00Z"), to_datetime("2025-09-25T01:00:00Z"))
  | STATS count = Count(responseTime) by time = Bucket(@timestamp, 10m)
  | KEEP time, count
@@ -790,7 +790,7 @@ required_capability: ts_command_v0
 required_capability: tdigest_first_last_over_time
 
 TS tdigest_timeseries_index
- | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
  | STATS first_count = COUNT(first_over_time(responseTime)),
          last_count = COUNT(last_over_time(responseTime))
          BY time = TBUCKET(1d)
@@ -946,7 +946,7 @@ required_capability: count_of_histogram_types
 required_capability: fix_histogram_blockloaders_isnull
 
 TS tdigest_timeseries_index
- | WHERE caseTestPlaceholder IS NOT NULL
+ | WHERE caseTestPlaceholder IS NOT NULL AND instance != "multi-row-td"
  | STATS cnt = COUNT(caseTestPlaceholder) BY instance
  | KEEP instance, cnt
  | SORT instance

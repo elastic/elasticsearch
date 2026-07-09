@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
@@ -15,8 +19,13 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
 /**
@@ -25,7 +34,7 @@ import java.util.function.Function;
  * <p>
  * Reads the {@code _rowPosition} channel from each incoming page — these are encoded row
  * references (extractor id packed with file-local position) written by the source factory. Calls
- * {@link SourceExtractors#materialize(long[], int, List, BlockFactory)} to materialize the
+ * {@link SourceExtractors#materialize(long[], int, List, List, BlockFactory)} to materialize the
  * deferred columns, then assembles an output page that:
  * <ul>
  *     <li>Keeps every input block <em>except</em> the {@code _rowPosition} channel.</li>
@@ -54,6 +63,7 @@ public class ExternalFieldExtractOperator implements Operator {
         private final int rowPositionChannel;
         private final List<Integer> passThroughChannels;
         private final List<String> deferredColumnNames;
+        private final List<DataType> deferredColumnTypes;
         private final Function<DriverContext, SourceExtractors> sourceExtractorsLookup;
 
         /**
@@ -61,6 +71,10 @@ public class ExternalFieldExtractOperator implements Operator {
          * @param passThroughChannels      channel indices of the input page that should be copied
          *                                 to the output (in the order they appear in the output)
          * @param deferredColumnNames      names of the deferred columns to load, in output order
+         * @param deferredColumnTypes      planner/declared type per deferred column, aligned with
+         *                                 {@code deferredColumnNames}; extraction coerces the file's
+         *                                 value to this type exactly like the eager decode paths
+         *                                 ({@code DeclaredTypeCoercions})
          * @param sourceExtractorsLookup   per-driver registry resolver; must never return
          *                                 {@code null}
          */
@@ -68,6 +82,7 @@ public class ExternalFieldExtractOperator implements Operator {
             int rowPositionChannel,
             List<Integer> passThroughChannels,
             List<String> deferredColumnNames,
+            List<DataType> deferredColumnTypes,
             Function<DriverContext, SourceExtractors> sourceExtractorsLookup
         ) {
             if (rowPositionChannel < 0) {
@@ -79,12 +94,22 @@ public class ExternalFieldExtractOperator implements Operator {
             if (deferredColumnNames == null) {
                 throw new IllegalArgumentException("deferredColumnNames must not be null");
             }
+            if (deferredColumnTypes == null || deferredColumnTypes.size() != deferredColumnNames.size()) {
+                throw new IllegalArgumentException(
+                    "deferredColumnTypes must align with deferredColumnNames, got ["
+                        + (deferredColumnTypes == null ? "null" : deferredColumnTypes.size())
+                        + "] for ["
+                        + deferredColumnNames.size()
+                        + "] names"
+                );
+            }
             if (sourceExtractorsLookup == null) {
                 throw new IllegalArgumentException("sourceExtractorsLookup must not be null");
             }
             this.rowPositionChannel = rowPositionChannel;
             this.passThroughChannels = List.copyOf(passThroughChannels);
             this.deferredColumnNames = List.copyOf(deferredColumnNames);
+            this.deferredColumnTypes = List.copyOf(deferredColumnTypes);
             this.sourceExtractorsLookup = sourceExtractorsLookup;
         }
 
@@ -100,6 +125,7 @@ public class ExternalFieldExtractOperator implements Operator {
                 rowPositionChannel,
                 passThroughChannels,
                 deferredColumnNames,
+                deferredColumnTypes,
                 registry,
                 driverContext.blockFactory()
             );
@@ -120,8 +146,12 @@ public class ExternalFieldExtractOperator implements Operator {
     private final int rowPositionChannel;
     private final List<Integer> passThroughChannels;
     private final List<String> deferredColumnNames;
+    private final List<DataType> deferredColumnTypes;
     private final SourceExtractors registry;
     private final BlockFactory blockFactory;
+    private final LongAdder pagesProcessed = new LongAdder();
+    private final LongAdder rowsExtracted = new LongAdder();
+    private final LongAdder extractNanos = new LongAdder();
 
     private Page prev;
     private boolean finished;
@@ -130,12 +160,14 @@ public class ExternalFieldExtractOperator implements Operator {
         int rowPositionChannel,
         List<Integer> passThroughChannels,
         List<String> deferredColumnNames,
+        List<DataType> deferredColumnTypes,
         SourceExtractors registry,
         BlockFactory blockFactory
     ) {
         this.rowPositionChannel = rowPositionChannel;
         this.passThroughChannels = passThroughChannels;
         this.deferredColumnNames = deferredColumnNames;
+        this.deferredColumnTypes = deferredColumnTypes;
         this.registry = registry;
         this.blockFactory = blockFactory;
     }
@@ -176,7 +208,20 @@ public class ExternalFieldExtractOperator implements Operator {
         if (page.getPositionCount() == 0) {
             return reshapeEmpty(page);
         }
-        return materialize(page);
+        long start = System.nanoTime();
+        try {
+            Page out = materialize(page);
+            rowsExtracted.add(out.getPositionCount());
+            return out;
+        } finally {
+            extractNanos.add(System.nanoTime() - start);
+            pagesProcessed.increment();
+        }
+    }
+
+    @Override
+    public Status status() {
+        return new Status(pagesProcessed.sum(), rowsExtracted.sum(), extractNanos.sum());
     }
 
     /**
@@ -245,7 +290,7 @@ public class ExternalFieldExtractOperator implements Operator {
             }
         }
 
-        Block[] deferredBlocks = registry.materialize(refs, positions, deferredColumnNames, blockFactory);
+        Block[] deferredBlocks = registry.materialize(refs, positions, deferredColumnNames, deferredColumnTypes, blockFactory);
         try {
             Block[] outBlocks = new Block[passThroughChannels.size() + deferredBlocks.length];
             int idx = 0;
@@ -291,5 +336,107 @@ public class ExternalFieldExtractOperator implements Operator {
         // when this operator closes (driver teardown), close the registry to release per-file
         // extractors and any held StorageObjects.
         registry.close();
+    }
+
+    /**
+     * Per-driver counters for {@link ExternalFieldExtractOperator}, surfaced as the operator's
+     * {@code status} in the profile: pages processed, rows whose deferred columns were materialized,
+     * and wall time in {@code materialize(...)}. Wire-gated by {@code esql_external_source_profile}
+     * so older nodes round-trip a zero-valued status.
+     */
+    public static class Status implements Operator.Status {
+
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "external_field_extract",
+            Status::new
+        );
+
+        private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
+
+        private final long pagesProcessed;
+        private final long rowsExtracted;
+        private final long extractNanos;
+
+        public Status(long pagesProcessed, long rowsExtracted, long extractNanos) {
+            this.pagesProcessed = pagesProcessed;
+            this.rowsExtracted = rowsExtracted;
+            this.extractNanos = extractNanos;
+        }
+
+        Status(StreamInput in) throws IOException {
+            // The operator + its Status only exist on nodes that support deferred extraction
+            // (elasticsearch#149185), which landed alongside this PR. Pre-version nodes never
+            // send this entry, but be defensive and accept either shape.
+            if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
+                pagesProcessed = in.readVLong();
+                rowsExtracted = in.readVLong();
+                extractNanos = in.readVLong();
+            } else {
+                pagesProcessed = 0L;
+                rowsExtracted = 0L;
+                extractNanos = 0L;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
+                out.writeVLong(pagesProcessed);
+                out.writeVLong(rowsExtracted);
+                out.writeVLong(extractNanos);
+            }
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        public long pagesProcessed() {
+            return pagesProcessed;
+        }
+
+        @Override
+        public long rowsEmitted() {
+            // Output rows mirror the input rows that survived TopN; counted here so this operator
+            // contributes to the per-driver rowsEmitted rollup like any other source-ish stage.
+            return rowsExtracted;
+        }
+
+        public long extractNanos() {
+            return extractNanos;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, org.elasticsearch.xcontent.ToXContent.Params params) throws IOException {
+            builder.startObject();
+            builder.field("pages_processed", pagesProcessed);
+            builder.field("rows_extracted", rowsExtracted);
+            builder.field("extract_nanos", extractNanos);
+            return builder.endObject();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Status status = (Status) o;
+            return pagesProcessed == status.pagesProcessed && rowsExtracted == status.rowsExtracted && extractNanos == status.extractNanos;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pagesProcessed, rowsExtracted, extractNanos);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.minimumCompatible();
+        }
     }
 }

@@ -214,6 +214,7 @@ public class StatelessResizeIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(shrunkIndex);
 
         assertHitCount(prepareSearch(shrunkIndex).setSize(0).setQuery(QueryBuilders.matchAllQuery()), numDocs);
+        flush(shrunkIndex);
         for (int s = 0; s < shrunkShards; s++) {
             final ShardId shardId = findIndexShard(resolveIndex(shrunkIndex), s).shardId();
             assertThat(listBlobsTermAndGenerations(shardId), hasSize(greaterThan(0)));
@@ -353,14 +354,12 @@ public class StatelessResizeIT extends AbstractStatelessPluginIntegTestCase {
         if (numNewDocs > 0) {
             indexDocsAndRefresh(targetIndex, numNewDocs);
         }
-        if (randomBoolean()) {
-            flush(targetIndex);
-        }
 
         // Verify all documents are present in the target index
         assertHitCount(prepareSearch(targetIndex).setSize(0).setQuery(QueryBuilders.matchAllQuery()), numDocs + numNewDocs);
 
         // Verify that each target shard has its own blob
+        flush(targetIndex);
         for (int s = 0; s < targetShards; s++) {
             final ShardId targetShardId = findIndexShard(resolveIndex(targetIndex), s).shardId();
             assertThat(listBlobsTermAndGenerations(targetShardId), hasSize(greaterThan(0)));

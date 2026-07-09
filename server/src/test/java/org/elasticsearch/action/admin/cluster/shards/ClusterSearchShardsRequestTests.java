@@ -45,9 +45,9 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
             }
             request.routing(routings);
         }
-        if (randomBoolean()) {
+        if (randomBoolean() && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             String slice = randomBoolean() ? SliceIndexing.SLICE_ALL : randomAlphaOfLengthBetween(3, 10);
-            request.searchSlice(slice).setRoutingFromSlice(randomBoolean());
+            request.searchSlice(slice);
         }
 
         TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
@@ -78,5 +78,32 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> request.indices((String[]) null));
         expectThrows(NullPointerException.class, () -> request.indices((String) null));
         expectThrows(NullPointerException.class, () -> request.indices(new String[] { "index1", null, "index3" }));
+    }
+
+    public void testSearchSliceDerivesRoutingAndProvenance() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT);
+        request.routing("manual");
+        request.searchSlice("s1,s2");
+        assertEquals("s1,s2", request.searchSlice());
+        assertEquals("s1,s2", request.routing());
+        assertTrue(request.isRoutingFromSlice());
+
+        request.searchSlice(SliceIndexing.SLICE_ALL);
+        assertEquals(SliceIndexing.SLICE_ALL, request.searchSlice());
+        assertNull(request.routing());
+        assertTrue(request.isRoutingFromSlice());
+    }
+
+    public void testClearingSearchSliceClearsDerivedRouting() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT).searchSlice("s1");
+        request.searchSlice(null);
+        assertNull(request.searchSlice());
+        assertFalse(request.isRoutingFromSlice());
+
+        assertNull(request.routing());
+        request.routing("manual");
+        assertEquals("manual", request.routing());
     }
 }

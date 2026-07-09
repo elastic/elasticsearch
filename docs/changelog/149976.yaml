@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149976
+summary: "[ESQLDS] Parquet: Fix deferred extraction for struct leaf columns"
+type: bug

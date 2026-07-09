@@ -14,13 +14,18 @@ import org.elasticsearch.xpack.inference.common.parser.DateParser;
 import org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.metadata.EndpointMetadata.DENIED_BY_REGION_POLICY_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.DISPLAY_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.MODEL_CREATOR_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.NAME_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.CSP_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.GEO_FIELD;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.EndpointRegion.REGION_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.HEURISTICS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.PROPERTIES_FIELD_NAME;
@@ -30,6 +35,7 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.INTERNAL_FIE
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.FINGERPRINT_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Internal.VERSION_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.METADATA_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.REGIONS_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.common.parser.EnumParser.extractEnum;
 import static org.elasticsearch.xpack.inference.common.parser.NumberParser.extractLong;
 import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.isMapNullOrEmpty;
@@ -66,12 +72,14 @@ public final class EndpointMetadataParser {
         var heuristics = heuristicsFromMap(heuristicsMap, pathToKey(METADATA_FIELD_NAME, HEURISTICS_FIELD_NAME));
         var internal = internalFromMap(internalMap, pathToKey(METADATA_FIELD_NAME, INTERNAL_FIELD_NAME));
         var display = displayFromMap(displayMap, pathToKey(METADATA_FIELD_NAME, DISPLAY_FIELD_NAME));
+        var regions = regionsFromMap(metadataMap, pathToKey(METADATA_FIELD_NAME, REGIONS_FIELD_NAME));
+        var deniedByRegionPolicy = deniedByRegionPolicyFromMap(
+            metadataMap,
+            pathToKey(METADATA_FIELD_NAME, DENIED_BY_REGION_POLICY_FIELD_NAME)
+        );
 
-        if (heuristics.isEmpty() && internal.isEmpty() && display.isEmpty()) {
-            return EndpointMetadata.EMPTY_INSTANCE;
-        }
-
-        return new EndpointMetadata(heuristics, internal, display);
+        var endpointMetadata = new EndpointMetadata(heuristics, internal, display, regions, deniedByRegionPolicy);
+        return EndpointMetadata.EMPTY_INSTANCE.equals(endpointMetadata) ? EndpointMetadata.EMPTY_INSTANCE : endpointMetadata;
     }
 
     /**
@@ -129,6 +137,49 @@ public final class EndpointMetadataParser {
         }
 
         return new EndpointMetadata.Display(name, modelCreator);
+    }
+
+    /**
+     * Parse a list of {@link EndpointMetadata.EndpointRegion} from the parent metadata map.
+     * Returns an empty list if the field is absent or the list is empty.
+     */
+    @SuppressWarnings("unchecked")
+    static List<EndpointMetadata.EndpointRegion> regionsFromMap(@Nullable Map<String, Object> map, String root) {
+        if (isMapNullOrEmpty(map)) {
+            return List.of();
+        }
+        var rawList = ObjectParserUtils.removeAsType(map, REGIONS_FIELD_NAME, root, List.class);
+        if (rawList == null || rawList.isEmpty()) {
+            return List.of();
+        }
+        var regions = new ArrayList<EndpointMetadata.EndpointRegion>(rawList.size());
+        for (int i = 0; i < rawList.size(); i++) {
+            var item = rawList.get(i);
+            if (item instanceof Map == false) {
+                throw new IllegalArgumentException(
+                    ObjectParserUtils.invalidTypeErrorMsg(REGIONS_FIELD_NAME + "[" + i + "]", root, item, "Map")
+                );
+            }
+            var regionMap = (Map<String, Object>) item;
+            var regionRoot = root + "[" + i + "]";
+            var csp = ObjectParserUtils.removeAsType(regionMap, CSP_FIELD.getPreferredName(), regionRoot, String.class);
+            var region = ObjectParserUtils.removeAsType(regionMap, REGION_FIELD.getPreferredName(), regionRoot, String.class);
+            var geo = ObjectParserUtils.removeAsType(regionMap, GEO_FIELD.getPreferredName(), regionRoot, String.class);
+            regions.add(new EndpointMetadata.EndpointRegion(csp, region, geo));
+        }
+        return List.copyOf(regions);
+    }
+
+    /**
+     * Parse the {@code denied_by_region_policy} boolean flag from the parent metadata map.
+     * Returns {@code false} if the field is absent.
+     */
+    static boolean deniedByRegionPolicyFromMap(@Nullable Map<String, Object> map, String root) {
+        if (isMapNullOrEmpty(map)) {
+            return false;
+        }
+        var value = ObjectParserUtils.removeAsType(map, DENIED_BY_REGION_POLICY_FIELD_NAME, root, Boolean.class);
+        return value == null ? false : value;
     }
 
     private EndpointMetadataParser() {}

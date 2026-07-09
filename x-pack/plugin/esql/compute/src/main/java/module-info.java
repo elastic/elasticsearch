@@ -9,6 +9,8 @@ module org.elasticsearch.compute {
 
     requires org.apache.lucene.analysis.common;
     requires org.apache.lucene.core;
+    requires org.apache.lucene.highlighter;
+    requires org.apache.lucene.memory;
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.compute.ann;
@@ -23,6 +25,7 @@ module org.elasticsearch.compute {
     requires hppc;
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.swisshash;
+    requires org.objectweb.asm;  // for ConstantMethodResultSpecializer runtime bytecode generation
     requires transitive org.apache.arrow.memory.core;
     requires org.apache.arrow.vector;
 

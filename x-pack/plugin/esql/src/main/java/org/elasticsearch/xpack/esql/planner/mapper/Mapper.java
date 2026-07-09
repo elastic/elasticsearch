@@ -168,7 +168,11 @@ public class Mapper {
 
         if (unary instanceof TopNBy topNBy) {
             mappedChild = addExchangeForFragment(topNBy, mappedChild);
-            return new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
+            var topNByExec = new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
+            if (mappedChild instanceof ExchangeExec) {
+                return topNByExec.withSortedOutput();
+            }
+            return topNByExec;
         }
 
         // MetricsInfo uses a two-phase approach like Aggregate: INITIAL on data nodes extracts
@@ -275,6 +279,18 @@ public class Mapper {
         }
 
         return new MergeExec(fork.source(), newChildren, fork.output());
+    }
+
+    /**
+     * Wraps a bare {@link FragmentExec} in an {@link ExchangeExec} so that ComputeService routes it to data nodes.
+     * Subplans(from IN subquery) that contain only streaming operators (no pipeline breakers like Limit/Aggregate)
+     * map to a bare FragmentExec and need this wrapping before execution.
+     */
+    public static PhysicalPlan ensureExchangeForSubPlan(PhysicalPlan plan) {
+        if (plan instanceof FragmentExec) {
+            return new ExchangeExec(plan.source(), plan);
+        }
+        return plan;
     }
 
     private PhysicalPlan addExchangeForFragment(LogicalPlan logical, PhysicalPlan child) {

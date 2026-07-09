@@ -89,6 +89,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -174,7 +175,6 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
@@ -814,6 +814,14 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertHitCount(client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs + moreDocs);
     }
 
+    @TestLogging(value = "org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction:TRACE", reason = """
+        We have seen flakes in this test where assertRequestsFinished() fails during test teardown.
+        See https://github.com/elastic/elasticsearch/issues/151861 for details.
+        In the instance captured there, an internal:index/shard/recovery/stateless_primary_relocation/start task is running during teardown.
+        It seems likely that the race between the index close and the relocation that hollows shards is leaving some asynchronous process
+        hanging so that it never completes its listener chain. This would be a genuine race condition.
+        By enabling trace logging on TransportStatelessPrimaryRelocationAction, we should get more detail about where that task got to.
+        """)
     public void testCloseWhileShardsAreHollowed() throws Exception {
         startMasterOnlyNode();
         final var indexNodeSettings = Settings.builder()
@@ -1258,7 +1266,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 if (response.getFailedShards() != 0) {
                     final AssertionError assertionError = new AssertionError("[" + response.getFailedShards() + "] shard failures");
                     for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {
-                        if (ExceptionsHelper.unwrap(shardFailure.getCause(), MergePolicy.MergeAbortedException.class) == null) {
+                        // Remote MergeAbortedException is serialized as IOException so that we also check the message
+                        if (ExceptionsHelper.unwrapCausesAndSuppressed(
+                            shardFailure.getCause(),
+                            t -> t instanceof MergePolicy.MergeAbortedException
+                                || (t.getMessage() != null && t.getMessage().contains("merge is aborted"))
+                        ).isEmpty()) {
                             assertionError.addSuppressed(new ElasticsearchException(shardFailure.toString(), shardFailure.getCause()));
                         }
                     }
@@ -1805,7 +1818,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
 
         // We would like to make the relocation flush stuck due to object store failures so we enable failures only for the new generation.
         // Later, while the flush keeps repeating the upload, we issue the ingestion that will linger until the relocation failure.
-        long newGen = statelessCommitServiceA.getMaxGenerationToUploadForFlush(indexShard.shardId()) + 1;
+        long newGen = statelessCommitServiceA.getMaxPendingOrUploadedGeneration(indexShard.shardId()) + 1;
         setNodeRepositoryFailureStrategy(indexNodeA, false, true, Map.of(OperationPurpose.INDICES, ".*stateless_commit_" + newGen + ".*"));
 
         var indexNodeB = startIndexNode(indexNodeSettings);
@@ -1821,7 +1834,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         );
 
         // Wait until the hollow flushed commit appears for upload
-        assertBusy(() -> assertThat(statelessCommitServiceA.getMaxGenerationToUploadForFlush(indexShard.shardId()), equalTo(newGen)));
+        assertBusy(() -> assertThat(statelessCommitServiceA.getMaxPendingOrUploadedGeneration(indexShard.shardId()), equalTo(newGen)));
 
         // Index more docs, which will complete after the relocation failure and after unhollowing the shard
         logger.debug("--> indexing {} docs", numDocs);

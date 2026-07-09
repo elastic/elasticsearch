@@ -136,6 +136,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 .rowLimit(rowLimit)
                 .build();
             CloseableIterator<Page> pages = formatReader.read(storageObject, ctx);
+            pages = formatReader.rowPositionStrategy().apply(pages, SyntheticColumns.rowPositionIndexInNames(projectedColumns));
             return new ExternalSourceOperator(pages, path);
         } catch (Exception e) {
             throw new ElasticsearchException("Failed to create external source operator for [" + path + "]", e);
@@ -325,10 +326,15 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     .firstSplit(firstSplit)
                     .lastSplit(lastSplit)
                     .recordAligned(FileSplitProvider.isRecordAlignedMacroSplit(fileSplit))
+                    .splitStartByte(fileSplit.offset())
                     .build();
                 CloseableIterator<Page> pages = formatReader.read(obj, ctx);
+                pages = formatReader.rowPositionStrategy().apply(pages, SyntheticColumns.rowPositionIndexInNames(projectedColumns));
 
-                if (columnMapping != null && columnMapping.isIdentity() == false) {
+                // Empty queryDataSchema is COUNT(*) / _file.*-only: no data columns to reshape and the
+                // reader already emits zero-data-block row-count pages, so skip the adapter (a
+                // full-width mapping would otherwise trip its output-size-vs-mapping-width guard).
+                if (columnMapping != null && columnMapping.isIdentity() == false && queryDataSchema.isEmpty() == false) {
                     // Per-file source types are only needed when the mapping has a KEYWORD cast
                     // (the only path where LongBlock — DATETIME / DATE_NANOS / LONG — needs
                     // disambiguating). Skip the schema-narrowing dance entirely otherwise.

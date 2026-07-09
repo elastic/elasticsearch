@@ -1,0 +1,21 @@
+area: Reindex
+issues: []
+pr: 148786
+summary: Improved reindex resilience and new reindex management APIs
+type: enhancement
+highlight:
+  notable: true
+  title: Improved reindex resilience and new reindex management APIs
+  body: |-
+    We're making multiple changes to the resilience and ease-of-use of the
+    reindex API. Firstly, asynchronous reindex operations will now survive
+    the graceful shutdown of the node where they are running. This makes
+    long-running operations much more reliable, especially in a managed
+    cluster. Secondly, reindex operations will now normally use the
+    point-in-time API instead of the scroll API for paginated search. This
+    is the preferred approach for deep pagination, and allows reindex to
+    benefit from recent improvements to PIT resilience (where available).
+    Finally, we are adding dedicated new APIs to monitor and manage
+    reindex operations, providing a better user-experience than the older
+    tasks APIs. Read more about these changes in the blog at
+    https://www.elastic.co/search-labs/blog/elasticsearch-reindex-node-relocation-pit-serverless.

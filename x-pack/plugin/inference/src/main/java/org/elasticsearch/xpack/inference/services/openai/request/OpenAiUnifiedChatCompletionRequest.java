@@ -93,4 +93,9 @@ public class OpenAiUnifiedChatCompletionRequest implements OutboundUnifiedComple
     public boolean isStreaming() {
         return unifiedChatInput.stream();
     }
+
+    @Override
+    public void onAuthenticationFailure() {
+        model.secretsApplier().onAuthenticationFailure();
+    }
 }

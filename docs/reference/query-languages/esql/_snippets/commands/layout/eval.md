@@ -30,6 +30,10 @@ The `EVAL` processing command enables you to append new columns with calculated
 values. `EVAL` supports various functions for calculating values. Refer to
 [Functions](/reference/query-languages/esql/esql-functions-operators.md#esql-functions) for more information.
 
+::::{note}
+{{esql}} respects [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) defined in the index mapping, but does not support defining new runtime fields at search time. Use `EVAL` to create computed columns at query time instead.
+::::
+
 ## Examples
 
 The following examples show common `EVAL` patterns.

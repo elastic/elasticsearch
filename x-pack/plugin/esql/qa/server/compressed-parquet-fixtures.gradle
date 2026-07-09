@@ -43,7 +43,35 @@ compressedCodecs.each { entry ->
       inputs.file(csvInput)
       outputs.file(parquetFile)
       systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+      systemProperty 'slf4j.internal.verbosity', 'WARN'
     }
     parquetTasks.add(tasks.named(taskName))
   }
+}
+
+// Compressed multifile splits: split employees.csv into 3 parts for each codec.
+// Only GZIP and ZSTD are generated (SNAPPY and LZ4_RAW are single-file-only).
+def compressedMultifileCodecs = [
+  [name: 'gzip', codec: 'GZIP'],
+  [name: 'zstd', codec: 'ZSTD'],
+]
+def multifileSplitCsv = new File(fixturesDataDir, "employees.csv")
+
+compressedMultifileCodecs.each { entry ->
+  def codecName = entry.name
+  def codecArg = entry.codec
+  def codecMultifileDir = file("${fixtureOutputDir}/multifile_split-${codecName}")
+  def taskName = "generateMultifileSplitParquet_employees_${codecName}"
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProj.tasks.named('compileParquetFixtureGeneratorJava')
+    dependsOn testFixturesProj.tasks.named('processResources')
+    classpath = serverProj.configurations.parquetFixtureGenerator + serverProj.sourceSets.parquetFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+    args = [multifileSplitCsv.path, codecMultifileDir.path, '3', codecArg]
+    inputs.file(multifileSplitCsv)
+    outputs.dir(codecMultifileDir)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
+  }
+  parquetTasks.add(tasks.named(taskName))
 }

@@ -105,6 +105,16 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
     }
 
     @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
+    @Override
+    public boolean usesParserForTaskSettings() {
+        return true;
+    }
+
+    @Override
     public InferenceServiceConfiguration getConfiguration() {
         return Configuration.get();
     }
@@ -162,11 +172,6 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
     }
 
     @Override
-    public boolean supportsNewRerankCodePath() {
-        return true;
-    }
-
-    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -203,7 +208,7 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
             var similarityToUse = similarityFromModel == null ? defaultSimilarity(serviceSettings.embeddingType()) : similarityFromModel;
 
             var updatedServiceSettings = new CohereEmbeddingsServiceSettings(
-                serviceSettings.getCommonSettings(),
+                serviceSettings.commonSettings(),
                 similarityToUse,
                 embeddingSize,
                 serviceSettings.maxInputTokens(),

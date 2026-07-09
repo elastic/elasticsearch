@@ -11,4 +11,6 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql-core'))
   javaRestTestImplementation project(xpackModule('esql'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
+
+  clusterPlugins project(xpackModule('esql-datasource-s3'))
 }

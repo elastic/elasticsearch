@@ -17,15 +17,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 public class OTLPActionRequest extends ActionRequest implements CompositeIndicesRequest {
 
     private final BytesReference request;
-    private final MappingMode requestMappingMode;
 
     public OTLPActionRequest(BytesReference request) {
-        this(request, MappingMode.OTEL);
-    }
-
-    public OTLPActionRequest(BytesReference request, MappingMode requestMappingMode) {
         this.request = request;
-        this.requestMappingMode = requestMappingMode;
     }
 
     @Override
@@ -41,9 +35,5 @@ public class OTLPActionRequest extends ActionRequest implements CompositeIndices
 
     public BytesReference getRequest() {
         return request;
-    }
-
-    public MappingMode getRequestMappingMode() {
-        return requestMappingMode;
     }
 }

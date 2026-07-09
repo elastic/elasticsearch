@@ -97,6 +97,7 @@ public class APMHttpServerInstrumentation implements HttpServerInstrumentation {
         );
         tracer.setAttributes(request, attributes.build());
 
+        // todo set status
         tracer.stopTrace(request);
     }
 

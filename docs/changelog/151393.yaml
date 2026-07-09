@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 151393
+summary: Restore CSV/TSV/NDJSON read perf after cap enforcement
+type: bug

@@ -787,6 +787,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case NULL -> "Null";
             case TDIGEST -> "TDigest";
             case DENSE_VECTOR -> "DenseVector";
+            case FLOAT -> "Float";
             default -> throw new UnsupportedOperationException("name for [" + type + "]");
         };
         return prefix + typeName;

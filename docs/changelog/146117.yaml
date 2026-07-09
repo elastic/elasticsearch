@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 145907
-pr: 146117
-summary: Fix `InvalidMappedField` equals/hashCode and lazy error message
-type: bug

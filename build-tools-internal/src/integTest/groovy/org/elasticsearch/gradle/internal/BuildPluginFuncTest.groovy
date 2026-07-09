@@ -10,7 +10,7 @@
 package org.elasticsearch.gradle.internal
 
 import org.apache.commons.io.IOUtils
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
@@ -22,7 +22,10 @@ import java.util.zip.ZipFile
 
 import static org.elasticsearch.gradle.fixtures.TestClasspathUtils.setupJarHellJar
 
-class BuildPluginFuncTest extends AbstractGradleFuncTest {
+class BuildPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.BuildPlugin
+
 
     @Shared
     @ClassRule
@@ -53,14 +56,11 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.""".stripIndent()
 
     def setup() {
-        configurationCacheCompatible = false
+        disableConfigurationCache("checkstyle task references LegacyConfiguration class; revisit after checkstyle update")
+        // elasticsearch.build (BuildPlugin) and elasticsearch.global-build-info are applied by
+        // AbstractGradleInternalPluginFuncTest; we only add the java plugin and project config here.
         buildFile << """
-        plugins {
-          id 'java'
-          id 'elasticsearch.global-build-info'
-        }
-
-        apply plugin:'elasticsearch.build'
+        apply plugin: 'java'
         group = 'org.acme'
         description = "some example project"
 
@@ -122,8 +122,17 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner("assemble", "-x", "generateClusterFeaturesMetadata").build()
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS
-        file("build/distributions/hello-world.jar").exists()
-        assertValidJar(file("build/distributions/hello-world.jar"))
+
+        and: "the produced jar bundles LICENSE and NOTICE"
+        // The jar file name embeds the project version, which is set by elasticsearch.build via
+        // ElasticsearchBasePlugin#apply(project.setVersion(VersionProperties.getElasticsearch())).
+        // We deliberately don't pin the version in the assertion — the jar name is incidental;
+        // what this test actually verifies is that the LICENSE / NOTICE files are packaged.
+        def distributionsDir = file("build/distributions")
+        def producedJars = distributionsDir.listFiles({ f -> f.name.startsWith("hello-world") && f.name.endsWith(".jar") } as FileFilter) ?: []
+        assert producedJars.length == 1 :
+            "expected exactly one hello-world*.jar in ${distributionsDir}, found: ${producedJars*.name}"
+        assertValidJar(producedJars[0])
     }
 
     def "applies checks"() {

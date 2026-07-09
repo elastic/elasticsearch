@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -840,6 +842,354 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
             Expression sw = new StartsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("hello_world"), DataType.KEYWORD));
             assertSurvivors(new ParquetPushedExpressions(List.of(sw)), blocks, 2, reusable, new int[] {});
         }
+    }
+
+    public void testNotStartsWithExcludesNulls() {
+        // TVL: NOT(NULL STARTS_WITH x) is UNKNOWN -> null row must NOT survive.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            builder.appendBytesRef(new BytesRef("application"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression notSw = new Not(
+                Source.EMPTY,
+                new StartsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("app"), DataType.KEYWORD))
+            );
+            // Survivors: "banana" (index 2). "apple" and "application" match the predicate; null is UNKNOWN.
+            assertSurvivors(new ParquetPushedExpressions(List.of(notSw)), blocks, 4, reusable, new int[] { 2 });
+        }
+    }
+
+    // ---- EndsWith ----
+
+    public void testEndsWithBasic() {
+        // Block: ["apple", "pineapple", "banana"]
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendBytesRef(new BytesRef("pineapple"));
+            builder.appendBytesRef(new BytesRef("banana"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            // ENDS_WITH(s, "apple") -> positions [0, 1]
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(ew)), blocks, 3, reusable, new int[] { 0, 1 });
+        }
+    }
+
+    public void testEndsWithSuffixLongerThanValue() {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(2)) {
+            builder.appendBytesRef(new BytesRef("hi"));
+            builder.appendBytesRef(new BytesRef("hey"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("hello_world"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(ew)), blocks, 2, reusable, new int[] {});
+        }
+    }
+
+    public void testEndsWithNullValueDoesNotSurvive() {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("le"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(ew)), blocks, 3, reusable, new int[] { 0 });
+        }
+    }
+
+    public void testEndsWithOrdinalDictionaryShortCircuit() {
+        // Pinning the dictionary short-circuit path: pattern repeated to satisfy
+        // OrdinalBytesRefBlock#isDense (rows >= 2 * dictSize).
+        String[] dict = { "apple", "application", "banana", "pineapple" };
+        int[] pattern = { 0, 1, 2, 3, 0, 2 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        Block block = ordinalBlock(dict, ordinals, null);
+        try (block) {
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+            // ENDS_WITH(s, "apple") matches dict entries 0 (apple) and 3 (pineapple)
+            int[] expected = positionsWithOrdinalIn(ordinals, 0, 3);
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(ew)), blocks, ordinals.length, reusable, expected);
+        }
+    }
+
+    public void testEndsWithOrdinalAndScalarAgree() {
+        // Cross-check the dictionary short-circuit against the per-row scalar path.
+        // Mirrors testWildcardLikeOrdinalAndScalarAgree.
+        String[] dict = { "the", "quick", "brown", "fox.log", "jumps.tar.gz", "over.log", "lazy.dog" };
+        int rowCount = 200;
+        int[] randomOrdinals = new int[rowCount];
+        for (int i = 0; i < rowCount; i++) {
+            randomOrdinals[i] = randomIntBetween(0, dict.length - 1);
+        }
+        Block ordinalsBlock = ordinalBlock(dict, randomOrdinals, null);
+        Block plainBlock = plainBytesRefBlock(dict, randomOrdinals);
+        try (ordinalsBlock; plainBlock) {
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef(".log"), DataType.KEYWORD));
+
+            WordMask ordinalMask = new ParquetPushedExpressions(List.of(ew)).evaluateFilter(
+                Map.of("s", ordinalsBlock),
+                rowCount,
+                new WordMask()
+            );
+            WordMask plainMask = new ParquetPushedExpressions(List.of(ew)).evaluateFilter(
+                Map.of("s", plainBlock),
+                rowCount,
+                new WordMask()
+            );
+            if (ordinalMask == null) {
+                assertNull("ordinal returned null (all survive); plain must also", plainMask);
+            } else {
+                assertNotNull("ordinal produced a mask; plain must too", plainMask);
+                assertArrayEquals(
+                    "EndsWith ordinal and plain masks must agree",
+                    plainMask.survivingPositions(),
+                    ordinalMask.survivingPositions()
+                );
+            }
+        }
+    }
+
+    public void testNotEndsWithOnOrdinalDictionaryAgreesWithScalar() {
+        // NOT(EndsWith) on an OrdinalBytesRefBlock with null rows must agree with the per-row
+        // scalar path: dictionary scatter + ordinal-mode null fixup must produce the same
+        // TVL-correct survivor mask as the scalar loop. Mirrors
+        // testWildcardLikeContainsLiteralNotOnOrdinalDictionaryAgreesWithAutomaton.
+        String[] dict = { "apple", "application", "banana", "pineapple" };
+        int[] pattern = { 0, 1, 2, 3, 0, 2 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        boolean[] nulls = repeatBoolPattern(new boolean[] { false, true, false, false, false, true }, 24);
+        Block ordinalsBlock = ordinalBlock(dict, ordinals, nulls);
+        // Build the equivalent plain block (with nulls) to compare against.
+        try (var plainBuilder = blockFactory.newBytesRefBlockBuilder(ordinals.length)) {
+            for (int i = 0; i < ordinals.length; i++) {
+                if (nulls[i]) {
+                    plainBuilder.appendNull();
+                } else {
+                    plainBuilder.appendBytesRef(new BytesRef(dict[ordinals[i]]));
+                }
+            }
+            Block plainBlock = plainBuilder.build();
+            try (ordinalsBlock; plainBlock) {
+                Expression notEw = new Not(
+                    Source.EMPTY,
+                    new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD))
+                );
+
+                WordMask ordinalMask = new ParquetPushedExpressions(List.of(notEw)).evaluateFilter(
+                    Map.of("s", ordinalsBlock),
+                    ordinals.length,
+                    new WordMask()
+                );
+                WordMask plainMask = new ParquetPushedExpressions(List.of(notEw)).evaluateFilter(
+                    Map.of("s", plainBlock),
+                    ordinals.length,
+                    new WordMask()
+                );
+                if (ordinalMask == null) {
+                    assertNull("ordinal returned null (all survive); plain must also", plainMask);
+                } else {
+                    assertNotNull("ordinal produced a mask; plain must too", plainMask);
+                    assertArrayEquals(
+                        "NOT(EndsWith) ordinal and plain masks must agree under TVL",
+                        plainMask.survivingPositions(),
+                        ordinalMask.survivingPositions()
+                    );
+                }
+            }
+        }
+    }
+
+    public void testNotEndsWithExcludesNulls() {
+        // TVL: NOT(NULL ENDS_WITH x) is UNKNOWN -> null row must NOT survive.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            builder.appendBytesRef(new BytesRef("pineapple"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression notEw = new Not(
+                Source.EMPTY,
+                new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD))
+            );
+            // Survivors: "banana" (index 2). "apple" and "pineapple" match the predicate; null is UNKNOWN.
+            assertSurvivors(new ParquetPushedExpressions(List.of(notEw)), blocks, 4, reusable, new int[] { 2 });
+        }
+    }
+
+    // ---- Contains ----
+
+    public void testContainsBasic() {
+        // Block: ["apple", "pineapple", "banana"]
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendBytesRef(new BytesRef("pineapple"));
+            builder.appendBytesRef(new BytesRef("banana"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            // CONTAINS(s, "app") -> positions [0, 1] ("apple" and "pineapple")
+            Expression c = new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("app"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(c)), blocks, 3, reusable, new int[] { 0, 1 });
+        }
+    }
+
+    public void testContainsSubstrLongerThanValue() {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(2)) {
+            builder.appendBytesRef(new BytesRef("hi"));
+            builder.appendBytesRef(new BytesRef("hey"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression c = new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("hello_world"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(c)), blocks, 2, reusable, new int[] {});
+        }
+    }
+
+    public void testContainsNullValueDoesNotSurvive() {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression c = new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("an"), DataType.KEYWORD));
+            // "apple" does not contain "an"; "banana" does; null does not survive.
+            assertSurvivors(new ParquetPushedExpressions(List.of(c)), blocks, 3, reusable, new int[] { 2 });
+        }
+    }
+
+    public void testContainsOrdinalDictionaryShortCircuit() {
+        // Dictionary mixing long entries (above SIMD activation threshold) and short ones —
+        // mirrors testWildcardLikeContainsLiteralOrdinalDictionaryAgreesWithAutomaton.
+        String[] dict = {
+            "https://www.google.com/search?q=elasticsearch",
+            "https://www.bing.com/search?q=opensearch",
+            "https://duckduckgo.com/?q=lucene",
+            "https://www.google.com/maps/place/London",
+            "google" };
+        int rowCount = 200;
+        int[] randomOrdinals = new int[rowCount];
+        for (int i = 0; i < rowCount; i++) {
+            randomOrdinals[i] = randomIntBetween(0, dict.length - 1);
+        }
+        Block ordinalsBlock = ordinalBlock(dict, randomOrdinals, null);
+        Block plainBlock = plainBytesRefBlock(dict, randomOrdinals);
+        try (ordinalsBlock; plainBlock) {
+            Expression c = new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("google"), DataType.KEYWORD));
+
+            WordMask ordinalMask = new ParquetPushedExpressions(List.of(c)).evaluateFilter(
+                Map.of("s", ordinalsBlock),
+                rowCount,
+                new WordMask()
+            );
+            WordMask plainMask = new ParquetPushedExpressions(List.of(c)).evaluateFilter(Map.of("s", plainBlock), rowCount, new WordMask());
+            if (ordinalMask == null) {
+                assertNull("ordinal returned null (all survive); plain must also", plainMask);
+            } else {
+                assertNotNull("ordinal produced a mask; plain must too", plainMask);
+                assertArrayEquals(plainMask.survivingPositions(), ordinalMask.survivingPositions());
+            }
+        }
+    }
+
+    public void testNotContainsOnOrdinalDictionaryAgreesWithScalar() {
+        // NOT(Contains) on an OrdinalBytesRefBlock with null rows must agree with the per-row
+        // scalar path under TVL.
+        String[] dict = { "apple", "application", "banana", "pineapple" };
+        int[] pattern = { 0, 1, 2, 3, 0, 2 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        boolean[] nulls = repeatBoolPattern(new boolean[] { false, true, false, false, false, true }, 24);
+        Block ordinalsBlock = ordinalBlock(dict, ordinals, nulls);
+        try (var plainBuilder = blockFactory.newBytesRefBlockBuilder(ordinals.length)) {
+            for (int i = 0; i < ordinals.length; i++) {
+                if (nulls[i]) {
+                    plainBuilder.appendNull();
+                } else {
+                    plainBuilder.appendBytesRef(new BytesRef(dict[ordinals[i]]));
+                }
+            }
+            Block plainBlock = plainBuilder.build();
+            try (ordinalsBlock; plainBlock) {
+                Expression notC = new Not(
+                    Source.EMPTY,
+                    new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("app"), DataType.KEYWORD))
+                );
+
+                WordMask ordinalMask = new ParquetPushedExpressions(List.of(notC)).evaluateFilter(
+                    Map.of("s", ordinalsBlock),
+                    ordinals.length,
+                    new WordMask()
+                );
+                WordMask plainMask = new ParquetPushedExpressions(List.of(notC)).evaluateFilter(
+                    Map.of("s", plainBlock),
+                    ordinals.length,
+                    new WordMask()
+                );
+                if (ordinalMask == null) {
+                    assertNull("ordinal returned null (all survive); plain must also", plainMask);
+                } else {
+                    assertNotNull("ordinal produced a mask; plain must too", plainMask);
+                    assertArrayEquals(
+                        "NOT(Contains) ordinal and plain masks must agree under TVL",
+                        plainMask.survivingPositions(),
+                        ordinalMask.survivingPositions()
+                    );
+                }
+            }
+        }
+    }
+
+    public void testNotContainsExcludesNulls() {
+        // TVL: NOT(NULL CONTAINS x) is UNKNOWN -> null row must NOT survive.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            builder.appendBytesRef(new BytesRef("pineapple"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression notC = new Not(
+                Source.EMPTY,
+                new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("app"), DataType.KEYWORD))
+            );
+            // "banana" is the only non-null row that does not contain "app"; null is UNKNOWN.
+            assertSurvivors(new ParquetPushedExpressions(List.of(notC)), blocks, 4, reusable, new int[] { 2 });
+        }
+    }
+
+    public void testContainsPredicateColumnNamesIncludesField() {
+        Expression c = new Contains(Source.EMPTY, attr("url", DataType.KEYWORD), lit(new BytesRef("google"), DataType.KEYWORD));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(c));
+        assertEquals(java.util.Set.of("url"), pushed.predicateColumnNames());
+    }
+
+    public void testEndsWithPredicateColumnNamesIncludesField() {
+        Expression ew = new EndsWith(Source.EMPTY, attr("path", DataType.KEYWORD), lit(new BytesRef(".log"), DataType.KEYWORD));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(ew));
+        assertEquals(java.util.Set.of("path"), pushed.predicateColumnNames());
     }
 
     // ---- Test 8: Missing predicate column (null-constant block) ----

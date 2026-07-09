@@ -7,7 +7,7 @@
 start_end_step_global_scalar
 required_capability: promql_command_v0
 required_capability: ts_collapse
-required_capability: fix_promql_time_bucket
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" (
   sum(avg_over_time(network.cost[5m]))
@@ -23,7 +23,7 @@ single_step_per_cluster
 required_capability: promql_command_v0
 required_capability: promql_nested_aggregates
 required_capability: ts_collapse
-required_capability: fix_promql_time_bucket
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(sum by (cluster) (avg_over_time(network.cost[1h])))
 | TS_COLLAPSE
@@ -40,7 +40,7 @@ result:double          | step:datetime              | cluster:keyword
 multi_step_global_scalar
 required_capability: promql_command_v0
 required_capability: ts_collapse
-required_capability: fix_promql_time_bucket
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost=(sum(avg_over_time(network.cost[1m])))
 | TS_COLLAPSE;
@@ -54,7 +54,7 @@ cost:double              | step:datetime
 docs_ts_collapse_basic
 required_capability: promql_command_v0
 required_capability: ts_collapse
-required_capability: fix_promql_time_bucket
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 // tag::ts_collapse[]
 PROMQL index=k8s step=1m start="2024-05-10T00:11:00.000Z" end="2024-05-10T00:14:00.000Z" cost=(round(sum(avg_over_time(network.cost[1m])), 0.0001))
@@ -71,7 +71,7 @@ cost:double                      | step:datetime
 docs_ts_collapse_by_cluster
 required_capability: promql_command_v0
 required_capability: ts_collapse
-required_capability: fix_promql_time_bucket
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 // tag::ts_collapse_by_cluster[]
 PROMQL index=k8s step=1m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:04:00.000Z" clients=(avg by (cluster) (last_over_time(network.eth0.currently_connected_clients[1m])))
@@ -91,7 +91,7 @@ clients:double        | step:datetime                                           
 docs_ts_collapse_eval
 required_capability: promql_command_v0
 required_capability: ts_collapse
-required_capability: fix_promql_time_bucket
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 // tag::ts_collapse_eval[]
 PROMQL index=k8s step=1m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:04:00.000Z" clients=(avg by (cluster) (last_over_time(network.eth0.currently_connected_clients[1m])))

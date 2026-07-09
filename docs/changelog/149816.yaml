@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149816
+summary: Add `PartitionConfig.CONFIG_KEYS` and thread into `FileSourceFactory.COORDINATOR_KEYS`
+type: bug

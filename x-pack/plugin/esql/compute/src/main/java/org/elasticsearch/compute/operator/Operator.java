@@ -110,6 +110,10 @@ public interface Operator extends Releasable {
 
     IsBlockedResult NOT_BLOCKED = new IsBlockedResult(SubscribableListener.nullSuccess(), "not blocked");
 
+    default Operator tryPromote(DriverContext driverContext) {
+        return this;
+    }
+
     /**
      * A factory for creating intermediate operators.
      */
@@ -135,6 +139,21 @@ public interface Operator extends Releasable {
          * don't load values and will return {@code 0} here.
          */
         default long valuesLoaded() {
+            return 0;
+        }
+
+        /** Rows emitted; source operators populate, summed for driver / response-root rollup. */
+        default long rowsEmitted() {
+            return 0;
+        }
+
+        /** Pre-decompression bytes from storage; external-source operators only. */
+        default long bytesRead() {
+            return 0;
+        }
+
+        /** Format-reader wall time on the producer thread; external-source operators only. */
+        default long readNanos() {
             return 0;
         }
     }

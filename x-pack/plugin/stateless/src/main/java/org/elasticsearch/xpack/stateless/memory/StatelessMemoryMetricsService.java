@@ -35,8 +35,6 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.xpack.stateless.MetricQuality;
 
@@ -107,7 +105,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * <p>
      * By default, the Fixed Method is used. To switch to the Adaptive Method, explicitly set
      * the `memory_metrics.shard_memory_overhead` setting to -1.
-     * <p>
      */
     public static final ByteSizeValue FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT = ByteSizeValue.ofMb(6);
     public static final Setting<ByteSizeValue> FIXED_SHARD_MEMORY_OVERHEAD_SETTING = Setting.byteSizeSetting(
@@ -147,7 +144,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     // The memory overhead of each field found in Lucene segments
     public static final ByteSizeValue ADAPTIVE_FIELD_MEMORY_OVERHEAD = ByteSizeValue.ofBytes(1024);
 
-    private static final Logger logger = LogManager.getLogger(StatelessMemoryMetricsService.class);
     // visible for testing
     public static final long INDEX_MEMORY_OVERHEAD = ByteSizeValue.ofKb(350).getBytes();
 
@@ -270,8 +266,12 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return nodeIdToHeapUsage;
     }
 
+    public long getIndexMemoryOverhead() {
+        return INDEX_MEMORY_OVERHEAD * totalIndices;
+    }
+
     public long getNodeBaseHeapEstimateInBytes() {
-        return INDEX_MEMORY_OVERHEAD * totalIndices + workloadMemoryOverhead;
+        return getIndexMemoryOverhead() + workloadMemoryOverhead;
     }
 
     // Visible for testing
@@ -329,7 +329,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     private record NodeHeapEstimateSnapshot(String nodeId, String nodeName, long heapBytes) {}
 
     /**
-     * Estimates the heap usage for a single shard, based on: segment, number of fields and live doc byte counts.
+     * Estimates the heap usage for a single shard, based on segment, field, live-doc, and points-memory metrics.
+     * Postings memory is tracked separately and is not included here.
      */
     public long estimateShardMemoryUsageInBytes(ShardMemoryMetrics metrics) {
         final var fixedShardOverhead = this.fixedShardMemoryOverhead;
@@ -337,7 +338,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             return fixedShardOverhead.getBytes();
         }
         long estimateBytes = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + metrics.numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes()
-            + metrics.totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + metrics.liveDocsBytes;
+            + metrics.totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + metrics.liveDocsBytes + metrics.pointsInMemoryBytes;
         long extraBytes = (long) (estimateBytes * adaptiveExtraOverheadRatio);
 
         if (this.adaptiveShardMemoryEstimationMinThresholdEnabled) {
@@ -395,6 +396,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                     shardMappingSize.totalFields(),
                     shardMappingSize.postingsInMemoryBytes(),
                     shardMappingSize.liveDocsBytes(),
+                    shardMappingSize.pointsInMemoryBytes(),
                     shardMappingSize.shardMemoryOverheadBytes(),
                     heapMemoryUsage.publicationSeqNo(),
                     shardMappingSize.nodeId(),
@@ -610,6 +612,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         private int totalFields = 0;
         private long postingsInMemoryBytes = 0;
         private long liveDocsBytes = 0;
+        private long pointsInMemoryBytes = 0;
         private long shardMemoryOverheadBytes;
         private long seqNo;
         private MetricQuality metricQuality;
@@ -622,6 +625,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             int totalFields,
             long postingsInMemoryBytes,
             long liveDocsBytes,
+            long pointsInMemoryBytes,
             long shardMemoryOverheadBytes,
             long seqNo,
             MetricQuality metricQuality,
@@ -633,6 +637,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             this.totalFields = totalFields;
             this.postingsInMemoryBytes = postingsInMemoryBytes;
             this.liveDocsBytes = liveDocsBytes;
+            this.pointsInMemoryBytes = pointsInMemoryBytes;
             this.shardMemoryOverheadBytes = shardMemoryOverheadBytes;
             this.seqNo = seqNo;
             this.metricQuality = metricQuality;
@@ -646,6 +651,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             int totalFields,
             long postingsInMemoryBytes,
             long liveDocsBytes,
+            long pointsInMemoryBytes,
             long shardMemoryOverheadBytes,
             long seqNo,
             String metricShardNodeId,
@@ -662,6 +668,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                     this.totalFields = totalFields;
                     this.postingsInMemoryBytes = postingsInMemoryBytes;
                     this.liveDocsBytes = liveDocsBytes;
+                    this.pointsInMemoryBytes = pointsInMemoryBytes;
                     this.shardMemoryOverheadBytes = shardMemoryOverheadBytes;
                     this.metricQuality = MetricQuality.EXACT;
                     this.metricShardNodeId = metricShardNodeId;
@@ -718,6 +725,10 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             return liveDocsBytes;
         }
 
+        public synchronized long getPointsInMemoryBytes() {
+            return pointsInMemoryBytes;
+        }
+
         // visible for testing
         public synchronized long getShardMemoryOverheadBytes() {
             return shardMemoryOverheadBytes;
@@ -731,13 +742,14 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         public String toString() {
             return Strings.format(
                 "ShardMemoryMetrics{mappingSizeInBytes=%d, numSegments=%d, totalFields=%d, "
-                    + "postingsInMemoryBytes=%d, liveDocsBytes=%d, shardMemoryOverheadBytes=%d, seqNo=%d, "
+                    + "postingsInMemoryBytes=%d, liveDocsBytes=%d, pointsInMemoryBytes=%d, shardMemoryOverheadBytes=%d, seqNo=%d, "
                     + "metricQuality=%s, metricShardNodeId='%s', updateTimestampNanos='%d'}",
                 mappingSizeInBytes,
                 numSegments,
                 totalFields,
                 postingsInMemoryBytes,
                 liveDocsBytes,
+                pointsInMemoryBytes,
                 shardMemoryOverheadBytes,
                 seqNo,
                 metricQuality,
@@ -840,6 +852,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             0,
             0L,
             0L,
+            0L,
             UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
             0L,
             MetricQuality.MISSING,
@@ -879,7 +892,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     /**
      * Computes the shard-level heap usage.
      * Ignores index-level heap usage, {@link #computeIndexHeapUsage} should be called for that.
-     * Same computation as {@link EstimatedHeapUsageBuilder#add}, except excludes index and node level overheads.
      */
     // Visible for testing.
     public long computeShardHeapUsage(ShardMemoryMetrics shardMemoryMetrics) {

@@ -23,6 +23,8 @@ import java.util.Objects;
 public class InferenceFeatureSetUsage extends XPackFeatureUsage {
 
     public static final InferenceFeatureSetUsage EMPTY = new InferenceFeatureSetUsage(List.of());
+    // Public so tests can access it
+    public static final String MODELS_FIELD = "models";
 
     private final Collection<ModelStats> modelStats;
 
@@ -39,7 +41,7 @@ public class InferenceFeatureSetUsage extends XPackFeatureUsage {
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
-        builder.xContentList("models", modelStats);
+        builder.xContentList(MODELS_FIELD, modelStats);
     }
 
     @Override

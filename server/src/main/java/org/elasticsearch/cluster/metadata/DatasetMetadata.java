@@ -37,6 +37,9 @@ import java.util.Objects;
  */
 public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
+    /** Shared transport version for {@code DataSourceMetadata} and {@link DatasetMetadata} — introduced and evolved together. */
+    public static final TransportVersion ESQL_DATASOURCES = TransportVersion.fromName("esql_datasources");
+
     public static final String TYPE = "esql_dataset";
     public static final List<NamedWriteableRegistry.Entry> ENTRIES = List.of(
         new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, TYPE, DatasetMetadata::readFromStream),
@@ -100,7 +103,7 @@ public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.Projec
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         // Shared with DataSourceMetadata — both metadata containers ship together
-        return DataSourceMetadata.ESQL_DATASOURCES;
+        return ESQL_DATASOURCES;
     }
 
     @Override

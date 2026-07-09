@@ -278,7 +278,7 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
             for (int i = 0; i < size; i++) {
                 for (Suggestion<T> suggestion : toReduce) {
                     if (suggestion.entries.size() != size) {
-                        throw new IllegalStateException(
+                        throw new IllegalArgumentException(
                             "Can't merge suggest result, this might be caused by suggest calls "
                                 + "across multiple indices with different analysis chains. Suggest entries have different sizes actual ["
                                 + suggestion.entries.size()
@@ -422,7 +422,7 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
                 Entry<O> leader = toReduce.get(0);
                 for (Entry<O> entry : toReduce) {
                     if (leader.text.equals(entry.text) == false) {
-                        throw new IllegalStateException(
+                        throw new IllegalArgumentException(
                             "Can't merge suggest entries, this might be caused by suggest calls "
                                 + "across multiple indices with different analysis chains. Suggest entries have different text actual ["
                                 + entry.text

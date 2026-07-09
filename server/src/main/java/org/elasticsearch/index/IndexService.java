@@ -76,6 +76,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
+import org.elasticsearch.index.shard.MutableOperationGate;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -90,6 +91,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
@@ -135,6 +137,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final Engine.IndexCommitListener indexCommitListener;
+    private final MutableOperationGate mutableOperationGate;
     private final IndexCache indexCache;
     private final MapperService mapperService;
     private final XContentParserConfiguration parserConfiguration;
@@ -210,6 +213,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         Engine.IndexCommitListener indexCommitListener,
+        MutableOperationGate mutableOperationGate,
         MapperMetrics mapperMetrics,
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
@@ -267,7 +271,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> null;
             }
             indexFieldData.setListener(new FieldDataCacheListener(this));
-            this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
+            this.warmer = new IndexWarmer(threadPool, indexFieldData, indexSettings, bitsetFilterCache.createListener(threadPool));
             this.indexCache = new IndexCache(queryCache, bitsetFilterCache);
         } else {
             assert indexAnalyzers == null;
@@ -297,6 +301,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
         this.indexCommitListener = indexCommitListener;
+        this.mutableOperationGate = mutableOperationGate;
         this.mapperMetrics = mapperMetrics;
         try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
             // kick off async ops for the first shard in this index
@@ -478,7 +483,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public synchronized IndexShard createShard(
         final ShardRouting routing,
         final GlobalCheckpointSyncer globalCheckpointSyncer,
-        final RetentionLeaseSyncer retentionLeaseSyncer
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final RecoverySchedulingListener recoverySchedulingListener
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -599,10 +605,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 snapshotCommitSupplier,
                 System::nanoTime,
                 indexCommitListener,
+                mutableOperationGate,
                 mapperMetrics,
                 indexingStatsSettings,
                 searchStatsSettings,
-                mergeMetrics
+                mergeMetrics,
+                recoverySchedulingListener
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

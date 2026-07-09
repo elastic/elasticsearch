@@ -92,6 +92,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
@@ -555,6 +556,24 @@ public class IndexModuleTests extends ESTestCase {
         closeIndexService(indexService);
     }
 
+    public void testQueryCacheEnabledByDefaultForNonStrictlyColumnarMode() {
+        IndexMode mode = randomFrom(
+            IndexMode.STANDARD,
+            IndexMode.TIME_SERIES,
+            IndexMode.LOGSDB,
+            IndexMode.LOOKUP,
+            IndexMode.VECTORDB_DOCUMENT
+        );
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+        assertTrue(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
+    }
+
+    public void testQueryCacheDisabledByDefaultForStrictlyColumnarMode() {
+        IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+        assertFalse(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
+    }
+
     public void testDisableQueryCacheHasPrecedenceOverForceQueryCache() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
@@ -751,7 +770,12 @@ public class IndexModuleTests extends ESTestCase {
             IndexService indexService = newIndexService(module);
             closeables.add(() -> closeIndexService(indexService));
 
-            IndexShard indexShard = indexService.createShard(shardRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            IndexShard indexShard = indexService.createShard(
+                shardRouting,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY,
+                RecoverySchedulingListener.NOOP
+            );
             closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
             indexShard.markAsRecovering("test", new RecoveryState(shardRouting, DiscoveryNodeUtils.create("_node_id", "_node_id"), null));
 

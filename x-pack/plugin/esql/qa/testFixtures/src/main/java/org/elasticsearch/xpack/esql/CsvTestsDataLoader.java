@@ -45,7 +45,6 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -289,12 +288,8 @@ public class CsvTestsDataLoader {
         new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
         new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
         new TestDataset("colors"),
-        new TestDataset(
-            "colors_with_slice",
-            "mapping-colors.json",
-            "colors_with_slice.csv",
-            "colors_with_slice-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.METADATA_SLICE),
+        new TestDataset("colors_with_slice", "mapping-colors.json", "colors_with_slice.csv", "colors_with_slice-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.METADATA_SLICE),
         new TestDataset("colors", "mapping-colors.json", "colors.csv").withIndex("colors_unmapped")
             .withTypeMapping(removeFields("rgb_vector"))
             .withDynamic("false"),

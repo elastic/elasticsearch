@@ -694,12 +694,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromRightSideWhenNotKept}
   issue: https://github.com/elastic/elasticsearch/issues/153046
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
-  method: testParquetFile {datapage_v2_empty_datapage.snappy}
-  issue: https://github.com/elastic/elasticsearch/issues/153047
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
-  method: testParquetFile {alltypes_plain.snappy}
-  issue: https://github.com/elastic/elasticsearch/issues/153048
 - class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
   method: testDefaultSettingsFailsOnCrossFileScalarObjectConflict
   issue: https://github.com/elastic/elasticsearch/issues/153054

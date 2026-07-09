@@ -32,6 +32,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -508,7 +509,8 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean isIndexed
+                boolean hasPoints,
+                boolean hasTerms
             ) {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
@@ -527,7 +529,7 @@ public class NumberFieldMapper extends FieldMapper {
                     u = HalfFloatPoint.nextDown(u);
                 }
                 Query query;
-                if (isIndexed) {
+                if (hasPoints) {
                     query = HalfFloatPoint.newRangeQuery(field, l, u);
                     if (hasDocValues) {
                         Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(
@@ -725,7 +727,8 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean isIndexed
+                boolean hasPoints,
+                boolean hasTerms
             ) {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
@@ -744,7 +747,7 @@ public class NumberFieldMapper extends FieldMapper {
                     u = FloatPoint.nextDown(u);
                 }
                 Query query;
-                if (isIndexed) {
+                if (hasPoints) {
                     query = FloatPoint.newRangeQuery(field, l, u);
                     if (hasDocValues) {
                         Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(
@@ -923,11 +926,12 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean isIndexed
+                boolean hasPoints,
+                boolean hasTerms
             ) {
                 return doubleRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
                     Query query;
-                    if (isIndexed) {
+                    if (hasPoints) {
                         query = DoublePoint.newRangeQuery(field, l, u);
                         if (hasDocValues) {
                             Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(
@@ -1104,9 +1108,20 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean isIndexed
+                boolean hasPoints,
+                boolean hasTerms
             ) {
-                return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues, context, isIndexed);
+                return INTEGER.rangeQuery(
+                    field,
+                    lowerTerm,
+                    upperTerm,
+                    includeLower,
+                    includeUpper,
+                    hasDocValues,
+                    context,
+                    hasPoints,
+                    hasTerms
+                );
             }
 
             @Override
@@ -1254,9 +1269,20 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean isIndexed
+                boolean hasPoints,
+                boolean hasTerms
             ) {
-                return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues, context, isIndexed);
+                return INTEGER.rangeQuery(
+                    field,
+                    lowerTerm,
+                    upperTerm,
+                    includeLower,
+                    includeUpper,
+                    hasDocValues,
+                    context,
+                    hasPoints,
+                    hasTerms
+                );
             }
 
             @Override
@@ -1434,7 +1460,8 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean isIndexed
+                boolean hasPoints,
+                boolean hasTerms
             ) {
                 int l = Integer.MIN_VALUE;
                 int u = Integer.MAX_VALUE;
@@ -1464,7 +1491,16 @@ public class NumberFieldMapper extends FieldMapper {
                     }
                 }
                 Query query;
-                if (isIndexed) {
+                if (hasTerms) {
+                    // index_terms has no BKD points, so range queries go through the terms
+                    // dictionary directly instead of falling back to doc values -- this also
+                    // means range queries work even when doc_values is disabled.
+                    query = new TermRangeQuery(field, encodeIndexTerm(l), encodeIndexTerm(u), true, true);
+                    if (hasDocValues) {
+                        Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(field, l, u);
+                        query = new IndexOrDocValuesQuery(query, dvQuery);
+                    }
+                } else if (hasPoints) {
                     query = IntPoint.newRangeQuery(field, l, u);
                     if (hasDocValues) {
                         Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(field, l, u);
@@ -1645,11 +1681,12 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean includeUpper,
                 boolean hasDocValues,
                 SearchExecutionContext context,
-                boolean isIndexed
+                boolean hasPoints,
+                boolean hasTerms
             ) {
                 return longRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
                     Query query;
-                    if (isIndexed) {
+                    if (hasPoints) {
                         query = LongPoint.newRangeQuery(field, l, u);
                         if (hasDocValues) {
                             Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(field, l, u);
@@ -1825,7 +1862,8 @@ public class NumberFieldMapper extends FieldMapper {
             boolean includeUpper,
             boolean hasDocValues,
             SearchExecutionContext context,
-            boolean isIndexed
+            boolean hasPoints,
+            boolean hasTerms
         );
 
         public abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
@@ -2414,7 +2452,8 @@ public class NumberFieldMapper extends FieldMapper {
                 includeUpper,
                 hasDocValues(),
                 context,
-                indexType.hasPoints()
+                indexType.hasPoints(),
+                indexType.hasTerms()
             );
         }
 

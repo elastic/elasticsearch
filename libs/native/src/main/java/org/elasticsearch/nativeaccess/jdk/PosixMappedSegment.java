@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.nativeaccess.MappedSegment;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
@@ -19,26 +20,25 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 import java.util.Objects;
 
-public class PosixCloseableMappedByteBuffer extends JdkCloseableMappedByteBuffer {
+public class PosixMappedSegment extends JdkMappedSegment {
 
     static final PosixCLibrary LIB = NativeLibraryProvider.instance().getLibrary(PosixCLibrary.class);
     static final int PAGE_SIZE = LIB.getPageSize();
 
-    public static PosixCloseableMappedByteBuffer ofShared(FileChannel fileChannel, MapMode mode, long position, long size)
-        throws IOException {
+    public static PosixMappedSegment ofShared(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException {
         var arena = Arena.ofShared();
         var seg = fileChannel.map(mode, position, size, arena);
-        return new PosixCloseableMappedByteBuffer(seg, arena);
+        return new PosixMappedSegment(seg, arena);
     }
 
-    protected PosixCloseableMappedByteBuffer(MemorySegment seg, Arena arena) {
+    protected PosixMappedSegment(MemorySegment seg, Arena arena) {
         super(seg, arena);
     }
 
     @Override
-    public PosixCloseableMappedByteBuffer slice(long index, long length) {
+    public MappedSegment slice(long index, long length) {
         var slice = segment.asSlice(index, length);
-        return new PosixCloseableMappedByteBuffer(slice, null);
+        return new PosixMappedSegment(slice, null);
     }
 
     @Override

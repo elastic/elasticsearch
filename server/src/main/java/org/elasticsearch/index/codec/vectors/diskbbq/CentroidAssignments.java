@@ -21,9 +21,6 @@ public record CentroidAssignments(
 
     public CentroidAssignments(int numCentroids, int[] assignments, OverspillAssignments overspillAssignments, float[] globalCentroid) {
         this(numCentroids, assignments, overspillAssignments, globalCentroid, null);
-        assert assignments.length == overspillAssignments.size() || overspillAssignments.size() == 0
-            : "assignments and overspillAssignments must have the same length";
-
     }
 
     public CentroidAssignments {

@@ -84,6 +84,20 @@ longGaugeMetric.set(123L);
 Each instrument can attach attributes to a reported value. This helps drilling down into the details
 of value that was reported during the metric event
 
+## Histograms and bucket boundaries
+By default, histograms in  Elasticsearch uses boundaries on a base-√2 scale that stop at `131072`.
+Anything larger than the last boundary goes into a single overflow bucket.
+
+For each bucket, APM Server stores the count and one representative value: the midpoint of the bucket's lower and upper bound.
+The overflow bucket uses the last real boundary, and the lowest bucket uses half the first boundary.
+For example, with boundaries `[1, 5, 10]` in seconds: a 4s sample falls in the `(1, 5]` bucket and is stored as
+`3`, and a 20s sample falls in the overflow bucket and is stored as `10`.
+
+To deal with this:
+
+- Use a `DoubleHistogram` with a larger unit (`s` instead of `ms`, `MiB` instead of bytes). The default
+  boundaries go down to fractions, so a larger unit extends the top of the range while keeping useful
+  resolution at the bottom.
 
 ## Development
 

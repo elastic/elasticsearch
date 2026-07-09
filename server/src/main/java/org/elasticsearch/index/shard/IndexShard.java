@@ -2024,7 +2024,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
         final RecoveryState currentRecoveryState = recoveryState;
         assert currentRecoveryState != null : "ensureRecoveryNotCancelled should only be called while recovery is active";
-        assert currentRecoveryState.getRecoverySource() != null : "recovery source should not be null";
         if (recoveryCancellationRequested) {
             throw new RecoveryCancelledException(shardId, currentRecoveryState.getSourceNode(), currentRecoveryState.getTargetNode());
         }

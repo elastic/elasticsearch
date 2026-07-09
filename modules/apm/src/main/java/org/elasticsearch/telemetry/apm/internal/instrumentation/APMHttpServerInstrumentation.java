@@ -13,8 +13,10 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.instrumentation.api.instrumenter.AttributesExtractor;
 import io.opentelemetry.instrumentation.api.instrumenter.SpanNameExtractor;
+import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusExtractor;
 import io.opentelemetry.instrumentation.api.semconv.http.HttpServerAttributesExtractor;
 import io.opentelemetry.instrumentation.api.semconv.http.HttpSpanNameExtractor;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpSpanStatusExtractor;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -34,6 +36,7 @@ public class APMHttpServerInstrumentation implements HttpServerInstrumentation {
 
     private final SpanNameExtractor<RequestAndRoute> spanNameExtractor;
     private final AttributesExtractor<RequestAndRoute, RestResponse> httpServerAttributesExtractor;
+    private final SpanStatusExtractor<RequestAndRoute, RestResponse> httpSpanStatusExtractor;
 
     public APMHttpServerInstrumentation(APMTracer tracer) {
         this.tracer = tracer;
@@ -44,6 +47,7 @@ public class APMHttpServerInstrumentation implements HttpServerInstrumentation {
             .setCapturedRequestHeaders(List.of(/* TODO which headers? */))
             .setCapturedResponseHeaders(List.of(/* TODO which headers? */))
             .build();
+        this.httpSpanStatusExtractor = HttpSpanStatusExtractor.create(getter);
     }
 
     @Override
@@ -87,17 +91,18 @@ public class APMHttpServerInstrumentation implements HttpServerInstrumentation {
     public void end(RestRequest request, RestResponse response) {
         setOldResponseAttributes(request, response);
 
+        var requestAndRoute = new RequestAndRoute(request, /* only needed at start */ null);
         var attributes = Attributes.builder();
         httpServerAttributesExtractor.onEnd(
             attributes,
             /* we don't care about the context in this case */ Context.root(),
-            new RequestAndRoute(request, /* only needed at start */ null),
+            requestAndRoute,
             response,
             null
         );
         tracer.setAttributes(request, attributes.build());
 
-        // todo set status
+        httpSpanStatusExtractor.extract(tracer.spanStatusBuilder(request), requestAndRoute, response, null);
         tracer.stopTrace(request);
     }
 

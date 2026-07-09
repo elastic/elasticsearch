@@ -10,6 +10,8 @@
 package org.elasticsearch.telemetry.apm.internal.instrumentation;
 
 import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -29,9 +31,11 @@ import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static java.util.Map.entry;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class APMHttpServerInstrumentationTests extends ESTestCase {
 
+    final SpanStatusBuilder spanStatusBuilder = mock(SpanStatusBuilder.class);
     final APMTracer tracer = mock(APMTracer.class);
     final APMHttpServerInstrumentation instrumentation = new APMHttpServerInstrumentation(tracer);
 
@@ -151,7 +155,7 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
 
         instrumentation.end(request, response);
 
-        var inOrder = inOrder(tracer);
+        var inOrder = inOrder(tracer, spanStatusBuilder);
         inOrder.verify(tracer).setAttribute(request, "http.status_code", 200L);
         inOrder.verify(tracer)
             .setAttributes(
@@ -171,9 +175,11 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
             .build();
         RestResponse response = new RestResponse(RestStatus.INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
 
+        when(tracer.spanStatusBuilder(request)).thenReturn(spanStatusBuilder);
+
         instrumentation.end(request, response);
 
-        var inOrder = inOrder(tracer);
+        var inOrder = inOrder(tracer, spanStatusBuilder);
         inOrder.verify(tracer).setAttribute(request, "http.status_code", 500L);
         inOrder.verify(tracer)
             .setAttributes(
@@ -184,6 +190,7 @@ public class APMHttpServerInstrumentationTests extends ESTestCase {
                     .put(stringKey("network.protocol.version"), "1.1")
                     .build()
             );
+        inOrder.verify(spanStatusBuilder).setStatus(StatusCode.ERROR);
         inOrder.verify(tracer).stopTrace(request);
         inOrder.verifyNoMoreInteractions();
     }

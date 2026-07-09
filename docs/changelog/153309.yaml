@@ -9,4 +9,4 @@ breaking:
 issues: []
 pr: 153309
 summary: "[Inference API] Prevent overriding `secret_parameters`"
-type: "breaking, bug"
+type: breaking

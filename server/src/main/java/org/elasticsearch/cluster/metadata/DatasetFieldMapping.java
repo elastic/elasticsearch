@@ -58,7 +58,7 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<DatasetFieldMapping, Void> PARSER = new ConstructingObjectParser<>(
         "dataset_field_mapping",
         false,
-        args -> new DatasetFieldMapping((String) args[0], (String) args[1], (String) args[2])
+        args -> DatasetFieldMapping.withFormat((String) args[0], (String) args[1], (String) args[2])
     );
 
     static {
@@ -85,7 +85,20 @@ public final class DatasetFieldMapping implements Writeable, ToXContentObject {
         this(type, path, (String) null);
     }
 
-    public DatasetFieldMapping(String type, @Nullable String path, @Nullable String format) {
+    /**
+     * A column with a declared date {@code format}.
+     *
+     * <p>This is a named factory, not a public 3-arg constructor, on purpose. The erased signature
+     * {@code (String, String, String)} previously meant {@code (type, path, copyTo)}; {@code copy_to} has since been
+     * dropped and the third String now means {@code format}. Exposing it only as {@code withFormat} keeps the
+     * argument's meaning in the call site and prevents a future third-String field from silently inheriting the old
+     * positional contract.
+     */
+    public static DatasetFieldMapping withFormat(String type, @Nullable String path, @Nullable String format) {
+        return new DatasetFieldMapping(type, path, format);
+    }
+
+    private DatasetFieldMapping(String type, @Nullable String path, @Nullable String format) {
         this.type = Objects.requireNonNull(type, "field mapping type must not be null");
         this.path = path;
         this.format = format;

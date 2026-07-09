@@ -39,14 +39,14 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
         // A date-parse pattern on a `date` column is shape-valid at PUT; the pattern is validated with the same ES
         // DateFormatter the readers use.
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("ts", new DatasetFieldMapping("date", null, "dd/MMM/yyyy:HH:mm:ss Z"));
+        props.put("ts", DatasetFieldMapping.withFormat("date", null, "dd/MMM/yyyy:HH:mm:ss Z"));
         DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, props))); // no throw
     }
 
     public void testFormatOnNonDateColumnRejected() {
         // `format` is a date-parse pattern, so it is only meaningful on a date column.
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("name", new DatasetFieldMapping("keyword", null, "yyyy-MM-dd"));
+        props.put("name", DatasetFieldMapping.withFormat("keyword", null, "yyyy-MM-dd"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, props)))
@@ -57,7 +57,7 @@ public class DeclaredSchemaValidatorTests extends ESTestCase {
     public void testInvalidFormatPatternRejectedAtPut() {
         // A bad pattern must fail the PUT, not the first query.
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("ts", new DatasetFieldMapping("date", null, "not-a-valid-pattern-{{{"));
+        props.put("ts", DatasetFieldMapping.withFormat("date", null, "not-a-valid-pattern-{{{"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> DeclaredSchemaValidator.validate(new DatasetMapping(new Mappings(Dynamic.TRUE, props)))

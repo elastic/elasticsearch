@@ -34,7 +34,7 @@ public class DatasetFieldMappingTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected DatasetFieldMapping createTestInstance() {
-        return new DatasetFieldMapping(
+        return DatasetFieldMapping.withFormat(
             randomFrom("keyword", "long", "integer", "double", "boolean", "date"),
             randomBoolean() ? null : randomAlphaOfLength(6).toLowerCase(Locale.ROOT),
             randomFormat()
@@ -50,17 +50,17 @@ public class DatasetFieldMappingTests extends AbstractXContentSerializingTestCas
     @Override
     protected DatasetFieldMapping mutateInstance(DatasetFieldMapping instance) {
         return switch (randomIntBetween(0, 2)) {
-            case 0 -> new DatasetFieldMapping(
+            case 0 -> DatasetFieldMapping.withFormat(
                 randomValueOtherThan(instance.type(), () -> randomFrom("keyword", "long", "integer", "double", "boolean", "date")),
                 instance.path(),
                 instance.format()
             );
-            case 1 -> new DatasetFieldMapping(
+            case 1 -> DatasetFieldMapping.withFormat(
                 instance.type(),
                 randomValueOtherThan(instance.path(), () -> randomBoolean() ? null : randomAlphaOfLength(7).toLowerCase(Locale.ROOT)),
                 instance.format()
             );
-            default -> new DatasetFieldMapping(
+            default -> DatasetFieldMapping.withFormat(
                 instance.type(),
                 instance.path(),
                 randomValueOtherThan(instance.format(), DatasetFieldMappingTests::randomFormat)

@@ -508,7 +508,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // Strict declaration: `ts` is a date parsed with the access-log pattern (which carries an explicit zone).
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", null, ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         properties.put("note", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
@@ -543,7 +543,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Non-strict overlay retypes the inferred keyword `ts` to a date with the declared format; date comparison then
         // works on the parsed instants. Only the 11/Oct row (2000-10-11T16:00:00Z) is >= the 2000-10-11T00:00:00Z bound.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", null, ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
@@ -579,7 +579,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // File-level datetime_format is a pattern that CANNOT parse the access-log text; the column's own declared
         // format must win for that column, so the value still parses to the exact zone-aware epoch.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", null, ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         properties.put("note", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
@@ -646,7 +646,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // rejected loudly at query resolution rather than silently ignored.
         Path parquet = writeParquetRenameFixture();
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", "emp_no", ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "emp_no", ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
@@ -676,7 +676,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // NDJSON already parses dates via the ES DateFormatter; a per-column declared format reparses that column with
         // its own pattern (same zone-aware semantics).
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", null, ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
@@ -709,7 +709,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // the key back to `ts` for the reader). If the logical->physical re-keying were inverted, the reader would look
         // up the formatter under the wrong name and the value would fall to the undeclared path.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("event_time", new DatasetFieldMapping("date", "ts", ACCESS_LOG_FORMAT));
+        properties.put("event_time", DatasetFieldMapping.withFormat("date", "ts", ACCESS_LOG_FORMAT));
         properties.put("note", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
@@ -756,7 +756,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // `.csv.gz` is covered separately by testStrictOverGzipCsvReads (and its tsv/ndjson twins). The overlay retypes
         // the inferred `ts` to a date with the format.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", null, ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
@@ -886,7 +886,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // resolution path bypasses the non-strict overlay's reject, so it must guard the columnar case itself.
         Path parquet = writeParquetRenameFixture();
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", "emp_no", ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "emp_no", ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
         assertAcked(
@@ -1248,7 +1248,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetDeferredCoerceFixture();
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", "event_ts", ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", ACCESS_LOG_FORMAT));
         properties.put("id_str", new DatasetFieldMapping("keyword", "id")); // physical int64 -> stringify
         properties.put("msg", new DatasetFieldMapping("keyword", null));
         properties.put("pri", new DatasetFieldMapping("integer", null));
@@ -1359,7 +1359,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path parquet = writeParquetBadDateTokenFixture();
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("date", "event_ts", ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", ACCESS_LOG_FORMAT));
         properties.put("id_str", new DatasetFieldMapping("keyword", "id"));
         properties.put("msg", new DatasetFieldMapping("keyword", null));
         properties.put("pri", new DatasetFieldMapping("integer", null));
@@ -1447,7 +1447,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Path csv = createTempFile("dataset-bad-date-", ".csv");
         Files.writeString(csv, "ts:keyword,note:keyword\ndefinitely-not-a-date,alpha\n");
         Map<String, DatasetFieldMapping> csvProps = new LinkedHashMap<>();
-        csvProps.put("ts", new DatasetFieldMapping("date", null, ACCESS_LOG_FORMAT));
+        csvProps.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         csvProps.put("note", new DatasetFieldMapping("keyword", null));
         assertAcked(
             client().execute(
@@ -1484,7 +1484,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             {"ts":"definitely-not-a-date","note":"beta"}
             """;
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
-        props.put("ts", new DatasetFieldMapping("date", null, ACCESS_LOG_FORMAT));
+        props.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         props.put("note", new DatasetFieldMapping("keyword", null));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props));
 
@@ -1571,7 +1571,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
         Map<String, DatasetFieldMapping> csvProps = new LinkedHashMap<>();
-        csvProps.put("ts", new DatasetFieldMapping("date", null, ACCESS_LOG_FORMAT));
+        csvProps.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         csvProps.put("note", new DatasetFieldMapping("keyword", null));
         assertAcked(
             client().execute(
@@ -1592,7 +1592,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Path parquet = writeParquetStringDateFixture();
         Map<String, DatasetFieldMapping> pqProps = new LinkedHashMap<>();
         pqProps.put("id", new DatasetFieldMapping("long", null));
-        pqProps.put("ts", new DatasetFieldMapping("date", "event_ts", ACCESS_LOG_FORMAT));
+        pqProps.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", ACCESS_LOG_FORMAT));
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -2068,7 +2068,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Path parquet = writeParquetStringDateFixture();
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
-        properties.put("ts", new DatasetFieldMapping("date", "event_ts", ACCESS_LOG_FORMAT)); // string -> date
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "event_ts", ACCESS_LOG_FORMAT)); // string -> date
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
             client().execute(

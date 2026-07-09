@@ -69,6 +69,10 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         xContentRegistry = new NamedXContentRegistry(namedXContents);
     }
 
+    public final void setUp() throws Exception {
+        super.setUp();
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;

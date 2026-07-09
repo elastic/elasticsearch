@@ -107,6 +107,10 @@ public abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase exte
         );
     }
 
+    public final void setUp() throws Exception {
+        super.setUp();
+    }
+
     abstract Query getDiversifyingChildrenKnnQuery(
         String fieldName,
         float[] queryVector,

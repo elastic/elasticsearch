@@ -65,6 +65,10 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
         );
     }
 
+    public final void setUp() throws Exception {
+        super.setUp();
+    }
+
     @AfterClass
     public static void tearDownThreadPool() {
         terminate(threadPool);
@@ -73,6 +77,10 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
     @After
     public void tearDownPersistentTasksDeciders() throws Exception {
         clusterService.close();
+    }
+
+    public final void tearDown() throws Exception {
+        super.tearDown();
     }
 
     protected ClusterState reassign(final ClusterState clusterState) {

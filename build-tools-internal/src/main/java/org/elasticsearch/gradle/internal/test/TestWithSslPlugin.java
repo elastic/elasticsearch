@@ -16,7 +16,7 @@ import org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugi
 import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin;
 import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsTask;
 import org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin;
-import org.elasticsearch.gradle.internal.test.rest.RestIntegTests;
+import org.elasticsearch.gradle.internal.test.rest.RestIntegTestsExtension;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersAware;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
@@ -62,7 +62,7 @@ public class TestWithSslPlugin implements Plugin<Project> {
             project.getTasks().withType(TestClustersAware.class).configureEach(clusterAware -> clusterAware.dependsOn(exportKeyStore));
             // Tell the tests we're running with ssl enabled
             project.getExtensions()
-                .getByType(RestIntegTests.class)
+                .getByType(RestIntegTestsExtension.class)
                 .getTasks()
                 .configureEach(runner -> runner.systemProperty("tests.ssl.enabled", "true"));
         });
@@ -73,7 +73,7 @@ public class TestWithSslPlugin implements Plugin<Project> {
             project.getTasks().withType(TestClustersAware.class).configureEach(clusterAware -> clusterAware.dependsOn(exportKeyStore));
             // Tell the tests we're running with ssl enabled
             project.getExtensions()
-                .getByType(RestIntegTests.class)
+                .getByType(RestIntegTestsExtension.class)
                 .getTasks()
                 .configureEach(runner -> runner.systemProperty("tests.ssl.enabled", "true"));
         });

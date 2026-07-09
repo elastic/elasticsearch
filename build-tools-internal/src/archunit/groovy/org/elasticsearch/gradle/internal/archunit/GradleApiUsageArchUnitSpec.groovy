@@ -73,6 +73,16 @@ class GradleApiUsageArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.util.ports.AvailablePortAllocator",
     ] as Set
 
+    /**
+     * Plugin classes that still register a project extension whose type is not named {@code *Extension}.
+     * New entries must not be added — extension types registered via
+     * {@code getExtensions().create()} or {@code getExtensions().add(Class, ...)} must follow the
+     * {@code SomethingExtension} naming convention. Existing entries should be removed as the types
+     * are renamed (the staleness test enforces this).
+     */
+    private static final Set<String> KNOWN_NON_EXTENSION_NAMED_REGISTRATIONS = [
+    ] as Set
+
     @Shared
     JavaClasses productionClasses = importProductionClasses()
 
@@ -104,6 +114,77 @@ class GradleApiUsageArchUnitSpec extends AbstractArchUnitSpec {
                 }
             }
         }
+    }
+
+    def "extension types registered via ExtensionContainer are named *Extension"() {
+        given:
+        ArchRule rule = classes()
+            .that(notInBaseline(KNOWN_NON_EXTENSION_NAMED_REGISTRATIONS))
+            .should(onlyRegisterExtensionTypesNamedExtension())
+            .because("extension types registered via project.getExtensions().create/add should be named " +
+                "*Extension so their purpose is immediately recognisable")
+
+        expect:
+        rule.check(productionClasses)
+    }
+
+    def "the non-Extension-named-registrations baseline contains no stale entries"() {
+        expect:
+        List<String> stale = staleBaselineEntries(KNOWN_NON_EXTENSION_NAMED_REGISTRATIONS, productionClasses) { JavaClass c ->
+            registersNonExtensionNamedType(c)
+        }
+        assert stale.isEmpty(),
+            "Stale KNOWN_NON_EXTENSION_NAMED_REGISTRATIONS entries (renamed or removed) \u2014 delete them:\n  " + stale.join("\n  ")
+    }
+
+    private static ArchCondition<JavaClass> onlyRegisterExtensionTypesNamedExtension() {
+        return new ArchCondition<JavaClass>("only register extension types whose simple name ends with 'Extension'") {
+            @Override
+            void check(JavaClass item, ConditionEvents events) {
+                item.codeUnits.each { codeUnit ->
+                    Set<Integer> registrationLines = extensionRegistrationLines(codeUnit)
+                    if (registrationLines.isEmpty()) return
+                    codeUnit.referencedClassObjects.each { ref ->
+                        if (registrationLines.contains(ref.lineNumber)
+                                && ref.value.packageName.startsWith("org.elasticsearch.gradle")
+                                && !ref.value.simpleName.endsWith("Extension")) {
+                            events.add(SimpleConditionEvent.violated(item,
+                                "${item.fullName} registers ${ref.value.fullName} as a project extension " +
+                                    "but the type name does not end with 'Extension'"))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static boolean registersNonExtensionNamedType(JavaClass clazz) {
+        return clazz.codeUnits.any { codeUnit ->
+            Set<Integer> registrationLines = extensionRegistrationLines(codeUnit)
+            if (registrationLines.isEmpty()) return false
+            return codeUnit.referencedClassObjects.any { ref ->
+                registrationLines.contains(ref.lineNumber)
+                    && ref.value.packageName.startsWith("org.elasticsearch.gradle")
+                    && !ref.value.simpleName.endsWith("Extension")
+            }
+        }
+    }
+
+    /**
+     * Returns the line numbers of {@code ExtensionContainer.create(...)} and
+     * {@code ExtensionContainer.add(...)} calls in the given code unit. The registered extension
+     * type always appears as a class literal ({@code Foo.class}) on the same source line, so
+     * co-location with these line numbers is used to identify the extension type without requiring
+     * data-flow analysis.
+     */
+    private static Set<Integer> extensionRegistrationLines(codeUnit) {
+        return codeUnit.methodCallsFromSelf
+            .findAll { call ->
+                (call.target.name == "create" || call.target.name == "add") &&
+                    call.target.owner.fullName == "org.gradle.api.plugins.ExtensionContainer"
+            }
+            .collect { call -> call.lineNumber }
+            .toSet()
     }
 
     private static boolean dependsOnGradleInternalApi(JavaClass clazz) {

@@ -167,9 +167,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
         });
 
         // Register the restTests project extension
-        RestIntegTests restTests = new RestIntegTests(project);
-        project.getExtensions().add(RestIntegTests.class, "restTests", restTests);
-
+        RestIntegTestsExtension restTests = project.getExtensions().create("restTests", RestIntegTestsExtension.class, project);
         // Apply standard REST integ-test configuration to all REST integ test tasks (StandaloneRestIntegTestTask
         // instances plus plain Test tasks registered via restTests.register). restTests.configureEach uses a plain
         // withType(Test).configureEach internally, registered here at apply time so it runs before the task's own

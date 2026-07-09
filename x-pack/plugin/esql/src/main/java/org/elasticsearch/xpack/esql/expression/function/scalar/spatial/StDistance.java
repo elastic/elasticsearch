@@ -18,6 +18,7 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -322,7 +323,9 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     private ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator, Expression field, Geometry geometry, boolean docValues) {
-        if (geometry instanceof Point point) {
+        if (geometry == null) {
+            return ConstantEvaluators.CONSTANT_NULL_FACTORY;
+        } else if (geometry instanceof Point point) {
             return toEvaluator(toEvaluator, field, point, docValues);
         } else {
             throw new IllegalArgumentException("Unsupported geometry type for ST_DISTANCE: " + geometry.type().name());

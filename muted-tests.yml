@@ -199,9 +199,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
   method: plugin projects are wired into test cluster setup
   issue: https://github.com/elastic/elasticsearch/issues/148014
-- class: org.elasticsearch.xpack.stateless.shutdown.SigtermTerminationHandlerTests
-  method: testShutdownBlockIgnoreOtherRoles
-  issue: https://github.com/elastic/elasticsearch/issues/148037
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
@@ -355,9 +352,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
   method: testRefreshBlockRemovedAfterDelay
   issue: https://github.com/elastic/elasticsearch/issues/150662
-- class: org.elasticsearch.indices.memory.breaker.HierarchyCircuitBreakerTelemetryIT
-  method: testCircuitBreakerTripCountMetric
-  issue: https://github.com/elastic/elasticsearch/issues/150700
 - class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
   method: testSequences
   issue: https://github.com/elastic/elasticsearch/issues/150762
@@ -550,9 +544,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDifferenceTests
   method: testFold {TestCase=geo_shape and geo_shape}
   issue: https://github.com/elastic/elasticsearch/issues/152281
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
-  method: testWriteFileMultipleOfChunkSize
-  issue: https://github.com/elastic/elasticsearch/issues/152286
 - class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
   method: testCancelAllReindexTasksByActionWithMixedRelocationState
   issue: https://github.com/elastic/elasticsearch/issues/152291
@@ -613,12 +604,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testUnreferencedCommitsAreReleasedAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/152730
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/kNN search only}
-  issue: https://github.com/elastic/elasticsearch/issues/152784
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/kNN search plus query}
-  issue: https://github.com/elastic/elasticsearch/issues/152786
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testCloseWhileShardsAreHollowed
   issue: https://github.com/elastic/elasticsearch/issues/151861
@@ -856,3 +841,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.SemanticTextFieldMappingLegacyFormatIT
   method: testLegacyFormatMappingPopulatedAfterFirstDenseDocument
   issue: https://github.com/elastic/elasticsearch/issues/153384
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/columnar: no prefix_properties when dynamic is only set at root level}"
+  issue: https://github.com/elastic/elasticsearch/issues/153390
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:inlinestats.groupByMultipleRenamedColumns_AndOneExpression_Last}
+  issue: https://github.com/elastic/elasticsearch/issues/153394

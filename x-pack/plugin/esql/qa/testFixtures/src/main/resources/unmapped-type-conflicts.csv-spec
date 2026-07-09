@@ -10,6 +10,11 @@
 // MultiClusterSpecIT), because a projected _index value depends on which physical cluster the
 // randomized dataLocation happened to place the data on; that's also why those siblings strip the
 // "remote_cluster:" prefix via EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), ...).
+// "- old data node" siblings declare both required_capability_coordinator and
+// missing_capability_data_node. Technically, missing_capability_data_node alone is enough for the
+// test to only run in the intended version pairing (given how the newToOld/oldToNew BWC tasks are
+// set up), but the coordinator requirement is kept anyway because it documents the test's intent
+// and doesn't rely on that pairing setup remaining what it is today.
 
 ######################################
 # Mapped and unmapped conflict tests #

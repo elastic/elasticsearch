@@ -42,12 +42,14 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -526,6 +528,74 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         indexDoc(parseDoc, doc, iw);
     }
 
+    // A pre-built automaton (a union of several patterns, as ES|QL's WildcardLikeList/RLikeList produce) must
+    // match the same docs on a wildcard field as on a keyword field. The corpus mixes ASCII and multi-byte
+    // values on purpose: a UTF-8 vs UTF-32 automaton-alphabet mistake is invisible on ASCII and would only
+    // show up on the accented/CJK docs. Without WildcardFieldType.automatonQuery this throws instead of matching.
+    public void testAutomatonQueryVersusKeywordField() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
+        iwc.setMergePolicy(newTieredMergePolicy(random()));
+        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+
+        List<String> values = List.of("value_a", "abc_thing", "other_z", "café", "naïve", "日本_a");
+        for (String value : values) {
+            indexDoc(iw, value);
+        }
+        iw.forceMerge(1);
+        DirectoryReader reader = iw.getReader();
+        IndexSearcher searcher = newSearcher(reader);
+        iw.close();
+
+        String[][] patternSets = {
+            { "value*", "abc*" },       // plain ASCII prefixes
+            { "*é", "日本*" }, // ends-with 'é' or starts-with '日本'
+            { "na?ve", "*_a" } };       // '?' spanning a 2-byte char, plus a suffix
+        for (boolean caseInsensitive : new boolean[] { false, true }) {
+            for (String[] patterns : patternSets) {
+                final Automaton automaton = unionOfWildcardPatterns(patterns, caseInsensitive);
+                Supplier<Automaton> automatonSupplier = () -> automaton;
+                Supplier<CharacterRunAutomaton> runAutomatonSupplier = () -> new CharacterRunAutomaton(automaton);
+                String description = "LIKE(" + String.join(", ", patterns) + "), caseInsensitive=" + caseInsensitive;
+
+                Query wildcardFieldQuery = wildcardFieldType.fieldType()
+                    .automatonQuery(automatonSupplier, runAutomatonSupplier, null, MOCK_CONTEXT, description);
+                Query keywordFieldQuery = keywordFieldType.fieldType()
+                    .automatonQuery(automatonSupplier, runAutomatonSupplier, null, MOCK_CONTEXT, description);
+
+                TopDocs keywordHits = searcher.search(keywordFieldQuery, values.size() + 1);
+                TopDocs wildcardHits = searcher.search(wildcardFieldQuery, values.size() + 1);
+                assertThat(
+                    description + "\n" + keywordFieldQuery + "\n" + wildcardFieldQuery,
+                    wildcardHits.totalHits.value(),
+                    equalTo(keywordHits.totalHits.value())
+                );
+                HashSet<Integer> expectedDocs = new HashSet<>();
+                for (ScoreDoc scoreDoc : keywordHits.scoreDocs) {
+                    expectedDocs.add(scoreDoc.doc);
+                }
+                for (ScoreDoc scoreDoc : wildcardHits.scoreDocs) {
+                    assertTrue(description, expectedDocs.remove(scoreDoc.doc));
+                }
+                assertThat(description, expectedDocs.size(), equalTo(0));
+            }
+        }
+        reader.close();
+        dir.close();
+    }
+
+    private static Automaton unionOfWildcardPatterns(String[] patterns, boolean caseInsensitive) {
+        List<Automaton> automata = new ArrayList<>(patterns.length);
+        for (String pattern : patterns) {
+            automata.add(
+                caseInsensitive
+                    ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(new Term("f", pattern))
+                    : WildcardQuery.toAutomaton(new Term("f", pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
+            );
+        }
+        return Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+    }
+
     public void testRangeQueryVersusKeywordField() throws IOException {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
@@ -751,6 +821,32 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         Query arrayOrderQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false, true);
         assertNotEquals(csQ, arrayOrderQ);
         assertNotEquals(csQ.hashCode(), arrayOrderQ.hashCode());
+    }
+
+    public void testQueryCachingEqualityFromAutomatonWithDescription() {
+        Automaton automaton = WildcardQuery.toAutomaton(new Term("field", "A*b*"), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+
+        // Equality is keyed on the description, so identical descriptions are equal regardless of the automaton instance
+        Query q1 = BinaryDvConfirmedQuery.fromAutomaton(Queries.ALL_DOCS_INSTANCE, "field", automaton, "LIKE(\"A*b*\")", false);
+        Query q2 = BinaryDvConfirmedQuery.fromAutomaton(Queries.ALL_DOCS_INSTANCE, "field", automaton, "LIKE(\"A*b*\")", false);
+        assertEquals(q1, q2);
+        assertEquals(q1.hashCode(), q2.hashCode());
+
+        // Different description should not be equal
+        Query differentDescription = BinaryDvConfirmedQuery.fromAutomaton(
+            Queries.ALL_DOCS_INSTANCE,
+            "field",
+            automaton,
+            "LIKE(\"A*b*\"), caseInsensitive=true",
+            false
+        );
+        assertNotEquals(q1, differentDescription);
+        assertNotEquals(q1.hashCode(), differentDescription.hashCode());
+
+        // Different arrayOrder should not be equal
+        Query arrayOrderQ = BinaryDvConfirmedQuery.fromAutomaton(Queries.ALL_DOCS_INSTANCE, "field", automaton, "LIKE(\"A*b*\")", true);
+        assertNotEquals(q1, arrayOrderQ);
+        assertNotEquals(q1.hashCode(), arrayOrderQ.hashCode());
     }
 
     public void testQueryCachingEqualityFromTerms() {

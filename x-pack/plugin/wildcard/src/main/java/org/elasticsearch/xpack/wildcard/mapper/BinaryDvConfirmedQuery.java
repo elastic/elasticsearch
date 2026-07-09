@@ -145,6 +145,24 @@ abstract class BinaryDvConfirmedQuery extends Query {
     }
 
     /**
+     * Returns a query that runs an already-built Automaton across all binary doc values (but only for docs
+     * that also match a provided approximation query which is key to getting good performance). Unlike the
+     * pattern-specific factories above, this accepts a pre-computed automaton, so it can serve callers that
+     * combine several patterns into one automaton (e.g. {@code LIKE ("a*", "b*")}). {@code description} is
+     * used only for {@link Query#toString()}. Reads the field's binary doc values using the in-order
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
+     * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     */
+    public static Query fromAutomaton(Query approximation, String field, Automaton automaton, String description, boolean arrayOrder) {
+        return new BinaryDvConfirmedAutomatonQuery(
+            approximation,
+            field,
+            new PrecomputedAutomatonProvider(automaton, description),
+            arrayOrder
+        );
+    }
+
+    /**
      * Returns a query that checks for equality of at least one of the provided terms across
      * all binary doc values (but only for docs that also match a provided approximation query which
      * is key to getting good performance). Reads the field's binary doc values using the in-order
@@ -415,6 +433,48 @@ abstract class BinaryDvConfirmedQuery extends Query {
         @Override
         public Automaton getAutomaton(String field) {
             return fuzzyQuery.getAutomata().automaton;
+        }
+    }
+
+    /**
+     * Wraps an already-built automaton. Equality is keyed on {@code description} rather than the automaton
+     * itself: the description is derived from the same patterns and case-sensitivity used to build the
+     * automaton, so it is a stable, unique identity that also lets the query cache reuse identical filters
+     * (Lucene's {@link Automaton} has only identity equality).
+     */
+    private static final class PrecomputedAutomatonProvider implements AutomatonProvider {
+        private final Automaton automaton;
+        private final String description;
+
+        PrecomputedAutomatonProvider(Automaton automaton, String description) {
+            this.automaton = automaton;
+            this.description = description;
+        }
+
+        @Override
+        public Automaton getAutomaton(String field) {
+            return automaton;
+        }
+
+        @Override
+        public String toString() {
+            return description;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            return description.equals(((PrecomputedAutomatonProvider) o).description);
+        }
+
+        @Override
+        public int hashCode() {
+            return description.hashCode();
         }
     }
 }

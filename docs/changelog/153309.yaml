@@ -1,6 +1,6 @@
 area: Inference
 breaking:
-  area: Inference
+  area: REST API
   details: >-
     The Inference API incorrectly allowed users to override values within `secret_parameters` with the contents of
     `task_settings.parameters` during a POST request. This change prevents that behavior, ensuring that

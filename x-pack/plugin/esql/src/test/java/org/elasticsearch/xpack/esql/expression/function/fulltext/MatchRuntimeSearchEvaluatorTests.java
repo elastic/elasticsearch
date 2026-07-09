@@ -22,7 +22,6 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -108,7 +107,7 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
     private static Match runtimeMatch(DataType fieldType, Object queryValue, DataType queryType) {
         ReferenceAttribute field = new ReferenceAttribute(Source.EMPTY, "field", fieldType);
         Literal query = new Literal(Source.EMPTY, queryValue, queryType);
-        Match match = new Match(Source.EMPTY, field, query, null, EsqlTestUtils.TEST_CFG);
+        Match match = new Match(Source.EMPTY, field, query, null);
         assertTrue("expected a runtime search, not a pushed-down query", match.isRuntimeSearch());
         return match;
     }

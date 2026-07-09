@@ -145,6 +145,8 @@ import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
+import org.elasticsearch.painless.spi.annotation.AllocatesConstantAnnotation;
+import org.elasticsearch.painless.spi.annotation.AllocatesDynamicAnnotation;
 import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.Decorations.AccessDepth;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
@@ -1934,12 +1936,18 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             irCallSubDefNode.attachDecoration(new IRDExpressionType(valueType));
             irCallSubDefNode.attachDecoration(new IRDName(userCallNode.getMethodName()));
-            if (scriptScope.getPainlessLookup()
-                .hasAnnotationAwareMethod(
-                    ScriptAwareAnnotation.class,
-                    userCallNode.getMethodName(),
-                    userCallNode.getArgumentNodes().size()
-                )) {
+            // The script receiver must be pushed (the 'S' recipe) when the runtime target might be a @script_aware augmentation
+            // (cancellation) or, when allocation tracking is on, an allocation-annotated allocator — the bootstrap needs the
+            // receiver to poll cancellation / charge the allocation once the concrete method is resolved. IRCScriptAware drives
+            // that push regardless of which reason triggered it. Both checks are receiver-independent name/arity lookups.
+            PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
+            String methodName = userCallNode.getMethodName();
+            int argumentCount = userCallNode.getArgumentNodes().size();
+            boolean pushScriptThis = painlessLookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, argumentCount)
+                || (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()
+                    && (painlessLookup.hasAnnotationAwareMethod(AllocatesConstantAnnotation.class, methodName, argumentCount)
+                        || painlessLookup.hasAnnotationAwareMethod(AllocatesDynamicAnnotation.class, methodName, argumentCount)));
+            if (pushScriptThis) {
                 irCallSubDefNode.attachCondition(IRCScriptAware.class);
             }
             irExpressionNode = irCallSubDefNode;

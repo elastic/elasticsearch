@@ -172,6 +172,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 FieldMapper.COERCE_SETTING,
                 FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING,
                 FieldMapper.DOC_VALUES_NULLABILITY_SETTING,
+                FieldMapper.DOC_VALUES_ON_FAILURE_SETTING,
                 Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING,

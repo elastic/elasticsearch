@@ -1438,7 +1438,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         List<String> sig = new ArrayList<>();
         for (Map<String, Object> operator : operators) {
             String name = (String) operator.get("operator");
-            name = PushQueriesIT.TO_NAME.matcher(name).replaceAll("");
+            name = PushQueriesStringIT.TO_NAME.matcher(name).replaceAll("");
             if (name.equals("ValuesSourceReaderOperator")) {
                 assertNotNull("Expected loaders to match the ValuesSourceReaderOperator for driver " + driverDesc, expectedLoaders);
                 MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name))

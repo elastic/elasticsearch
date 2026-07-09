@@ -952,18 +952,22 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     );
                     return;
                 }
-                if (it.hasNext() == false) { // pre-fix: BLOCKS here on a POISON gap (isReadyNow reports ready on POISON)
+                Page p = it.tryAdvance();
+                if (p == null) {
                     SubscribableListener<Void> recheck = it.waitForReady();
                     if (recheck.isDone()) {
-                        done.onResponse(rows.get());
+                        if (it.hasNext() == false) {
+                            done.onResponse(rows.get());
+                            return;
+                        }
+                        p = it.next();
+                    } else {
+                        recheck.addListener(
+                            ActionListener.wrap(v -> pool.execute(() -> drainViaProducerLoop(it, pool, rows, done)), done::onFailure)
+                        );
                         return;
                     }
-                    recheck.addListener(
-                        ActionListener.wrap(v -> pool.execute(() -> drainViaProducerLoop(it, pool, rows, done)), done::onFailure)
-                    );
-                    return;
                 }
-                Page p = it.next();
                 rows.addAndGet(p.getPositionCount());
                 p.releaseBlocks();
             }
@@ -989,18 +993,25 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     );
                     return;
                 }
-                if (it.hasNext() == false) {
+                Page p = it.tryAdvance();
+                if (p == null) {
                     SubscribableListener<Void> recheck = it.waitForReady();
                     if (recheck.isDone()) {
-                        done.onResponse(sink.lines.size());
+                        if (it.hasNext() == false) {
+                            done.onResponse(sink.lines.size());
+                            return;
+                        }
+                        p = it.next();
+                    } else {
+                        recheck.addListener(
+                            ActionListener.wrap(
+                                v -> pool.execute(() -> drainViaProducerLoopCollecting(it, pool, sink, done)),
+                                done::onFailure
+                            )
+                        );
                         return;
                     }
-                    recheck.addListener(
-                        ActionListener.wrap(v -> pool.execute(() -> drainViaProducerLoopCollecting(it, pool, sink, done)), done::onFailure)
-                    );
-                    return;
                 }
-                Page p = it.next();
                 BytesRefBlock block = p.getBlock(0);
                 for (int i = 0; i < block.getPositionCount(); i++) {
                     sink.lines.add(block.getBytesRef(i, scratch).utf8ToString());

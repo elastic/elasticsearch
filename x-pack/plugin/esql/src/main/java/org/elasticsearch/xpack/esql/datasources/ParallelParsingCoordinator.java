@@ -1005,6 +1005,20 @@ public final class ParallelParsingCoordinator {
             return result;
         }
 
+        @Override
+        public Page tryAdvance() {
+            if (closed) {
+                return null;
+            }
+            if (buffered != null) {
+                Page result = buffered;
+                buffered = null;
+                return result;
+            }
+            checkError();
+            return sharedQueue.poll();
+        }
+
         /**
          * Drains the shared queue in as-ready order. Returns the next data page, or {@code null} once every
          * segment has finished and the queue is empty. Polls with a timeout (rather than blocking forever) so

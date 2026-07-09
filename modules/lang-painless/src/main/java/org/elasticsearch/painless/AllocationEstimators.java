@@ -10,6 +10,7 @@
 package org.elasticsearch.painless;
 
 import java.util.Collection;
+import java.util.Locale;
 
 /**
  * Built-in {@code @allocates_dynamic} estimators: {@code public static long} methods matching the annotated target's full Java
@@ -22,12 +23,49 @@ public final class AllocationEstimators {
     private AllocationEstimators() {}
 
     /**
-     * Cost of {@code String.substring(begin, end)}: result overhead plus {@code end - begin} chars at 2 bytes each (UTF-16
-     * worst case). An inverted range costs just the overhead; the real call rejects invalid indices after the pre-check.
+     * Heap cost of a freshly allocated {@link String} holding {@code chars} UTF-16 characters: the {@code String} object plus
+     * its backing array, {@link AllocSizes#STRING_CONCAT_RESULT_OVERHEAD} for the fixed part plus 2 bytes per char. A negative
+     * length (from an out-of-range argument the real call will reject) costs just the overhead.
+     */
+    private static long newStringBytes(long chars) {
+        return AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + AllocSizes.mulSat(2L, Math.max(0L, chars));
+    }
+
+    /**
+     * Cost of {@code String.substring(begin, end)}: a new String of {@code end - begin} chars. An inverted range costs just the
+     * overhead; the real call rejects invalid indices after the pre-check.
      */
     public static long substringBytes(String receiver, int begin, int end) {
-        long chars = Math.max(0L, (long) end - begin);
-        return AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + AllocSizes.mulSat(2L, chars);
+        return newStringBytes((long) end - begin);
+    }
+
+    /** Cost of {@code String.substring(begin)}: a new String from {@code begin} to the receiver's end. */
+    public static long substringBytes(String receiver, int begin) {
+        return newStringBytes((long) receiver.length() - begin);
+    }
+
+    /** Cost of {@code String.concat(arg)}: a new String of {@code receiver.length() + arg.length()} chars. */
+    public static long concatBytes(String receiver, String arg) {
+        return newStringBytes((long) receiver.length() + (arg == null ? 0 : arg.length()));
+    }
+
+    /** Cost of {@code String.toCharArray()}: a {@code char[]} of the receiver's length. */
+    public static long toCharArrayBytes(String receiver) {
+        return AllocSizes.arrayBytes(receiver.length(), 2);
+    }
+
+    /**
+     * Cost of {@code String.trim()}/{@code strip()} and {@code toLowerCase()}/{@code toUpperCase()}: a new String whose length
+     * is approximately the receiver's. This is a heuristic — case mapping can change the length slightly (e.g. {@code ß} to
+     * {@code SS}) — but the result tracks the receiver length closely enough for allocation accounting.
+     */
+    public static long recaseBytes(String receiver) {
+        return newStringBytes(receiver.length());
+    }
+
+    /** Locale-aware overload of {@link #recaseBytes(String)} for {@code toLowerCase(Locale)}/{@code toUpperCase(Locale)}. */
+    public static long recaseBytes(String receiver, Locale locale) {
+        return newStringBytes(receiver.length());
     }
 
     /**
@@ -37,6 +75,44 @@ public final class AllocationEstimators {
     public static long arrayListCollectionBytes(Collection<?> collection) {
         long size = collection == null ? 0 : collection.size();
         return ARRAY_LIST_SHELL_BYTES + AllocSizes.arrayBytes(size, AllocSizes.REFERENCE_SIZE);
+    }
+
+    /**
+     * Cost of copying a {@link java.util.Map} into a new hash-based map ({@code new HashMap(m)}, {@code new LinkedHashMap(m)}):
+     * the map shell plus a table entry per source mapping. Conservative per-entry cost covers both {@code HashMap.Node} and the
+     * slightly larger {@code LinkedHashMap.Entry}.
+     */
+    public static long mapCopyBytes(java.util.Map<?, ?> source) {
+        long size = source == null ? 0 : source.size();
+        return 64 + AllocSizes.mulSat(size, 56);
+    }
+
+    /**
+     * Cost of copying a {@link Collection} into a new hash-based set ({@code new HashSet(c)}, {@code new LinkedHashSet(c)}): the
+     * set shell plus the backing map's per-element entry.
+     */
+    public static long setCopyBytes(Collection<?> source) {
+        long size = source == null ? 0 : source.size();
+        return 88 + AllocSizes.mulSat(size, 56);
+    }
+
+    /** Cost of copying a {@link Collection} into a {@code new LinkedList(c)}: the list shell plus one node per element. */
+    public static long linkedListCopyBytes(Collection<?> source) {
+        long size = source == null ? 0 : source.size();
+        return 32 + AllocSizes.mulSat(size, 40);
+    }
+
+    /** Cost of {@code Collection.toArray()}: a new {@code Object[]} sized to the collection. */
+    public static long toArrayBytes(Collection<?> receiver) {
+        return AllocSizes.arrayBytes(receiver == null ? 0 : receiver.size(), AllocSizes.REFERENCE_SIZE);
+    }
+
+    /**
+     * Cost of {@code Collection.toArray(array)}: a new {@code Object[]} sized to the collection (the call reuses {@code array}
+     * only when it is already large enough, so this is the worst case).
+     */
+    public static long toArrayBytes(Collection<?> receiver, Object[] array) {
+        return AllocSizes.arrayBytes(receiver == null ? 0 : receiver.size(), AllocSizes.REFERENCE_SIZE);
     }
 
     /**

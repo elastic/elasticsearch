@@ -542,6 +542,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
         DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
         DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
+        DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD,
         IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING
     );
 

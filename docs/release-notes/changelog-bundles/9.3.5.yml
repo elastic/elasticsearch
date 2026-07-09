@@ -1,6 +1,6 @@
 version: 9.3.5
-released: false
-generated: 2026-05-26T06:21:13.480229357Z
+released: true
+generated: 2026-05-28T15:33:26.101132199Z
 changelogs:
   - pr: 2841
     summary: Better messaging regarding OOM process termination
@@ -126,6 +126,11 @@ changelogs:
     type: bug
     issues:
       - 147171
+  - pr: 147424
+    summary: Bump bundled JDK to Java 26.0.1
+    area: Packaging
+    type: upgrade
+    issues: []
   - pr: 147427
     summary: "Aggs: Fix auto_date_histogram/date_histogram inside a global agg"
     area: Aggregations

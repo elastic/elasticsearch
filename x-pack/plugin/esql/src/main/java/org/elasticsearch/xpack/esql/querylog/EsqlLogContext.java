@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.querylog;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -133,5 +135,22 @@ public class EsqlLogContext extends QueryLoggerContext {
             .entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getStatus().toString()));
+    }
+
+    @Override
+    protected QueryBuilder queryFilter() {
+        return request.filter();
+    }
+
+    public Map<String, String> namedParams() {
+        var params = request.params().namedParams();
+        if (params.isEmpty()) {
+            return Map.of();
+        }
+        return params.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> String.valueOf(e.getValue().value())));
+    }
+
+    public List<String> params() {
+        return request.params().params().stream().map(p -> String.valueOf(p.value())).collect(Collectors.toList());
     }
 }

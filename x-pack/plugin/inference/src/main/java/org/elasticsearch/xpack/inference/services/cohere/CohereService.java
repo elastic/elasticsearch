@@ -110,6 +110,11 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
     }
 
     @Override
+    public boolean usesParserForTaskSettings() {
+        return true;
+    }
+
+    @Override
     public InferenceServiceConfiguration getConfiguration() {
         return Configuration.get();
     }
@@ -164,11 +169,6 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
 
         var action = cohereRerankModel.accept(actionCreator, request.taskSettings());
         action.execute(fromRerankRequest(request), timeout, listener);
-    }
-
-    @Override
-    public boolean supportsNewRerankCodePath() {
-        return true;
     }
 
     @Override

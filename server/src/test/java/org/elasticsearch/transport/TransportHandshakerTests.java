@@ -26,6 +26,8 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,9 +51,8 @@ public class TransportHandshakerTests extends ESTestCase {
     @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // new handshake version required in v10
     private static final TransportVersion HANDSHAKE_REQUEST_VERSION = TransportHandshaker.V9_HANDSHAKE_VERSION;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initHandshaker() throws Exception {
         String nodeId = "node-id";
         channel = mock(TcpChannel.class);
         requestSender = mock(TransportHandshaker.HandshakeRequestSender.class);
@@ -65,10 +66,9 @@ public class TransportHandshakerTests extends ESTestCase {
         handshaker = new TransportHandshaker(TransportVersion.current(), threadPool, requestSender, false);
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdown();
-        super.tearDown();
     }
 
     public void testHandshakeRequestAndResponse() throws IOException {

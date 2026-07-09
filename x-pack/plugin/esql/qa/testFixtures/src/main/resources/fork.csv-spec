@@ -673,6 +673,7 @@ United States of America  | South San Francisco | fork2         | San Francisco 
 ;
 
 forkBeforeMvExpand
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fork_v9
 
 FROM employees
@@ -694,6 +695,7 @@ emp_no:integer | job_positions:keyword | _fork:keyword
 ;
 
 forkBranchWithMvExpand
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fork_v9
 
 FROM employees
@@ -712,6 +714,7 @@ emp_no:integer | job_positions:keyword          | _fork:keyword
 ;
 
 forkAfterMvExpand
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fork_v9
 
 FROM employees
@@ -1414,4 +1417,58 @@ from employees
 
 y:long | _fork:keyword
 100    | fork1
+;
+
+forkBeforeInlineStatsAllOutputsUnused
+required_capability: fork_v9
+required_capability: inline_stats
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM employees
+| KEEP emp_no, languages
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| EVAL x = languages
+| INLINE STATS max_lang = MAX(x)
+| STATS cnt = count(*)
+;
+
+cnt:long
+4
+;
+
+forkBeforeInlineStatsPartialOutputPruning
+required_capability: fork_v9
+required_capability: inline_stats
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM employees
+| KEEP emp_no, languages, salary
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| EVAL x = languages, y = salary
+| INLINE STATS d1 = MAX(x), d2 = MAX(y)
+| STATS max_d1 = MAX(d1)
+;
+
+max_d1:integer
+5
+;
+
+forkBeforeInlineStatsOutputUsed
+required_capability: fork_v9
+required_capability: inline_stats
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM employees
+| KEEP emp_no, languages
+| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
+       (WHERE emp_no == 10081 OR emp_no == 10087)
+| EVAL x = languages
+| INLINE STATS max_lang = MAX(x)
+| STATS max_max = MAX(max_lang)
+;
+
+max_max:integer
+5
 ;

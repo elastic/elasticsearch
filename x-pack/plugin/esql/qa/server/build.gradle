@@ -96,7 +96,11 @@ dependencies {
 
   ndjsonFixtureGenerator project(':libs:x-content')
   ndjsonFixtureGenerator project(xpackModule('esql-datasource-csv'))
+  ndjsonFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
+  ndjsonFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
 
   tsvFixtureGenerator project(':libs:core')
   tsvFixtureGenerator project(xpackModule('esql-datasource-csv'))
+  tsvFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
+  tsvFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
 }

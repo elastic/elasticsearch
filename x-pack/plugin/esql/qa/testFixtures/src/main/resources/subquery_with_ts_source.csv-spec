@@ -1,0 +1,1452 @@
+//
+// CSV spec for subqueries whose source command is TS (time-series).
+// Patterns mirror those in subquery.csv-spec, but each subquery is sourced
+// from one of the k8s* time-series indices used by the k8s-timeseries-* csv-specs.
+//
+
+subqueryInFromWithTsSubqueryStatsByCluster
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: double_quotes_source_enclosing
+
+FROM sample_data,
+     (TS "k8s"
+      | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster)
+| EVAL has_ts = max_bytes IS NOT NULL
+| SORT has_ts, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_bytes
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
+2023-10-23T12:15:03.360Z | 172.21.2.162 | null            | null
+2023-10-23T12:27:28.948Z | 172.21.2.113 | null            | null
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+2023-10-23T13:51:54.732Z | 172.21.3.15  | null            | null
+2023-10-23T13:52:55.015Z | 172.21.3.15  | null            | null
+2023-10-23T13:53:55.832Z | 172.21.3.15  | null            | null
+2023-10-23T13:55:01.543Z | 172.21.3.15  | null            | null
+null                     | null         | prod            | 10277
+null                     | null         | qa              | 10797
+null                     | null         | staging         | 7403
+;
+
+subqueryInFromWithTsSubqueryMaxCost
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS k8s
+      | STATS max_cost=max(rate(network.total_cost))
+      | EVAL max_cost=ROUND(max_cost, 6)
+      | KEEP max_cost)
+| WHERE max_cost IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max_cost, @timestamp
+| KEEP @timestamp, client_ip, max_cost
+;
+
+@timestamp:datetime      | client_ip:ip | max_cost:double
+null                     | null         | 0.161517
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null
+;
+
+subqueryInFromWithTsSubqueryRateWithBucket
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+
+FROM sample_data,
+     (TS k8s
+      | STATS max_rate=max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp, 5minute), cluster
+      | EVAL max_rate=ROUND(max_rate, 6)
+      | KEEP max_rate, time_bucket, cluster
+      | SORT time_bucket DESC, cluster
+      | LIMIT 6)
+| WHERE max_rate IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT time_bucket, cluster, @timestamp
+| KEEP @timestamp, client_ip, max_rate, time_bucket, cluster
+;
+
+@timestamp:datetime      | client_ip:ip | max_rate:double | time_bucket:datetime     | cluster:keyword
+null                     | null         | 13.765185       | 2024-05-10T00:15:00.000Z | prod
+null                     | null         | 22.359074       | 2024-05-10T00:15:00.000Z | qa
+null                     | null         | 9.934874        | 2024-05-10T00:15:00.000Z | staging
+null                     | null         | 64.5            | 2024-05-10T00:20:00.000Z | prod
+null                     | null         | 17.226415       | 2024-05-10T00:20:00.000Z | qa
+null                     | null         | 3.19            | 2024-05-10T00:20:00.000Z | staging
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null                     | null
+;
+
+subqueryInFromWithTsSubqueryMaxOverTime
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+
+FROM sample_data,
+     (TS k8s
+      | STATS cost=SUM(MAX_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+      | SORT cost DESC, time_bucket DESC, cluster
+      | LIMIT 4)
+| WHERE cost IS NOT NULL OR client_ip == "172.21.3.15"
+| SORT cost, time_bucket, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, cost, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | cost:double | time_bucket:datetime
+null                     | null         | prod            | 29.0        | 2024-05-10T00:19:00.000Z
+null                     | null         | qa              | 31.75       | 2024-05-10T00:06:00.000Z
+null                     | null         | staging         | 32.25       | 2024-05-10T00:09:00.000Z
+null                     | null         | qa              | 32.75       | 2024-05-10T00:17:00.000Z
+2023-10-23T13:51:54.732Z | 172.21.3.15  | null            | null        | null
+2023-10-23T13:52:55.015Z | 172.21.3.15  | null            | null        | null
+2023-10-23T13:53:55.832Z | 172.21.3.15  | null            | null        | null
+2023-10-23T13:55:01.543Z | 172.21.3.15  | null            | null        | null
+;
+
+subqueryInFromWithTsSubqueryMinOverTime
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+
+FROM sample_data,
+     (TS k8s
+      | STATS cost=SUM(MIN_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+      | SORT cost DESC, time_bucket DESC, cluster
+      | LIMIT 3)
+| WHERE cost IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT cost, time_bucket, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, cost, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | cost:double | time_bucket:datetime
+null                     | null         | qa              | 24.25       | 2024-05-10T00:09:00.000Z
+null                     | null         | qa              | 27.625      | 2024-05-10T00:06:00.000Z
+null                     | null         | prod            | 29.0        | 2024-05-10T00:19:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null        | null
+;
+
+subqueryInFromWithTsSubqueryAvgOverTime
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+
+FROM sample_data,
+     (TS k8s
+      | STATS max_cost=MAX(AVG_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+      | SORT max_cost DESC, time_bucket DESC, cluster
+      | LIMIT 4)
+| WHERE max_cost IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max_cost, time_bucket DESC, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_cost, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_cost:double | time_bucket:datetime
+null                     | null         | qa              | 12.0625         | 2024-05-10T00:06:00.000Z
+null                     | null         | prod            | 12.25           | 2024-05-10T00:19:00.000Z
+null                     | null         | prod            | 12.375          | 2024-05-10T00:17:00.000Z
+null                     | null         | qa              | 12.375          | 2024-05-10T00:01:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null            | null
+;
+
+subqueryInFromWithTsSubquerySumOverTime
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+
+FROM sample_data,
+     (TS k8s
+      | STATS sum_cost=SUM(SUM_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+      | SORT sum_cost DESC, time_bucket DESC, cluster
+      | LIMIT 2)
+| WHERE sum_cost IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT sum_cost, time_bucket, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, sum_cost, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | sum_cost:double | time_bucket:datetime
+null                     | null         | staging         | 65.75           | 2024-05-10T00:09:00.000Z
+null                     | null         | qa              | 67.625          | 2024-05-10T00:17:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null            | null
+;
+
+subqueryInFromWithTsSubqueryCountOverTime
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS k8s
+      | STATS count=COUNT(COUNT_OVER_TIME(network.cost)) BY cluster, time_bucket = BUCKET(@timestamp, 1minute)
+      | SORT count DESC, time_bucket DESC, cluster
+      | LIMIT 3)
+| WHERE count IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT count, time_bucket DESC, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, count, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | count:long | time_bucket:datetime
+null                     | null         | staging         | 3          | 2024-05-10T00:22:00.000Z
+null                     | null         | prod            | 3          | 2024-05-10T00:20:00.000Z
+null                     | null         | prod            | 3          | 2024-05-10T00:19:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null       | null
+;
+
+subqueryInFromWithTsSubqueryLastOverTime
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+
+FROM sample_data,
+     (TS k8s
+      | STATS max_cost=MAX(LAST_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+      | SORT max_cost DESC, time_bucket DESC, cluster
+      | LIMIT 4)
+| WHERE max_cost IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max_cost, time_bucket DESC, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_cost, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_cost:double | time_bucket:datetime
+null                     | null         | prod            | 12.375          | 2024-05-10T00:17:00.000Z
+null                     | null         | qa              | 12.375          | 2024-05-10T00:06:00.000Z
+null                     | null         | qa              | 12.375          | 2024-05-10T00:01:00.000Z
+null                     | null         | staging         | 12.5            | 2024-05-10T00:09:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null            | null
+;
+
+subqueryInFromWithTsSubqueryFirstOverTime
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+
+FROM sample_data,
+     (TS k8s
+      | STATS max_cost=MAX(FIRST_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
+      | SORT max_cost DESC, time_bucket DESC, cluster
+      | LIMIT 3)
+| WHERE max_cost IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max_cost, time_bucket DESC, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_cost, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_cost:double | time_bucket:datetime
+null                     | null         | prod            | 12.25           | 2024-05-10T00:19:00.000Z
+null                     | null         | prod            | 12.375          | 2024-05-10T00:17:00.000Z
+null                     | null         | qa              | 12.375          | 2024-05-10T00:01:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null            | null
+;
+
+subqueryInFromWithoutMainPatternWithTsSubquery
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: double_quotes_source_enclosing
+
+FROM (TS "k8s"
+      | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster
+      | SORT max_bytes DESC)
+;
+
+max_bytes:long | cluster:keyword
+10797          | qa
+10277          | prod
+7403           | staging
+;
+
+subqueryInFromWithoutMainIndexPatternWithMultipleTsSubqueries
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+required_capability: aggregate_metric_double_avg_as_default_metric
+
+FROM
+    (TS k8s | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster | KEEP cluster, max_bytes),
+    (TS k8s-downsampled | STATS max_eth0_tx = max(network.eth0.tx) BY pod | KEEP pod, max_eth0_tx)
+| SORT cluster, pod
+| KEEP cluster, max_bytes, pod, max_eth0_tx
+;
+
+cluster:keyword | max_bytes:long | pod:keyword | max_eth0_tx:double
+prod            | 10277          | null        | null
+qa              | 10797          | null        | null
+staging         | 7403           | null        | null
+null            | null           | one         | 998.0
+null            | null           | three       | 734.0
+null            | null           | two         | 576.0
+;
+
+
+subqueryInFromWithoutMainIndexPatternWithTsAndFromSubqueries
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: double_quotes_source_enclosing
+
+FROM
+    (FROM sample_data | WHERE client_ip == "172.21.0.5" | KEEP @timestamp, client_ip),
+    (TS "k8s" | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster | SORT cluster)
+| SORT cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_bytes
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
+null                     | null         | prod            | 10277
+null                     | null         | qa              | 10797
+null                     | null         | staging         | 7403
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+subqueryInFromWithMainIndexPatternWithTsAndFromSubqueries
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (FROM sample_data | WHERE client_ip == "172.21.0.5"),
+     (TS k8s
+      | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster
+      | SORT cluster)
+| WHERE max_bytes IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max_bytes, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_bytes
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
+null                     | null         | staging         | 7403
+null                     | null         | prod            | 10277
+null                     | null         | qa              | 10797
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+subqueryInFromWithMainIndexPatternWithMixedTsRowAndFromSubqueries
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (FROM sample_data | WHERE client_ip == "172.21.0.5"),
+     (TS k8s
+      | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster
+      | SORT cluster),
+     (ROW cluster = "synthetic", max_bytes = to_long(99999))
+| WHERE max_bytes IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max_bytes, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_bytes
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
+null                     | null         | staging         | 7403
+null                     | null         | prod            | 10277
+null                     | null         | qa              | 10797
+null                     | null         | synthetic       | 99999
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+subqueryInFromWithoutMainIndexPatternWithMixedTsRowAndFromSubqueries
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+required_capability: double_quotes_source_enclosing
+
+FROM
+    (FROM sample_data | WHERE client_ip == "172.21.0.5" | KEEP @timestamp, client_ip),
+    (TS "k8s" | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster | SORT cluster),
+    (ROW cluster = "synthetic", max_bytes = to_long(99999))
+| SORT cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_bytes
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
+null                     | null         | prod            | 10277
+null                     | null         | qa              | 10797
+null                     | null         | staging         | 7403
+null                     | null         | synthetic       | 99999
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+subqueryInFromWithTsSubqueryWithFilterSortKeepInMainQuery
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: double_quotes_source_enclosing
+
+FROM sample_data,
+     (TS "k8s"
+      | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster)
+| WHERE max_bytes > 8000 OR client_ip == "172.21.0.5"
+| SORT max_bytes, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_bytes
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
+null                     | null         | prod            | 10277
+null                     | null         | qa              | 10797
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+subqueryInFromWithTsSubqueryWithEvalInMainQuery
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS k8s
+      | STATS max_rate=max(rate(network.total_bytes_in)) BY cluster
+      | EVAL max_rate=ROUND(max_rate, 4))
+| EVAL has_ts = max_rate IS NOT NULL, rate_per_minute = max_rate * 60
+| WHERE rate_per_minute IS NOT NULL OR client_ip == "172.21.3.15"
+| SORT has_ts, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_rate, rate_per_minute
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_rate:double | rate_per_minute:double
+2023-10-23T13:51:54.732Z | 172.21.3.15  | null            | null            | null
+2023-10-23T13:52:55.015Z | 172.21.3.15  | null            | null            | null
+2023-10-23T13:53:55.832Z | 172.21.3.15  | null            | null            | null
+2023-10-23T13:55:01.543Z | 172.21.3.15  | null            | null            | null
+null                     | null         | prod            | 8.7167          | 523.002
+null                     | null         | qa              | 13.1737         | 790.422
+null                     | null         | staging         | 7.3776          | 442.656
+;
+
+subqueryInFromWithTsSubqueryWithRenameInSubquery
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: double_quotes_source_enclosing
+
+FROM sample_data,
+     (TS "k8s"
+      | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster
+      | RENAME max_bytes AS bytes_high_water, cluster AS env)
+| WHERE bytes_high_water IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT bytes_high_water, env, @timestamp
+| KEEP @timestamp, client_ip, env, bytes_high_water
+;
+
+@timestamp:datetime      | client_ip:ip | env:keyword | bytes_high_water:long
+null                     | null         | staging     | 7403
+null                     | null         | prod        | 10277
+null                     | null         | qa          | 10797
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null        | null
+;
+
+subqueryInFromWithTsSubqueryWithDropInSubquery
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS k8s
+      | STATS max_rate=max(rate(network.total_bytes_in)), max_cost=max(rate(network.total_cost)) BY cluster
+      | EVAL max_rate=ROUND(max_rate, 4), max_cost=ROUND(max_cost, 4)
+      | DROP max_cost)
+| WHERE max_rate IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max_rate, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_rate
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_rate:double
+null                     | null         | staging         | 7.3776
+null                     | null         | prod            | 8.7167
+null                     | null         | qa              | 13.1737
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+subqueryInFromWithTsSubqueryWithKeepInSubquery
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS k8s
+      | STATS max_rate=max(rate(network.total_bytes_in)), max_cost=max(rate(network.total_cost)) BY cluster
+      | EVAL max_rate=ROUND(max_rate, 4), max_cost=ROUND(max_cost, 4)
+      | KEEP cluster, max_rate)
+| WHERE max_rate IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max_rate, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_rate
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_rate:double
+null                     | null         | staging         | 7.3776
+null                     | null         | prod            | 8.7167
+null                     | null         | qa              | 13.1737
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+subqueryInFromWithTsSubqueryDownsampled
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_avg_as_default_metric
+
+FROM sample_data,
+     (TS k8s-downsampled
+      | STATS max = max(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) BY pod
+      | SORT pod)
+| WHERE max IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT pod, @timestamp
+| KEEP @timestamp, client_ip, pod, max, std_dev
+;
+
+@timestamp:datetime      | client_ip:ip | pod:keyword | max:double | std_dev:double
+null                     | null         | one         | 998.0      | 335.8395781
+null                     | null         | three       | 734.0      | 228.887527
+null                     | null         | two         | 576.0      | 58.4465568
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null        | null       | null
+;
+
+subqueryInFromWithTsSubqueryWithStatsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: subquery_in_from_command_without_implicit_limit
+
+FROM sample_data,
+     (TS k8s
+      | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster)
+| STATS cnt = count(*)
+;
+
+cnt:long
+10
+;
+
+subqueryInFromWithTsSubqueryWithFilterInSubqueryAndMainQuery
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS k8s
+      | WHERE cluster == "prod"
+      | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+      | EVAL max_rate=ROUND(max_rate, 6)
+      | KEEP max_rate, cluster)
+| WHERE max_rate IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_rate
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_rate:double
+null                     | null         | prod            | 8.716707
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+subqueryInFromWithTsSubqueryWithMetadataTsid
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: metadata_tsid_field
+
+FROM sample_data,
+     (TS k8s METADATA _tsid
+      | STATS cnt = count_distinct(_tsid))
+| WHERE cnt IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT cnt, @timestamp
+| KEEP @timestamp, client_ip, cnt
+;
+
+@timestamp:datetime      | client_ip:ip | cnt:long
+null                     | null         | 9
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null
+;
+
+subqueryInFromWithTsSubqueryArithmeticOnRate
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS k8s
+      | STATS rate_per_minute=max(60 * rate(network.total_bytes_in))
+      | EVAL rate_per_minute=ROUND(rate_per_minute, 6)
+      | KEEP rate_per_minute)
+| WHERE rate_per_minute IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT rate_per_minute, @timestamp
+| KEEP @timestamp, client_ip, rate_per_minute
+;
+
+@timestamp:datetime      | client_ip:ip | rate_per_minute:double
+null                     | null         | 790.423509
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null
+;
+
+subqueryInFromWithTsSubqueryWithWhereOnPodInSubquery
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+
+FROM sample_data,
+     (TS k8s
+      | WHERE cluster == "prod" AND pod == "two"
+      | STATS events_received = MAX(PRESENT_OVER_TIME(events_received)) BY pod, time_bucket = TBUCKET(2 minute)
+      | SORT time_bucket
+      | LIMIT 3)
+| WHERE events_received IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT events_received, time_bucket, @timestamp
+| KEEP @timestamp, client_ip, pod, events_received, time_bucket
+;
+ignoreOrder:true
+
+@timestamp:datetime      | client_ip:ip | pod:keyword | events_received:boolean | time_bucket:datetime
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null        | null                    | null
+null                     | null         | two         | true                    | 2024-05-10T00:02:00.000Z
+null                     | null         | two         | true                    | 2024-05-10T00:08:00.000Z
+null                     | null         | two         | false                   | 2024-05-10T00:10:00.000Z
+;
+
+subqueryInFromWithTsSubqueryAndInlineStatsInSubquery
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+
+FROM sample_data,
+     (TS k8s
+      | STATS max_cost=max(last_over_time(network.eth0.tx)) BY pod, cluster, time_bucket = TBUCKET(1h)
+      | INLINE STATS max_cluster_cost=max(max_cost) BY cluster
+      | SORT cluster, pod, time_bucket
+      | LIMIT 3)
+| WHERE max_cost IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max_cost, pod, cluster, @timestamp
+| KEEP @timestamp, client_ip, pod, cluster, max_cost, max_cluster_cost, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | pod:keyword | cluster:keyword | max_cost:integer | max_cluster_cost:integer | time_bucket:datetime
+null                     | null         | three       | prod            | 928              | 1149                     | 2024-05-10T00:00:00.000Z
+null                     | null         | two         | prod            | 967              | 1149                     | 2024-05-10T00:00:00.000Z
+null                     | null         | one         | prod            | 1149             | 1149                     | 2024-05-10T00:00:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null        | null            | null             | null                     | null
+;
+
+// ----------------------------------------------------------------------------
+// Tests based on queries from k8s-counter.csv-spec, wrapped as TS subqueries.
+// ----------------------------------------------------------------------------
+
+// Mirrors readCounterLong from k8s-counter.csv-spec - reads counter_long without any
+// explicit or implicit casting, projected through a TS subquery.
+subqueryInFromWithTsSubqueryReadCounterLong
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: counter_types
+
+FROM sample_data,
+     (TS k8s
+      | WHERE cluster == "prod" AND pod == "two"
+      | SORT @timestamp DESC
+      | KEEP @timestamp, network.bytes_in, network.total_bytes_in
+      | LIMIT 2)
+| EVAL has_ts = network.bytes_in IS NOT NULL
+| WHERE has_ts OR client_ip == "172.21.0.5"
+| SORT has_ts, @timestamp DESC
+| KEEP @timestamp, client_ip, network.bytes_in, network.total_bytes_in
+;
+
+@timestamp:datetime      | client_ip:ip | network.bytes_in:long | network.total_bytes_in:long
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null                  | null
+2024-05-10T00:22:53.000Z | null         | 812                   | 10277
+2024-05-10T00:20:44.000Z | null         | 756                   | 9465
+;
+
+subqueryInFromWithTsSubqueryReadCounterLongNoMissingAttribute
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: counter_types
+
+FROM
+     (FROM sample_data
+      | WHERE client_ip == "172.21.0.5"
+      | EVAL network.bytes_in = to_long(1), network.total_bytes_in = to_long(2)
+     ),
+     (TS k8s
+      | WHERE cluster == "prod" AND pod == "two"
+      | SORT @timestamp DESC
+      | KEEP @timestamp, network.bytes_in, network.total_bytes_in
+      | LIMIT 2)
+| EVAL has_ts = network.bytes_in IS NOT NULL
+| SORT @timestamp DESC
+| KEEP @timestamp, client_ip, network.bytes_in, network.total_bytes_in
+;
+
+@timestamp:datetime      | client_ip:ip | network.bytes_in:long | network.total_bytes_in:long
+2024-05-10T00:22:53.000Z | null         | 812                   | 10277
+2024-05-10T00:20:44.000Z | null         | 756                   | 9465
+2023-10-23T13:33:34.937Z | 172.21.0.5   | 1                     | 2
+;
+
+// Mirrors castCounterDouble from k8s-counter.csv-spec - explicitly casts the
+// counter_double to double inside the TS subquery, then aggregates per (cluster, pod).
+subqueryInFromWithTsSubqueryCastCounterDouble
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: counter_types
+
+FROM sample_data,
+     (TS k8s
+      | EVAL total_cost=to_double(network.total_cost)
+      | STATS total_cost=max(total_cost) BY cluster, pod
+      | SORT total_cost DESC
+      | LIMIT 5)
+| EVAL has_ts = total_cost IS NOT NULL
+| WHERE has_ts OR client_ip == "172.21.0.5"
+| SORT has_ts, total_cost DESC, cluster, pod, @timestamp
+| KEEP @timestamp, client_ip, total_cost, cluster, pod
+;
+
+@timestamp:datetime      | client_ip:ip | total_cost:double | cluster:keyword | pod:keyword
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null              | null            | null
+null                     | null         | 137.375           | staging         | three
+null                     | null         | 112.25            | qa              | one
+null                     | null         | 108.75            | staging         | two
+null                     | null         | 73.75             | prod            | one
+null                     | null         | 63.875            | qa              | two
+;
+
+// ----------------------------------------------------------------------------
+// Tests based on queries from k8s-aggregate-metric-double.csv-spec, wrapped as
+// TS subqueries.
+// ----------------------------------------------------------------------------
+
+// Mirrors AggregateMetricDoubleStatsAfterBinaryOperator - filters an
+// aggregate_metric_double field with a binary operator and then aggregates.
+subqueryInFromWithTsSubqueryAndStatsAfterFilter
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+
+FROM sample_data,
+     (TS k8s-downsampled
+      | WHERE network.eth0.tx > 500.0
+      | STATS min_tx = MIN(network.eth0.tx), max_tx = MAX(network.eth0.tx) BY pod
+      | SORT pod)
+| EVAL has_ts = min_tx IS NOT NULL
+| WHERE has_ts OR client_ip == "172.21.0.5"
+| SORT has_ts, pod, @timestamp
+| KEEP @timestamp, client_ip, pod, min_tx, max_tx
+;
+
+@timestamp:datetime      | client_ip:ip | pod:keyword | min_tx:double | max_tx:double
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null        | null          | null
+null                     | null         | one         | 512.0         | 998.0
+null                     | null         | three       | 644.0         | 734.0
+null                     | null         | two         | 540.0         | 1251.0
+;
+
+// Mirrors AggregateMetricDoubleInlineFilterInStats - uses an inline WHERE
+// filter inside STATS over an aggregate_metric_double field.
+subqueryInFromWithTsSubqueryAmdInlineFilterInStats
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+
+FROM sample_data,
+     (TS k8s-downsampled
+      | STATS filtered_min_lot = MIN(network.eth0.tx) WHERE network.eth0.tx > 512.0,
+              overall_min_lot = MIN(network.eth0.tx) BY cluster
+      | SORT cluster)
+| EVAL has_ts = overall_min_lot IS NOT NULL
+| WHERE has_ts OR client_ip == "172.21.0.5"
+| SORT has_ts, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, filtered_min_lot, overall_min_lot
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | filtered_min_lot:double | overall_min_lot:double
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null                    | null
+null                     | null         | prod            | 998.0                   | 239.0
+null                     | null         | qa              | 576.0                   | 258.5
+null                     | null         | staging         | 539.0                   | 176.0
+;
+
+// Mirrors ImplicitCastingWithBinaryOperatorAndThenStats - multi-source TS
+// subquery exercising implicit casting between aggregate_metric_double and
+// double via *_over_time functions.
+subqueryInFromWithTsSubqueryAmdImplicitCastingAndStats
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_binary_operators
+
+FROM sample_data,
+     (TS k8s, k8s_unmapped, k8s-downsampled
+      | WHERE network.eth0.tx > 512.0
+      | STATS min = MIN(MIN_OVER_TIME(network.eth0.tx)),
+              avg = ROUND(AVG(AVG_OVER_TIME(network.eth0.tx)), 3) BY cluster, pod
+      | SORT cluster, pod
+      | LIMIT 4)
+| EVAL has_ts = min IS NOT NULL
+| WHERE has_ts OR client_ip == "172.21.0.5"
+| SORT has_ts, cluster, pod, @timestamp
+| KEEP @timestamp, client_ip, cluster, pod, min, avg
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | pod:keyword | min:double | avg:double
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null        | null       | null
+null                     | null         | prod            | one         | 555.0      | 849.075
+null                     | null         | prod            | three       | 528.0      | 711.7
+null                     | null         | prod            | two         | 560.0      | 982.278
+null                     | null         | qa              | one         | 176.0      | 881.517
+;
+
+// ----------------------------------------------------------------------------
+// Tests exercising METADATA _index inside the TS subquery and/or the main
+// query. They all surface the index name in the output and follow the
+// MV_LAST(SPLIT(_index, ":")) pattern from subquery.csv-spec to strip any
+// remote-cluster prefix.
+// ----------------------------------------------------------------------------
+
+// METADATA _index lives only inside the TS subquery; the outer FROM does not
+// re-declare it. _index is promoted to a regular column via STATS BY _index,
+// so sample_data rows surface a null _index.
+subqueryInFromWithTsSubqueryAndMetadataIndexInSubquery
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: double_quotes_source_enclosing
+
+FROM sample_data,
+     (TS "k8s" METADATA _index
+      | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster, _index)
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
+| WHERE max_bytes IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT _index, cluster, @timestamp
+| KEEP _index, @timestamp, client_ip, cluster, max_bytes
+;
+
+_index:keyword | @timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
+k8s            | null                     | null         | prod            | 10277
+k8s            | null                     | null         | qa              | 10797
+k8s            | null                     | null         | staging         | 7403
+null           | 2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+// METADATA _index is declared inside the TS subquery AND on the outer FROM,
+// so sample_data rows also carry the correct _index in the unioned result.
+subqueryInFromWithTsSubqueryAndMetadataIndexInBoth
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS k8s METADATA _index
+      | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster, _index)
+     METADATA _index
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
+| WHERE max_bytes IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT _index, cluster, @timestamp
+| KEEP _index, @timestamp, client_ip, cluster, max_bytes
+;
+
+_index:keyword | @timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
+k8s            | null                     | null         | prod            | 10277
+k8s            | null                     | null         | qa              | 10797
+k8s            | null                     | null         | staging         | 7403
+sample_data    | 2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+// Multiple TS subqueries each declare METADATA _index inside themselves; the
+// outer FROM has no METADATA. The two indices are differentiated in the
+// output.
+subqueryInFromWithMultipleTsSubqueriesAndMetadataIndex
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_avg_as_default_metric
+
+FROM
+    (TS k8s METADATA _index
+     | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster, _index),
+    (TS k8s-downsampled METADATA _index
+     | STATS max_eth0_tx=max(network.eth0.tx) BY pod, _index)
+| EVAL _index = MV_LAST(SPLIT(_index, ":"))
+| SORT _index, cluster, pod
+| KEEP _index, cluster, max_bytes, pod, max_eth0_tx
+;
+
+_index:keyword  | cluster:keyword | max_bytes:long | pod:keyword | max_eth0_tx:double
+k8s             | prod            | 10277          | null        | null
+k8s             | qa              | 10797          | null        | null
+k8s             | staging         | 7403           | null        | null
+k8s-downsampled | null            | null           | one         | 998.0
+k8s-downsampled | null            | null           | three       | 734.0
+k8s-downsampled | null            | null           | two         | 576.0
+;
+
+// ----------------------------------------------------------------------------
+// Tests based on additional patterns from k8s-timeseries.csv-spec, wrapped as
+// TS subqueries (excluding patterns already exercised earlier in this file).
+// ----------------------------------------------------------------------------
+
+// Mirrors maxRateAndBytes - mixes a rate() aggregation with a bare-field
+// max() inside the same STATS.
+subqueryInFromWithTsSubqueryMaxRateAndBytes
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS k8s
+      | STATS max_rate=max(60 * rate(network.total_bytes_in)), max_bytes=max(network.bytes_in)
+      | EVAL max_rate=ROUND(max_rate, 6)
+      | KEEP max_rate, max_bytes)
+| WHERE max_rate IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max_rate, @timestamp
+| KEEP @timestamp, client_ip, max_rate, max_bytes
+;
+
+@timestamp:datetime      | client_ip:ip | max_rate:double | max_bytes:long
+null                     | null         | 790.423509      | 972
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+// Mirrors percentile_over_time - exercises PERCENTILE_OVER_TIME with TBUCKET.
+subqueryInFromWithTsSubqueryPercentileOverTime
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: percentile_over_time
+required_capability: tbucket
+
+FROM sample_data,
+     (TS k8s
+      | STATS p95_cost=MAX(PERCENTILE_OVER_TIME(network.cost, 95)),
+              p99_cost=MAX(PERCENTILE_OVER_TIME(network.cost, 99)) BY cluster, time_bucket = TBUCKET(1minute)
+      | SORT p95_cost DESC, time_bucket DESC, cluster
+      | LIMIT 3)
+| WHERE p95_cost IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT p95_cost, time_bucket, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, p95_cost, p99_cost, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | p95_cost:double | p99_cost:double | time_bucket:datetime
+null                     | null         | qa              | 12.34375        | 12.36875        | 2024-05-10T00:06:00.000Z
+null                     | null         | qa              | 12.375          | 12.375          | 2024-05-10T00:01:00.000Z
+null                     | null         | prod            | 12.375          | 12.375          | 2024-05-10T00:17:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null            | null            | null
+;
+
+// Mirrors absent_over_time - counterpart to the present_over_time pattern
+// already covered earlier in this file.
+subqueryInFromWithTsSubqueryAbsentOverTime
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: tbucket
+
+FROM sample_data,
+     (TS k8s
+      | WHERE cluster == "prod" AND pod == "two"
+      | STATS events_absent = MAX(ABSENT_OVER_TIME(events_received)) BY pod, time_bucket = TBUCKET(2 minute)
+      | SORT time_bucket
+      | LIMIT 3)
+| WHERE events_absent IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT events_absent, time_bucket, @timestamp
+| KEEP @timestamp, client_ip, pod, events_absent, time_bucket
+;
+ignoreOrder:true
+
+@timestamp:datetime      | client_ip:ip | pod:keyword | events_absent:boolean | time_bucket:datetime
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null        | null                  | null
+null                     | null         | two         | false                 | 2024-05-10T00:02:00.000Z
+null                     | null         | two         | false                 | 2024-05-10T00:08:00.000Z
+null                     | null         | two         | true                  | 2024-05-10T00:10:00.000Z
+;
+
+// Mirrors max_of_stddev_over_time + avg_variance_over_time - exercises both
+// STDDEV_OVER_TIME and VARIANCE_OVER_TIME inside the same TS subquery.
+subqueryInFromWithTsSubqueryStddevAndVarianceOverTime
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: variance_stddev_over_time
+required_capability: tbucket
+
+FROM sample_data,
+     (TS k8s
+      | WHERE cluster == "prod"
+      | STATS sd=ROUND(MAX(STDDEV_OVER_TIME(network.cost)), 6),
+              var=ROUND(MAX(VARIANCE_OVER_TIME(network.cost)), 6) BY time_bucket = TBUCKET(1minute)
+      | SORT time_bucket
+      | LIMIT 3)
+| WHERE sd IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT sd, time_bucket, @timestamp
+| KEEP @timestamp, client_ip, time_bucket, sd, var
+;
+
+@timestamp:datetime      | client_ip:ip | time_bucket:datetime     | sd:double | var:double
+null                     | null         | 2024-05-10T00:01:00.000Z | 0.0       | 0.0
+null                     | null         | 2024-05-10T00:00:00.000Z | 1.4375    | 2.066406
+null                     | null         | 2024-05-10T00:02:00.000Z | 3.625     | 13.140625
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null                     | null      | null
+;
+
+// Mirrors derivative_of_gauge_metric - exercises DERIV inside a TS subquery.
+subqueryInFromWithTsSubqueryDeriv
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: ts_linreg_derivative
+required_capability: ts_deriv_datenanos
+
+FROM sample_data,
+     (TS k8s
+      | WHERE pod == "three"
+      | STATS max_deriv = MAX(DERIV(network.cost)) BY time_bucket = BUCKET(@timestamp, 5minute), pod
+      | EVAL max_deriv = ROUND(max_deriv, 6)
+      | KEEP max_deriv, time_bucket, pod
+      | SORT pod, time_bucket
+      | LIMIT 3)
+| WHERE max_deriv IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max_deriv, time_bucket, @timestamp
+| KEEP @timestamp, client_ip, pod, max_deriv, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | pod:keyword | max_deriv:double | time_bucket:datetime
+null                     | null         | three       | -0.017149        | 2024-05-10T00:10:00.000Z
+null                     | null         | three       | 0.0411           | 2024-05-10T00:05:00.000Z
+null                     | null         | three       | 0.101674         | 2024-05-10T00:00:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null        | null             | null
+;
+
+// Mirrors oneRateIncreaseWithBucketAndClusterThenFilter - exercises INCREASE
+// alongside RATE inside a TS subquery.
+subqueryInFromWithTsSubqueryRateAndIncrease
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+
+FROM sample_data,
+     (TS k8s
+      | WHERE cluster == "prod"
+      | STATS max=max(rate(network.total_bytes_in)), inc=max(increase(network.total_bytes_in))
+              BY time_bucket = bucket(@timestamp, 5minute), cluster
+      | EVAL max=ROUND(max, 3), inc=ROUND(inc, 3)
+      | KEEP max, inc, time_bucket, cluster
+      | SORT time_bucket DESC
+      | LIMIT 3)
+| WHERE max IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max, time_bucket, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max, inc, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max:double | inc:double | time_bucket:datetime
+null                     | null         | prod            | 11.132     | 3339.653   | 2024-05-10T00:10:00.000Z
+null                     | null         | prod            | 13.765     | 4129.556   | 2024-05-10T00:15:00.000Z
+null                     | null         | prod            | 64.5       | 2287.441   | 2024-05-10T00:20:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null       | null       | null
+;
+
+// Mirrors GroupingOnScalarFunction - groups by a scalar function (to_upper(pod))
+// inside a TS subquery.
+subqueryInFromWithTsSubqueryStatsByScalarFunction
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: ts_command_group_on_aliases
+
+FROM sample_data,
+     (TS k8s
+      | STATS m = max(max_over_time(network.cost)) BY pod = to_upper(pod), bucket = bucket(@timestamp, 5minute)
+      | SORT bucket, pod
+      | LIMIT 3)
+| WHERE m IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT m, bucket, pod, @timestamp
+| KEEP @timestamp, client_ip, pod, m, bucket
+;
+
+@timestamp:datetime      | client_ip:ip | pod:keyword | m:double | bucket:datetime
+null                     | null         | ONE         | 11.0     | 2024-05-10T00:00:00.000Z
+null                     | null         | THREE       | 12.125   | 2024-05-10T00:00:00.000Z
+null                     | null         | TWO         | 12.375   | 2024-05-10T00:00:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null        | null     | null
+;
+
+// Mirrors windowSmallerThanBucket - exercises MAX_OVER_TIME with an explicit
+// look-back window smaller than the bucket size.
+subqueryInFromWithTsSubqueryMaxOverTimeWithWindow
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+required_capability: fix_time_series_window_backward
+
+FROM sample_data,
+     (TS k8s
+      | WHERE cluster == "prod" AND pod == "one"
+      | STATS max = max(max_over_time(network.cost, 1m)),
+              max2 = max(max_over_time(network.cost, 4m)) BY cluster, pod, b = bucket(@timestamp, 5minute)
+      | WHERE max IS NOT NULL
+      | SORT b
+      | LIMIT 3)
+| WHERE max IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max, b, cluster, pod, @timestamp
+| KEEP @timestamp, client_ip, cluster, pod, max, max2, b
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | pod:keyword | max:double | max2:double | b:datetime
+null                     | null         | prod            | one         | 2.0        | 12.0        | 2024-05-10T00:05:00.000Z
+null                     | null         | prod            | one         | 5.625      | 8.375       | 2024-05-10T00:00:00.000Z
+null                     | null         | prod            | one         | 9.375      | 9.375       | 2024-05-10T00:10:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null        | null       | null        | null
+;
+
+// ----------------------------------------------------------------------------
+// Tests based on the per-function k8s-timeseries-*.csv-spec files. PROMQL
+// queries are skipped. Patterns that already appear earlier in this file are
+// not duplicated.
+// ----------------------------------------------------------------------------
+
+// Mirrors storedSourceTimeseriesGroupByAllImplicitly - exercises the
+// stored-source TSDB variant as the TS subquery source.
+subqueryInFromWithTsSubqueryStoredSource
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS k8s_stored_source
+      | STATS avg = ROUND(MAX(avg_over_time(network.cost)), 6) BY cluster, pod
+      | SORT avg DESC
+      | LIMIT 3)
+| WHERE avg IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT avg, cluster, pod, @timestamp
+| KEEP @timestamp, client_ip, cluster, pod, avg
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | pod:keyword | avg:double
+null                     | null         | qa              | two         | 6.87069
+null                     | null         | qa              | one         | 7.262931
+null                     | null         | prod            | three       | 8.375
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null        | null
+;
+
+// Mirrors without_avg - exercises BY WITHOUT(...) grouping inside a TS
+// subquery. The implicit _timeseries column emitted by WITHOUT is a virtual
+// output column and is not addressable in subsequent EVAL/KEEP/outer query
+// stages, so the union surfaces only avg_cost from the subquery.
+subqueryInFromWithTsSubqueryWithoutGrouping
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: esql_without_grouping
+
+FROM sample_data,
+     (TS k8s
+      | STATS avg_cost = ROUND(avg(network.cost), 6) BY WITHOUT(pod, region)
+      | SORT avg_cost)
+| WHERE avg_cost IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT avg_cost, @timestamp
+| DROP event_duration, message
+;
+
+@timestamp:datetime      | client_ip:ip | avg_cost:double | WITHOUT(pod, region):keyword
+null                     | null         | 5.291667        | "{""cluster"":""staging""}"
+null                     | null         | 6.208333        | "{""cluster"":""prod""}"
+null                     | null         | 8.833333        | "{""cluster"":""qa""}"
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+// Mirrors irate_of_long_grouping - exercises IRATE inside a TS subquery.
+subqueryInFromWithTsSubqueryIrate
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS k8s
+      | STATS irate_bytes_in = avg(irate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 5minute)
+      | EVAL irate_bytes_in = ROUND(irate_bytes_in, 6)
+      | KEEP irate_bytes_in, cluster, time_bucket
+      | SORT irate_bytes_in DESC, time_bucket, cluster
+      | LIMIT 3)
+| WHERE irate_bytes_in IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT irate_bytes_in, time_bucket, cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, irate_bytes_in, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | irate_bytes_in:double | time_bucket:datetime
+null                     | null         | prod            | 62.321204             | 2024-05-10T00:10:00.000Z
+null                     | null         | prod            | 119.522287            | 2024-05-10T00:20:00.000Z
+null                     | null         | qa              | 284.634409            | 2024-05-10T00:05:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null                  | null
+;
+
+// Mirrors delta_of_double_no_grouping - exercises DELTA inside a TS subquery.
+subqueryInFromWithTsSubqueryDelta
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: delta_ts_agg
+
+FROM sample_data,
+     (TS k8s
+      | STATS cost_change = ROUND(sum(delta(network.cost)), 6) BY time_bucket = bucket(@timestamp, 1minute)
+      | WHERE cost_change IS NOT NULL
+      | SORT cost_change DESC, time_bucket DESC
+      | LIMIT 3)
+| WHERE cost_change IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT cost_change, time_bucket, @timestamp
+| KEEP @timestamp, client_ip, cost_change, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | cost_change:double | time_bucket:datetime
+null                     | null         | 11.486895          | 2024-05-10T00:12:00.000Z
+null                     | null         | 13.259615          | 2024-05-10T00:13:00.000Z
+null                     | null         | 22.570149          | 2024-05-10T00:20:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null               | null
+;
+
+// Mirrors idelta_of_double_no_grouping - exercises IDELTA inside a TS subquery.
+subqueryInFromWithTsSubqueryIdelta
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS k8s
+      | STATS cost_change = sum(idelta(network.cost)) BY time_bucket = bucket(@timestamp, 1minute)
+      | WHERE cost_change IS NOT NULL
+      | SORT cost_change DESC, time_bucket DESC
+      | LIMIT 3)
+| WHERE cost_change IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT cost_change, time_bucket, @timestamp
+| KEEP @timestamp, client_ip, cost_change, time_bucket
+;
+
+@timestamp:datetime      | client_ip:ip | cost_change:double | time_bucket:datetime
+null                     | null         | 9.75               | 2024-05-10T00:15:00.000Z
+null                     | null         | 15.25              | 2024-05-10T00:20:00.000Z
+null                     | null         | 18.625             | 2024-05-10T00:09:00.000Z
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null               | null
+;
+
+// Mirrors clamp_of_long - exercises CLAMP() alongside a bare aggregation in a
+// TS subquery.
+subqueryInFromWithTsSubqueryClamp
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: clamp_functions
+
+FROM sample_data,
+     (TS k8s
+      | STATS bytes_in = sum(network.bytes_in),
+              clamped_bytes_in = sum(clamp(network.bytes_in, 0, 200))
+              BY time_bucket = bucket(@timestamp, 1minute)
+      | SORT time_bucket
+      | LIMIT 3)
+| WHERE bytes_in IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT bytes_in, time_bucket, @timestamp
+| KEEP @timestamp, client_ip, time_bucket, bytes_in, clamped_bytes_in
+;
+
+@timestamp:datetime      | client_ip:ip | time_bucket:datetime     | bytes_in:long | clamped_bytes_in:long
+null                     | null         | 2024-05-10T00:00:00.000Z | 1849          | 600
+null                     | null         | 2024-05-10T00:01:00.000Z | 2334          | 800
+null                     | null         | 2024-05-10T00:02:00.000Z | 3487          | 1178
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null                     | null          | null
+;
+
+// Mirrors count_distinct_over_time_of_long - exercises COUNT_DISTINCT_OVER_TIME
+// in a TS subquery.
+subqueryInFromWithTsSubqueryCountDistinctOverTime
+skip_flattened_rewrite: subquery_bleed
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS k8s
+      | STATS bytes_in = sum(count_distinct_over_time(network.bytes_in, 2500))
+              BY cluster, time_bucket = bucket(@timestamp, 10minute)
+      | SORT bytes_in DESC, cluster, time_bucket
+      | LIMIT 3)
+| WHERE bytes_in IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT bytes_in, cluster, time_bucket, @timestamp
+| KEEP @timestamp, client_ip, cluster, time_bucket, bytes_in
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | time_bucket:datetime     | bytes_in:long
+null                     | null         | prod            | 2024-05-10T00:10:00.000Z | 31
+null                     | null         | qa              | 2024-05-10T00:00:00.000Z | 37
+null                     | null         | qa              | 2024-05-10T00:10:00.000Z | 39
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null                     | null
+;
+
+// Mirrors multiplication_across_series_scalar_ts - exercises a binary
+// scalar operation applied to an aggregation in a TS subquery.
+subqueryInFromWithTsSubqueryArithmetic
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: ts_stats_binary_ops
+required_capability: tbucket
+
+FROM sample_data,
+     (TS k8s
+      | STATS max_bits = max(network.total_bytes_in) * 8 BY step = TBUCKET(1h)
+      | SORT max_bits DESC)
+| WHERE max_bits IS NOT NULL OR client_ip == "172.21.0.5"
+| SORT max_bits, step, @timestamp
+| KEEP @timestamp, client_ip, step, max_bits
+;
+
+@timestamp:datetime      | client_ip:ip | step:datetime            | max_bits:long
+null                     | null         | 2024-05-10T00:00:00.000Z | 86376
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null                     | null
+;
+
+// TS subquery branches whose field types conflict with the main FROM branch.
+// network.eth0.tx is `integer` (gauge) in k8s vs `aggregate_metric_double` (gauge) in k8s-downsampled.
+// The conflicting column is only referenced by KEEP, never by WHERE / SORT / EVAL, so the
+// analyzer marks it `unsupported` and emits null values for every row.
+subqueryInFromWithTsSubqueryConflictingFieldOnlyInKeep
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: ts_command_v0
+
+FROM k8s,
+     (TS "k8s-downsampled"
+      | WHERE @timestamp <= "2024-05-09T23:30:00.000Z")
+| WHERE @timestamp <= "2024-05-10T00:01:00.000Z"
+| KEEP @timestamp, client.ip, cluster, network.total_bytes_in, network.eth0.tx
+| SORT @timestamp, client.ip, cluster, network.total_bytes_in
+;
+
+@timestamp:datetime      | client.ip:ip | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:unsupported
+2024-05-09T23:30:00.000Z | 10.10.20.30  | prod            | 285                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.30  | qa              | 1143                        | null
+2024-05-09T23:30:00.000Z | 10.10.20.30  | staging         | 930                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.31  | prod            | 1038                        | null
+2024-05-09T23:30:00.000Z | 10.10.20.31  | qa              | 363                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.31  | qa              | 1032                        | null
+2024-05-09T23:30:00.000Z | 10.10.20.33  | prod            | 210                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.34  | staging         | 821                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.34  | staging         | 838                         | null
+2024-05-10T00:00:29.000Z | 10.10.20.34  | staging         | 953                         | null
+2024-05-10T00:00:33.000Z | 10.10.20.34  | staging         | 1111                        | null
+2024-05-10T00:00:51.000Z | 10.10.20.30  | prod            | 278                         | null
+2024-05-10T00:00:57.000Z | 10.10.20.30  | prod            | 955                         | null
+;
+
+// Both UnionAll branches use TS as their source. The conflicting `network.eth0.tx`
+// (integer in k8s vs aggregate_metric_double in k8s-downsampled) is referenced only via KEEP,
+// so it surfaces as `unsupported` with null values across the union.
+subqueryInFromWithBothBranchesTsConflictingFieldOnlyInKeep
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: ts_command_v0
+
+FROM (TS "k8s" | WHERE @timestamp <= "2024-05-10T00:01:00.000Z"),
+     (TS "k8s-downsampled" | WHERE @timestamp <= "2024-05-09T23:30:00.000Z")
+| KEEP @timestamp, client.ip, cluster, network.total_bytes_in, network.eth0.tx
+| SORT @timestamp, client.ip, cluster, network.total_bytes_in
+;
+
+@timestamp:datetime      | client.ip:ip | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:unsupported
+2024-05-09T23:30:00.000Z | 10.10.20.30  | prod            | 285                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.30  | qa              | 1143                        | null
+2024-05-09T23:30:00.000Z | 10.10.20.30  | staging         | 930                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.31  | prod            | 1038                        | null
+2024-05-09T23:30:00.000Z | 10.10.20.31  | qa              | 363                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.31  | qa              | 1032                        | null
+2024-05-09T23:30:00.000Z | 10.10.20.33  | prod            | 210                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.34  | staging         | 821                         | null
+2024-05-09T23:30:00.000Z | 10.10.20.34  | staging         | 838                         | null
+2024-05-10T00:00:29.000Z | 10.10.20.34  | staging         | 953                         | null
+2024-05-10T00:00:33.000Z | 10.10.20.34  | staging         | 1111                        | null
+2024-05-10T00:00:51.000Z | 10.10.20.30  | prod            | 278                         | null
+2024-05-10T00:00:57.000Z | 10.10.20.30  | prod            | 955                         | null
+;
+
+// Three-way UnionAll: a non-TS FROM branch and two TS branches whose `network.eth0.tx` types
+// disagree. Only KEEP/Project references the field, so it surfaces as `unsupported` with nulls.
+subqueryInFromWithMixedFromAndTsConflictingFieldOnlyInKeep
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+required_capability: ts_command_v0
+
+FROM sample_data,
+     (TS "k8s" | WHERE @timestamp <= "2024-05-10T00:01:00.000Z"),
+     (TS "k8s-downsampled" | WHERE @timestamp <= "2024-05-09T23:30:00.000Z")
+| KEEP @timestamp, client_ip, cluster, network.total_bytes_in, network.eth0.tx
+| SORT @timestamp, client_ip, cluster, network.total_bytes_in
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | network.total_bytes_in:long | network.eth0.tx:unsupported
+2023-10-23T12:15:03.360Z | 172.21.2.162 | null            | null                        | null
+2023-10-23T12:27:28.948Z | 172.21.2.113 | null            | null                        | null
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null                        | null
+2023-10-23T13:51:54.732Z | 172.21.3.15  | null            | null                        | null
+2023-10-23T13:52:55.015Z | 172.21.3.15  | null            | null                        | null
+2023-10-23T13:53:55.832Z | 172.21.3.15  | null            | null                        | null
+2023-10-23T13:55:01.543Z | 172.21.3.15  | null            | null                        | null
+2024-05-09T23:30:00.000Z | null         | prod            | 210                         | null
+2024-05-09T23:30:00.000Z | null         | prod            | 285                         | null
+2024-05-09T23:30:00.000Z | null         | prod            | 1038                        | null
+2024-05-09T23:30:00.000Z | null         | qa              | 363                         | null
+2024-05-09T23:30:00.000Z | null         | qa              | 1032                        | null
+2024-05-09T23:30:00.000Z | null         | qa              | 1143                        | null
+2024-05-09T23:30:00.000Z | null         | staging         | 821                         | null
+2024-05-09T23:30:00.000Z | null         | staging         | 838                         | null
+2024-05-09T23:30:00.000Z | null         | staging         | 930                         | null
+2024-05-10T00:00:29.000Z | null         | staging         | 953                         | null
+2024-05-10T00:00:33.000Z | null         | staging         | 1111                        | null
+2024-05-10T00:00:51.000Z | null         | prod            | 278                         | null
+2024-05-10T00:00:57.000Z | null         | prod            | 955                         | null
+;

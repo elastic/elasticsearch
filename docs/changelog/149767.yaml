@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 149767
+summary: Add Workload Identity Issuer Client
+type: enhancement

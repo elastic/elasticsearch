@@ -44,6 +44,7 @@ public class TransportPutSynonymsAction extends HandledTransportAction<PutSynony
             request.synonymsSetId(),
             request.synonymRules(),
             request.refresh(),
+            request.append(),
             listener.map(SynonymUpdateResponse::new)
         );
     }

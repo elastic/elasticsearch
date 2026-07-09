@@ -353,6 +353,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest = buildSystemIndexUpdateRequest(projectId, indexName, descriptor);
                     } else if (isSystemIndex) {
                         updateRequest = buildUpdateRequest(projectId, indexName);
+                        updateRequest.systemIndexDescriptor(mainDescriptor);
 
                         if (Objects.isNull(request.settings())) {
                             updateRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
@@ -408,7 +409,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     projectId,
                     concreteIndexName,
                     request.index()
-                );
+                ).systemIndexDescriptor(descriptor);
 
                 updateRequest.waitForActiveShards(ActiveShardCount.ALL);
 

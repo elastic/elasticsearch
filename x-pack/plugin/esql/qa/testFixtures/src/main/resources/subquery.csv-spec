@@ -1611,3 +1611,266 @@ warning:Line 5:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered mu
 absent(to_string(id_int)):boolean
 false
 ;
+
+subqueryInFromWithInlineStatsPruning
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM multi_column_joinable, (FROM multi_column_joinable)
+| EVAL x = id_int
+| INLINE STATS d = max(x)
+| STATS d2 = count(*)
+;
+
+d2:long
+34
+;
+
+subqueryInFromWithInlineStatsOutputUsed
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM multi_column_joinable, (FROM multi_column_joinable)
+| EVAL x = id_int
+| INLINE STATS d = max(x)
+| STATS cnt = count(d), max_d = max(d)
+;
+
+cnt:long | max_d:integer
+34       | 21
+;
+
+subqueryInFromWithInlineStatsOutputUsedInFilter
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM multi_column_joinable, (FROM multi_column_joinable)
+| EVAL x = id_int
+| INLINE STATS d = max(x)
+| WHERE d > 0
+| STATS cnt = count(*)
+;
+
+cnt:long
+34
+;
+
+subqueryInFromWithInlineStatsPartialOutputPruned
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM multi_column_joinable, (FROM multi_column_joinable)
+| EVAL x = id_int, y = extra2
+| INLINE STATS d1 = max(x), d2 = max(y)
+| STATS max_d1 = max(d1)
+;
+
+max_d1:integer
+21
+;
+
+subqueryInFromWithMultipleInlineStatsBothUnused
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM multi_column_joinable, (FROM multi_column_joinable)
+| EVAL x = id_int
+| INLINE STATS d1 = max(x)
+| EVAL z = extra2
+| INLINE STATS d2 = max(z)
+| STATS cnt = count(*)
+;
+
+cnt:long
+34
+;
+
+subqueryInFromWithRenameMissingField
+required_capability: subquery_in_from_command
+
+FROM books, (from languages)
+| KEEP language_code
+| RENAME language_code as x
+| KEEP *
+| SORT x
+| LIMIT 1
+;
+
+x:integer
+1
+;
+
+subqueryInFromWithRenameMissingCounterField
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+request_stored: skip
+
+FROM k8s-downsampled, (from many_numbers)
+| KEEP network.total_bytes_in, network.eth0.tx
+| RENAME network.total_bytes_in as x, network.eth0.tx as y
+| KEEP *
+| SORT x
+| LIMIT 1
+;
+
+x:long | y:aggregate_metric_double
+210    | {"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
+;
+
+subqueryInFromWithRenameMissingCounterFieldWithNullify
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+required_capability: optional_fields_nullify_tech_preview
+request_stored: skip
+
+SET unmapped_fields="nullify"\;
+FROM k8s-downsampled, (from many_numbers)
+| KEEP network.total_bytes_in, network.eth0.tx
+| RENAME network.total_bytes_in as x, network.eth0.tx as y
+| KEEP *
+| SORT x
+| LIMIT 1
+;
+
+x:long | y:aggregate_metric_double
+210    | {"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
+;
+
+subqueryInFromWithRenameChainMissingCounterField
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+request_stored: skip
+
+FROM k8s, (from many_numbers)
+| KEEP network.total_bytes_in
+| RENAME network.total_bytes_in as x, x as y
+| RENAME y as z
+| KEEP *
+| SORT z
+| LIMIT 1
+;
+
+z:long
+3
+;
+
+subqueryInFromWithRenameChainMissingCounterFieldWithNullify
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+required_capability: optional_fields_nullify_tech_preview
+request_stored: skip
+
+SET unmapped_fields="nullify"\;
+FROM k8s, (from many_numbers)
+| KEEP network.total_bytes_in
+| RENAME network.total_bytes_in as x, x as y
+| RENAME y as z
+| KEEP *
+| SORT z
+| LIMIT 1
+;
+
+z:long
+3
+;
+
+subqueryInFromWithRenameOnMixedDateAndDateNanos
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| KEEP @timestamp
+| RENAME @timestamp AS x
+| KEEP *
+| SORT x
+| LIMIT 1
+;
+
+x:date_nanos
+2023-10-23T12:15:03.360000000Z
+;
+
+subqueryInFromWithRenameChainOnMixedDateAndDateNanos
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| KEEP @timestamp
+| RENAME @timestamp AS x, x AS y
+| KEEP y
+| SORT y
+| LIMIT 1
+;
+
+y:date_nanos
+2023-10-23T12:15:03.360000000Z
+;
+
+subqueryInFromWithDoubleRenameOnMixedDateAndDateNanos
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| KEEP @timestamp
+| RENAME @timestamp AS x
+| RENAME x AS y
+| KEEP *
+| SORT y
+| LIMIT 1
+;
+
+y:date_nanos
+2023-10-23T12:15:03.360000000Z
+;
+
+subqueryInFromWithRenameAndExplicitCastOnMixedDateAndLong
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+
+FROM sample_data, (FROM sample_data_ts_long)
+| EVAL @timestamp = @timestamp::long
+| KEEP @timestamp
+| RENAME @timestamp AS x
+| KEEP *
+| SORT x
+| LIMIT 1
+;
+
+x:long
+1698063303360
+;
+
+subqueryInFromWithRenameChainAndExplicitCastOnMixedDateAndLong
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+
+FROM sample_data, (FROM sample_data_ts_long)
+| EVAL @timestamp = @timestamp::long
+| KEEP @timestamp
+| RENAME @timestamp AS x, x AS y
+| KEEP y
+| SORT y
+| LIMIT 1
+;
+
+y:long
+1698063303360
+;
+
+subqueryInFromWithDoubleRenameAndExplicitCastOnMixedDateAndLong
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
+
+FROM sample_data, (FROM sample_data_ts_long)
+| EVAL @timestamp = @timestamp::long
+| KEEP @timestamp
+| RENAME @timestamp AS x
+| RENAME x AS y
+| KEEP *
+| SORT y
+| LIMIT 1
+;
+
+y:long
+1698063303360
+;

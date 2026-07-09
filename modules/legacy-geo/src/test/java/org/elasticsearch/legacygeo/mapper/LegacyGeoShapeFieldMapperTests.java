@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singletonMap;
@@ -59,6 +60,11 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected Object getSampleValueForDocument() {
         return "POINT (14.0 15.0)";
+    }
+
+    @Override
+    protected Object getSampleObjectForDocument() {
+        return Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
     }
 
     @Override

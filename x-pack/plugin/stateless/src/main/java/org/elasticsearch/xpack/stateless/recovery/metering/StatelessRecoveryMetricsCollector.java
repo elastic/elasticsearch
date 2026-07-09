@@ -22,6 +22,7 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
+import org.elasticsearch.xpack.stateless.recovery.RelocationSourceMetrics;
 
 import java.util.Map;
 
@@ -123,20 +124,11 @@ public class StatelessRecoveryMetricsCollector implements IndexEventListener {
         );
     }
 
-    public void recordRelocationInitialFlushDuration(long durationInMillis) {
-        relocationInitialFlushDurationMetric.record(durationInMillis / 1000.0);
-    }
-
-    public void recordRelocationAcquirePermitsDuration(long durationInMillis) {
-        relocationAcquirePermitsDurationMetric.record(durationInMillis / 1000.0);
-    }
-
-    public void recordRelocationSecondFlushDuration(long durationInMillis) {
-        relocationSecondFlushDurationMetric.record(durationInMillis / 1000.0);
-    }
-
-    public void recordRelocationHandoffDuration(long durationInMillis) {
-        relocationHandoffDurationMetric.record(durationInMillis / 1000.0);
+    public void recordRelocationSourceMetrics(RelocationSourceMetrics metrics) {
+        relocationInitialFlushDurationMetric.record(metrics.initialFlushDurationInMillis() / 1000.0);
+        relocationAcquirePermitsDurationMetric.record(metrics.acquirePermitsDurationInMillis() / 1000.0);
+        relocationSecondFlushDurationMetric.record(metrics.secondFlushDurationInMillis() / 1000.0);
+        relocationHandoffDurationMetric.record(metrics.handoffDurationInMillis() / 1000.0);
     }
 
     public void recordRelocationTargetPreRecoveryDuration(long durationInMillis) {

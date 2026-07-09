@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * The dimension field downsampler reads the value of the last seen document per tsid, even if it's missing. Considering that dimensions
@@ -45,7 +44,7 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
     }
 
     public void tsidReset() {
-        isEmpty = true;
+        state = State.EMPTY;
         dimensionValue = null;
     }
 
@@ -58,6 +57,24 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
         throw new UnsupportedOperationException("This producer should be collected using the collectOnce method.");
     }
 
+    @Override
+    public void collectCurrentValues(FormattedDocValues docValues) throws IOException {
+        int docValueCount = docValues.docValueCount();
+        assert docValueCount > 0;
+        int docValueCount1 = docValues.docValueCount();
+        assert docValueCount1 > 0;
+        if (docValueCount1 == 1) {
+            this.dimensionValue = docValues.nextValue();
+        } else {
+            var values = new Object[docValueCount1];
+            for (int j = 0; j < docValueCount1; j++) {
+                values[j] = docValues.nextValue();
+            }
+            this.dimensionValue = values;
+        }
+        this.state = State.BUCKET_COMPLETED;
+    }
+
     public void collectOnce(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
         // We only ensure we collect once with an assertion because we do it for performance reasons,
         // and it should be detected during development.
@@ -67,12 +84,7 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
         if (docIdBuffer.isEmpty() == false) {
             int docId = docIdBuffer.get(0);
             if (docValues.advanceExact(docId)) {
-                int docValueCount = docValues.docValueCount();
-                assert docValueCount > 0;
-                var value = retrieveDimensionValues(docValues);
-                Objects.requireNonNull(value);
-                this.dimensionValue = value;
-                this.isEmpty = false;
+                collectCurrentValues(docValues);
             }
         }
     }
@@ -92,22 +104,6 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
 
     public Object dimensionValue() {
         return dimensionValue;
-    }
-
-    private Object retrieveDimensionValues(FormattedDocValues docValues) throws IOException {
-        int docValueCount = docValues.docValueCount();
-        assert docValueCount > 0;
-        Object value;
-        if (docValueCount == 1) {
-            value = docValues.nextValue();
-        } else {
-            var values = new Object[docValueCount];
-            for (int j = 0; j < docValueCount; j++) {
-                values[j] = docValues.nextValue();
-            }
-            value = values;
-        }
-        return value;
     }
 
     /**

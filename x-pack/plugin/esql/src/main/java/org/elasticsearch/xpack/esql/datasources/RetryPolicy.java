@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.net.ConnectException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
@@ -183,6 +186,54 @@ class RetryPolicy {
         return maxTotalDurationMs;
     }
 
+    /** Whether a fault warrants a retry, and the backoff to wait first. */
+    record RetryDecision(boolean retry, long delayMillis) {
+        static final RetryDecision GIVE_UP = new RetryDecision(false, 0L);
+    }
+
+    /**
+     * Best-effort lifecycle callbacks for a retry driver, letting the caller surface terminal give-ups and the
+     * cumulative backoff stall to node telemetry. {@link RetryPolicy} stays decision-only: it computes decisions
+     * and reports the lifecycle here, holding no metric state itself. All methods default to no-ops
+     * ({@link #NONE}), so a driver that does not care about telemetry is unaffected.
+     */
+    interface RetryTelemetry {
+        RetryTelemetry NONE = new RetryTelemetry() {};
+
+        /** The operation gave up on {@code failure} after a cumulative {@code totalBackoffMillis} spent in backoff. */
+        default void onGiveUp(Throwable failure, long totalBackoffMillis) {}
+
+        /** The operation completed after a cumulative {@code totalBackoffMillis} spent in backoff (0 if it never retried). */
+        default void onComplete(long totalBackoffMillis) {}
+    }
+
+    /**
+     * The shared retry decision used by every retry driver — sync {@link #execute}, async reads, and the
+     * mid-read resume. Classifies the fault, applies the throttle-vs-normal budget against {@code attempt}
+     * (retries already made), feeds the adaptive backoff on a throttle, and checks the total-time budget against
+     * {@code startNanos}. Returns the backoff to wait before retrying, or {@link RetryDecision#GIVE_UP}. Having
+     * one decision point keeps every driver's classification/budget/backoff identical (the throttle signal that
+     * used to drift between hand-rolled loops cannot diverge here).
+     */
+    RetryDecision decide(Throwable e, int attempt, long startNanos) {
+        boolean isThrottle = isThrottlingError(e);
+        boolean isTransient = isThrottle || isTransientStorageError(e);
+        int effectiveMaxRetries = isThrottle ? throttleMaxRetries : maxRetries;
+        if (isTransient == false || attempt >= effectiveMaxRetries) {
+            return RetryDecision.GIVE_UP;
+        }
+        long delay = delayMillis(attempt, isThrottle);
+        if (maxTotalDurationMs > 0 && (System.nanoTime() - startNanos) / 1_000_000 + delay > maxTotalDurationMs) {
+            return RetryDecision.GIVE_UP;
+        }
+        // Feed the cross-request adaptive backoff only once we've committed to retrying — no point ramping it
+        // when we're about to give up on the budget or the time limit.
+        if (isThrottle && adaptiveBackoff != null) {
+            adaptiveBackoff.onThrottled();
+        }
+        return new RetryDecision(true, delay);
+    }
+
     <T> T execute(IOSupplier<T> operation, String operationName, StoragePath path) throws IOException {
         return execute(operation, operationName, path, () -> {});
     }
@@ -196,10 +247,32 @@ class RetryPolicy {
      * attempt or on a final terminal failure.
      */
     <T> T execute(IOSupplier<T> operation, String operationName, StoragePath path, Runnable onRetry) throws IOException {
+        return execute(operation, operationName, path, onRetry, RetryTelemetry.NONE);
+    }
+
+    /**
+     * As {@link #execute(IOSupplier, String, StoragePath, Runnable)}, plus a best-effort {@link RetryTelemetry}
+     * whose {@link RetryTelemetry#onComplete}/{@link RetryTelemetry#onGiveUp} fire once when the operation ends,
+     * carrying the cumulative backoff time so the caller can publish read-stall / terminal-error metrics. The
+     * policy remains decision-only; it merely reports the lifecycle it already computes.
+     */
+    <T> T execute(IOSupplier<T> operation, String operationName, StoragePath path, Runnable onRetry, RetryTelemetry telemetry)
+        throws IOException {
         if (maxRetries == 0 && throttleMaxRetries == 0) {
-            return operation.get();
+            // Retries disabled: run the operation once, but still fire the lifecycle so a terminal failure is
+            // surfaced to telemetry (there was no backoff, so the cumulative stall is 0). Mirror the retry loop's
+            // catch — a plain RuntimeException propagates without a give-up, exactly as it does with retries on.
+            try {
+                T result = operation.get();
+                telemetry.onComplete(0L);
+                return result;
+            } catch (IOException | ExternalUnavailableException e) {
+                telemetry.onGiveUp(e, 0L);
+                throw e;
+            }
         }
         long startNanos = System.nanoTime();
+        long totalBackoffMillis = 0;
         int maxAttempts = Math.max(maxRetries, throttleMaxRetries);
         for (int attempt = 0; attempt <= maxAttempts; attempt++) {
             try {
@@ -207,48 +280,34 @@ class RetryPolicy {
                 if (adaptiveBackoff != null) {
                     adaptiveBackoff.onSuccess();
                 }
+                telemetry.onComplete(totalBackoffMillis);
                 return result;
-            } catch (IOException e) {
-                boolean isThrottle = isThrottlingError(e);
-                boolean isTransient = isThrottle || isTransientStorageError(e);
-                int effectiveMaxRetries = isThrottle ? throttleMaxRetries : maxRetries;
-
-                if (isTransient == false || attempt >= effectiveMaxRetries) {
+            } catch (IOException | ExternalUnavailableException e) {
+                // ExternalUnavailableException is an unchecked QlException (it maps to a 503), so it is caught
+                // explicitly alongside the checked transport IOExceptions; both flow through the one decision point.
+                RetryDecision decision = decide(e, attempt, startNanos);
+                if (decision.retry() == false) {
+                    telemetry.onGiveUp(e, totalBackoffMillis);
                     throw e;
                 }
-
-                if (isThrottle && adaptiveBackoff != null) {
-                    adaptiveBackoff.onThrottled();
-                }
-
-                long delay = delayMillis(attempt, isThrottle);
-                if (maxTotalDurationMs > 0) {
-                    long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
-                    if (elapsedMs + delay > maxTotalDurationMs) {
-                        logger.debug(
-                            "aborting retry for [{}] on [{}]: elapsed [{}]ms + delay [{}]ms exceeds budget [{}]ms",
-                            operationName,
-                            path,
-                            elapsedMs,
-                            delay,
-                            maxTotalDurationMs
-                        );
-                        throw e;
-                    }
-                }
+                totalBackoffMillis += decision.delayMillis();
                 logger.debug(
-                    "retrying [{}] for [{}] after {} failure (attempt [{}]/[{}], delay [{}]ms): [{}]",
+                    "retrying [{}] for [{}] after transient failure (attempt [{}], delay [{}]ms): [{}]",
                     operationName,
                     path,
-                    isThrottle ? "throttle" : "transient",
                     attempt + 1,
-                    effectiveMaxRetries,
-                    delay,
+                    decision.delayMillis(),
                     e.getMessage()
                 );
+                // Abort promptly if the originating query was already cancelled (skips the retry-count bump).
+                if (StorageRetryCancellation.isCancelled()) {
+                    throw new TaskCancelledException(StorageRetryCancellation.CANCELLED_MESSAGE);
+                }
                 onRetry.run();
                 try {
-                    Thread.sleep(delay);
+                    // Cancellation-aware sleep: polls during the delay so a cancel that flips mid-sleep aborts
+                    // within ~one poll interval rather than waiting out the full (up to 30s throttle) backoff.
+                    StorageRetryCancellation.sleepWithCancellationChecks(decision.delayMillis());
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     throw e;
@@ -264,12 +323,6 @@ class RetryPolicy {
         }
     }
 
-    void notifyThrottled() {
-        if (adaptiveBackoff != null) {
-            adaptiveBackoff.onThrottled();
-        }
-    }
-
     static boolean isThrottlingError(Throwable t) {
         for (Throwable current = t; current != null; current = current.getCause()) {
             if (isThrottlingSingleCause(current)) {
@@ -280,20 +333,9 @@ class RetryPolicy {
     }
 
     private static boolean isThrottlingSingleCause(Throwable t) {
-        String message = t.getMessage();
-        if (message == null) {
-            return false;
-        }
-        if (message.contains("429") || message.contains("Too Many Requests")) {
-            return true;
-        }
-        if (message.contains("503") || message.contains("Service Unavailable")) {
-            return true;
-        }
-        if (message.contains("SlowDown") || message.contains("Reduce your request rate")) {
-            return true;
-        }
-        return false;
+        // Throttling (HTTP 429 / 503 / SlowDown) is classified by the provider from the status code and flagged
+        // on the typed exception; it is no longer inferred from message text.
+        return t instanceof ExternalUnavailableException eue && eue.throttling();
     }
 
     private static boolean isTransientStorageError(Throwable t) {
@@ -306,9 +348,14 @@ class RetryPolicy {
     }
 
     private static boolean isTransientSingleCause(Throwable t) {
-        if (t instanceof SocketTimeoutException) {
+        // Typed signal from a storage provider: it classified this fault by type/status (no message sniffing).
+        // Every retryable remote-store status (5xx/429/timeout) is mapped to ExternalUnavailableException at the
+        // provider boundary, so the retry layer keys on the type, not the HTTP status or the message.
+        if (t instanceof ExternalUnavailableException) {
             return true;
         }
+        // ConnectException is a SocketException subtype, so it must be checked FIRST: a failure to (re)connect
+        // is transient EXCEPT when caused by an unresolvable host (a config / DNS error, not worth retrying).
         if (t instanceof ConnectException) {
             for (Throwable cause = t.getCause(); cause != null; cause = cause.getCause()) {
                 if (cause instanceof UnknownHostException) {
@@ -317,18 +364,15 @@ class RetryPolicy {
             }
             return true;
         }
-        if (t instanceof SocketException) {
-            String msg = t.getMessage();
-            return msg != null && msg.contains("Connection reset");
-        }
-        String message = t.getMessage();
-        if (message == null) {
-            return false;
-        }
-        if (message.contains("500") || message.contains("Internal Server Error") || message.contains("InternalError")) {
+        // Other JDK transport types are transient by type. A SocketException covers connection reset / reset
+        // by peer / broken pipe; on a read these are all transient, since the byte range can be re-opened.
+        if (t instanceof SocketTimeoutException || t instanceof SocketException || t instanceof InterruptedIOException) {
             return true;
         }
-        return isThrottlingSingleCause(t);
+        // HTTP-status transients (500 / 503 / 429) reach here only as a typed ExternalUnavailableException raised
+        // by the provider (the layer that has the status code), which is already handled above; a bare throwable
+        // (no transient type, no JDK transport type) is treated as a real error.
+        return false;
     }
 
     @FunctionalInterface

@@ -82,7 +82,6 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataType.IMAGE;
 import static org.elasticsearch.inference.DataType.PDF;
-import static org.elasticsearch.inference.DataType.TEXT;
 import static org.elasticsearch.inference.InferenceString.fromStringList;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
@@ -907,7 +906,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var model = JinaAIEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "model", "secret");
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -932,13 +931,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.rerankInfer(
                 model,
-                new RerankRequest(
-                    fromStringList(List.of("candidate1", "candidate2")),
-                    new InferenceString(TEXT, "query"),
-                    null,
-                    null,
-                    null
-                ),
+                new RerankRequest(fromStringList(List.of("candidate1", "candidate2")), InferenceString.ofText("query"), null, null, null),
                 null,
                 listener
             );
@@ -1017,7 +1010,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             );
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             List<String> input = List.of("abc");
-            service.infer(model, null, null, null, input, false, new HashMap<>(), inputType, null, listener);
+            service.infer(model, input, false, new HashMap<>(), inputType, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -1070,7 +1063,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             var request = new RerankRequest(
                 fromStringList(List.of("candidate1", "candidate2", "candidate3")),
-                new InferenceString(TEXT, "query"),
+                InferenceString.ofText("query"),
                 null,
                 null,
                 null
@@ -1149,7 +1142,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var request = new RerankRequest(
                 fromStringList(List.of("candidate1", "candidate2", "candidate3", "candidate4")),
-                new InferenceString(TEXT, "query"),
+                InferenceString.ofText("query"),
                 null,
                 null,
                 null
@@ -1240,7 +1233,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var request = new RerankRequest(
                 fromStringList(List.of("candidate1", "candidate2", "candidate3")),
-                new InferenceString(TEXT, "query"),
+                InferenceString.ofText("query"),
                 null,
                 null,
                 null
@@ -1317,7 +1310,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var request = new RerankRequest(
                 fromStringList(List.of("candidate1", "candidate2", "candidate3", "candidate4")),
-                new InferenceString(TEXT, "query"),
+                InferenceString.ofText("query"),
                 null,
                 null,
                 null
@@ -1518,7 +1511,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 inputs.add(anInput);
             }
 
-            service.chunkedInfer(model, null, inputs, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+            service.chunkedInfer(model, inputs, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, hasSize(inputsAndEmbeddings.size()));
@@ -1611,7 +1604,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
-            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.UNSPECIFIED, null, listener);
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, empty());

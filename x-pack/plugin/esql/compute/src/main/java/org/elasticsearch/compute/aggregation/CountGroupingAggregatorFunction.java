@@ -296,13 +296,14 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage) {
         try (LongVector.Builder builder = driverContext.blockFactory().newLongVectorFixedBuilder(selectedInPage.getPositionCount())) {
-            final int upTo = Math.min(selectedInPage.getPositionCount(), (int) counts.size());
-            for (int i = 0; i < upTo; i++) {
-                int si = selectedInPage.getInt(i);
-                builder.appendLong(counts.get(si));
-            }
-            for (int i = upTo; i < selectedInPage.getPositionCount(); i++) {
-                builder.appendLong(0L);
+            final int positionCount = selectedInPage.getPositionCount();
+            for (int i = 0; i < positionCount; i++) {
+                final int si = selectedInPage.getInt(i);
+                if (si < counts.size()) {
+                    builder.appendLong(counts.get(si));
+                } else {
+                    builder.appendLong(0L);
+                }
             }
             blocks[offset] = builder.build().asBlock();
         }

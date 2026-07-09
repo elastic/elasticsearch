@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,7 +34,7 @@ import java.util.function.Predicate;
  */
 public abstract class AbstractBulkByQueryRestHandler<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,
-    A extends ActionType<BulkByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
+    A extends ActionType<BulkByPaginatedSearchResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
     protected AbstractBulkByQueryRestHandler(A action) {
         super(action);

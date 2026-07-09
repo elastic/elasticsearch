@@ -64,6 +64,7 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
 public class BulkByPaginatedSearchTask extends CancellableTask {
 
     private final boolean eligibleForRelocationOnShutdown;
+    private final String nodeId;
     private final boolean relocatedTask;
     // if task is a slice, RelocationOrigin won't be correct because it won't be the leader here, but it's overridden in the leader state
     private final ResumeInfo.RelocationOrigin relocationOrigin;
@@ -84,6 +85,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
     ) {
         super(taskId.getId(), type, action, description, parentTaskId, headers);
         this.eligibleForRelocationOnShutdown = eligibleForRelocationOnShutdown;
+        this.nodeId = taskId.getNodeId();
         this.relocatedTask = relocationOrigin != null;
         this.relocationOrigin = relocationOrigin != null ? relocationOrigin : new ResumeInfo.RelocationOrigin(taskId, this.startTime);
     }
@@ -103,10 +105,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
 
     @Override
     public TaskResult result(DiscoveryNode node, Exception error) throws IOException {
-        var cause = error instanceof ElasticsearchException elasticsearchException
-            ? elasticsearchException.getCause()
-            : ExceptionsHelper.unwrapCause(error);
-        if (cause instanceof TaskCancelledException taskCancelledException) {
+        if (ExceptionsHelper.unwrap(error, TaskCancelledException.class) instanceof TaskCancelledException taskCancelledException) {
             TaskInfo taskInfo = taskInfo(node.getId(), true);
             // task might not actually be cancelled at this point, but rather be in the process of cancelling
             // make sure the task result is indeed serialized as cancelled
@@ -345,6 +344,10 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
         } else {
             return Optional.empty();
         }
+    }
+
+    public String getNodeId() {
+        return nodeId;
     }
 
     /**
@@ -788,7 +791,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
         @Override
         public String toString() {
             StringBuilder builder = new StringBuilder();
-            builder.append("BulkIndexByScrollResponse[");
+            builder.append("BulkIndexByPaginatedSearchResponse[");
             innerToString(builder);
             return builder.append(']').toString();
         }

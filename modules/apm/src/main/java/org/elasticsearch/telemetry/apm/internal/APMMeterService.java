@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.apache.logging.log4j.LogManager;
@@ -25,6 +26,7 @@ import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSup
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 
+import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
@@ -36,12 +38,11 @@ public class APMMeterService extends AbstractLifecycleComponent {
     private final APMMeterRegistry meterRegistry;
     private final MeterSupplier otelMeterSupplier;
     private final MeterSupplier noopMeterSupplier;
-    private final long flushTimeoutMillis;
 
     protected volatile boolean enabled;
 
-    public APMMeterService(Settings settings) {
-        this(settings, createOtelMeterSupplier(settings), new NoOpMeterSupplier());
+    public APMMeterService(Settings settings, Path diskBufferPath) {
+        this(settings, createOtelMeterSupplier(settings, diskBufferPath), new NoOpMeterSupplier());
     }
 
     public APMMeterService(Settings settings, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier) {
@@ -49,13 +50,12 @@ public class APMMeterService extends AbstractLifecycleComponent {
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;
         this.meterRegistry = new APMMeterRegistry(enabled ? otelMeterSupplier.get() : noopMeterSupplier.get());
-        this.flushTimeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
     }
 
-    private static MeterSupplier createOtelMeterSupplier(Settings settings) {
+    private static MeterSupplier createOtelMeterSupplier(Settings settings, Path diskBufferPath) {
         boolean otelMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false"));
         if (otelMetricsEnabled) {
-            return new OtelSdkExportMeterSupplier(settings);
+            return new OtelSdkExportMeterSupplier(settings, diskBufferPath);
         } else {
             return new AgentExportMeterSupplier(settings);
         }
@@ -63,6 +63,15 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     public APMMeterRegistry getMeterRegistry() {
         return meterRegistry;
+    }
+
+    /**
+     * Returns the underlying {@link MeterProvider} for wiring SDK self-monitoring into other exporters.
+     * Not intended for general metric recording; use {@link #getMeterRegistry()} for that.
+     * Returns {@link MeterProvider#noop()} when the OTel SDK path is not active.
+     */
+    MeterProvider getHealthMeterProvider() {
+        return otelMeterSupplier.getMeterProvider();
     }
 
     /**
@@ -95,11 +104,15 @@ public class APMMeterService extends AbstractLifecycleComponent {
     protected void doStop() {
         if (enabled) {
             try {
-                otelMeterSupplier.attemptFlushMetrics().join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
+                otelMeterSupplier.attemptFlushMetrics().join(OtelSdkSettings.OTEL_EXPORT_FLUSH_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
             } catch (Exception e) {
                 LOGGER.warn("Exception flushing OTel MeterSupplier", e);
             }
         }
+    }
+
+    @Override
+    protected void doClose() {
         try {
             otelMeterSupplier.close();
         } catch (Exception e) {
@@ -107,9 +120,6 @@ public class APMMeterService extends AbstractLifecycleComponent {
         }
         meterRegistry.setProvider(noopMeterSupplier.get());
     }
-
-    @Override
-    protected void doClose() {}
 
     private static final class NoOpMeterSupplier implements MeterSupplier {
         @Override

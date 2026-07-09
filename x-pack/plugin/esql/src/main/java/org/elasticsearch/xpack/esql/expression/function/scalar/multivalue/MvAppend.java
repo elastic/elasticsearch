@@ -77,6 +77,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Appends two multi-value fields together.",
         description = "Concatenates values of two multi-value fields.",
         examples = { @Example(file = "date", tag = "mv_append_date") }
     )

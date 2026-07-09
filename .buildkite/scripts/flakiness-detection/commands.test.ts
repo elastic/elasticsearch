@@ -1,12 +1,13 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import {
   dedupeTests,
   collapseYamlSuites,
   deduplicateYamlRunners,
   generateBatchCommand,
   buildCommands,
-} from "./commands";
-import { ClassifiedTest, DEFAULT_BATCHING_CONFIG } from "./domain";
+} from "./commands.ts";
+import type { ClassifiedTest } from "./domain.ts";
+import { DEFAULT_BATCHING_CONFIG } from "./domain.ts";
 
 describe("collapseYamlSuites", () => {
   test("collapses multiple YAML files in same directory", () => {
@@ -150,7 +151,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.index.IndexTests" },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.IndexTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.IndexTests",
     );
   });
 
@@ -160,7 +161,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":libs:core", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.core.BarTests" },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.FooTests :libs:core:test --tests org.elasticsearch.core.BarTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.FooTests :libs:core:test --tests org.elasticsearch.core.BarTests",
     );
   });
 
@@ -170,7 +171,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.BarTests" },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.FooTests --tests org.elasticsearch.BarTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.FooTests --tests org.elasticsearch.BarTests",
     );
   });
 
@@ -184,7 +185,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=20 -Dtests.timeoutSuite=3600000! :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=20 -Dtests.timeoutSuite=3600000! :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT",
     );
   });
 
@@ -198,7 +199,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :modules:transport-netty4:javaRestTest --tests org.elasticsearch.rest.RestIT --rerun"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :modules:transport-netty4:javaRestTest --tests org.elasticsearch.rest.RestIT --rerun",
     );
   });
 
@@ -208,7 +209,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":mod:b", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "org.es.BarIT" },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :mod:a:javaRestTest --tests org.es.FooIT --rerun :mod:b:javaRestTest --tests org.es.BarIT --rerun"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :mod:a:javaRestTest --tests org.es.FooIT --rerun :mod:b:javaRestTest --tests org.es.BarIT --rerun",
     );
   });
 
@@ -217,7 +218,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun",
     );
   });
 
@@ -231,7 +232,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/anomaly_detectors_get"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/anomaly_detectors_get",
     );
   });
 
@@ -251,7 +252,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1,ml/test2"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1,ml/test2",
     );
   });
 
@@ -271,7 +272,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun :x-pack:plugin:security:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1 -Dtests.rest.suite.:x-pack:plugin:security:yamlRestTest=security/test1"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun :x-pack:plugin:security:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1 -Dtests.rest.suite.:x-pack:plugin:security:yamlRestTest=security/test1",
     );
   });
 
@@ -286,7 +287,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --rerun'
+      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --rerun',
     );
   });
 
@@ -308,7 +309,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --rerun :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/anomaly_detectors_get/basic}" --rerun'
+      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:apm-data:yamlRestTest --tests "org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT.test {yaml=/10_apm/Test template reinstallation}" --rerun :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/anomaly_detectors_get/basic}" --rerun',
     );
   });
 
@@ -317,7 +318,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.FooTests" },
     ];
     expect(generateBatchCommand(batch, { ...DEFAULT_BATCHING_CONFIG, target: "local" })).toBe(
-      "./gradlew -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.FooTests"
+      "./gradlew -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.FooTests",
     );
   });
 
@@ -326,7 +327,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
     ];
     expect(generateBatchCommand(batch, { ...DEFAULT_BATCHING_CONFIG, target: "local" })).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 ./gradlew :x-pack:plugin:ml:yamlRestTest --rerun"
+      ".ci/scripts/repeat-rest-test.sh 10 ./gradlew :x-pack:plugin:ml:yamlRestTest --rerun",
     );
   });
 
@@ -335,7 +336,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":m:a", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "Foo" },
     ];
     expect(generateBatchCommand(batch, { ...DEFAULT_BATCHING_CONFIG, restIters: 3 })).toContain(
-      "repeat-rest-test.sh 3 "
+      "repeat-rest-test.sh 3 ",
     );
   });
 
@@ -357,7 +358,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch, DEFAULT_BATCHING_CONFIG)).toBe(
-      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/a}" --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/b}" --rerun'
+      '.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/a}" --tests "org.elasticsearch.xpack.ml.MlYamlIT.test {yaml=ml/b}" --rerun',
     );
   });
 });
@@ -436,10 +437,7 @@ describe("dedupeTests", () => {
     ];
     const result = dedupeTests(tests);
     expect(result).toHaveLength(2);
-    expect(result.map((t) => t.yamlTest)).toEqual([
-      "test {yaml=/10_foo/case A}",
-      "test {yaml=/10_foo/case B}",
-    ]);
+    expect(result.map((t) => t.yamlTest)).toEqual(["test {yaml=/10_foo/case A}", "test {yaml=/10_foo/case B}"]);
   });
 
   test("preserves input order", () => {
@@ -468,6 +466,66 @@ describe("buildCommands", () => {
     expect(cmds[0].command).toContain("--tests B");
   });
 
+  test("uses default capByKind values when batching all test kinds", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "Unit1Tests" },
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "Unit2Tests" },
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "Unit3Tests" },
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "Unit4Tests" },
+      { gradleProject: ":server", kind: "internalClusterTest", sourceSet: "internalClusterTest", fqcn: "Integ1IT" },
+      { gradleProject: ":server", kind: "internalClusterTest", sourceSet: "internalClusterTest", fqcn: "Integ2IT" },
+      { gradleProject: ":server", kind: "internalClusterTest", sourceSet: "internalClusterTest", fqcn: "Integ3IT" },
+      { gradleProject: ":modules:rest", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "Rest1IT" },
+      { gradleProject: ":modules:rest", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "Rest2IT" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/a/test" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/b/test" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/c/test" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/d/test" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/e/test" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
+      { gradleProject: ":x-pack:plugin:security", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        yamlTest: "test {yaml=esql/0}",
+      },
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        yamlTest: "test {yaml=esql/1}",
+      },
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        yamlTest: "test {yaml=esql/2}",
+      },
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        yamlTest: "test {yaml=esql/3}",
+      },
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        yamlTest: "test {yaml=esql/4}",
+      },
+    ];
+
+    const cmds = buildCommands(tests, DEFAULT_BATCHING_CONFIG);
+
+    expect(cmds.filter((c) => c.kind === "test")).toHaveLength(2); // 3 + 1
+    expect(cmds.filter((c) => c.kind === "internalClusterTest")).toHaveLength(2); // 2 + 1
+    expect(cmds.filter((c) => c.kind === "javaRestTest")).toHaveLength(2); // 1 + 1
+    expect(cmds.filter((c) => c.kind === "yamlRestTestSuite")).toHaveLength(2); // 4 + 1
+    expect(cmds.filter((c) => c.kind === "yamlRestTestRunner")).toHaveLength(2); // 1 + 1
+    expect(cmds.filter((c) => c.kind === "yamlRestTestCase")).toHaveLength(2); // 4 + 1
+  });
+
   test("respects capByKind to produce multiple batches per kind", () => {
     const tests: ClassifiedTest[] = Array.from({ length: 5 }, (_, i) => ({
       gradleProject: ":server",
@@ -483,9 +541,7 @@ describe("buildCommands", () => {
   });
 
   test("threads itersByKind override into the gradle command", () => {
-    const tests: ClassifiedTest[] = [
-      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "A" },
-    ];
+    const tests: ClassifiedTest[] = [{ gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "A" }];
     const cmds = buildCommands(tests, {
       ...DEFAULT_BATCHING_CONFIG,
       itersByKind: { test: 5, internalClusterTest: 20 },
@@ -494,9 +550,7 @@ describe("buildCommands", () => {
   });
 
   test("threads suiteTimeoutMs override into the gradle command", () => {
-    const tests: ClassifiedTest[] = [
-      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "A" },
-    ];
+    const tests: ClassifiedTest[] = [{ gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "A" }];
     const cmds = buildCommands(tests, {
       ...DEFAULT_BATCHING_CONFIG,
       suiteTimeoutMs: 60_000,
@@ -531,8 +585,18 @@ describe("buildCommands", () => {
   test("collapses multiple yaml suites in same directory to one --tests entry", () => {
     // Two yamlRestTestSuite paths in the same dir should collapse to a directory-level target.
     const tests: ClassifiedTest[] = [
-      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/foo/a" },
-      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/foo/b" },
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestSuite",
+        sourceSet: "yamlRestTest",
+        suitePath: "ml/foo/a",
+      },
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestSuite",
+        sourceSet: "yamlRestTest",
+        suitePath: "ml/foo/b",
+      },
     ];
     const cmds = buildCommands(tests, DEFAULT_BATCHING_CONFIG);
     // The collapsed command should reference the parent directory "ml/foo", not both individual paths.

@@ -191,8 +191,8 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     }
 
     @Override
-    public AggregateMetricDoubleArrayBlock filter(boolean mayContainDuplicates, int... positions) {
-        return applyOperationToSubBlocks(b -> b.filter(mayContainDuplicates, positions));
+    public AggregateMetricDoubleArrayBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return applyOperationToSubBlocks(b -> b.filter(mayContainDuplicates, positions, offset, length));
     }
 
     @Override

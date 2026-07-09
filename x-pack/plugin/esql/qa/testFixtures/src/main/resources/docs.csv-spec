@@ -54,7 +54,7 @@ height:double | height.float:double | height.half_float:double | height.scaled_f
 // end::keepDoubleWildcard-result[]
 ;
 
-docsKeepCompleteName#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
+docsKeepCompleteName
 // tag::keepCompleteName[]
 FROM employees
 | KEEP first_name, last_name, first_name*
@@ -66,7 +66,7 @@ first_name:keyword | last_name:keyword
 // end::keepCompleteName-result[]
 ;
 
-docsKeepWildcardPrecedence#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
+docsKeepWildcardPrecedence
 // tag::keepWildcardPrecedence[]
 FROM employees
 | KEEP first_name*, last_name, first_na*
@@ -78,7 +78,7 @@ last_name:keyword | first_name:keyword
 // end::keepWildcardPrecedence-result[]
 ;
 
-docsKeepWildcardLowest#[skip:-8.12.99, reason:duplicate precedence rules added in 8.13]
+docsKeepWildcardLowest
 // tag::keepWildcardLowest[]
 FROM employees
 | KEEP *, first_name
@@ -140,6 +140,7 @@ Vishv          |Zockler        |1.42
 ;
 
 docsSortDesc
+skip_flattened_rewrite: field_extract_multivalue_null
 // tag::sortDesc[]
 FROM employees
 | KEEP first_name, last_name, height
@@ -155,6 +156,7 @@ Saniya         |Kalloufi       |2.1
 ;
 
 docsSortTie
+skip_flattened_rewrite: field_extract_multivalue_null
 // tag::sortTie[]
 FROM employees
 | KEEP first_name, last_name, height
@@ -306,6 +308,7 @@ Bernatsky      |true
 ;
 
 docsRound
+skip_flattened_rewrite: field_extract_multivalue_null
 // tag::round[]
 FROM employees
 | KEEP first_name, last_name, height
@@ -509,7 +512,7 @@ message:keyword  | ts:keyword | level:keyword
 // end::dissectRightPaddingModifier-result[]
 ;
 
-dissectEmptyRightPaddingModifier#[skip:-8.11.2, reason:Support for empty right padding modifiers introduced in 8.11.2]
+dissectEmptyRightPaddingModifier
 // tag::dissectEmptyRightPaddingModifier[]
 ROW message="[1998-08-10T17:15:42]          [WARN]"
 | DISSECT message """[%{ts}]%{->}[%{level}]"""
@@ -690,4 +693,50 @@ count:long | category:keyword
          3 | .*?Connection.+?error.*?
          1 | .*?Disconnected.*?
 // end::docsCategorize-result[]
+;
+
+docsCategorizeByTime
+required_capability: categorize_v6
+required_capability: categorize_multiple_groupings
+
+// tag::docsCategorizeByTime[]
+FROM sample_data
+| STATS count = COUNT(*) BY category = CATEGORIZE(message), time_bucket = BUCKET(@timestamp, 1 HOUR)
+| SORT time_bucket DESC, count DESC, category
+// end::docsCategorizeByTime[]
+;
+
+// tag::docsCategorizeByTime-result[]
+count:long | category:keyword         | time_bucket:datetime
+         3 | .*?Connection.+?error.*? | 2023-10-23T13:00:00.000Z
+         1 | .*?Connected.+?to.*?     | 2023-10-23T13:00:00.000Z
+         1 | .*?Disconnected.*?       | 2023-10-23T13:00:00.000Z
+         2 | .*?Connected.+?to.*?     | 2023-10-23T12:00:00.000Z
+// end::docsCategorizeByTime-result[]
+;
+
+docsCategorizeBySample
+required_capability: categorize_v6
+required_capability: agg_sample
+
+// tag::docsCategorizeBySample[]
+FROM sample_data
+| STATS sample_message = SAMPLE(message, 1) BY category = CATEGORIZE(message)
+| SORT category
+// end::docsCategorizeBySample[]
+// Hardcode the sample value for the multi-message category to work around
+// the limitations of the CSV tests in the presence of randomness.
+| EVAL sample_message = CASE(
+    category == ".*?Connected.+?to.*?", "Connected to 10.1.0.1",
+    sample_message
+  )
+| KEEP sample_message, category
+;
+
+// tag::docsCategorizeBySample-result[]
+sample_message:keyword | category:keyword
+Connected to 10.1.0.1  | .*?Connected.+?to.*?
+Connection error       | .*?Connection.+?error.*?
+Disconnected           | .*?Disconnected.*?
+// end::docsCategorizeBySample-result[]
 ;

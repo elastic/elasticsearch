@@ -9,69 +9,71 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.elasticsearch.index.codec.vectors.diskbbq.CentroidSupplier;
-
-import java.util.Arrays;
 import java.util.List;
 
 /**
- * Output object for clustering (partitioning) a set of vectors
+ * Output object for clustering (partitioning) a set of vectors.
+ *
+ * @param <V> the array type for centroids ({@code float[]} or {@code byte[]})
  */
-public class KMeansResult {
-    private float[][] centroids;
+public class KMeansResult<V> {
+    private V[] centroids;
     private final int[] assignments;
     private int[] clusterCounts;
-    private int[] soarAssignments;
 
-    public static KMeansResult EMPTY = new KMeansResult(new float[0][], new int[0], new int[0]) {
+    private static final KMeansResult<float[]> FLOAT_EMPTY = new KMeansResult<>(new float[0][], new int[0]) {
         @Override
         public float[] getCentroid(int vectorOrdinal) {
             return null;
         }
-
+    };
+    private static final KMeansResult<byte[]> BYTE_EMPTY = new KMeansResult<>(new byte[0][], new int[0]) {
         @Override
-        public CentroidSupplier centroidsSupplier() {
-            return CentroidSupplier.empty(0);
-        }
-
-        @Override
-        public int[] assignments() {
-            return new int[0];
-        }
-
-        @Override
-        public int[] soarAssignments() {
-            return new int[0];
+        public byte[] getCentroid(int vectorOrdinal) {
+            return null;
         }
     };
 
-    public static KMeansResult singleCluster(float[] centroid, int numVectors) {
-        return new KMeansResult(new float[][] { centroid }, new int[numVectors], new int[0]);
+    @SuppressWarnings("unchecked")
+    public static <V> KMeansResult<V> empty(CentroidOps<V> ops) {
+        if (ops instanceof CentroidOps.FloatOps) {
+            return (KMeansResult<V>) FLOAT_EMPTY;
+        } else {
+            return (KMeansResult<V>) BYTE_EMPTY;
+        }
     }
 
-    KMeansResult(float[][] centroids, int[] assignments, int[] soarAssignments) {
+    /**
+     * Returns the float-typed empty result for use in legacy diskbbq code.
+     */
+    public static KMeansResult<float[]> emptyFloat() {
+        return FLOAT_EMPTY;
+    }
+
+    public static KMeansResult<float[]> singleCluster(float[] centroid, int numVectors) {
+        return new KMeansResult<>(new float[][] { centroid }, new int[numVectors]);
+    }
+
+    KMeansResult(V[] centroids, int[] assignments) {
         assert centroids != null;
         assert assignments != null;
-        assert soarAssignments != null;
         this.centroids = centroids;
         this.assignments = assignments;
-        this.soarAssignments = soarAssignments;
         clusterCounts = new int[centroids.length];
     }
 
-    public float[] getCentroid(int vectorOrdinal) {
+    public V getCentroid(int vectorOrdinal) {
+        if (centroids.length == 0) {
+            return null;
+        }
         return centroids[assignments[vectorOrdinal]];
     }
 
-    public float[][] centroids() {
+    public V[] centroids() {
         return centroids;
     }
 
-    public CentroidSupplier centroidsSupplier() {
-        return CentroidSupplier.fromArray(centroids, EMPTY, centroids[0].length);
-    }
-
-    void setCentroids(float[][] centroids, int[] clusterCounts) {
+    void setCentroids(V[] centroids, int[] clusterCounts) {
         this.centroids = centroids;
         this.clusterCounts = clusterCounts;
     }
@@ -84,51 +86,31 @@ public class KMeansResult {
         return clusterCounts;
     }
 
-    void setSoarAssignments(int[] soarAssignments) {
-        this.soarAssignments = soarAssignments;
-    }
-
-    public int[] soarAssignments() {
-        return soarAssignments;
-    }
-
     /**
      * Merge multiple clustering results into a single result by concatenating centroids
      * in the provided order and reindexing assignments to the merged centroid layout.
-     * Soar assignments are offset the same way; if a result has no soar assignments,
-     * the merged result uses {@code -1} for those positions.exit
      */
-    public static KMeansResult merge(List<KMeansResult> results) {
+    public static <V> KMeansResult<V> merge(List<KMeansResult<V>> results, CentroidOps<V> ops) {
         int numCentroids = 0;
         int numAssignments = 0;
-        for (KMeansResult result : results) {
+        for (KMeansResult<V> result : results) {
             numCentroids += result.centroids().length;
             numAssignments += result.assignments().length;
         }
-        float[][] centroids = new float[numCentroids][];
+        V[] centroids = ops.newCentroidArrayShallow(numCentroids);
         int[] assignments = new int[numAssignments];
-        int[] spillAssignments = new int[numAssignments];
         int centroidOffset = 0;
         int assignmentOffset = 0;
-        for (KMeansResult result : results) {
-            float[][] resultCentroids = result.centroids();
+        for (KMeansResult<V> result : results) {
+            V[] resultCentroids = result.centroids();
             int[] resultAssignments = result.assignments();
-            int[] resultSoarAssignments = result.soarAssignments();
-            System.arraycopy(resultCentroids, 0, centroids, centroidOffset, resultCentroids.length);
+            ops.arrayCopy(resultCentroids, 0, centroids, centroidOffset, resultCentroids.length);
             for (int i = 0; i < resultAssignments.length; i++) {
                 assignments[assignmentOffset + i] = resultAssignments[i] + centroidOffset;
-            }
-            if (resultSoarAssignments.length > 0) {
-                for (int i = 0; i < resultAssignments.length; i++) {
-                    int soarAssignment = resultSoarAssignments[i];
-                    spillAssignments[assignmentOffset + i] = soarAssignment == -1 ? -1 : soarAssignment + centroidOffset;
-                }
-            } else {
-                Arrays.fill(spillAssignments, assignmentOffset, assignmentOffset + resultAssignments.length, -1);
             }
             centroidOffset += resultCentroids.length;
             assignmentOffset += resultAssignments.length;
         }
-        return new KMeansResult(centroids, assignments, spillAssignments);
+        return new KMeansResult<>(centroids, assignments);
     }
 }

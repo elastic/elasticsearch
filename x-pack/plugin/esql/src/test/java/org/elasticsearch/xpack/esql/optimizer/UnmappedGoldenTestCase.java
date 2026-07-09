@@ -46,8 +46,20 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         Map<String, String> views,
         String... nestedPaths
     ) {
-        Optional<Throwable> nullifyException = tryRunTestsNullifyOnly(query, stages, minimumSupportedVersion, views, nestedPaths);
-        Optional<Throwable> loadException = tryRunTestsLoadOnly(query, stages, minimumSupportedVersion, views, nestedPaths);
+        Optional<Throwable> nullifyException = tryRunTestsNullifyOnly(
+            query,
+            stages,
+            randomVersionSupportingOrNull(minimumSupportedVersion),
+            views,
+            nestedPaths
+        );
+        Optional<Throwable> loadException = tryRunTestsLoadOnly(
+            query,
+            stages,
+            randomVersionSupportingOrNull(minimumSupportedVersion),
+            views,
+            nestedPaths
+        );
         nullifyException.ifPresent(e -> {
             throw new RuntimeException(
                 loadException.isPresent() ? "Both nullify and load modes failed" : "Nullify mode failed (but load succeeded)",
@@ -58,7 +70,9 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     }
 
     protected void runTestsNullifyOnly(String query, EnumSet<Stage> stages, String... nestedPaths) {
-        runTestsNullifyOnly(query, stages, null, nestedPaths);
+        tryRunTestsNullifyOnly(query, stages, null, Map.of(), nestedPaths).ifPresent(
+            e -> { throw new RuntimeException("Nullify mode failed", e); }
+        );
     }
 
     protected void runTestsNullifyOnly(
@@ -67,17 +81,21 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         TransportVersion minimumSupportedVersion,
         String... nestedPaths
     ) {
-        tryRunTestsNullifyOnly(query, stages, minimumSupportedVersion, Map.of(), nestedPaths).ifPresent(e -> {
-            throw new RuntimeException("Nullify mode failed", e);
-        });
+        tryRunTestsNullifyOnly(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths).ifPresent(
+            e -> {
+                throw new RuntimeException("Nullify mode failed", e);
+            }
+        );
     }
 
     protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, String... nestedPaths) {
-        runTestsLoadOnly(query, stages, null, nestedPaths);
+        tryRunTestsLoadOnly(query, stages, null, Map.of(), nestedPaths).ifPresent(
+            e -> { throw new RuntimeException("Load mode failed", e); }
+        );
     }
 
     protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, TransportVersion minimumSupportedVersion, String... nestedPaths) {
-        tryRunTestsLoadOnly(query, stages, minimumSupportedVersion, Map.of(), nestedPaths).ifPresent(e -> {
+        tryRunTestsLoadOnly(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths).ifPresent(e -> {
             throw new RuntimeException("Load mode failed", e);
         });
     }
@@ -88,41 +106,44 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
      * exercise a version that predates a given wire-format change.
      */
     protected void runTestsLoadOnlyBelow(String query, EnumSet<Stage> stages, TransportVersion maxVersionExclusive, String... nestedPaths) {
-        loadOnlyBuilder(query, stages, Map.of(), nestedPaths).transportVersion(
-            TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive)
-        ).run();
+        tryRunTestsLoadOnly(query, stages, TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive), Map.of(), nestedPaths)
+            .ifPresent(e -> {
+                throw new RuntimeException("Load mode failed", e);
+            });
     }
 
+    /** Runs NULLIFY mode at the given exact transport version, or a builder-default random version if {@code null}. */
     private Optional<Throwable> tryRunTestsNullifyOnly(
         String query,
         EnumSet<Stage> stages,
-        TransportVersion minimumSupportedVersion,
+        TransportVersion transportVersion,
         Map<String, String> views,
         String... nestedPaths
     ) {
         var builder = builder(setUnmappedNullify(query)).views(views).nestedPath(ArrayUtils.prepend("nullify", nestedPaths)).stages(stages);
-        if (minimumSupportedVersion != null) {
-            builder.transportVersion(TransportVersionUtils.randomVersionSupporting(minimumSupportedVersion));
+        if (transportVersion != null) {
+            builder.transportVersion(transportVersion);
         }
         return builder.tryRun();
     }
 
+    /** Runs LOAD mode at the given exact transport version, or a builder-default random version if {@code null}. */
     private Optional<Throwable> tryRunTestsLoadOnly(
         String query,
         EnumSet<Stage> stages,
-        TransportVersion minimumSupportedVersion,
+        TransportVersion transportVersion,
         Map<String, String> views,
         String... nestedPaths
     ) {
-        var builder = loadOnlyBuilder(query, stages, views, nestedPaths);
-        if (minimumSupportedVersion != null) {
-            builder.transportVersion(TransportVersionUtils.randomVersionSupporting(minimumSupportedVersion));
+        var builder = builder(setUnmappedLoad(query)).views(views).nestedPath(ArrayUtils.prepend("load", nestedPaths)).stages(stages);
+        if (transportVersion != null) {
+            builder.transportVersion(transportVersion);
         }
         return builder.tryRun();
     }
 
-    private TestBuilder loadOnlyBuilder(String query, EnumSet<Stage> stages, Map<String, String> views, String... nestedPaths) {
-        return builder(setUnmappedLoad(query)).views(views).nestedPath(ArrayUtils.prepend("load", nestedPaths)).stages(stages);
+    private static TransportVersion randomVersionSupportingOrNull(TransportVersion minimumSupportedVersion) {
+        return minimumSupportedVersion == null ? null : TransportVersionUtils.randomVersionSupporting(minimumSupportedVersion);
     }
 
     private static String setUnmappedNullify(String query) {

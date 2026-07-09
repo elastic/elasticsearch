@@ -578,11 +578,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * restored), so Jackson's tokenization is safe.
      *
      * <p>Escaped mode (quoting off, escaping on) is also kept on Jackson even under no-trim: it is the only
-     * dialect where {@link #decodeFieldValue} is non-identity, and the record-materialized paths apply that
-     * decode in {@code parseRecord} while the bulk consumer applies it again — routing escaped mode through
-     * the house splitter would either double-decode or diverge from inference. The direct walkers exclude
-     * escaped mode for the same reason (no house grammar to mirror), so this keeps the house path confined
-     * to exactly the QUOTED / PLAIN dialects the walkers serve, where {@code decodeFieldValue} is identity.
+     * dialect where {@link #decodeFieldValue} is non-identity, so routing escaped mode through the house
+     * splitter would diverge from inference. The direct walkers exclude escaped mode for the same reason (no
+     * house grammar to mirror), so this keeps the house path confined to exactly the QUOTED / PLAIN dialects
+     * the walkers serve, where {@code decodeFieldValue} is identity.
      *
      * <p>Consequence — the escaped-mode no-trim residual: because escaped mode stays on Jackson even under
      * no-trim, it also KEEPS Jackson's {@code SKIP_EMPTY_LINES} first-column leading-whitespace eating (a
@@ -2793,6 +2792,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private long[] prefetchedRowStartBytes;
         private Iterator<List<?>> csvIterator;
+        /**
+         * Which value contract the live {@link #csvIterator} carries — the two record sources disagree, and the
+         * batch loop must decode exactly once. {@link CsvRecordIterator} (via {@code parseRecord}) already applied
+         * {@link #decodeFieldValue}; the Jackson bulk iterators deliver raw values because {@link #newCsvSchema}
+         * withholds the escape char in the no-quote modes. Always assigned together with {@link #csvIterator}
+         * through {@link #routeCsvIterator}.
+         */
+        private boolean csvIteratorDeliversDecoded;
         private List<String[]> prefetchedRows;
         private long prefetchedRowsBytes;
         // Inner close flag: gates hasNext() short-circuit after close and the one-shot teardown below. The base
@@ -3357,12 +3364,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // capture is NOT disabled here even for non-UTF-8 — recordReader counts bytes per
                     // options.encoding().
                     if (rowPositionSlot >= 0 || jacksonGrammarApplies() == false) {
-                        csvIterator = newCsvIterator(recordReader);
+                        // parseRecord already applied decodeFieldValue on both of its branches. That holds for the
+                        // no-trim reroute arm too, where the decode is the identity (QUOTED / PLAIN only), so the
+                        // contract is DECODED here even though only escaped mode can observe the difference.
+                        routeCsvIterator(newCsvIterator(recordReader), true);
                     } else if (statsStripeSize > 0 && StandardCharsets.UTF_8.equals(options.encoding())) {
                         // Stripe capture on the bulk path: wrap the reader so each row's char offset maps to a
                         // file-global byte offset (record-canonical stripe attribution) without leaving the fast
                         // Jackson path or re-decoding. Non-UTF-8 falls through and stripe capture safe-misses.
-                        csvIterator = newTrackedJacksonBulkIterator();
+                        routeCsvIterator(newTrackedJacksonBulkIterator(), false);
                     } else {
                         // Plain Jackson bulk path: neither a byte tracker (set only on the UTF-8 stripe path
                         // above) nor the record-reader path (rowPositionSlot >= 0) is active, so recordReader is
@@ -3373,7 +3383,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         if (statsStripeSize > 0) {
                             stripeCaptureDisabled = true;
                         }
-                        csvIterator = newJacksonBulkIterator(reader);
+                        routeCsvIterator(newJacksonBulkIterator(reader), false);
                     }
                 }
             }
@@ -3500,11 +3510,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                 String[] row = new String[rowList.size()];
                                 for (int i = 0; i < rowList.size(); i++) {
                                     Object val = rowList.get(i);
-                                    // decodeFieldValue is identity for quoted/plain (returns immediately),
-                                    // and un-escapes \t \n \\ / maps \N to null for the escaped mode — the
-                                    // bulk path's only per-value seam, so escaped decodes here as it does on
-                                    // the per-record path.
-                                    row[i] = val != null ? decodeFieldValue(val.toString()) : null;
+                                    // decodeFieldValue must run exactly once per field, and the two record sources
+                                    // carry opposite contracts: the Jackson bulk iterators deliver RAW values
+                                    // (newCsvSchema withholds the escape char in the no-quote modes, so the
+                                    // backslash reaches us untouched), while CsvRecordIterator.parseRecord already
+                                    // decoded. This seam therefore decodes only the raw arm. Decoding both would
+                                    // silently corrupt escaped mode — the only dialect where decodeFieldValue is
+                                    // non-identity (it un-escapes \t \n \\ and maps a whole-field \N to null).
+                                    String value = val != null ? val.toString() : null;
+                                    row[i] = csvIteratorDeliversDecoded ? value : decodeFieldValue(value);
                                 }
                                 if (hasCommentFilter && row.length > 0 && row[0] != null) {
                                     String trimmedFirstCell = row[0].trim();
@@ -3617,13 +3631,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
             );
         }
 
+        /**
+         * The single seam that installs a record source. Binding the iterator and its value contract together —
+         * rather than letting a call site set one and forget the other — is what keeps {@code decodeFieldValue}
+         * running exactly once per field: a new record source cannot be introduced without declaring whether it
+         * already decoded. {@code deliversDecoded} is true only for {@link CsvRecordIterator}, whose
+         * {@code parseRecord} decodes at tokenization.
+         */
+        private void routeCsvIterator(Iterator<List<?>> iterator, boolean deliversDecoded) {
+            csvIterator = iterator;
+            csvIteratorDeliversDecoded = deliversDecoded;
+        }
+
+        /** Drops the sampling iterator so {@link #readNextBatch}'s routing re-selects (and re-declares) a source. */
+        private void clearCsvIterator() {
+            routeCsvIterator(null, false);
+        }
+
         private List<Attribute> inferSchemaFromBatchReader(String headerLine) throws IOException {
             String[] columnNames = splitFieldsForOptions(headerLine, options);
             if (options.quoting()) {
                 // No type annotations on this path, so the fields are bare names — unwrap RFC 4180 quoting.
                 unquoteHeaderNames(columnNames, options.quoteChar());
             }
-            csvIterator = newCsvIterator(recordReader);
+            routeCsvIterator(newCsvIterator(recordReader), true);
             SchemaSample sample = collectSampleRows(
                 csvIterator,
                 options.commentPrefix(),
@@ -3636,7 +3667,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // Drop the per-record sampling iterator so the bulk Jackson path can pick up where the
             // sample left off. Without this reset, inferred-schema reads stay on the slow per-record
             // CsvLogicalRecordReader path for the remainder of the file.
-            csvIterator = null;
+            clearCsvIterator();
             if (sample.rows().isEmpty()) {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
                 return null;
@@ -3652,7 +3683,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private List<Attribute> inferSchemaHeaderlessFromBatchReader() throws IOException {
-            csvIterator = newCsvIterator(recordReader);
+            routeCsvIterator(newCsvIterator(recordReader), true);
             SchemaSample sample = collectSampleRows(
                 csvIterator,
                 options.commentPrefix(),
@@ -3662,7 +3693,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 recordReader,
                 splitStartByte
             );
-            csvIterator = null;
+            clearCsvIterator();
             if (sample.rows().isEmpty()) {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
                 return null;

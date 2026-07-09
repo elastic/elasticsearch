@@ -1,4 +1,0 @@
-FROM employees
-| FORK ( WHERE emp_no > 1 )
-       ( WHERE emp_no > 2 | SORT salary DESC | LIMIT 5 )
-| STATS c = COUNT(*)

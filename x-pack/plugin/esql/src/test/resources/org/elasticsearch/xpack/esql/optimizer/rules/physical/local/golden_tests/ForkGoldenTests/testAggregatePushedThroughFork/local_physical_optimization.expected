@@ -1,9 +1,0 @@
-LimitExec[1000[INTEGER],null]
-\_AggregateExec[[],[SUM($$partial$$c{r$}#0,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS c#1],SINGLE,[$$c$sum{r}#2, $$c$seen{r}#3],null]
-  \_MergeExec[[$$partial$$c{r$}#0]]
-    |_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0],FINAL,[$$partial$$c$count{r}#4, $$partial$$c$seen{r}#5],null]
-    | \_ExchangeExec[[$$partial$$c$count{r}#4, $$partial$$c$seen{r}#5],true]
-    |   \_EsStatsQueryExec[employees], stats[BasicStat[name=*, type=COUNT, query=null]], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":1,"boost":0.0}}},"source":"emp_no > 1@2:16"}}][$$partial$$c$count{r}#6, $$partial$$c$seen{r}#7], limit[], 
-    \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS $$partial$$c#0],FINAL,[$$partial$$c$count{r}#8, $$partial$$c$seen{r}#9],null]
-      \_ExchangeExec[[$$partial$$c$count{r}#8, $$partial$$c$seen{r}#9],true]
-        \_EsStatsQueryExec[employees], stats[BasicStat[name=*, type=COUNT, query=null]], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":2,"boost":0.0}}},"source":"emp_no > 2@3:16"}}][$$partial$$c$count{r}#10, $$partial$$c$seen{r}#11], limit[], 

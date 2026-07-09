@@ -28,8 +28,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.ArrayList;
@@ -41,20 +41,19 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Decomposes an {@link Aggregate} whose child is a {@link Fork} into per-branch partial
+ * Decomposes an {@link Aggregate} whose child is a {@link UnionAll} into per-branch partial
  * aggregates combined by a final merge aggregate. It fires whenever no branch contains a pipeline
- * breaker (see {@link PushDownUtils#canDecomposeAggregateThroughFork}). This covers every {@link Fork}
- * shape: the direct-leaf shape a heterogeneous {@code FROM} produces ({@code EsRelation}/
- * {@code ExternalRelation}, optionally under a {@code Project}), the subquery shape that
- * {@code FROM idx, (FROM ds | ...)} and views produce ({@code Project? > Eval? > Subquery}, or a bare
- * {@code Subquery}), a bare {@code FORK} command whose branches are streaming ({@code Project > Eval? > ...}),
- * and any other streaming branch such as a filtered leaf or a branch containing a lookup join. A branch
- * whose sub-pipeline already contains its own pipeline breaker (aggregation, sort, or limit) disqualifies
- * the whole {@code Fork} (the rewrite is all-or-nothing because branches must keep a homogeneous output
- * schema), so the aggregation stays on the coordinator.
+ * breaker (see {@link PushDownUtils#canDecomposeAggregateThroughUnionAll}). This covers the direct-leaf
+ * shape a heterogeneous {@code FROM} produces ({@code EsRelation}/{@code ExternalRelation}, optionally
+ * under a {@code Project}), the subquery shape that {@code FROM idx, (FROM ds | ...)} and views produce
+ * ({@code Project? > Eval? > Subquery}, or a bare {@code Subquery}), and any other streaming branch such
+ * as a filtered leaf or a branch containing a lookup join. A branch whose sub-pipeline already contains
+ * its own pipeline breaker (aggregation, sort, or limit) disqualifies the whole {@code UnionAll} (the
+ * rewrite is all-or-nothing because branches must keep a homogeneous output schema), so the aggregation
+ * stays on the coordinator.
  *
  * <p>The per-branch partial aggregate is placed directly on top of each branch (below the
- * {@code Fork}). The physical mapper folds the branch's streaming wrappers ({@code Project}/
+ * {@code UnionAll}). The physical mapper folds the branch's streaming wrappers ({@code Project}/
  * {@code Eval}/{@code Filter}/{@code Subquery}/join) into the data-node fragment and splits the partial
  * aggregate, so the initial aggregation runs next to the data.
  *
@@ -111,10 +110,10 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        if (!(aggregate.child() instanceof Fork fork)) {
+        if (!(aggregate.child() instanceof UnionAll unionAll)) {
             return aggregate;
         }
-        if (PushDownUtils.canDecomposeAggregateThroughFork(fork) == false) {
+        if (PushDownUtils.canDecomposeAggregateThroughUnionAll(unionAll) == false) {
             return aggregate;
         }
 
@@ -165,9 +164,9 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
         }
 
         // Build per-branch inner aggregates.
-        List<LogicalPlan> newBranches = new ArrayList<>(fork.children().size());
-        for (LogicalPlan branch : fork.children()) {
-            Map<NameId, Attribute> unionToBranch = buildNameResolutionMap(fork.output(), branch.output());
+        List<LogicalPlan> newBranches = new ArrayList<>(unionAll.children().size());
+        for (LogicalPlan branch : unionAll.children()) {
+            Map<NameId, Attribute> unionToBranch = buildNameResolutionMap(unionAll.output(), branch.output());
 
             // Build grouping Aliases: Alias(name, branchAttr, sharedGroupingId).
             // The raw resolved attribute goes in branchGroupings — CombineProjections requires
@@ -242,9 +241,9 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
                 );
             }
         }
-        // Preserve the concrete Fork subtype (e.g. ViewUnionAll keeps its named-subquery metadata),
+        // Preserve the concrete UnionAll subtype (e.g. ViewUnionAll keeps its named-subquery metadata),
         // mirroring how PushDownFilterAndLimitIntoUnionAll rebuilds branches via replaceChildren.
-        Fork newFork = fork.replaceSubPlansAndOutput(newBranches, unionOutput);
+        UnionAll newUnionAll = unionAll.replaceSubPlansAndOutput(newBranches, unionOutput);
 
         // Build the outer combiner Aggregate.
         // Groupings reference the shared grouping IDs from the UnionAll output.
@@ -293,7 +292,7 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
             }
         }
 
-        return new Aggregate(aggregate.source(), newFork, combinerGroupings, combinerAggs);
+        return new Aggregate(aggregate.source(), newUnionAll, combinerGroupings, combinerAggs);
     }
 
     /**

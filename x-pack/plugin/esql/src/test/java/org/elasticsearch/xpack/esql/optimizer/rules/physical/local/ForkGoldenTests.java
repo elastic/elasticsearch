@@ -62,41 +62,4 @@ public class ForkGoldenTests extends GoldenTestCase {
             | LIMIT 10
             """, STAGES);
     }
-
-    /**
-     * A {@code STATS} over a {@code FORK} of streaming (WHERE-only) branches decomposes: a partial {@code COUNT} runs on
-     * top of each branch, next to the data, and the coordinator sums the per-branch counts. The plan keeps a bare
-     * {@code Fork} (never upgraded to a {@code UnionAll}).
-     */
-    public void testAggregatePushedThroughFork() {
-        runGoldenTest("""
-            FROM employees
-            | FORK ( WHERE emp_no > 1 )
-                   ( WHERE emp_no > 2 )
-            | STATS c = COUNT(*)
-            """, STAGES);
-    }
-
-    /** Grouped counterpart: the per-branch partial counts are grouped by the {@code _fork} discriminator. */
-    public void testGroupedAggregatePushedThroughFork() {
-        runGoldenTest("""
-            FROM employees
-            | FORK ( WHERE emp_no > 1 )
-                   ( WHERE emp_no > 2 )
-            | STATS c = COUNT(*) BY _fork
-            """, STAGES);
-    }
-
-    /**
-     * A {@code FORK} branch that carries its own pipeline breaker ({@code SORT}/{@code LIMIT}) disqualifies the whole
-     * decomposition: the aggregation stays on the coordinator over the {@code Fork}.
-     */
-    public void testAggregateNotPushedThroughForkWithBranchBreaker() {
-        runGoldenTest("""
-            FROM employees
-            | FORK ( WHERE emp_no > 1 )
-                   ( WHERE emp_no > 2 | SORT salary DESC | LIMIT 5 )
-            | STATS c = COUNT(*)
-            """, STAGES);
-    }
 }

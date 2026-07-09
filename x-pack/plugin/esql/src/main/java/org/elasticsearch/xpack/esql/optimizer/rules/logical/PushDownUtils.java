@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -283,12 +282,10 @@ class PushDownUtils {
 
     /**
      * Returns {@code true} when {@link PushAggregateThroughUnionAll} may decompose an
-     * {@link Aggregate} over this {@code fork} into per-branch partial aggregates plus a
+     * {@link Aggregate} over this {@code unionAll} into per-branch partial aggregates plus a
      * coordinator combine. The rewrite is legal iff no branch contains a {@link PipelineBreaker}.
-     * It applies to every {@link Fork} shape: both {@link UnionAll} subtypes (heterogeneous
-     * {@code FROM} and views) and a bare {@code FORK} command.
      *
-     * <p>The identity {@code Agg(Fork(b1..bn)) == Combine(partial(b1)..partial(bn))} depends only
+     * <p>The identity {@code Agg(UnionAll(b1..bn)) == Combine(partial(b1)..partial(bn))} depends only
      * on the multiset of rows each branch emits, not on how the branch produces them. The per-branch
      * partial aggregate sits on top of the whole branch, so any streaming interior (projections,
      * evals, filters, subqueries, joins, sample, enrich) simply defines the branch's row-set and folds
@@ -297,16 +294,16 @@ class PushDownUtils {
      * a partial aggregate above it buys nothing "next to the data", and for a {@code LIMIT} the branch's
      * row-set is already gathered.
      *
-     * <p>Because a {@code Fork}'s branches must keep a homogeneous output schema, the rewrite is
-     * all-or-nothing: a single breaker-bearing branch disqualifies the whole {@code Fork} and the
+     * <p>Because a {@code UnionAll}'s branches must keep a homogeneous output schema, the rewrite is
+     * all-or-nothing: a single breaker-bearing branch disqualifies the whole {@code UnionAll} and the
      * aggregation stays on the coordinator.
      *
      * <p>The breaker scan is also self-terminating: after the rewrite each branch root is the injected
      * partial {@link Aggregate}, itself a {@link PipelineBreaker}, so this returns {@code false} on the
-     * combiner's {@code Fork} and the rule does not re-fire.
+     * combiner's {@code UnionAll} and the rule does not re-fire.
      */
-    static boolean canDecomposeAggregateThroughFork(Fork fork) {
-        return fork.children().stream().allMatch(PushDownUtils::isDecomposableAggregateBranch);
+    static boolean canDecomposeAggregateThroughUnionAll(UnionAll unionAll) {
+        return unionAll.children().stream().allMatch(PushDownUtils::isDecomposableAggregateBranch);
     }
 
     private static boolean isDecomposableAggregateBranch(LogicalPlan branch) {

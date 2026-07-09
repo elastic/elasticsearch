@@ -1472,34 +1472,3 @@ FROM employees
 max_max:integer
 5
 ;
-
-// STATS over a FORK whose branches are streaming (WHERE only) decomposes into a partial COUNT
-// next to the data in each branch, summed on the coordinator. A row matching two branches is
-// emitted once per branch (FORK union-all semantics), so 10081 is counted twice.
-forkThenStatsCount
-required_capability: fork_v9
-
-FROM employees
-| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
-       (WHERE emp_no == 10081 OR emp_no == 10087)
-| STATS c = COUNT(*)
-;
-
-c:long
-4
-;
-
-forkThenStatsCountByFork
-required_capability: fork_v9
-
-FROM employees
-| FORK (WHERE emp_no == 10048 OR emp_no == 10081)
-       (WHERE emp_no == 10081 OR emp_no == 10087)
-| STATS c = COUNT(*) BY _fork
-| SORT _fork
-;
-
-c:long | _fork:keyword
-2      | fork1
-2      | fork2
-;

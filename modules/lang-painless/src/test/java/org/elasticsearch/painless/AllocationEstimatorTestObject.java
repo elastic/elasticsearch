@@ -46,6 +46,26 @@ public class AllocationEstimatorTestObject {
         return n;
     }
 
+    /** Instance method allowlisted with {@code @allocates_constant}; used to exercise the {@code def}-dispatch constant charge. */
+    public int constantAllocating() {
+        return 0;
+    }
+
+    /** Instance method allowlisted with {@code @allocates_constant[0]}; an audited no-op that must charge nothing via def. */
+    public int zeroAllocating() {
+        return 0;
+    }
+
+    /** Instance method allowlisted with a huge estimator; proves the def-dispatch path sanitizes and trips the limit. */
+    public int hugeAllocatingInstance() {
+        return 0;
+    }
+
+    /** Estimator for {@link #hugeAllocatingInstance()}: instance-method signature, so the receiver is the leading parameter. */
+    public static long hugeEstimateInstance(AllocationEstimatorTestObject receiver) {
+        return Long.MAX_VALUE;
+    }
+
     /**
      * Estimator for {@link #augmentedEstimated}: matches the underlying Java static signature (receiver first), returning a
      * value derived from both parameters so tests can prove the estimator saw each.

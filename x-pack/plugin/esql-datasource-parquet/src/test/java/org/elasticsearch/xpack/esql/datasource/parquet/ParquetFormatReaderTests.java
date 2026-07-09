@@ -3760,6 +3760,44 @@ public class ParquetFormatReaderTests extends ESTestCase {
         return messages;
     }
 
+    /**
+     * Same schema-mismatch scenario as {@link #testSchemaMismatchEmitsResponseWarningHeader}, but
+     * through {@link ParquetFormatReader#read(StorageObject, FormatReadContext)} with a
+     * {@link FormatReadContext#informationalWarningSink()} supplied: the mismatch warning must route through the
+     * sink instead of {@link HeaderWarning}, since {@code read} can be invoked from a background
+     * reader thread whose thread-local response headers never reach the client (see
+     * {@code SkipWarnings}).
+     */
+    public void testSchemaMismatchRoutesThroughWarningSinkWhenSupplied() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("x").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("x", 42);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData, "s3://bucket/warn.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.KEYWORD));
+        List<String> sunk = new ArrayList<>();
+
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                storageObject,
+                FormatReadContext.builder().batchSize(100).readSchema(plannerTypes).informationalWarningSink(sunk::add).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertTrue(page.getBlock(0).isNull(0));
+        }
+
+        // 1 summary + 1 detail
+        assertEquals("Expected summary + 1 detail, got: " + sunk, 2, sunk.size());
+        assertTrue("Summary should mention the file path, got: " + sunk.get(0), sunk.get(0).contains("s3://bucket/warn.parquet"));
+        assertTrue("Detail should mention column [x], got: " + sunk.get(1), sunk.get(1).contains("Column [x]"));
+        assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
+    }
+
     public void testReadRangeSelectsCorrectRowGroups() throws Exception {
         byte[] parquetData = createWideMultiRowGroupFile(500);
 

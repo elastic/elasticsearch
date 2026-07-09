@@ -476,14 +476,15 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         final SearchDirectory searchDirectory,
         final Collection<String> fileNames,
         final StatelessCompoundCommit statelessCompoundCommit
-    ) throws IOException {
+    ) {
         final Map<String, BlobFileRanges> metadata = searchDirectory.getBlobFileRangesForFiles(fileNames);
         final var ccTimestamp = statelessCompoundCommit.getTimestampFieldValueRange();
         return statelessCompoundCommit.commitFiles().entrySet().stream().collect(toUnmodifiableMap(Map.Entry::getKey, e -> {
             final String fileName = e.getKey();
             final BlobLocation fileLocation = e.getValue();
             final BlobFileRanges fileRanges = metadata.get(fileName);
-            if (fileRanges != null && fileRanges.blobLocation().equals(fileLocation)) {
+            assert fileRanges != null : "search directory does not track '" + fileName + "' file";
+            if (fileRanges.blobLocation().equals(fileLocation)) {
                 return fileRanges; // originating CC, preserved in SearchDirectory
             }
             return new BlobFileRanges(fileLocation, ccTimestamp);

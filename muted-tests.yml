@@ -244,9 +244,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats.sumWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/149574
-- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
-  method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
-  issue: https://github.com/elastic/elasticsearch/issues/149586
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/147383
@@ -814,3 +811,27 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/153282
+- class: org.elasticsearch.action.search.KnnSearchSingleNodeTests
+  method: testKnnWithQuery
+  issue: https://github.com/elastic/elasticsearch/issues/153319
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {datapage_v2.snappy}
+  issue: https://github.com/elastic/elasticsearch/issues/153325
+- class: org.elasticsearch.packaging.test.PackageUpgradeTests
+  method: test21CheckUpgradedVersion
+  issue: https://github.com/elastic/elasticsearch/issues/153329
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {delta_encoding_required_column}
+  issue: https://github.com/elastic/elasticsearch/issues/153336
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {data_index_bloom_encoding_with_length}
+  issue: https://github.com/elastic/elasticsearch/issues/153337
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {alltypes_dictionary}
+  issue: https://github.com/elastic/elasticsearch/issues/153338
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataFilterPathInExcludesAll [ndjson.bz/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/153339
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-multifile.aggregateMultiFileByGender [ndjson.bz/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/153340

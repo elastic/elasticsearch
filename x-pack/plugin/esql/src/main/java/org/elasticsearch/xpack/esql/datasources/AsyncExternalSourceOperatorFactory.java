@@ -2691,7 +2691,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         statsStripeSize,
                         statsColumnScope,
                         new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
-                        streamingSegmentatorAdmission
+                        streamingSegmentatorAdmission,
+                        producerBlockFactory != null ? producerBlockFactory.breaker() : new NoopCircuitBreaker("streaming-parse")
                     );
                 } catch (Exception e) {
                     try {

@@ -13,9 +13,13 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -40,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -438,15 +443,16 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         Max b2MaxFn = as(b2Max.child(), Max.class);
         assertThat(b2MaxFn.field(), equalTo(extSalary)); // resolved to external branch's attribute
 
-        // Partial IDs are shared across branches
+        // Partial aggregate IDs are shared across branches (their values are never foldable)
         assertThat(branch1.aggregates().get(0).id(), equalTo(branch2.aggregates().get(0).id())); // $$partial$$c
         assertThat(branch1.aggregates().get(1).id(), equalTo(branch2.aggregates().get(1).id())); // $$partial$$m
-        assertThat(branch1.aggregates().get(2).id(), equalTo(branch2.aggregates().get(2).id())); // dept shared
+        // Grouping alias IDs are distinct per branch so a foldable branch value cannot poison the union output
+        assertThat(branch1.aggregates().get(2).id(), not(equalTo(branch2.aggregates().get(2).id()))); // dept per-branch
 
-        // Shared ID matches the outer UnionAll output and the outer grouping
+        // Partial IDs match the outer UnionAll output; the grouping alias id does NOT (branches align positionally)
         assertThat(branch1.aggregates().get(0).id(), equalTo(newUnionAll.output().get(0).id()));
         assertThat(branch1.aggregates().get(1).id(), equalTo(newUnionAll.output().get(1).id()));
-        assertThat(branch1.aggregates().get(2).id(), equalTo(newUnionAll.output().get(2).id()));
+        assertThat(branch1.aggregates().get(2).id(), not(equalTo(newUnionAll.output().get(2).id())));
     }
 
     /**
@@ -1489,6 +1495,54 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     /**
+     * Regression for the grouping-key foldable poisoning bug. A subquery-shaped {@link UnionAll} is grouped by a
+     * column that one branch resolves to a real attribute and the other to a constant {@code null} — the shape
+     * {@code FROM idx, (FROM ds) METADATA _index | STATS ... BY _index} produces, where the subquery branch lacks the
+     * metadata column and union alignment nullifies it. Each branch's grouping-output alias must get a distinct
+     * {@link NameId}: reusing the canonical union id would let the plan-wide foldables collector
+     * ({@link RuleUtils#foldableReferencesSkipMVGroupings}, which feeds {@code PropagateEvalFoldables}) attribute the
+     * null branch's constant to the whole union output and fold downstream references of the grouping column to null.
+     */
+    public void testForeignBranchFoldableGroupingNotPoisoned() {
+        ReferenceAttribute unionIdx = new ReferenceAttribute(EMPTY, "idx", INTEGER);
+
+        // Real branch exposes a concrete idx column.
+        LogicalPlan realBranch = subqueryBranch(relation().withAttributes(List.of(getFieldAttribute("idx", INTEGER))));
+
+        // Null branch: the branch's data lacks idx, so union alignment nullifies it (Project > Eval[idx = null] > Subquery).
+        ExternalRelation ext = externalRelation(List.of(extAttr("other", INTEGER)));
+        Alias nullIdx = new Alias(EMPTY, "idx", new Literal(EMPTY, null, INTEGER));
+        Eval nullEval = new Eval(EMPTY, new Subquery(EMPTY, ext), List.of(nullIdx));
+        LogicalPlan nullBranch = new Project(EMPTY, nullEval, List.of(nullIdx.toAttribute()));
+
+        UnionAll unionAll = new UnionAll(EMPTY, List.of(realBranch, nullBranch), List.of(unionIdx));
+        Alias countAlias = new Alias(EMPTY, "c", new Count(EMPTY, Literal.TRUE));
+        Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(unionIdx), List.of(countAlias, unionIdx));
+
+        LogicalPlan result = new PushAggregateThroughUnionAll().apply(aggregate);
+        assertNotSame(aggregate, result);
+        assertValidPlan(result);
+
+        Aggregate outerAgg = as(result, Aggregate.class);
+        UnionAll newUnionAll = as(outerAgg.child(), UnionAll.class);
+        Aggregate branch1 = as(newUnionAll.children().get(0), Aggregate.class);
+        Aggregate branch2 = as(newUnionAll.children().get(1), Aggregate.class);
+
+        NameId b1GroupingId = groupingAliasId(branch1, "idx");
+        NameId b2GroupingId = groupingAliasId(branch2, "idx");
+        Attribute unionIdxOut = attributeNamed(newUnionAll.output(), "idx");
+
+        // Per-branch grouping alias ids are distinct from each other and from the canonical union id.
+        assertThat(b1GroupingId, not(equalTo(b2GroupingId)));
+        assertThat(b1GroupingId, not(equalTo(unionIdxOut.id())));
+        assertThat(b2GroupingId, not(equalTo(unionIdxOut.id())));
+
+        // The null branch's constant must not be attributed to the union grouping output.
+        AttributeMap<Expression> foldables = RuleUtils.foldableReferencesSkipMVGroupings(result, unboundLogicalOptimizerContext());
+        assertThat("union grouping output must not fold to a constant", foldables.containsKey(unionIdxOut), equalTo(false));
+    }
+
+    /**
      * {@link PushAggregateThroughUnionAll} must decompose over a {@link UnionAll} that mixes a direct-leaf
      * branch ({@link EsRelation}) with a subquery branch ({@code Project > Subquery > ExternalRelation}).
      */
@@ -2032,6 +2086,25 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         Failures failures = new Failures();
         plan.forEachUp(p -> PlanConsistencyChecker.checkPlan(p, failures));
         assertThat(failures.toString(), failures.hasFailures(), equalTo(false));
+    }
+
+    /** The {@link NameId} of the grouping-passthrough Alias named {@code name} in a per-branch Aggregate. */
+    private static NameId groupingAliasId(Aggregate branch, String name) {
+        for (NamedExpression ne : branch.aggregates()) {
+            if (ne instanceof Alias alias && alias.name().equals(name)) {
+                return alias.id();
+            }
+        }
+        throw new AssertionError("no grouping alias named [" + name + "] in " + branch.aggregates());
+    }
+
+    private static Attribute attributeNamed(List<Attribute> attributes, String name) {
+        for (Attribute attribute : attributes) {
+            if (attribute.name().equals(name)) {
+                return attribute;
+            }
+        }
+        throw new AssertionError("no attribute named [" + name + "] in " + attributes);
     }
 
     private static Attribute extAttr(String name, DataType type) {

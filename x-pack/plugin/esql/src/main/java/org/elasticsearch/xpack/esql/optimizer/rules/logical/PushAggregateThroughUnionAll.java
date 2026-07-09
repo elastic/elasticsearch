@@ -89,22 +89,27 @@ import java.util.Set;
  *     EsRelation[[dep{f1}, salary{f2}]]
  *     ExternalRelation[[dep{f3}, salary{f4}]]
  *
- * -- After:
- * Aggregate[c = SUM($$partial$$c), s = SUM($$partial$$s), d = FromPartial($$partial$$d, COUNT_DISTINCT),
- *           dep = Alias($$g_dep)] BY [$$g_dep]
- *   UnionAll[[$$partial$$c, $$partial$$s, $$partial$$d{PARTIAL_AGG}, $$g_dep]]
- *     Aggregate[$$partial$$c = COUNT(*), $$partial$$s = SUM(salary{f2}),
- *               $$partial$$d = ToPartial(COUNT_DISTINCT(salary{f2})), Alias(dep{f1})] BY [Alias(dep{f1})]
+ * -- After (the {@code #} suffixes highlight the ID scheme):
+ * Aggregate[c = SUM($$partial$$c#p1), s = SUM($$partial$$s#p2), d = FromPartial($$partial$$d#p3, COUNT_DISTINCT),
+ *           dep = Alias($$g_dep#g)] BY [$$g_dep#g]
+ *   UnionAll[[$$partial$$c#p1, $$partial$$s#p2, $$partial$$d#p3{PARTIAL_AGG}, $$g_dep#g]]
+ *     Aggregate[$$partial$$c#p1 = COUNT(*), $$partial$$s#p2 = SUM(salary{f2}),
+ *               $$partial$$d#p3 = ToPartial(COUNT_DISTINCT(salary{f2})), dep#b1 = Alias(dep{f1})] BY [dep{f1}]
  *       EsRelation[[dep{f1}, salary{f2}]]
- *     Aggregate[$$partial$$c = COUNT(*), $$partial$$s = SUM(salary{f4}),
- *               $$partial$$d = ToPartial(COUNT_DISTINCT(salary{f4})), Alias(dep{f3})] BY [Alias(dep{f3})]
+ *     Aggregate[$$partial$$c#p1 = COUNT(*), $$partial$$s#p2 = SUM(salary{f4}),
+ *               $$partial$$d#p3 = ToPartial(COUNT_DISTINCT(salary{f4})), dep#b2 = Alias(dep{f3})] BY [dep{f3}]
  *       ExternalRelation[[dep{f3}, salary{f4}]]
  * }</pre>
  *
- * <p>All partial aggregate aliases and shared grouping aliases use pre-allocated {@link NameId}s
- * that are consistent across branches, so the outer UnionAll output and the outer Aggregate's
- * grouping/aggregate references resolve correctly. The outer Aggregate preserves the output IDs
- * of the original Aggregate so that plan nodes above it remain valid.
+ * <p>ID scheme: partial-aggregate aliases share one pre-allocated {@link NameId} across all branches and the
+ * UnionAll output ({@code #p1}, {@code #p2}, {@code #p3} above), because their values (COUNT/SUM/... partials) are
+ * never foldable. Grouping columns instead get a single canonical {@link NameId} on the UnionAll output and the
+ * combiner ({@code #g}), while each branch mints its own fresh grouping-alias ID ({@code #b1}, {@code #b2}); branches
+ * align to the UnionAll output positionally. This split matters because a branch may resolve a grouping to a
+ * foldable/constant value (e.g. a subquery that nullifies a column it lacks); reusing the canonical grouping ID as
+ * the branch alias ID would let the plan-wide foldables collector attribute that one branch's constant to the whole
+ * union output and fold downstream references to it ({@code RuleUtils.collectFoldableRefs}, {@code PropagateEvalFoldables}).
+ * The outer Aggregate preserves the output IDs of the original Aggregate so that plan nodes above it remain valid.
  */
 public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<Aggregate> {
 
@@ -131,8 +136,11 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
             }
         }
 
-        // Pre-allocate a shared NameId per grouping attribute.
-        // These IDs appear in both the inner-branch grouping Aliases and the outer UnionAll output.
+        // Pre-allocate a canonical NameId per grouping attribute. This ID identifies the grouping
+        // column in the outer UnionAll output and is what the combiner Aggregate groups by. Unlike
+        // the partial-aggregate IDs, it is NOT reused as the per-branch grouping alias ID: each
+        // branch mints its own fresh ID (see the branch loop) so a branch's foldable grouping value
+        // cannot be attributed to the whole union output.
         LinkedHashMap<NameId, NameId> groupingIdToSharedId = new LinkedHashMap<>();
         for (Expression g : groupings) {
             Attribute attr = (Attribute) g;
@@ -168,11 +176,15 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
         for (LogicalPlan branch : unionAll.children()) {
             Map<NameId, Attribute> unionToBranch = buildNameResolutionMap(unionAll.output(), branch.output());
 
-            // Build grouping Aliases: Alias(name, branchAttr, sharedGroupingId).
+            // Build grouping Aliases: Alias(name, branchAttr, freshPerBranchId).
             // The raw resolved attribute goes in branchGroupings — CombineProjections requires
-            // groupings to be plain Attributes, not Aliases. The Alias with the shared ID goes
-            // only in branchAggs so the inner Aggregate's output carries the shared ID that the
-            // outer UnionAll and combiner Aggregate reference.
+            // groupings to be plain Attributes, not Aliases. The Alias goes only in branchAggs so
+            // the inner Aggregate's output carries a grouping column the outer UnionAll aligns to
+            // positionally. Each branch's grouping alias gets a fresh NameId (not the shared union
+            // id): a branch may resolve a grouping to a foldable/constant value (e.g. a subquery
+            // that nullifies a column it lacks), and reusing the union id here would let the
+            // plan-wide foldables collector attribute that single branch's constant to the whole
+            // union output, poisoning downstream references (see PropagateEvalFoldables).
             List<Expression> branchGroupings = new ArrayList<>(groupings.size());
             Map<NameId, Alias> groupingIdToAlias = new HashMap<>(groupings.size() * 2);
             for (Expression g : groupings) {
@@ -181,8 +193,7 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
                 if (resolved == null) {
                     return aggregate; // column not found in this branch — bail out
                 }
-                NameId sharedId = groupingIdToSharedId.get(gAttr.id());
-                Alias gAlias = new Alias(gAttr.source(), gAttr.name(), resolved, sharedId, true);
+                Alias gAlias = new Alias(gAttr.source(), gAttr.name(), resolved, new NameId(), true);
                 branchGroupings.add(resolved);
                 groupingIdToAlias.put(gAttr.id(), gAlias);
             }
@@ -191,7 +202,8 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
             // • aggregate function aliases → Alias(partialName, resolvedAggFn, partialId)
             // • grouping passthroughs → the Alias already created above (looked up by ID)
             // • groupings absent from aggs (pruned by PruneColumns) → appended so the branch
-            // still produces the shared grouping ID that the combiner groups by
+            // still produces the grouping column the UnionAll aligns to (positionally) and the
+            // combiner groups by
             List<NamedExpression> branchAggs = new ArrayList<>(aggs.size());
             for (NamedExpression ne : aggs) {
                 if (ne instanceof Attribute attr && groupingAttrIds.contains(attr.id())) {

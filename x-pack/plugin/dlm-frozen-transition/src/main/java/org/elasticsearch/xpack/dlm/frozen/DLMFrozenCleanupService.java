@@ -32,7 +32,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.logging.LogManager.getLogger;
 
@@ -44,7 +47,7 @@ import static org.elasticsearch.logging.LogManager.getLogger;
 class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
 
     static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
-        "dlm.frozen_cleanup.poll_interval",
+        "dlm.frozen.cleanup.poll_interval",
         TimeValue.timeValueDays(1),
         TimeValue.timeValueHours(1),
         Setting.Property.NodeScope
@@ -154,9 +157,15 @@ class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
 
             GetSnapshotsResponse getSnapshotsResponse = future.get();
 
+            Set<String> mountedSnapshotUuids = getMountedSnapshotUuids(projectMetadata);
+
             return getSnapshotsResponse.getSnapshots().stream().filter(snapshotInfo -> {
                 Map<String, Object> metadata = snapshotInfo.userMetadata();
                 if (metadata == null || Boolean.TRUE.equals(metadata.get(DLMConvertToFrozen.DLM_CREATED_METADATA_KEY)) == false) {
+                    return false;
+                }
+
+                if (mountedSnapshotUuids.contains(snapshotInfo.snapshotId().getUUID())) {
                     return false;
                 }
 
@@ -176,6 +185,22 @@ class DLMFrozenCleanupService extends AbstractDLMPeriodicMasterOnlyService {
         }
 
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns the snapshot UUIDs referenced by searchable snapshot indices currently mounted in
+     * the project, so those snapshots can be excluded from deletion even if their source index
+     * would otherwise be considered orphaned.
+     */
+    private static Set<String> getMountedSnapshotUuids(ProjectMetadata projectMetadata) {
+        return projectMetadata.indices()
+            .values()
+            .stream()
+            .map(IndexMetadata::getSettings)
+            .filter(SearchableSnapshotsSettings::isSearchableSnapshotStore)
+            .map(settings -> settings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
     }
 
     private boolean isIndexOrphaned(String indexName, ProjectMetadata projectMetadata) {

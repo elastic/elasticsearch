@@ -28,10 +28,10 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.problems.Problem;
 import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
-import org.gradle.api.problems.Severity;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
@@ -206,17 +206,26 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         if (unknownLicenses || unApprovedLicenses) {
             List<String> unapproved = unapprovedFiles(repFile);
             getLogger().error("The following files contain unapproved license headers:");
+            List<Problem> problems = new ArrayList<>();
             unapproved.forEach(file -> {
                 getLogger().error(file);
-                problemReporter.report(
-                    ProblemId.create("unapproved-license-header", "Unapproved license header", ElasticsearchBuildProblems.LICENSE_HEADERS),
-                    spec -> spec.contextualLabel("Unapproved license header in " + file)
-                        .severity(Severity.ERROR)
-                        .fileLocation(file)
-                        .solution("Add an approved license header to the file")
+                problems.add(
+                    problemReporter.create(
+                        ProblemId.create(
+                            "unapproved-license-header",
+                            "Unapproved license header",
+                            ElasticsearchBuildProblems.LICENSE_HEADERS
+                        ),
+                        spec -> spec.contextualLabel("Unapproved license header in " + file)
+                            .fileLocation(file)
+                            .solution("Add an approved license header to the file")
+                    )
                 );
             });
-            throw new GradleException("Check failed. License header problems were found. Full details: " + repFile.getAbsolutePath());
+            throw problemReporter.throwing(
+                new GradleException("Check failed. License header problems were found. Full details: " + repFile.getAbsolutePath()),
+                problems
+            );
         }
     }
 

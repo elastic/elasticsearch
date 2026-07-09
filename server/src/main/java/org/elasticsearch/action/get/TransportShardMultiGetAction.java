@@ -343,6 +343,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             GetResult getResult = indexShard.getService()
                 .mget(
                     item.id(),
+                    item.routing(),
                     item.storedFields(),
                     request.realtime(),
                     item.version(),

@@ -19,8 +19,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -37,6 +41,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
@@ -130,7 +135,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
          *
          * Operations on the transform node happen in {@link #nodeOperation()}
          */
-        var transformMetadata = TransformMetadata.getTransformMetadata(clusterState);
+        assert projectId != null : "transform tasks are project-scoped; projectId must be set";
+        var transformMetadata = TransformMetadata.transformMetadata(clusterState.metadata().getProject(projectId));
         if (transformMetadata.isUpgradeMode()) {
             return AWAITING_UPGRADE;
         }
@@ -394,9 +400,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }));
 
         // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
+        assert buildTask.getProjectId() != null : "transform tasks are project-scoped; projectId must be set";
+        final ProjectId nodeProjectId = ProjectId.fromId(buildTask.getProjectId());
         TransformInternalIndex.createLatestVersionedIndexIfRequired(
             clusterService,
             parentTaskClient,
+            nodeProjectId,
             transformExtension.getTransformInternalIndexAdditionalSettings(),
             templateCheckListener.delegateResponse((l, e) -> {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
@@ -458,7 +467,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     l -> transformServices.configManager().getTransformConfiguration(transformId, l),
                     ActionListener.runBefore(listener, () -> scheduler.deregisterTransform(transformId)),
                     retryListener(task),
-                    () -> true, // because we can't determine if this is an unattended transform yet, retry indefinitely
+                    // because we can't determine if this is an unattended transform yet, retry indefinitely.
+                    e -> true,
                     task.getContext()
                 )
             );
@@ -507,9 +517,15 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         Long previousCheckpoint,
         ActionListener<StartTransformAction.Response> listener
     ) {
-        // if we fail the first request, we are going to start retrying until we succeed. when start fails, it is because the cluster state
-        // is not handling updates yet, but the cluster will eventually recover on its own.
+        // if we fail the first request with a retryable error, we are going to start retrying until we succeed. when start fails with
+        // a retryable error, it is because the cluster state is not handling updates yet, but the cluster will eventually recover on
+        // its own. Permanent failures (e.g. the task is in a FAILED state, or its indexer can't be started) are not retried here: they
+        // won't resolve on their own, and looping on them just spams the audit log until the user force-stops the transform.
         var startRetriesOnFirstFailureListener = listener.delegateResponse((l, e) -> {
+            if (isRetryablePersistStateError(e) == false) {
+                l.onFailure(e);
+                return;
+            }
             // copy the params but replace the frequency, this is to prevent every transform from starting and retrying every second,
             // potentially sending many cluster state updates at once. instead, add randomness to spread out the retry requests after the
             // first retry
@@ -542,7 +558,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     ll -> buildTask.start(previousCheckpoint, ll),
                     ActionListener.runBefore(l, () -> scheduler.deregisterTransform(paramsWithExtendedTimer.getId())),
                     ActionListener.noop(),
-                    () -> true,
+                    TransformPersistentTasksExecutor::isRetryablePersistStateError,
                     buildTask.getContext()
                 )
             );
@@ -576,6 +592,34 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 doStart.run();
             }
         });
+    }
+
+    /**
+     * Classes of exception that are known to be transient failures at the cluster-state/master layer
+     * — the kind the retry loop in {@link #startTask} was originally designed for ("cluster state is
+     * not handling updates yet, but the cluster will eventually recover on its own"). Checked via
+     * {@link ExceptionsHelper#unwrap}, so a wrapped cause (e.g. {@code TransformTask#start}'s
+     * persist-failure branch) is still matched.
+     */
+    private static final Class<?>[] RETRYABLE_PERSIST_STATE_EXCEPTIONS = new Class<?>[] {
+        NotMasterException.class,
+        FailedToCommitClusterStateException.class,
+        ProcessClusterEventTimeoutException.class,
+        ConnectTransportException.class };
+
+    /**
+     * Decides whether a failure from starting a transform's persistent task should be retried.
+     * Defaults to false (whitelist): only known-transient cluster-state/master failures are retried.
+     * Permanent failures — e.g. {@code CannotStartFailedTransformException} (the task is in a FAILED
+     * state) or the indexer refusing to start — must not be retried, or the transform loops forever
+     * emitting "Failed while starting Transform. Automatically retrying..." until force-stopped.
+     */
+    private static boolean isRetryablePersistStateError(Exception e) {
+        if (ExceptionsHelper.unwrap(e, RETRYABLE_PERSIST_STATE_EXCEPTIONS) != null) {
+            return true;
+        }
+        ClusterBlockException clusterBlockException = (ClusterBlockException) ExceptionsHelper.unwrap(e, ClusterBlockException.class);
+        return clusterBlockException != null && clusterBlockException.retryable();
     }
 
     /**
@@ -644,7 +688,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                         ll -> transformServices.configManager().getTransformCloudCredentialByTokenId(credentialId, true, ll),
                         ActionListener.runBefore(l, () -> scheduler.deregisterTransform(transformId)),
                         retryListener(buildTask),
-                        () -> true,
+                        // Retries indefinitely — see the follow-up note on the getTransformConfig retry site above; a
+                        // ResourceNotFoundException here may legitimately be a transient "index still recovering" case.
+                        ex -> true,
                         buildTask.getContext()
                     )
                 );

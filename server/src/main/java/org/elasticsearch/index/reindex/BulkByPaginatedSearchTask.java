@@ -64,6 +64,7 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
 public class BulkByPaginatedSearchTask extends CancellableTask {
 
     private final boolean eligibleForRelocationOnShutdown;
+    private final String nodeId;
     private final boolean relocatedTask;
     // if task is a slice, RelocationOrigin won't be correct because it won't be the leader here, but it's overridden in the leader state
     private final ResumeInfo.RelocationOrigin relocationOrigin;
@@ -84,6 +85,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
     ) {
         super(taskId.getId(), type, action, description, parentTaskId, headers);
         this.eligibleForRelocationOnShutdown = eligibleForRelocationOnShutdown;
+        this.nodeId = taskId.getNodeId();
         this.relocatedTask = relocationOrigin != null;
         this.relocationOrigin = relocationOrigin != null ? relocationOrigin : new ResumeInfo.RelocationOrigin(taskId, this.startTime);
     }
@@ -342,6 +344,10 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
         } else {
             return Optional.empty();
         }
+    }
+
+    public String getNodeId() {
+        return nodeId;
     }
 
     /**

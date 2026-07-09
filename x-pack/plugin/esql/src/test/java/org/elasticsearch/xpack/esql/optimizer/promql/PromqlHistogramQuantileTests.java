@@ -7,15 +7,19 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
@@ -26,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -73,7 +78,6 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         assertThat(quantiles.getFirst().field().dataType(), equalTo(DataType.DOUBLE));
     }
 
-    @AwaitsFix(bugUrl = "implicit le wiring deferred to follow-up; requires explicit by (le)")
     public void testHistogramQuantileCastsLongBucketCountsToDouble() {
         // request_count_bucket is a long-typed counter; the lowered aggregate must still receive double counts.
         LogicalPlan translated = planHistogramPromql(
@@ -106,7 +110,6 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         assertThat(upperBound, equalTo(Instant.parse("2024-05-10T00:10:00Z").toEpochMilli()));
     }
 
-    @AwaitsFix(bugUrl = "implicit le wiring deferred to follow-up; requires explicit by (le)")
     public void testSumHistogramQuantileUsesOuterAggregateOverPromqlHistogramQuantile() {
         LogicalPlan translated = planHistogramPromql(
             "PROMQL index=prom_hist step=5m start=\"2024-05-10T00:10:00Z\" end=\"2024-05-10T00:10:00Z\" "
@@ -118,8 +121,8 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
             .stream()
             .filter(aggregate -> aggregate instanceof TimeSeriesAggregate == false)
             .toList();
-        // histogram_quantile over rate and sum(...) by (job) each add an outer Aggregate.
-        assertThat(outerAggs, hasSize(2));
+        // rate materialization, histogram_quantile, and sum(...) by (job) each add an Aggregate.
+        assertThat(outerAggs, hasSize(3));
         assertThat(
             outerAggs.stream().anyMatch(aggregate -> aggregate.aggregates().stream().anyMatch(agg -> agg.anyMatch(Sum.class::isInstance))),
             equalTo(true)
@@ -138,50 +141,91 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
     }
 
-    @AwaitsFix(bugUrl = "implicit le wiring deferred to follow-up; requires explicit by (le)")
-    public void testHistogramQuantileRateDropsPrometheusLeLabelFromOutput() {
-        List<String> columns = outputColumns(
-            planHistogramPromqlPrometheusLabels(
-                "PROMQL index=prom_hist_prom step=1m result=(histogram_quantile(0.5, rate(request_duration_seconds_bucket[1m])))"
-            )
-        );
-        assertThat(columns, not(hasItem("le")));
-        assertThat(columns, not(hasItem("labels.le")));
-    }
-
-    @AwaitsFix(bugUrl = "implicit le wiring deferred to follow-up; requires explicit by (le)")
-    public void testHistogramQuantilePrometheusPlanOutputDropsLe() {
-        List<String> labels = outputColumns(
-            planHistogramPromqlPrometheusLabels(
-                "PROMQL index=prom_hist_prom step=1m result=(histogram_quantile(0.5, rate(request_duration_seconds_bucket[1m])))",
-                false
-            )
-        );
-        assertThat(labels, not(hasItem("le")));
-        assertThat(labels, not(hasItem("labels.le")));
-    }
-
-    @AwaitsFix(bugUrl = "implicit le wiring deferred to follow-up; requires explicit by (le)")
-    public void testSumHistogramQuantileByIntegrationResolves() {
-        LogicalPlan plan = planHistogramPromqlPrometheusLabels(
-            "PROMQL index=prom_hist_prom step=5m start=\"2024-05-10T00:10:00Z\" end=\"2024-05-10T00:10:00Z\" "
-                + "value=(sum(histogram_quantile(0.9, rate(request_duration_seconds_bucket[5m]))) by (integration))"
-        );
-        assertTrue(plan.resolved());
-    }
-
-    @AwaitsFix(bugUrl = "implicit le wiring deferred to follow-up; requires explicit by (le)")
-    public void testHistogramQuantileWithoutLeUsesEvalAliasForUpperBound() {
-        LogicalPlan translated = planHistogramPromqlNoLe(
-            "PROMQL index=prom_hist_no_le step=5m result=(histogram_quantile(0.9, rate(request_duration_seconds_bucket[5m])))",
+    public void testHistogramQuantileImplicitLeUsesAttributeForUpperBound() {
+        LogicalPlan translated = planHistogramPromql(
+            "PROMQL index=prom_hist step=5m result=(histogram_quantile(0.9, rate(request_duration_seconds_bucket[5m])))",
             false
         );
-        assertWarnings("histogram_quantile: input vector has no le label; no buckets to evaluate");
-        // rate(...) is already aggregated, so histogram_quantile lowers into a regular Aggregate.
+        // The implicit bucket label must be carried as an attribute, not folded into a literal placeholder.
         PromqlHistogramQuantile quantile = collectQuantiles(translated).getFirst();
 
         assertThat(quantile.upperBound().collect(Attribute.class), not(empty()));
         assertThat(quantile.upperBound().collect(Literal.class), empty());
+    }
+
+    public void testExpHistogramQuantileUsesHistogramPercentile() {
+        LogicalPlan translated = planExpHistogramPromql("PROMQL index=exp_histo step=1m result=(histogram_quantile(0.9, responseTime))");
+        List<HistogramPercentile> percentiles = new ArrayList<>();
+        translated.forEachExpressionDown(HistogramPercentile.class, percentiles::add);
+        assertThat(percentiles, hasSize(1));
+        assertThat(percentiles.getFirst().dataType(), equalTo(DataType.DOUBLE));
+
+        assertThat(outputColumns(translated), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
+    }
+
+    public void testExpHistogramQuantileZeroUsesMin() {
+        LogicalPlan translated = planExpHistogramPromql("PROMQL index=exp_histo step=1m result=(histogram_quantile(0.0, responseTime))");
+        List<ExtractHistogramComponent> components = new ArrayList<>();
+        translated.forEachExpressionDown(ExtractHistogramComponent.class, components::add);
+        assertThat(components, hasSize(1));
+        assertThat(components.getFirst().dataType(), equalTo(DataType.DOUBLE));
+        assertThat(
+            components.getFirst().componentOrdinal(),
+            equalTo(new Literal(Source.EMPTY, ExponentialHistogramBlock.Component.MIN.ordinal(), DataType.INTEGER))
+        );
+        assertThat(outputColumns(translated), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
+    }
+
+    public void testExpHistogramQuantileOneUsesMax() {
+        LogicalPlan translated = planExpHistogramPromql("PROMQL index=exp_histo step=1m result=(histogram_quantile(1.0, responseTime))");
+        List<ExtractHistogramComponent> components = new ArrayList<>();
+        translated.forEachExpressionDown(ExtractHistogramComponent.class, components::add);
+        assertThat(components, hasSize(1));
+        assertThat(components.getFirst().dataType(), equalTo(DataType.DOUBLE));
+        assertThat(
+            components.getFirst().componentOrdinal(),
+            equalTo(new Literal(Source.EMPTY, ExponentialHistogramBlock.Component.MAX.ordinal(), DataType.INTEGER))
+        );
+        assertThat(outputColumns(translated), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
+    }
+
+    public void testExpHistogramQuantileFoldableExpressionUsesMax() {
+        LogicalPlan translated = planExpHistogramPromql(
+            "PROMQL index=exp_histo step=1m result=(histogram_quantile(2.0 * 0.5, responseTime))"
+        );
+        List<ExtractHistogramComponent> components = new ArrayList<>();
+        translated.forEachExpressionDown(ExtractHistogramComponent.class, components::add);
+        assertThat(components, hasSize(1));
+        assertThat(components.getFirst().dataType(), equalTo(DataType.DOUBLE));
+        assertThat(
+            components.getFirst().componentOrdinal(),
+            equalTo(new Literal(Source.EMPTY, ExponentialHistogramBlock.Component.MAX.ordinal(), DataType.INTEGER))
+        );
+        assertThat(outputColumns(translated), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
+    }
+
+    public void testExpHistogramQuantileWithIncrease() {
+        LogicalPlan translated = planExpHistogramPromql(
+            "PROMQL index=exp_histo step=1m result=(histogram_quantile(0.5, increase(responseTime[5m])))"
+        );
+        List<HistogramPercentile> percentiles = new ArrayList<>();
+        translated.forEachExpressionDown(HistogramPercentile.class, percentiles::add);
+        assertThat(percentiles, hasSize(1));
+        assertThat(percentiles.getFirst().dataType(), equalTo(DataType.DOUBLE));
+
+        assertThat(outputColumns(translated), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
+    }
+
+    public void testExpHistogramQuantileWithSumAcrossSeries() {
+        LogicalPlan translated = planExpHistogramPromql(
+            "PROMQL index=exp_histo step=1m result=(sum(histogram_quantile(0.5, responseTime)))"
+        );
+        List<HistogramPercentile> percentiles = new ArrayList<>();
+        translated.forEachExpressionDown(HistogramPercentile.class, percentiles::add);
+        assertThat(percentiles, hasSize(1));
+        assertThat(percentiles.getFirst().dataType(), equalTo(DataType.DOUBLE));
+
+        assertThat(outputColumns(translated), equalTo(List.of("result", "step")));
     }
 
     private LogicalPlan planHistogramPromql(String query) {
@@ -210,16 +254,13 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         return optimize ? logicalOptimizer.optimize(analyzed) : analyzed;
     }
 
-    private LogicalPlan planHistogramPromqlPrometheusLabels(String query) {
-        return planHistogramPromqlPrometheusLabels(query, true);
+    private LogicalPlan planExpHistogramPromql(String query) {
+        return planExpHistogramPromql(query, true);
     }
 
-    private LogicalPlan planHistogramPromqlPrometheusLabels(String query, boolean optimize) {
-        LogicalPlan analyzed = analyzerWithEnrichPolicies().addIndex(
-            "prom_hist_prom",
-            "mapping-promql-classic-histogram-prometheus-labels.json",
-            IndexMode.TIME_SERIES
-        ).query(query);
+    private LogicalPlan planExpHistogramPromql(String query, boolean optimize) {
+        LogicalPlan analyzed = analyzerWithEnrichPolicies().addIndex("exp_histo", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .query(query);
         return optimize ? logicalOptimizer.optimize(analyzed) : analyzed;
     }
 

@@ -25,38 +25,25 @@ public record EsqlStatement(LogicalPlan plan, List<QuerySetting> settings) {
      *
      * @param settingDef the setting to retrieve
      */
-    public <T> T setting(QuerySettings.QuerySettingDef<T> settingDef) {
+    public <T> T setting(QuerySettingDef<T> settingDef) {
         return settingOrDefault(settingDef, settingDef.defaultValue());
     }
 
-    /**
-     * Returns the value of a setting, but returns the given default value if the setting is not set.
-     * <p>
-     *     Use it like:
-     * </p>
-     * <pre><code>
-     *     var value = statement.settingOrDefault(QuerySettings.MY_SETTING, "default");
-     * </code></pre>
-     * <p>
-     *     To be used when a fallback is available.
-     * </p>
-     *
-     * @param settingDef the setting to retrieve
-     * @param defaultValue the value to return if the setting is not set
-     */
-    public <T> T settingOrDefault(QuerySettings.QuerySettingDef<T> settingDef, T defaultValue) {
+    /** Returns the SET value of a setting, or {@code defaultValue} if it was not set in the query. */
+    private <T> T settingOrDefault(QuerySettingDef<T> settingDef, T defaultValue) {
         Expression expression = setting(settingDef.name());
         if (expression == null) {
             return defaultValue;
         }
-        return settingDef.parse(expression);
+        return settingDef.readFromExpression(expression);
     }
 
     /**
-     * Returns the expression corresponding to a setting value.
-     * If the setting name appears multiple times, this will return last occurrence.
+     * Returns the raw SET expression for a setting name, or {@code null} if not set.
+     * If the setting name appears multiple times, this returns the last occurrence.
      * <p>
-     *     For testing purposes; use {@link #setting(QuerySettings.QuerySettingDef)} instead.
+     *     This is the low-level accessor used by {@link QuerySettings#resolve} to fold SET values; for a typed,
+     *     defaulted read prefer {@link #setting(QuerySettingDef)}.
      * </p>
      *
      * @param name the setting name

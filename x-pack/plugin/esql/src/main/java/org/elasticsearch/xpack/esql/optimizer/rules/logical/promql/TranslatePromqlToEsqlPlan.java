@@ -9,21 +9,24 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
@@ -44,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -60,10 +64,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
@@ -72,9 +79,11 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
@@ -98,6 +107,7 @@ import static org.elasticsearch.xpack.esql.core.expression.MetadataAttribute.isT
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAnd;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.canonicalName;
 
 /**
  * Translates PromQL logical plan into ESQL plan.
@@ -186,7 +196,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         /* Alias for the step bucket expression used in all aggregation groupings. May be null for empty indices. */
         Alias stepBucketAlias,
         /* The labels the child subtree MUST produce. */
-        InheritedAttributes inheritedAttributes
+        InheritedAttributes inheritedAttributes,
+        /* The current branch evaluation time (default: @timestamp). */
+        Expression time
     ) {
         Attribute stepAttr() {
             return stepBucketAlias != null ? stepBucketAlias.toAttribute() : promqlCommand.stepAttribute();
@@ -198,19 +210,105 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         return false;
     }
 
+    /**
+     * Create a predicate expression used for time based filter pushdown.
+     */
+    private static Expression createTimeFilterPredicate(PromqlCommand p, LogicalPlan plan, Configuration configuration) {
+        if (p.start().value() == null || p.end().value() == null) {
+            return null;
+        }
+        var offset = p.offset(plan);
+        var timestamp = p.timestamp();
+
+        var window = p.sourceFilterWindow();
+        var lo = new GreaterThanOrEqual(
+            p.source(),
+            timestamp,
+            new Sub(p.source(), p.start(), Literal.timeDuration(p.source(), window.plus(offset)), configuration)
+        );
+        var hi = new LessThanOrEqual(
+            p.source(),
+            timestamp,
+            new Sub(p.source(), p.end(), Literal.timeDuration(p.source(), offset), configuration)
+        );
+        return new And(p.source(), lo, hi);
+    }
+
+    /**
+     * Add `Eval` materializing synthetic timestamp (default: @timestamp).
+     */
+    private static LogicalPlan applyIntermediateTimestamp(
+        PromqlCommand p,
+        LogicalPlan plan,
+        Expression evalTime,
+        LogicalPlan branch,
+        Configuration configuration
+    ) {
+        if (evalTime instanceof ReferenceAttribute ref && p.timestampColumnName().equals(ref.name())) {
+            var expr = new Add(p.source(), p.timestamp(), Literal.timeDuration(p.source(), p.offset(branch)), configuration);
+            var time = new Alias(p.source(), p.timestampColumnName(), expr, ref.id());
+            return plan.transformUp(node -> node == p.child(), node -> new Eval(p.source(), node, List.of(time)));
+        }
+        return plan;
+    }
+
     @Override
     protected LogicalPlan rule(PromqlCommand cmd, AnalyzerContext context) {
-        Alias stepBucketAlias = canCreateStepBucket(cmd) ? createStepBucketAlias(cmd, context) : null;
+        // `or` is special-cased here because it is the only set operator that adds rows (more series), which
+        // requires a top-level multi-branch UnionAll that cannot compose as a single-value sub-expression. The
+        // row-filtering operators `and`/`unless` will instead translate as joins inside translateNode.
+        // PromQL `or` is left-associative, so flatten the top-level chain into independent branches.
+        List<LogicalPlan> branches = flattenTopLevelUnion(cmd.promqlPlan());
 
-        TranslationContext ctx = new TranslationContext(cmd, context, stepBucketAlias, InheritedAttributes.unconstrained());
+        if (branches.size() == 1) {
+            Expression timestampExpression = cmd.timestamp(cmd.promqlPlan());
+            Alias stepBucketAlias = canCreateStepBucket(cmd)
+                ? createStepBucketAlias(cmd, context.configuration(), cmd.stepId(), timestampExpression)
+                : null;
+            BranchPlan branch = translateBody(cmd, cmd.promqlPlan(), context, stepBucketAlias, cmd.valueId(), timestampExpression);
+            LogicalPlan plan = applyProjection(cmd, branch.plan());
+            plan = applyNullOutputFilter(cmd, plan);
+            if (branch.constFolded() == false) {
+                plan = applyIntermediateTimestamp(cmd, plan, timestampExpression, cmd.promqlPlan(), context.configuration());
+                plan = withTimestampFilter(cmd, plan);
+            }
+            return plan;
+        }
 
-        TranslationResult result = translateNode(cmd.promqlPlan(), cmd.child(), ctx);
+        LogicalPlan plan = translateUnion(cmd, context, branches);
+        return withTimestampFilter(cmd, plan);
+    }
+
+    /**
+     * Translates a single PromQL expression (a union branch, or the whole expression when there is no top-level
+     * union) into an ESQL plan whose output is {@code [value, step, labels...]}. The final projection to the
+     * command output and null-row filtering are applied by the caller.
+     */
+    private BranchPlan translateBody(
+        PromqlCommand cmd,
+        LogicalPlan promqlBranch,
+        AnalyzerContext context,
+        Alias stepBucketAlias,
+        NameId valueId,
+        Expression timestampExpression
+    ) {
+        TranslationContext ctx = new TranslationContext(
+            cmd,
+            context,
+            stepBucketAlias,
+            InheritedAttributes.unconstrained(),
+            timestampExpression
+        );
+
+        TranslationResult result = translateNode(promqlBranch, cmd.child(), ctx);
 
         result = tryConstFoldPureScalar(result, cmd, ctx);
 
         var plan = result.plan();
         var valueExpr = result.expression();
-        var filter = result.pendingFilter();
+        var filter = combineAndNullable(
+            Arrays.asList(result.pendingFilter(), createTimeFilterPredicate(cmd, promqlBranch, context.configuration()))
+        );
 
         // TODO: Fix selector-free PromQL evaluation to produce values even when no data
         // See https://github.com/elastic/elasticsearch/issues/149791
@@ -224,27 +322,100 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             // TODO: If we ever support metric references without last_over_time, we could
             // skip TimeSeriesAggregate and use plain Aggregate instead (see #141501 discussion).
             if (findAggregate(plan, Aggregate.class) == null) {
-                plan = createInnermostAggregatePlan(ctx, plan, SynthesizedAttributes.of(cmd.promqlPlan().output()), List.of(), valueExpr);
+                plan = createInnermostAggregatePlan(ctx, plan, SynthesizedAttributes.of(promqlBranch.output()), List.of(), valueExpr);
                 valueExpr = getValueOutput(plan);
             }
 
-            if (cmd.promqlPlan() instanceof VectorBinaryComparison binaryComparison && binaryComparison.filterMode()) {
+            if (promqlBranch instanceof VectorBinaryComparison binaryComparison && binaryComparison.filterMode()) {
                 // for comparison with the filtering mode, return the left operand and apply filter later
                 plan = addComparisonFilter(plan, binaryComparison, context, valueExpr);
             }
         }
 
-        plan = applyValueToDoubleConversion(cmd, plan, valueExpr);
+        plan = applyValueToDoubleConversion(cmd, plan, valueExpr, valueId);
 
-        plan = applyProjection(cmd, plan);
+        return new BranchPlan(plan, result.constFolded());
+    }
 
-        plan = applyNullOutputFilter(cmd, plan);
+    /** Result of translating a single PromQL branch, before projection/null/timestamp filtering. */
+    private record BranchPlan(LogicalPlan plan, boolean constFolded) {}
 
-        if (result.constFolded() == false) {
-            plan = withTimestampFilter(cmd, plan, context.configuration());
+    /**
+     * Translates a top-level {@code or} chain into a left-preferring union.
+     * <p>
+     * Each branch is translated independently, tagged with its position via a synthetic
+     * {@link PromqlCommand#branchColumnName() branch column}, and combined with {@link UnionAll}
+     * (which aligns columns by name and null-fills missing label columns).
+     * A {@link TopNBy} then keeps a single row per {@code (step, labelset)} group, ordered by branch ascending,
+     * so the leftmost branch's value wins - exactly matching PromQL's {@code a or b} semantics where {@code b}
+     * only contributes series whose labelset is absent from {@code a}.
+     */
+    private LogicalPlan translateUnion(PromqlCommand cmd, AnalyzerContext context, List<LogicalPlan> branches) {
+        // Already validated against Fork.MAX_BRANCHES by PromqlCommand.verify; asserted here against regressions.
+        assert Fork.exceedsMaxBranches(branches.size()) == false
+            : "union branch count [" + branches.size() + "] exceeds Fork.MAX_BRANCHES [" + Fork.MAX_BRANCHES + "]";
+
+        Source source = cmd.source();
+        List<LogicalPlan> branchPlans = new ArrayList<>(branches.size());
+        for (int i = 0; i < branches.size(); i++) {
+            // Each branch gets its own step/value attributes; the final projection maps them to the command output.
+            // Branches may carry independent offsets, so each derives its own shifted evaluation timestamp.
+            LogicalPlan branch = branches.get(i);
+            Expression timestampExpression = cmd.timestamp(branch);
+            Alias stepBucketAlias = createStepBucketAlias(cmd, context.configuration(), new NameId(), timestampExpression);
+            BranchPlan body = translateBody(cmd, branch, context, stepBucketAlias, new NameId(), timestampExpression);
+            LogicalPlan branchPlan = body.plan();
+            // Drop null-valued rows per branch so an absent left side does not shadow a present right side.
+            branchPlan = applyNullOutputFilter(cmd, branchPlan);
+            if (body.constFolded() == false) {
+                branchPlan = applyIntermediateTimestamp(cmd, branchPlan, timestampExpression, branch, context.configuration());
+            }
+            Alias branchTag = new Alias(source, cmd.branchColumnName(), new Literal(source, i, DataType.INTEGER));
+            branchPlan = new Eval(source, branchPlan, List.of(branchTag));
+            branchPlans.add(branchPlan);
         }
 
-        return plan;
+        // The attribute ids chosen here are preserved by name when the analyzer later recomputes the UnionAll
+        // output, so the groupings and projection built below remain valid.
+        List<Attribute> unionOutput = VectorBinarySet.unionOutputByName(branchPlans);
+        UnionAll union = new UnionAll(source, branchPlans, unionOutput);
+
+        // Group by step + all label columns (everything except the value and the synthetic branch tag).
+        List<Expression> groupings = new ArrayList<>();
+        Attribute branchAttr = null;
+        for (Attribute attr : unionOutput) {
+            if (attr.name().equals(cmd.branchColumnName())) {
+                branchAttr = attr;
+            } else if (attr.name().equals(cmd.valueColumnName()) == false) {
+                groupings.add(attr);
+            }
+        }
+
+        Order branchOrder = new Order(source, branchAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
+        LogicalPlan dedup = new TopNBy(source, union, List.of(branchOrder), new Literal(source, 1, DataType.INTEGER), groupings);
+
+        // Project to the command output; this also drops the synthetic branch tag.
+        return applyProjection(cmd, dedup);
+    }
+
+    /**
+     * Flattens a left-associative top-level {@code or} chain into an ordered list of branch expressions.
+     * Non-union nodes (and nested unions reachable only through non-union operators) are returned as single
+     * branches. The branch order is left-to-right, so branch 0 has the highest precedence.
+     */
+    private static List<LogicalPlan> flattenTopLevelUnion(LogicalPlan promqlPlan) {
+        List<LogicalPlan> branches = new ArrayList<>();
+        flattenTopLevelUnion(promqlPlan, branches);
+        return branches;
+    }
+
+    private static void flattenTopLevelUnion(LogicalPlan node, List<LogicalPlan> branches) {
+        if (node instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION) {
+            flattenTopLevelUnion(setOp.left(), branches);
+            flattenTopLevelUnion(setOp.right(), branches);
+        } else {
+            branches.add(node);
+        }
     }
 
     private static TranslationResult tryConstFoldPureScalar(TranslationResult result, PromqlCommand cmd, TranslationContext ctx) {
@@ -320,7 +491,8 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             ctx.promqlCommand,
             ctx.analyzerContext,
             ctx.stepBucketAlias,
-            inheritedAttributes
+            inheritedAttributes,
+            ctx.time
         );
         TranslationResult childResult = translateNode(agg.child(), currentPlan, childCtx);
 
@@ -358,7 +530,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
     private static InheritedAttributes getInheritedAttributes(AcrossSeriesAggregate agg, TranslationContext ctx) {
         return switch (agg.grouping()) {
-            case BY -> ctx.inheritedAttributes().including(agg.groupings());
+            case BY -> ctx.inheritedAttributes().limitedTo(agg.groupings());
             case WITHOUT -> ctx.inheritedAttributes().excluding(agg.groupings());
             case NONE -> InheritedAttributes.unconstrained();
         };
@@ -373,7 +545,8 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             ctx.promqlCommand,
             ctx.analyzerContext,
             ctx.stepBucketAlias,
-            histogramQuantileChildLabels(histogramQuantile)
+            histogramQuantileChildLabels(histogramQuantile, currentPlan, ctx),
+            ctx.time
         );
         TranslationResult childResult = translateNode(histogramQuantile.child(), currentPlan, childCtx);
 
@@ -381,19 +554,29 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             return childResult;
         }
 
+        // histogram_quantile operates either on classic histograms (counter backed) or native histograms
+        // at this point in the planning we can now distinguish those two
+        // classic histograms need a special treatment, while native histograms are regular
+        // ValueTransformationFunctions
+        if (childResult.expression().resolved() && childResult.expression().dataType().isHistogram()) {
+            var vtf = new ValueTransformationFunction(
+                histogramQuantile.source(),
+                histogramQuantile.child(),
+                PromqlHistogramQuantile.PROMQL_DEFINITION,
+                histogramQuantile.parameters()
+            );
+            return translateFunctionCall(vtf, currentPlan, ctx);
+        }
+
         LogicalPlan childPlan = childResult.plan();
         boolean childAlreadyAggregated = findAggregate(childResult.plan(), Aggregate.class) != null;
-        Attribute upperBound = childAlreadyAggregated
-            ? findAttributeByPromqlLabelName(childResult.synthesizedAttributes().declared(), HistogramQuantile.LE_LABEL)
-            : null;
+        Attribute upperBound = findAttributeByLabelName(childResult.synthesizedAttributes().declared(), HistogramQuantile.LE_LABEL);
         if (upperBound == null && childAlreadyAggregated) {
-            upperBound = findAttributeByPromqlLabelName(childResult.plan().output(), HistogramQuantile.LE_LABEL);
+            upperBound = findAttributeByLabelName(childResult.plan().output(), HistogramQuantile.LE_LABEL);
         }
         SynthesizedAttributes exportLabels;
         if (upperBound == null) {
             // Mirrors Prometheus, which warns and drops series whose `le` bucket label is missing.
-            // The implicit `histogram_quantile(rate(bucket[5m]))` shape is intentionally handled
-            // in a follow-up; this branch only lowers children that explicitly carry `le`.
             HeaderWarning.addWarning("histogram_quantile: input vector has no le label; no buckets to evaluate");
             exportLabels = preserveTimeseries(childResult.synthesizedAttributes(), histogramQuantile.child().output());
             LogicalPlan filteredChild = new Filter(histogramQuantile.source(), childPlan, Literal.FALSE);
@@ -402,6 +585,24 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 ? createOuterAggregatePlan(ctx, filteredChild, exportLabels, emptyResult)
                 : createInnermostAggregatePlan(ctx, filteredChild, exportLabels, List.of(), emptyResult);
             return new TranslationResult(resultPlan, getValueOutput(resultPlan), childResult.pendingFilter(), exportLabels);
+        }
+
+        if (childAlreadyAggregated == false) {
+            childPlan = createInnermostAggregatePlan(
+                ctx,
+                childPlan,
+                childResult.synthesizedAttributes(),
+                List.of(upperBound),
+                childResult.expression()
+            );
+            childResult = new TranslationResult(
+                childPlan,
+                getValueOutput(childPlan),
+                childResult.pendingFilter(),
+                synthesizedLabels(childPlan)
+            );
+            upperBound = findAttributeByLabelName(childPlan.output(), HistogramQuantile.LE_LABEL);
+            assert upperBound != null : "histogram_quantile child materialization must expose le";
         }
 
         // histogram_quantile groups by every label except the `le` bucket label, so the `le` attribute is the
@@ -418,9 +619,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             histogramQuantile.quantile()
         );
 
-        LogicalPlan resultPlan = childAlreadyAggregated
-            ? createOuterAggregatePlan(ctx, childPlan, exportLabels, aggregateExpression)
-            : createInnermostAggregatePlan(ctx, childPlan, exportLabels, excludedDimensions, aggregateExpression);
+        LogicalPlan resultPlan = createOuterAggregatePlan(ctx, childPlan, exportLabels, aggregateExpression);
 
         return new TranslationResult(resultPlan, getValueOutput(resultPlan), childResult.pendingFilter(), exportLabels);
     }
@@ -439,23 +638,66 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         return labels;
     }
 
-    private static InheritedAttributes histogramQuantileChildLabels(HistogramQuantile histogramQuantile) {
-        List<Attribute> childLabels = PromqlAttributesTranslationContext.dimensionAttributes(histogramQuantile.child().output());
-        List<Attribute> demand = childLabels.isEmpty() ? histogramQuantile.child().output() : childLabels;
-        return InheritedAttributes.unconstrained().including(demand);
+    private static SynthesizedAttributes synthesizedLabels(LogicalPlan plan) {
+        List<Attribute> labels = concreteDimensionAttributes(plan.output());
+        Attribute ts = PromqlAttributesTranslationContext.findByFieldName(plan.output(), MetadataAttribute.TIMESERIES);
+        if (ts != null) {
+            labels = PromqlAttributesTranslationContext.union(labels, List.of(ts));
+        }
+        return SynthesizedAttributes.of(labels);
     }
 
-    private static Attribute findAttributeByPromqlLabelName(List<Attribute> attributes, String labelName) {
-        for (Attribute attribute : attributes) {
-            if (promqlLabelKey(attribute).equals(labelName)) {
-                return attribute;
+    /**
+     * histogram_quantile groups by every label except the {@code le} bucket label, so the child must expose the labels
+     * the surrounding query still needs (the inherited scope) together with {@code le}. {@link InheritedAttributes#including}
+     * widens the inherited scope with the child's concrete dimensions and {@code le}: when the scope is finite (e.g. an
+     * outer {@code BY(job)}) those labels are preserved as concrete keys; when it is the full universe the enumerated
+     * dimensions stand in for it. When the child has no concrete dimensions and there is no {@code le}, fall back to the
+     * raw child output so its {@code _timeseries} identity survives.
+     */
+    private static InheritedAttributes histogramQuantileChildLabels(
+        HistogramQuantile histogramQuantile,
+        LogicalPlan currentPlan,
+        TranslationContext ctx
+    ) {
+        List<Attribute> identity = concreteDimensionAttributes(histogramQuantile.child().output());
+        Attribute upperBound = findAttributeByLabelName(currentPlan.output(), HistogramQuantile.LE_LABEL);
+        if (upperBound != null) {
+            return ctx.inheritedAttributes().including(identity).including(List.of(upperBound));
+        }
+        if (identity.isEmpty()) {
+            return ctx.inheritedAttributes().limitedTo(histogramQuantile.child().output());
+        }
+        return ctx.inheritedAttributes().including(identity);
+    }
+
+    private static List<Attribute> concreteDimensionAttributes(List<Attribute> attributes) {
+        return PromqlAttributesTranslationContext.filterDimensionAttributes(attributes)
+            .stream()
+            // FieldAttribute.timeSeriesAttribute(...) also reports as a dimension; keep it out of concrete label demand.
+            .filter(attribute -> isTimeSeriesAttributeName(attribute.name()) == false)
+            .toList();
+    }
+
+    private static Attribute findAttributeByLabelName(List<Attribute> attributes, String labelName) {
+        // Prometheus passthrough dimensions surface under two names: the concrete field (e.g. `labels.pod`) and a short
+        // alias (`pod`). `canonicalName` strips the passthrough prefix, so both match `labelName`. The `_timeseries`
+        // block loader excludes by the concrete dimension field name, so we must resolve to the concrete (prefixed)
+        // attribute and never to the bare alias - otherwise the exclusion name never matches and the label leaks. The
+        // bare attribute is the right answer only when no prefixed variant exists (a top-level dimension), so keep it
+        // as a fallback. Without this preference the result depended on the alphabetical order of `attributes`: labels
+        // sorting after `labels.` (e.g. `pod`) happened to hit the concrete field first, while earlier ones (`cluster`,
+        // `job`, `instance`) hit the alias and leaked.
+        Attribute bareMatch = null;
+        for (var attr : attributes) {
+            if (canonicalName(attr).equals(labelName)) {
+                if (attr.name().equals(labelName) == false) {
+                    return attr;
+                }
+                bareMatch = attr;
             }
         }
-        return null;
-    }
-
-    private static String promqlLabelKey(Attribute attr) {
-        return PromqlAttributesTranslationContext.fieldName(attr);
+        return bareMatch;
     }
 
     private static Expression histogramQuantileUpperBound(Source source, Attribute upperBound) {
@@ -532,7 +774,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         }
 
         PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
-            ctx.promqlCommand().timestamp(),
+            ctx.time(),
             window,
             ctx.stepAttr(),
             ctx.analyzerContext().configuration()
@@ -651,7 +893,14 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 && leftGroupingNames.equals(rightGroupingNames);
 
             if (areGroupingsCompatible == false) {
-                throw new QlIllegalArgumentException("binary expressions with different grouping keys not supported yet");
+                // Vector matching (on/ignoring modifiers) is not yet supported; surface as a 400 rather than a 500.
+                // See https://github.com/elastic/elasticsearch/issues/142596
+                throw new VerificationException(
+                    "Binary expressions between vectors with different grouping keys are not supported yet. "
+                        + "Left groupings: {}, right groupings: {}",
+                    leftGroupingNames,
+                    rightGroupingNames
+                );
             }
 
             // Merge aggregates; each side keeps its own filter condition.
@@ -710,7 +959,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         Expression expr;
         if (selector instanceof InstantSelector) {
             // InstantSelector maps to LastOverTime to get latest sample per time series
-            expr = new LastOverTime(selector.source(), selector.series(), AggregateFunction.NO_WINDOW, cmd.timestamp());
+            expr = new LastOverTime(selector.source(), selector.series(), AggregateFunction.NO_WINDOW, ctx.time());
         } else {
             expr = selector.series();
         }
@@ -738,7 +987,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     /** Build the aggregate function (sum, max, etc.) from the PromQL registry. */
     private static Expression createAggregateExpression(AcrossSeriesAggregate agg, Expression inputValue, TranslationContext ctx) {
         PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
-            ctx.promqlCommand().timestamp(),
+            ctx.time(),
             AggregateFunction.NO_WINDOW,
             ctx.stepAttr(),
             ctx.analyzerContext().configuration()
@@ -761,9 +1010,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         // exclusions).
         var translation = synthesizedAttributes.translateLeaf(pathExclusions);
 
-        // Only concrete dimension fields can be excluded from the `_timeseries` grouping; non-dimension labels are dropped.
-        List<Attribute> excludedDimensions = dimensionAttributes(translation.excludedDimensions());
-        boolean needsTimeSeriesGrouping = hasTSGrouping(translation.groupings()) || excludedDimensions.isEmpty() == false;
+        // Empty `without ()` retains the full label set T: translateLeaf surfaces a `_timeseries` grouping key for it
+        // (with an empty exclusion set), so hasTSGrouping already covers it - no separate full-label-set signal needed.
+        boolean needsTimeSeriesGrouping = hasTSGrouping(translation.groupings()) || translation.excludedDimensions().isEmpty() == false;
         // TranslateTimeSeriesAggregate splits this node into two phases, replacing inner
         // TimeSeriesAggregateFunctions (e.g. LastOverTime) with references to phase-1 results.
         // The phase-2 expression must remain a valid AggregateFunction inside the Aggregate node.
@@ -785,7 +1034,16 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         aggregates.add(ctx.stepAttr());
 
         if (needsTimeSeriesGrouping) {
-            var function = new TimeSeriesWithout(source, new ArrayList<Expression>(excludedDimensions));
+            // Resolve each excluded label to the concrete dimension column the child exposes, so the exclusion names
+            // match the backing dimension fields the `_timeseries` block loader enumerates: PromQL `pod` must become the
+            // stored dimension `labels.pod` for Prometheus passthrough data, otherwise the bare key never matches and
+            // the label leaks into the output. A label absent from the child stays unresolved and is simply a no-op.
+            List<Expression> excluded = new ArrayList<>(translation.excludedDimensions().size());
+            for (Attribute label : translation.excludedDimensions()) {
+                Attribute resolved = findAttributeByLabelName(plan.output(), canonicalName(label));
+                excluded.add(resolved != null ? resolved : label);
+            }
+            var function = new TimeSeriesWithout(source, excluded);
             var expression = function.createNamedExpression();
             groupings.add(expression);
             aggregates.add(expression.toAttribute());
@@ -799,24 +1057,11 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             }
         }
 
-        return new TimeSeriesAggregate(
-            source,
-            plan,
-            groupings,
-            aggregates,
-            null,
-            command.timestamp(),
-            TimeSeriesAggregate.Origin.PROMQL_COMMAND
-        );
+        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, ctx.time(), TimeSeriesAggregate.Origin.PROMQL_COMMAND);
     }
 
     private static boolean hasTSGrouping(List<Attribute> groupings) {
         return groupings.stream().anyMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
-    }
-
-    /** Keep only concrete dimension fields; non-dimension labels cannot be excluded from the {@code _timeseries} grouping. */
-    private static List<Attribute> dimensionAttributes(List<Attribute> attributes) {
-        return attributes.stream().filter(a -> a instanceof FieldAttribute fa && fa.isDimension()).toList();
     }
 
     /** Outer aggregation over an already-aggregated child. */
@@ -831,7 +1076,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
         var translation = labels.translate(plan.output());
 
-        if (labels.hasExclusions() && hasTSGrouping(translation.groupings())) {
+        if (labels.hasExclusions()) {
+            // A WITHOUT regroup (whether the child exposes `_timeseries` or only concrete labels) must pack its carried
+            // dimensions before aggregating: a multi-valued dimension would otherwise split the row and double-count.
             // Pack all carried dimensions before the aggregate to prevent multi-valued splitting,
             // then Unpack after. This covers keys (_timeseries or concrete), attributes (labels
             // to pass through), and missing labels (null-synthesized for BY over WITHOUT).
@@ -935,7 +1182,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     }
 
     private static Alias aliasExistingPromqlLabel(Source source, LogicalPlan plan, Attribute attribute) {
-        Attribute existing = findAttributeByPromqlLabelName(plan.output(), promqlLabelKey(attribute));
+        Attribute existing = findAttributeByLabelName(plan.output(), canonicalName(attribute));
         return existing == null ? nullAlias(attribute) : new Alias(source, attribute.name(), existing, attribute.id());
     }
 
@@ -957,29 +1204,33 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      * This is necessary to match PromQL semantics where series with missing data are dropped.
      * Note that this doesn't filter out label columns that are null, as those are valid in PromQL.
      * Example: {@code sum by (unknown_label) (metric)} is equivalent to {@code sum(metric)} in PromQL.
+     * <p>
+     * The filter targets the value column by name rather than by position: the value column is first in the
+     * projected command output but last in a freshly translated branch body (a value-shadowing {@code Eval}
+     * moves it to the end), and the union path filters before projecting.
      */
     private static LogicalPlan applyNullOutputFilter(PromqlCommand promqlCommand, LogicalPlan plan) {
-        return new Filter(promqlCommand.source(), plan, new IsNotNull(plan.output().getFirst().source(), plan.output().getFirst()));
+        Attribute valueAttr = null;
+        for (Attribute attr : plan.output()) {
+            if (attr.name().equals(promqlCommand.valueColumnName())) {
+                valueAttr = attr;
+                break;
+            }
+        }
+        assert valueAttr != null : "value column [" + promqlCommand.valueColumnName() + "] missing from plan output " + plan.output();
+        return new Filter(promqlCommand.source(), plan, new IsNotNull(valueAttr.source(), valueAttr));
     }
 
-    private static LogicalPlan withTimestampFilter(PromqlCommand promqlCommand, LogicalPlan plan, Configuration configuration) {
+    /**
+     * Applies the projection (output) filter on the {@code step} column. Step labels are anchored at {@code start} and are
+     * offset-independent, so this is shared across all branches and applied once at the command level.
+     */
+    private static LogicalPlan withTimestampFilter(PromqlCommand promqlCommand, LogicalPlan plan) {
         Literal start = promqlCommand.start();
         Literal end = promqlCommand.end();
         var source = promqlCommand.source();
         var step = promqlCommand.stepAttribute();
 
-        // Apply source filter: {@code t >= start - max(w)} AND {@code t <= end}
-        if (start.value() != null && end.value() != null) {
-            var timestamp = promqlCommand.timestamp();
-            var window = promqlCommand.sourceFilterWindow();
-            var child = promqlCommand.child();
-
-            var lo = new GreaterThanOrEqual(source, timestamp, new Sub(source, start, Literal.timeDuration(source, window), configuration));
-            var hi = new LessThanOrEqual(source, timestamp, end);
-            plan = plan.transformUp(p -> p == child, p -> new Filter(source, p, new And(source, lo, hi)));
-        }
-
-        // Apply projection filter, i.e. final output
         var lo = new GreaterThanOrEqual(source, step, start.value() != null ? start : Literal.dateTime(source, EPOCH_MIN));
         var hi = new LessThanOrEqual(source, step, end.value() != null ? end : Literal.dateTime(source, EPOCH_MAX));
         return new Filter(source, plan, new And(source, lo, hi));
@@ -998,33 +1249,50 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     }
 
     /** Ensure value column is double */
-    private static LogicalPlan applyValueToDoubleConversion(PromqlCommand promqlCommand, LogicalPlan plan, Expression valueExpr) {
+    private static LogicalPlan applyValueToDoubleConversion(
+        PromqlCommand promqlCommand,
+        LogicalPlan plan,
+        Expression valueExpr,
+        NameId valueId
+    ) {
         Source source = promqlCommand.source();
 
         if ((valueExpr instanceof Attribute == false && valueExpr.resolved() && valueExpr.dataType() == DataType.DOUBLE) == false) {
             valueExpr = new ToDouble(source, valueExpr);
         }
 
-        var value = new Alias(source, promqlCommand.valueColumnName(), valueExpr, promqlCommand.valueId());
+        var value = new Alias(source, promqlCommand.valueColumnName(), valueExpr, valueId);
         return new Eval(source, plan, List.of(value));
     }
 
-    private static Alias createStepBucketAlias(PromqlCommand p, AnalyzerContext context) {
-        var cfg = context.configuration();
-        var source = p.source();
-
+    /**
+     * Builds the {@code step} bucket alias for a branch: the {@link TStep} grouping key shared across all aggregation
+     * groupings, derived from the (possibly offset-shifted) {@code timestamp}. {@code stepId} names the synthetic column.
+     * <p>
+     * Because the bucket reads the evaluation timestamp, an {@code offset} shifts which samples fall into each fixed
+     * output bucket without moving the buckets themselves.
+     */
+    private static Alias createStepBucketAlias(
+        PromqlCommand p,
+        Configuration configuration,
+        NameId stepId,
+        Expression timestampExpression
+    ) {
+        Expression size;
+        Expression start;
+        Expression end;
         if (p.isInstantQuery()) {
-            Expression stepSize = Literal.timeDuration(source, p.resolveInstantQueryWindow());
-            Expression start = new Sub(p.start().source(), p.start(), stepSize, cfg);
-            var tstep = new TStep(stepSize.source(), stepSize, start, p.end(), p.timestamp(), cfg);
-            return new Alias(tstep.source(), p.stepColumnName(), tstep, p.stepId());
+            size = Literal.timeDuration(p.source(), p.resolveInstantQueryWindow());
+            start = new Sub(p.source(), p.start(), size, configuration);
+            end = p.end();
+        } else {
+            size = p.resolveTimeBucketSize();
+            start = p.start().value() != null ? p.start() : Literal.dateTime(p.source(), EPOCH_MIN);
+            end = p.end().value() != null ? p.end() : Literal.dateTime(p.source(), EPOCH_MAX);
         }
 
-        Expression timeBucketSize = p.resolveTimeBucketSize();
-        Expression start = p.start().value() != null ? p.start() : Literal.dateTime(source, EPOCH_MIN);
-        Expression end = p.end().value() != null ? p.end() : Literal.dateTime(source, EPOCH_MAX);
-        var tstep = new TStep(timeBucketSize.source(), timeBucketSize, start, end, p.timestamp(), cfg);
-        return new Alias(tstep.source(), p.stepColumnName(), tstep, p.stepId());
+        var tstep = new TStep(size.source(), size, start, end, timestampExpression, configuration);
+        return new Alias(tstep.source(), p.stepColumnName(), tstep, stepId);
     }
 
     private static boolean canCreateStepBucket(PromqlCommand cmd) {

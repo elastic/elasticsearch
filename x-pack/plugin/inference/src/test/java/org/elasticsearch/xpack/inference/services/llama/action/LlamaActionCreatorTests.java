@@ -47,7 +47,6 @@ import static org.elasticsearch.xpack.inference.external.http.retry.RetrySetting
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -258,7 +257,7 @@ public class LlamaActionCreatorTests extends ESTestCase {
         assertThat(requestMap.size(), is(2));
         assertThat(requestMap.get("contents"), instanceOf(List.class));
         var inputList = (List<String>) requestMap.get("contents");
-        assertThat(inputList, contains("abc"));
+        assertThat(inputList, is(List.of("abc")));
     }
 
     private void assertCommonRequestProperties() {

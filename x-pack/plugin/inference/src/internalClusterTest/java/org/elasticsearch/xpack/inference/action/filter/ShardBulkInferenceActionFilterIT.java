@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
-import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -231,24 +230,19 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
         // Set an inference string value on a field that uses an embedding inference service
         assertItemFailures(INDEX_NAME, () -> Map.of("embedding_field", randomInferenceString()), r -> {
-            // When the semantic field feature flag is enabled, object values are rejected by SemanticTextFieldMapper.
-            // When it is disabled, parsing fails in ShardBulkInferenceActionFilter.
-            String newFormatExpectedMessage = SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
-                ? "[semantic_text] field [embedding_field] does not support object values"
-                : "expected [String|Number|Boolean]";
-
             // In the legacy format, the value is parsed as a SemanticTextField, which requires an "inference" block.
-            // In the new format, the message depends on the semantic field feature flag.
-            String expectedMessage = useLegacyFormat ? "Required [inference]" : newFormatExpectedMessage;
+            // In the new format, object values are rejected by SemanticTextFieldMapper.
+            String expectedMessage = useLegacyFormat
+                ? "Required [inference]"
+                : "[semantic_text] field [embedding_field] does not support object values";
             assertThat(rootCause(r.getFailure().getCause()).getMessage(), containsString(expectedMessage));
         });
 
         // Set multiple inference string values on a field that uses an embedding inference service
         assertItemFailures(INDEX_NAME, () -> Map.of("embedding_field", List.of(randomInferenceString(), randomInferenceString())), r -> {
-            // In the legacy format or when the semantic field feature flag is disabled, ShardBulkInferenceActionFilter attempts to parse
-            // the list of objects and fails.
+            // In the legacy format, ShardBulkInferenceActionFilter attempts to parse the list of objects and fails.
             // In the new format, the value is rejected by SemanticTextFieldMapper.
-            String expectedMessage = useLegacyFormat || SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled() == false
+            String expectedMessage = useLegacyFormat
                 ? "expected [String|Number|Boolean]"
                 : "[semantic_text] field [embedding_field] does not support object values";
             assertThat(rootCause(r.getFailure().getCause()).getMessage(), containsString(expectedMessage));
@@ -257,9 +251,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         // Set a list of lists value on a field that uses an embedding inference service.
         // In both cases (legacy and new format), ShardBulkInferenceActionFilter attempts to parse the list of lists and fails.
         assertItemFailures(INDEX_NAME, () -> Map.of("embedding_field", List.of(List.of("foo", "bar"))), r -> {
-            String expectedMessage = useLegacyFormat || SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled() == false
-                ? "expected [String|Number|Boolean]"
-                : "expected [String|Number|Boolean|InferenceString]";
+            String expectedMessage = useLegacyFormat ? "expected [String|Number|Boolean]" : "expected [String|Number|Boolean|Object]";
             assertThat(rootCause(r.getFailure().getCause()).getMessage(), containsString(expectedMessage));
         });
     }
@@ -333,7 +325,6 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     }
 
     public void testSemanticBulkOperations() throws Exception {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
         assumeFalse("Legacy format does not apply to the semantic field", useLegacyFormat);
 
         prepareCreate(INDEX_NAME).setMapping(String.format(Locale.ROOT, """
@@ -354,7 +345,6 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     }
 
     public void testSemanticItemFailures() {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
         assumeFalse("Legacy format does not apply to the semantic field", useLegacyFormat);
 
         prepareCreate(INDEX_NAME).setMapping(String.format(Locale.ROOT, """
@@ -392,10 +382,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         assertItemFailures(
             INDEX_NAME,
             () -> Map.of("semantic_field", List.of(List.of("foo", "bar"))),
-            r -> assertThat(
-                rootCause(r.getFailure().getCause()).getMessage(),
-                containsString("expected [String|Number|Boolean|InferenceString]")
-            )
+            r -> assertThat(rootCause(r.getFailure().getCause()).getMessage(), containsString("expected [String|Number|Boolean|Object]"))
         );
     }
 

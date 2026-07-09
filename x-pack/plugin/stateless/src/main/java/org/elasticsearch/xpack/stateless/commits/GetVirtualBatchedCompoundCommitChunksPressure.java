@@ -30,15 +30,16 @@ import java.util.concurrent.atomic.AtomicLong;
  * requests. Tracks the memory used by in-progress requests and rejects a request if the memory to be used exceeds a limit.
  *
  * This is a last resort mechanism to prevent OOM. Hitting the pressure limit means there are numerous requests that have been started (does
- * not care about queued requests), have reserved memory for their chunks, and are waiting for their response to be formed and sent over
+ * not care about queued requests), have reserved memory for their chunks, and are waiting for their response to be sent over
  * the wire. A new request that requests a chunk with a size that exceeds the limit will be rejected with an
- * {@link EsRejectedExecutionException}. Otherwise, we count the memory for the chunk, which will be released when the response is sent.
+ * {@link EsRejectedExecutionException}. Otherwise, we count the memory for the chunk, which will be released when the transport
+ * send completes (success or failure).
  *
  * Note that there are a couple more safeguards that should help avoid reaching the limit in the first place. First, search nodes should be
  * typically sending requests with lengths of size up to 128KiB (see chunk size setting of {@link CacheBlobReaderService}). Second,
  * the VBCC chunk thread pool of {@link StatelessPlugin} that services this action, has a limited max size even on larger
  * servers. For this latter point, keep in mind that responses are sent from the transport threads, and the pressure mechanism is also
- * useful for this, as a preventive mechanism to avoid having too many responses sitting in memory.
+ * useful for this, as a preventive mechanism to avoid having too many responses sitting in memory while transport is still sending them.
  */
 public class GetVirtualBatchedCompoundCommitChunksPressure {
 

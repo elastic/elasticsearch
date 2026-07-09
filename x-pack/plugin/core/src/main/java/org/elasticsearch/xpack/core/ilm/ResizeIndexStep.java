@@ -93,7 +93,7 @@ public class ResizeIndexStep extends AsyncActionStep {
             .put(targetIndexSettingsSupplier.apply(indexMetadata))
             // We add the skip setting to prevent ILM from processing the shrunken index before the execution state has been copied - which
             // could happen if the shards of the shrunken index take a long time to allocate.
-            .put(LifecycleSettings.LIFECYCLE_SKIP, true)
+            .put(IndexMetadata.LIFECYCLE_SKIP, true)
             .build();
 
         ResizeRequest resizeRequest = new ResizeRequest(

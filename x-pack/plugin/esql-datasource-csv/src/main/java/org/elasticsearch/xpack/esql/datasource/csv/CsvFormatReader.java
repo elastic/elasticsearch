@@ -232,18 +232,13 @@ import java.util.function.Consumer;
  * </table>
  *
  * <h2>Examples</h2>
- * {@snippet lang="esql" :
- *   EXTERNAL "s3://bucket/data.tsv" WITH {"delimiter": "\t", "error_mode": "skip_row", "max_errors": 100}
- * }
- * {@snippet lang="esql" :
- *   EXTERNAL "s3://bucket/employees.csv" WITH {"multi_value_syntax": "brackets"}
- * }
- * {@snippet lang="esql" :
- *   EXTERNAL "s3://bucket/data.csv" WITH {"multi_value_syntax": "brackets", "error_mode": "skip_row"}
- * }
- * {@snippet lang="esql" :
- *   EXTERNAL "https://datasets.example.com/headerless.csv.gz" WITH {"header_row": false}
- * }
+ * A dataset is read with {@code FROM <dataset>}; the settings below are dataset configuration, not query syntax.
+ * <ul>
+ *   <li>A tab-separated export that tolerates bad rows: {@code delimiter=\t}, {@code error_mode=skip_row},
+ *       {@code max_errors=100}</li>
+ *   <li>A column holding {@code [a,b,c]} arrays: {@code multi_value_syntax=brackets}</li>
+ *   <li>A gzipped file with no header line: {@code header_row=false}</li>
+ * </ul>
  *
  * <p>Works with any {@link org.elasticsearch.xpack.esql.datasources.spi.StorageProvider}
  * (HTTP, S3, local filesystem).
@@ -441,7 +436,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * ErrorPolicy used by the planning-time {@link #metadata} call (which has no per-query
      * {@link FormatReadContext}). Resolved from the {@code WITH} options in {@link #withConfig}
-     * so a user request like {@code WITH {"error_mode": "skip_row"}} also applies to schema
+     * so a dataset configured with {@code error_mode=skip_row} also applies it to schema
      * sampling — matching common database readers' error-tolerance semantics.
      * Defaults to {@link #defaultErrorPolicy()} (FAIL_FAST), so unset implies "fail at planning
      * if the file cannot be sampled cleanly", consistent with the rest of the system.
@@ -687,7 +682,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // time, on the response header the query author actually reads.
             HeaderWarning.addWarning(
                 "Mode [escaped] with a quote override turns quoting on, which disables the escaped-mode decode "
-                    + "(\\N to null, \\t to tab). To keep decoding, remove the quote from the WITH options; "
+                    + "(\\N to null, \\t to tab). To keep decoding, do not set quote; "
                     + "keep it to parse quoted fields instead."
             );
         }
@@ -696,7 +691,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String commentPrefix = parseString(config.get(CONFIG_COMMENT), baseline.commentPrefix());
         String nullValue = parseString(config.get(CONFIG_NULL_VALUE), baseline.nullValue());
         Charset encoding = parseEncoding(config.get(CONFIG_ENCODING), baseline.encoding());
-        DateTimeFormatter datetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), baseline.datetimeFormatter());
+        DateFormatter datetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), baseline.datetimeFormatter());
         int maxFieldSize = parseInt(config.get(CONFIG_MAX_FIELD_SIZE), baseline.maxFieldSize());
         boolean headerRow = parseBooleanOption(CONFIG_HEADER_ROW, config.get(CONFIG_HEADER_ROW), baseline.headerRow());
         String columnPrefix = parseString(config.get(CONFIG_COLUMN_PREFIX), baseline.columnPrefix());
@@ -832,12 +827,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private static DateTimeFormatter parseDatetimeFormat(Object value, DateTimeFormatter baseline) {
+    /**
+     * Compiles the file-level {@code datetime_format} option into an ES {@link DateFormatter} — the same engine the
+     * per-column declared {@code format} ({@link #withDeclaredDateFormats}), the NDJSON reader's identically-named
+     * option and the date field mapper all parse with. One option name must not mean two pattern dialects.
+     */
+    private static DateFormatter parseDatetimeFormat(Object value, DateFormatter baseline) {
         if (value == null || value.toString().isEmpty()) {
             return baseline;
         }
         try {
-            return DateTimeFormatter.ofPattern(value.toString(), Locale.ROOT);
+            return DateFormatter.forPattern(value.toString());
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid datetime format [" + value + "]", e);
         }
@@ -1025,7 +1025,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
         try {
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
+            return CsvSchemaInferrer.inferSchema(columnNames, sample.rows(), options.datetimeFormatter());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
         }
@@ -1040,7 +1040,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 throw new IOException("CSV file has no data rows");
             }
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            return inferSyntheticSchema(sample.rows(), options.columnPrefix());
+            return inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
         }
@@ -1085,7 +1085,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             + "], column ["
                             + (c + 1)
                             + "] is the \\N null marker, but the current mode keeps it as literal text instead of reading "
-                            + "it as null. Set \"mode\": \"escaped\" in the WITH options to decode it; do not also set a "
+                            + "it as null. Set mode=escaped to decode it; do not also set a "
                             + "quote, which turns the decode back off."
                     );
                     return;
@@ -1106,7 +1106,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * user-facing "CSV file has no data rows" {@link IOException} themselves); the assertion is
      * just a programmer-error guard.
      */
-    static List<Attribute> inferSyntheticSchema(List<String[]> sampleRows, String prefix) {
+    static List<Attribute> inferSyntheticSchema(List<String[]> sampleRows, String prefix, @Nullable DateFormatter datetimeFormatter) {
         assert sampleRows.isEmpty() == false : "sampleRows must be non-empty for synthetic schema inference";
         int columnCount = 0;
         for (String[] row : sampleRows) {
@@ -1115,7 +1115,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
         String[] columnNames = synthesizeColumnNames(columnCount, prefix);
-        return CsvSchemaInferrer.inferSchema(columnNames, sampleRows);
+        return CsvSchemaInferrer.inferSchema(columnNames, sampleRows, datetimeFormatter);
     }
 
     static String[] synthesizeColumnNames(int count, String prefix) {
@@ -1150,8 +1150,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 rendered.add("'" + dup + "'");
             }
             throw new ParsingException(
-                "CSV header has duplicate column names {}; if the file has no header row, "
-                    + "set [\"header_row\": false] in the WITH options",
+                "CSV header has duplicate column names {}; if the file has no header row, " + "set header_row=false",
                 rendered.toString()
             );
         }
@@ -1265,7 +1264,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      *
      * <p>Aligning sampling with the runtime policy matches common database readers'
      * error-tolerance semantics (one budget covering both phases) and
-     * means a {@code WITH {"error_mode": "skip_row"}} request is honoured at planning time
+     * means a dataset configured with {@code error_mode=skip_row} is honoured at planning time
      * too — not just once data starts flowing.
      */
     static SchemaSample collectSampleRows(
@@ -1404,7 +1403,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 + row
                 + "]: "
                 + CsvErrorMessages.summarize(cause != null ? cause.getMessage() : "(no message)")
-                + "; set error_mode to skip_row (or null_field) in WITH options to skip and warn instead of failing"
+                + "; set error_mode=skip_row (or null_field) to skip and warn instead of failing"
         );
     }
 
@@ -1558,8 +1557,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // Every current dispatch path honors this; a future compressed macro-split (bzip2 /
         // zstd-indexed) would pass a compressed splitStartByte and MUST translate it first.
         //
-        // Falls back to effectivePolicy (resolved from WITH options in withConfig) so a user
-        // request like WITH {"error_mode": "skip_row"} also applies to the data path when no
+        // Falls back to effectivePolicy (resolved from the dataset config in withConfig) so an
+        // error_mode=skip_row dataset also applies it to the data path when no
         // upstream caller has built a FormatReadContext with an explicit policy. The planner
         // path always sets context.errorPolicy() explicitly.
         ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : effectivePolicy;
@@ -2717,7 +2716,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final boolean hasCommentFilter;
         private final boolean hasCustomNullValue;
         private final String nullValueStr;
-        private final DateTimeFormatter datetimeFormatter;
+        private final DateFormatter datetimeFormatter;
         private final boolean bracketMultiValues;
         private final String sourceLocation;
         private final SkipWarnings skipWarnings;
@@ -3648,7 +3647,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
             }
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
+            return CsvSchemaInferrer.inferSchema(columnNames, sample.rows(), options.datetimeFormatter());
         }
 
         private List<Attribute> inferSchemaHeaderlessFromBatchReader() throws IOException {
@@ -3674,7 +3673,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
             }
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            return inferSyntheticSchema(sample.rows(), options.columnPrefix());
+            return inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
         }
 
         private void initProjection() {
@@ -5498,7 +5497,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
                 case DATETIME -> tryParseDatetime(value, columnIndex);
-                case DATE_NANOS -> tryParseDateNanos(value);
+                case DATE_NANOS -> tryParseDateNanos(value, columnIndex);
                 case IP -> tryParseIp(value);
                 case VERSION -> tryParseVersion(value);
                 case NULL -> null;
@@ -5606,7 +5605,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
                 case DATETIME -> tryParseDatetime(value, columnIndex);
-                case DATE_NANOS -> tryParseDateNanos(value);
+                case DATE_NANOS -> tryParseDateNanos(value, columnIndex);
                 case IP -> tryParseIp(value);
                 case VERSION -> tryParseVersion(value);
                 case NULL -> null;
@@ -5684,9 +5683,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // epoch shortcut, the file-level datetime_format, and the ISO fast path — for THIS column only. The parse
             // goes through the shared DeclaredTypeCoercions.parseDatetimeMillis, the SAME string->datetime conversion
             // the columnar readers use for their string->date coercion, so identical bytes + declared format produce
-            // the identical instant regardless of source format. It is zone-aware (defaults a missing zone to UTC),
-            // unlike the LocalDateTime.parse path below which discards any parsed offset. Other columns keep today's
-            // behavior.
+            // the identical instant regardless of source format. Other columns keep today's behavior.
             if (columnIndex >= 0
                 && declaredFormatters != null
                 && columnIndex < declaredFormatters.length
@@ -5698,18 +5695,34 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return null;
                 }
             }
-            if (looksNumeric(value)) {
-                try {
-                    return Long.parseLong(value);
-                } catch (NumberFormatException e) {}
-            }
+            // The file-level datetime_format runs the same parse as the declared branch above, with the file-wide
+            // formatter. It outranks the numeric-epoch shortcut whenever it actually matches the cell, so an
+            // all-digit pattern (yyyyMMdd, basic_date, epoch_second) can win; tryParse asks that question without
+            // paying an exception on a miss. A numeric cell the pattern does NOT match stays epoch millis, which
+            // keeps an epoch column readable in a file whose other datetime columns use the pattern -- CSV's
+            // stand-in for the JSON number token that bypasses NDJSON's string formatter. Catch Exception like the
+            // declared branch: a single bad cell nulls out under the error policy, it never aborts the batch.
             if (datetimeFormatter != null) {
-                try {
-                    return LocalDateTime.parse(value, datetimeFormatter).toInstant(ZoneOffset.UTC).toEpochMilli();
-                } catch (DateTimeParseException e) {
-                    lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
-                    return null;
+                if (looksNumeric(value) == false || datetimeFormatter.tryParse(value) != null) {
+                    try {
+                        return DeclaredTypeCoercions.parseDatetimeMillis(value, datetimeFormatter);
+                    } catch (Exception e) {
+                        lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
+                        return null;
+                    }
                 }
+                Long epoch = parseEpoch(value);
+                if (epoch == null) {
+                    lastFieldError = "Failed to parse CSV datetime value [" + value + "]";
+                }
+                return epoch;
+            }
+            if (looksNumeric(value)) {
+                Long epoch = parseEpoch(value);
+                if (epoch != null) {
+                    return epoch;
+                }
+                // Overflowed a long; fall through to the ISO stages, which will report the failure.
             }
             // Stage 1: ES's hand-rolled ISO-8601 parser (T-separator, date-only, zones, fractions)
             // avoids the DateTimeFormatter Parsed-HashMap allocation that dominates DateUtils.asDateTime.
@@ -5755,20 +5768,47 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
 
-        private Object tryParseDateNanos(String value) {
-            if (looksNumeric(value)) {
+        private Object tryParseDateNanos(String value, int columnIndex) {
+            // Mirrors tryParseDatetime exactly, one rail down: a column with a declared `format` parses strictly with
+            // that ES DateFormatter, overriding the epoch shortcut and the file-level datetime_format, for THIS column
+            // only. Both rails go through EsqlDataTypeConverter.dateNanosToLong, so the declared and file-level formats
+            // agree with each other. No cross-format claim here, unlike tryParseDatetime: the columnar readers' string
+            // -> date_nanos coercion (DeclaredTypeCoercions.scalarCoercer) still uses the no-format overload, and NDJSON
+            // has no date_nanos support at all.
+            if (columnIndex >= 0
+                && declaredFormatters != null
+                && columnIndex < declaredFormatters.length
+                && declaredFormatters[columnIndex] != null) {
                 try {
-                    return Long.parseLong(value);
-                } catch (NumberFormatException e) {}
-            }
-            if (datetimeFormatter != null) {
-                try {
-                    Instant instant = LocalDateTime.parse(value, datetimeFormatter).toInstant(ZoneOffset.UTC);
-                    return org.elasticsearch.common.time.DateUtils.toLong(instant);
-                } catch (DateTimeParseException | ArithmeticException e) {
+                    return EsqlDataTypeConverter.dateNanosToLong(value, declaredFormatters[columnIndex]);
+                } catch (Exception e) {
                     lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
                     return null;
                 }
+            }
+            // See tryParseDatetime: the file-level pattern outranks the epoch shortcut when it matches the cell, and a
+            // numeric cell it does not match stays epoch nanos.
+            if (datetimeFormatter != null) {
+                if (looksNumeric(value) == false || datetimeFormatter.tryParse(value) != null) {
+                    try {
+                        return EsqlDataTypeConverter.dateNanosToLong(value, datetimeFormatter);
+                    } catch (Exception e) {
+                        lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                        return null;
+                    }
+                }
+                Long epoch = parseEpoch(value);
+                if (epoch == null) {
+                    lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                }
+                return epoch;
+            }
+            if (looksNumeric(value)) {
+                Long epoch = parseEpoch(value);
+                if (epoch != null) {
+                    return epoch;
+                }
+                // Overflowed a long; fall through to the ISO fallback, which will report the failure.
             }
             try {
                 return EsqlDataTypeConverter.dateNanosToLong(value);
@@ -5812,8 +5852,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, boolean structural) {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                 String hint = structural
-                    ? "; set error_mode to skip_row (or null_field) in WITH options to skip and warn instead of failing"
-                    : "; set error_mode to null_field in WITH options to null-fill the bad field instead of failing";
+                    ? "; set error_mode=skip_row (or null_field) to skip and warn instead of failing"
+                    : "; set error_mode=null_field to null-fill the bad field instead of failing";
                 throw new ParsingException(
                     cause,
                     Source.EMPTY,
@@ -5892,6 +5932,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case NULL -> Void.class;
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
             };
+        }
+
+        /**
+         * Reads a {@link #looksNumeric} cell as a raw epoch value. Returns {@code null} when the digits overflow a
+         * {@code long}; each caller decides what that means. Under a file-level format it is a hard field error —
+         * nothing else will parse the cell. Without one it falls through to the ISO stages, which report the failure.
+         */
+        private static Long parseEpoch(String value) {
+            try {
+                return Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                return null;
+            }
         }
 
         private static boolean looksNumeric(String value) {

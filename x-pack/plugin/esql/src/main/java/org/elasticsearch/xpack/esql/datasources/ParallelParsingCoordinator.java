@@ -569,32 +569,80 @@ public final class ParallelParsingCoordinator {
         }
 
         RecordSplitter splitter = reader.recordSplitter(maxRecordBytes);
+        boolean strided = splitter.supportsStridedProbing();
+        boolean proven = splitter.supportsProvenProbing();
+        // Strided segmentation probes record boundaries at arbitrary mid-file offsets, which is only correct
+        // when a raw newline is unambiguously a record terminator. A non-strided splitter (quoted/escaped
+        // CSV/TSV) can still be segmented when it supports proven probing: a macro-split range starts at a proven
+        // record boundary, so exactCursor seeds at the range start (offset 0). A splitter that is neither must
+        // have been routed to the whole-file sequential path upstream; if one reaches here the routing is broken,
+        // so fail loud rather than produce wrong segments.
+        if (strided == false && proven == false) {
+            throw new IllegalStateException(
+                "record splitter ["
+                    + splitter.getClass().getName()
+                    + "] supports neither strided nor proven probing and cannot be segmented"
+            );
+        }
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
 
+        // The last proven record start (range-relative), the base the exact walk streams from on AMBIGUOUS.
+        long exactCursor = 0L;
         long pos = nominalSize;
         while (pos < fileLength) {
             long remaining = fileLength - pos;
             if (remaining < minSegment) {
                 break;
             }
-            InputStream stream = storageObject.newStream(pos, remaining);
-            // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
-            // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
-            try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
-                long skipped = splitter.findNextRecordBoundary(stream);
-                if (skipped < 0) {
+            long boundary;
+            if (strided) {
+                InputStream stream = storageObject.newStream(pos, remaining);
+                // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
+                // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
+                try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
+                    long skipped = splitter.findNextRecordBoundary(stream);
+                    if (skipped < 0) {
+                        break;
+                    }
+                    boundary = pos + skipped;
+                }
+            } else {
+                long probed;
+                InputStream probeStream = storageObject.newStream(pos, remaining);
+                try (Closeable abortOnExit = () -> storageObject.abortStream(probeStream)) {
+                    probed = splitter.findProvenRecordBoundary(probeStream);
+                }
+                if (probed >= 0) {
+                    boundary = pos + probed;
+                } else if (probed == RecordSplitter.AMBIGUOUS) {
+                    // Exact walk from the last proven boundary. This path is range-bounded and read at planning
+                    // time, so it relies on the existing read-time cancellation rather than a new supplier.
+                    long walkRemaining = fileLength - exactCursor;
+                    InputStream walkStream = storageObject.newStream(exactCursor, walkRemaining);
+                    long start;
+                    try (Closeable abortOnExit = () -> storageObject.abortStream(walkStream)) {
+                        start = splitter.findRecordStartAtOrAfter(walkStream, pos - exactCursor, () -> false);
+                    }
+                    if (start == RecordSplitter.RECORD_TOO_LARGE || start < 0) {
+                        break;
+                    }
+                    boundary = exactCursor + start;
+                } else {
+                    // findProvenRecordBoundary only ever returns a boundary (>= 0) or AMBIGUOUS.
+                    assert false : "findProvenRecordBoundary returned an unexpected sentinel: " + probed;
                     break;
                 }
-                long boundary = pos + skipped;
-                if (boundary >= fileLength) {
-                    break;
-                }
-                if (fileLength - boundary < minSegment) {
-                    break;
-                }
-                boundaries.add(boundary);
             }
+            if (boundary >= fileLength) {
+                break;
+            }
+            if (fileLength - boundary < minSegment) {
+                break;
+            }
+            assert boundary > boundaries.get(boundaries.size() - 1) : "macro-split boundary must be strictly increasing";
+            boundaries.add(boundary);
+            exactCursor = boundary;
             pos = boundaries.get(boundaries.size() - 1) + nominalSize;
         }
 

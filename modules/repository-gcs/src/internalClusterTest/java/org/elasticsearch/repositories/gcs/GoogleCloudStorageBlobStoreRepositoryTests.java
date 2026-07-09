@@ -94,6 +94,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
     private static final Logger gcpTestLogger = LogManager.getLogger(GoogleCloudStorageBlobStoreRepositoryTests.class);
 
+    private static final ByteSizeValue CHUNK_SIZE_1_MB = ByteSizeValue.ofMb(1);
     private static final String CLIENT_ID_HEADER = "x-es-test-client-id";
 
     @Override
@@ -150,7 +151,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         // might lead to timeouts when reading the response after writing (or draining) large buffers (16 MB)
         settings.put(READ_TIMEOUT_SETTING.getConcreteSettingForNamespace("test").getKey(), "60s");
         // fixed 1mb buffer to allow testResumableWriteBufferInAction to verify chunk sizes
-        settings.put(RESUMABLE_WRITE_BUFFER_SIZE_SETTING.getConcreteSettingForNamespace("test").getKey(), "1mb");
+        settings.put(RESUMABLE_WRITE_BUFFER_SIZE_SETTING.getConcreteSettingForNamespace("test").getKey(), CHUNK_SIZE_1_MB);
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final byte[] serviceAccount = TestUtils.createServiceAccount(random());
@@ -237,7 +238,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
     public void testResumableWriteBufferInAction() throws Exception {
         // buffer size is fixed at 1mb by nodeSettings() for the "test" client
-        final int bufferSizeBytes = Math.toIntExact(ByteSizeValue.ofMb(1).getBytes());
+        final int bufferSizeBytes = Math.toIntExact(CHUNK_SIZE_1_MB.getBytes());
         final int numFullChunks = randomIntBetween(2, 4);
         // lastChunkSize < bufferSizeBytes to guarantee numFullChunks non-final chunks
         final int lastChunkSize = randomIntBetween(1, bufferSizeBytes - 1);
@@ -291,7 +292,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         issueUrl = "https://github.com/elastic/elasticsearch/issues/152286"
     )
     public void testWriteFileMultipleOfChunkSize() throws IOException {
-        final int uploadSize = Math.toIntExact(randomIntBetween(2, 4) * ByteSizeValue.ofMb(1).getBytes());
+        final int uploadSize = Math.toIntExact(randomIntBetween(2, 4) * CHUNK_SIZE_1_MB.getBytes());
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             final String key = randomIdentifier();

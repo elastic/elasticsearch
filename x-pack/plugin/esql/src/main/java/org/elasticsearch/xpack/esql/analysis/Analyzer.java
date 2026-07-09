@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
-import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -707,79 +705,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 bindResult.unresolvedMetadata(),
                 resolvedSource.declaredReadSpec()
             );
-            // A declared `copy_to` materializes as an EVAL `target = <source column>` above the base relation. Copies
-            // stay out of the read/reconciliation schema — every format reader gets them for free, the read path is
-            // untouched, and the copy reuses the plan's projection, pushdown alias-substitution, and cast machinery.
-            List<Alias> copyAliases = copyToAliases(plan.mapping(), relation.output(), plan.source());
-            // A requested _source on a _source.enabled: false dataset binds to a null constant here instead of a
-            // relation column — see bindMetadataFields's nullConstantMetadata. Combined with copy_to into one Eval.
-            List<Alias> evalAliases = bindResult.nullConstantMetadata();
-            if (copyAliases.isEmpty() == false) {
-                evalAliases = new ArrayList<>(evalAliases);
-                evalAliases.addAll(copyAliases);
-            }
-            return evalAliases.isEmpty() ? relation : new Eval(plan.source(), relation, evalAliases);
-        }
-
-        /**
-         * One {@link Alias} per declared {@code copy_to} target: {@code target = <the property's own column>}. The
-         * source column is a base-relation output attribute (a move renames it there; an as-is column keeps its name),
-         * so the copy is a plain reference — the optimizer substitutes it on pushdown. Empty when nothing copies, so
-         * the common path adds no {@code Eval}.
-         */
-        private static List<Alias> copyToAliases(DatasetMapping mapping, List<Attribute> baseOutput, Source source) {
-            DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
-            if (mappings == null) {
-                return List.of();
-            }
-            Map<String, Attribute> byName = new HashMap<>(baseOutput.size());
-            for (Attribute a : baseOutput) {
-                byName.putIfAbsent(a.name(), a);
-            }
-            List<Alias> aliases = new ArrayList<>();
-            for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
-                List<String> targets = e.getValue().copyTo();
-                if (targets.isEmpty()) {
-                    continue;
-                }
-                Attribute src = byName.get(e.getKey());
-                if (src == null) {
-                    // The source is always a declared/overlaid base output attribute; if it isn't, fail loud rather
-                    // than silently drop the copy.
-                    throw new IllegalArgumentException("copy_to source column [" + e.getKey() + "] is not present in the dataset schema");
-                }
-                for (String copyTo : targets) {
-                    if (byName.containsKey(copyTo)) {
-                        // The target collides with an existing (declared, inferred, or another copy) output column. An
-                        // EVAL would silently SHADOW/overwrite it — reject. PUT validation can't catch a collision with
-                        // an INFERRED column (no file I/O at PUT), so this is where the base output is finally known.
-                        throw new IllegalArgumentException(
-                            "copy_to target [" + copyTo + "] on column [" + e.getKey() + "] collides with an existing column"
-                        );
-                    }
-                    aliases.add(new Alias(source, copyTo, src));
-                    byName.put(copyTo, src); // reserve the target name so a later copy onto it is caught as a collision
-                }
-            }
-            return aliases;
+            return relation;
         }
 
         /**
          * Result of {@link #bindMetadataFields}: the enriched schema (resolved standard /
-         * {@code _file.*} names appended to the base schema), the list of metadata expressions the
-         * bind could not resolve, and any metadata columns bound to a null constant instead of a
-         * schema column (currently only a requested {@code _source} on a {@code _source.enabled:
-         * false} dataset — see the {@code _source} branch below). The unresolved list is threaded
+         * {@code _file.*} names appended to the base schema) and the list of metadata expressions the
+         * bind could not resolve. The unresolved list is threaded
          * through to {@link ExternalRelation#metadataFields()} so the verifier's
          * {@code checkUnresolvedAttributes} walk fires the indexed-equivalent
-         * {@code "Unresolved metadata pattern [...]"} error. The null-constant list rides an
-         * {@link Eval} above the relation, alongside {@link #copyToAliases}.
+         * {@code "Unresolved metadata pattern [...]"} error.
          */
-        private record MetadataBindResult(
-            List<Attribute> schema,
-            List<? extends NamedExpression> unresolvedMetadata,
-            List<Alias> nullConstantMetadata
-        ) {}
+        private record MetadataBindResult(List<Attribute> schema, List<? extends NamedExpression> unresolvedMetadata) {}
 
         /**
          * Walks the user's METADATA clause. Names registered in
@@ -799,7 +736,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<String> partitionColumnNames
         ) {
             if (plan.metadataFields().isEmpty()) {
-                return new MetadataBindResult(baseSchema, List.of(), List.of());
+                return new MetadataBindResult(baseSchema, List.of());
             }
             Set<String> existing = new LinkedHashSet<>();
             for (Attribute a : baseSchema) {
@@ -807,26 +744,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Attribute> enriched = null;
             List<NamedExpression> unresolved = null;
-            List<Alias> nullConstants = null;
             for (NamedExpression requested : plan.metadataFields()) {
                 // FROM's parser threads non-standard names through UnresolvedMetadataAttributeExpression
                 // (whose name() throws); EXTERNAL's parser threads plain UnresolvedAttribute. Resolve
                 // the textual name from either shape without invoking the throwing accessor.
                 String name = requested instanceof UnresolvedMetadataAttributeExpression unr ? unr.pattern() : requested.name();
                 if (existing.contains(name)) {
-                    continue;
-                }
-                // _source.enabled: false — mirrors a real index's disabled-_source behavior (SourceFieldMapper's
-                // ConstantNull block loader, see EsPhysicalOperationProviders): the query succeeds and _source reads
-                // as null. Bind _source to a null literal instead of adding it to the schema, so the relation's
-                // output never carries it and the producer-side SynthesizeExternalSource is never asked to build it
-                // (VirtualColumnIterator only synthesizes _source when it finds the column in the relation's output).
-                if (ExternalMetadataColumns.SOURCE.equals(name) && sourceDisabled(plan)) {
-                    if (nullConstants == null) {
-                        nullConstants = new ArrayList<>();
-                    }
-                    nullConstants.add(new Alias(plan.source(), name, new Literal(plan.source(), null, DataType.SOURCE)));
-                    existing.add(name);
                     continue;
                 }
                 // _id.path names the column the reader stamps _id from. If the dataset declares one but the resolved
@@ -887,13 +810,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Attribute> resolvedSchema = enriched == null ? baseSchema : List.copyOf(enriched);
             List<? extends NamedExpression> unresolvedList = unresolved == null ? List.of() : List.copyOf(unresolved);
-            List<Alias> nullConstantList = nullConstants == null ? List.of() : List.copyOf(nullConstants);
-            return new MetadataBindResult(resolvedSchema, unresolvedList, nullConstantList);
-        }
-
-        private static boolean sourceDisabled(UnresolvedExternalRelation plan) {
-            var mapping = plan.mapping();
-            return mapping != null && mapping.mappings() != null && mapping.mappings().sourceAvailable() == false;
+            return new MetadataBindResult(resolvedSchema, unresolvedList);
         }
 
         /** The declared {@code mappings._id.path}, or {@code null} when the dataset does not set {@code _id} from a column. */

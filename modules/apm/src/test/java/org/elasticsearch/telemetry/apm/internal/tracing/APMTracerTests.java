@@ -23,6 +23,10 @@ import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
@@ -47,8 +51,10 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -371,6 +377,40 @@ public class APMTracerTests extends ESTestCase {
         Span span = Span.fromContext(spanContext);
         assertThat(span.getSpanContext().getTraceId(), is(traceId));
         assertThat(span.getSpanContext().getSpanId(), is(remoteParentSpanId));
+    }
+
+    public void testTracingResumesAfterDisableAndReEnable() {
+        InMemorySpanExporter exporter = InMemorySpanExporter.create();
+        SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+            .setSampler(Sampler.alwaysOn())
+            .build();
+        OpenTelemetrySdk sdk = OpenTelemetrySdk.builder().setTracerProvider(tracerProvider).build();
+
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = new APMTracer(settings, () -> sdk, false, 0, false);
+        tracer.setNodeName("test-node");
+        tracer.setClusterName("test-cluster");
+        tracer.start();
+
+        startAndStopSpan(tracer, settings, TRACEABLE1, "resume-test-1");
+        assertThat(exporter.getFinishedSpanItems(), hasSize(1));
+
+        tracer.setEnabled(false);
+        exporter.reset();
+        startAndStopSpan(tracer, settings, TRACEABLE2, "resume-test-2");
+        assertThat(exporter.getFinishedSpanItems(), empty());
+
+        tracer.setEnabled(true);
+        startAndStopSpan(tracer, settings, TRACEABLE3, "resume-test-3");
+        assertThat(exporter.getFinishedSpanItems(), hasSize(1));
+
+        sdk.close();
+    }
+
+    private static void startAndStopSpan(APMTracer tracer, Settings settings, Traceable traceable, String spanName) {
+        tracer.startTrace(new ThreadContext(settings), traceable, spanName, null);
+        tracer.stopTrace(traceable);
     }
 
     private APMTracer buildTracer(Settings settings) {

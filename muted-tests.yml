@@ -655,9 +655,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.groupByMultipleRenamedColumns_AndTwoExpressions}
   issue: https://github.com/elastic/elasticsearch/issues/152801
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: initializationError
-  issue: https://github.com/elastic/elasticsearch/issues/152849
 - class: org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatTests
   method: testConjunctionOfRangeFiltersMatchesBruteForce
   issue: https://github.com/elastic/elasticsearch/issues/152886

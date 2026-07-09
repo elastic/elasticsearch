@@ -438,7 +438,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         assertEquals(testRequest.getMaxRetries(), testTask.getStatus().getSearchRetries());
     }
 
-    public void testScrollResponseSetsTotal() {
+    public void testPaginatedSearchResponseSetsTotal() {
         boolean usePit = configurePitOrScroll();
         assertEquals(0, testTask.getStatus().getTotal());
         long total = randomIntBetween(0, Integer.MAX_VALUE);
@@ -462,7 +462,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     /**
      * Tests that each scroll response is a batch and that the batch is launched properly.
      */
-    public void testScrollResponseBatchingBehavior() throws Exception {
+    public void testPaginatedSearchResponseBatchingBehavior() throws Exception {
         boolean usePit = configurePitOrScroll();
         int maxBatches = randomIntBetween(0, 100);
         for (int batches = 1; batches < maxBatches; batches++) {
@@ -623,7 +623,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     public void testShardFailuresAbortRequest() throws Exception {
         boolean usePit = configurePitOrScroll();
         PaginatedSearchFailure shardFailure = new PaginatedSearchFailure(new RuntimeException("test"));
-        PaginatedHitSource.Response scrollResponse = createPaginatedResponse(
+        PaginatedHitSource.Response paginatedSearchResponse = createPaginatedResponse(
             usePit,
             false,
             singletonList(shardFailure),
@@ -632,7 +632,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             null,
             null
         );
-        simulatePaginatedResponse(new DummyAsyncBulkByPaginatedSearchAction(), System.nanoTime(), 0, scrollResponse, usePit);
+        simulatePaginatedResponse(new DummyAsyncBulkByPaginatedSearchAction(), System.nanoTime(), 0, paginatedSearchResponse, usePit);
         BulkByPaginatedSearchResponse response = listener.get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), contains(shardFailure));
@@ -648,8 +648,16 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
      */
     public void testSearchTimeoutsAbortRequest() throws Exception {
         boolean usePit = configurePitOrScroll();
-        PaginatedHitSource.Response scrollResponse = createPaginatedResponse(usePit, true, emptyList(), 0, emptyList(), null, null);
-        simulatePaginatedResponse(new DummyAsyncBulkByPaginatedSearchAction(), System.nanoTime(), 0, scrollResponse, usePit);
+        PaginatedHitSource.Response paginatedSearchResponse = createPaginatedResponse(
+            usePit,
+            true,
+            emptyList(),
+            0,
+            emptyList(),
+            null,
+            null
+        );
+        simulatePaginatedResponse(new DummyAsyncBulkByPaginatedSearchAction(), System.nanoTime(), 0, paginatedSearchResponse, usePit);
         BulkByPaginatedSearchResponse response = listener.get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), empty());
@@ -790,7 +798,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         for (CountingHit h : List.of(h0, h1, h2)) {
             h.setSource(new BytesArray("{}"), XContentType.JSON);
         }
-        PaginatedHitSource.Response scrollResponse = createPaginatedResponse(
+        PaginatedHitSource.Response paginatedSearchResponse = createPaginatedResponse(
             false,
             false,
             emptyList(),
@@ -803,7 +811,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
-                    return scrollResponse;
+                    return paginatedSearchResponse;
                 }
 
                 @Override
@@ -1281,14 +1289,14 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         }
     }
 
-    public void testScrollConsumableHitsResponseCanBeConsumedInChunks() {
+    public void testPaginatedSearchConsumableHitsResponseCanBeConsumedInChunks() {
         boolean usePit = configurePitOrScroll();
         List<PaginatedHitSource.BasicHit> hits = new ArrayList<>();
         int numberOfHits = randomIntBetween(0, 300);
         for (int i = 0; i < numberOfHits; i++) {
             hits.add(new PaginatedHitSource.BasicHit("idx", "id-" + i, -1));
         }
-        final PaginatedHitSource.Response scrollResponse = createPaginatedResponse(
+        final PaginatedHitSource.Response paginatedSearchResponse = createPaginatedResponse(
             usePit,
             false,
             emptyList(),
@@ -1301,7 +1309,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
-                    return scrollResponse;
+                    return paginatedSearchResponse;
                 }
 
                 @Override
@@ -1341,7 +1349,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
      * checks in {@code prepareBulkRequest} / {@code sendBulkRequest} must release the batch slice and remaining hits when prepare
      * continues.
      */
-    public void testPartialScrollRequestFinishing() throws Exception {
+    public void testPartialPaginatedSearchRequestFinishing() throws Exception {
         configurePitOrScroll(false);
         testRequest.setMaxDocs(1);
         CountingHit h0 = new CountingHit("0");
@@ -1350,7 +1358,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         for (CountingHit h : List.of(h0, h1, h2)) {
             h.setSource(new BytesArray("{}"), XContentType.JSON);
         }
-        PaginatedHitSource.Response scrollResponse = createPaginatedResponse(
+        PaginatedHitSource.Response paginatedSearchResponse = createPaginatedResponse(
             false,
             false,
             emptyList(),
@@ -1366,7 +1374,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
-                    return scrollResponse;
+                    return paginatedSearchResponse;
                 }
 
                 @Override
@@ -1433,13 +1441,13 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     }
 
     /**
-     * Complementary to {@link #testPartialScrollRequestFinishing}: {@link AbstractAsyncBulkByPaginatedSearchAction#finishHim} runs first
+     * Complementary to {@link #testPartialPaginatedSearchRequestFinishing}: {@link AbstractAsyncBulkByPaginatedSearchAction#finishHim} runs first
      * and wins {@link AbstractAsyncBulkByPaginatedSearchAction#currentScrollResponse}'s {@code getAndSet(null)}, releasing unconsumed hits.
      * A later {@link AbstractAsyncBulkByPaginatedSearchAction#prepareBulkRequest} for the same
      * {@link AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse} must lose
      * the {@code compareAndSet(asyncResponse, null)} race and return without consuming or releasing again.
      */
-    public void testPrepareBulkRequestNoOpsWhenFinishHimAlreadyClaimedScrollResponse() {
+    public void testPrepareBulkRequestNoOpsWhenFinishHimAlreadyClaimedPaginatedSearchResponse() {
         configurePitOrScroll(false);
         CountingHit h0 = new CountingHit("0");
         CountingHit h1 = new CountingHit("1");
@@ -1447,7 +1455,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         for (CountingHit h : List.of(h0, h1, h2)) {
             h.setSource(new BytesArray("{}"), XContentType.JSON);
         }
-        PaginatedHitSource.Response scrollResponse = createPaginatedResponse(
+        PaginatedHitSource.Response paginatedSearchResponse = createPaginatedResponse(
             false,
             false,
             emptyList(),
@@ -1460,7 +1468,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
-                    return scrollResponse;
+                    return paginatedSearchResponse;
                 }
 
                 @Override
@@ -1480,7 +1488,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         assertThat(h2.releases.get(), equalTo(1));
     }
 
-    public void testScrollConsumableHitsResponseErrorHandling() {
+    public void testPaginatedSearchConsumableHitsResponseErrorHandling() {
         boolean usePit = configurePitOrScroll();
         List<PaginatedHitSource.BasicHit> hits = new ArrayList<>();
         int numberOfHits = randomIntBetween(2, 300);
@@ -1488,7 +1496,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             hits.add(new PaginatedHitSource.BasicHit("idx", "id-" + i, -1));
         }
 
-        final PaginatedHitSource.Response scrollResponse = createPaginatedResponse(
+        final PaginatedHitSource.Response paginatedSearchResponse = createPaginatedResponse(
             usePit,
             false,
             emptyList(),
@@ -1501,7 +1509,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
                 @Override
                 public PaginatedHitSource.Response response() {
-                    return scrollResponse;
+                    return paginatedSearchResponse;
                 }
 
                 @Override

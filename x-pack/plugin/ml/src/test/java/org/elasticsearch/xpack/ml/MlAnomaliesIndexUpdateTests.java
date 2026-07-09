@@ -155,16 +155,15 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         metadata.put(indexMetadata);
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.metadata(metadata);
+        csBuilder.routingTable(RoutingTable.builder().build());
 
-        var updater = new MlAnomaliesIndexUpdate(
-            TestIndexNameExpressionResolver.newInstance(),
-            new OriginSettingClient(mock(Client.class), "doesn't matter")
-        );
+        ClusterState state = csBuilder.build();
+        var updater = updater(new OriginSettingClient(mock(Client.class), "doesn't matter"), state);
 
         IndicesAliasesRequestBuilder aliasRequestBuilder = new IndicesAliasesRequestBuilder(mock(ElasticsearchClient.class));
 
         var newIndex = anomaliesIndex + "-000001";
-        var request = updater.addIndexAliasesRequests(aliasRequestBuilder, anomaliesIndex, newIndex, csBuilder.build());
+        var request = updater.addIndexAliasesRequests(aliasRequestBuilder, anomaliesIndex, newIndex, state);
         var actions = request.request().getAliasActions();
         assertThat(actions, hasSize(6));
 
@@ -550,6 +549,11 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
     private ClusterState clusterStateWithBadIndex(String indexName, IndexVersion version, List<String> jobs, String mappingSource) {
         IndexMetadata.Builder indexMetadata = createResultsIndex(indexName, version, jobs, mappingSource);
         return ClusterState.builder(new ClusterName("_name")).metadata(Metadata.builder().put(indexMetadata)).build();
+    }
+
+    /** Builds an IndexMetadata.Builder with job aliases (no mapping). */
+    private IndexMetadata.Builder createSharedResultsIndex(String indexName, IndexVersion indexVersion, List<String> jobs) {
+        return createResultsIndex(indexName, indexVersion, jobs, null);
     }
 
     /** Builds an IndexMetadata.Builder with job aliases and optional mapping. */

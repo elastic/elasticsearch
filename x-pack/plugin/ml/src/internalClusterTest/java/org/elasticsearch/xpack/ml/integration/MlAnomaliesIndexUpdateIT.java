@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -117,10 +116,7 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
         assertBadIndexHasNoMlAliases(badIndex, state);
 
         // No -000002 index was created
-        assertNull(
-            "heal should reuse existing target, not create a new one",
-            state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(".ml-anomalies-shared-000002")
-        );
+        assertNull("heal should reuse existing target, not create a new one", state.metadata().index(".ml-anomalies-shared-000002"));
     }
 
     /**
@@ -150,7 +146,7 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
         // Heal picked the correct foo target, not the prefix-matching foobar sibling.
         assertThat(
             "foo target should have been created, not reused from unrelated sibling",
-            state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(expectedTarget),
+            state.metadata().index(expectedTarget),
             is(notNullValue())
         );
         assertAliasesOnIndex(expectedTarget, fooJobs, state);
@@ -241,7 +237,7 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
 
         // Add the same job's aliases to v8 as non-write so ES accepts the dual setup alongside
         // v7's writeIndex=true claim.
-        var addV8Aliases = client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        var addV8Aliases = client().admin().indices().prepareAliases();
         addV8Aliases.addAliasAction(
             IndicesAliasesRequest.AliasActions.add().index(v8).alias(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).isHidden(true)
         );
@@ -276,7 +272,7 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
         // Specifically: the rollover loop must NOT have created .reindexed-v8-ml-anomalies-shared-000001.
         assertNull(
             "rollover must not fire on v8 once heal has cleared its aliases",
-            state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(".reindexed-v8-ml-anomalies-shared-000001")
+            state.metadata().index(".reindexed-v8-ml-anomalies-shared-000001")
         );
     }
 
@@ -287,7 +283,7 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
         String legacy = ".ml-anomalies-healrollover";
         client().admin().indices().create(new CreateIndexRequest(legacy)).actionGet();
 
-        var aliasReq = client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        var aliasReq = client().admin().indices().prepareAliases();
         aliasReq.addAliasAction(
             IndicesAliasesRequest.AliasActions.add()
                 .index(legacy)
@@ -370,9 +366,7 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
 
     /** Asserts that no {@code .ml-anomalies-*} alias lives on the given index. */
     private static void assertNoMlAliasesOnIndex(String index, ClusterState state) {
-        Map<String, List<AliasMetadata>> aliasesMap = state.metadata()
-            .getProject(Metadata.DEFAULT_PROJECT_ID)
-            .findAllAliases(new String[] { index });
+        Map<String, List<AliasMetadata>> aliasesMap = state.metadata().findAllAliases(new String[] { index });
         List<AliasMetadata> mlAliases = aliasesMap.getOrDefault(index, List.of())
             .stream()
             .filter(a -> a.alias().startsWith(".ml-anomalies-"))
@@ -385,9 +379,7 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
      * are present on {@code targetIndex}.
      */
     private static void assertAliasesOnIndex(String targetIndex, List<String> jobs, ClusterState state) {
-        Map<String, List<AliasMetadata>> aliasesMap = state.metadata()
-            .getProject(Metadata.DEFAULT_PROJECT_ID)
-            .findAllAliases(new String[] { targetIndex });
+        Map<String, List<AliasMetadata>> aliasesMap = state.metadata().findAllAliases(new String[] { targetIndex });
         List<AliasMetadata> targetAliases = aliasesMap.getOrDefault(targetIndex, List.of());
         for (String jobId : jobs) {
             String readAlias = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
@@ -405,7 +397,7 @@ public class MlAnomaliesIndexUpdateIT extends MlSingleNodeTestCase {
      */
     @SuppressWarnings("unchecked")
     private static void assertJobIdIsKeyword(String indexName, ClusterState state) {
-        IndexMetadata meta = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(indexName);
+        IndexMetadata meta = state.metadata().index(indexName);
         assertThat("index [" + indexName + "] should exist in cluster state", meta, is(notNullValue()));
         assertNotNull("index [" + indexName + "] should have mappings", meta.mapping());
 

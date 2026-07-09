@@ -33,7 +33,6 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -473,9 +472,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         }
 
         // Skip if there are no live ml-anomalies aliases still on this bad index
-        Map<String, List<AliasMetadata>> aliasesMap = state.metadata()
-            .getProject(Metadata.DEFAULT_PROJECT_ID)
-            .findAllAliases(new String[] { badIndex });
+        Map<String, List<AliasMetadata>> aliasesMap = state.metadata().findAllAliases(new String[] { badIndex });
         List<AliasMetadata> liveAliases = aliasesMap.getOrDefault(badIndex, List.of())
             .stream()
             .filter(am -> MlIndexAndAlias.isAnomaliesReadAlias(am.alias()) || MlIndexAndAlias.isAnomaliesWriteAlias(am.alias()))
@@ -484,10 +481,17 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
             return;
         }
 
-        // Extract the distinct job ids from the aliases
+        // Extract the distinct job ids from the aliases. Prefer write aliases because 8.19's
+        // jobIdFromAlias does not strip the ".write-" infix, and isAnomaliesReadAlias rejects
+        // mixed-case job ids that tests and some production jobs use.
         Set<String> jobIds = new LinkedHashSet<>();
         for (AliasMetadata am : liveAliases) {
-            AnomalyDetectorsIndex.jobIdFromAlias(am.alias()).ifPresent(jobIds::add);
+            String alias = am.alias();
+            if (MlIndexAndAlias.isAnomaliesWriteAlias(alias)) {
+                jobIds.add(alias.substring(AnomalyDetectorsIndexFields.RESULTS_INDEX_WRITE_PREFIX.length()));
+            } else if (alias.startsWith(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX)) {
+                jobIds.add(alias.substring(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length()));
+            }
         }
 
         Matcher stripMatch = REINDEXED_ANOMALIES_STRIP.matcher(badIndex);
@@ -517,7 +521,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      * is typed as {@code keyword} (i.e. the ML index template was applied correctly).
      */
     private boolean hasCorrectJobIdMapping(String indexName, ClusterState state) {
-        var indexMetadata = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(indexName);
+        var indexMetadata = state.metadata().index(indexName);
         return MlIndexAndAlias.hasFieldTypedAs(indexMetadata, Job.ID.getPreferredName(), "keyword");
     }
 
@@ -530,7 +534,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         String[] existingFamily = MlIndexAndAlias.strictFamilyOf(targetBase, expressionResolver, state);
         if (existingFamily.length > 0) {
             String latest = MlIndexAndAlias.latestIndex(existingFamily);
-            var latestMeta = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(latest);
+            var latestMeta = state.metadata().index(latest);
             if (latestMeta != null
                 && MlIndexAndAlias.indexIsReadWriteCompatibleInV9(latestMeta.getCreationVersion())
                 && hasCorrectJobIdMapping(latest, state)) {
@@ -631,14 +635,14 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         // Freshest available state — heal may have already created the target index after the
         // start-of-runUpdate snapshot, and a prior heal iteration may have moved aliases for
         // other jobs onto the same target.
-        var project = clusterService.state().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+        var metadata = clusterService.state().metadata();
 
         for (String jobId : jobIds) {
             String writeAlias = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
             String readAlias = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
 
             for (String aliasName : List.of(writeAlias, readAlias)) {
-                for (Index claimant : project.aliasedIndices(aliasName)) {
+                for (Index claimant : metadata.aliasedIndices(aliasName)) {
                     String claimantName = claimant.getName();
                     if (claimantName.equals(targetIndex)) {
                         // Never strip from the target; we are about to (re-)add the alias here.

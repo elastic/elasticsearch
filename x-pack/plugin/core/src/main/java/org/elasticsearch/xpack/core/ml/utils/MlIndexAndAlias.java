@@ -20,30 +20,42 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -67,6 +79,8 @@ public final class MlIndexAndAlias {
     public static final String BWC_MAPPINGS_VERSION = "8.11.0";
 
     public static final String FIRST_INDEX_SIX_DIGIT_SUFFIX = "-000001";
+
+    public static final String ROLLOVER_ALIAS_SUFFIX = ".rollover_alias";
 
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
     private static final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
@@ -426,6 +440,14 @@ public final class MlIndexAndAlias {
     }
 
     /**
+     * Sorts the given list of indices based on their 6 digit suffix.
+     * @param indices List of index names
+     */
+    public static void sortIndices(List<String> indices) {
+        indices.sort(INDEX_NAME_COMPARATOR);
+    }
+
+    /**
      * True if the version is read *and* write compatible not just read only compatible
      */
     public static boolean indexIsReadWriteCompatibleInV9(IndexVersion version) {
@@ -446,26 +468,15 @@ public final class MlIndexAndAlias {
      *
      * @param baseIndexName         The base part of an index name, without the 6 digit suffix.
      * @param expressionResolver    The expression resolver
-     * @param projectMetadata       The project metadata to resolve indices against
+     * @param state                 The cluster state to resolve indices against
      * @return                      An array of matching indices.
      */
     public static String[] indicesMatchingBasename(
         String baseIndexName,
         IndexNameExpressionResolver expressionResolver,
-        ProjectMetadata projectMetadata
+        ClusterState state
     ) {
-        return expressionResolver.concreteIndexNames(projectMetadata, IndicesOptions.lenientExpandOpenHidden(), baseIndexName + "*");
-    }
-
-    /** @deprecated Use {@link #indicesMatchingBasename(String, IndexNameExpressionResolver, ProjectMetadata)} */
-    @Deprecated(forRemoval = true)
-    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
-    public static String[] indicesMatchingBasename(
-        String baseIndexName,
-        IndexNameExpressionResolver expressionResolver,
-        ClusterState latestState
-    ) {
-        return indicesMatchingBasename(baseIndexName, expressionResolver, latestState.getMetadata().getProject(ProjectId.DEFAULT));
+        return expressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpenHidden(), baseIndexName + "*");
     }
 
     /**
@@ -561,18 +572,17 @@ public final class MlIndexAndAlias {
      *
      * @param index              The index to check
      * @param expressionResolver The expression resolver
-     * @param projectMetadata    The project metadata to resolve indices against
+     * @param clusterState       The cluster state to resolve indices against
      * @return The latest index that matches the base name of the given index
      */
     public static String latestIndexMatchingBaseName(
         String index,
         IndexNameExpressionResolver expressionResolver,
-        ProjectMetadata projectMetadata
-
+        ClusterState clusterState
     ) {
         String baseIndexName = baseIndexName(index);
 
-        var matching = indicesMatchingBasename(baseIndexName, expressionResolver, projectMetadata);
+        var matching = indicesMatchingBasename(baseIndexName, expressionResolver, clusterState);
 
         // We used to assert here if no matching indices could be found. However, when called _before_ a job is created it may be the case
         // that no .ml-anomalies-shared* indices yet exist.
@@ -584,17 +594,6 @@ public final class MlIndexAndAlias {
         }
 
         return MlIndexAndAlias.latestIndex(filtered);
-    }
-
-    /** @deprecated Use {@link #latestIndexMatchingBaseName(String, IndexNameExpressionResolver, ProjectMetadata)} */
-    @Deprecated(forRemoval = true)
-    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
-    public static String latestIndexMatchingBaseName(
-        String index,
-        IndexNameExpressionResolver expressionResolver,
-        ClusterState latestState
-    ) {
-        return latestIndexMatchingBaseName(index, expressionResolver, latestState.getMetadata().getProject(ProjectId.DEFAULT));
     }
 
     /**
@@ -654,7 +653,7 @@ public final class MlIndexAndAlias {
      * @return A new {@link IndicesAliasesRequestBuilder}.
      */
     public static IndicesAliasesRequestBuilder createIndicesAliasesRequestBuilder(Client client) {
-        return client.admin().indices().prepareAliases(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS);
+        return client.admin().indices().prepareAliases();
     }
 
     /**
@@ -693,17 +692,17 @@ public final class MlIndexAndAlias {
      *
      * @param aliasRequestBuilder The request builder to add actions to.
      * @param newIndex            The new index to which the alias will be moved.
-     * @param projectMetadata     The current project metadata, used to inspect existing indices.
+     * @param clusterState        The current cluster state, used to inspect existing indices.
      * @param allStateIndices     A list of all current .ml-state indices
      * @return The modified {@link IndicesAliasesRequestBuilder}.
      */
     public static IndicesAliasesRequestBuilder addStateIndexRolloverAliasActions(
         IndicesAliasesRequestBuilder aliasRequestBuilder,
         String newIndex,
-        ProjectMetadata projectMetadata,
+        ClusterState clusterState,
         List<String> allStateIndices
     ) {
-        allStateIndices.stream().filter(index -> projectMetadata.index(index) != null).forEach(index -> {
+        allStateIndices.stream().filter(index -> clusterState.getMetadata().index(index) != null).forEach(index -> {
             // Remove the write alias from ALL state indices to handle any inconsistencies where it might exist on more than one.
             aliasRequestBuilder.addAliasAction(
                 IndicesAliasesRequest.AliasActions.remove().indices(index).alias(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
@@ -720,23 +719,6 @@ public final class MlIndexAndAlias {
         );
 
         return aliasRequestBuilder;
-    }
-
-    /** @deprecated Use {@link #addStateIndexRolloverAliasActions(IndicesAliasesRequestBuilder, String, ProjectMetadata, List)} */
-    @Deprecated(forRemoval = true)
-    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
-    public static IndicesAliasesRequestBuilder addStateIndexRolloverAliasActions(
-        IndicesAliasesRequestBuilder aliasRequestBuilder,
-        String newIndex,
-        ClusterState clusterState,
-        List<String> allStateIndices
-    ) {
-        return addStateIndexRolloverAliasActions(
-            aliasRequestBuilder,
-            newIndex,
-            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
-            allStateIndices
-        );
     }
 
     private static Optional<String> findEarliestIndexWithAlias(Map<String, List<AliasMetadata>> aliasesMap, String targetAliasName) {
@@ -776,19 +758,19 @@ public final class MlIndexAndAlias {
      *
      * @param aliasRequestBuilder       The request builder to add actions to.
      * @param newIndex                  The new index to which aliases will be moved.
-     * @param projectMetadata       The project metadata to resolve indices against
+     * @param clusterState              The cluster state to resolve indices against
      * @param currentJobResultsIndices  A list of all current .ml-anomalies indices
      * @return The modified {@link IndicesAliasesRequestBuilder}.
      */
     public static IndicesAliasesRequestBuilder addResultsIndexRolloverAliasActions(
         IndicesAliasesRequestBuilder aliasRequestBuilder,
         String newIndex,
-        ProjectMetadata projectMetadata,
+        ClusterState clusterState,
         List<String> currentJobResultsIndices
     ) {
         // Multiple jobs can share the same index, each job should have
         // a read and write alias that needs updating after the rollover
-        var aliasesMap = projectMetadata.findAllAliases(currentJobResultsIndices.toArray(new String[0]));
+        var aliasesMap = clusterState.getMetadata().findAllAliases(currentJobResultsIndices.toArray(new String[0]));
         if (aliasesMap == null) {
             // This should not happen in practice, but we defend against it.
             return aliasRequestBuilder;
@@ -804,7 +786,11 @@ public final class MlIndexAndAlias {
             .stream()
             .flatMap(List::stream)
             .filter(alias -> isAnomaliesReadAlias(alias.alias()) || isAnomaliesWriteAlias(alias.alias()))
-            .flatMap(alias -> AnomalyDetectorsIndex.jobIdFromAlias(alias.alias()).stream().map(jobId -> new Tuple<>(jobId, alias)))
+            .flatMap(
+                alias -> Optional.ofNullable(AnomalyDetectorsIndex.jobIdFromAlias(alias.alias()))
+                    .map(jobId -> new Tuple<>(jobId, alias))
+                    .stream()
+            )
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())))
             .forEach((jobId, jobAliases) -> {
                 // For each job, ensure its aliases are correctly configured for the rollover.
@@ -819,23 +805,6 @@ public final class MlIndexAndAlias {
             });
 
         return aliasRequestBuilder;
-    }
-
-    /** @deprecated Use {@link #addResultsIndexRolloverAliasActions(IndicesAliasesRequestBuilder, String, ProjectMetadata, List)} */
-    @Deprecated(forRemoval = true)
-    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
-    public static IndicesAliasesRequestBuilder addResultsIndexRolloverAliasActions(
-        IndicesAliasesRequestBuilder aliasRequestBuilder,
-        String newIndex,
-        ClusterState clusterState,
-        List<String> currentJobResultsIndices
-    ) {
-        return addResultsIndexRolloverAliasActions(
-            aliasRequestBuilder,
-            newIndex,
-            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
-            currentJobResultsIndices
-        );
     }
 
     private static void moveWriteAlias(

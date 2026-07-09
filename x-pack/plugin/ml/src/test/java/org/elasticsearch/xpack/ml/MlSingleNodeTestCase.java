@@ -196,7 +196,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
      */
     protected void createResultsIndexWithAliases(String indexName, String mappingSource, List<String> jobIds) {
         client().admin().indices().create(new CreateIndexRequest(indexName).mapping(mappingSource)).actionGet();
-        var aliasReq = client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
+        var aliasReq = client().admin().indices().prepareAliases();
         for (String jobId : jobIds) {
             aliasReq.addAliasAction(
                 IndicesAliasesRequest.AliasActions.add()

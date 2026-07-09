@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Set;
@@ -54,9 +55,8 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         fail("unexpectedly ran a deferred reroute");
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void createExecutor() throws Exception {
         AllocationService allocationService = createAllocationService(
             Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE).build()
         );

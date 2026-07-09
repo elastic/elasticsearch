@@ -1025,8 +1025,7 @@ public final class IndexSettings {
     /**
      * Controls whether the ES95 TSDB doc values codec is used for a given time series index, allowing opt-out.
      * Defaults to {@code true} for time series indices created on or after
-     * {@link IndexVersions#TIME_SERIES_ES95_CODEC_DEFAULT}, and {@code false} otherwise. The codec is
-     * additionally disabled on stateless nodes regardless of this setting; see {@link #isTimeSeriesEs95CodecEnabled()}.
+     * {@link IndexVersions#TIME_SERIES_ES95_CODEC_DEFAULT}, and {@code false} otherwise.
      */
     public static final Setting<Boolean> TIME_SERIES_ES95_CODEC_ENABLED_SETTING = Setting.boolSetting(
         "index.time_series.es95_codec.enabled",
@@ -1567,8 +1566,7 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
-        timeSeriesEs95CodecEnabled = DiscoveryNode.isStateless(nodeSettings) == false
-            && scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
@@ -2381,7 +2379,7 @@ public final class IndexSettings {
 
     /**
      * Checks if this index uses the ES95 TSDB doc values codec, as resolved from
-     * {@link #TIME_SERIES_ES95_CODEC_ENABLED_SETTING}. Always {@code false} on stateless nodes.
+     * {@link #TIME_SERIES_ES95_CODEC_ENABLED_SETTING}.
      *
      * @return {@code true} if the index uses ES95; {@code false} otherwise.
      */

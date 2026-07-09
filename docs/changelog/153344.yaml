@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 153324
+pr: 153344
+summary: Fix `MergedOverspillAssignments` size and out-of-range ordinals
+type: bug

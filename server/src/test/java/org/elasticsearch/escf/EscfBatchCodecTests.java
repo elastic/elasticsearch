@@ -121,6 +121,14 @@ public class EscfBatchCodecTests extends ESTestCase {
         assertEquals(300, EscfBatchCodec.readU16LE(new BytesArray(buf), 0));
     }
 
+    /** A field name longer than a u16 can encode overflows the on-wire name-length field and must be rejected. */
+    public void testWriteSchemaRejectsNameLongerThanU16() {
+        String hugeName = "f".repeat(0x10000);
+        SourceSchema schema = new SourceSchema(List.of(""), new int[] { 0 }, List.of(hugeName), new int[] { 0 });
+        byte[] buf = new byte[EscfBatchCodec.schemaSize(schema)];
+        expectThrows(IllegalArgumentException.class, () -> EscfBatchCodec.writeSchema(schema, buf, 0));
+    }
+
     public void testEncodeDecodeStringArrayChild() {
         // child of a STRING array: two elements "hi" and "world".
         int[] childOffsets = { 0, 2, 7 };

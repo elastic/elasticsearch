@@ -392,6 +392,9 @@ final class EscfBatchCodec {
     }
 
     static void writeShortLE(byte[] buf, int offset, int value) {
+        if (value < 0 || value > 0xFFFF) {
+            throw new IllegalArgumentException("value [" + value + "] does not fit in an unsigned 16-bit field");
+        }
         buf[offset] = (byte) value;
         buf[offset + 1] = (byte) (value >>> 8);
     }

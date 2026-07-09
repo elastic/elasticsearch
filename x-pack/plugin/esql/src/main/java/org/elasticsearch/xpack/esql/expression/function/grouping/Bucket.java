@@ -82,7 +82,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         "esql_support_explicit_bucket_rounding_configuration"
     );
 
-    private record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId) {
+    private record DateRoundingPicker(long buckets, long from, long to, ZoneId zoneId) {
 
         // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
         // That way you never end up with more than the target number of buckets.
@@ -116,12 +116,38 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         interface Unit {
             Rounding rounding(ZoneId zoneId);
 
+            /**
+             * The fixed width of this unit in milliseconds, if it is a fixed-length interval (e.g. 5 minutes, 100 ms).
+             * null for calendar-based units (day, week, month, year) whose length varies across the range.
+             */
+            Long fixedWidthMillis();
+
             static Unit of(Rounding.DateTimeUnit value) {
-                return zoneId -> Rounding.builder(value).timeZone(zoneId).build();
+                return new Unit() {
+                    @Override
+                    public Rounding rounding(ZoneId zoneId) {
+                        return Rounding.builder(value).timeZone(zoneId).build();
+                    }
+
+                    @Override
+                    public Long fixedWidthMillis() {
+                        return null;
+                    }
+                };
             }
 
             static Unit of(TimeValue value) {
-                return zoneId -> Rounding.builder(value).timeZone(zoneId).build();
+                return new Unit() {
+                    @Override
+                    public Rounding rounding(ZoneId zoneId) {
+                        return Rounding.builder(value).timeZone(zoneId).build();
+                    }
+
+                    @Override
+                    public Long fixedWidthMillis() {
+                        return value.millis();
+                    }
+                };
             }
         }
 
@@ -131,7 +157,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 return best.rounding(zoneId);
             }
             for (Unit unit : SECONDARY_UNITS) {
-                if (roundingIsOk(unit.rounding(zoneId))) {
+                if (roundingIsOk(unit)) {
                     return unit.rounding(zoneId);
                 }
             }
@@ -145,7 +171,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             while (low <= high) {
                 int mid = (low + high) >>> 1;
                 var unit = candidates[mid];
-                if (roundingIsOk(unit.rounding(zoneId))) {
+                if (roundingIsOk(unit)) {
                     best = unit;
                     low = mid + 1;
                 } else {
@@ -158,18 +184,23 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         /**
          * True if the rounding produces less than or equal to the requested number of buckets.
          */
-        boolean roundingIsOk(Rounding rounding) {
-            Rounding.Prepared r = rounding.prepareForUnknown();
-            long bucket = r.round(from);
-            int used = 0;
-            while (used < buckets) {
-                bucket = r.nextRoundingValue(bucket);
-                used++;
-                if (bucket >= to) {
-                    return true;
+        boolean roundingIsOk(Unit unit) {
+            Rounding.Prepared r = unit.rounding(zoneId).prepareForUnknown();
+            Long fixedWidthMillis = unit.fixedWidthMillis();
+            if (fixedWidthMillis != null) {
+                return (to - r.round(from) + fixedWidthMillis - 1) / fixedWidthMillis <= buckets;
+            } else {
+                long bucket = r.round(from);
+                long used = 0;
+                while (used < buckets) {
+                    bucket = r.nextRoundingValue(bucket);
+                    used++;
+                    if (bucket >= to) {
+                        return true;
+                    }
                 }
+                return false;
             }
-            return false;
         }
     }
 
@@ -435,7 +466,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         Rounding.Prepared prepared;
         // `buckets` is the target, pick the finest length
         if (buckets.dataType().isWholeNumber()) {
-            int b = ((Number) buckets.fold(foldContext)).intValue();
+            long b = ((Number) buckets.fold(foldContext)).longValue();
             long f = foldToLong(foldContext, from);
             long t = foldToLong(foldContext, to);
             var rounding = new DateRoundingPicker(b, f, t, QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())).pickRounding();
@@ -466,7 +497,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     private double getNumberRoundTo(FoldContext foldContext) {
         if (from != null) {
             assert to != null : "Both from and to must be set";
-            int b = ((Number) buckets.fold(foldContext)).intValue();
+            long b = ((Number) buckets.fold(foldContext)).longValue();
             double f = ((Number) from.fold(foldContext)).doubleValue();
             double t = ((Number) to.fold(foldContext)).doubleValue();
             double precise = (t - f) / b;
@@ -679,7 +710,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             // The picker would silently fall through to YEAR_OF_CENTURY and surface a misleading "1 year" interval;
             // skip metadata emission instead. Period/duration spans go through createRounding which already rejects
             // zero/negative values at fold time, so they don't reach here in an impossible state.
-            if (buckets.dataType().isWholeNumber() && ((Number) buckets.fold(foldContext)).intValue() <= 0) {
+            if (buckets.dataType().isWholeNumber() && ((Number) buckets.fold(foldContext)).longValue() <= 0) {
                 return null;
             }
             Rounding rounding = getDateRounding(foldContext).getUnprepared();

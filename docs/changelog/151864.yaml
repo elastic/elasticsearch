@@ -1,5 +1,6 @@
 area: "ES|QL, Geo"
-issues: []
+issues:
+ - 145596
 pr: 151864
 summary: Geometry simplification handles large polygons
 type: enhancement

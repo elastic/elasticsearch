@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.datasource.parquet.PlainCompressionCodecFactory;
 import org.elasticsearch.xpack.esql.datasource.parquet.PlainParquetReadOptions;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
+import org.elasticsearch.xpack.esql.datasources.HttpDownloadRetry;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -265,7 +266,15 @@ public class ParquetTestingIT extends ESRestTestCase {
     private void testGoodData(String url, String dataset) throws Exception {
         logger.info("Testing good data: {}", parquetFile);
 
-        byte[] parquetBytes = downloadFile(url);
+        byte[] parquetBytes;
+        try {
+            parquetBytes = downloadFile(url);
+        } catch (IOException e) {
+            // raw.githubusercontent.com occasionally rate-limits (HTTP 429) the pinned-commit fixture under
+            // CI load; that is an environmental condition, not a reader regression.
+            assumeNoException("Unable to download parquet-testing fixture [" + url + "]", e);
+            return;
+        }
         GroundTruth groundTruth;
         try {
             groundTruth = readGroundTruth(parquetBytes);
@@ -741,12 +750,33 @@ public class ParquetTestingIT extends ESRestTestCase {
         return "FROM " + dataset + " | LIMIT " + limit;
     }
 
+    private static final int DOWNLOAD_MAX_ATTEMPTS = 4;
+    private static final long DOWNLOAD_INITIAL_BACKOFF_MILLIS = 1000L;
+    private static final long DOWNLOAD_MAX_BACKOFF_MILLIS = 8000L;
+
+    /**
+     * Downloads {@code url}, retrying transient failures (HTTP 429/5xx, or connection-level errors below
+     * the HTTP layer) via {@link HttpDownloadRetry#withRetries}. A permanent HTTP error (e.g. 404) is
+     * thrown immediately without retrying. Throws the last failure once attempts are exhausted; the
+     * caller treats that as an environmental skip rather than a test failure.
+     */
     private static byte[] downloadFile(String url) throws IOException {
+        return HttpDownloadRetry.withRetries(
+            logger,
+            "download [" + url + "]",
+            DOWNLOAD_MAX_ATTEMPTS,
+            DOWNLOAD_INITIAL_BACKOFF_MILLIS,
+            DOWNLOAD_MAX_BACKOFF_MILLIS,
+            () -> downloadFileOnce(url)
+        );
+    }
+
+    private static byte[] downloadFileOnce(String url) throws IOException {
         HttpGet request = new HttpGet(url);
         try (CloseableHttpResponse response = httpClient.execute(request)) {
             int status = response.getStatusLine().getStatusCode();
             if (status != 200) {
-                throw new IOException("Failed to download " + url + ": HTTP " + status);
+                throw new HttpDownloadRetry.HttpStatusException("Failed to download " + url + ": HTTP " + status, status);
             }
             return EntityUtils.toByteArray(response.getEntity());
         }

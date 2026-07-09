@@ -2017,3 +2017,19 @@ ROW a = [100, 200, 300]::unsigned_long
 a:unsigned_long
 200
 ;
+
+matchMultipleTermsOnRuntimeText
+required_capability: match_operator_colon
+required_capability: fn_match_runtime_filter
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
+| MV_EXPAND content
+| WHERE content:"fox dog"
+| SORT content
+;
+
+content:text
+This dog is really brown
+This is a brown dog
+This is a brown fox
+;

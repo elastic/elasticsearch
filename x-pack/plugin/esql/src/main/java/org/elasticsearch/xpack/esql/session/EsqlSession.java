@@ -1008,7 +1008,8 @@ public class EsqlSession {
                     );
                 }
             } catch (Exception e) {
-                // safely release the blocks in case an exception occurs either before, but also after the "final" runner.run() forks off
+                // safely release the blocks in case an exception occurs either before, but also after the "final" runner.run() forks
+                // off
                 // the current thread, but with the blocks still referenced
                 subPlan.cleanup.run();
                 throw e;
@@ -1238,6 +1239,7 @@ public class EsqlSession {
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        executionInfo.queryProfile().setUnmappedResolution(unmappedResolution);
 
         TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
         datasetResolutionProfile.start();

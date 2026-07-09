@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 
 import static org.elasticsearch.index.codec.vectors.cluster.Soar.NO_SOAR_ASSIGNMENT;
+import static org.hamcrest.Matchers.equalTo;
 
 public class KMeansResultTests extends ESTestCase {
 
@@ -89,10 +90,14 @@ public class KMeansResultTests extends ESTestCase {
 
         assertCentroidsEqual(expectedCentroids, merged.centroids());
         assertArrayEquals(expectedAssignments, merged.assignments());
-        assertArrayEquals(expectedSoarAssignments, merged.soarAssignments());
+        for (int i = 0; i < expectedSoarAssignments.length; i++) {
+            var it = merged.overspill().getAssignmentsFor(i);
+            int soar = it.hasNext() ? it.nextInt() : NO_SOAR_ASSIGNMENT;
+            assertThat(soar, equalTo(expectedSoarAssignments[i]));
+        }
     }
 
-    public void testMergeFillsMissingSoarAssignments() {
+    public void testMergePropagatesMissingSoarAssignments() {
         int dims = randomIntBetween(1, 4);
         int centroidCount1 = randomIntBetween(1, 4);
         int centroidCount2 = randomIntBetween(1, 4);
@@ -111,12 +116,6 @@ public class KMeansResultTests extends ESTestCase {
             expectedAssignments[assignmentsSize1 + i] = assignments2[i] + centroidCount1;
         }
 
-        int[] expectedSoarAssignments = new int[assignmentsSize1 + assignmentsSize2];
-        System.arraycopy(soarAssignments1, 0, expectedSoarAssignments, 0, assignmentsSize1);
-        for (int i = assignmentsSize1; i < expectedSoarAssignments.length; i++) {
-            expectedSoarAssignments[i] = NO_SOAR_ASSIGNMENT;
-        }
-
         float[][] expectedCentroids = new float[centroidCount1 + centroidCount2][];
         System.arraycopy(centroids1, 0, expectedCentroids, 0, centroidCount1);
         System.arraycopy(centroids2, 0, expectedCentroids, centroidCount1, centroidCount2);
@@ -131,7 +130,16 @@ public class KMeansResultTests extends ESTestCase {
 
         assertCentroidsEqual(expectedCentroids, merged.centroids());
         assertArrayEquals(expectedAssignments, merged.assignments());
-        assertArrayEquals(expectedSoarAssignments, merged.soarAssignments());
+
+        for (int i = 0; i < assignmentsSize1; i++) {
+            var it = merged.overspill().getAssignmentsFor(i);
+            int soar = it.hasNext() ? it.nextInt() : NO_SOAR_ASSIGNMENT;
+            assertThat(soar, equalTo(soarAssignments1[i]));
+        }
+        for (int i = 0; i < assignmentsSize2; i++) {
+            var it = merged.overspill().getAssignmentsFor(assignmentsSize1 + i);
+            assertFalse(it.hasNext());
+        }
     }
 
     private static void assertCentroidsEqual(float[][] expected, float[][] actual) {

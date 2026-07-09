@@ -259,9 +259,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIntsIT
   method: test {csv-spec:ints.valuesLongGrouped}
   issue: https://github.com/elastic/elasticsearch/issues/149905
-- class: org.elasticsearch.xpack.stateless.allocation.StatelessDesiredBalanceReconcilerTests
-  method: testStatelessFallbackAllocation
-  issue: https://github.com/elastic/elasticsearch/issues/149947
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:UNMAPPED_FIELDS_LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/148619
@@ -598,9 +595,6 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.DISIAccumulatorTests
   method: testRandom
   issue: https://github.com/elastic/elasticsearch/issues/152677
-- class: org.elasticsearch.xpack.stateless.HollowIndexShardsMergesIT
-  method: testQueuedOrOnGoingMergesPreventHollowing
-  issue: https://github.com/elastic/elasticsearch/issues/152723
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testUnreferencedCommitsAreReleasedAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/152730
@@ -646,12 +640,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromRightSideWhenNotKept}
   issue: https://github.com/elastic/elasticsearch/issues/153046
-- class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
-  method: testDefaultSettingsFailsOnCrossFileScalarObjectConflict
-  issue: https://github.com/elastic/elasticsearch/issues/153054
-- class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
-  method: testSkipRowPolicyNullFillsAndWarnsClient
-  issue: https://github.com/elastic/elasticsearch/issues/153055
 - class: org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests
   method: testFetchRegion
   issue: https://github.com/elastic/elasticsearch/issues/153058
@@ -673,9 +661,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:exponential_histogram.allAggsInlineGrouped}
   issue: https://github.com/elastic/elasticsearch/issues/153123
-- class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
-  method: testPointInTimeRelocationPitPositionsInBcc
-  issue: https://github.com/elastic/elasticsearch/issues/153149
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial_shapes.convertCartesianShapeFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/153154
@@ -811,3 +796,12 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsVectorsYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_bbq_flat/Test knn search}
   issue: https://github.com/elastic/elasticsearch/issues/153430
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsIT
+  method: test {csv-spec:stats.sumWithOverflowGroupingRow}
+  issue: https://github.com/elastic/elasticsearch/issues/153434
+- class: org.elasticsearch.index.codec.vectors.cluster.ByteHierarchicalKMeansTests
+  method: testHKmeans
+  issue: https://github.com/elastic/elasticsearch/issues/153449
+- class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
+  method: testPointInTimeRelocationClosingSourceContexts
+  issue: https://github.com/elastic/elasticsearch/issues/153452

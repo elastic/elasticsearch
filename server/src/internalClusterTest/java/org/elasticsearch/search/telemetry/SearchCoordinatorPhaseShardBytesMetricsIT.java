@@ -653,6 +653,10 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
     public void testBatchedQueryPhaseShardErrorRecordsBothRequestAndResultBytes() {
         // we use this local index to ensure that we go past the query phase
         final String localIndex = "local-shards-error-test";
+        // At least 2 shards per data node so both searches below are always batched.
+        int localIndexShards = between(2 * internalCluster().numDataNodes(), maximumNumberOfShards());
+        prepareCreate(localIndex).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, localIndexShards)).get();
+        ensureGreen(localIndex);
         prepareIndex(localIndex).setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         try {
@@ -691,12 +695,10 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             assertThat(queryRequestBytes, hasSize(1));
             assertThat(queryRequestBytes.get(0).getLong(), greaterThan(queryRequestBytesLocalIndex));
 
-            // Result bytes are still recorded when INDEX_NAME shards fail in the batched path, so we assert > 0.
-            // We can't assert > the localIndex-only baseline: that search returns a full QuerySearchResult while
-            // the combined search returns a server-merged NodeQueryResponse, so the combined count can be smaller.
+            // Both searches are batched, so result bytes are directly comparable to the baseline.
             queryResultBytes = plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
             assertThat(queryResultBytes, hasSize(1));
-            assertThat(queryResultBytes.get(0).getLong(), greaterThan(0L));
+            assertThat(queryResultBytes.get(0).getLong(), greaterThan(queryResultBytesLocalIndex));
         } finally {
             indicesAdmin().prepareDelete(localIndex).get();
         }

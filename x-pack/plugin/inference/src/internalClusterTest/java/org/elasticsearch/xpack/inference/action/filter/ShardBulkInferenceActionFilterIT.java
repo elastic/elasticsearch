@@ -364,7 +364,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
             () -> Map.of("semantic_field", Map.of("type", "image", "format", "text", "value", "x")),
             r -> assertThat(
                 rootCause(r.getFailure().getCause()).getMessage(),
-                containsString("Data type [image] does not support data format [text], supported formats are [base64]")
+                containsString("Data type [image] does not support data format [text], supported formats are [base64, reference]")
             )
         );
 

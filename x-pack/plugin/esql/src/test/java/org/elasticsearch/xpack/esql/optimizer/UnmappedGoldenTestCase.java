@@ -79,10 +79,7 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         TransportVersion minimumSupportedVersion,
         String... nestedPaths
     ) {
-        throwOnFailure(
-            tryRunTestsNullifyOnly(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths),
-            "Nullify mode failed"
-        );
+        runNullifyOnly(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths);
     }
 
     protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, String... nestedPaths) {
@@ -90,10 +87,7 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     }
 
     protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, TransportVersion minimumSupportedVersion, String... nestedPaths) {
-        throwOnFailure(
-            tryRunTestsLoadOnly(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths),
-            "Load mode failed"
-        );
+        runLoadOnly(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths);
     }
 
     /**
@@ -102,16 +96,29 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
      * exercise a version that predates a given wire-format change.
      */
     protected void runTestsLoadOnlyBelow(String query, EnumSet<Stage> stages, TransportVersion maxVersionExclusive, String... nestedPaths) {
-        throwOnFailure(
-            tryRunTestsLoadOnly(
-                query,
-                stages,
-                TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive),
-                Map.of(),
-                nestedPaths
-            ),
-            "Load mode failed"
-        );
+        runLoadOnly(query, stages, TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive), Map.of(), nestedPaths);
+    }
+
+    /** Runs NULLIFY mode at the given exact transport version (or a builder-default random one if {@code null}); throws on failure. */
+    private void runNullifyOnly(
+        String query,
+        EnumSet<Stage> stages,
+        TransportVersion transportVersion,
+        Map<String, String> views,
+        String... nestedPaths
+    ) {
+        throwOnFailure(tryRunTestsNullifyOnly(query, stages, transportVersion, views, nestedPaths), "Nullify mode failed");
+    }
+
+    /** Runs LOAD mode at the given exact transport version (or a builder-default random one if {@code null}); throws on failure. */
+    private void runLoadOnly(
+        String query,
+        EnumSet<Stage> stages,
+        TransportVersion transportVersion,
+        Map<String, String> views,
+        String... nestedPaths
+    ) {
+        throwOnFailure(tryRunTestsLoadOnly(query, stages, transportVersion, views, nestedPaths), "Load mode failed");
     }
 
     /** Runs NULLIFY mode at the given exact transport version, or a builder-default random version if {@code null}. */

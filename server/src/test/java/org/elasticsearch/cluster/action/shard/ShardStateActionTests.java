@@ -120,10 +120,8 @@ public class ShardStateActionTests extends ESTestCase {
         THREAD_POOL = new TestThreadPool("ShardStateActionTest");
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initShardStateAction() throws Exception {
         this.transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
         transportService = transport.createTransportService(
@@ -141,12 +139,10 @@ public class ShardStateActionTests extends ESTestCase {
         shardStateAction.setOnAfterWaitForNewMasterAndRetry(() -> {});
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeShardStateAction() throws Exception {
         clusterService.close();
         transportService.close();
-        super.tearDown();
         assertThat(shardStateAction.remoteShardRequestsInFlight(), equalTo(0));
     }
 

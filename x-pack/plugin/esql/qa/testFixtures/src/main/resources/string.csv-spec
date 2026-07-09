@@ -635,6 +635,17 @@ ROW a=["foo", "foo", "bar", "foo"]
 // end::mv_dedupe-result[]
 ;
 
+mvDedupeKeywordField
+FROM employees
+| WHERE emp_no == 10001
+| EVAL deduped = MV_DEDUPE(job_positions)
+| KEEP emp_no, deduped
+;
+
+emp_no:integer | deduped:keyword
+10001          | [Accountant, Senior Python Developer]
+;
+
 mvJoin
 // tag::mv_concat[]
 ROW a=["foo", "zoo", "bar"]
@@ -672,6 +683,18 @@ ROW a="foo;bar;baz"
   a:keyword | last_a:keyword
 foo;bar;baz | "baz"
 // end::mv_last-result[]
+;
+
+mvLastKeywordField
+request_stored: skip
+FROM employees
+| WHERE emp_no == 10001
+| EVAL last_job = MV_LAST(job_positions)
+| KEEP emp_no, last_job
+;
+
+emp_no:integer | last_job:keyword
+10001          | "Senior Python Developer"
 ;
 
 mvMax
@@ -2479,6 +2502,19 @@ ROW setA = ["a","c"], setB = ["a", "b", "c"]
 setA:keyword | setB:keyword | a_subset_of_b:boolean | b_subset_of_a:boolean 
 [a, c]       | [a, b, c]    | true                  | false
 // end::mv_contains_bothsides-result[]
+;
+
+mvContainsKeywordSubset
+required_capability: fn_mv_contains_v1
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL contains = MV_CONTAINS(job_positions, last_name)
+| KEEP emp_no, contains
+;
+
+emp_no:integer | contains:boolean
+10001          | false
 ;
 
 mvContainsCombinations

@@ -40,6 +40,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,9 +61,8 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     private ClusterState clusterState;
     private ShardStateAction.ShardFailedClusterStateTaskExecutor executor;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initClusterState() throws Exception {
         allocationService = createAllocationService(
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 8)

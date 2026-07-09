@@ -2455,6 +2455,33 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
+     * The zone-offset and date-only cases of {@code datetime_format}, pinned here against the identical pattern and
+     * bytes used by {@code CsvDirectBlockParityTests}. Both readers compile the option to an ES {@code DateFormatter},
+     * so the two formats must agree on the instant exactly; these two tests and their CSV twins are that contract.
+     */
+    public void testDatetimeFormatHonorsZoneOffset() throws IOException {
+        assertDatetimeFormatDecodesTo("yyyy-MM-dd HH:mm:ssXXX", "2024-01-01 10:00:00+05:00", "2024-01-01T05:00:00Z");
+    }
+
+    public void testDatetimeFormatDateOnly() throws IOException {
+        assertDatetimeFormatDecodesTo("yyyy-MM-dd", "2024-01-01", "2024-01-01T00:00:00Z");
+    }
+
+    private void assertDatetimeFormatDecodesTo(String pattern, String value, String expectedInstant) throws IOException {
+        String ndjson = "{\"ts\":\"" + value + "\"}\n";
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", pattern)
+        );
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            Page page = iterator.next();
+            LongBlock tsBlock = page.getBlock(0);
+            assertEquals(Instant.parse(expectedInstant).toEpochMilli(), tsBlock.getLong(0));
+        }
+    }
+
+    /**
      * Fractional seconds in ISO-8601 datetime strings: the {@code strict_date_optional_time}
      * formatter must preserve millisecond precision when decoding to epoch-milliseconds.
      */

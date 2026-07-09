@@ -787,3 +787,12 @@ tests:
 - class: org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianCentroidTests
   method: testReduceRandom
   issue: https://github.com/elastic/elasticsearch/issues/153353
+- class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
+  method: testUpdateTransformWithProjectRouting
+  issue: https://github.com/elastic/elasticsearch/issues/147534
+- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
+  method: testWaitForEmptySubRangeReturnsImmediately
+  issue: https://github.com/elastic/elasticsearch/issues/153378
+- class: org.elasticsearch.xpack.inference.integration.SemanticTextFieldMappingLegacyFormatIT
+  method: testLegacyFormatMappingPopulatedAfterFirstDenseDocument
+  issue: https://github.com/elastic/elasticsearch/issues/153384

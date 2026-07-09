@@ -824,7 +824,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """;
         runTestsNullifyOnly(query, STAGES, DimensionValues.DIMENSION_VALUES_VERSION);
         runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(
+        runTestsLoadOnlyBetween(
             query,
             STAGES,
             DimensionValues.DIMENSION_VALUES_VERSION,
@@ -861,7 +861,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """;
         runTestsNullifyOnly(query, STAGES, DimensionValues.DIMENSION_VALUES_VERSION);
         runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
-        runTestsLoadOnlyBelow(
+        runTestsLoadOnlyBetween(
             query,
             STAGES,
             DimensionValues.DIMENSION_VALUES_VERSION,

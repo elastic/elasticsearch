@@ -117,12 +117,12 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     }
 
     /**
-     * Same as {@link #runTestsLoadOnlyBelow(String, EnumSet, TransportVersion, String...)}, but also requires the
-     * random version to support {@code minSupportedVersion}. Use this when the query has some other minimum version
-     * requirement (e.g. a TS-mode query needing dimension-column support) that a version predating
+     * Runs LOAD mode at a random version that supports {@code minSupportedVersion} but does not support
+     * {@code maxVersionExclusive} -- i.e. a version between the two. Use this when the query has some other minimum
+     * version requirement (e.g. a TS-mode query needing dimension-column support) that a version predating
      * {@code maxVersionExclusive} might otherwise not meet.
      */
-    protected void runTestsLoadOnlyBelow(
+    protected void runTestsLoadOnlyBetween(
         String query,
         EnumSet<Stage> stages,
         TransportVersion minSupportedVersion,

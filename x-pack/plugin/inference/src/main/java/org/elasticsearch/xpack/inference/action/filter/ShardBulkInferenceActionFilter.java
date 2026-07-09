@@ -1009,8 +1009,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     lst.addAll(resp.toChunks(useLegacyFormat, indexRequest.getContentType()));
 
                     if (resp instanceof InferenceStringFieldInferenceResponse isfir
-                        && isfir.input() instanceof ReferenceValueInferenceString rvis
-                        && rvis.referenceValue() != null) {
+                        && isfir.input() instanceof ReferenceValueInferenceString rvis) {
                         if (sourceMap == null) {
                             sourceMap = indexRequest.sourceAsMap();
                         }

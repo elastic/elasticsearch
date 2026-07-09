@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
@@ -23,9 +24,19 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class ReferenceValueInferenceString extends InferenceString {
     public static final String REFERENCE_VALUE_FIELD = "reference_value";
 
-    public static final ConstructingObjectParser<ReferenceValueInferenceString, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         ReferenceValueInferenceString.class.getSimpleName(),
-        args -> new ReferenceValueInferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2], (String) args[3])
+        args -> {
+            DataType dataType = (DataType) args[0];
+            DataFormat dataFormat = (DataFormat) args[1];
+            String value = (String) args[2];
+            String referenceValue = (String) args[3];
+            if (referenceValue != null) {
+                return new ReferenceValueInferenceString(dataType, dataFormat, value, referenceValue);
+            } else {
+                return new InferenceString(dataType, dataFormat, value);
+            }
+        }
     );
     static {
         InferenceString.declareCommonFields(PARSER);
@@ -38,26 +49,18 @@ public class ReferenceValueInferenceString extends InferenceString {
         DataType dataType,
         @Nullable DataFormat dataFormat,
         String value,
-        @Nullable String referenceValue
+        String referenceValue
     ) {
         super(dataType, dataFormat, value);
         this.referenceValue = referenceValue;
     }
 
     public InferenceString truncateReferenceValue() {
-        if (referenceValue != null) {
-            return new InferenceString(dataType(), dataFormat(), value());
-        }
-
-        return this;
+        return new InferenceString(dataType(), dataFormat(), value());
     }
 
     public InferenceString replaceValueWithReferenceValue() {
-        if (referenceValue != null) {
-            return new InferenceString(dataType(), DataFormat.REFERENCE, referenceValue);
-        }
-
-        return this;
+        return new InferenceString(dataType(), DataFormat.REFERENCE, referenceValue);
     }
 
     public String referenceValue() {
@@ -65,17 +68,13 @@ public class ReferenceValueInferenceString extends InferenceString {
     }
 
     @Override
-    protected void validateWriteTo() {
-        if (referenceValue != null) {
-            throw new IllegalStateException("Cannot serialize a [" + REFERENCE_VALUE_FIELD + "] value");
-        }
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new IllegalStateException("[" + getClass().getSimpleName() + "] cannot be serialized");
     }
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        if (referenceValue != null) {
-            builder.field(REFERENCE_VALUE_FIELD, referenceValue);
-        }
+        builder.field(REFERENCE_VALUE_FIELD, referenceValue);
     }
 
     @Override

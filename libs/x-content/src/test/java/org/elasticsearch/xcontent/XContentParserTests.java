@@ -719,16 +719,19 @@ public class XContentParserTests extends ESTestCase {
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("number_base10", parser.currentName());
             assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+            assertEquals(XContentParser.NumberType.INT, parser.numberType());
             assertEquals(1, parser.intValue());
 
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("number_base16", parser.currentName());
             assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+            assertEquals(XContentParser.NumberType.INT, parser.numberType());
             assertEquals(1, parser.intValue());
 
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("number_base16_uppercase", parser.currentName());
             assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+            assertEquals(XContentParser.NumberType.INT, parser.numberType());
             assertEquals(255, parser.intValue());
 
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());

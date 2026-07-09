@@ -53,14 +53,14 @@ public class APMHttpServerInstrumentation implements HttpServerInstrumentation {
     @Override
     public void start(ThreadContext threadContext, RestRequest request, String matchedRoute) {
         var req = new RequestAndRoute(request, matchedRoute);
-        tracer.startTrace(threadContext, request, spanNameExtractor.extract(req), oldRequestAttributes(request));
+        tracer.startTrace(threadContext, request, spanNameExtractor.extract(req), legacyRequestAttributes(request));
 
         var attributes = Attributes.builder();
         httpServerAttributesExtractor.onStart(attributes, /* we don't care about the context in this case */ Context.root(), req);
         tracer.setAttributes(request, attributes.build());
     }
 
-    private static Map<String, Object> oldRequestAttributes(RestRequest req) {
+    private static Map<String, Object> legacyRequestAttributes(RestRequest req) {
         String method = null;
         try {
             method = req.method().name();
@@ -89,7 +89,7 @@ public class APMHttpServerInstrumentation implements HttpServerInstrumentation {
 
     @Override
     public void end(RestRequest request, RestResponse response) {
-        setOldResponseAttributes(request, response);
+        setLegacyResponseAttributes(request, response);
 
         var requestAndRoute = new RequestAndRoute(request, /* only needed at start */ null);
         var attributes = Attributes.builder();
@@ -106,7 +106,7 @@ public class APMHttpServerInstrumentation implements HttpServerInstrumentation {
         tracer.stopTrace(request);
     }
 
-    private void setOldResponseAttributes(RestRequest request, RestResponse response) {
+    private void setLegacyResponseAttributes(RestRequest request, RestResponse response) {
         tracer.setAttribute(request, "http.status_code", response.status().getStatus());
         response.getHeaders()
             .forEach((key, values) -> tracer.setAttribute(request, "http.response.headers." + key, String.join("; ", values)));

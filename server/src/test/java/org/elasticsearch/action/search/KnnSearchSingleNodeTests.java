@@ -101,13 +101,13 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            prepareIndex("index").setSource("vector", randomVector(), "text", "hello world").get();
+            prepareIndex("index").setSource("vector", randomVector(0f, 1f), "text", "hello world").get();
             prepareIndex("index").setSource("text", "goodnight world").get();
         }
 
         indicesAdmin().prepareRefresh("index").get();
 
-        float[] queryVector = randomVector();
+        float[] queryVector = randomVector(0f, 1f);
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, 10f, null, null).boost(5.0f).queryName("knn");
         assertResponse(
             client().prepareSearch("index")

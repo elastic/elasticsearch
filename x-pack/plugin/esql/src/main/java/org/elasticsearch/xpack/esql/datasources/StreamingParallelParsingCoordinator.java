@@ -1182,6 +1182,31 @@ public final class StreamingParallelParsingCoordinator {
             return result;
         }
 
+        @Override
+        public Page tryAdvance() {
+            if (closed) {
+                return null;
+            }
+            if (buffered != null) {
+                Page result = buffered;
+                buffered = null;
+                return result;
+            }
+            checkError();
+            skipDrainedPoison();
+            if (currentChunk >= chunksDispatched.get()) {
+                return null;
+            }
+            int slot = currentChunk % pageQueueRingSize;
+            Page page = pageQueues[slot].poll();
+            if (page == POISON) {
+                currentChunk++;
+                dispatchPermits.release();
+                return null;
+            }
+            return page;
+        }
+
         /**
          * Returns {@code true} when {@link #hasNext()} can run without blocking on upstream
          * production: a real page is available at the head of the current slot, EOF has been reached,

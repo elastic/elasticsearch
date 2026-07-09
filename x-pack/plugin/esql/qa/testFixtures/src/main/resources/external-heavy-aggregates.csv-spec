@@ -23,6 +23,7 @@ distinct_emp:long | total:long | sum_salary:long | avg_salary:double
 
 heavyAggregatesGroupedMergedAcrossDatasets
 required_capability: external_command
+required_capability: external_csv_empty_string_not_null
 dataset: emp_a: "{{employees_no_mv}}"
 dataset: emp_b: "{{employees_no_mv}}"
 
@@ -31,9 +32,9 @@ FROM emp_a, emp_b
 | SORT gender;
 
 distinct_emp:long | c:long | gender:keyword
+10                | 20     |
 33                | 66     | "F"
 57                | 114    | "M"
-10                | 20     | null
 ;
 
 // Per-aggregate filter on a heavy aggregate mixed with an unfiltered one. Because not every aggregate is filtered,
@@ -60,6 +61,7 @@ distinct_f:long | total:long
 // actually selects rows and the grouped + filtered merge is correct.
 heavyAggregatesFilteredGroupedMergedAcrossDatasets
 required_capability: external_command
+required_capability: external_csv_empty_string_not_null
 dataset: emp_a: "{{employees_no_mv}}"
 dataset: emp_b: "{{employees_no_mv}}"
 
@@ -68,7 +70,7 @@ FROM emp_a, emp_b
 | SORT gender;
 
 distinct_emp:long | gender:keyword
+0                 |
 0                 | "F"
 57                | "M"
-0                 | null
 ;

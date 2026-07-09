@@ -153,7 +153,16 @@ public class ClickBenchFixture extends ExternalResource {
             String url = BASE_URL + idx + SUFFIX;
             logger.info("Downloading RG0 from hits_{}", idx);
             Path tmpFile = rawDir.resolve("rg0_" + idx + ".parquet.tmp");
-            boolean ok = downloadRG0ToFile(url, tmpFile);
+            boolean ok;
+            try {
+                ok = downloadRG0ToFile(url, tmpFile);
+            } catch (IOException e) {
+                // A single source file's transient download failure (e.g. HTTP 429) should not abort the
+                // whole fixture and fail every test in the suite -- skip this file like the ok == false path.
+                logger.warn("Failed to download RG0 from hits_{}, skipping: {}", idx, e.getMessage());
+                Files.deleteIfExists(tmpFile);
+                continue;
+            }
             if (ok == false) {
                 logger.warn("Failed to download RG0 from hits_{}, skipping", idx);
                 Files.deleteIfExists(tmpFile);

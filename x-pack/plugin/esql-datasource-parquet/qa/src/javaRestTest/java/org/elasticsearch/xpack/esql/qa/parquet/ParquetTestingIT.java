@@ -265,7 +265,15 @@ public class ParquetTestingIT extends ESRestTestCase {
     private void testGoodData(String url, String dataset) throws Exception {
         logger.info("Testing good data: {}", parquetFile);
 
-        byte[] parquetBytes = downloadFile(url);
+        byte[] parquetBytes;
+        try {
+            parquetBytes = downloadFile(url);
+        } catch (IOException e) {
+            // raw.githubusercontent.com occasionally rate-limits (HTTP 429) the pinned-commit fixture under
+            // CI load; that is an environmental condition, not a reader regression.
+            assumeNoException("Unable to download parquet-testing fixture [" + url + "]", e);
+            return;
+        }
         GroundTruth groundTruth;
         try {
             groundTruth = readGroundTruth(parquetBytes);
@@ -741,7 +749,48 @@ public class ParquetTestingIT extends ESRestTestCase {
         return "FROM " + dataset + " | LIMIT " + limit;
     }
 
+    private static final int DOWNLOAD_MAX_ATTEMPTS = 4;
+    private static final long DOWNLOAD_INITIAL_BACKOFF_MILLIS = 1000L;
+    private static final long DOWNLOAD_MAX_BACKOFF_MILLIS = 8000L;
+
+    /**
+     * Downloads {@code url}, retrying with capped exponential backoff and jitter on any failure
+     * (raw.githubusercontent.com occasionally rate-limits pinned-commit fixture URLs with HTTP 429
+     * under CI load). Throws the last failure once attempts are exhausted; the caller treats that as
+     * an environmental skip rather than a test failure.
+     */
     private static byte[] downloadFile(String url) throws IOException {
+        IOException lastFailure = null;
+        for (int attempt = 1; attempt <= DOWNLOAD_MAX_ATTEMPTS; attempt++) {
+            try {
+                return downloadFileOnce(url);
+            } catch (IOException e) {
+                lastFailure = e;
+                if (attempt == DOWNLOAD_MAX_ATTEMPTS) {
+                    break;
+                }
+                long backoff = Math.min(DOWNLOAD_INITIAL_BACKOFF_MILLIS << (attempt - 1), DOWNLOAD_MAX_BACKOFF_MILLIS);
+                long jitter = randomLongBetween(0, backoff / 2);
+                logger.warn(
+                    "Attempt {}/{} to download [{}] failed ({}), retrying in {}ms",
+                    attempt,
+                    DOWNLOAD_MAX_ATTEMPTS,
+                    url,
+                    e.getMessage(),
+                    backoff + jitter
+                );
+                try {
+                    Thread.sleep(backoff + jitter);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while retrying download of " + url, interrupted);
+                }
+            }
+        }
+        throw lastFailure;
+    }
+
+    private static byte[] downloadFileOnce(String url) throws IOException {
         HttpGet request = new HttpGet(url);
         try (CloseableHttpResponse response = httpClient.execute(request)) {
             int status = response.getStatusLine().getStatusCode();

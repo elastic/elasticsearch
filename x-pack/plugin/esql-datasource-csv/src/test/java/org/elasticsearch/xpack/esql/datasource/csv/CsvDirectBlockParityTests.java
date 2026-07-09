@@ -38,6 +38,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -998,6 +999,86 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             names.add(r.get(1));
         }
         assertEquals(List.of(br("Alice, PhD"), br("Bob, MD")), names);
+    }
+
+    /**
+     * Escaped-mode {@code _rowPosition} double-decode pin: projecting the synthetic offset column (which forces
+     * the CsvRecordIterator path) must not re-decode parseRecord's already-decoded values. On disk row 1 carries
+     * {@code x\\ty} and row 2 {@code \\N}; one decode yields {@code x\ty} (literal backslash-t) and the literal
+     * two-character {@code \N}. A second decode would turn those into a TAB and a null.
+     */
+    public void testRowPositionProjectionDoesNotChangeEscapedValues() throws IOException {
+        String tsv = "id:integer\tnote:keyword\n1\tx\\\\ty\n2\t\\\\N\n";
+        assertEquals(List.of(row(br("x\\ty")), row(br("\\N"))), read(true, Map.of("mode", "escaped"), null, List.of("note"), tsv));
+        List<List<Object>> withPos = read(true, Map.of("mode", "escaped"), null, List.of("_rowPosition", "note"), tsv);
+        assertEquals(List.of(br("x\\ty"), br("\\N")), column(withPos, 1));
+    }
+
+    /**
+     * Second axis of the same bug: with an inferred schema the first {@code schema_sample_size} rows are replayed
+     * from the (already-decoded) prefetched sample while later rows come from the live iterator. Under
+     * {@code _rowPosition} both must decode exactly once, so the value must not depend on the row's index
+     * relative to the sample window. Modeled on {@link #testPrefetchReplayPaddedQuotedAcrossSampleBoundary}.
+     */
+    public void testRowPositionEscapedDecodesOnceAcrossSampleBoundary() throws IOException {
+        String tsv = "id\tnote\n1\tx\\\\ty\n2\tx\\\\ty\n3\tx\\\\ty\n4\tx\\\\ty\n";
+        Map<String, Object> config = Map.of("mode", "escaped", "schema_sample_size", 2);
+        List<List<Object>> withPos = read(true, config, null, List.of("_rowPosition", "note"), tsv);
+        assertEquals(List.of(br("x\\ty"), br("x\\ty"), br("x\\ty"), br("x\\ty")), column(withPos, 1));
+    }
+
+    /**
+     * Escaped-mode escape-set breadth under {@code _rowPosition}: every C-style sequence a second decode would
+     * re-interpret. On disk each cell carries a doubled backslash, so one decode yields a literal backslash
+     * followed by the escape letter; a second decode would collapse it to the control character.
+     */
+    public void testRowPositionEscapedDecodesOnceForFullEscapeSet() throws IOException {
+        String tsv = "id:integer\tnote:keyword\n1\t\\\\t\n2\t\\\\n\n3\t\\\\r\n4\t\\\\0\n5\t\\\\b\n6\t\\\\f\n7\t\\\\\\\\\n";
+        List<Object> expected = List.of(br("\\t"), br("\\n"), br("\\r"), br("\\0"), br("\\b"), br("\\f"), br("\\\\"));
+        assertEquals(expected, column(read(true, Map.of("mode", "escaped"), null, List.of("note"), tsv), 0));
+        assertEquals(expected, column(read(true, Map.of("mode", "escaped"), null, List.of("_rowPosition", "note"), tsv), 1));
+    }
+
+    /**
+     * A custom {@code null_value} is matched by Jackson against the RAW token on both escaped arms, so projecting
+     * {@code _rowPosition} must not change which cells are null nor re-decode the surviving ones.
+     */
+    public void testRowPositionEscapedCustomNullValueUnchanged() throws IOException {
+        String tsv = "id:integer\tnote:keyword\n1\tNA\n2\tx\\\\ty\n";
+        Map<String, Object> config = Map.of("mode", "escaped", "null_value", "NA");
+        assertEquals(List.of(row((Object) null), row(br("x\\ty"))), read(true, config, null, List.of("note"), tsv));
+        assertEquals(Arrays.asList(null, br("x\\ty")), column(read(true, config, null, List.of("_rowPosition", "note"), tsv), 1));
+    }
+
+    /**
+     * The escaped-mode routing gate consults no delimiter, so comma-delimited CSV must behave exactly as the TSV
+     * cases above. Pinned separately because every other escaped × {@code _rowPosition} test here is TSV, and a
+     * custom {@code escape} char rides the same {@code decodeFieldValue} that the gate now guards.
+     */
+    public void testRowPositionEscapedDecodesOnceForCommaCsvAndCustomEscapeChar() throws IOException {
+        String csv = "id:integer,note:keyword\n1,x~~ty\n";
+        Map<String, Object> config = Map.of("mode", "escaped", "escape", "~");
+        assertEquals(List.of(row(br("x~ty"))), read(false, config, null, List.of("note"), csv));
+        assertEquals(List.of(br("x~ty")), column(read(false, config, null, List.of("_rowPosition", "note"), csv), 1));
+    }
+
+    /**
+     * Non-regression pin for the OTHER arm of the same routing decision: with stripe capture on and no
+     * {@code _rowPosition}, escaped mode rides {@code newTrackedJacksonBulkIterator}, which delivers RAW values —
+     * so the batch loop must still decode. Guards against "fixing" the double-decode by suppressing the decode
+     * unconditionally, which would leave escape sequences un-decoded on both bulk arms.
+     */
+    public void testEscapedTrackedBulkPathStillDecodesOnce() throws IOException {
+        assertEquals(List.of(row(br("x\\ty"))), readAllScope(Map.of("mode", "escaped"), "note:keyword\nx\\\\ty\n"));
+    }
+
+    /** Projects column {@code index} out of every row. */
+    private static List<Object> column(List<List<Object>> rows, int index) {
+        List<Object> values = new ArrayList<>(rows.size());
+        for (List<Object> r : rows) {
+            values.add(r.get(index));
+        }
+        return values;
     }
 
     // ---------------------------------------------------------------------------------------------

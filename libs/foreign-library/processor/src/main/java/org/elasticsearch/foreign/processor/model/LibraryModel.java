@@ -228,10 +228,10 @@ public record LibraryModel(
                 );
                 fieldError = true;
             } else {
-                fields.add(StructFieldModel.scalar(component.getSimpleName().toString(), fieldType));
+                fields.add(new ScalarFieldModel(component.getSimpleName().toString(), fieldType));
             }
         }
-        return fieldError ? null : new StructModel(typeSimpleName, true, List.copyOf(fields));
+        return fieldError ? null : new StructRecordModel(typeSimpleName, List.copyOf(fields));
     }
 
     /**
@@ -276,20 +276,20 @@ public record LibraryModel(
                 continue;
             }
             interfaceFields.add(fieldModel);
-            if (fieldModel.isArray() == false) {
-                scalarFieldNames.add(fieldModel.name());
+            if (fieldModel instanceof ScalarFieldModel scalar) {
+                scalarFieldNames.add(scalar.name());
             }
         }
 
         // Every @ArrayField's lengthField must name a real scalar field on this same struct.
         for (StructFieldModel fm : interfaceFields) {
-            if (fm.isArray() && scalarFieldNames.contains(fm.lengthFieldName()) == false) {
+            if (fm instanceof ArrayFieldModel array && scalarFieldNames.contains(array.lengthFieldName()) == false) {
                 messager.printMessage(
                     Kind.ERROR,
                     "@ArrayField on '"
-                        + fm.name()
+                        + array.name()
                         + "' references lengthField '"
-                        + fm.lengthFieldName()
+                        + array.lengthFieldName()
                         + "' which is not a scalar field on '"
                         + typeSimpleName
                         + "'",
@@ -299,7 +299,7 @@ public record LibraryModel(
             }
         }
 
-        return fieldError ? null : new StructModel(typeSimpleName, false, List.copyOf(interfaceFields));
+        return fieldError ? null : new StructInterfaceModel(typeSimpleName, List.copyOf(interfaceFields));
     }
 
     /**
@@ -351,7 +351,7 @@ public record LibraryModel(
                 messager.printMessage(Kind.ERROR, "@ArrayField on '" + methodName + "' requires lengthField", method, arrayFieldMirror);
                 return null;
             }
-            return StructFieldModel.array(methodName, elementSimpleName, lengthField);
+            return new ArrayFieldModel(methodName, elementSimpleName, lengthField);
         }
 
         // Scalar field: return type is the field type
@@ -377,7 +377,7 @@ public record LibraryModel(
             messager.printMessage(Kind.ERROR, "Scalar field method '" + methodName + "' must take no parameters", method);
             return null;
         }
-        return StructFieldModel.scalar(methodName, returnType);
+        return new ScalarFieldModel(methodName, returnType);
     }
 
     /** Returns {@code true} if {@code typeElement} directly extends {@code org.elasticsearch.foreign.Addressable}. */

@@ -10,14 +10,13 @@
 package org.elasticsearch.foreign.processor.model;
 
 /**
- * A single field of a {@code @StructSpecification} struct, either a {@link ScalarFieldModel scalar
- * value} or an {@link ArrayFieldModel array pointer}. Every variant exposes a field name and the
- * native layout type used to read or write the field.
+ * An array-pointer {@link StructFieldModel} — a native pointer field naming a separately-allocated
+ * array of element records. Every array field carries the simple name of the element type and the
+ * name of the sibling scalar length field on the same struct.
  */
-public sealed interface StructFieldModel permits ScalarFieldModel, ArrayFieldModel {
-    /** Field name (method name for interfaces, component name for records). */
-    String name();
-
-    /** The native layout type used to read or write this field. */
-    NativeType type();
+public record ArrayFieldModel(String name, String elementSimpleName, String lengthFieldName) implements StructFieldModel {
+    @Override
+    public NativeType type() {
+        return NativeType.ADDRESS;
+    }
 }

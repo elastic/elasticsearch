@@ -9,11 +9,15 @@
 
 package org.elasticsearch.foreign.processor;
 
+import org.elasticsearch.foreign.processor.model.ArrayFieldModel;
 import org.elasticsearch.foreign.processor.model.LibraryModel;
 import org.elasticsearch.foreign.processor.model.MethodModel;
 import org.elasticsearch.foreign.processor.model.NativeType;
+import org.elasticsearch.foreign.processor.model.ScalarFieldModel;
 import org.elasticsearch.foreign.processor.model.StructFieldModel;
+import org.elasticsearch.foreign.processor.model.StructInterfaceModel;
 import org.elasticsearch.foreign.processor.model.StructModel;
+import org.elasticsearch.foreign.processor.model.StructRecordModel;
 
 import java.lang.classfile.ClassBuilder;
 import java.lang.classfile.ClassFile;
@@ -131,10 +135,9 @@ class ImplClassWriter {
     void generate(LibraryModel model, TypeElement sourceElement) throws Exception {
         // Generate $Pack for record structs and $Impl for interface structs
         for (StructModel struct : model.structs()) {
-            if (struct.isRecord()) {
-                generatePackClass(model, struct, sourceElement);
-            } else {
-                generateStructImplClass(model, struct, sourceElement);
+            switch (struct) {
+                case StructRecordModel r -> generatePackClass(model, r, sourceElement);
+                case StructInterfaceModel i -> generateStructImplClass(model, i, sourceElement);
             }
         }
 
@@ -205,7 +208,7 @@ class ImplClassWriter {
      * The class exposes {@code LAYOUT}, per-field offsets, per-field VarHandles (used by
      * {@code $Impl} readers), and a {@code pack(record, segment, baseOffset)} method.
      */
-    private void generatePackClass(LibraryModel model, StructModel struct, TypeElement sourceElement) throws Exception {
+    private void generatePackClass(LibraryModel model, StructRecordModel struct, TypeElement sourceElement) throws Exception {
         String packQualifiedName = model.packageName().isEmpty()
             ? model.simpleName() + "$" + struct.simpleName() + "$Pack"
             : model.packageName() + "." + model.simpleName() + "$" + struct.simpleName() + "$Pack";
@@ -324,7 +327,7 @@ class ImplClassWriter {
      * java.lang.foreign.MemorySegment}, and exposes VarHandle-backed accessors for scalar fields
      * and indexed accessors for {@code @ArrayField} methods.
      */
-    private void generateStructImplClass(LibraryModel model, StructModel struct, TypeElement sourceElement) throws Exception {
+    private void generateStructImplClass(LibraryModel model, StructInterfaceModel struct, TypeElement sourceElement) throws Exception {
         String structImplQualifiedName = model.packageName().isEmpty()
             ? model.simpleName() + "$" + struct.simpleName() + "$Impl"
             : model.packageName() + "." + model.simpleName() + "$" + struct.simpleName() + "$Impl";
@@ -351,8 +354,7 @@ class ImplClassWriter {
 
             // One VarHandle per field: scalar fields use "name$vh", array pointer fields use "name$ptr$vh"
             for (StructFieldModel field : fields) {
-                String vhName = field.isArray() ? field.name() + "$ptr$vh" : field.name() + "$vh";
-                cb.withField(vhName, CD_VarHandle, fb -> fb.withFlags(AccessFlag.STATIC, AccessFlag.FINAL));
+                cb.withField(varHandleFieldName(field), CD_VarHandle, fb -> fb.withFlags(AccessFlag.STATIC, AccessFlag.FINAL));
             }
 
             // final MemorySegment segment
@@ -365,12 +367,11 @@ class ImplClassWriter {
                 clinit.putstatic(structImplDesc, "LAYOUT", CD_StructLayout);
 
                 for (StructFieldModel field : fields) {
-                    String vhName = field.isArray() ? field.name() + "$ptr$vh" : field.name() + "$vh";
                     clinit.getstatic(structImplDesc, "LAYOUT", CD_StructLayout);
                     clinit.ldc(field.name());
                     clinit.invokestatic(CD_MemoryLayoutPathElement, "groupElement", MTD_groupElement, true);
                     clinit.invokestatic(CD_MemorySegmentAdapter, "varHandleWithoutOffset", MTD_varHandleWithoutOffset);
-                    clinit.putstatic(structImplDesc, vhName, CD_VarHandle);
+                    clinit.putstatic(structImplDesc, varHandleFieldName(field), CD_VarHandle);
                 }
 
                 clinit.return_();
@@ -397,11 +398,12 @@ class ImplClassWriter {
 
             // Accessor methods for every field
             for (StructFieldModel field : fields) {
-                if (field.isArray()) {
-                    List<StructFieldModel> elementFields = resolveElementFields(model, field.elementSimpleName());
-                    emitArrayFieldGetter(cb, structImplDesc, packPrefix, field, elementFields);
-                } else {
-                    emitScalarFieldGetter(cb, structImplDesc, field);
+                switch (field) {
+                    case ScalarFieldModel scalar -> emitScalarFieldGetter(cb, structImplDesc, scalar);
+                    case ArrayFieldModel array -> {
+                        List<StructFieldModel> elementFields = resolveElementFields(model, array.elementSimpleName());
+                        emitArrayFieldGetter(cb, structImplDesc, packPrefix, array, elementFields);
+                    }
                 }
             }
         });
@@ -412,11 +414,11 @@ class ImplClassWriter {
     }
 
     /** Emits a scalar-field accessor: {@code return (<type>) name$vh.get(segment);}. */
-    private static void emitScalarFieldGetter(ClassBuilder cb, ClassDesc structImplDesc, StructFieldModel field) {
+    private static void emitScalarFieldGetter(ClassBuilder cb, ClassDesc structImplDesc, ScalarFieldModel field) {
         ClassDesc returnDesc = fieldClassDesc(field.type());
         MethodTypeDesc methodDesc = MethodTypeDesc.of(returnDesc);
         cb.withMethodBody(field.name(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
-            code.getstatic(structImplDesc, field.name() + "$vh", CD_VarHandle);
+            code.getstatic(structImplDesc, varHandleFieldName(field), CD_VarHandle);
             code.aload(0);
             code.getfield(structImplDesc, "segment", CD_MemorySegment);
             code.invokevirtual(CD_VarHandle, "get", MethodTypeDesc.of(returnDesc, CD_MemorySegment));
@@ -433,7 +435,7 @@ class ImplClassWriter {
         ClassBuilder cb,
         ClassDesc structImplDesc,
         String packPrefix,
-        StructFieldModel arrayField,
+        ArrayFieldModel arrayField,
         List<StructFieldModel> elementFields
     ) {
         ClassDesc elementRecordDesc = ClassDesc.of(packPrefix + "$" + arrayField.elementSimpleName());
@@ -443,7 +445,7 @@ class ImplClassWriter {
         cb.withMethodBody(arrayField.name(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
             // slot 0 = this, slot 1 = index (int)
             // MemorySegment ptr = (MemorySegment) name$ptr$vh.get(segment)
-            code.getstatic(structImplDesc, arrayField.name() + "$ptr$vh", CD_VarHandle);
+            code.getstatic(structImplDesc, varHandleFieldName(arrayField), CD_VarHandle);
             code.aload(0);
             code.getfield(structImplDesc, "segment", CD_MemorySegment);
             code.invokevirtual(CD_VarHandle, "get", MethodTypeDesc.of(CD_MemorySegment, CD_MemorySegment));
@@ -488,6 +490,14 @@ class ImplClassWriter {
             }
         }
         throw new AssertionError("no struct model for element type: " + simpleName);
+    }
+
+    /** Name of the static VarHandle field generated for {@code field} on a struct {@code $Impl}. */
+    private static String varHandleFieldName(StructFieldModel field) {
+        return switch (field) {
+            case ScalarFieldModel scalar -> scalar.name() + "$vh";
+            case ArrayFieldModel array -> array.name() + "$ptr$vh";
+        };
     }
 
     /** Emits the return instruction for a scalar {@link NativeType}. */
@@ -805,17 +815,16 @@ class ImplClassWriter {
             .filter(s -> s.simpleName().equals(nm.structReturnSimpleName()))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Cannot find struct model for " + nm.structReturnSimpleName()));
-        StructFieldModel arrayField = targetStruct.fields()
-            .stream()
-            .filter(StructFieldModel::isArray)
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("Struct " + nm.structReturnSimpleName() + " has no @ArrayField"));
-        StructFieldModel lengthField = targetStruct.fields()
-            .stream()
-            .filter(f -> f.name().equals(arrayField.lengthFieldName()))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("Missing length field " + arrayField.lengthFieldName()));
-        NativeType countType = lengthField.type();
+        ArrayFieldModel arrayField = targetStruct.fields().stream().<ArrayFieldModel>mapMulti((f, sink) -> {
+            if (f instanceof ArrayFieldModel a) {
+                sink.accept(a);
+            }
+        }).findFirst().orElseThrow(() -> new AssertionError("Struct " + nm.structReturnSimpleName() + " has no @ArrayField"));
+        NativeType countType = targetStruct.fields().stream().<ScalarFieldModel>mapMulti((f, sink) -> {
+            if (f instanceof ScalarFieldModel s && s.name().equals(arrayField.lengthFieldName())) {
+                sink.accept(s);
+            }
+        }).findFirst().orElseThrow(() -> new AssertionError("Missing length field " + arrayField.lengthFieldName())).type();
 
         // Class descriptors for the generated struct types
         String prefix = model.packageName().isEmpty() ? model.simpleName() : model.packageName() + "." + model.simpleName();
@@ -874,7 +883,7 @@ class ImplClassWriter {
             code.labelBinding(loopEnd);
 
             // result.<lengthField>$vh.set(result.segment, (<countType>) elements.length)
-            code.getstatic(structImplDesc, lengthField.name() + "$vh", CD_VarHandle);
+            code.getstatic(structImplDesc, arrayField.lengthFieldName() + "$vh", CD_VarHandle);
             code.aload(2);
             code.getfield(structImplDesc, "segment", CD_MemorySegment);
             code.aload(1);
@@ -891,7 +900,7 @@ class ImplClassWriter {
             code.invokevirtual(CD_VarHandle, "set", MethodTypeDesc.of(CD_void, CD_MemorySegment, countClassDesc));
 
             // result.<arrayField>$ptr$vh.set(result.segment, arr)
-            code.getstatic(structImplDesc, arrayField.name() + "$ptr$vh", CD_VarHandle);
+            code.getstatic(structImplDesc, varHandleFieldName(arrayField), CD_VarHandle);
             code.aload(2);
             code.getfield(structImplDesc, "segment", CD_MemorySegment);
             code.aload(3);

@@ -788,19 +788,19 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testIdenticalDocumentsShareTsid() throws IOException {
-        DocumentMapper docMapper = metricsMapper();
+        final DocumentMapper docMapper = metricsMapper();
 
-        BytesRef first = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
-        BytesRef second = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
+        final BytesRef first = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
+        final BytesRef second = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
 
         assertThat(second, equalTo(first));
     }
 
     public void testSameMetricDifferentValueShareTsid() throws IOException {
-        DocumentMapper docMapper = metricsMapper();
+        final DocumentMapper docMapper = metricsMapper();
 
-        BytesRef first = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
-        BytesRef second = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 20));
+        final BytesRef first = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
+        final BytesRef second = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 20));
 
         // Same dimensions, metric and @timestamp with a different value: the documents share a _tsid and collide, so
         // the earlier value is overwritten. The metric is the same, so this is not the distinct-metric case of #99123.
@@ -808,10 +808,10 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testDifferentMetricsShareTsid() throws IOException {
-        DocumentMapper docMapper = metricsMapper();
+        final DocumentMapper docMapper = metricsMapper();
 
-        BytesRef gauge = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
-        BytesRef counter = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("counter", 10));
+        final BytesRef gauge = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
+        final BytesRef counter = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("counter", 10));
 
         // Bug #99123: gauge and counter are distinct metrics, but the metric name is not part of the _tsid, so they
         // collide and one document is lost. Ideally these would differ.
@@ -819,16 +819,16 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testDifferentDimensionsProduceDifferentTsid() throws IOException {
-        DocumentMapper docMapper = metricsMapper();
+        final DocumentMapper docMapper = metricsMapper();
 
-        BytesRef first = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
-        BytesRef second = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p2").field("gauge", 10));
+        final BytesRef first = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p1").field("gauge", 10));
+        final BytesRef second = parseAndGetTsid(docMapper, b -> b.field("metricset", "pod").field("pod", "p2").field("gauge", 10));
 
         assertThat(second, not(equalTo(first)));
     }
 
     public void testMetricNamesHashDimensionAvoidsCollision() throws IOException {
-        DocumentMapper docMapper = createDocumentMapper("metricset,pod,_metric_names_hash", mapping(b -> {
+        final DocumentMapper docMapper = createDocumentMapper("metricset,pod,_metric_names_hash", mapping(b -> {
             b.startObject("metricset").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("pod").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("_metric_names_hash").field("type", "keyword").field("time_series_dimension", true).endObject();
@@ -836,11 +836,11 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.startObject("counter").field("type", "double").field("time_series_metric", "counter").endObject();
         }));
 
-        BytesRef gauge = parseAndGetTsid(
+        final BytesRef gauge = parseAndGetTsid(
             docMapper,
             b -> b.field("metricset", "pod").field("pod", "p1").field("_metric_names_hash", "gauge").field("gauge", 10)
         );
-        BytesRef counter = parseAndGetTsid(
+        final BytesRef counter = parseAndGetTsid(
             docMapper,
             b -> b.field("metricset", "pod").field("pod", "p1").field("_metric_names_hash", "counter").field("counter", 10)
         );
@@ -851,18 +851,18 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testSameMetricNamesHashShareTsid() throws IOException {
-        DocumentMapper docMapper = createDocumentMapper("metricset,pod,_metric_names_hash", mapping(b -> {
+        final DocumentMapper docMapper = createDocumentMapper("metricset,pod,_metric_names_hash", mapping(b -> {
             b.startObject("metricset").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("pod").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("_metric_names_hash").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("gauge").field("type", "double").field("time_series_metric", "gauge").endObject();
         }));
 
-        BytesRef first = parseAndGetTsid(
+        final BytesRef first = parseAndGetTsid(
             docMapper,
             b -> b.field("metricset", "pod").field("pod", "p1").field("_metric_names_hash", "gauge").field("gauge", 10)
         );
-        BytesRef second = parseAndGetTsid(
+        final BytesRef second = parseAndGetTsid(
             docMapper,
             b -> b.field("metricset", "pod").field("pod", "p1").field("_metric_names_hash", "gauge").field("gauge", 20)
         );

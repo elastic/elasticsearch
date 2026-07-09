@@ -416,13 +416,14 @@ public abstract class DocumentParserContext {
      * per-field failure column (see {@link OnFailureStoredValues}) and the field is marked ignored, so indexing continues without the
      * value ever reaching the field's own doc values.
      *
-     * @return {@code true} if the caller should parse and index this value normally; {@code false} if it was redirected to the failure
-     * column and the caller must skip normal parsing (including multi-fields) for it.
+
+     * @return {@code true} if this value was redirected to the failure column and the caller must skip normal parsing (including
+     * multi-fields) for it; {@code false} if the caller should parse and index this value normally.
      */
     public final boolean enforceSingleValue(String fieldName, FieldMapper.DocValuesParameter.Values.OnFailure onFailure)
         throws IOException {
         if (singleValuedFields.add(fieldName)) {
-            return true;
+            return false;
         }
         if (onFailure == FieldMapper.DocValuesParameter.Values.OnFailure.FAIL) {
             throw new IllegalArgumentException(
@@ -431,7 +432,7 @@ public abstract class DocumentParserContext {
         }
         OnFailureStoredValues.storeValueForOnFailureIgnore(this, fieldName, parser());
         addIgnoredField(fieldName);
-        return false;
+        return true;
     }
 
     /**

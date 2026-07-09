@@ -252,7 +252,7 @@ public abstract class FieldMapper extends Mapper {
                 throwIndexingWithScriptParam();
             }
             if (isSingleValueEnforced()) {
-                redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior()) == false;
+                redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior());
             }
             if (redirectedToFailureColumn == false) {
                 if (isNullable() == false && context.parser().currentToken().isValue()) {

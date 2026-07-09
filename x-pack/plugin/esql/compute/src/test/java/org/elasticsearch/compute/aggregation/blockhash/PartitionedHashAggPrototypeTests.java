@@ -34,10 +34,12 @@ import java.util.concurrent.TimeUnit;
  *   <li>per-row routing can reuse one precomputed {@link LongSwissHash#hash}
  *       for both partition selection and the destination table's insert, via
  *       {@link LongSwissHash#addWithHash};</li>
- *   <li>the result is identical to an unpartitioned baseline;</li>
- *   <li>the "v1" bridge (shared per-page routing vectors + a skip-scan per
- *       partition) has a measurable but bounded overhead relative to the
- *       baseline.</li>
+ *   <li>the result is identical to an unpartitioned baseline, for two
+ *       different ways of bridging that routing into batched per-partition
+ *       aggregation - a "v1" skip-scan over shared routing vectors, and a
+ *       bucket-sort into contiguous per-partition slices;</li>
+ *   <li>the bucket-sort variant's relative overhead against the baseline is
+ *       smaller than the skip-scan variant's.</li>
  * </ul>
  *
  * Per-partition early emit (draining a hot sub-table once it individually
@@ -95,21 +97,33 @@ public class PartitionedHashAggPrototypeTests extends ESTestCase {
         }
 
         // warmup, then measure - single fork, so this is a rough sanity check, not a rigorous benchmark
-        runBaseline(keys, values, batchSize);
-        runPartitioned(keys, values, batchSize, partitionCount, conversionThreshold);
+        runAgg(BaselineSumAgg::new, keys, values, batchSize);
+        runAgg(recyclerBreaker -> newSkipScan(partitionCount, conversionThreshold, recyclerBreaker), keys, values, batchSize);
+        runAgg(recyclerBreaker -> newBucketSort(partitionCount, conversionThreshold, recyclerBreaker), keys, values, batchSize);
 
-        long baselineNanos = timed(() -> runBaseline(keys, values, batchSize));
-        long partitionedNanos = timed(() -> runPartitioned(keys, values, batchSize, partitionCount, conversionThreshold));
+        long baselineNanos = timed(() -> runAgg(BaselineSumAgg::new, keys, values, batchSize));
+        long skipScanNanos = timed(
+            () -> runAgg(recyclerBreaker -> newSkipScan(partitionCount, conversionThreshold, recyclerBreaker), keys, values, batchSize)
+        );
+        long bucketSortNanos = timed(
+            () -> runAgg(recyclerBreaker -> newBucketSort(partitionCount, conversionThreshold, recyclerBreaker), keys, values, batchSize)
+        );
 
         logger.info(
-            "rows={} cardinality={} partitions={} baseline={}ms partitioned={}ms (partitioned/baseline={})",
+            "rows={} cardinality={} partitions={} baseline={}ms skipScan={}ms ({}) bucketSort={}ms ({})",
             totalRows,
             cardinality,
             partitionCount,
             TimeUnit.NANOSECONDS.toMillis(baselineNanos),
-            TimeUnit.NANOSECONDS.toMillis(partitionedNanos),
-            String.format(Locale.ROOT, "%.2fx", partitionedNanos / (double) baselineNanos)
+            TimeUnit.NANOSECONDS.toMillis(skipScanNanos),
+            ratio(skipScanNanos, baselineNanos),
+            TimeUnit.NANOSECONDS.toMillis(bucketSortNanos),
+            ratio(bucketSortNanos, baselineNanos)
         );
+    }
+
+    private static String ratio(long nanos, long baselineNanos) {
+        return String.format(Locale.ROOT, "%.2fx", nanos / (double) baselineNanos);
     }
 
     private void assertCorrectness(int totalRows, int cardinality, int partitionCount, int conversionThreshold) {
@@ -135,41 +149,52 @@ public class PartitionedHashAggPrototypeTests extends ESTestCase {
         int conversionThreshold,
         Map<Long, Long> expected
     ) {
-        PageCacheRecycler recycler = PageCacheRecycler.NON_RECYCLING_INSTANCE;
-        NoopCircuitBreaker breaker = new NoopCircuitBreaker("test");
         int batchSize = 512;
+        assertEquals(expected, resultOf(BaselineSumAgg::new, keys, values, batchSize));
+        assertEquals(expected, resultOf(recyclerBreaker -> newSkipScan(partitionCount, conversionThreshold, recyclerBreaker), keys,
+            values, batchSize));
+        assertEquals(expected, resultOf(recyclerBreaker -> newBucketSort(partitionCount, conversionThreshold, recyclerBreaker), keys,
+            values, batchSize));
+    }
 
-        try (BaselineSumAgg baseline = new BaselineSumAgg(recycler, breaker)) {
-            feed(baseline::add, keys, values, batchSize);
-            assertEquals(expected, baseline.results());
-        }
-        try (PartitionedSumAgg partitioned = new PartitionedSumAgg(partitionCount, conversionThreshold, recycler, breaker)) {
-            feed(partitioned::add, keys, values, batchSize);
-            assertEquals(expected, partitioned.results());
+    private static SkipScanPartitionedSumAgg newSkipScan(int partitionCount, int conversionThreshold, RecyclerBreaker rb) {
+        return new SkipScanPartitionedSumAgg(partitionCount, conversionThreshold, rb.recycler(), rb.breaker());
+    }
+
+    private static BucketSortPartitionedSumAgg newBucketSort(int partitionCount, int conversionThreshold, RecyclerBreaker rb) {
+        return new BucketSortPartitionedSumAgg(partitionCount, conversionThreshold, rb.recycler(), rb.breaker());
+    }
+
+    private record RecyclerBreaker(PageCacheRecycler recycler, NoopCircuitBreaker breaker) {}
+
+    private interface AggFactory<T extends Releasable & BatchConsumer> {
+        T create(RecyclerBreaker recyclerBreaker);
+    }
+
+    private static <T extends Releasable & BatchConsumer> Map<Long, Long> resultOf(
+        AggFactory<T> factory,
+        long[] keys,
+        long[] values,
+        int batchSize
+    ) {
+        RecyclerBreaker rb = new RecyclerBreaker(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoopCircuitBreaker("test"));
+        try (T agg = factory.create(rb)) {
+            feed(agg, keys, values, batchSize);
+            return agg.results();
         }
     }
 
-    private void runBaseline(long[] keys, long[] values, int batchSize) {
-        try (BaselineSumAgg agg = new BaselineSumAgg(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoopCircuitBreaker("test"))) {
-            feed(agg::add, keys, values, batchSize);
-        }
-    }
-
-    private void runPartitioned(long[] keys, long[] values, int batchSize, int partitionCount, int conversionThreshold) {
-        try (
-            PartitionedSumAgg agg = new PartitionedSumAgg(
-                partitionCount,
-                conversionThreshold,
-                PageCacheRecycler.NON_RECYCLING_INSTANCE,
-                new NoopCircuitBreaker("test")
-            )
-        ) {
-            feed(agg::add, keys, values, batchSize);
+    private static <T extends Releasable & BatchConsumer> void runAgg(AggFactory<T> factory, long[] keys, long[] values, int batchSize) {
+        RecyclerBreaker rb = new RecyclerBreaker(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoopCircuitBreaker("test"));
+        try (T agg = factory.create(rb)) {
+            feed(agg, keys, values, batchSize);
         }
     }
 
     private interface BatchConsumer {
         void add(long[] keys, long[] values, int length);
+
+        Map<Long, Long> results();
     }
 
     private static void feed(BatchConsumer agg, long[] keys, long[] values, int batchSize) {
@@ -196,15 +221,16 @@ public class PartitionedHashAggPrototypeTests extends ESTestCase {
     }
 
     /** Single, unpartitioned {@link LongSwissHash} + dense sum-state array - the baseline every comparison runs against. */
-    private static final class BaselineSumAgg implements Releasable {
+    private static final class BaselineSumAgg implements Releasable, BatchConsumer {
         private final LongSwissHash table;
         private long[] sums = new long[16];
 
-        BaselineSumAgg(PageCacheRecycler recycler, NoopCircuitBreaker breaker) {
-            this.table = SwissHashFactory.getInstance().newLongSwissHash(recycler, breaker);
+        BaselineSumAgg(RecyclerBreaker rb) {
+            this.table = SwissHashFactory.getInstance().newLongSwissHash(rb.recycler(), rb.breaker());
         }
 
-        void add(long[] keys, long[] values, int length) {
+        @Override
+        public void add(long[] keys, long[] values, int length) {
             for (int i = 0; i < length; i++) {
                 long ord = table.add(keys[i]);
                 int groupId = ord >= 0 ? (int) ord : (int) (-1 - ord);
@@ -213,7 +239,8 @@ public class PartitionedHashAggPrototypeTests extends ESTestCase {
             }
         }
 
-        Map<Long, Long> results() {
+        @Override
+        public Map<Long, Long> results() {
             Map<Long, Long> out = new HashMap<>();
             long size = table.size();
             for (long id = 0; id < size; id++) {
@@ -232,27 +259,26 @@ public class PartitionedHashAggPrototypeTests extends ESTestCase {
      * N independent {@link LongSwissHash} sub-tables, one per partition, started as a single
      * unpartitioned table and converted once {@code conversionThreshold} keys have been seen.
      * Routing reuses one precomputed hash per row for both partition selection and the
-     * destination sub-table's insert ({@link LongSwissHash#addWithHash}); aggregation bridges
-     * to the (simulated) batched per-partition update via shared per-batch routing vectors and a
-     * skip-scan per partition - the "v1" approach from the design doc, before the bucket-sort
-     * follow-up.
+     * destination sub-table's insert ({@link LongSwissHash#addWithHash}). Subclasses only differ
+     * in how they bridge that per-row routing decision into the batched per-partition
+     * aggregation update.
      */
-    private static final class PartitionedSumAgg implements Releasable {
-        private final int partitionCount;
-        private final int partitionBits;
-        private final long conversionThreshold;
-        private final PageCacheRecycler recycler;
-        private final NoopCircuitBreaker breaker;
+    private abstract static class AbstractPartitionedSumAgg implements Releasable, BatchConsumer {
+        final int partitionCount;
+        final int partitionBits;
+        final long conversionThreshold;
+        final PageCacheRecycler recycler;
+        final NoopCircuitBreaker breaker;
 
         // Pre-conversion state.
         private LongSwissHash single;
         private long[] singleSums = new long[16];
 
         // Post-conversion state.
-        private LongSwissHash[] partitions;
-        private long[][] partitionSums;
+        LongSwissHash[] partitions;
+        long[][] partitionSums;
 
-        PartitionedSumAgg(int partitionCount, long conversionThreshold, PageCacheRecycler recycler, NoopCircuitBreaker breaker) {
+        AbstractPartitionedSumAgg(int partitionCount, long conversionThreshold, PageCacheRecycler recycler, NoopCircuitBreaker breaker) {
             if (Integer.bitCount(partitionCount) != 1) {
                 throw new IllegalArgumentException("partitionCount must be a power of two, got " + partitionCount);
             }
@@ -264,7 +290,8 @@ public class PartitionedHashAggPrototypeTests extends ESTestCase {
             this.single = SwissHashFactory.getInstance().newLongSwissHash(recycler, breaker);
         }
 
-        void add(long[] keys, long[] values, int length) {
+        @Override
+        public final void add(long[] keys, long[] values, int length) {
             if (partitions == null) {
                 addSingle(keys, values, length);
                 if (single.size() >= conversionThreshold) {
@@ -308,42 +335,11 @@ public class PartitionedHashAggPrototypeTests extends ESTestCase {
             singleSums = null;
         }
 
-        /**
-         * Phase 1 (routing): one pass over the batch, computing each row's hash once and reusing
-         * it for both partition selection and the destination sub-table's insert.
-         * Phase 2 (v1 bridge): per touched partition, a skip-scan over the shared routing vectors
-         * built in phase 1 - O(partitionCount * length) rather than O(length); the bucket-sort
-         * follow-up in the design doc replaces this with O(length) total.
-         */
-        private void addPartitioned(long[] keys, long[] values, int length) {
-            int[] partitionOf = new int[length];
-            int[] localGroupId = new int[length];
-            boolean[] touched = new boolean[partitionCount];
-            for (int i = 0; i < length; i++) {
-                int hash = LongSwissHash.hash(keys[i]);
-                int partition = hash >>> (Integer.SIZE - partitionBits);
-                long ord = partitions[partition].addWithHash(keys[i], hash);
-                int groupId = ord >= 0 ? (int) ord : (int) (-1 - ord);
-                partitionOf[i] = partition;
-                localGroupId[i] = groupId;
-                touched[partition] = true;
-                partitionSums[partition] = grow(partitionSums[partition], groupId);
-            }
-            for (int p = 0; p < partitionCount; p++) {
-                if (touched[p] == false) {
-                    continue;
-                }
-                long[] sums = partitionSums[p];
-                for (int i = 0; i < length; i++) {
-                    if (partitionOf[i] != p) {
-                        continue;
-                    }
-                    sums[localGroupId[i]] += values[i];
-                }
-            }
-        }
+        /** Steady-state bridge from per-row routing to batched per-partition aggregation - the part that varies by subclass. */
+        abstract void addPartitioned(long[] keys, long[] values, int length);
 
-        Map<Long, Long> results() {
+        @Override
+        public Map<Long, Long> results() {
             Map<Long, Long> out = new HashMap<>();
             if (partitions == null) {
                 long size = single.size();
@@ -371,6 +367,101 @@ public class PartitionedHashAggPrototypeTests extends ESTestCase {
             }
             if (partitions != null) {
                 Releasables.close(partitions);
+            }
+        }
+    }
+
+    /**
+     * "v1" bridge from the design doc: build shared per-batch routing vectors (partition and
+     * local group id per row), then for each touched partition scan the whole batch and skip
+     * rows that aren't its own - O(partitionCount * length) rather than O(length).
+     */
+    private static final class SkipScanPartitionedSumAgg extends AbstractPartitionedSumAgg {
+        SkipScanPartitionedSumAgg(int partitionCount, long conversionThreshold, PageCacheRecycler recycler, NoopCircuitBreaker breaker) {
+            super(partitionCount, conversionThreshold, recycler, breaker);
+        }
+
+        @Override
+        void addPartitioned(long[] keys, long[] values, int length) {
+            int[] partitionOf = new int[length];
+            int[] localGroupId = new int[length];
+            boolean[] touched = new boolean[partitionCount];
+            for (int i = 0; i < length; i++) {
+                int hash = LongSwissHash.hash(keys[i]);
+                int partition = hash >>> (Integer.SIZE - partitionBits);
+                long ord = partitions[partition].addWithHash(keys[i], hash);
+                int groupId = ord >= 0 ? (int) ord : (int) (-1 - ord);
+                partitionOf[i] = partition;
+                localGroupId[i] = groupId;
+                touched[partition] = true;
+                partitionSums[partition] = grow(partitionSums[partition], groupId);
+            }
+            for (int p = 0; p < partitionCount; p++) {
+                if (touched[p] == false) {
+                    continue;
+                }
+                long[] sums = partitionSums[p];
+                for (int i = 0; i < length; i++) {
+                    if (partitionOf[i] != p) {
+                        continue;
+                    }
+                    sums[localGroupId[i]] += values[i];
+                }
+            }
+        }
+    }
+
+    /**
+     * Bucket-sort follow-up from the design doc: after the same per-row routing pass, do a
+     * counting sort of (position, local group id) by partition into contiguous shared slices, so
+     * each partition's aggregation update only ever touches its own rows - O(length) total instead
+     * of O(partitionCount * length).
+     */
+    private static final class BucketSortPartitionedSumAgg extends AbstractPartitionedSumAgg {
+        BucketSortPartitionedSumAgg(int partitionCount, long conversionThreshold, PageCacheRecycler recycler, NoopCircuitBreaker breaker) {
+            super(partitionCount, conversionThreshold, recycler, breaker);
+        }
+
+        @Override
+        void addPartitioned(long[] keys, long[] values, int length) {
+            int[] partitionOf = new int[length];
+            int[] localGroupId = new int[length];
+            int[] counts = new int[partitionCount];
+            for (int i = 0; i < length; i++) {
+                int hash = LongSwissHash.hash(keys[i]);
+                int partition = hash >>> (Integer.SIZE - partitionBits);
+                long ord = partitions[partition].addWithHash(keys[i], hash);
+                int groupId = ord >= 0 ? (int) ord : (int) (-1 - ord);
+                partitionOf[i] = partition;
+                localGroupId[i] = groupId;
+                partitionSums[partition] = grow(partitionSums[partition], groupId);
+                counts[partition]++;
+            }
+
+            int[] offsets = new int[partitionCount + 1];
+            for (int p = 0; p < partitionCount; p++) {
+                offsets[p + 1] = offsets[p] + counts[p];
+            }
+            int[] cursor = Arrays.copyOf(offsets, partitionCount);
+            int[] sortedPositions = new int[length];
+            int[] sortedGroupIds = new int[length];
+            for (int i = 0; i < length; i++) {
+                int dest = cursor[partitionOf[i]]++;
+                sortedPositions[dest] = i;
+                sortedGroupIds[dest] = localGroupId[i];
+            }
+
+            for (int p = 0; p < partitionCount; p++) {
+                int start = offsets[p];
+                int end = offsets[p + 1];
+                if (start == end) {
+                    continue;
+                }
+                long[] sums = partitionSums[p];
+                for (int k = start; k < end; k++) {
+                    // gather read: the only place this variant touches the original page out of order.
+                    sums[sortedGroupIds[k]] += values[sortedPositions[k]];
+                }
             }
         }
     }

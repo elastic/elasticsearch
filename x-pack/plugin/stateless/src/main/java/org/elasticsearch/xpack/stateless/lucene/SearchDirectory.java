@@ -680,7 +680,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                     + existingRanges.blobLocation()
                     + " to "
                     + incomingRanges.blobLocation();
-            return existingRanges;
+            return incomingRanges;
         }
         return existingRanges.reconcileWith(incomingRanges);
     }

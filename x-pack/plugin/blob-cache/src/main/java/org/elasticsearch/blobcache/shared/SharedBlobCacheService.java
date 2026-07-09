@@ -104,11 +104,22 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         ShardId shardId();
     }
 
-    /**
-     * Sentinel used when the data timestamp for a cache region is unknown or unavailable. It is a plain {@code long} at the cache layer:
-     * the cache assigns no semantic meaning to it beyond "unknown".
-     */
+    /// A cache region's data timestamp (epoch millis) is a plain `long` partitioned into three domains; the cache layer itself
+    /// assigns no semantic meaning beyond distinguishing real values from the two sentinels:
+    ///   - a real, positive epoch-millis value (see [#isRealCacheTimestamp(long)]);
+    ///   - [#UNKNOWN_TIMESTAMP] (`-1`): the timestamp is not yet known, e.g. pending backfill;
+    ///   - [#NO_TIMESTAMP] (`-2`): the content genuinely has no representative timestamp.
+    ///
     public static final long UNKNOWN_TIMESTAMP = -1L;
+
+    /// Sentinel used when the content of a cache region genuinely has no representative timestamp, as opposed to
+    /// [#UNKNOWN_TIMESTAMP] which indicates the timestamp is merely not known yet.
+    public static final long NO_TIMESTAMP = -2L;
+
+    /// Returns `true` iff `timestampMillis` is a real epoch-millis value rather than one of the sentinels
+    public static boolean isRealCacheTimestamp(long timestampMillis) {
+        return timestampMillis > 0L;
+    }
 
     private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
 
@@ -1146,7 +1157,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         final RegionKey<KeyType> regionKey;
         final SparseFileTracker tracker;
-        // Representative data timestamp (epoch millis) of the content in this region, or UNKNOWN_TIMESTAMP when unknown.
+        // Representative data timestamp (epoch millis) of the content in this region, or UNKNOWN_TIMESTAMP / NO_TIMESTAMP.
         private final long timestampMillis;
         // io can be null when not init'ed or after evict/take
         // io does not need volatile access on the read path, since it goes from null to a single value (and then possbily back to null).
@@ -1165,7 +1176,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         ) {
             this.blobCacheService = blobCacheService;
             this.regionKey = regionKey;
-            assert timestampMillis > 0L || timestampMillis == UNKNOWN_TIMESTAMP : timestampMillis;
+            assert isRealCacheTimestamp(timestampMillis) || timestampMillis == UNKNOWN_TIMESTAMP || timestampMillis == NO_TIMESTAMP
+                : timestampMillis;
             this.timestampMillis = timestampMillis;
             assert regionSize > 0;
             // NOTE we use a constant string for description to avoid consume extra heap space

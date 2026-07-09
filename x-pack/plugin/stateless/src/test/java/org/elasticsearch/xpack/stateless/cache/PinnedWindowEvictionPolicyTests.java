@@ -41,6 +41,7 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.NO_TIMESTAMP;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
@@ -79,7 +80,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     public void testPinnedWindowDurationUpdatesDynamically() {
-        final var policy = new PinnedWindowEvictionPolicy(clusterSettings, clusterService.threadPool(), shardId -> false);
+        final var policy = new PinnedWindowEvictionPolicy(clusterSettings, clusterService.threadPool(), shardId -> false, shardId -> false);
         assertThat(policy.getPinnedWindowDuration(), equalTo(PINNED_WINDOW_DURATION));
 
         clusterSettings.applySettings(Settings.builder().put(PINNED_WINDOW_DURATION_SETTING.getKey(), "6h").build());
@@ -99,6 +100,34 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", randomUUID(), 0);
 
         assertFalse(canEvict(fixedTimePolicy(now, PINNED_WINDOW_DURATION, shardId), region(shardId, UNKNOWN_TIMESTAMP)));
+    }
+
+    public void testCanEvictNoTimestampRegionWhenTimestampDerivable() {
+        final long now = randomLongBetween(1, Long.MAX_VALUE);
+        final ShardId shardId = new ShardId("index", randomUUID(), 0);
+        // Timestamp is derivable for this shard (index maps a usable @timestamp field), so a region with no timestamp is anomalous.
+        final var policy = fixedTimePolicy(now, PINNED_WINDOW_DURATION, shardIdArg -> true, shardId);
+
+        assertTrue(canEvict(policy, region(shardId, NO_TIMESTAMP)));
+    }
+
+    public void testCannotEvictNoTimestampRegionWhenTimestampNotDerivable() {
+        final long now = randomLongBetween(1, Long.MAX_VALUE);
+        final ShardId shardId = new ShardId("index", randomUUID(), 0);
+        // No timestamp is derivable for this shard, so a region with no timestamp carries no age signal and must be pinned.
+        final var policy = fixedTimePolicy(now, PINNED_WINDOW_DURATION, shardIdArg -> false, shardId);
+
+        assertFalse(canEvict(policy, region(shardId, NO_TIMESTAMP)));
+    }
+
+    public void testCanEvictNoTimestampRegionWhenShardNotPresent() {
+        final long now = randomLongBetween(1, Long.MAX_VALUE);
+        final ShardId localShard = new ShardId("local", randomUUID(), 0);
+        final ShardId remoteShard = new ShardId("remote", randomUUID(), 0);
+        // Even though no timestamp is derivable, a shard not present on this node is always evictable.
+        final var policy = fixedTimePolicy(now, PINNED_WINDOW_DURATION, shardIdArg -> false, localShard);
+
+        assertTrue(canEvict(policy, region(remoteShard, NO_TIMESTAMP)));
     }
 
     public void testCanEvictPresentShardRegionOutsidePinnedWindow() {
@@ -135,7 +164,8 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         final var policy = new PinnedWindowEvictionPolicy(
             clusterSettings,
             clusterService.threadPool(),
-            shardIdPredicate -> shardIdPredicate.equals(shardId)
+            shardIdPredicate -> shardIdPredicate.equals(shardId),
+            shardIdPredicate -> true
         );
         final var region = region(shardId, timestampMillis);
 
@@ -228,8 +258,24 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     private PinnedWindowEvictionPolicy fixedTimePolicy(long now, TimeValue pinnedWindowDuration, ShardId... presentShardIds) {
+        // Default: timestamps are derivable for all shards (irrelevant for the real/unknown-timestamp cases that use this helper).
+        return fixedTimePolicy(now, pinnedWindowDuration, shardId -> true, presentShardIds);
+    }
+
+    private PinnedWindowEvictionPolicy fixedTimePolicy(
+        long now,
+        TimeValue pinnedWindowDuration,
+        Predicate<ShardId> hasDerivableTimestampPredicate,
+        ShardId... presentShardIds
+    ) {
         final Predicate<ShardId> hasShardPredicate = Set.copyOf(Arrays.asList(presentShardIds))::contains;
-        return new FixedTimePinnedWindowEvictionPolicy(clusterService.threadPool(), hasShardPredicate, now, pinnedWindowDuration);
+        return new FixedTimePinnedWindowEvictionPolicy(
+            clusterService.threadPool(),
+            hasShardPredicate,
+            hasDerivableTimestampPredicate,
+            now,
+            pinnedWindowDuration
+        );
     }
 
     private static boolean canEvict(PinnedWindowEvictionPolicy policy, CacheRegion<FileCacheKey> region) {
@@ -247,10 +293,11 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         FixedTimePinnedWindowEvictionPolicy(
             ThreadPool threadPool,
             Predicate<ShardId> hasShardPredicate,
+            Predicate<ShardId> hasDerivableTimestampPredicate,
             long fixedCurrentTimeMillis,
             TimeValue pinnedWindowDuration
         ) {
-            super(threadPool, hasShardPredicate, pinnedWindowDuration);
+            super(threadPool, hasShardPredicate, hasDerivableTimestampPredicate, pinnedWindowDuration);
             this.fixedCurrentTimeMillis = fixedCurrentTimeMillis;
         }
 

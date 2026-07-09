@@ -13,11 +13,15 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 import java.util.Objects;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING;
@@ -40,7 +44,8 @@ public enum StatelessCacheEvictionPolicyType {
                 threadPool,
                 // We consult IndicesService rather than cluster-state routing because routing can lag behind locally open shards
                 // during cluster-state application. Once a shard is open here, IndicesService reflects that immediately.
-                indicesService.hasShardPredicate()
+                indicesService.hasShardPredicate(),
+                hasDerivableTimestampPredicate(indicesService)
             );
         }
     },
@@ -52,6 +57,19 @@ public enum StatelessCacheEvictionPolicyType {
     };
 
     abstract EvictionPolicy<FileCacheKey> create(ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool);
+
+    /// A node-local predicate that is `true` for shards whose index maps a usable `@timestamp` field, i.e. where a
+    /// region timestamp is derivable.
+    private static Predicate<ShardId> hasDerivableTimestampPredicate(IndicesService indicesService) {
+        return shardId -> {
+            final IndexService indexService = indicesService.indexService(shardId.getIndex());
+            if (indexService == null) {
+                return false;
+            }
+            final MapperService mapperService = indexService.mapperService();
+            return mapperService != null && mapperService.mappingLookup().getTimestampFieldType() != null;
+        };
+    }
 
     static StatelessCacheEvictionPolicyType resolveEvictionPolicyFromSettings(Settings settings) {
         if (STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings) == false) {

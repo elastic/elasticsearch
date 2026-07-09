@@ -212,7 +212,7 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(400));
 
         String responseBody = EntityUtils.toString(response.getEntity());
-        assertThat(responseBody, containsString("[description] must be less than 1024 characters in length."));
+        assertThat(responseBody, containsString("[description] accepts maximum 1024 characters in length."));
     }
 
     private void createPipeline(String id, String json) throws IOException {

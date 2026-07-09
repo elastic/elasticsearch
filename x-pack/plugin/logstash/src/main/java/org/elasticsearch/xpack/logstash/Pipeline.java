@@ -21,7 +21,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class Pipeline {
 
-    public static final int MAX_DESCRIPTION_LENGTH = 1_024;
+    public static final int MAX_DESCRIPTION_LENGTH = 1024;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Pipeline, String> PARSER = new ConstructingObjectParser<>(
@@ -116,7 +116,7 @@ public class Pipeline {
 
     private static String validateDescription(String description) {
         if (description.length() > MAX_DESCRIPTION_LENGTH) {
-            throw new IllegalArgumentException("[description] must be less than 1024 characters in length.");
+            throw new IllegalArgumentException("[description] accepts maximum 1024 characters in length.");
         }
         return description;
     }

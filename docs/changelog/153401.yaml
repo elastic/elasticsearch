@@ -1,0 +1,5 @@
+area: EQL
+issues: []
+pr: 153401
+summary: Fix hang on batched query response failure
+type: bug

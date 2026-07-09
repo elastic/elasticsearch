@@ -10,7 +10,6 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -22,6 +21,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -33,7 +34,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.computeSelectivity;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.createFilterWeight;
 import static org.elasticsearch.search.vectors.KnnQueryUtils.dedupAndSelectTopK;
@@ -236,8 +236,18 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
     /**
      * Partitions per-leaf candidates into filter-matching and filtered-out sets in one pass
-     * per leaf. Within each leaf, candidates are sorted by doc ID and the filter's
-     * {@link DocIdSetIterator} is advanced over them. Candidates are sorted in-place.
+     * per leaf. Within each leaf, candidates are sorted by doc ID and tested by random access
+     * via {@link Lucene#asSequentialAccessBits}: when the filter scorer exposes a
+     * {@link org.apache.lucene.search.TwoPhaseIterator}, each candidate costs one approximation
+     * advance plus one {@code matches()} call. Consuming such scorers through
+     * {@code iterator().advance()} instead would have to locate the <em>next matching</em> doc,
+     * evaluating the match predicate over every approximation doc in the gap — pathological for
+     * filters whose match set is contiguous or sparse (e.g. doc-values ranges, phrases), where one
+     * out-of-set candidate can trigger a scan to the end of the segment. Filters without a
+     * two-phase view (postings, prebuilt bitsets) take the plain iterator path, which is already
+     * cheap for them; eagerly-materializing scorers with no random access (e.g. a bare
+     * {@code PointRangeQuery} with no doc-values pairing) still pay their {@code ScorerSupplier#get}
+     * cost, same as before. Candidates are sorted in-place.
      */
     static FilteredCandidates applyFilter(ScoreDoc[][] perLeafCandidates, Weight filterWeight, List<LeafReaderContext> leaves)
         throws IOException {
@@ -252,39 +262,19 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             LeafReaderContext ctx = leaves.get(leafOrd);
             Arrays.sort(cands, Comparator.comparingInt(sd -> sd.doc));
 
+            // null supplier (no docs match the filter in this leaf) yields MatchNoBits: all filtered out
             ScorerSupplier ss = filterWeight.scorerSupplier(ctx);
-            if (ss == null) {
-                int[] out = new int[cands.length];
-                for (int j = 0; j < cands.length; j++) {
-                    out[j] = cands[j].doc;
-                }
-                filteredOutPerLeaf[leafOrd] = out;
-                continue;
-            }
+            Bits bits = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), ss, cands.length);
 
             List<ScoreDoc> leafMatching = new ArrayList<>();
             int[] leafFilteredOut = new int[cands.length];
             int filteredOutCount = 0;
-            DocIdSetIterator filterIter = ss.get(cands.length).iterator();
-            int filterDoc = -1;
-            int i = 0;
-            for (; i < cands.length; i++) {
-                int localDoc = cands[i].doc - ctx.docBase;
-                if (filterDoc < localDoc) {
-                    filterDoc = filterIter.advance(localDoc);
-                }
-                if (filterDoc == localDoc) {
-                    leafMatching.add(cands[i]);
+            for (ScoreDoc cand : cands) {
+                if (bits.get(cand.doc - ctx.docBase)) {
+                    leafMatching.add(cand);
                 } else {
-                    leafFilteredOut[filteredOutCount++] = cands[i].doc;
+                    leafFilteredOut[filteredOutCount++] = cand.doc;
                 }
-                if (filterDoc == NO_MORE_DOCS) {
-                    i++;
-                    break;
-                }
-            }
-            for (; i < cands.length; i++) {
-                leafFilteredOut[filteredOutCount++] = cands[i].doc;
             }
 
             if (leafMatching.isEmpty() == false) {

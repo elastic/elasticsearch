@@ -244,7 +244,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     }
 
     /**
-     * A module can declare, via a {@code native-controller-settings} file alongside its descriptor, that its controller should only
+     * A module can declare, via the {@code native.controller.enabled.settings} descriptor property, that its controller should only
      * be spawned when certain node settings are {@code true}. Unset settings default to {@code true}, preserving prior behavior for
      * modules that opt in but leave the setting unconfigured.
      */
@@ -291,11 +291,12 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "classname",
             "GatedPlugin",
             "has.native.controller",
-            "true"
+            "true",
+            "native.controller.enabled.settings",
+            gatingSetting
         );
         Path controllerProgram = Platforms.nativeControllerPath(plugin);
         createControllerProgram(controllerProgram);
-        Files.writeString(plugin.resolve(Spawner.NATIVE_CONTROLLER_SETTINGS_FILE_NAME), gatingSetting + System.lineSeparator());
 
         try (Spawner spawner = new Spawner()) {
             spawner.spawnNativeControllers(environment);

@@ -40,14 +40,6 @@ final class Spawner implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(Spawner.class);
 
-    /**
-     * The name of an optional file, sitting alongside a module's descriptor, that lists node setting keys (one per line) which must
-     * all resolve to {@code true} for that module's native controller to be spawned. Modules without this file always spawn their
-     * native controller, preserving prior behavior. This lets a module opt out of spawning its (potentially costly or fragile) native
-     * controller when it is effectively disabled, without leaking any module-specific knowledge into this generic bootstrap code.
-     */
-    static final String NATIVE_CONTROLLER_SETTINGS_FILE_NAME = "native-controller-settings";
-
     /*
      * References to the processes that have been spawned, so that we can destroy them.
      */
@@ -101,7 +93,7 @@ final class Spawner implements Closeable {
                 );
                 throw new IllegalArgumentException(message);
             }
-            if (isNativeControllerEnabled(modules, environment.settings()) == false) {
+            if (isNativeControllerEnabled(info, environment.settings()) == false) {
                 continue;
             }
             final Process process = spawnNativeController(spawnPath, environment.tmpDir());
@@ -115,25 +107,24 @@ final class Spawner implements Closeable {
     }
 
     /**
-     * Determines whether a module's native controller should be spawned, based on the optional list of node setting keys declared in
-     * {@link #NATIVE_CONTROLLER_SETTINGS_FILE_NAME} alongside its descriptor.
+     * Determines whether a module's native controller should be spawned, based on the optional list of node setting keys declared via
+     * {@link PluginDescriptor#getNativeControllerEnabledSettings()}.
+     * <p>
+     * This runs on the raw, not-yet-validated {@link Environment#settings()}, before {@code SettingsModule} applies each
+     * {@link org.elasticsearch.common.settings.Setting}'s registered default. An unset key here therefore always falls back to
+     * {@code true}, even if the corresponding registered setting's real default is conditional (e.g. platform-dependent). This is safe
+     * only because this method is reached solely for modules whose native controller binary is present for the current platform (see
+     * the {@code spawnPath} check in {@link #spawnNativeControllers}); a setting whose real default could be {@code false} on a
+     * platform that still ships the binary would not be safe to gate this way.
      *
-     * @param moduleDir the directory of the module being considered for spawning
-     * @param settings  the node settings
-     * @return {@code true} if the module has no such file, or every setting key it lists resolves to {@code true}
+     * @param info     the descriptor of the module being considered for spawning
+     * @param settings the node settings
+     * @return {@code true} if the module declares no such settings, or every setting key it lists resolves to {@code true}
      */
-    private static boolean isNativeControllerEnabled(final Path moduleDir, final Settings settings) throws IOException {
-        final Path settingsFile = moduleDir.resolve(NATIVE_CONTROLLER_SETTINGS_FILE_NAME);
-        if (Files.isRegularFile(settingsFile) == false) {
-            return true;
-        }
-        for (final String line : Files.readAllLines(settingsFile, StandardCharsets.UTF_8)) {
-            final String key = line.strip();
-            if (key.isEmpty()) {
-                continue;
-            }
+    private static boolean isNativeControllerEnabled(final PluginDescriptor info, final Settings settings) {
+        for (final String key : info.getNativeControllerEnabledSettings()) {
             if (settings.getAsBoolean(key, true) == false) {
-                logger.info("not spawning native controller for module [{}] because setting [{}] is false", moduleDir.getFileName(), key);
+                logger.info("not spawning native controller for module [{}] because setting [{}] is false", info.getName(), key);
                 return false;
             }
         }

@@ -1380,8 +1380,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 yield equalTo("unsupported");
             }
             case DATE_RANGE -> {
-                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, Build.current().isSnapshot())) {
+                // Same dance as for AGGREGATE_METRIC_DOUBLE/DENSE_VECTOR: the coordinator that actually resolves the field type
+                // may be any node in the cluster (e.g. during a rolling upgrade), and IndexResolver's snapshot/release gating
+                // reflects that coordinator's own build, not this test JVM's. We can't tell from here which node coordinated, so
+                // once the type is merely under-construction-supported (not yet release-supported), accept either outcome.
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, false)) {
                     yield equalTo("date_range");
+                }
+                if (DATE_RANGE.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(equalTo("date_range"), equalTo("unsupported"));
                 }
                 yield equalTo("unsupported");
             }

@@ -183,7 +183,8 @@ public final class SplitDiscoveryPhase {
             querySchema,
             exec.unifiedSchema(),
             maxRecordBytes,
-            isCancelled
+            isCancelled,
+            exec.declaredReadSpec()
         );
 
         SplitDiscoveryResult result;

@@ -111,7 +111,7 @@ public final class PushDownJoinPastProject extends OptimizerRules.OptimizerRule<
 
             List<Alias> renamesForEval = new ArrayList<>(aliasesForReplacedAttributesBuilder.build().values());
             Eval eval = new Eval(project.source(), project.child(), renamesForEval);
-            Join finalJoin = new Join(join.source(), eval, updatedJoin.right(), updatedJoin.config());
+            Join finalJoin = new Join(join.source(), eval, updatedJoin.right(), updatedJoin.config(), updatedJoin.isRemote());
 
             return new Project(project.source(), finalJoin, finalProjections);
         }

@@ -42,6 +42,7 @@ emp_no:integer | first_name:keyword | salary:integer
 ffwAggregateByGender
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+required_capability: external_csv_empty_string_not_null
 dataset: employees_multifile_split_ffw_brackets: "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
 
 FROM employees_multifile_split_ffw_brackets
@@ -49,9 +50,9 @@ FROM employees_multifile_split_ffw_brackets
 | SORT gender;
 
 count:long | gender:keyword
+10         |
 33         | "F"
 57         | "M"
-10         | null
 ;
 
 ffwSalaryStats
@@ -100,6 +101,7 @@ emp_no:integer | first_name:keyword | salary:integer
 strictAggregateByGender
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
+required_capability: external_csv_empty_string_not_null
 dataset: employees_multifile_split_strict_brackets: "{{employees_multifile_split}}" WITH {"schema_resolution": "strict", "multi_value_syntax": "brackets"}
 
 FROM employees_multifile_split_strict_brackets
@@ -107,9 +109,9 @@ FROM employees_multifile_split_strict_brackets
 | SORT gender;
 
 count:long | gender:keyword
+10         |
 33         | "F"
 57         | "M"
-10         | null
 ;
 
 strictSalaryStats
@@ -167,6 +169,7 @@ emp_no:integer | first_name:keyword | salary:integer
 
 ubnAggregateByGender
 required_capability: dataset_in_from_command
+required_capability: external_csv_empty_string_not_null
 dataset: employees_multifile_split_brackets: "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
 
 FROM employees_multifile_split_brackets
@@ -174,9 +177,9 @@ FROM employees_multifile_split_brackets
 | SORT gender;
 
 count:long | gender:keyword
+10         |
 33         | "F"
 57         | "M"
-10         | null
 ;
 
 ubnSalaryStats

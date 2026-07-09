@@ -106,6 +106,20 @@ public abstract class FieldMapper extends Mapper {
         Property.ServerlessPublic
     );
 
+    /**
+     * Index-level default for the {@code doc_values.on_failure} field mapping parameter. Controls what happens when a document violates
+     * a strict doc_values constraint (ie. {@code multi_value=false} or {@code nullability=false}), unless a field explicitly sets its own
+     * {@code doc_values.on_failure}.
+     */
+    public static final Setting<DocValuesParameter.Values.OnFailure> DOC_VALUES_ON_FAILURE_SETTING = Setting.enumSetting(
+        DocValuesParameter.Values.OnFailure.class,
+        "index.mapping.doc_values.on_failure",
+        DocValuesParameter.Values.OnFailure.FAIL,
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
     @SuppressWarnings("rawtypes")
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
@@ -1531,7 +1545,7 @@ public abstract class FieldMapper extends Mapper {
     public static final class DocValuesParameter extends Parameter<DocValuesParameter.Values> {
         public static final String PARAMETER_NAME = "doc_values";
 
-        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue, boolean nullability) {
+        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue, boolean nullability, OnFailure onFailure) {
             public enum Cardinality {
                 LOW,
                 HIGH;
@@ -1542,12 +1556,28 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
-            public static Values DISABLED = new Values(false, Cardinality.LOW, true, true);
+            /**
+             * Controls what happens when a document violates a strict doc_values constraint (ie. {@code multi_value=false} or
+             * {@code nullability=false}). {@code FAIL} rejects the document (the only behavior today); {@code IGNORE} is reserved for
+             * future work that will route the offending value to a per-field failure column instead of failing the document.
+             */
+            public enum OnFailure {
+                FAIL,
+                IGNORE;
+
+                @Override
+                public String toString() {
+                    return name().toLowerCase(Locale.ROOT);
+                }
+            }
+
+            public static Values DISABLED = new Values(false, Cardinality.LOW, true, true, OnFailure.FAIL);
         }
 
         public final Parameter<Boolean> multiValueParameter;
         public final Parameter<Boolean> nullabilityParameter;
         private final boolean supportsExtendedDocValues;
+        public final Parameter<Values.OnFailure> onFailureParameter;
 
         /**
          * Factory for field types whose default doc_values configuration is known eagerly at construction time (numerics, dates, booleans,
@@ -1601,6 +1631,13 @@ public abstract class FieldMapper extends Mapper {
                 m -> initializer.apply(m).nullability,
                 subParameterDefaults.nullability
             );
+            onFailureParameter = Parameter.enumParam(
+                "on_failure",
+                false,
+                m -> initializer.apply(m).onFailure,
+                subParameterDefaults.onFailure,
+                Values.OnFailure.class
+            );
         }
 
         /**
@@ -1614,12 +1651,16 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": { "multi_value": false }} - reject any document that has more than one value for the field</li>
          *   <li>{@code "doc_values": { "nullability": true }} - allow documents to omit the field or supply null (default)</li>
          *   <li>{@code "doc_values": { "nullability": false }} - reject any document that omits the field or supplies null (sealed)</li>
+         *   <li>{@code "doc_values": { "on_failure": "fail" }} - reject the document if it violates multi_value/nullability (default)</li>
+         *   <li>{@code "doc_values": { "on_failure": "ignore" }} - accepted and stored, but not yet enforced: {@link DocumentParserContext}
+         *       still unconditionally rejects multi_value/nullability violations, so this currently behaves identically to {@code fail}.
+         *       Reserved for future work that will route the offending value to a per-field failure column instead.</li>
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
-         * the multi_value and nullability settings. Cardinality is decided internally and is not user-configurable. The object form
-         * itself is only available in columnar index modes, so any sub-parameter it may carry (e.g. {@code multi_value}) is rejected
-         * together with it.
+         * the multi_value, nullability and on_failure settings. Cardinality is decided internally and is not user-configurable.
+         * The object form itself is only available in columnar index modes, so any sub-parameter it may carry (e.g. {@code multi_value})
+         * is rejected together with it.
          */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
@@ -1637,14 +1678,29 @@ public abstract class FieldMapper extends Mapper {
                 if (valueMap.containsKey(nullabilityParameter.name)) {
                     nullabilityParameter.parse(field, context, valueMap.get(nullabilityParameter.name));
                 }
+                if (valueMap.containsKey(onFailureParameter.name)) {
+                    onFailureParameter.parse(field, context, valueMap.get(onFailureParameter.name));
+                }
 
                 setValue(
-                    new Values(true, getDefaultValue().cardinality(), multiValueParameter.getValue(), nullabilityParameter.getValue())
+                    new Values(
+                        true,
+                        getDefaultValue().cardinality(),
+                        multiValueParameter.getValue(),
+                        nullabilityParameter.getValue(),
+                        onFailureParameter.getValue()
+                    )
                 );
             } else {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
                     setValue(
-                        new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue(), getDefaultValue().nullability())
+                        new Values(
+                            true,
+                            getDefaultValue().cardinality(),
+                            getDefaultValue().multiValue(),
+                            getDefaultValue().nullability(),
+                            getDefaultValue().onFailure()
+                        )
                     );
                 } else {
                     setValue(Values.DISABLED);
@@ -1657,6 +1713,7 @@ public abstract class FieldMapper extends Mapper {
             super.setValue(value);
             multiValueParameter.setValue(value.multiValue);
             nullabilityParameter.setValue(value.nullability);
+            onFailureParameter.setValue(value.onFailure);
         }
 
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
@@ -1670,13 +1727,18 @@ public abstract class FieldMapper extends Mapper {
                 } else {
                     boolean multiValueConfigured = multiValueParameter.isConfigured();
                     boolean nullabilityConfigured = nullabilityParameter.isConfigured();
-                    if (includeDefaults == false && multiValueConfigured == false && nullabilityConfigured == false) {
+                    boolean onFailureConfigured = onFailureParameter.isConfigured();
+                    if (includeDefaults == false
+                        && multiValueConfigured == false
+                        && nullabilityConfigured == false
+                        && onFailureConfigured == false) {
                         // no sub-parameters were explicitly set; use the boolean shorthand to match the original source
                         builder.field(name, true);
                     } else {
                         builder.startObject(name);
                         builder.field(multiValueParameter.name, value.multiValue);
                         builder.field(nullabilityParameter.name, value.nullability);
+                        builder.field(onFailureParameter.name, value.onFailure);
                         builder.endObject();
                     }
                 }

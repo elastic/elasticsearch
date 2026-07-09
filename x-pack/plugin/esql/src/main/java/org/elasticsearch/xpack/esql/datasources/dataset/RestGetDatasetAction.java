@@ -23,7 +23,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetDatasetAction extends BaseRestHandler {
 
     @Override
@@ -50,6 +50,6 @@ public class RestGetDatasetAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(EsqlDataSourcesCapabilities.DATA_SOURCES);
+        return Set.of(EsqlDataSourcesCapabilities.DATA_SOURCES, EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA);
     }
 }

@@ -57,6 +57,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -80,9 +81,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     private ProjectId projectId;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initProjectId() throws Exception {
         projectId = randomProjectIdOrDefault();
     }
 

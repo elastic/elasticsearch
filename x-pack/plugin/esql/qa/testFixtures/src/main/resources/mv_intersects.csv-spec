@@ -161,3 +161,16 @@ set2 = [4100000001,4100000002,4100000003,4100000004,4100000005,4100000006,410000
 set_intersects_element:boolean 
 true         
 ;
+
+mvIntersectsKeywordFields
+required_capability: fn_mv_intersects
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL intersects = MV_INTERSECTS(job_positions, last_name)
+| KEEP emp_no, intersects
+;
+
+emp_no:integer | intersects:boolean
+10001          | false
+;

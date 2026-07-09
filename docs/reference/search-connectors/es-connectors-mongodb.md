@@ -373,7 +373,7 @@ Each sync is a "full" sync. For each MongoDB document discovered:
 This is recursive, because embedded documents can themselves contain embedded documents.
 
 ::::{note}
-* Files bigger than 10 MB won’t be extracted
+* Files bigger than 8 MiB won’t be extracted
 * Permissions are not synced. All documents indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::

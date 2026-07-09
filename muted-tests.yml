@@ -727,9 +727,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.fileMetadataFilterPathLike [ndjson.bz2/S3]}
   issue: https://github.com/elastic/elasticsearch/issues/153182
-- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
-  method: testConcurrentProducerLoopsOnSharedPoolDoNotDeadlock
-  issue: https://github.com/elastic/elasticsearch/issues/153183
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats_sparkline.sparklineInInlineStatsByMvField}
   issue: https://github.com/elastic/elasticsearch/issues/153184
@@ -784,9 +781,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
   method: testFetchDenseVector {pref=STORED mode=logsdb}
   issue: https://github.com/elastic/elasticsearch/issues/153207
-- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
-  method: testConcurrentProducerLoopsThroughStatsCapturingWrapperDoNotDeadlock
-  issue: https://github.com/elastic/elasticsearch/issues/153210
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/147841
@@ -799,15 +793,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
   method: testShardRecoveryWarmingPropagatesTimestamp
   issue: https://github.com/elastic/elasticsearch/issues/153223
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
-  method: testSlicesDense
-  issue: https://github.com/elastic/elasticsearch/issues/153272
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/153282
-- class: org.elasticsearch.action.search.KnnSearchSingleNodeTests
-  method: testKnnWithQuery
-  issue: https://github.com/elastic/elasticsearch/issues/153319
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {datapage_v2.snappy}
   issue: https://github.com/elastic/elasticsearch/issues/153325
@@ -850,3 +838,21 @@ tests:
 - class: org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianCentroidTests
   method: testReduceRandom
   issue: https://github.com/elastic/elasticsearch/issues/153353
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {fixed_length_byte_array}
+  issue: https://github.com/elastic/elasticsearch/issues/153360
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {column_chunk_key_value_metadata}
+  issue: https://github.com/elastic/elasticsearch/issues/153361
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {binary}
+  issue: https://github.com/elastic/elasticsearch/issues/153364
+- class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
+  method: testUpdateTransformWithProjectRouting
+  issue: https://github.com/elastic/elasticsearch/issues/147534
+- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
+  method: testWaitForEmptySubRangeReturnsImmediately
+  issue: https://github.com/elastic/elasticsearch/issues/153378
+- class: org.elasticsearch.xpack.inference.integration.SemanticTextFieldMappingLegacyFormatIT
+  method: testLegacyFormatMappingPopulatedAfterFirstDenseDocument
+  issue: https://github.com/elastic/elasticsearch/issues/153384

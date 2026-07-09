@@ -93,6 +93,14 @@ public class StatelessDesiredBalanceReconcilerTests extends ESAllocationTestCase
             .routingTable(RoutingTable.builder(new StatelessShardRoutingRoleStrategy()).add(indexRoutingTable))
             .build();
 
+        /*
+         * The following searchShardsIgnored randomization exercises the two complementary sides of the search-shard fallback logic:
+         * If searchShardsIgnored == false: the desired balance wants both search shards assigned (to desired search nodes node-2 and
+         *   node-4), but those nodes are temporarily unavailable. We expect fallback to place exactly one search copy on an undesired
+         *   search node (node-3 or node-5) and leave the other unassigned, rather than piling both onto undesired nodes.
+         * If searchShardsIgnored == true: the desired balance ignores both search copies (ShardAssignment#ignored == 2). We expect
+         *   fallback to respect that and to NOT over-eagerly allocate these ignored copies to undesired nodes. They stay unassigned.
+         */
         final boolean searchShardsIgnored = randomBoolean();
         final Set<String> desiredNodes = searchShardsIgnored ? Set.of("node-0") : Set.of("node-0", "node-2", "node-4");
         final var initialForcedAllocationDecider = new AllocationDecider() {

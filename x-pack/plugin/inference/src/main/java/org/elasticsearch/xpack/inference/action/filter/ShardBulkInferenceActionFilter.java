@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -245,6 +246,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     }
 
     private class AsyncBulkShardInferenceAction implements Runnable {
+        private static final CheckedFunction<XContentParser, InferenceString, IOException> INFERENCE_STRING_PARSER =
+            p -> ReferenceValueInferenceString.PARSER.parse(p, null);
+
         private final boolean useLegacyFormat;
         private final IndexVersion indexVersion;
         private final Map<String, InferenceFieldMetadata> fieldInferenceMap;
@@ -730,7 +734,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     final List<?> values;
                     try {
                         values = allowObjectValues
-                            ? SemanticTextUtils.nodeObjectValues(field, valueObj)
+                            ? SemanticTextUtils.nodeObjectValues(field, valueObj, INFERENCE_STRING_PARSER)
                             : SemanticTextUtils.nodeStringValues(field, valueObj);
                     } catch (Exception exc) {
                         setInferenceResponseFailure(itemIndex, exc);

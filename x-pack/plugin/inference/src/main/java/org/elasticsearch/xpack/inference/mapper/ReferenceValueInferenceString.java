@@ -45,12 +45,7 @@ public class ReferenceValueInferenceString extends InferenceString {
 
     private final String referenceValue;
 
-    public ReferenceValueInferenceString(
-        DataType dataType,
-        @Nullable DataFormat dataFormat,
-        String value,
-        String referenceValue
-    ) {
+    public ReferenceValueInferenceString(DataType dataType, @Nullable DataFormat dataFormat, String value, String referenceValue) {
         super(dataType, dataFormat, value);
         this.referenceValue = referenceValue;
     }

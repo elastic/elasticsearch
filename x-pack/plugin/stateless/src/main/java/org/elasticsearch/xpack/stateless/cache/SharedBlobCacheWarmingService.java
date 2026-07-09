@@ -723,20 +723,12 @@ public class SharedBlobCacheWarmingService {
                 false,
                 timeSearchRecoveryWarming(startedMillis, ActionListener.noop())
             );
-            recordSearchRecoveryWaitDuration(startedMillis, SearchRecoveryWaitOutcome.NO_WAIT);
+            searchRecoveryWaitDurationMetric.record(
+                0.0,
+                Map.of(SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY, SearchRecoveryWaitOutcome.NO_WAIT)
+            );
             resumeRecoveryListener.onResponse(null);
         }
-    }
-
-    /**
-     * Records {@link #searchRecoveryWaitDurationMetric} with {@code outcome} as the {@link #SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY}
-     * attribute.
-     */
-    private void recordSearchRecoveryWaitDuration(long startedMillis, SearchRecoveryWaitOutcome outcome) {
-        searchRecoveryWaitDurationMetric.record(
-            (threadPool.rawRelativeTimeInMillis() - startedMillis) / 1000.0,
-            Map.of(SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY, outcome.name())
-        );
     }
 
     /**
@@ -951,9 +943,12 @@ public class SharedBlobCacheWarmingService {
         }, timeout, threadPool.generic());
         race.addListener(ActionListener.runBefore(new ThreadedActionListener<>(threadPool.generic(), resumeRecoveryListener), () -> {
             cancellable.cancel();
-            recordSearchRecoveryWaitDuration(
-                startedMillis,
-                timedOut.get() ? SearchRecoveryWaitOutcome.TIMEOUT : SearchRecoveryWaitOutcome.WARMING_COMPLETE
+            searchRecoveryWaitDurationMetric.record(
+                (threadPool.rawRelativeTimeInMillis() - startedMillis) / 1000.0,
+                Map.of(
+                    SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY,
+                    timedOut.get() ? SearchRecoveryWaitOutcome.TIMEOUT : SearchRecoveryWaitOutcome.WARMING_COMPLETE
+                )
             );
         }));
         return race;

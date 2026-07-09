@@ -640,9 +640,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     }
 
     /**
-     * Fire-and-forget path (no active peer to wait on): recovery resumes only after {@code warmCache} itself returns (the delay is
-     * injected synchronously, before the stub completes its listener), so both the warm-duration and recovery-wait-duration metrics
-     * must reflect at least that delay.
+     * Fire-and-forget path (no active peer to wait on): the warm-duration metric must reflect the delay injected before {@code
+     * warmCache}'s stub completes its listener, but the wait-duration metric must record exactly 0 since recovery never actually waits
+     * in this path (see {@link SearchRecoveryWaitOutcome#NO_WAIT}).
      */
     public void testWarmCacheForSearchShardRecoveryRecordsMetricsFireAndForget() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
@@ -668,8 +668,9 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             Measurement wait = assertSingleDurationMeasurementAtLeast(
                 meterRegistry,
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC,
-                delayMillis
+                0
             );
+            assertThat(wait.getDouble(), equalTo(0.0));
             assertWaitOutcome(wait, SearchRecoveryWaitOutcome.NO_WAIT);
         }
     }
@@ -677,7 +678,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
     /**
      * Await-warming path (another active search copy exists): both metrics must reflect the delay injected before {@code warmCache}
      * completes its listener, since {@code resumeRecoveryListener} is invoked via the race listener only once warming completes
-     * (the default 5-minute await timeout is nowhere close to firing first). The wait outcome must be {@code WARMING_COMPLETED} since
+     * (the default 5-minute await timeout is nowhere close to firing first). The wait outcome must be {@code WARMING_COMPLETE} since
      * warming (not the timeout) is what completed the race.
      */
     public void testWarmCacheForSearchShardRecoveryRecordsMetricsWhenAwaitingWarming() {
@@ -719,7 +720,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
 
     /**
      * Directly exercises {@link SharedBlobCacheWarmingService#searchRecoveryWarmingListener} with a timeout so short that it always
-     * fires before the listener passed in (simulating warming) is ever completed: the wait outcome must be {@code TIMED_OUT}.
+     * fires before the listener passed in (simulating warming) is ever completed: the wait outcome must be {@code TIMEOUT}.
      */
     public void testSearchRecoveryWarmingListenerRecordsTimedOutOutcome() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {

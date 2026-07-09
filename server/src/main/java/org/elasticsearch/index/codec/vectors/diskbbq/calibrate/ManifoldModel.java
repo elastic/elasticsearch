@@ -99,8 +99,6 @@ public final class ManifoldModel {
      * @return double[2] containing {log(alpha), invDim}
      */
     static double[] estimateManifoldParameters(CalibrationSource source, int[] ranksForK) throws IOException {
-        assert source.preconditioner() == null
-            : "ManifoldModel does not apply the preconditioner; use ErrorModel for preconditioned queries";
         int nQueries = source.queryOrdinals().length;
         int nDocsTotal = source.corpusOrdinals().length;
         int m = Math.min(ranksForK.length, ManifoldModel.SAMPLE_SIZES.length);
@@ -110,12 +108,34 @@ public final class ManifoldModel {
         double[] logRanks = new double[m];
         double[] logSampleSizes = new double[m];
         double[] logDistances = new double[m];
+        boolean dotLike = isDotLike(source.similarityFunction());
 
-        float[] queryScratch = new float[dimWork];
+        // materialize the query sample once, on-heap (nQueries <= MAX_QUERY_SAMPLE). Corpus vectors
+        // are then streamed once per sweep step and scored against every query, so each corpus read happens once
+        // per step rather than once per (step, query).
+        FloatVectorValues vectors = source.vectors();
+        int[] corpusOrdinals = source.corpusOrdinals();
+        float[][] queries = new float[nQueries][dimWork];
+        for (int qi = 0; qi < nQueries; qi++) {
+            CalibrationUtils.materializeCalibrationQuery(
+                vectors,
+                source.queryOrdinals()[qi],
+                source.baseDim(),
+                dimWork,
+                source.cosine(),
+                source.neyshabur(),
+                null,
+                false,
+                queries[qi],
+                null
+            );
+        }
+
         ManifoldTopK[] topKs = new ManifoldTopK[nQueries];
         for (int qi = 0; qi < nQueries; qi++) {
             topKs[qi] = new ManifoldTopK(source.similarityFunction(), 6 * source.k());
         }
+        float[] bulkDistances = new float[4];
 
         int sampleStart = 0;
         for (int i = 0; i < m; i++) {
@@ -124,25 +144,46 @@ public final class ManifoldModel {
             if (sampleEnd > nDocsTotal) {
                 break;
             }
-            double avgDist;
+            // feed corpus slice [sampleStart, sampleEnd) to every query's heap, reading each corpus vector once
+            // and bulk-scoring it against four on-heap queries at a time (dot product / square distance are symmetric).
+            int bulkLimit = nQueries - 3;
+            for (int d = sampleStart; d < sampleEnd; d++) {
+                float[] cv = vectors.vectorValue(corpusOrdinals[d]);
+                int qi = 0;
+                for (; qi < bulkLimit; qi += 4) {
+                    if (dotLike) {
+                        ESVectorUtil.dotProductBulk(cv, queries[qi], queries[qi + 1], queries[qi + 2], queries[qi + 3], 0, bulkDistances);
+                        topKs[qi].considerCandidate(-bulkDistances[0]);
+                        topKs[qi + 1].considerCandidate(-bulkDistances[1]);
+                        topKs[qi + 2].considerCandidate(-bulkDistances[2]);
+                        topKs[qi + 3].considerCandidate(-bulkDistances[3]);
+                    } else {
+                        ESVectorUtil.squareDistanceBulk(
+                            cv,
+                            0,
+                            dimWork,
+                            queries[qi],
+                            queries[qi + 1],
+                            queries[qi + 2],
+                            queries[qi + 3],
+                            bulkDistances
+                        );
+                        topKs[qi].considerCandidate(bulkDistances[0]);
+                        topKs[qi + 1].considerCandidate(bulkDistances[1]);
+                        topKs[qi + 2].considerCandidate(bulkDistances[2]);
+                        topKs[qi + 3].considerCandidate(bulkDistances[3]);
+                    }
+                }
+                for (; qi < nQueries; qi++) {
+                    float dist = dotLike ? -ESVectorUtil.dotProduct(cv, queries[qi]) : ESVectorUtil.squareDistance(cv, queries[qi]);
+                    topKs[qi].considerCandidate(dist);
+                }
+            }
             double sum = 0;
             for (int qi = 0; qi < nQueries; qi++) {
-                CalibrationUtils.materializeCalibrationQuery(
-                    source.vectors(),
-                    source.queryOrdinals()[qi],
-                    source.baseDim(),
-                    dimWork,
-                    source.cosine(),
-                    source.neyshabur(),
-                    null,
-                    false,
-                    queryScratch,
-                    null
-                );
-                topKs[qi].add(queryScratch, source.vectors(), source.corpusOrdinals(), sampleStart, sampleEnd);
                 sum += topKs[qi].ithDistance(rank);
             }
-            avgDist = sum / nQueries;
+            double avgDist = sum / nQueries;
             logRanks[logCount] = Math.log(rank);
             logSampleSizes[logCount] = Math.log(ManifoldModel.SAMPLE_SIZES[i]);
             logDistances[logCount] = Math.log(avgDist);
@@ -187,7 +228,6 @@ public final class ManifoldModel {
         private final int capacity;
         private final float[] buffer;
         private final float[] scratch;
-        private final float[] bulkDistances;
         private int size;
         private int maxIndex;
 
@@ -196,41 +236,9 @@ public final class ManifoldModel {
             this.capacity = capacity;
             this.buffer = new float[capacity];
             this.scratch = new float[capacity];
-            this.bulkDistances = new float[4];
         }
 
-        void add(float[] query, FloatVectorValues fvv, int[] corpusOrdinals, int startDoc, int endDoc) throws IOException {
-            boolean dotLike = isDotLike(similarityFunction);
-            int d = startDoc;
-            int bulkLimit = endDoc - 3;
-            while (d < bulkLimit) {
-                float[] v0 = fvv.vectorValue(corpusOrdinals[d]);
-                float[] v1 = fvv.vectorValue(corpusOrdinals[d + 1]);
-                float[] v2 = fvv.vectorValue(corpusOrdinals[d + 2]);
-                float[] v3 = fvv.vectorValue(corpusOrdinals[d + 3]);
-                if (dotLike) {
-                    ESVectorUtil.dotProductBulk(query, v0, v1, v2, v3, 0, bulkDistances);
-                    considerCandidate(-bulkDistances[0]);
-                    considerCandidate(-bulkDistances[1]);
-                    considerCandidate(-bulkDistances[2]);
-                    considerCandidate(-bulkDistances[3]);
-                } else {
-                    ESVectorUtil.squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, bulkDistances);
-                    considerCandidate(bulkDistances[0]);
-                    considerCandidate(bulkDistances[1]);
-                    considerCandidate(bulkDistances[2]);
-                    considerCandidate(bulkDistances[3]);
-                }
-                d += 4;
-            }
-            for (; d < endDoc; d++) {
-                float[] doc = fvv.vectorValue(corpusOrdinals[d]);
-                float dist = dotLike ? -ESVectorUtil.dotProduct(query, doc) : ESVectorUtil.squareDistance(query, doc);
-                considerCandidate(dist);
-            }
-        }
-
-        private void considerCandidate(float dist) {
+        void considerCandidate(float dist) {
             if (size < capacity) {
                 buffer[size++] = dist;
                 if (size == capacity) {

@@ -2321,7 +2321,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     private BlockDecoder blockDecoder(NumericEntry entry, long maxOrd) {
         if (maxOrd != AbstractTSDBDocValuesConsumer.NO_MAX_ORD) {
             final int bitsPerOrd = PackedInts.bitsRequired(maxOrd - 1);
-            final OrdinalFieldReader.Decoder decoder = ordinalCodec.createReader(readContext).decoder(entry.blockSize);
+            var ordinalFieldReader = ordinalCodec.createReader(readContext);
+            final OrdinalFieldReader.Decoder decoder = ordinalFieldReader.decoder(entry.blockSize);
             return (input, values) -> decoder.decodeOrdinals(input, values, bitsPerOrd);
         } else {
             var numericFieldReader = numericCodec.createReader(readContext);
@@ -3095,7 +3096,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         public PipelineDescriptor pipelineDescriptor;
         // NOTE: per-field block size. Equals pipelineDescriptor.blockSize() when present
         // (ES95 pipeline-encoded entries); otherwise the format-level default read from
-        // the numeric block shift header byte, used by ES819 entries and ordinal entries.
+        // the numeric block shift header byte, used by ES819 entries and ordinal-stream
+        // entries that have no pipeline descriptor.
         public int blockSize;
     }
 

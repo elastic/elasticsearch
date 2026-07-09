@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Immutable context for a single {@link FormatReader#read} or {@link FormatReader#readAsync} call.
@@ -79,6 +80,17 @@ import java.util.List;
  *                         {@link StripeColumnScope#PROJECTED} (back-compat for call sites that predate the
  *                         setting); the compact constructor collapses {@code null} to that default so
  *                         readers do one check.
+ * @param informationalWarningSink optional relay for client-visible lenient-policy warnings (see
+ *                         {@link SkipWarnings}) raised while reading. {@code null} means the reader
+ *                         should fall back to emitting warnings directly via {@link
+ *                         org.elasticsearch.common.logging.HeaderWarning}, which is only correct when
+ *                         the read runs on the request/driver thread. Callers that dispatch reads to a
+ *                         background thread (e.g. {@code AsyncExternalSourceOperatorFactory}) must set
+ *                         this to a sink — typically {@code AsyncExternalSourceBuffer::recordInformationalWarning},
+ *                         preserving these warnings' pre-existing behavior of never flipping the response's
+ *                         {@code is_partial} flag (see {@code AsyncExternalSourceBuffer#recordWarning} for
+ *                         the one warning that does) — so the warning is relayed back and re-emitted on
+ *                         the correct thread instead of being silently dropped.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -94,7 +106,8 @@ public record FormatReadContext(
     long statsBaseOffset,
     long statsStripeSize,
     boolean statsFileFinal,
-    StripeColumnScope statsColumnScope
+    StripeColumnScope statsColumnScope,
+    @Nullable Consumer<String> informationalWarningSink
 ) {
 
     public FormatReadContext {
@@ -138,7 +151,8 @@ public record FormatReadContext(
             statsBaseOffset,
             statsStripeSize,
             statsFileFinal,
-            statsColumnScope
+            statsColumnScope,
+            informationalWarningSink
         );
     }
 
@@ -160,7 +174,8 @@ public record FormatReadContext(
             statsBaseOffset,
             statsStripeSize,
             statsFileFinal,
-            statsColumnScope
+            statsColumnScope,
+            informationalWarningSink
         );
     }
 
@@ -182,7 +197,8 @@ public record FormatReadContext(
             statsBaseOffset,
             statsStripeSize,
             statsFileFinal,
-            statsColumnScope
+            statsColumnScope,
+            informationalWarningSink
         );
     }
 
@@ -209,6 +225,8 @@ public record FormatReadContext(
         private long statsStripeSize = -1L;
         private boolean statsFileFinal = false;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
+        @Nullable
+        private Consumer<String> informationalWarningSink = null;
 
         private Builder() {}
 
@@ -291,6 +309,15 @@ public record FormatReadContext(
             return this;
         }
 
+        /**
+         * See {@link FormatReadContext#informationalWarningSink()}; pass {@code null} for
+         * direct-to-HeaderWarning emission.
+         */
+        public Builder informationalWarningSink(@Nullable Consumer<String> informationalWarningSink) {
+            this.informationalWarningSink = informationalWarningSink;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -309,7 +336,8 @@ public record FormatReadContext(
                 statsBaseOffset,
                 statsStripeSize,
                 statsFileFinal,
-                statsColumnScope
+                statsColumnScope,
+                informationalWarningSink
             );
         }
     }

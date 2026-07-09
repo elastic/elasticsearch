@@ -108,7 +108,7 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         expected.removeAll(FileSourceFactory.EXTERNAL_ONLY_KEYS);
         expected.remove(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
         assertEquals(
-            "dataset coordinator keys must equal COORDINATOR_KEYS minus the EXTERNAL-only allowlist and the internal _datasource key",
+            "dataset coordinator keys must equal COORDINATOR_KEYS minus the EXTERNAL-only allowlist and the internal " + "_datasource key",
             expected,
             new TreeSet<>(FileDataSourceValidator.COORDINATOR_DATASET_KEYS)
         );

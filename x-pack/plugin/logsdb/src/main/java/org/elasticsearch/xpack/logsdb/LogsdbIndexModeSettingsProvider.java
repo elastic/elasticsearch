@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
+import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_COLUMNAR_ENABLED;
 import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_COLUMNAR_ENABLED;
 import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_ENABLED;
 
@@ -81,11 +82,13 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
     private volatile boolean isLogsdbEnabled;
     private volatile boolean isLogsdbColumnarEnabled;
+    private volatile boolean isColumnarEnabled;
 
     LogsdbIndexModeSettingsProvider(LogsdbLicenseService licenseService, final Settings settings) {
         this.licenseService = licenseService;
         this.isLogsdbEnabled = CLUSTER_LOGSDB_ENABLED.get(settings);
         this.isLogsdbColumnarEnabled = CLUSTER_LOGSDB_COLUMNAR_ENABLED.get(settings);
+        this.isColumnarEnabled = CLUSTER_COLUMNAR_ENABLED.get(settings);
     }
 
     void updateClusterIndexModeLogsdbEnabled(boolean isLogsdbEnabled) {
@@ -94,6 +97,10 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
     void updateClusterIndexModeLogsdbColumnarEnabled(boolean isLogsdbColumnarEnabled) {
         this.isLogsdbColumnarEnabled = isLogsdbColumnarEnabled;
+    }
+
+    void updateColumnarEnabled(boolean isColumnarEnabled) {
+        this.isColumnarEnabled = isColumnarEnabled;
     }
 
     void init(
@@ -133,13 +140,29 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
         boolean isTemplateValidation = MetadataIndexTemplateService.VALIDATE_INDEX_NAME.equals(indexName);
 
+        if (isColumnarEnabled == false && isTemplateValidation == false) {
+            IndexMode requestedMode = resolveIndexMode(settings.get(IndexSettings.MODE.getKey()));
+            if (requestedMode == null) {
+                requestedMode = templateIndexMode;
+            }
+            if (requestedMode != null && requestedMode.isStrictColumnar()) {
+                throw new IllegalArgumentException(
+                    "creation of indices with a columnar index mode ["
+                        + requestedMode.getName()
+                        + "] is disabled; set ["
+                        + CLUSTER_COLUMNAR_ENABLED.getKey()
+                        + "] to [true] to allow it"
+                );
+            }
+        }
+
         // Inject logsdb index mode, based on the logs pattern.
         if (isLogsdbEnabled
             && dataStreamName != null
             && resolveIndexMode(settings.get(IndexSettings.MODE.getKey())) == null
             && matchesLogsPattern(dataStreamName)) {
             IndexMode indexMode;
-            if (isLogsdbColumnarEnabled && Build.current().isSnapshot()) {
+            if (isLogsdbColumnarEnabled && isColumnarEnabled && Build.current().isSnapshot()) {
                 indexMode = IndexMode.LOGSDB_COLUMNAR;
             } else {
                 indexMode = IndexMode.LOGSDB;

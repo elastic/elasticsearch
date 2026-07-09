@@ -2009,8 +2009,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final RecoverySource.Type recoveryType = currentRecoveryState.getRecoverySource().getType();
             switch (recoveryType) {
                 case LOCAL_SHARDS, SNAPSHOT, EXISTING_STORE, EMPTY_STORE, PEER -> recoveryCancellationRequested = true;
-                default -> throw new IllegalStateException(
-                    "requestRecoveryCancellation called for an unsupported recovery type " + recoveryType + " on shard " + shardId
+                case RESHARD_SPLIT -> throw new IllegalStateException(
+                    "requestRecoveryCancellation is currently unsupported for RESHARD_SPLIT recoveries, shardId: " + shardId
                 );
             }
         }

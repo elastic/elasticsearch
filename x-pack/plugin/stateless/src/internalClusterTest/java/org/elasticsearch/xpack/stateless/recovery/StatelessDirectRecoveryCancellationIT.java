@@ -108,6 +108,8 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
 
+        waitNoPendingTasksOnAll();
+
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
@@ -147,6 +149,8 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
@@ -188,6 +192,8 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
+        waitNoPendingTasksOnAll();
 
         final var targetIndex = resolveIndex(targetIndexName);
         final var shardId = new ShardId(targetIndex, 0);
@@ -231,6 +237,8 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
+        waitNoPendingTasksOnAll();
 
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
@@ -277,6 +285,8 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         safeAcquire(BlockingFsRepositoryPlugin.restoreHasStarted);
         BlockingFsRepositoryPlugin.restoreHasStarted.release();
 
+        waitNoPendingTasksOnAll();
+
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, node);
@@ -286,7 +296,6 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
@@ -364,13 +373,14 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
         safeAwait(blockedHandoff);
 
+        waitNoPendingTasksOnAll();
+
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, targetNode);
         final var shard = indicesService.indexServiceSafe(index).getShard(0);
         final var allocationId = shard.routingEntry().allocationId().getId();
 
-        waitNoPendingTasksOnAll();
         final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
@@ -414,6 +424,8 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         setReplicaCount(1, indexName);
         safeAwait(blockedRegistration);
 
+        waitNoPendingTasksOnAll();
+
         final var index = resolveIndex(indexName);
         final var shardId = new ShardId(index, 0);
         final var indicesService = internalCluster().getInstance(IndicesService.class, searchNode);
@@ -424,7 +436,6 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(masterNode, shardId);
 
         final var clusterService = internalCluster().getInstance(ClusterService.class, searchNode);
-        waitNoPendingTasksOnAll();
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
             List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))

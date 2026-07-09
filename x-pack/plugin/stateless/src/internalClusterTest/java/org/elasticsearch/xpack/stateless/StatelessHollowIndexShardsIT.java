@@ -2190,7 +2190,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 };
                 ingestExecutor.submit(ingestRunnable);
             }
-            safeAwait(ingestLatch, TimeValue.THIRTY_SECONDS);
+            // Each thread may issue up to ~128 sequential blocking updates, and the first write to each hollow shard blocks on
+            // that shard's unhollow (an object-store read + engine reset + local flush on the shared generic pool). On a loaded
+            // CI runner that can push the slowest thread well past 30s, so allow a generous budget for this heavy ingestion.
+            safeAwait(ingestLatch, TimeValue.timeValueMinutes(2));
             for (int i = 0; i < numberOfShards; i++) {
                 // Should unhollow only once
                 assertThat(

@@ -44,7 +44,15 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
             throw new IllegalArgumentException("filePath cannot be null");
         }
         this.filePath = filePath;
-        this.storagePath = StoragePath.of("file://" + filePath.toAbsolutePath());
+        // Use the shared canonical factory (not "file://" + toAbsolutePath) so the location is
+        // normalized identically to every other producer of a local StoragePath (the directory
+        // listing's toStoragePath, the query's location). On Windows toAbsolutePath() keeps
+        // backslashes and yields a two-slash "file://C:\dir\file" form, whereas the factory
+        // normalizes to "file:///C:/dir/file"; the mismatch made object.path() (the stats-capture
+        // key) differ from the planning-side SchemaCacheKey canonicalPath, so
+        // ExternalSourceCacheService.reconcileSourceStats silently dropped every captured
+        // contribution and warm queries re-scanned. On POSIX both forms already coincide.
+        this.storagePath = StoragePath.ofLocalPath(filePath);
     }
 
     public LocalStorageObject(Path filePath, long length) {

@@ -76,9 +76,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -112,6 +110,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -1096,7 +1095,7 @@ public class InternalEngine extends Engine {
         if (versionValue == null) {
             assert incrementIndexVersionLookup(); // used for asserting in tests
             final DocIdAndVersion docIdAndVersion = performActionWithDirectoryReader(SearcherScope.INTERNAL, directoryReader -> {
-                if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+                if (engineConfig.getIndexSettings().getMode().isTsdb()) {
                     assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
                     return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
                         directoryReader,
@@ -1368,7 +1367,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations, EirfBatch batch) throws IOException {
+    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
         assert operations.size() == batch.docCount()
             : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
         try (var ignored = acquireEnsureOpenRef()) {
@@ -1448,7 +1447,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void processSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize, EirfBatch batch, IndexResult[] allResults)
+    private void processSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize, SourceBatch batch, IndexResult[] allResults)
         throws IOException {
         final boolean fromTranslog = operations.getFirst().origin().isFromTranslog();
         assert assertNoMixedRecoveryOperations(operations);
@@ -1584,7 +1583,7 @@ public class InternalEngine extends Engine {
             final Translog.Location batchLocation;
             if (fromTranslog == false) {
                 final long batchPrimaryTerm = subBatchOps[0].primaryTerm();
-                final EirfBatch slicedBatch = batch.slice(subBatchIdx, subBatchIdx + subBatchSize);
+                final SourceBatch slicedBatch = batch.slice(subBatchIdx, subBatchIdx + subBatchSize);
                 final List<Translog.IndexBatch.Op> translogOps = new ArrayList<>(subBatchSize);
                 for (int i = 0; i < subBatchSize; i++) {
                     Index index = subBatchOps[i];
@@ -1707,7 +1706,7 @@ public class InternalEngine extends Engine {
         // Phase 2: single Lucene reader acquisition for all versionMap misses.
         // Collect misses into flat arrays and resolve them all in one sorted segment scan.
         if (anyNeedsLucene) {
-            final boolean isTimeSeries = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
+            final boolean isTimeSeries = engineConfig.getIndexSettings().getMode().isTsdb();
             int luceneCount = 0;
             for (int i = 0; i < count; i++) {
                 if (needsLucene[i]) luceneCount++;
@@ -3337,7 +3336,7 @@ public class InternalEngine extends Engine {
             engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()
                 ? SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME
                 : SourceFieldMapper.RECOVERY_SOURCE_NAME,
-            engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES,
+            engineConfig.getIndexSettings().getMode().isTsdb(),
             pruneSeqNo,
             () -> softDeletesPolicy.getRetentionQuery(seqNoIndexOptions),
             new SoftDeletesRetentionMergePolicy(

@@ -183,6 +183,23 @@ public class InferenceIndex {
                             "type": "long"
                           }
                         }
+                      },
+                      "regions": {
+                        "dynamic": false,
+                        "properties": {
+                          "csp": {
+                            "type": "keyword"
+                          },
+                          "region": {
+                            "type": "keyword"
+                          },
+                          "geo": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "denied_by_region_policy": {
+                        "type": "boolean"
                       }
                     }
                   },
@@ -193,16 +210,6 @@ public class InferenceIndex {
                         "type": "keyword"
                       },
                       "allowed_regions": {
-                        "properties": {
-                          "csp": {
-                            "type": "keyword"
-                          },
-                          "region": {
-                            "type": "keyword"
-                          }
-                        }
-                      },
-                      "fallback_region": {
                         "properties": {
                           "csp": {
                             "type": "keyword"

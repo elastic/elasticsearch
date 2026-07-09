@@ -90,6 +90,41 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         new InferenceString(DataType.IMAGE, DataFormat.BASE64, value);
     }
 
+    /** RFC 2397 parameters and MIME types containing {@code +} must still be accepted. */
+    public void testConstructorWithValidDataURIFormat_withMediaTypeParameters() {
+        new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;charset=utf-8;base64,abcd");
+        new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;p1=v1;p2=v2;base64,abcd");
+        new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/svg+xml;base64,abcd");
+    }
+
+    /** URI prefixes exceeding {@link InferenceString#MAX_DATA_URI_PREFIX_LENGTH} are rejected before the regex runs. */
+    public void testConstructorWithOversizedDataURIPrefix_throws() {
+        String oversizedPrefixValue = "data:image/" + "a".repeat(InferenceString.MAX_DATA_URI_PREFIX_LENGTH) + ";base64,abcd";
+
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> new InferenceString(DataType.IMAGE, DataFormat.BASE64, oversizedPrefixValue)
+        );
+        assertThat(
+            exception.getMessage(),
+            is("base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]")
+        );
+    }
+
+    /** Adversarial input that would backtrack under the old {@code .*&#47;.*} regex must fail fast. */
+    public void testConstructorWithPathologicalDataURI_throwsAndCompletesQuickly() {
+        String pathological = "data:a" + "/a;".repeat(100) + ",";
+
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> new InferenceString(DataType.IMAGE, DataFormat.BASE64, pathological)
+        );
+        assertThat(
+            exception.getMessage(),
+            is("base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]")
+        );
+    }
+
     public void testParserWithText() throws IOException {
         var requestJson = """
             {

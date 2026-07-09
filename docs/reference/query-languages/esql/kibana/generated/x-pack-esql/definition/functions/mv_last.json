@@ -68,6 +68,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date_range",
+          "optional" : false,
+          "description" : "Expression that can be null, a single value, or multiple values."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_range"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "Expression that can be null, a single value, or multiple values."

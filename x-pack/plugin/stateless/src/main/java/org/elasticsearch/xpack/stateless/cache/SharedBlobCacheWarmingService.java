@@ -725,7 +725,7 @@ public class SharedBlobCacheWarmingService {
             );
             searchRecoveryWaitDurationMetric.record(
                 0.0,
-                Map.of(SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY, SearchRecoveryWaitOutcome.NO_WAIT)
+                Map.of(SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY, SearchRecoveryWaitOutcome.NO_WAIT.name())
             );
             resumeRecoveryListener.onResponse(null);
         }
@@ -947,7 +947,7 @@ public class SharedBlobCacheWarmingService {
                 (threadPool.rawRelativeTimeInMillis() - startedMillis) / 1000.0,
                 Map.of(
                     SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY,
-                    timedOut.get() ? SearchRecoveryWaitOutcome.TIMEOUT : SearchRecoveryWaitOutcome.WARMING_COMPLETE
+                    (timedOut.get() ? SearchRecoveryWaitOutcome.TIMEOUT : SearchRecoveryWaitOutcome.WARMING_COMPLETE).name()
                 )
             );
         }));

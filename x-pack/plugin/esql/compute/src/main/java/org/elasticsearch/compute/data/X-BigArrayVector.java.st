@@ -246,7 +246,7 @@ $endif$
     }
 
     @Override
-    public void closeInternal() {
+    public void closeBlock() {
         // The circuit breaker that tracks the values {@link $if(boolean)$Bit$else$$Type$$endif$Array} is adjusted outside
         // of this class.
         values.close();

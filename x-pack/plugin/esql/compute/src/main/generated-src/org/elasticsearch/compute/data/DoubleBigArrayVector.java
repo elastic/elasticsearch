@@ -139,7 +139,7 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     }
 
     @Override
-    public void closeInternal() {
+    public void closeBlock() {
         // The circuit breaker that tracks the values {@link DoubleArray} is adjusted outside
         // of this class.
         values.close();

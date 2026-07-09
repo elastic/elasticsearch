@@ -246,7 +246,7 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
     }
 
     @Override
-    public void closeInternal() {
+    public void closeBlock() {
         blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }

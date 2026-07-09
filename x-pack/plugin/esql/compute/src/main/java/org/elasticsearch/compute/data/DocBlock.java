@@ -98,7 +98,7 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
     }
 
     @Override
-    public void closeInternal() {
+    public void closeBlock() {
         assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
     }

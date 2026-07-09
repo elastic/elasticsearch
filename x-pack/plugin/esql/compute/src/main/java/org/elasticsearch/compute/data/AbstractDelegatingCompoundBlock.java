@@ -33,7 +33,7 @@ import java.util.stream.IntStream;
  * for non-null composite values.
  * </p>
  */
-public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends AbstractRefCountedReleasable implements Block {
+public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends AbstractBlockRefCounter implements Block {
 
     /**
      * Transport version when multi-value support was introduced for {@link TDigestBlock} and {@link ExponentialHistogramBlock}.
@@ -198,7 +198,7 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     }
 
     @Override
-    protected void closeInternal() {
+    protected void closeBlock() {
         if (firstValueIndexes != null) {
             blockFactory().preAdjustBreakerForInt(-firstValueIndexes.length);
         }

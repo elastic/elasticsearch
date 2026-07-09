@@ -22,7 +22,7 @@ import java.io.IOException;
  * the additional ordinals block. However, they offer significant speed improvements and reduced memory usage when byte values are
  * frequently repeated
  */
-public final class OrdinalBytesRefBlock extends AbstractRefCountedReleasable implements BytesRefBlock {
+public final class OrdinalBytesRefBlock extends AbstractBlockRefCounter implements BytesRefBlock {
     private final IntBlock ordinals;
     private final BytesRefVector bytes;
 
@@ -187,7 +187,7 @@ public final class OrdinalBytesRefBlock extends AbstractRefCountedReleasable imp
     }
 
     @Override
-    protected void closeInternal() {
+    protected void closeBlock() {
         Releasables.close(ordinals, bytes);
     }
 

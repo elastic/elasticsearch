@@ -20,7 +20,7 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public final class AggregateMetricDoubleArrayBlock extends AbstractRefCountedReleasable implements AggregateMetricDoubleBlock {
+public final class AggregateMetricDoubleArrayBlock extends AbstractBlockRefCounter implements AggregateMetricDoubleBlock {
     public static final TransportVersion WRITE_TYPED_BLOCK = TransportVersion.fromName("aggregate_metric_double_typed_block");
 
     private final DoubleBlock minBlock;
@@ -135,7 +135,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractRefCountedRel
     }
 
     @Override
-    protected void closeInternal() {
+    protected void closeBlock() {
         Releasables.close(getSubBlocks());
     }
 

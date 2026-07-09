@@ -166,7 +166,7 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
     }
 
     @Override
-    public void closeInternal() {
+    public void closeBlock() {
         // The circuit breaker that tracks the values {@link BitArray} is adjusted outside
         // of this class.
         values.close();

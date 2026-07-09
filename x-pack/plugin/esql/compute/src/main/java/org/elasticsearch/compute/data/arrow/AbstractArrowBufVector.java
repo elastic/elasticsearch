@@ -9,7 +9,7 @@ package org.elasticsearch.compute.data.arrow;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.FixedWidthVector;
-import org.elasticsearch.compute.data.AbstractRefCountedReleasable;
+import org.elasticsearch.compute.data.AbstractBlockRefCounter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.Vector;
 
 import java.lang.foreign.MemorySegment;
 
-public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> extends AbstractRefCountedReleasable implements Vector {
+public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> extends AbstractBlockRefCounter implements Vector {
 
     protected final ArrowBuf valueBuffer;
     protected final int positionCount;
@@ -63,7 +63,7 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
     protected abstract ArrowBufBlockConstructor<B> blockConstructor();
 
     @Override
-    protected void closeInternal() {
+    protected void closeBlock() {
         if (closed) {
             return;
         }

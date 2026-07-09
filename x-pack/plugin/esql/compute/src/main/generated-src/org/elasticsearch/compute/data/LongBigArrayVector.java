@@ -139,7 +139,7 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     }
 
     @Override
-    public void closeInternal() {
+    public void closeBlock() {
         // The circuit breaker that tracks the values {@link LongArray} is adjusted outside
         // of this class.
         values.close();

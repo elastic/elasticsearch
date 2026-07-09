@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 /**
  * A dense Vector of single values.
  */
-abstract class AbstractVector extends AbstractRefCountedReleasable implements Vector {
+abstract class AbstractVector extends AbstractBlockRefCounter implements Vector {
 
     private final int positionCount;
     private BlockFactory blockFactory;
@@ -35,7 +35,7 @@ abstract class AbstractVector extends AbstractRefCountedReleasable implements Ve
     }
 
     @Override
-    protected void closeInternal() {
+    protected void closeBlock() {
         blockFactory.adjustBreaker(-ramBytesUsed());
     }
 }

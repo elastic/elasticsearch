@@ -15,7 +15,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
-public final class LongRangeArrayBlock extends AbstractRefCountedReleasable implements LongRangeBlock {
+public final class LongRangeArrayBlock extends AbstractBlockRefCounter implements LongRangeBlock {
     private final LongBlock fromBlock;
     private final LongBlock toBlock;
 
@@ -40,7 +40,7 @@ public final class LongRangeArrayBlock extends AbstractRefCountedReleasable impl
     }
 
     @Override
-    protected void closeInternal() {
+    protected void closeBlock() {
         Releasables.close(fromBlock, toBlock);
     }
 

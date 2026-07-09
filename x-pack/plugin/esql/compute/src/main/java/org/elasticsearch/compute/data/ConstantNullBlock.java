@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Block implementation representing a constant null value.
  */
-public final class ConstantNullBlock extends AbstractRefCountedReleasable
+public final class ConstantNullBlock extends AbstractBlockRefCounter
     implements
         BooleanBlock,
         IntBlock,
@@ -214,7 +214,7 @@ public final class ConstantNullBlock extends AbstractRefCountedReleasable
     }
 
     @Override
-    public void closeInternal() {
+    public void closeBlock() {
         blockFactory().adjustBreaker(-ramBytesUsed());
     }
 

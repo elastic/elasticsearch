@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public final class CompositeBlock extends AbstractRefCountedReleasable implements Block {
+public final class CompositeBlock extends AbstractBlockRefCounter implements Block {
     private final Block[] blocks;
     private final int positionCount;
 
@@ -281,7 +281,7 @@ public final class CompositeBlock extends AbstractRefCountedReleasable implement
     }
 
     @Override
-    protected void closeInternal() {
+    protected void closeBlock() {
         Releasables.close(blocks);
     }
 

@@ -12,7 +12,7 @@ import org.apache.arrow.vector.FixedWidthVector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.data.AbstractRefCountedReleasable;
+import org.elasticsearch.compute.data.AbstractBlockRefCounter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -23,7 +23,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
-public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> extends AbstractRefCountedReleasable implements Block {
+public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> extends AbstractBlockRefCounter implements Block {
 
     protected final int valueCount;
     protected final int offsetCount;
@@ -141,7 +141,7 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
     }
 
     @Override
-    protected void closeInternal() {
+    protected void closeBlock() {
         if (closed) {
             return;
         }

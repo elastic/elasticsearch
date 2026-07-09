@@ -194,7 +194,7 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
     }
 
     @Override
-    public void closeInternal() {
+    public void closeBlock() {
         // The circuit breaker that tracks the values {@link BytesRefArray} is adjusted outside
         // of this class.
         blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed());

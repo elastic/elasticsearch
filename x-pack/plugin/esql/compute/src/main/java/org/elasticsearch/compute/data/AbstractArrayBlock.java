@@ -14,7 +14,7 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 import java.util.BitSet;
 
-abstract class AbstractArrayBlock extends AbstractRefCountedReleasable implements Block {
+abstract class AbstractArrayBlock extends AbstractBlockRefCounter implements Block {
     private final MvOrdering mvOrdering;
     protected final int positionCount;
 

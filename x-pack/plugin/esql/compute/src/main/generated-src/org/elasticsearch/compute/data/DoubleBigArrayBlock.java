@@ -246,7 +246,7 @@ public final class DoubleBigArrayBlock extends AbstractArrayBlock implements Dou
     }
 
     @Override
-    public void closeInternal() {
+    public void closeBlock() {
         blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
         Releasables.closeExpectNoException(vector);
     }

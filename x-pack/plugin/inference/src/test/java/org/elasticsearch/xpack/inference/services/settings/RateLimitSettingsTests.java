@@ -14,11 +14,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
@@ -26,6 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -342,6 +346,166 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
                 )
             )
         );
+    }
+
+    private static class RateLimitHolder {
+        private RateLimitSettings rateLimitSettings;
+
+        private void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+    }
+
+    private RateLimitHolder parseWithDeclare(String json, RateLimitSettings defaultValue, ConfigurationParseContext ctx)
+        throws IOException {
+        var parser = new ObjectParser<RateLimitHolder, ConfigurationParseContext>("test", RateLimitHolder::new);
+        RateLimitSettings.declareRateLimitSettings(parser, RateLimitHolder::setRateLimitSettings, defaultValue);
+        try (var xParser = createParser(JsonXContent.jsonXContent, json)) {
+            return parser.parse(xParser, ctx);
+        }
+    }
+
+    public void testDeclareRateLimitSettings_RequestsPerMinutePresent_SetsParsedValue() throws IOException {
+        var holder = parseWithDeclare(
+            Strings.format("""
+                    {
+                        "%s": {
+                            "%s": %d
+                        }
+                    }
+                """, RateLimitSettings.FIELD_NAME, RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE),
+            createRandom(),
+            randomFrom(ConfigurationParseContext.values())
+        );
+
+        assertThat(holder.rateLimitSettings, is(new RateLimitSettings(TEST_REQUESTS_PER_MINUTE)));
+    }
+
+    public void testDeclareRateLimitSettings_EmptyObject_SetsDefaultValueNotNull() throws IOException {
+        var defaultValue = createRandom();
+        var holder = parseWithDeclare(Strings.format("""
+                {
+                    "%s": {}
+                }
+            """, RateLimitSettings.FIELD_NAME), defaultValue, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(holder.rateLimitSettings, sameInstance(defaultValue));
+    }
+
+    public void testDeclareRateLimitSettings_Absent_DoesNotInvokeSetter() throws IOException {
+        var holder = parseWithDeclare("{}", createRandom(), randomFrom(ConfigurationParseContext.values()));
+
+        assertNull(holder.rateLimitSettings);
+    }
+
+    public void testDeclareRateLimitSettings_PersistentContext_IgnoresUnknownField() throws IOException {
+        var holder = parseWithDeclare(
+            Strings.format(
+                """
+                        {
+                            "%s": {
+                                "%s": %d,
+                                "%s": 1
+                            }
+                        }
+                    """,
+                RateLimitSettings.FIELD_NAME,
+                RateLimitSettings.REQUESTS_PER_MINUTE_FIELD,
+                TEST_REQUESTS_PER_MINUTE,
+                TEST_UNKNOWN_FIELD_NAME
+            ),
+            createRandom(),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(holder.rateLimitSettings, is(new RateLimitSettings(TEST_REQUESTS_PER_MINUTE)));
+    }
+
+    public void testDeclareRateLimitSettings_RequestContext_UnknownField_Throws() {
+        var ex = expectThrows(
+            XContentParseException.class,
+            () -> parseWithDeclare(
+                Strings.format(
+                    """
+                            {
+                                "%s": {
+                                    "%s": %d,
+                                    "%s": 1
+                                }
+                            }
+                        """,
+                    RateLimitSettings.FIELD_NAME,
+                    RateLimitSettings.REQUESTS_PER_MINUTE_FIELD,
+                    TEST_REQUESTS_PER_MINUTE,
+                    TEST_UNKNOWN_FIELD_NAME
+                ),
+                createRandom(),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        assertThat(ex.getMessage(), containsString(Strings.format("failed to parse field [%s]", RateLimitSettings.FIELD_NAME)));
+
+        assertThat(
+            ex.getCause().getMessage(),
+            containsString(Strings.format("[%s] unknown field [%s]", RateLimitSettings.FIELD_NAME, TEST_UNKNOWN_FIELD_NAME))
+        );
+    }
+
+    private static class UpdateHolder {
+        private StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
+
+        private void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+    }
+
+    private UpdateHolder parseWithDeclareUpdatable(String json) throws IOException {
+        var parser = new ObjectParser<UpdateHolder, Void>("test", UpdateHolder::new);
+        RateLimitSettings.declareUpdatableRateLimitSettings(parser, UpdateHolder::setRateLimitSettings);
+        try (var xParser = createParser(JsonXContent.jsonXContent, json)) {
+            return parser.parse(xParser, null);
+        }
+    }
+
+    public void testDeclareUpdatableRateLimitSettings_ValuePresent_SetsPresentValue() throws IOException {
+        var holder = parseWithDeclareUpdatable(Strings.format("""
+                {
+                    "%s": {
+                        "%s": %d
+                    }
+                }
+            """, RateLimitSettings.FIELD_NAME, RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE));
+
+        assertTrue(holder.rateLimitSettings.isPresent());
+        assertThat(holder.rateLimitSettings.get(), is(new RateLimitSettings(TEST_REQUESTS_PER_MINUTE)));
+    }
+
+    public void testDeclareUpdatableRateLimitSettings_ExplicitNull_SetsNull() throws IOException {
+        var holder = parseWithDeclareUpdatable(Strings.format("""
+                {
+                    "%s": null
+                }
+            """, RateLimitSettings.FIELD_NAME));
+
+        assertTrue(holder.rateLimitSettings.isNull());
+    }
+
+    public void testDeclareUpdatableRateLimitSettings_EmptyObject_SetsNull() throws IOException {
+        var holder = parseWithDeclareUpdatable(Strings.format("""
+                {
+                    "%s": {}
+                }
+            """, RateLimitSettings.FIELD_NAME));
+
+        assertTrue(holder.rateLimitSettings.isNull());
+    }
+
+    public void testDeclareUpdatableRateLimitSettings_Absent_LeavesUndefined() throws IOException {
+        var holder = parseWithDeclareUpdatable("{}");
+
+        assertTrue(holder.rateLimitSettings.isUndefined());
+        assertThat(holder.rateLimitSettings, sameInstance(StatefulValue.undefined()));
     }
 
     @Override

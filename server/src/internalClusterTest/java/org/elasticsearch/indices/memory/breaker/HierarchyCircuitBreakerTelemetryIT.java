@@ -94,10 +94,17 @@ public class HierarchyCircuitBreakerTelemetryIT extends ESIntegTestCase {
                 .toList();
             assertThat(allMeasurements, Matchers.not(Matchers.empty()));
             final Measurement measurement = allMeasurements.get(0);
-            assertThat(1L, Matchers.equalTo(measurement.getLong()));
-            assertThat(1L, Matchers.equalTo(measurement.value()));
-            assertThat(Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, "inflight_requests"), Matchers.equalTo(measurement.attributes()));
-            assertThat(true, Matchers.equalTo(measurement.isLong()));
+            // Indexing fans out into internal transport requests, each of which reserves its serialized size against the
+            // 100-byte inflight_requests breaker on the receiving node. A single trip is typically indices:admin/create or
+            // the dynamic-mapping update indices:admin/mapping/auto_put. Two trips occur when the shard bulk
+            // indices:data/write/bulk[s] trips on the data node: its transport failure makes the coordinator send a
+            // internal:admin/tasks/cancel_child request back to cancel the orphaned child task, and that request trips the
+            // breaker again. Which path runs depends on which node coordinates, so the count is non-deterministic (1 or 2)
+            // and we only assert the breaker tripped at least once.
+            assertThat(measurement.getLong(), Matchers.greaterThanOrEqualTo(1L));
+            assertThat(measurement.value().longValue(), Matchers.greaterThanOrEqualTo(1L));
+            assertThat(measurement.attributes(), Matchers.equalTo(Map.of(CIRCUIT_BREAKER_TYPE_ATTRIBUTE, "inflight_requests")));
+            assertThat(measurement.isLong(), Matchers.equalTo(true));
             return;
         }
         fail("Expected exception not thrown");

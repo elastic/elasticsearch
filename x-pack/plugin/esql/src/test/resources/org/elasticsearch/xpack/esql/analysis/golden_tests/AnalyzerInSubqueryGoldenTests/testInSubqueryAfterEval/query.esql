@@ -1,0 +1,3 @@
+FROM employees
+| EVAL x = emp_no + 1
+| WHERE x IN (FROM employees | KEEP emp_no)

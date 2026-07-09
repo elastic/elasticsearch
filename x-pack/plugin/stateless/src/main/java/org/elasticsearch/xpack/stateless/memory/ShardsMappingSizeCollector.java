@@ -340,6 +340,7 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
                 shardFieldStats.totalFields(),
                 shardFieldStats.postingsInMemoryBytes(),
                 shardFieldStats.liveDocsBytes(),
+                shardFieldStats.pointsInMemoryBytes(),
                 shardMemoryOverheadBytes,
                 nodeId
             );

@@ -275,7 +275,7 @@ public class SemanticHighlighterTests extends MapperServiceTestCase {
     }
 
     private MapperService createMapperService() throws IOException {
-        var mappings = Streams.readFully(SemanticFieldHighlighterTests.class.getResourceAsStream("mappings-semantic.json"));
+        var mappings = Streams.readFully(SemanticHighlighterTests.class.getResourceAsStream("mappings-semantic.json"));
         return createMapperService(Settings.EMPTY, mappings.utf8ToString());
     }
 
@@ -380,7 +380,7 @@ public class SemanticHighlighterTests extends MapperServiceTestCase {
     }
 
     BytesReference readSampleDoc() throws IOException {
-        try (var in = new GZIPInputStream(SemanticFieldHighlighterTests.class.getResourceAsStream("sample-doc-semantic.json.gz"))) {
+        try (var in = new GZIPInputStream(SemanticHighlighterTests.class.getResourceAsStream("sample-doc-semantic.json.gz"))) {
             return new BytesArray(new BytesRef(in.readAllBytes()));
         }
     }

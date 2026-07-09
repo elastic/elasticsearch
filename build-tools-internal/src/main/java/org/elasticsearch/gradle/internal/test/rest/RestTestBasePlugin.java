@@ -26,7 +26,6 @@ import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
@@ -171,16 +170,10 @@ public class RestTestBasePlugin implements Plugin<Project> {
         RestIntegTests restTests = new RestIntegTests(project);
         project.getExtensions().add(RestIntegTests.class, "restTests", restTests);
 
-        // Auto-enroll every StandaloneRestIntegTestTask before the configureEach below fires.
-        // Registered first so that enrollment happens before the configuration handler runs.
-        project.getTasks().withType(StandaloneRestIntegTestTask.class).configureEach(task -> {
-            restTests.enroll(task.getName());
-            RestIntegTestSpec.mark(task);
-        });
-
-        // Apply standard REST integ-test configuration to all enrolled Test tasks.
-        // restTests.configureEach uses a plain withType(Test).configureEach internally, so it
-        // fires before the task's own register action and before any build-script configureEach.
+        // Apply standard REST integ-test configuration to all REST integ test tasks (StandaloneRestIntegTestTask
+        // instances plus plain Test tasks registered via restTests.register). restTests.configureEach uses a plain
+        // withType(Test).configureEach internally, registered here at apply time so it runs before the task's own
+        // register action and before any build-script restTests.tasks.configureEach closures.
         restTests.configureEach(task -> {
             SystemPropertyCommandLineArgumentProvider nonInputSystemProperties = task.getExtensions()
                 .getByType(SystemPropertyCommandLineArgumentProvider.class);

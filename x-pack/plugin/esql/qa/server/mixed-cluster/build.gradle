@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.bc-upgrade-test'
@@ -44,16 +45,36 @@ dependencies {
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
+esqlCsvSpecTests {
+    specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
+    packageName = 'org.elasticsearch.xpack.esql.qa.mixed'
+    variant 'MixedClusterEsqlSpec', 'AbstractMixedClusterEsqlSpecIT'
+}
+
 // ESQL is available in 8.11 or later
 def supportedVersion = bwcVersion -> {
   return bwcVersion.onOrAfter(Version.fromString("8.11.0")) && bwcVersion != VersionProperties.elasticsearchVersion
 }
 
+// Note: applying 'elasticsearch.internal-java-rest-test' also registers a base (unversioned)
+// 'javaRestTest' task. That task has an empty javaRestTest source set here — the csv-spec
+// test class (AbstractMixedClusterEsqlSpecIT) lives in the csvSpecTest source set and requires
+// tests.old_cluster_version to be set, so it cannot run without a BWC version. The base task
+// is harmless (it runs nothing) and is not wired to 'check' or 'bwcTest'.
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
   def javaRestTest = tasks.register("v${bwcVersion}#javaRestTest", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
     maxParallelForks = 1
+  }
+
+  def csvSpecTest = tasks.register("v${bwcVersion}#csvSpecTests", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    maxParallelForks = 1
+    testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+    classpath = sourceSets.csvSpecTest.runtimeClasspath
+    dependsOn generateEsqlSpecTests
   }
 
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
@@ -64,7 +85,7 @@ buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn javaRestTest, yamlRestTest
+    dependsOn javaRestTest, csvSpecTest, yamlRestTest
   }
 }
 

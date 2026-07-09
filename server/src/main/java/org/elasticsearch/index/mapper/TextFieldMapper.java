@@ -264,14 +264,21 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false || indexSettings.getMode().isStrictColumnar() == false) {
-            return new DocValuesParameter.Values(false, DocValuesParameter.Values.Cardinality.HIGH, true, true);
+        if (indexSettings.getMode().isStrictColumnar() == false) {
+            return new DocValuesParameter.Values(
+                false,
+                DocValuesParameter.Values.Cardinality.HIGH,
+                true,
+                true,
+                DocValuesParameter.Values.OnFailure.FAIL
+            );
         }
 
         // Strictly columnar indices read field values from doc values, so enable doc values by default for text fields in that mode.
         boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
         boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability);
+        var onFailure = FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.get(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability, onFailure);
     }
 
     public static class Builder extends TextFamilyBuilder {
@@ -418,46 +425,24 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            // when COLUMNAR_FEATURE_FLAG is disabled, exclude docValuesParameters from parsing
-            // so doc_values configuration in the mapping is ignored and the default (disabled) is used
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-                return new Parameter<?>[] {
-                    index,
-                    store,
-                    docValuesParameters,
-                    indexOptions,
-                    norms,
-                    termVectors,
-                    analyzers.indexAnalyzer,
-                    analyzers.searchAnalyzer,
-                    analyzers.searchQuoteAnalyzer,
-                    similarity,
-                    analyzers.positionIncrementGap,
-                    fieldData,
-                    freqFilter,
-                    eagerGlobalOrdinals,
-                    indexPhrases,
-                    indexPrefixes,
-                    meta };
-            } else {
-                return new Parameter<?>[] {
-                    index,
-                    store,
-                    indexOptions,
-                    norms,
-                    termVectors,
-                    analyzers.indexAnalyzer,
-                    analyzers.searchAnalyzer,
-                    analyzers.searchQuoteAnalyzer,
-                    similarity,
-                    analyzers.positionIncrementGap,
-                    fieldData,
-                    freqFilter,
-                    eagerGlobalOrdinals,
-                    indexPhrases,
-                    indexPrefixes,
-                    meta };
-            }
+            return new Parameter<?>[] {
+                index,
+                store,
+                docValuesParameters,
+                indexOptions,
+                norms,
+                termVectors,
+                analyzers.indexAnalyzer,
+                analyzers.searchAnalyzer,
+                analyzers.searchQuoteAnalyzer,
+                similarity,
+                analyzers.positionIncrementGap,
+                fieldData,
+                freqFilter,
+                eagerGlobalOrdinals,
+                indexPhrases,
+                indexPrefixes,
+                meta };
         }
 
         private TextFieldType buildFieldType(
@@ -2131,9 +2116,7 @@ public final class TextFieldMapper extends FieldMapper {
         final Builder b = (Builder) getMergeBuilder();
         b.index.toXContent(builder, includeDefaults);
         b.store.toXContent(builder, includeDefaults);
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            b.docValuesParameters.toXContent(builder, includeDefaults);
-        }
+        b.docValuesParameters.toXContent(builder, includeDefaults);
         multiFields().toXContent(builder, params);
         copyTo().toXContent(builder);
         if (sourceKeepMode().isPresent()) {

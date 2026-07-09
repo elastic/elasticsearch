@@ -671,77 +671,70 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
     /// A direct cancellation of a started recovery (via `CancelRecoveriesAction`)
     public void testDirectCancellationDuringSnapshotFileRestore() throws Exception {
-        updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), "1");
+        final String sourceNode = internalCluster().startDataOnlyNode();
 
-        try {
-            final String sourceNode = internalCluster().startDataOnlyNode();
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                .put("index.routing.allocation.require._name", sourceNode)
+                .build()
+        );
+        ensureGreen(indexName);
 
-            String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            createIndex(
-                indexName,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-                    .put("index.routing.allocation.require._name", sourceNode)
-                    .build()
-            );
-            ensureGreen(indexName);
+        int numDocs = randomIntBetween(1, 1000);
+        indexDocs(indexName, numDocs, numDocs);
 
-            int numDocs = randomIntBetween(1, 1000);
-            indexDocs(indexName, numDocs, numDocs);
+        String repoName = "repo";
+        createRepo(repoName, "fs");
+        createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
-            String repoName = "repo";
-            createRepo(repoName, "fs");
-            createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+        final String targetNode = internalCluster().startDataOnlyNode();
 
-            final String targetNode = internalCluster().startDataOnlyNode();
+        final CountDownLatch restoreFileRequestReceived = new CountDownLatch(1);
+        final CountDownLatch proceedWithRestoreFile = new CountDownLatch(1);
+        MockTransportService.getInstance(targetNode)
+            .addRequestHandlingBehavior(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT, (handler, request, channel, task) -> {
+                restoreFileRequestReceived.countDown();
+                proceedWithRestoreFile.await();
+                handler.messageReceived(request, channel, task);
+            });
 
-            final CountDownLatch restoreFileRequestReceived = new CountDownLatch(1);
-            final CountDownLatch proceedWithRestoreFile = new CountDownLatch(1);
-            MockTransportService.getInstance(targetNode)
-                .addRequestHandlingBehavior(
-                    PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT,
-                    (handler, request, channel, task) -> {
-                        restoreFileRequestReceived.countDown();
-                        proceedWithRestoreFile.await();
-                        handler.messageReceived(request, channel, task);
-                    }
-                );
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", targetNode), indexName);
+        restoreFileRequestReceived.await();
 
-            updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", targetNode), indexName);
-            restoreFileRequestReceived.await();
+        waitNoPendingTasksOnAll();
 
-            final var index = resolveIndex(indexName);
-            final var shardId = new ShardId(index, 0);
-            final var indicesService = internalCluster().getInstance(IndicesService.class, targetNode);
-            final var shard = indicesService.indexServiceSafe(index).getShard(0);
-            final var allocationId = shard.routingEntry().allocationId().getId();
-            final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
+        final var index = resolveIndex(indexName);
+        final var shardId = new ShardId(index, 0);
+        final var indicesService = internalCluster().getInstance(IndicesService.class, targetNode);
+        final var shard = indicesService.indexServiceSafe(index).getShard(0);
+        final var allocationId = shard.routingEntry().allocationId().getId();
+        final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
 
-            final String masterNode = internalCluster().getMasterName();
-            final CountDownLatch shardFailureReceived = new CountDownLatch(1);
-            MockTransportService.getInstance(masterNode)
-                .addRequestHandlingBehavior(ShardStateAction.SHARD_FAILED_ACTION_NAME, (handler, request, channel, task) -> {
-                    if (request instanceof ShardStateAction.FailedShardEntry failedShard
-                        && failedShard.getShardId().equals(shardId)
-                        && ExceptionsHelper.unwrap(failedShard.getFailure(), RecoveryCancelledException.class) != null) {
-                        shardFailureReceived.countDown();
-                    }
-                    handler.messageReceived(request, channel, task);
-                });
+        final String masterNode = internalCluster().getMasterName();
+        final CountDownLatch shardFailureReceived = new CountDownLatch(1);
+        MockTransportService.getInstance(masterNode)
+            .addRequestHandlingBehavior(ShardStateAction.SHARD_FAILED_ACTION_NAME, (handler, request, channel, task) -> {
+                if (request instanceof ShardStateAction.FailedShardEntry failedShard
+                    && failedShard.getShardId().equals(shardId)
+                    && ExceptionsHelper.unwrap(failedShard.getFailure(), RecoveryCancelledException.class) != null) {
+                    shardFailureReceived.countDown();
+                }
+                handler.messageReceived(request, channel, task);
+            });
 
-            final var cancellationRequest = new CancelRecoveriesAction.Request(
-                clusterService.state().version(),
-                List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
-            );
-            client(targetNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
-            proceedWithRestoreFile.countDown();
+        final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().version(),
+            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+        );
+        client(targetNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
+        proceedWithRestoreFile.countDown();
 
-            shardFailureReceived.await();
-        } finally {
-            updateSetting(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), null);
-        }
+        safeAwait(shardFailureReceived);
     }
 
     public void testCancelledRecoveryAbortsDownloadPromptly() throws Exception {

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.Timesta
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -113,6 +114,44 @@ public final class StatelessCompoundCommitTestUtils {
                 long offset = randomLongBetween(0, 200);
                 return createBlobLocation(randomNonZeroPositiveLong(), randomLongBetween(1, 1000), offset, fileLength);
             }));
+    }
+
+    /**
+     * Returns a commit where every internal file is guaranteed to carry replicated byte ranges.
+     */
+    public static StatelessCompoundCommit randomCompoundCommitWithReplicatedRanges() {
+        final long primaryTerm = randomNonZeroPositiveLong();
+        final long generation = randomNonZeroPositiveLong();
+        final var blobFile = new BlobFile(
+            StatelessCompoundCommit.PREFIX + generation,
+            new PrimaryTermAndGeneration(primaryTerm, generation)
+        );
+        final int fileCount = randomIntBetween(1, 5);
+        final int[] sizes = new int[fileCount];
+        final var rangesList = new ArrayList<InternalFilesReplicatedRanges.InternalFileReplicatedRange>();
+        for (int i = 0, cursor = 0; i < fileCount; cursor += sizes[i++]) {
+            sizes[i] = randomIntBetween(100, 1000);
+            rangesList.add(new InternalFilesReplicatedRanges.InternalFileReplicatedRange(cursor, (short) sizes[i]));
+        }
+        final var ranges = InternalFilesReplicatedRanges.from(rangesList);
+        final long base = ranges.dataSizeInBytes();
+        final var commitFiles = new HashMap<String, BlobLocation>();
+        for (int i = 0, cursor = 0; i < fileCount; cursor += sizes[i++]) {
+            commitFiles.put("_" + i + ".cfs", new BlobLocation(blobFile, base + cursor, sizes[i]));
+        }
+        return new StatelessCompoundCommit(
+            randomShardId(),
+            new PrimaryTermAndGeneration(primaryTerm, generation),
+            1L,
+            randomNodeEphemeralId(),
+            Map.copyOf(commitFiles),
+            0L,
+            Set.copyOf(commitFiles.keySet()),
+            0L,
+            ranges,
+            Map.of(),
+            randomFrom(randomTimestampFieldValueRange(), null)
+        );
     }
 
     public static InternalFilesReplicatedRanges randomInternalFilesReplicatedRanges() {

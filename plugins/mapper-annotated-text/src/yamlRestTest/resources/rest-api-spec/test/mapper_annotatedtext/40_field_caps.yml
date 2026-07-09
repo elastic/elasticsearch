@@ -1,0 +1,41 @@
+# Tests that annotated_text reports as part of the text field family in field_caps.
+#
+
+---
+"Field caps reports annotated_text as text family":
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+          mappings:
+            properties:
+              my_field:
+                type: annotated_text
+
+  - do:
+      index:
+        index: annotated
+        id: "1"
+        body:
+          "my_field": "The [quick brown fox](entity_3789) is brown."
+        refresh: true
+
+  - do:
+      field_caps:
+        index: annotated
+        fields: [ my_field ]
+
+  - match: { fields.my_field.text.searchable: true }
+  - match: { fields.my_field.text.aggregatable: false }
+
+  - do:
+      field_caps:
+        index: annotated
+        fields: [ my_field ]
+        types: [ text ]
+
+  - match: { fields.my_field.text.searchable: true }
+  - match: { fields.my_field.text.aggregatable: false }

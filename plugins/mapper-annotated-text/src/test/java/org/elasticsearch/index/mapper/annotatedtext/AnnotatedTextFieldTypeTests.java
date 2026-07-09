@@ -17,12 +17,19 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
 public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
+
+    public void testFamilyTypeName() {
+        TextFamilyFieldType ft = new AnnotatedTextFieldMapper.AnnotatedTextFieldType("field", Collections.emptyMap());
+        assertEquals(AnnotatedTextFieldMapper.CONTENT_TYPE, ft.typeName());
+        assertEquals(TextFieldMapper.CONTENT_TYPE, ft.familyTypeName());
+    }
 
     public void testIntervals() throws IOException {
         TextFamilyFieldType ft = new AnnotatedTextFieldMapper.AnnotatedTextFieldType("field", Collections.emptyMap());

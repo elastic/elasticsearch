@@ -1,4 +1,3 @@
 {
-  "index.slice.enabled": true,
-  "index.number_of_shards": 1
+  "index.slice.enabled": true
 }

@@ -71,6 +71,7 @@ public record KMeansWithOverspill<V>(KMeansResult<V> result, OverspillAssignment
         OverspillAssignments overspill = spillAssignmentIdx == 0
             ? OverspillAssignments.NONE
             : new MergedOverspillAssignments(
+                numAssignments,
                 Arrays.copyOf(spillAssignmentOffsets, spillAssignmentIdx),
                 Arrays.copyOf(spillCentroidOffsets, spillAssignmentIdx),
                 Arrays.copyOf(overspills, spillAssignmentIdx)
@@ -86,14 +87,19 @@ public record KMeansWithOverspill<V>(KMeansResult<V> result, OverspillAssignment
         private final OverspillAssignments[] assignments;
         private final int size;
 
-        private MergedOverspillAssignments(int[] assignmentOffsets, int[] centroidOffsets, OverspillAssignments[] assignments) {
+        private MergedOverspillAssignments(
+            int totalSize,
+            int[] assignmentOffsets,
+            int[] centroidOffsets,
+            OverspillAssignments[] assignments
+        ) {
             assert assignmentOffsets.length == assignments.length;
             assert centroidOffsets.length == assignmentOffsets.length;
 
             this.assignmentOffsets = assignmentOffsets;
             this.centroidOffsets = centroidOffsets;
             this.assignments = assignments;
-            size = assignmentOffsets[assignmentOffsets.length - 1] + assignments[assignmentOffsets.length - 1].size();
+            this.size = totalSize;
         }
 
         @Override
@@ -104,6 +110,10 @@ public record KMeansWithOverspill<V>(KMeansResult<V> result, OverspillAssignment
         @Override
         public PrimitiveIterator.OfInt getAssignmentsFor(int ordinal) {
             int index = Arrays.binarySearch(assignmentOffsets, ordinal);
+            if (index == -1) {
+                // ordinal is before the first tracked offset — no overspill for this position
+                return EMPTY_ITERATOR;
+            }
             if (index < 0) {
                 index = -index - 2; // go back one to the offset < ordinal, as that's the assignment containing this ordinal
             }

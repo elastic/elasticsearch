@@ -960,7 +960,6 @@ class NodeConstruction {
             .searchOperationListeners(searchOperationListeners)
             .loggingFieldsProvider(loggingFieldsProvider)
             .throttlingRecoveryService(throttlingRecoveryService)
-            .recoverySchedulingListener(recoverySchedulingListeners)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);

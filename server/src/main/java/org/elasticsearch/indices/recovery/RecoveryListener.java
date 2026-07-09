@@ -10,12 +10,12 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public interface RecoveryListener {
@@ -111,13 +111,9 @@ public interface RecoveryListener {
         };
     }
 
-    /// Returns a listener which delegates `onRecoveryDone` and `onRecoveryAborted` unchanged to the given listener, but routes
-    /// `onRecoveryFailure` through `delegate` instead. `delegate` is responsible for eventually calling `onRecoveryFailure` on the
-    /// given listener itself, e.g. after performing some side work based on the failure.
-    static RecoveryListener delegateFailure(
-        RecoveryListener listener,
-        TriConsumer<RecoveryListener, RecoveryFailedException, Boolean> delegate
-    ) {
+    /// Returns a listener which delegates `onRecoveryDone` and `onRecoveryAborted` unchanged to the given listener.
+    //// Before delegating `onRecoveryFailure`, it first runs `beforeFailure`.
+    static RecoveryListener runBeforeFailure(RecoveryListener listener, Consumer<RecoveryFailedException> beforeFailure) {
         return new RecoveryListener() {
             @Override
             public void onRecoveryDone(
@@ -130,7 +126,11 @@ public interface RecoveryListener {
 
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                delegate.apply(listener, e, sendShardFailure);
+                try {
+                    beforeFailure.accept(e);
+                } finally {
+                    listener.onRecoveryFailure(e, sendShardFailure);
+                }
             }
 
             @Override

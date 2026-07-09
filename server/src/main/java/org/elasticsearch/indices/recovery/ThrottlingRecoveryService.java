@@ -305,11 +305,10 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     private RecoveryListener wrapListenerForExecution(RecoveryListener listener, PendingRecovery recovery) {
         final RecoverySource.Type recoveryType = recovery.recoveryState().getRecoverySource().getType();
 
-        final RecoveryListener handleCancellation = RecoveryListener.delegateFailure(listener, (l, e, sendFailure) -> {
+        final RecoveryListener handleCancellation = RecoveryListener.runBeforeFailure(listener, e -> {
             if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
                 schedulingListener.onStartedRecoveryCancelled(recoveryType, RecoveryRole.TARGET);
             }
-            l.onRecoveryFailure(e, sendFailure);
         });
 
         final RecoveryListener releaseSlot = RecoveryListener.runAfter(handleCancellation, () -> releaseSlot(recovery));

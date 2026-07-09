@@ -206,7 +206,7 @@ public class Mapper {
             PhysicalPlan left = mapInner(bp.left());
 
             if (left instanceof FragmentExec) {
-                if (join.isRemote() && join.lookupResolvedLocallyOnly()) {
+                if (join.isRemote() && join.fallbackToCoordinatorLookupJoin()) {
                     // The lookup index exists only on the coordinator (remote resolution failed and
                     // EsqlSession fell back to a local-only lookup). Gather the left side here instead
                     // of shipping the whole join down to remotes that don't have the index.

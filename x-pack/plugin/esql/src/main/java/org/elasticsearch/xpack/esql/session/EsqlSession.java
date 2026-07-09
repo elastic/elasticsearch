@@ -1731,7 +1731,7 @@ public class EsqlSession {
 
     /**
      * Restricts a lookup-index {@link IndexResolution} to only its local-cluster entries, so that
-     * {@link LookupJoin#lookupResolvedLocallyOnly()} correctly identifies a coordinator-only lookup join. This is
+     * {@link LookupJoin#fallbackToCoordinatorLookupJoin()} correctly identifies a coordinator-only lookup join. This is
      * needed when falling back to a coordinator lookup join for a remote-only LOOKUP JOIN scope: the field-caps
      * call that produced {@code indexResolution} queries local and remote clusters together, so its
      * {@link EsIndex} would otherwise still carry any remote clusters that did resolve.

@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleKey;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
-import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
@@ -70,6 +69,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -78,7 +78,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -115,9 +117,9 @@ public class CompositeRolesStore {
     private final ProjectResolver projectResolver;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final Cache<ProjectScoped<RoleKey>, Role> roleCache;
-    private final CacheIteratorHelper<ProjectScoped<RoleKey>, Role> roleCacheHelper;
     private final Cache<ProjectScoped<String>, Boolean> negativeLookupCache;
-    private final CacheIteratorHelper<ProjectScoped<String>, Boolean> negativeLookupCacheHelper;
+    private final ReleasableLock cacheUpdateLock;
+    private final ReleasableLock cacheInvalidationLock;
     private final DocumentSubsetBitsetCache dlsBitsetCache;
     private final AnonymousUser anonymousUser;
 
@@ -174,14 +176,15 @@ public class CompositeRolesStore {
             builder.setMaximumWeight(cacheSize);
         }
         this.roleCache = builder.build();
-        this.roleCacheHelper = new CacheIteratorHelper<>(roleCache);
         CacheBuilder<ProjectScoped<String>, Boolean> nlcBuilder = CacheBuilder.builder();
         final int nlcCacheSize = NEGATIVE_LOOKUP_CACHE_SIZE_SETTING.get(settings);
         if (nlcCacheSize >= 0) {
             nlcBuilder.setMaximumWeight(nlcCacheSize);
         }
         this.negativeLookupCache = nlcBuilder.build();
-        this.negativeLookupCacheHelper = new CacheIteratorHelper<>(negativeLookupCache);
+        final ReentrantReadWriteLock cacheLock = new ReentrantReadWriteLock();
+        this.cacheUpdateLock = new ReleasableLock(cacheLock.readLock());
+        this.cacheInvalidationLock = new ReleasableLock(cacheLock.writeLock());
         this.restrictedIndices = restrictedIndices;
         this.superuserRole = Role.buildFromRoleDescriptor(
             ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
@@ -418,13 +421,13 @@ public class CompositeRolesStore {
             restrictedIndices,
             listener.delegateFailureAndWrap((delegate, role) -> {
                 if (role != null && tryCache) {
-                    try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
-                        /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
-                         * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
-                         * stuff in an async fashion we need to make sure that if the cache got invalidated since we
-                         * started the request we don't put a potential stale result in the cache, hence the
-                         * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
-                         * be on the safe side and don't cache potentially stale results.
+                    try (ReleasableLock ignored = cacheUpdateLock.acquire()) {
+                        /* The role was built asynchronously, so an invalidation may have completed since this resolution
+                         * captured the invalidation counters. Holding the read side of the shared cache lock makes this
+                         * check-then-write atomic with respect to invalidations, which clear both caches and bump the
+                         * counters under the write side (see invalidateCachesThenBumpCounter): if an invalidation
+                         * completed after the counters were captured, the check below fails and we skip caching rather
+                         * than cache a potentially stale role.
                          *
                          * Per-project invalidation counter and the global invalidation counter must be unchanged before we cache
                          */
@@ -833,40 +836,94 @@ public class CompositeRolesStore {
 
     public void invalidateProject(ProjectId projectId) {
         if (projectResolver.supportsMultipleProjects()) {
-            numInvalidation.compute(projectId, (p, num) -> num == null ? 1 : num + 1);
-            negativeLookupCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
-            roleCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
+            invalidateCachesThenBumpCounter(
+                () -> removeCachedKeysIf(roleCache, key -> key.projectId().equals(projectId)),
+                () -> removeCachedKeysIf(negativeLookupCache, key -> key.projectId().equals(projectId)),
+                () -> numInvalidation.compute(projectId, (p, num) -> num == null ? 1 : num + 1)
+            );
         } else {
             invalidateAll();
         }
     }
 
     final void removeProject(ProjectId projectId) {
-        numInvalidation.remove(projectId);
-        negativeLookupCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
-        roleCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
+        invalidateCachesThenBumpCounter(
+            () -> removeCachedKeysIf(roleCache, key -> key.projectId().equals(projectId)),
+            () -> removeCachedKeysIf(negativeLookupCache, key -> key.projectId().equals(projectId)),
+            () -> numInvalidation.remove(projectId)
+        );
     }
 
     public void invalidateAll() {
-        numGlobalInvalidation.incrementAndGet();
-        negativeLookupCache.invalidateAll();
-        try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
-            roleCache.invalidateAll();
-        }
+        invalidateCachesThenBumpCounter(
+            roleCache::invalidateAll,
+            negativeLookupCache::invalidateAll,
+            numGlobalInvalidation::incrementAndGet
+        );
         dlsBitsetCache.clear("role store invalidation");
     }
 
     public void invalidate(String role) {
         final ProjectId projectId = Objects.requireNonNull(projectResolver.getProjectId());
-        numInvalidation.compute(projectId, (p, num) -> num == null ? 1 : num + 1);
-        roleCacheHelper.removeKeysIf(key -> projectId.equals(key.projectId()) && key.value().getNames().contains(role));
-        negativeLookupCache.invalidate(new ProjectScoped<>(projectId, role));
+        invalidateCachesThenBumpCounter(
+            () -> removeCachedKeysIf(roleCache, key -> projectId.equals(key.projectId()) && key.value().getNames().contains(role)),
+            () -> negativeLookupCache.invalidate(new ProjectScoped<>(projectId, role)),
+            () -> numInvalidation.compute(projectId, (p, num) -> num == null ? 1 : num + 1)
+        );
     }
 
     public void invalidateClusterScopedRoles(Set<String> roles) {
-        numGlobalInvalidation.incrementAndGet();
-        roleCacheHelper.removeKeysIf(key -> Sets.haveEmptyIntersection(key.value().getNames(), roles) == false);
-        negativeLookupCacheHelper.removeKeysIf(key -> roles.contains(key.value()));
+        invalidateCachesThenBumpCounter(
+            () -> removeCachedKeysIf(roleCache, key -> Sets.haveEmptyIntersection(key.value().getNames(), roles) == false),
+            () -> removeCachedKeysIf(negativeLookupCache, key -> roles.contains(key.value())),
+            numGlobalInvalidation::incrementAndGet
+        );
+    }
+
+    /**
+     * Clears the matching entries from the role cache and the negative-lookup cache and then bumps the relevant invalidation
+     * counter, holding {@link #cacheInvalidationLock} (the exclusive/write side of the shared cache lock) for the entire
+     * operation and bumping the counter <em>last</em>.
+     * <p>
+     * Role resolution performs its invalidation-counter check and its writes to both caches under {@link #cacheUpdateLock} (the
+     * shared/read side of the same lock; see {@link #buildThenMaybeCacheRole}). Because the read and write sides are mutually
+     * exclusive, running every invalidation under the write side - with the counter bump as the final step - guarantees that a
+     * concurrent resolution observes an invalidation atomically: it either completes entirely before the invalidation (so its
+     * just-written entries are cleared by it) or entirely after it (so its counter check fails and it does not repopulate the
+     * caches with stale data).
+     * <p>
+     * Without this, a resolution could observe a half-applied invalidation - for example the role cache cleared but the negative
+     * cache not yet cleared - read a stale negative-cache entry, and re-cache an empty role that survives indefinitely, because
+     * the subsequent negative-cache clear never re-clears the role cache.
+     *
+     * @param clearRoleCache          clears the relevant entries from the role cache
+     * @param clearNegativeCache      clears the relevant entries from the negative-lookup cache
+     * @param bumpInvalidationCounter updates the relevant invalidation counter; must run last so that observing the new counter
+     *                                value implies observing both cache clears
+     */
+    private void invalidateCachesThenBumpCounter(Runnable clearRoleCache, Runnable clearNegativeCache, Runnable bumpInvalidationCounter) {
+        try (ReleasableLock ignored = cacheInvalidationLock.acquire()) {
+            clearRoleCache.run();
+            clearNegativeCache.run();
+            bumpInvalidationCounter.run();
+        }
+    }
+
+    /**
+     * Iterates the given cache and removes every key matching {@code removeIf}. Callers <b>must</b> hold
+     * {@link #cacheInvalidationLock} (the exclusive side of the shared cache lock): the underlying {@link Cache} does not permit
+     * concurrent modification while its key iterator is in use, and single-entry writes take the shared side
+     * of the same lock, so holding the exclusive side provides the required isolation.
+     */
+    private <K> void removeCachedKeysIf(Cache<K, ?> cache, Predicate<K> removeIf) {
+        assert cacheInvalidationLock.isHeldByCurrentThread()
+            : "cacheInvalidationLock must be held while iterating and removing cache entries";
+        final Iterator<K> iterator = cache.keys().iterator();
+        while (iterator.hasNext()) {
+            if (removeIf.test(iterator.next())) {
+                iterator.remove();
+            }
+        }
     }
 
     // for testing

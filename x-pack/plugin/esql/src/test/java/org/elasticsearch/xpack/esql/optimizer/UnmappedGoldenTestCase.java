@@ -105,7 +105,13 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         TransportVersion maxVersionExclusive,
         String... nestedPaths
     ) {
-        runTestsNullifyOnlyAtVersion(query, stages, TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive), Map.of(), nestedPaths);
+        runTestsNullifyOnlyAtVersion(
+            query,
+            stages,
+            TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive),
+            Map.of(),
+            nestedPaths
+        );
     }
 
     /**
@@ -114,7 +120,13 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
      * exercise a version that predates a given wire-format change.
      */
     protected void runTestsLoadOnlyBelow(String query, EnumSet<Stage> stages, TransportVersion maxVersionExclusive, String... nestedPaths) {
-        runTestsLoadOnlyAtVersion(query, stages, TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive), Map.of(), nestedPaths);
+        runTestsLoadOnlyAtVersion(
+            query,
+            stages,
+            TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive),
+            Map.of(),
+            nestedPaths
+        );
     }
 
     /**
@@ -130,7 +142,13 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         TransportVersion maxVersionExclusive,
         String... nestedPaths
     ) {
-        runTestsLoadOnlyAtVersion(query, stages, randomVersionSupportingButNot(minSupportedVersion, maxVersionExclusive), Map.of(), nestedPaths);
+        runTestsLoadOnlyAtVersion(
+            query,
+            stages,
+            randomVersionSupportingButNot(minSupportedVersion, maxVersionExclusive),
+            Map.of(),
+            nestedPaths
+        );
     }
 
     /** Runs NULLIFY mode at the given exact transport version (or a random one if {@code null}) */

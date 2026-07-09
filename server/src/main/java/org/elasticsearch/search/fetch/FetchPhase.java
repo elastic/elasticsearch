@@ -46,6 +46,7 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.Timer;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -324,6 +325,7 @@ public final class FetchPhase {
         boolean requiresSource = storedFieldsSpec.requiresSource();
         final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
+        long sizeInBytesLimit = context.sizeInBytes();
 
         StreamingFetchPhaseDocsIterator docsIterator = new StreamingFetchPhaseDocsIterator(context.currentThreadStoreMetrics()) {
 
@@ -401,7 +403,19 @@ public final class FetchPhase {
                     }
                 }
             }
+
+            @Override
+            protected void onSizeInBytesLimitBreached() {
+                // Null for the common multi-shard case, where fetch runs as its own round-trip against a
+                // ResultsType.FETCH context that never gets a QuerySearchResult — see the comment in
+                // FetchPhaseDocsIterator#doIterate for why terminated_early can't be reported there anyway.
+                QuerySearchResult queryResult = context.queryResult();
+                if (queryResult != null) {
+                    queryResult.terminatedEarly(true);
+                }
+            }
         };
+        docsIterator.sizeInBytesLimit = sizeInBytesLimit;
         return docsIterator;
     }
 

@@ -12,6 +12,8 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -65,6 +67,9 @@ public class UpdateByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
 
         UpdateByQueryRequest request = new UpdateByQueryRequest("source");
         request.getSearchRequest().source().size(batchSize);
+        // Disable the auto-cap so the full batch is fetched and the bulk-request reservation trips the breaker
+        // (not the per-search size cap, which is orthogonal to what this test verifies).
+        request.getSearchRequest().source().sizeInBytes(ByteSizeValue.of(1, ByteSizeUnit.GB));
 
         ExecutionException thrown = expectThrows(
             ExecutionException.class,

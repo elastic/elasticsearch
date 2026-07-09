@@ -41,6 +41,49 @@ import java.util.function.Supplier;
 abstract class FetchPhaseDocsIterator {
 
     /**
+     * Fixed per-hit overhead added to {@code _source} length when accounting towards {@code size_in_bytes}.
+     * Covers {@code _id}, routing, sort values, stored/fetch fields, and highlight that {@code _source} alone
+     * does not include. Per-shard enforcement only; coordinator total can be {@code numShards × sizeInBytesLimit}.
+     */
+    static final int PER_HIT_OVERHEAD_BYTES = 256;
+
+    /**
+     * Per-shard byte cap for the fetch phase. -1 means no cap. Set by FetchPhase before calling iterate().
+     */
+    long sizeInBytesLimit = -1;
+
+    /**
+     * Running total of bytes accounted towards {@link #sizeInBytesLimit}, shared by the synchronous
+     * {@link #doIterate} path and the streaming {@link StreamingFetchPhaseDocsIterator} chunk producer so
+     * that {@code size_in_bytes} enforcement is consistent regardless of which fetch path a request uses.
+     */
+    private long accumulatedSizeInBytes = 0;
+
+    /**
+     * Accounts for a fetched hit's bytes against {@link #sizeInBytesLimit}, if one is set.
+     *
+     * @return {@code true} if the cap has now been reached and the caller must stop fetching further hits
+     */
+    final boolean accountSizeInBytes(SearchHit hit) {
+        if (sizeInBytesLimit <= 0) {
+            return false;
+        }
+        var sourceRef = hit.getSourceRef();
+        accumulatedSizeInBytes += (sourceRef != null ? sourceRef.length() : 0) + PER_HIT_OVERHEAD_BYTES;
+        return accumulatedSizeInBytes >= sizeInBytesLimit;
+    }
+
+    /**
+     * Invoked exactly once, from the streaming fetch path, when {@link #accountSizeInBytes} reports that
+     * {@link #sizeInBytesLimit} has been reached. The synchronous path has direct access to the
+     * {@link QuerySearchResult} passed into {@link #iterate} and records early termination there instead;
+     * this hook lets {@link FetchPhase#createDocsIterator} — which has no such parameter available inside
+     * {@link StreamingFetchPhaseDocsIterator#iterateAsync} — record the same signal via its captured
+     * {@link org.elasticsearch.search.internal.SearchContext}.
+     */
+    protected void onSizeInBytesLimitBreached() {}
+
+    /**
      * Accounts for FetchPhase memory usage.
      * It gets cleaned up after each fetch phase and should not be accessed/modified by subclasses.
      */
@@ -165,6 +208,17 @@ abstract class FetchPhaseDocsIterator {
                     currentDoc = docs[i].docId;
                     assert searchHits[docs[i].index] == null;
                     searchHits[docs[i].index] = nextDoc(docs[i].docId);
+                    if (accountSizeInBytes(searchHits[docs[i].index])) {
+                        // querySearchResult is null when fetch runs as its own round-trip against a shard (the common
+                        // multi-shard case): that SearchContext is created with ResultsType.FETCH and never gets a
+                        // QuerySearchResult, and even if it did, terminated_early is only collected from the query-phase
+                        // response, which for that case was already sent to the coordinator before fetch started. The hits
+                        // are still correctly truncated below regardless; only the terminated_early annotation is skipped.
+                        if (querySearchResult != null) {
+                            querySearchResult.terminatedEarly(true);
+                        }
+                        return new IterateResult(stripNulls(searchHits));
+                    }
                 } catch (ContextIndexSearcher.TimeExceededException e) {
                     if (allowPartialResults == false) {
                         purgeSearchHits(searchHits);

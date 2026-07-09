@@ -389,12 +389,7 @@ public class CustomRequestTests extends ESTestCase {
 
         var exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new CustomRequest(
-                RerankParameters.of(
-                    new QueryAndDocsInputs(InferenceString.ofText("query string"), InferenceString.fromStringList(List.of("abc", "123")))
-                ),
-                model
-            )
+            () -> new CustomRequest(RerankParameters.of(new QueryAndDocsInputs("query string", List.of("abc", "123"))), model)
         );
         assertThat(
             exception.getMessage(),
@@ -444,12 +439,7 @@ public class CustomRequestTests extends ESTestCase {
 
         var exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new CustomRequest(
-                RerankParameters.of(
-                    new QueryAndDocsInputs(InferenceString.ofText("query string"), InferenceString.fromStringList(List.of("abc", "123")))
-                ),
-                model
-            )
+            () -> new CustomRequest(RerankParameters.of(new QueryAndDocsInputs("query string", List.of("abc", "123"))), model)
         );
         assertThat(
             exception.getMessage(),

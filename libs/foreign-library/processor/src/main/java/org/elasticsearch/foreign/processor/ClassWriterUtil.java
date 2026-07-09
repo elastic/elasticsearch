@@ -13,6 +13,7 @@ import org.elasticsearch.foreign.processor.model.NativeType;
 
 import java.lang.classfile.CodeBuilder;
 import java.lang.constant.ClassDesc;
+import java.lang.constant.MethodTypeDesc;
 
 /**
  * Shared class descriptors and bytecode helpers used by all class writers in this package.
@@ -29,10 +30,25 @@ final class ClassWriterUtil {
     static final ClassDesc CD_MemoryLayout = ClassDesc.of("java.lang.foreign.MemoryLayout");
     static final ClassDesc CD_MemoryLayoutArray = ClassDesc.ofDescriptor("[Ljava/lang/foreign/MemoryLayout;");
     static final ClassDesc CD_MemorySegment = ClassDesc.of("java.lang.foreign.MemorySegment");
+    static final ClassDesc CD_StructLayout = ClassDesc.of("java.lang.foreign.StructLayout");
+    static final ClassDesc CD_MemoryLayoutPathElement = ClassDesc.of("java.lang.foreign.MemoryLayout$PathElement");
+    static final ClassDesc CD_Arena = ClassDesc.of("java.lang.foreign.Arena");
+    static final ClassDesc CD_VarHandle = ClassDesc.of("java.lang.invoke.VarHandle");
     private static final ClassDesc CD_ValueLayout = ClassDesc.of("java.lang.foreign.ValueLayout");
 
-    // org.elasticsearch.foreign.adapter helpers
+    // org.elasticsearch.foreign types
     static final ClassDesc CD_MemorySegmentAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.MemorySegmentAdapter");
+    static final ClassDesc CD_Addressable = ClassDesc.of("org.elasticsearch.foreign.Addressable");
+
+    // Widely-used java.lang.foreign method type descriptors
+    static final MethodTypeDesc MTD_structLayout = MethodTypeDesc.of(CD_StructLayout, CD_MemoryLayoutArray);
+    static final MethodTypeDesc MTD_groupElement = MethodTypeDesc.of(CD_MemoryLayoutPathElement, CD_String);
+    static final MethodTypeDesc MTD_varHandleWithoutOffset = MethodTypeDesc.of(CD_VarHandle, CD_MemoryLayout, CD_MemoryLayoutPathElement);
+    static final MethodTypeDesc MTD_Arena_ofAuto = MethodTypeDesc.of(CD_Arena);
+    static final MethodTypeDesc MTD_allocate_layout = MethodTypeDesc.of(CD_MemorySegment, CD_MemoryLayout);
+    static final MethodTypeDesc MTD_allocate_layout_count = MethodTypeDesc.of(CD_MemorySegment, CD_MemoryLayout, CD_long);
+    static final MethodTypeDesc MTD_byteSize = MethodTypeDesc.of(CD_long);
+    static final MethodTypeDesc MTD_asSlice = MethodTypeDesc.of(CD_MemorySegment, CD_long, CD_long);
 
     /**
      * Converts a Java release number (e.g. 21) to the corresponding class file major version
@@ -82,6 +98,22 @@ final class ClassWriterUtil {
             case ADDRESS, STRING -> CD_MemorySegment;
             case VOID -> throw new AssertionError("void cannot be a struct field type");
             default -> primitiveClassDesc(type);
+        };
+    }
+
+    /** Returns the specific {@code ValueLayout} subtype {@link ClassDesc} for a struct field's type. */
+    static ClassDesc valueLayoutClassDesc(NativeType type) {
+        return switch (type) {
+            case INT -> ClassDesc.ofDescriptor("Ljava/lang/foreign/ValueLayout$OfInt;");
+            case LONG -> ClassDesc.ofDescriptor("Ljava/lang/foreign/ValueLayout$OfLong;");
+            case SHORT -> ClassDesc.ofDescriptor("Ljava/lang/foreign/ValueLayout$OfShort;");
+            case BYTE -> ClassDesc.ofDescriptor("Ljava/lang/foreign/ValueLayout$OfByte;");
+            case BOOLEAN -> ClassDesc.ofDescriptor("Ljava/lang/foreign/ValueLayout$OfBoolean;");
+            case FLOAT -> ClassDesc.ofDescriptor("Ljava/lang/foreign/ValueLayout$OfFloat;");
+            case DOUBLE -> ClassDesc.ofDescriptor("Ljava/lang/foreign/ValueLayout$OfDouble;");
+            case ADDRESS, STRING -> ClassDesc.ofDescriptor("Ljava/lang/foreign/AddressLayout;");
+            case ADDRESSABLE -> throw new AssertionError("ADDRESSABLE cannot be a struct field type");
+            case VOID -> throw new AssertionError("void cannot be a field type");
         };
     }
 }

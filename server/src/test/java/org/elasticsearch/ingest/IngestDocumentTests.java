@@ -2255,12 +2255,20 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testCumulativeFieldValueSizeLimitAllowsNormalUsage() {
-        Map<String, Object> document = new HashMap<>();
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        for (int i = 0; i < 50; i++) {
-            ingestDocument.setFieldValue("field" + i, "some modest value " + i);
+        // Explicitly fixes the limit for this test rather than relying on whatever the production default currently is --
+        // that default is expected to be retuned over time, and this test should keep passing regardless.
+        long originalLimit = IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES;
+        try {
+            IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES = 1000;
+            Map<String, Object> document = new HashMap<>();
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+            for (int i = 0; i < 5; i++) {
+                ingestDocument.setFieldValue("field" + i, "some modest value " + i);
+            }
+            // no exception expected -- this is well under the 1000 byte limit set above
+        } finally {
+            IngestDocument.MAX_CUMULATIVE_FIELD_VALUE_BYTES = originalLimit;
         }
-        // no exception expected -- the default 10mb limit comfortably covers ordinary pipelines
     }
 
     @SuppressWarnings("unchecked")

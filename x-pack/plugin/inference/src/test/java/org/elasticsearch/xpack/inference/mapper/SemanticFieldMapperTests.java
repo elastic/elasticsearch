@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -15,16 +17,20 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.license.License;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -32,26 +38,56 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.TaskType.EMBEDDING;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_INFERENCE_ID_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
-public class SemanticFieldMapperTests extends MapperServiceTestCase {
+public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
+    private static final String INFERENCE_ID = "inference-id";
+
+    public SemanticFieldMapperTests(License.OperationMode operationMode) {
+        super(operationMode);
+    }
 
     @Override
-    protected Collection<? extends Plugin> getPlugins() {
-        return Collections.singletonList(new InferencePlugin(Settings.EMPTY));
+    protected void registerDefaultEndpoints() {
+        registerMultiModalEisEndpoint();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return List.of(new Object[] { License.OperationMode.BASIC }, new Object[] { License.OperationMode.ENTERPRISE });
+    }
+
+    private void registerMultiModalEisEndpoint() {
+        globalModelRegistry.putDefaultIdIfAbsent(
+            new InferenceService.DefaultConfigId(
+                INFERENCE_ID,
+                new MinimalServiceSettings(
+                    ElasticInferenceService.NAME,
+                    EMBEDDING,
+                    1024,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                ),
+                mock(InferenceService.class)
+            )
+        );
     }
 
     /**
@@ -60,8 +96,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
      * with the base64 payload stored decoded and regenerated on read.
      */
     public void testOriginalValueRoundTripFromDocValues() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion version = IndexVersion.current();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
@@ -96,9 +130,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
      * accepted because its original value is stored in doc values and its internal inference sub-fields are exempt.
      */
     public void testSemanticFieldAcceptedInColumnar() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         IndexVersion version = IndexVersion.current();
         String dvFieldName = SemanticTextField.getOriginalValuesFieldName("my_field");
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
@@ -127,8 +158,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
      * from the binary doc values store: text comes back as a string and a data URI as its {@code {type, format, value}} object.
      */
     public void testOriginalValueFetchedFromDocValues() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion version = IndexVersion.current();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
@@ -199,8 +228,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
      * coerces it to its string form, so the doc-values {@code _source} round-trip returns the value as a string.
      */
     public void testBooleanAndNumericValuesRoundTripAsStrings() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion version = IndexVersion.current();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
@@ -228,7 +255,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
      * but must still load {@code _source} when the value is kept there (stored source).
      */
     public void testHighlighterAvoidsSourceWhenValuesInDocValues() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
         SemanticTextHighlighter highlighter = new SemanticTextHighlighter();
         IndexVersion version = IndexVersion.current();
 
@@ -272,8 +298,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testSemanticFieldNotSupportedOnOldIndices() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SEMANTIC_FIELD_TYPE);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), oldVersion).build();
 
@@ -289,8 +313,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testSemanticFieldSupportedOnNewIndices() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion newVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), newVersion).build();
 
@@ -312,8 +334,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testSemanticFieldMappingUpdateNotSupportedOnOldIndices() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SEMANTIC_FIELD_TYPE);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), oldVersion).build();
 
@@ -331,8 +351,6 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testSemanticFieldMappingUpdateSupportedOnNewIndices() throws IOException {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-
         IndexVersion newVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), newVersion).build();
 
@@ -358,5 +376,69 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
     private static void assertSemanticFieldMapper(MapperService mapperService, String fieldName) {
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         assertThat(mapper, instanceOf(SemanticFieldMapper.class));
+    }
+
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "semantic");
+        b.field("inference_id", INFERENCE_ID);
+    }
+
+    @Override
+    protected Object getSampleObjectForDocument() {
+        return Map.of("type", "image", "value", "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA==");
+    }
+
+    @Override
+    protected void assertSearchable(MappedFieldType fieldType) {
+        assertThat(fieldType, instanceOf(SemanticFieldMapper.SemanticFieldType.class));
+        assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected Set<IndexVersion> getSupportedVersions() {
+        return IndexVersionUtils.allReleasedVersions()
+            .stream()
+            .filter(v -> v.onOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE))
+            .collect(Collectors.toSet());
+    }
+
+    @Override
+    protected IndexVersion boostNotAllowedIndexVersion() {
+        return IndexVersions.SEMANTIC_FIELD_TYPE;
+    }
+
+    public void testCustomInferenceIdIsMandatory() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> b.field("type", "semantic"))));
+
+        assertThat(e.getMessage(), containsString("[inference_id] on mapper [field] of type [semantic] must not be empty"));
+    }
+
+    public void testInvalidInferenceEndpoints() {
+        {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> b.field("type", "semantic").field(INFERENCE_ID_FIELD, (String) null)))
+            );
+            assertThat(e.getMessage(), containsString("[inference_id] on mapper [field] of type [semantic] must not have a [null] value"));
+        }
+        {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> b.field("type", "semantic").field(INFERENCE_ID_FIELD, "")))
+            );
+            assertThat(e.getMessage(), containsString("[inference_id] on mapper [field] of type [semantic] must not be empty"));
+        }
+        {
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(
+                    fieldMapping(
+                        b -> b.field("type", "semantic").field(INFERENCE_ID_FIELD, INFERENCE_ID).field(SEARCH_INFERENCE_ID_FIELD, "")
+                    )
+                )
+            );
+            assertThat(e.getMessage(), containsString("[search_inference_id] on mapper [field] of type [semantic] must not be empty"));
+        }
     }
 }

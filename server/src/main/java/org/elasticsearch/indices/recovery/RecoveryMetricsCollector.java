@@ -42,6 +42,8 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     public static final String CURRENT_STORE_RECOVERIES = "es.recovery.store.active.current";
     public static final String QUEUED_STORE_RECOVERIES = "es.recovery.store.queued.current";
 
+    public static final String RECOVERY_DIRECT_CANCELLATIONS_METRIC = "es.recovery.shard.directcancellations.total";
+
     public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(TelemetryProvider.NOOP);
 
     private final LongCounter shardRecoveryTotalMetric;
@@ -55,6 +57,8 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     private final LongUpDownCounter queuedPeerRecoveriesAsTargetMetric;
     private final LongUpDownCounter activeStoreRecoveriesMetric;
     private final LongUpDownCounter queuedStoreRecoveriesMetric;
+
+    private final LongCounter shardRecoveryDirectCancellationsMetric;
 
     public RecoveryMetricsCollector(TelemetryProvider telemetryProvider) {
         final MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
@@ -108,6 +112,11 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
             "Number of currently queued non-peer recoveries",
             "unit"
         );
+        shardRecoveryDirectCancellationsMetric = meterRegistry.registerLongCounter(
+            RECOVERY_DIRECT_CANCELLATIONS_METRIC,
+            "Number of shard recoveries that have been directly cancelled by the master, while queued or started",
+            "unit"
+        );
     }
 
     @Override
@@ -142,8 +151,25 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     }
 
     @Override
+    public void onRecoveryCancelledBeforeQueuing(RecoverySource.Type type, RecoveryRole role) {
+        // Record this as queued in metrics for simplicity, we can refine the distinction later on if needed
+        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED));
+    }
+
+    @Override
     public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
         updateQueuedRecovery(type, role, 1);
+    }
+
+    @Override
+    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
+        updateQueuedRecovery(type, role, -1);
+    }
+
+    @Override
+    public void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
+        updateQueuedRecovery(type, role, -1);
+        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED));
     }
 
     @Override
@@ -158,8 +184,8 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     }
 
     @Override
-    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
-        updateQueuedRecovery(type, role, -1);
+    public void onStartedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
+        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.STARTED));
     }
 
     @Override
@@ -199,5 +225,14 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     private static Map<String, Object> recoveryLifecycleMetricLabels(RecoverySource.Type type) {
         return Map.of("es_recovery_type", type.name());
+    }
+
+    private static Map<String, Object> directCancellationMetricLabels(RecoverySource.Type type, RecoverySchedulingState state) {
+        return Map.of("es_recovery_type", type.name(), "es_recovery_scheduling_state", state.name());
+    }
+
+    private enum RecoverySchedulingState {
+        QUEUED,
+        STARTED
     }
 }

@@ -557,8 +557,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testDisableDefaultIndex() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         ParameterChecker checker = new ParameterChecker();
         registerParameters(checker);
         assumeTrue("mapper must support the 'index' parameter", checker.checkedParameters.contains("index"));
@@ -1396,14 +1394,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSource() throws IOException {
-        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = randomBoolean();
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         var support = isColumnar ? syntheticSourceSupportColumnar(ignoreMalformed) : syntheticSourceSupport(ignoreMalformed);
         assertSyntheticSource(support.example(5), support.isColumnar());
     }
 
     public final void testSyntheticSourceWithTranslogSnapshot() throws IOException {
-        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = randomBoolean();
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         var support = isColumnar ? syntheticSourceSupportColumnar(ignoreMalformed) : syntheticSourceSupport(ignoreMalformed);
         assertSyntheticSourceWithTranslogSnapshot(support, true);
@@ -1562,7 +1560,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testSyntheticSourceMany() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         int maxValues = randomBoolean() ? 1 : 5;
-        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = randomBoolean();
         SyntheticSourceSupport support = isColumnar
             ? syntheticSourceSupportColumnar(ignoreMalformed)
             : syntheticSourceSupport(ignoreMalformed);
@@ -1626,7 +1624,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceInObject() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = randomBoolean();
         SyntheticSourceSupport support = isColumnar
             ? syntheticSourceSupportColumnar(ignoreMalformed)
             : syntheticSourceSupport(ignoreMalformed);
@@ -1680,7 +1678,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testSyntheticEmptyList() throws IOException {
         assumeTrue("Field does not support [] as input", supportsEmptyInputArray());
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = randomBoolean();
         SyntheticSourceSupport support = isColumnar
             ? syntheticSourceSupportColumnar(ignoreMalformed)
             : syntheticSourceSupport(ignoreMalformed);
@@ -1742,7 +1740,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceInvalid() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
-        boolean isColumnar = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        boolean isColumnar = randomBoolean();
         SyntheticSourceSupport support = isColumnar
             ? syntheticSourceSupportColumnar(ignoreMalformed)
             : syntheticSourceSupport(ignoreMalformed);
@@ -2277,9 +2275,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testMultiValueFalseAcceptsSingleValue() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -2288,9 +2285,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testMultiValueFalseRejectsArray() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -2305,9 +2301,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testMultiValueFalseDocValuesType() throws Exception {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.startObject("doc_values").field("multi_value", false).endObject();
         }));
@@ -2340,16 +2335,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * only verify the structural invariant: docs 0 and 2 are non-null, doc 1 is null.
      */
     public void testMultiValueFalseBlockLoader() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
 
         // getSampleValueForDocument() is deterministic for most types, so a single call is enough.
         Object sample = getSampleValueForDocument();
 
-        MapperService mvFalse = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", false).endObject();
-        }));
+        MapperService mvFalse = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.startObject("doc_values").field("multi_value", false).endObject();
+            })
+        );
         MapperService defaults = createMapperService(fieldMapping(this::minimalMapping));
 
         Object[] mvFalseBlock = loadThreeDocs(mvFalse, sample);
@@ -2368,6 +2365,62 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertThat(mvFalseBlock[1], nullValue());          // sparse / unset middle document
             assertNotNull(mvFalseBlock[2]);
         }
+    }
+
+    /**
+     * Whether this mapper exposes the {@code doc_values.nullability} sub-parameter. Override and return {@code true} for mappers that
+     * participate in required-field enforcement (ie. expose {@code isNullable()}).
+     */
+    protected boolean supportsNullabilityParameter() {
+        return false;
+    }
+
+    public void testNullabilityFalseAcceptsValue() throws Exception {
+        assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(nullabilityFalseMapping());
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        assertNotNull(doc.rootDoc().getField("field"));
+    }
+
+    public void testNullabilityFalseAcceptsArrayWithValue() throws Exception {
+        assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(nullabilityFalseMapping());
+        // A single non-null element satisfies the requirement even when other elements are null.
+        ParsedDocument doc = mapper.parse(
+            source(b -> { b.startArray("field").value(getSampleValueForDocument()).nullValue().endArray(); })
+        );
+        assertNotNull(doc.rootDoc().getField("field"));
+    }
+
+    public void testNullabilityFalseRejectsNull() throws Exception {
+        assertNullabilityFalseRejects(b -> b.nullField("field"));
+    }
+
+    public void testNullabilityFalseRejectsNullArray() throws Exception {
+        assertNullabilityFalseRejects(b -> b.startArray("field").nullValue().endArray());
+    }
+
+    public void testNullabilityFalseRejectsMissingField() throws Exception {
+        assertNullabilityFalseRejects(b -> b.field("other", "value"));
+    }
+
+    public void testNullabilityFalseRejectsEmptyDocument() throws Exception {
+        // Exercises the empty-document short-circuit ({}) which bypasses field parsing but must still reach enforcement.
+        assertNullabilityFalseRejects(b -> {});
+    }
+
+    private void assertNullabilityFalseRejects(CheckedConsumer<XContentBuilder, IOException> document) throws Exception {
+        assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(nullabilityFalseMapping());
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(document)));
+        assertThat(e.getMessage(), containsString("configured with [nullability=false] but no value was provided"));
+    }
+
+    private XContentBuilder nullabilityFalseMapping() throws IOException {
+        return fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("nullability", false).endObject();
+        });
     }
 
     /**

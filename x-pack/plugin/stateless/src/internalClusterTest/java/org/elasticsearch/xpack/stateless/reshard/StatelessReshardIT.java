@@ -59,6 +59,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -68,10 +69,13 @@ import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateReshardSplitTargetPrimaryCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -80,6 +84,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
@@ -99,6 +104,7 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.MockLog;
@@ -138,6 +144,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -1369,6 +1376,50 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertHitCount(prepareSearchAll(indexName), indexedDocs);
     }
 
+    public void testReshardVectordbDocumentIndex() {
+        String indexNode = startMasterAndIndexNode();
+        startSearchNode();
+
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_DOCUMENT.getName()).build());
+        ensureGreen(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        // index documents before resharding so the split has data to copy
+        final int preReshardDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, preReshardDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), preReshardDocs);
+
+        final int multiple = 2;
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        waitForReshardCompletion(indexName);
+
+        checkNumberOfShardsSetting(indexNode, indexName, multiple);
+
+        // documents indexed before resharding must survive the split
+        assertHitCount(prepareSearchAll(indexName), preReshardDocs);
+
+        // All shards should be usable
+        var shards = IntStream.range(0, multiple).boxed().collect(Collectors.toSet());
+        int docsPerRequest = randomIntBetween(10, 100);
+        int postReshardDocs = 0;
+        do {
+            for (var item : indexDocs(indexName, docsPerRequest).getItems()) {
+                postReshardDocs += 1;
+                shards.remove(item.getResponse().getShardId().getId());
+            }
+        } while (shards.isEmpty() == false);
+
+        refresh(indexName);
+
+        assertHitCount(prepareSearchAll(indexName), preReshardDocs + postReshardDocs);
+    }
+
     public void testReshardSearchShardWillNotBeAllocatedUntilIndexingShard() throws Exception {
         String indexNode = startMasterAndIndexNode();
         startSearchNode();
@@ -2286,29 +2337,27 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(timeSeriesIndexName);
         assertReshardNonstandardIndexFails(timeSeriesIndexName, IndexMode.TIME_SERIES);
 
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            final String columnarIndexName = "columnar-index";
-            createIndex(
-                columnarIndexName,
-                Settings.builder()
-                    .put(indexSettings(randomIntBetween(1, 5), 0).build())
-                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                    .build()
-            );
-            ensureGreen(columnarIndexName);
-            assertReshardNonstandardIndexFails(columnarIndexName, IndexMode.COLUMNAR);
+        final String columnarIndexName = "columnar-index";
+        createIndex(
+            columnarIndexName,
+            Settings.builder()
+                .put(indexSettings(randomIntBetween(1, 5), 0).build())
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .build()
+        );
+        ensureGreen(columnarIndexName);
+        assertReshardNonstandardIndexFails(columnarIndexName, IndexMode.COLUMNAR);
 
-            final String columnarLogsdbIndexName = "columnar-logsdb-index";
-            createIndex(
-                columnarLogsdbIndexName,
-                Settings.builder()
-                    .put(indexSettings(randomIntBetween(1, 5), 0).build())
-                    .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
-                    .build()
-            );
-            ensureGreen(columnarLogsdbIndexName);
-            assertReshardNonstandardIndexFails(columnarLogsdbIndexName, IndexMode.LOGSDB_COLUMNAR);
-        }
+        final String columnarLogsdbIndexName = "columnar-logsdb-index";
+        createIndex(
+            columnarLogsdbIndexName,
+            Settings.builder()
+                .put(indexSettings(randomIntBetween(1, 5), 0).build())
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
+                .build()
+        );
+        ensureGreen(columnarLogsdbIndexName);
+        assertReshardNonstandardIndexFails(columnarLogsdbIndexName, IndexMode.LOGSDB_COLUMNAR);
     }
 
     public void testReshardTargetWillEqualToPrimaryTermOfSource() throws Exception {
@@ -3333,6 +3382,162 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertHitCount(prepareSearch(indexName), numDocs);
     }
 
+    public void testConcurrentStartSplitCancelsStaleRequest() throws Exception {
+        var copyBlockedLatch = new CountDownLatch(1);
+        var copyContinueLatch = new CountDownLatch(1);
+        var copyBlockStrategy = new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerCopyBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                BlobContainer sourceBlobContainer,
+                String sourceBlobName,
+                String blobName,
+                long blobSize
+            ) throws IOException {
+                copyBlockedLatch.countDown();
+                safeAwait(copyContinueLatch);
+                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+            }
+        };
+
+        startMasterOnlyNode();
+        var indexNodeA = startIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        setNodeRepositoryStrategy(indexNodeA, copyBlockStrategy);
+        startSearchNode();
+        ensureStableCluster(3);
+
+        // Disable rebalancing so the target shard doesn't get moved
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false)
+        );
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put("index.allocation.max_retries", Integer.MAX_VALUE).build());
+        ensureGreen(indexName);
+
+        int numDocs = 100;
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
+
+        // Spin up new index node which will host the target shard
+        var indexNodeB = startIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        setNodeRepositoryStrategy(indexNodeB, copyBlockStrategy);
+
+        var capturedTasks = new CopyOnWriteArrayList<CancellableTask>();
+        var secondRequestArrived = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNodeA)
+            .addRequestHandlingBehavior(TransportReshardSplitAction.START_SPLIT_ACTION_NAME, (handler, request, channel, task) -> {
+                capturedTasks.add((CancellableTask) task);
+                if (capturedTasks.size() == 2) {
+                    secondRequestArrived.countDown();
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        logger.info("starting reshard");
+        client(indexNodeA).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // Wait until the source shard is stuck copying while handling the first start split request
+        safeAwait(copyBlockedLatch);
+        // Restart target node to initiate new start split request
+        internalCluster().restartNode(indexNodeB);
+        ensureStableCluster(4);
+
+        safeAwait(secondRequestArrived);
+        try {
+            // Source should cancel the first task
+            assertBusy(() -> assertTrue(capturedTasks.getFirst().isCancelled()));
+            assertFalse(capturedTasks.get(1).isCancelled());
+        } finally {
+            copyContinueLatch.countDown();
+        }
+
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
+    }
+
+    /**
+     * Verifies split target shards recover after a master restart during split initiation.
+     * <p>
+     * A hot master failover (standby taking over with in-memory routing) does not exercise the fix.
+     * Restarting the sole master forces gateway recovery: {@code ClusterStateUpdaters.updateRoutingTable}
+     * rebuilds routing via {@code addAsRecovery} → {@code IndexRoutingTable.Builder.initializeEmpty}.
+     * Split targets without {@code inSyncAllocationIds} must receive {@link RecoverySource.Type#RESHARD_SPLIT}
+     * and {@link UnassignedInfo.Reason#RESHARD_ADDED}, not {@link RecoverySource.Type#EMPTY_STORE}.
+     */
+    public void testTargetRecoversAfterMasterRestartDuringSplit() throws RuntimeException {
+        String masterNode = startMasterNodeForRestartTest();
+        String indexNode = startIndexNode();
+        startSearchNodes(2);
+        ensureStableCluster(4);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+        final int numDocs = randomIntBetween(10, 50);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), numDocs);
+
+        // Second index node hosts the target primary after reshard
+        startIndexNode();
+        ensureStableCluster(5);
+
+        CountDownLatch splitInitiated = new CountDownLatch(1);
+        CountDownLatch allowSplitToProceed = new CountDownLatch(1);
+        AtomicBoolean disruptionTriggered = new AtomicBoolean(false);
+        MockTransportService sourceTransport = MockTransportService.getInstance(indexNode);
+        // Block START_SPLIT on source (indexNode) so target is still unassigned
+        // and has no inSyncAllocationIds when master node restarts.
+        sourceTransport.addRequestHandlingBehavior(
+            TransportReshardSplitAction.START_SPLIT_ACTION_NAME,
+            (handler, request, channel, task) -> {
+                if (disruptionTriggered.compareAndSet(false, true)) {
+                    splitInitiated.countDown();
+                    Thread failoverThread = new Thread(() -> {
+                        try {
+                            awaitClusterState(state -> state.projectState().metadata().index(indexName).getReshardingMetadata() != null);
+                            logger.info("--> restarting current master during split initiation");
+                            internalCluster().restartNode(masterNode);
+                            assertBusy(() -> ensureStableCluster(5)); // master back, gateway recovery done
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        } finally {
+                            allowSplitToProceed.countDown();
+                        }
+                    }, "master-restart-during-split");
+                    failoverThread.start();
+                    safeAwait(allowSplitToProceed);
+                }
+                handler.messageReceived(request, channel, task);
+            }
+        );
+        try {
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
+            safeAwait(splitInitiated);
+            safeAwait(allowSplitToProceed);
+            logger.info("--> wait for reshard completion");
+            waitForReshardCompletion(indexName);
+            logger.info("--> reshard complete");
+            ensureGreen(indexName);
+            refresh(indexName);
+            assertHitCount(prepareSearchAll(indexName), numDocs);
+        } finally {
+            sourceTransport.clearAllRules();
+        }
+    }
+
     public void testSourceRelocationAndTargetRestart() throws Exception {
         Set<String> copiesInProgress = ConcurrentHashMap.newKeySet();
         var blobToBlock = new AtomicReference<String>();
@@ -3581,6 +3786,34 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             assertThat(stats.getMin(), greaterThanOrEqualTo(0L));
             assertThat(stats.getMax(), lessThanOrEqualTo(TimeValue.THIRTY_SECONDS.millis())); // timeout
         }
+    }
+
+    public void testReshardFailureMetrics() {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+
+        var startSplitFailedOnce = new AtomicBoolean(false);
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(TransportReshardSplitAction.START_SPLIT_ACTION_NAME, (handler, request, channel, task) -> {
+                if (startSplitFailedOnce.compareAndSet(false, true)) {
+                    channel.sendResponse(new ElasticsearchException("simulated start split failure"));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        waitForReshardCompletion(indexName);
+
+        var telemetryPlugin = getTelemetryPlugin(indexNode);
+        assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_RECOVERY_FAILURE_COUNT, telemetryPlugin), equalTo(1L));
+        assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_TARGET_FAILURE_COUNT, telemetryPlugin), equalTo(0L));
     }
 
     public void testSourceShardMonitoringSucceedsWhenTargetsAreAlreadyDone() throws InterruptedException, BrokenBarrierException {
@@ -4551,6 +4784,44 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
+    public void testRecoveryFromTargetShardEmptyPrimaryAllocation() {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+
+        awaitClusterState(state -> {
+            if (state.projectState().metadata().index(indexName).getReshardingMetadata() == null) {
+                return false;
+            }
+            ShardRouting targetShardRouting = state.routingTable().index(indexName).shard(1).primaryShard();
+            return targetShardRouting.unassigned()
+                && targetShardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource;
+        });
+
+        ClusterRerouteUtils.reroute(client(), new AllocateEmptyPrimaryAllocationCommand(indexName, 1, indexNode, true));
+
+        updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.enable"));
+
+        // Wait until the allocation tries to allocate the shard and fails (replicate the real world scenario).
+        awaitClusterState(state -> {
+            ShardRouting targetShardRouting = state.routingTable().index(indexName).shard(1).primaryShard();
+            return targetShardRouting.unassigned() && targetShardRouting.unassignedInfo().failedAllocations() == 5;
+        });
+
+        ClusterRerouteUtils.reroute(client(), new AllocateReshardSplitTargetPrimaryCommand(indexName, 1, indexNode, true));
+
+        // Target shard successfully performs recovery with correct recovery source and resharding eventually completes.
+        waitForReshardCompletion(indexName);
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
@@ -4559,7 +4830,15 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         plugins.add(EncryptionPlugin.class);
         plugins.add(EsqlPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
+        plugins.add(AddSettingPlugin.class);
         return plugins;
+    }
+
+    public static class AddSettingPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(SplitTargetService.START_SPLIT_RETRY_TIMEOUT);
+        }
     }
 
     @Override
@@ -4569,7 +4848,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             // when we start re-splitting bulk requests.
             .put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), "60s")
             // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
-            .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
+            .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5));
     }
 
     @Override
@@ -4688,6 +4968,18 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
     private static void checkNumberOfShardsSetting(String indexNode, String indexName, int expectedShards) {
         ReshardingTestHelpers.checkNumberOfShardsSetting(client(indexNode), indexName, expectedShards);
+    }
+
+    /* Starts a master with a short store-heartbeat expiry so it can re-elect after restart.
+     * Without this, the pre-restart heartbeat in the object store blocks election for hours
+     * see AbstractStatelessPluginIntegTestCase#DEFAULT_TEST_MAX_MISSED_HEARTBEATS
+     */
+    private String startMasterNodeForRestartTest() {
+        return internalCluster().startMasterOnlyNode(
+            nodeSettings().put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
+                .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
     }
 
     public PlainActionFuture<ClusterState> waitForClusterState(Predicate<ClusterState> predicate) {

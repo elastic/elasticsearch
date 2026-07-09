@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -30,6 +32,8 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Targeted unit tests for {@link NdJsonPageDecoder}'s keyword-decode path. Sibling
@@ -350,6 +354,38 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * Same shape conflict as {@link #testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills}, but with a
+     * {@code warningSink} supplied: the decoder must route every emitted message through the sink instead of
+     * {@link HeaderWarning}, since {@link NdJsonPageDecoder}'s decode loop can run on a background reader thread
+     * whose thread-local response headers never reach the client (see {@link SkipWarnings}).
+     */
+    public void testScalarWhereNestedObjectExpectedLenientRoutesThroughWarningSink() throws IOException {
+        String ndjson = "{\"address\": {\"city\": \"NYC\"}, \"id\": 1}\n" + "{\"address\": \"unstructured\", \"id\": 2}\n";
+        List<String> sunk = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                List.of(attribute("address.city", DataType.KEYWORD), attribute("id", DataType.INTEGER)),
+                null,
+                1024,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                "test://decode",
+                NdJsonUtils.JSON_FACTORY,
+                sunk::add
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+            }
+        }
+
+        assertFalse("expected a client warning routed through the sink", sunk.isEmpty());
+        assertTrue("warning should name the conflicting field, got: " + sunk, sunk.stream().anyMatch(w -> w.contains("address")));
+        assertTrue("no message should reach the thread-local response headers when a sink is supplied", drainWarnings().isEmpty());
+    }
+
+    /**
      * A {@code null} element inside a JSON array of objects (e.g. {@code "events": [{"type":"a"}, null]}) reaches a
      * structural decoder node with {@code inArray == true}. The null element must be ignored (nulls in arrays are not
      * supported) without throwing on the null {@code blockBuilder}, leaving the surrounding multi-value entry intact.
@@ -482,6 +518,33 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             )
         ) {
             return decoder.decodePage();
+        }
+    }
+
+    public void testDeclaredDateFormatZoneAware() throws Exception {
+        // A per-column declared format parses this column with its own ES DateFormatter (zone-aware): the -0700 offset
+        // is honored, landing 10/Oct/2000:13:55:36 -0700 at 2000-10-10T20:55:36Z (971211336000), not 13:55:36Z.
+        String ndjson = "{\"ts\":\"10/Oct/2000:13:55:36 -0700\"}\n";
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null, // file-level formatter unused; the column carries its own declared format
+                List.of(attribute("ts", DataType.DATETIME)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://declared-date",
+                new NdJsonReaderCounters(),
+                Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"),
+                Set.of()
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+                assertEquals(1, page.getPositionCount());
+                assertEquals(971211336000L, ((LongBlock) page.getBlock(0)).getLong(0));
+            }
         }
     }
 

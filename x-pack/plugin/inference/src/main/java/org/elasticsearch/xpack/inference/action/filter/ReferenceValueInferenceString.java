@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.mapper;
+package org.elasticsearch.xpack.inference.action.filter;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -21,10 +21,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class ReferenceValueInferenceString extends InferenceString {
-    public static final String REFERENCE_VALUE_FIELD = "reference_value";
+class ReferenceValueInferenceString extends InferenceString {
+    private static final String REFERENCE_VALUE_FIELD = "reference_value";
 
-    public static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         ReferenceValueInferenceString.class.getSimpleName(),
         args -> {
             DataType dataType = (DataType) args[0];
@@ -45,20 +45,20 @@ public class ReferenceValueInferenceString extends InferenceString {
 
     private final String referenceValue;
 
-    public ReferenceValueInferenceString(DataType dataType, @Nullable DataFormat dataFormat, String value, String referenceValue) {
+    ReferenceValueInferenceString(DataType dataType, @Nullable DataFormat dataFormat, String value, String referenceValue) {
         super(dataType, dataFormat, value);
         this.referenceValue = referenceValue;
     }
 
-    public InferenceString truncateReferenceValue() {
+    InferenceString truncateReferenceValue() {
         return new InferenceString(dataType(), dataFormat(), value());
     }
 
-    public InferenceString replaceValueWithReferenceValue() {
+    InferenceString replaceValueWithReferenceValue() {
         return new InferenceString(dataType(), DataFormat.REFERENCE, referenceValue);
     }
 
-    public String referenceValue() {
+    String referenceValue() {
         return referenceValue;
     }
 

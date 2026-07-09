@@ -104,6 +104,7 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.MockLog;
@@ -143,6 +144,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -3374,6 +3376,89 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         ensureStableCluster(4);
         copyLatch.countDown();
+
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
+    }
+
+    public void testConcurrentStartSplitCancelsStaleRequest() throws Exception {
+        var copyBlockedLatch = new CountDownLatch(1);
+        var copyContinueLatch = new CountDownLatch(1);
+        var copyBlockStrategy = new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerCopyBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                BlobContainer sourceBlobContainer,
+                String sourceBlobName,
+                String blobName,
+                long blobSize
+            ) throws IOException {
+                copyBlockedLatch.countDown();
+                safeAwait(copyContinueLatch);
+                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+            }
+        };
+
+        startMasterOnlyNode();
+        var indexNodeA = startIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        setNodeRepositoryStrategy(indexNodeA, copyBlockStrategy);
+        startSearchNode();
+        ensureStableCluster(3);
+
+        // Disable rebalancing so the target shard doesn't get moved
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false)
+        );
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put("index.allocation.max_retries", Integer.MAX_VALUE).build());
+        ensureGreen(indexName);
+
+        int numDocs = 100;
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
+
+        // Spin up new index node which will host the target shard
+        var indexNodeB = startIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        setNodeRepositoryStrategy(indexNodeB, copyBlockStrategy);
+
+        var capturedTasks = new CopyOnWriteArrayList<CancellableTask>();
+        var secondRequestArrived = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNodeA)
+            .addRequestHandlingBehavior(TransportReshardSplitAction.START_SPLIT_ACTION_NAME, (handler, request, channel, task) -> {
+                capturedTasks.add((CancellableTask) task);
+                if (capturedTasks.size() == 2) {
+                    secondRequestArrived.countDown();
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        logger.info("starting reshard");
+        client(indexNodeA).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // Wait until the source shard is stuck copying while handling the first start split request
+        safeAwait(copyBlockedLatch);
+        // Restart target node to initiate new start split request
+        internalCluster().restartNode(indexNodeB);
+        ensureStableCluster(4);
+
+        safeAwait(secondRequestArrived);
+        try {
+            // Source should cancel the first task
+            assertBusy(() -> assertTrue(capturedTasks.getFirst().isCancelled()));
+            assertFalse(capturedTasks.get(1).isCancelled());
+        } finally {
+            copyContinueLatch.countDown();
+        }
 
         waitForReshardCompletion(indexName);
         ensureGreen(indexName);

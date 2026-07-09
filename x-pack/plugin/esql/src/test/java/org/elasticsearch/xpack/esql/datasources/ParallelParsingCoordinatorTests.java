@@ -1521,21 +1521,25 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                     );
                     return;
                 }
-                if (it.hasNext() == false) { // pre-fix: BLOCKS here for the whole read (default waitForReady is immediately done)
+                Page p = it.tryAdvance();
+                if (p == null) {
                     SubscribableListener<Void> recheck = it.waitForReady();
                     if (recheck.isDone()) {
-                        done.onResponse(collected);
+                        if (it.hasNext() == false) {
+                            done.onResponse(collected);
+                            return;
+                        }
+                        p = it.next();
+                    } else {
+                        recheck.addListener(
+                            ActionListener.wrap(
+                                v -> pool.execute(() -> drainAsReadyViaProducerLoop(it, pool, started, startedLatch, collected, done)),
+                                done::onFailure
+                            )
+                        );
                         return;
                     }
-                    recheck.addListener(
-                        ActionListener.wrap(
-                            v -> pool.execute(() -> drainAsReadyViaProducerLoop(it, pool, started, startedLatch, collected, done)),
-                            done::onFailure
-                        )
-                    );
-                    return;
                 }
-                Page p = it.next();
                 BytesRefBlock block = (BytesRefBlock) p.getBlock(0);
                 for (int i = 0; i < block.getPositionCount(); i++) {
                     collected.add(block.getBytesRef(block.getFirstValueIndex(i), scratch).utf8ToString());

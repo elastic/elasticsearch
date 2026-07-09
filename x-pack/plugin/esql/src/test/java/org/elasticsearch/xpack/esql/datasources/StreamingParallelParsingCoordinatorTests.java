@@ -186,7 +186,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 sink,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                null
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
                 while (iter.hasNext()) {
@@ -246,7 +246,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 sink,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                null
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
             // Consume one page, then close without draining — an early termination.
@@ -446,7 +446,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     sink,
                     64L, // stripe addressing active
                     StripeColumnScope.PROJECTED,
-                    null
+                    StreamingParallelParsingCoordinator.WarningSinks.NONE
                 )
             );
 
@@ -952,18 +952,22 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     );
                     return;
                 }
-                if (it.hasNext() == false) { // pre-fix: BLOCKS here on a POISON gap (isReadyNow reports ready on POISON)
+                Page p = it.tryAdvance();
+                if (p == null) {
                     SubscribableListener<Void> recheck = it.waitForReady();
                     if (recheck.isDone()) {
-                        done.onResponse(rows.get());
+                        if (it.hasNext() == false) {
+                            done.onResponse(rows.get());
+                            return;
+                        }
+                        p = it.next();
+                    } else {
+                        recheck.addListener(
+                            ActionListener.wrap(v -> pool.execute(() -> drainViaProducerLoop(it, pool, rows, done)), done::onFailure)
+                        );
                         return;
                     }
-                    recheck.addListener(
-                        ActionListener.wrap(v -> pool.execute(() -> drainViaProducerLoop(it, pool, rows, done)), done::onFailure)
-                    );
-                    return;
                 }
-                Page p = it.next();
                 rows.addAndGet(p.getPositionCount());
                 p.releaseBlocks();
             }
@@ -989,18 +993,25 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     );
                     return;
                 }
-                if (it.hasNext() == false) {
+                Page p = it.tryAdvance();
+                if (p == null) {
                     SubscribableListener<Void> recheck = it.waitForReady();
                     if (recheck.isDone()) {
-                        done.onResponse(sink.lines.size());
+                        if (it.hasNext() == false) {
+                            done.onResponse(sink.lines.size());
+                            return;
+                        }
+                        p = it.next();
+                    } else {
+                        recheck.addListener(
+                            ActionListener.wrap(
+                                v -> pool.execute(() -> drainViaProducerLoopCollecting(it, pool, sink, done)),
+                                done::onFailure
+                            )
+                        );
                         return;
                     }
-                    recheck.addListener(
-                        ActionListener.wrap(v -> pool.execute(() -> drainViaProducerLoopCollecting(it, pool, sink, done)), done::onFailure)
-                    );
-                    return;
                 }
-                Page p = it.next();
                 BytesRefBlock block = p.getBlock(0);
                 for (int i = 0; i < block.getPositionCount(); i++) {
                     sink.lines.add(block.getBytesRef(i, scratch).utf8ToString());
@@ -1074,7 +1085,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                         null,
                         -1L,
                         StripeColumnScope.PROJECTED,
-                        null,
+                        StreamingParallelParsingCoordinator.WarningSinks.NONE,
                         admission
                     )
                 );
@@ -1295,7 +1306,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                null
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
@@ -1344,7 +1355,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                null
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(strictIterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
@@ -1375,7 +1386,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                null
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
             );
             List<String> got = collectLines(lenientIterator);
             assertEquals("non-strict policy must return the records parsed before the cap-hit", leadingRecords, got.size());
@@ -1423,7 +1434,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                sink::add
+                new StreamingParallelParsingCoordinator.WarningSinks(sink::add, null)
             );
             List<String> got = collectLines(iterator);
             assertEquals("an undelimitable first record yields no rows under truncation", 0, got.size());
@@ -1472,7 +1483,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             null,
             -1L,
             StripeColumnScope.PROJECTED,
-            null
+            StreamingParallelParsingCoordinator.WarningSinks.NONE
         );
         List<String> got = collectLines(iterator);
         assertEquals("an undelimitable first record yields no rows under truncation", 0, got.size());

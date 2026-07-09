@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -118,8 +119,27 @@ public class Delay extends UnaryScalarFunction {
     static final class DelayEvaluator implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DelayEvaluator.class);
 
+        /**
+         * Upper bound on how long the sleep can ignore a cancelled/stopped query. The requested delay is
+         * slept in slices no longer than this so that {@link DriverContext#checkForEarlyTermination()} is
+         * polled at least this often; without it a single long {@link Thread#sleep} would pin the driver's
+         * worker thread for the whole duration and cancellation could only be observed once it returned.
+         */
+        static final long CANCELLATION_CHECK_INTERVAL_MS = 100;
+
         private final DriverContext driverContext;
         private final long ms;
+
+        /**
+         * Flipped by the {@link DriverContext#addStopHook stop hook} below when the user requests async STOP.
+         * Hard cancel and the exchange-sink-close early-finish are observed through
+         * {@link DriverContext#checkForEarlyTermination()}, but async STOP winds a query down by firing stop hooks
+         * (and closing the exchange source) without setting the driver's cancel/early-finished flag on a coordinator
+         * pipeline driver — its last operator is an {@code OutputOperator}, not an exchange sink, so {@code finishEarly}
+         * cannot be used to wind it down cleanly. Instead the sleep stops early (see {@link #delay(long)}), letting the
+         * in-flight row flow through and the pipeline drain to natural completion, matching how EXTERNAL STOP behaves.
+         */
+        private final AtomicBoolean stopRequested = new AtomicBoolean();
 
         DelayEvaluator(DriverContext driverContext, long ms) {
             if (Build.current().isSnapshot() == false) {
@@ -127,6 +147,8 @@ public class Delay extends UnaryScalarFunction {
             }
             this.driverContext = driverContext;
             this.ms = ms;
+            // Returning true the first time reports that STOP cut a running unit of work, which marks the response partial.
+            driverContext.addStopHook(() -> stopRequested.compareAndSet(false, true));
         }
 
         @Override
@@ -139,11 +161,22 @@ public class Delay extends UnaryScalarFunction {
         }
 
         private void delay(long ms) {
-            try {
-                driverContext.checkForEarlyTermination();
-                Thread.sleep(ms);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+            long remaining = ms;
+            while (remaining > 0) {
+                // Cancellation is cooperative and the sleep is not interruptible, so poll between slices.
+                driverContext.checkForEarlyTermination(); // hard cancel + exchange-sink-close early finish
+                if (stopRequested.get()) {
+                    // Async STOP: stop waiting and let the in-flight row flow through so the pipeline drains normally.
+                    return;
+                }
+                long slice = Math.min(remaining, CANCELLATION_CHECK_INTERVAL_MS);
+                try {
+                    Thread.sleep(slice);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                remaining -= slice;
             }
         }
 

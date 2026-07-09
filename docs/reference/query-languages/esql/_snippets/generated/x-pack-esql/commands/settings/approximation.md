@@ -3,7 +3,7 @@
 ### `approximation` [esql-approximation]
 ```{applies_to}
 serverless: ga
-stack: ga 9.5+, preview 9.4
+stack: ga 9.5+, preview =9.4
 ```
 Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the query. A boolean value `false` (default) disables query approximation and `true` enables it with default settings. Map values enable query approximation with custom settings.
 
@@ -39,3 +39,4 @@ FROM many_numbers | STATS median=MEDIAN(sv)
 | median:double | _approximation_confidence_interval(median):double | _approximation_certified(median):boolean |
 | --- | --- | --- |
 | 356.0 | [353.73, 358.79] | true |
+

@@ -123,6 +123,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -164,6 +165,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -3662,6 +3664,66 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
+    public void testRequestRecoveryCancellationThrowsWhenShardHasAlreadyStarted() throws IOException {
+        final IndexShard shard = newStartedShard();
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+        final RecoveryCancelledException cause = new RecoveryCancelledException(shard.shardId(), null, localNode);
+        expectThrows(IndexShardNotRecoveringException.class, () -> shard.requestRecoveryCancellation(cause));
+        shard.ensureRecoveryNotCancelled();
+        closeShards(shard);
+    }
+
+    public void testRequestRecoveryCancellationSetsFlagForCreatedShard() throws Exception {
+        final IndexShard shard = newShard(true);
+        assertThat(shard.state(), equalTo(IndexShardState.CREATED));
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+        final RecoveryCancelledException cause = new RecoveryCancelledException(shard.shardId(), null, localNode);
+        shard.requestRecoveryCancellation(cause);
+        shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
+        expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
+        closeShards(shard);
+    }
+
+    public void testRequestRecoveryCancellationSetsFlagForStoreRecovery() throws Exception {
+        final IndexShard shard = reinitShard(newStartedShard(true));
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+        shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
+
+        final RecoveryCancelledException cause = new RecoveryCancelledException(shard.shardId(), null, localNode);
+        shard.requestRecoveryCancellation(cause);
+        expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
+        closeShards(shard);
+    }
+
+    public void testCancellationFlagSetInCreatedStateCancelsNonPeerRecovery() throws Exception {
+        final IndexShard shard = reinitShard(newStartedShard(true));
+        assertThat(shard.state(), equalTo(IndexShardState.CREATED));
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+
+        shard.requestRecoveryCancellation(new RecoveryCancelledException(shard.shardId(), null, localNode));
+
+        shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
+        expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
+        closeShards(shard);
+    }
+
+    public void testCancellationFlagSetInCreatedStateCancelsPeerRecovery() throws Exception {
+        final IndexMetadata metadata = newTestIndexMetadata();
+        final IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "node1", metadata, null);
+        recoverShardFromStore(primary);
+        final IndexShard replica = newShard(primary.shardId(), false, "node2", metadata, null);
+        assertThat(replica.state(), equalTo(IndexShardState.CREATED));
+
+        final DiscoveryNode node1 = getFakeDiscoNode(primary.routingEntry().currentNodeId());
+        final DiscoveryNode node2 = getFakeDiscoNode(replica.routingEntry().currentNodeId());
+
+        replica.requestRecoveryCancellation(new RecoveryCancelledException(replica.shardId(), node1, node2));
+        replica.markAsRecovering("peer", new RecoveryState(replica.routingEntry(), node1, node2));
+        expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
+
+        closeShards(primary, replica);
+    }
+
     public void testCompletionStatsMarksSearcherAccessed() throws Exception {
         IndexShard indexShard = null;
         try {
@@ -4369,6 +4431,133 @@ public class IndexShardTests extends IndexShardTestCase {
         assertBusy(() -> assertThat(primary.refreshStats().getExternalTotal(), equalTo(externalRefreshesBefore + 1)));
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());
+        }
+        closeShards(primary);
+    }
+
+    public void testEnsureShardSearchActiveDispatchesListenerOffRefreshThread() throws Exception {
+        IndexMetadata metadata = newTestIndexMetadata();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+        primary.scheduledRefresh(refreshed);
+        assertTrue(refreshed.actionGet());
+
+        Settings searchIdleSettings = Settings.builder()
+            .put(primary.indexSettings().getSettings())
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .build();
+        primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+        indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> deferred = new PlainActionFuture<>();
+        primary.scheduledRefresh(deferred);
+        assertFalse(deferred.actionGet());
+        assertTrue("a refresh should be pending while the shard is search idle", primary.hasRefreshPending());
+
+        final String executorName = "ensure-search-active-test";
+        final ExecutorService responseExecutor = Executors.newSingleThreadExecutor(
+            EsExecutors.daemonThreadFactory("test-node", executorName)
+        );
+        try {
+            final AtomicReference<String> listenerThreadName = new AtomicReference<>();
+            final AtomicBoolean registered = new AtomicBoolean();
+            final CountDownLatch latch = new CountDownLatch(1);
+            primary.ensureShardSearchActive(responseExecutor, wasRegistered -> {
+                registered.set(wasRegistered);
+                listenerThreadName.set(Thread.currentThread().getName());
+                latch.countDown();
+            });
+            safeAwait(latch);
+            assertTrue("a refresh was pending so the listener must have been registered as a refresh listener", registered.get());
+            assertThat(
+                "listener must be dispatched to the provided executor",
+                listenerThreadName.get(),
+                containsString("[" + executorName + "]")
+            );
+            assertThat(
+                "listener must not run on a refresh thread",
+                listenerThreadName.get(),
+                not(containsString("[" + ThreadPool.Names.REFRESH + "]"))
+            );
+        } finally {
+            ThreadPool.terminate(responseExecutor, 10, TimeUnit.SECONDS);
+        }
+        closeShards(primary);
+    }
+
+    public void testEnsureShardSearchActiveRunsInlineWhenNoRefreshPending() throws Exception {
+        IndexMetadata metadata = newTestIndexMetadata();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+        primary.scheduledRefresh(refreshed);
+        assertTrue(refreshed.actionGet());
+        assertFalse(primary.hasRefreshPending());
+
+        final ExecutorService responseExecutor = Executors.newSingleThreadExecutor(
+            EsExecutors.daemonThreadFactory("test-node", "ensure-search-active-test")
+        );
+        try {
+            final String callingThreadName = Thread.currentThread().getName();
+            final AtomicReference<String> listenerThreadName = new AtomicReference<>();
+            final AtomicBoolean registered = new AtomicBoolean(true);
+            primary.ensureShardSearchActive(responseExecutor, wasRegistered -> {
+                registered.set(wasRegistered);
+                listenerThreadName.set(Thread.currentThread().getName());
+            });
+            assertFalse("no refresh was pending so the listener must not have been registered", registered.get());
+            assertEquals("listener must run inline on the calling thread", callingThreadName, listenerThreadName.get());
+        } finally {
+            ThreadPool.terminate(responseExecutor, 10, TimeUnit.SECONDS);
+        }
+        closeShards(primary);
+    }
+
+    public void testEnsureShardSearchActiveRunsInlineWhenDispatchRejected() throws Exception {
+        IndexMetadata metadata = newTestIndexMetadata();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> refreshed = new PlainActionFuture<>();
+        primary.scheduledRefresh(refreshed);
+        assertTrue(refreshed.actionGet());
+
+        Settings searchIdleSettings = Settings.builder()
+            .put(primary.indexSettings().getSettings())
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO)
+            .build();
+        primary.indexSettings().getScopedSettings().applySettings(searchIdleSettings);
+        indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
+        PlainActionFuture<Boolean> deferred = new PlainActionFuture<>();
+        primary.scheduledRefresh(deferred);
+        assertFalse(deferred.actionGet());
+        assertTrue("a refresh should be pending while the shard is search idle", primary.hasRefreshPending());
+
+        final Executor rejectingExecutor = command -> { throw new EsRejectedExecutionException("rejected for test"); };
+        try (var mockLog = MockLog.capture(IndexShard.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "dispatch failure warning",
+                    IndexShard.class.getCanonicalName(),
+                    Level.WARN,
+                    "ensureShardSearchActive could not dispatch to [*], running inline"
+                )
+            );
+
+            final AtomicInteger invocations = new AtomicInteger();
+            final AtomicBoolean registered = new AtomicBoolean();
+            final CountDownLatch latch = new CountDownLatch(1);
+            primary.ensureShardSearchActive(rejectingExecutor, wasRegistered -> {
+                registered.set(wasRegistered);
+                invocations.incrementAndGet();
+                latch.countDown();
+            });
+            safeAwait(latch);
+            assertTrue("a refresh was pending so the listener must have been registered as a refresh listener", registered.get());
+            assertEquals("listener must be invoked exactly once when dispatch is rejected", 1, invocations.get());
+            mockLog.assertAllExpectationsMatched();
         }
         closeShards(primary);
     }

@@ -14,10 +14,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -915,9 +917,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "Requires unmapped_fields=LOAD support",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
         );
+        // The text field [partial] is unmapped in some of the queried indices and cannot be implicitly loaded, so a non-loadable
+        // field warning is emitted. That warning is covered elsewhere; here we just ignore it.
         Response resp = runESQLCommand(
             "fls_user",
-            "SET unmapped_fields=\"load\"; FROM index,indexpartial METADATA _index " + "| KEEP _index, value, partial | SORT value"
+            "SET unmapped_fields=\"load\"; FROM index,indexpartial METADATA _index " + "| KEEP _index, value, partial | SORT value",
+            WarningsHandler.PERMISSIVE
         );
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
@@ -1325,9 +1330,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         request.setJsonEntity(Strings.toString(json));
         request.addParameter("error_trace", "true");
         // EXPLAIN queries may trigger a default limit warning, so ignore warnings
-        request.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).setWarningsHandler(warnings -> false)
-        );
+        request.setOptions(runAsUserOptions(user, WarningsHandler.PERMISSIVE));
         return client().performRequest(request);
     }
 
@@ -2150,6 +2153,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     protected Response runESQLCommand(String user, String command) throws IOException {
+        return runESQLCommand(user, command, null);
+    }
+
+    protected Response runESQLCommand(String user, String command, @Nullable WarningsHandler warningsHandler) throws IOException {
         if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
             // add a (high) limit to avoid warnings on default limit
             command += " | limit 10000000";
@@ -2161,14 +2168,21 @@ public class EsqlSecurityIT extends ESRestTestCase {
         json.endObject();
         Request request = new Request("POST", "_query");
         request.setJsonEntity(Strings.toString(json));
-        setUser(request, user);
+        request.setOptions(runAsUserOptions(user, warningsHandler));
         request.addParameter("error_trace", "true");
         return client().performRequest(request);
     }
 
     private static void setUser(Request request, String user) {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        request.setOptions(runAsUserOptions(user, null));
+    }
 
+    static RequestOptions.Builder runAsUserOptions(String user, @Nullable WarningsHandler warningsHandler) {
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user);
+        if (warningsHandler != null) {
+            options.setWarningsHandler(warningsHandler);
+        }
+        return options;
     }
 
     static void addRandomPragmas(XContentBuilder builder) throws IOException {
@@ -2255,6 +2269,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("type", "s3");
         builder.startObject("settings");
         builder.field("region", "us-east-1");
+        builder.field("auth", "anonymous");
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
@@ -2270,6 +2285,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("type", "s3");
         builder.startObject("settings");
         builder.field("region", "us-east-1");
+        builder.field("auth", "anonymous");
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
@@ -2328,6 +2344,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("type", "s3");
         builder.startObject("settings");
         builder.field("region", "us-east-1");
+        builder.field("auth", "anonymous");
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
@@ -2346,6 +2363,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("type", "s3");
         builder.startObject("settings");
         builder.field("region", "us-east-1");
+        builder.field("auth", "anonymous");
         builder.endObject();
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
@@ -2583,6 +2601,39 @@ public class EsqlSecurityIT extends ESRestTestCase {
             assertThat(hits.stream().anyMatch(h -> dataset.equals(h.get("name"))), equalTo(true));
         } finally {
             deleteDatasetAsAdmin(dataset);
+            Request delDs = new Request("DELETE", "/_data_stream/entities-updates-default");
+            setUser(delDs, "test-admin");
+            client().performRequest(delDs);
+            Request delTmpl = new Request("DELETE", "/_index_template/entities-updates-tmpl");
+            setUser(delTmpl, "test-admin");
+            client().performRequest(delTmpl);
+        }
+    }
+
+    /**
+     * Explicit-name counterpart of {@link #testListDatasetsAsNonSuperuserWithCoresidentHiddenDataStream}: a user
+     * authorized on the co-resident data stream asks for it by its literal name, not via a wildcard. Dataset
+     * resolution must preserve explicit-name not-found semantics instead of treating the foreign resource like a
+     * wildcard-expanded value that can be silently filtered away.
+     */
+    public void testGetDatasetByExplicitNameOfCoresidentHiddenDataStream() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+
+        Request tmpl = new Request("PUT", "/_index_template/entities-updates-tmpl");
+        tmpl.setJsonEntity("{\"index_patterns\":[\"entities-updates-*\"],\"data_stream\":{\"hidden\":true}}");
+        setUser(tmpl, "test-admin");
+        assertOK(client().performRequest(tmpl));
+        Request createDs = new Request("PUT", "/_data_stream/entities-updates-default");
+        setUser(createDs, "test-admin");
+        assertOK(client().performRequest(createDs));
+
+        try {
+            Request get = new Request("GET", "/_query/dataset/entities-updates-default");
+            setUser(get, "ds_repro_broad_reader");
+            ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(get));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_NOT_FOUND));
+            assertThat(ex.getMessage(), containsString("dataset [entities-updates-default] not found"));
+        } finally {
             Request delDs = new Request("DELETE", "/_data_stream/entities-updates-default");
             setUser(delDs, "test-admin");
             client().performRequest(delDs);

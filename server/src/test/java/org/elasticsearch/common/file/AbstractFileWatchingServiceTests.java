@@ -130,8 +130,7 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
     private Environment env;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initWatchingService() throws Exception {
         threadpool = new TestThreadPool("file_settings_service_tests");
 
         clusterService = mock(ClusterService.class);
@@ -153,9 +152,8 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeWatchingService() throws Exception {
         fileWatchingService.close();
-        super.tearDown();
         threadpool.shutdownNow();
     }
 

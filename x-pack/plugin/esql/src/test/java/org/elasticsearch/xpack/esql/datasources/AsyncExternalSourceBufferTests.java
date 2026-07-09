@@ -18,7 +18,10 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -266,5 +269,50 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         buffer.incSplitsProcessed();
         assertEquals(2, buffer.currentSplit());
         assertEquals(2, buffer.splitsProcessed());
+    }
+
+    public void testRecordInformationalWarningDoesNotFlipPartial() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        buffer.recordInformationalWarning("null-filled row 3");
+        assertFalse("an informational reader warning is not a partial-result signal", buffer.isPartial());
+        assertEquals("null-filled row 3", buffer.pollWarning());
+        assertNull(buffer.pollWarning());
+    }
+
+    public void testRecordInformationalWarningSharesQueueWithPartialResultsWarnings() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        buffer.recordWarning("truncated at max_record_size");
+        buffer.recordInformationalWarning("null-filled row 3");
+        assertTrue(buffer.isPartial());
+        assertEquals("truncated at max_record_size", buffer.pollWarning());
+        assertEquals("null-filled row 3", buffer.pollWarning());
+        assertNull(buffer.pollWarning());
+    }
+
+    /**
+     * The whole point of the central cap: many independent per-segment/per-chunk {@link SkipWarnings}
+     * instances feeding the same buffer must not multiply the header count by the segment/chunk count.
+     * Regression coverage for the streaming per-chunk flood.
+     */
+    public void testRecordInformationalWarningAppliesOneGlobalCapAcrossManyCallers() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        // Simulate 50 chunks each independently emitting a summary + a detail, as 50 independent
+        // SkipWarnings instances would on the streaming-parallel path.
+        int chunks = 50;
+        for (int c = 0; c < chunks; c++) {
+            buffer.recordInformationalWarning("chunk " + c + " summary");
+            buffer.recordInformationalWarning("chunk " + c + " detail");
+        }
+
+        List<String> drained = new ArrayList<>();
+        String w;
+        while ((w = buffer.pollWarning()) != null) {
+            drained.add(w);
+        }
+
+        int maxInformationalWarnings = SkipWarnings.MAX_ADDED_WARNINGS + 2;
+        assertEquals("total lines must be bounded regardless of how many chunks contributed", maxInformationalWarnings, drained.size());
+        assertTrue("the last line must note suppression", drained.get(drained.size() - 1).contains("further reader warnings suppressed"));
+        assertFalse(buffer.isPartial());
     }
 }

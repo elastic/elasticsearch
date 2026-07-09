@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -65,9 +64,9 @@ public final class FormatNameResolver {
         ? Map.of(READER_PARQUET_RS, FORMAT_PARQUET_RS, READER_JAVA, FORMAT_PARQUET)
         : Map.of(READER_JAVA, FORMAT_PARQUET);
 
-    /** The parquet-rs reader is live iff the external-datasources umbrella and the parquet-rs sub-flag are both on. */
+    /** The parquet-rs reader is live iff the parquet-rs sub-flag is on. */
     public static boolean parquetRsEnabled() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() && ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG.isEnabled();
+        return ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG.isEnabled();
     }
 
     private FormatNameResolver() {}

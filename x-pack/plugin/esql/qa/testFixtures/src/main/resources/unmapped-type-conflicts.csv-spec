@@ -967,29 +967,30 @@ required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
-FROM sample_data, no_mapping_sample_data
-| KEEP event_duration
+FROM sample_data, no_mapping_sample_data METADATA _index
+| KEEP _index, event_duration
 ;
 ignoreOrder:true
 
-event_duration:long
-1756467
-5033755
-8268153
-725448
-1232382
-2764889
-3450233
-725447
-1232381
-1756466
-2764888
-3450232
-5033754
-8268152
+_index:keyword         | event_duration:long
+sample_data            | 1756467
+sample_data            | 5033755
+sample_data            | 8268153
+sample_data            | 725448
+sample_data            | 1232382
+sample_data            | 2764889
+sample_data            | 3450233
+no_mapping_sample_data | 725447
+no_mapping_sample_data | 1232381
+no_mapping_sample_data | 1756466
+no_mapping_sample_data | 2764888
+no_mapping_sample_data | 3450232
+no_mapping_sample_data | 5033754
+no_mapping_sample_data | 8268152
 ;
 
 typeConflictPartiallyUnmappedKeywordFieldKept - old data node
+required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 // Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
@@ -997,53 +998,56 @@ required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_leg
 missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
-FROM sample_data, no_mapping_sample_data
-| KEEP event_duration
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| KEEP _index, event_duration
 ;
 ignoreOrder:true
 
-event_duration:long
-1756467
-5033755
-8268153
-725448
-1232382
-2764889
-3450233
-725447
-1232381
-1756466
-2764888
-3450232
-5033754
-8268152
+_index:keyword         | event_duration:long
+sample_data            | 1756467
+sample_data            | 5033755
+sample_data            | 8268153
+sample_data            | 725448
+sample_data            | 1232382
+sample_data            | 2764889
+sample_data            | 3450233
+no_mapping_sample_data | 725447
+no_mapping_sample_data | 1232381
+no_mapping_sample_data | 1756466
+no_mapping_sample_data | 2764888
+no_mapping_sample_data | 3450232
+no_mapping_sample_data | 5033754
+no_mapping_sample_data | 8268152
 ;
 
 typeConflictPartiallyUnmappedKeywordFieldKept - old coordinator
+required_capability: metadata_fields_remote_test
 required_capability: optional_fields_v5
 missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
-FROM sample_data, no_mapping_sample_data
-| KEEP event_duration
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| KEEP _index, event_duration
 ;
 ignoreOrder:true
 
-event_duration:long
-1756467
-5033755
-8268153
-725448
-1232382
-2764889
-3450233
-null
-null
-null
-null
-null
-null
-null
+_index:keyword         | event_duration:long
+sample_data            | 1756467
+sample_data            | 5033755
+sample_data            | 8268153
+sample_data            | 725448
+sample_data            | 1232382
+sample_data            | 2764889
+sample_data            | 3450233
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
 ;
 
 ###########################

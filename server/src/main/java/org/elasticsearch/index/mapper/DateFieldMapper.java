@@ -259,12 +259,19 @@ public final class DateFieldMapper extends FieldMapper {
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
         if (indexSettings.getMode().isStrictColumnar() == false) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true, true);
+            return new DocValuesParameter.Values(
+                true,
+                DocValuesParameter.Values.Cardinality.LOW,
+                true,
+                true,
+                DocValuesParameter.Values.OnFailure.FAIL
+            );
         }
 
         boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
         boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue, nullability);
+        var onFailure = FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.get(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue, nullability, onFailure);
     }
 
     public static final class Builder extends FieldMapper.Builder {

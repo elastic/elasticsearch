@@ -427,7 +427,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
-
     public void checkCancelled() {
         cancellable.checkCancelled();
     }

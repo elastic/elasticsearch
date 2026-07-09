@@ -1600,9 +1600,6 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     static void assertCannotDoubleRelease(Block block) {
-        // AbstractRefCounted#decRef only asserts on over-release (invalid decRef call: already closed);
-        // assertions are enabled for tests, so this still surfaces, but as an AssertionError, not an
-        // IllegalStateException.
         var ex = expectThrows(AssertionError.class, () -> block.close());
         assertThat(ex.getMessage(), containsString("invalid decRef call: already closed"));
     }

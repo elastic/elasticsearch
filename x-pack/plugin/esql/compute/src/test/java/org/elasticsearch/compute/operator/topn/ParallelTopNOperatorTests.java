@@ -534,9 +534,6 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
     }
 
     /**
-     * Regression test for the data race behind https://github.com/elastic/elasticsearch/issues/152904,
-     * through the real {@link ParallelTopNOperator} rather than in isolation.
-     * <p>
      * Two sibling pages carry two <em>distinct</em> {@link OrdinalBytesRefBlock} instances that
      * share the same underlying dictionary {@link BytesRefVector} (via {@code incRef}), matching
      * what a degenerate, full-range {@link OrdinalBytesRefBlock#slice}/{@link

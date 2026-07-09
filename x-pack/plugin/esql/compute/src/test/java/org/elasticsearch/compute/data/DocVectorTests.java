@@ -299,8 +299,6 @@ public class DocVectorTests extends ComputeTestCase {
         Releasables.closeExpectNoException(block);
         assertThat(block.isReleased(), is(true));
 
-        // AbstractRefCounted#decRef only asserts on over-release (invalid decRef call: already closed);
-        // assertions are enabled for tests, so this still surfaces, but as an AssertionError.
         Throwable e = expectThrows(AssertionError.class, () -> block.close());
         assertThat(e.getMessage(), containsString("invalid decRef call: already closed"));
 

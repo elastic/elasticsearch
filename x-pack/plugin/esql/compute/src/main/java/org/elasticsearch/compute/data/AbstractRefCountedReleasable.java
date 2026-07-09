@@ -15,10 +15,8 @@ import org.elasticsearch.core.Releasable;
  * {@link #decRef()} and {@link #close()} are equivalent.
  * <p>
  * {@link AbstractRefCounted}'s reference count is already thread safe. That matters here because
- * a block's underlying data can be shared -- via {@code incRef}, not a copy -- between sibling
- * pages, e.g. a degenerate, full-range {@link Block#slice}/{@link Block#filter}/
- * {@link Block#keepMask} returns the same instance rather than allocating one. Those sibling
- * pages can end up released concurrently by different threads once dispatched to background
+ * a block's underlying data can be shared -- via {@code incRef} -- between sibling pages. These
+ * sibling pages can be released concurrently by different threads once dispatched to background
  * workers (e.g. by {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator}).
  */
 public abstract class AbstractRefCountedReleasable extends AbstractRefCounted implements Releasable {

@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
@@ -984,6 +985,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
             final IndexRequest indexRequest = getIndexRequestOrNull(item.request());
             Map<String, Object> inferenceFieldsMap = new HashMap<>();
+            Map<String, Object> sourceMap = null;
             for (var entry : response.responses.entrySet()) {
                 var fieldName = entry.getKey();
                 var responses = entry.getValue();
@@ -1005,6 +1007,36 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                     var lst = chunkMap.computeIfAbsent(resp.sourceField(), k -> new ArrayList<>());
                     lst.addAll(resp.toChunks(useLegacyFormat, indexRequest.getContentType()));
+
+                    if (resp instanceof InferenceStringFieldInferenceResponse isfir
+                        && isfir.input() instanceof ReferenceValueInferenceString rvis
+                        && rvis.referenceValue() != null) {
+                        if (sourceMap == null) {
+                            sourceMap = indexRequest.sourceAsMap();
+                        }
+
+                        InferenceString replacementInferenceString = rvis.replaceValueWithReferenceValue();
+                        Object fieldValue = sourceMap.get(fieldName);
+                        switch (fieldValue) {
+                            case null -> throw new IllegalStateException("Field [" + fieldName + "] not found in source map");
+                            case List<?> list -> {
+                                @SuppressWarnings("unchecked")
+                                List<Object> valueList = (List<Object>) list;
+                                valueList.set(isfir.sourceFieldInputIndex(), replacementInferenceString);
+                            }
+                            case Map<?, ?> map -> {
+                                assert isfir.sourceFieldInputIndex() == 0;
+                                sourceMap.put(fieldName, replacementInferenceString);
+                            }
+                            default -> throw new IllegalStateException(
+                                "Source field value type for field ["
+                                    + fieldName
+                                    + "] should be a list or map, found ["
+                                    + fieldValue.getClass().getName()
+                                    + "]"
+                            );
+                        }
+                    }
                 }
 
                 List<String> inputs = useLegacyFormat
@@ -1028,11 +1060,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 inferenceFieldsMap.put(fieldName, result);
             }
 
-            // TODO: Transform inference strings as necessary in source
-            updateIndexSource(item, inferenceFieldsMap);
+            updateIndexSource(item, inferenceFieldsMap, sourceMap);
         }
 
-        private void updateIndexSource(BulkItemRequest item, Map<String, Object> inferenceFieldsMap) throws IOException {
+        private void updateIndexSource(
+            BulkItemRequest item,
+            Map<String, Object> inferenceFieldsMap,
+            @Nullable Map<String, Object> newSourceMap
+        ) throws IOException {
             IndexRequest indexRequest = getIndexRequestOrNull(item.request());
             IndexSource indexSource = indexRequest.indexSource();
             int originalSourceSize = indexSource.byteLength();
@@ -1043,6 +1078,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
                 }
                 indexSource.source(newDocMap, indexSource.contentType());
+            } else if (newSourceMap != null) {
+                newSourceMap.put(InferenceMetadataFieldsMapper.NAME, inferenceFieldsMap);
+                indexSource.source(newSourceMap, indexRequest.getContentType());
             } else {
                 try (XContentBuilder builder = XContentBuilder.builder(indexSource.contentType().xContent())) {
                     appendSourceAndInferenceMetadata(builder, indexSource.bytes(), indexSource.contentType(), inferenceFieldsMap);

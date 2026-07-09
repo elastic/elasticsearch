@@ -940,7 +940,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     writeReductionFailureResponse(out, reductionFailure);
                 }
                 success = true;
-            } catch (IOException e) {
+            } catch (Exception e) {
+                // Any failure here (not just IOException) must still notify the channel: onShardDone only runs once the
+                // CountDown reaches zero, so a caller that catches an exception from this method and retries by calling
+                // onShardDone() again will find the count already at zero and silently no-op, leaving the coordinating
+                // node waiting forever for a response that will never arrive.
                 releaseAllResultsContexts();
                 channelListener.onFailure(e);
                 return;
@@ -1067,7 +1071,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                     NodeQueryResponse.writeMergeResult(out, mergeResult, queryPhaseResultConsumer.topDocsStats);
                     success = true;
-                } catch (IOException e) {
+                } catch (Exception e) {
+                    // See the comment in onShardDone(): any failure here (not just IOException) must still notify the
+                    // channel, since this is the last chance to do so before the CountDown has already reached zero.
                     releaseAllResultsContexts();
                     channelListener.onFailure(e);
                     return;

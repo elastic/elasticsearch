@@ -695,7 +695,9 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
             assertThat(queryRequestBytes, hasSize(1));
             assertThat(queryRequestBytes.get(0).getLong(), greaterThan(queryRequestBytesLocalIndex));
 
-            // Both searches are batched, so result bytes are directly comparable to the baseline.
+            // Both searches are batched, so their result bytes are comparable: batched failures are folded
+            // into the merged NodeQueryResponse as compact exception stamps, not full QuerySearchResult
+            // objects, so batched and non-batched byte counts sit on different scales.
             queryResultBytes = plugin.getLongHistogramMeasurement(QUERY_SHARD_RESULT_BYTES_HISTOGRAM_NAME);
             assertThat(queryResultBytes, hasSize(1));
             assertThat(queryResultBytes.get(0).getLong(), greaterThan(queryResultBytesLocalIndex));

@@ -181,6 +181,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -2108,6 +2109,33 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String logLine = singleLogLine(logger);
         assertThat(logLine, containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"" + maskedValue + "\""));
         assertThat(logLine, not(containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"_action\"")));
+    }
+
+    public void testCustomizerCanAddAuditEntryField() throws Exception {
+        final String customField = "x_" + randomAlphaOfLength(8);
+        final String customValue = randomAlphaOfLength(8);
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            settings,
+            clusterService,
+            logger,
+            threadContext,
+            new AuditLogCustomizer() {
+                @Override
+                public void enrich(AuditEventContext ctx, AuditEntry entry) {
+                    // the field does not exist yet, so this adds a brand-new field rather than overwriting one
+                    assertThat(entry.get(customField), nullValue());
+                    entry.set(customField, customValue);
+                }
+            }
+        );
+
+        auditTrail.anonymousAccessDenied(randomRequestId(), "_action", new MockIndicesRequest(threadContext));
+
+        final String logLine = singleLogLine(logger);
+        // the new field is present
+        assertThat(logLine, containsString("\"" + customField + "\":\"" + customValue + "\""));
+        // and existing fields set by the builder are left untouched
+        assertThat(logLine, containsString("\"" + LoggingAuditTrail.ACTION_FIELD_NAME + "\":\"_action\""));
     }
 
     public void testCustomizerSuppressReceivesPopulatedContext() throws Exception {

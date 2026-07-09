@@ -12,8 +12,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * A mutable view over the fields of a single audit log entry, handed to {@link AuditLogCustomizer#enrich} so that a customizer
- * can read and overwrite fields before the entry is written.
+ * A mutable view over the fields of a single audit log entry. Fields can be read, overwritten, or added before the entry is
+ * written.
  */
 public interface AuditEntry {
 
@@ -35,12 +35,6 @@ public interface AuditEntry {
      */
     AuditEntry set(String field, String value);
 
-    /**
-     * Creates a simple {@link HashMap}-backed entry. Intended for tests.
-     *
-     * @param fields the initial fields; a copy is taken
-     * @return a mutable entry initialized with the given fields
-     */
     static AuditEntry ofFields(Map<String, String> fields) {
         var copy = new HashMap<>(fields);
         return new AuditEntry() {

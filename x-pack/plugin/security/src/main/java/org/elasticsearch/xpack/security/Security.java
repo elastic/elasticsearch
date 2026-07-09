@@ -986,11 +986,13 @@ public class Security extends Plugin
         if (samlAuthenticateResponseHandlerFactory.get() == null) {
             samlAuthenticateResponseHandlerFactory.set(new SamlAuthenticateResponseHandler.DefaultFactory());
         }
-        final AuditLogCustomizer auditLogCustomizer = securityExtensions.stream()
-            .map(ext -> ext.getAuditLogCustomizer(extensionComponents, coreSystemIndices))
-            .filter(c -> c != AuditLogCustomizer.NOOP)
-            .findFirst()
-            .orElse(AuditLogCustomizer.NOOP);
+        final AuditLogCustomizer customAuditLogCustomizer = findValueFromExtensions("audit log customizer", extension -> {
+            final AuditLogCustomizer auditLogCustomizer = extension.getAuditLogCustomizer(extensionComponents, coreSystemIndices);
+            return auditLogCustomizer == AuditLogCustomizer.NOOP ? null : auditLogCustomizer;
+        });
+        final AuditLogCustomizer auditLogCustomizer = customAuditLogCustomizer == null
+            ? AuditLogCustomizer.NOOP
+            : customAuditLogCustomizer;
         final AuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, threadPool, auditLogCustomizer);
         final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState(), clusterService);
         components.add(auditTrailService);

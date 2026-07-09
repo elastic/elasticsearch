@@ -166,8 +166,7 @@ public class SemanticHighlighterTests extends MapperServiceTestCase {
         var mapperService = createMapperService();
         Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
         float[] vector = readDenseVector(queryMap.get("embeddings"));
-        var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup()
-            .getFieldType(SEMANTIC_FIELD_DISK_BBQ);
+        var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_DISK_BBQ);
 
         KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
             fieldType.getEmbeddingsField().fullPath(),
@@ -200,8 +199,7 @@ public class SemanticHighlighterTests extends MapperServiceTestCase {
         var mapperService = createMapperService();
         Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
         float[] vector = readDenseVector(queryMap.get("embeddings"));
-        var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup()
-            .getFieldType(SEMANTIC_FIELD_DISK_BBQ);
+        var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_DISK_BBQ);
 
         KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
             fieldType.getEmbeddingsField().fullPath(),

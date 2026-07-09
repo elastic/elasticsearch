@@ -193,7 +193,7 @@ The connector will fetch all files and folders the service account has access to
 It will attempt to extract the content from Google Suite documents (Google Docs, Google Sheets and Google Slides) and regular files.
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted
+* Content from files bigger than 8 MiB won’t be extracted
 * Permissions are not synced by default. You must first enable [DLS](#es-connectors-google-drive-client-document-level-security). Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::

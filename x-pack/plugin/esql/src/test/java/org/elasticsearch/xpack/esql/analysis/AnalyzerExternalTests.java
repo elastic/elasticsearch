@@ -362,8 +362,9 @@ public class AnalyzerExternalTests extends ESTestCase {
     /**
      * {@code _tier} (canonical name {@code DataTierFieldMapper.NAME}) is snapshot-only in the
      * standard metadata registry. The binding rule must mirror that: in non-snapshot builds, the
-     * name is unknown and skipped (the verifier later surfaces "Unknown column" if the user
-     * references it downstream).
+     * name is unknown, so requesting it via {@link #analyzeExternalWithMetadata} (which models it
+     * as a plain {@link UnresolvedAttribute}, not a METADATA-clause pattern) fails verification
+     * with the usual "Unknown column" diagnostic; in snapshot builds it binds normally.
      */
     public void testStandardMetadataTierSnapshotOnly() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
@@ -371,12 +372,15 @@ public class AnalyzerExternalTests extends ESTestCase {
         DataType registered = MetadataAttribute.dataType("_tier");
         boolean snapshotOnly = registered == null;
 
-        var leafOutput = externalLeafOutput(analyzeExternalWithMetadata(S3_PATH, employeesSchema(), List.of("_tier"), "my_dataset"));
-
-        boolean bound = leafOutput.stream().anyMatch(a -> a.name().equals("_tier"));
         if (snapshotOnly) {
-            assertFalse("_tier must not bind outside snapshot builds", bound);
+            org.elasticsearch.xpack.esql.VerificationException e = expectThrows(
+                org.elasticsearch.xpack.esql.VerificationException.class,
+                () -> analyzeExternalWithMetadata(S3_PATH, employeesSchema(), List.of("_tier"), "my_dataset")
+            );
+            assertThat(e.getMessage(), containsString("Unknown column [_tier]"));
         } else {
+            var leafOutput = externalLeafOutput(analyzeExternalWithMetadata(S3_PATH, employeesSchema(), List.of("_tier"), "my_dataset"));
+            boolean bound = leafOutput.stream().anyMatch(a -> a.name().equals("_tier"));
             assertTrue("_tier must bind in snapshot builds", bound);
         }
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService;
@@ -111,6 +112,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomVector;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
@@ -2659,11 +2661,13 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(as(order.child(), FieldAttribute.class).name(), equalTo("salary"));
         assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
         assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(topNBy.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.SORTED));
 
         var exchangeExec = as(topNBy.child(), ExchangeExec.class);
         var projectDataNode = as(exchangeExec.child(), ProjectExec.class);
         var fieldExtractDataNode = as(projectDataNode.child(), FieldExtractExec.class);
         var topNExec = as(fieldExtractDataNode.child(), TopNByExec.class);
+        assertThat(topNExec.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.NOT_SORTED));
         var fieldExtractExec = as(topNExec.child(), FieldExtractExec.class);
         var esQueryExec = as(fieldExtractExec.child(), EsQueryExec.class);
     }
@@ -2792,17 +2796,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         final int k;
 
         KnnFunctionTestCase() {
-            super(Knn.class, "dense_vector", randomVector());
+            super(Knn.class, "dense_vector", randomVector(randomIntBetween(10, 20)));
             k = randomIntBetween(1, 10);
-        }
-
-        private static Object randomVector() {
-            int numDims = randomIntBetween(10, 20);
-            float[] vector = new float[numDims];
-            for (int i = 0; i < numDims; i++) {
-                vector[i] = randomFloat();
-            }
-            return vector;
         }
 
         @Override

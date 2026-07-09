@@ -218,6 +218,65 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test for a leak where a page buffered before {@link AsyncExternalSourceBuffer#onFailure}
+     * is never released.
+     * <p>
+     * {@code onFailure} deliberately leaves already-queued pages in place so the driver can drain them
+     * via {@code getOutput()}/{@link AsyncExternalSourceBuffer#pollPage()} before the failure surfaces.
+     * But {@link AsyncExternalSourceOperator#close()} always calls {@code finish(true)}, and the prior
+     * implementation gated {@link AsyncExternalSourceBuffer#discardPages} behind the {@code noMoreInputs}
+     * CAS transition — which {@code onFailure} had already performed, so {@code finish(true)} always lost
+     * the race and skipped the discard. A close that arrives without the driver ever draining the queue
+     * (e.g. cross-driver task cancellation cutting this operator's poll loop before it runs) leaked the
+     * page's blocks forever.
+     */
+    public void testFinishAfterFailureStillDiscardsQueuedPages() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        Page page = createTestPage(2, 5);
+        IntBlock block = page.getBlock(0);
+        buffer.addPage(page);
+        assertEquals(1, buffer.size());
+
+        buffer.onFailure(new RuntimeException("simulated read failure"));
+        assertEquals("onFailure must not itself discard: the driver may still drain via pollPage()", 1, buffer.size());
+        assertFalse(block.isReleased());
+
+        // Simulates AsyncExternalSourceOperator#close() -> finish() arriving without the driver ever
+        // polling this page out (e.g. abrupt cancellation before the operator's own poll loop ran).
+        boolean transitioned = buffer.finish(true);
+        assertFalse("onFailure already performed the transition", transitioned);
+        assertEquals("finish(true) must discard the page onFailure left queued", 0, buffer.size());
+        assertEquals(0, buffer.bytesInBuffer());
+        assertTrue("the page's blocks must be released, not leaked", block.isReleased());
+    }
+
+    /**
+     * Companion to {@link #testFinishAfterFailureStillDiscardsQueuedPages} for the non-failure case: a
+     * prior {@code finish(false)} (natural producer EOF, called before the driver drained every page)
+     * must not prevent a later {@code finish(true)} — e.g. from {@code AsyncExternalSourceOperator#close()}
+     * — from discarding whatever is still queued.
+     */
+    public void testFinishTrueAfterFinishFalseStillDiscardsQueuedPages() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        Page page = createTestPage(2, 5);
+        IntBlock block = page.getBlock(0);
+        buffer.addPage(page);
+        assertEquals(1, buffer.size());
+
+        // Producer reached natural EOF before the driver polled this page out.
+        boolean firstTransitioned = buffer.finish(false);
+        assertTrue(firstTransitioned);
+        assertEquals(1, buffer.size());
+        assertFalse(block.isReleased());
+
+        boolean secondTransitioned = buffer.finish(true);
+        assertFalse("finish(false) already performed the transition", secondTransitioned);
+        assertEquals("finish(true) must discard the page finish(false) left queued", 0, buffer.size());
+        assertEquals(0, buffer.bytesInBuffer());
+        assertTrue("the page's blocks must be released, not leaked", block.isReleased());
+    }
+
     public void testFormatReaderStatusGetterMatchesLastRecorded() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
         assertNull(buffer.formatReaderStatus());

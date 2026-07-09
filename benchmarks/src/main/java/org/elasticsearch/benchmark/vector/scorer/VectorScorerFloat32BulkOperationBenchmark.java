@@ -10,6 +10,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -105,7 +106,7 @@ public class VectorScorerFloat32BulkOperationBenchmark {
 
             vectors = new float[numVectors][];
             for (int v = 0; v < numVectors; v++) {
-                vectors[v] = randomFloatArray(random, dims);
+                vectors[v] = VectorTestUtils.randomFloatVector(random, dims);
             }
         }
 

@@ -156,17 +156,25 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
     }
 
     @Override
+    public Page tryAdvance() {
+        Page filePage = delegate.tryAdvance();
+        return filePage != null ? adaptPage(filePage) : null;
+    }
+
+    @Override
     public Page next() {
         if (delegate.hasNext() == false) {
             throw new NoSuchElementException();
         }
-        Page filePage = delegate.next();
+        return adaptPage(delegate.next());
+    }
+
+    private Page adaptPage(Page filePage) {
         try {
             Page schemaAdapted = mapping.mapPage(filePage, blockFactory, perFileColumnTypes, outputColumnNames, castWarnings());
             if (rowPositionInputIndex < 0) {
                 return schemaAdapted;
             }
-            // Extend the schema-adapted page with the row-position block in the trailing slot.
             int width = schemaAdapted.getBlockCount();
             Block[] withRowPos = new Block[width + 1];
             try {

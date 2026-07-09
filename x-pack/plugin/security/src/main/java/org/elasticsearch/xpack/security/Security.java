@@ -990,9 +990,7 @@ public class Security extends Plugin
             final AuditLogCustomizer auditLogCustomizer = extension.getAuditLogCustomizer(extensionComponents, coreSystemIndices);
             return auditLogCustomizer == AuditLogCustomizer.NOOP ? null : auditLogCustomizer;
         });
-        final AuditLogCustomizer auditLogCustomizer = customAuditLogCustomizer == null
-            ? AuditLogCustomizer.NOOP
-            : customAuditLogCustomizer;
+        final AuditLogCustomizer auditLogCustomizer = customAuditLogCustomizer == null ? AuditLogCustomizer.NOOP : customAuditLogCustomizer;
         final AuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, threadPool, auditLogCustomizer);
         final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState(), clusterService);
         components.add(auditTrailService);

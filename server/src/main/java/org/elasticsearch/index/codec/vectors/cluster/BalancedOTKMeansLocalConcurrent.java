@@ -11,12 +11,12 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Concurrent implementation of mini-batch optimal transport k-means.
@@ -42,7 +42,7 @@ class BalancedOTKMeansLocalConcurrent<V> extends BalancedOTKMeansLocal<V> {
     @Override
     protected void assign(
         ClusteringVectorValues<V> vectors,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
@@ -70,16 +70,6 @@ class BalancedOTKMeansLocalConcurrent<V> extends BalancedOTKMeansLocal<V> {
             );
         }
         executor.invokeAll(runners);
-    }
-
-    @Override
-    protected int[] assignSpilled(
-        ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kmeansIntermediate,
-        NeighborHood[] neighborhoods,
-        float soarLambda
-    ) throws IOException {
-        return assignSpilledConcurrent(executor, numWorkers, vectors, ops, kmeansIntermediate, neighborhoods, soarLambda);
     }
 
     @Override

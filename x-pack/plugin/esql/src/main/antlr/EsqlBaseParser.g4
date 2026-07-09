@@ -131,8 +131,8 @@ subquery
 
 subquerySourceCommand
     : fromCommand
-    | {this.isDevVersion()}? rowCommand
-    | {this.isDevVersion()}? timeSeriesCommand
+    | rowCommand
+    | timeSeriesCommand
     ;
 
 indexPattern
@@ -400,7 +400,7 @@ dedupCommand
     ;
 
 highlightCommand
-    : DEV_HIGHLIGHT queryText=string ON highlightFields=qualifiedNames commandNamedParameters
+    : DEV_HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryText=string ON highlightFields=qualifiedNames commandNamedParameters
     ;
 
 qualifiedNames

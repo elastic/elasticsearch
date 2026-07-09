@@ -538,6 +538,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                     request.sourceField(),
                                     request.fieldInputOrder(),
                                     request.sourceFieldInputIndex(),
+                                    request.input(),
                                     inferenceProvider.model,
                                     embedding
                                 )

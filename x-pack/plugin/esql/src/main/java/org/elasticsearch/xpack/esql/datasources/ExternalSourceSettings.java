@@ -10,26 +10,42 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.List;
 
 /**
- * Cluster settings for controlling ESQL external source behavior; all node-scoped. The connection bound
- * ({@link #MAX_CONNECTIONS}) and the throttle retry budget are read at node startup — the former sizes the SDK
- * connection pools and the blocking-read thread pool when they are built, the latter is read when the
- * storage-provider registry initializes — so a change to either takes effect after a node restart.
+ * Cluster settings for controlling ESQL external source behavior; all node-scoped. The external-read concurrency
+ * bound ({@link #MAX_CONCURRENT_REQUESTS}) and the throttle retry budget are read at node startup — the concurrency
+ * bound sizes both the per-scheme permit semaphores and the backend SDK HTTP connection pools when they are built,
+ * the retry budget is read when the storage-provider registry initializes — so a change to either takes effect
+ * after a node restart.
  * <p>
- * Covers three areas: the per-backend external-read concurrency bound ({@link #MAX_CONNECTIONS}); reactive
- * throttle handling for object stores (the retry duration budget — throttling is handled by backoff, not a
- * concurrency cap); and glob/listing safety limits (max discovered files, max brace expansion) to prevent
- * degenerate queries from overwhelming storage backends.
+ * Covers three areas: the external-read concurrency bound (the single {@link #MAX_CONCURRENT_REQUESTS} knob, which
+ * sizes the in-flight-read permit semaphore and the SDK connection pools below it); reactive throttle handling for
+ * object stores (the retry duration budget — throttling is handled by backoff, not a concurrency cap); and
+ * glob/listing safety limits (max discovered files, max brace expansion) to prevent degenerate queries from
+ * overwhelming storage backends.
  */
 public final class ExternalSourceSettings {
+
+    private static final Logger logger = LogManager.getLogger(ExternalSourceSettings.class);
 
     private ExternalSourceSettings() {}
 
     /** Blob-store access concurrency per allocated processor — the {@code snapshot_meta} thread pool's slope. */
     static final int BLOB_STORE_CONCURRENCY_PER_PROCESSOR = 3;
+
+    /**
+     * Floor for the CPU-derived blob-store access concurrency. Blob-store reads are latency-bound I/O whose threads
+     * spend most of their life parked on the network, so even a small node (a handful of allocated processors, or the
+     * single-processor shape of small test/CI nodes) must still drive enough in-flight requests to keep a store busy
+     * and, crucially, to run the parallel-parse pipeline without starving itself. {@code processors * 3} alone bottoms
+     * out at 3 on a one-processor node, which is too few to host the segment parsers plus their coordination; floor it
+     * at 16 so the concurrency bound — and the {@code esql_external_io} pool it sizes — never collapses that small.
+     */
+    static final int BLOB_STORE_CONCURRENCY_FLOOR = 16;
 
     /**
      * Ceiling for the CPU-derived blob-store access concurrency. Mirrors the {@code snapshot_meta} thread pool's
@@ -41,13 +57,16 @@ public final class ExternalSourceSettings {
 
     /**
      * The default per-node concurrency for accessing an external blob store, derived from the node's allocated
-     * processors using the {@code snapshot_meta} thread pool's sizing shape ({@code processors * 3}) with a 100
-     * ceiling. This is the single source of truth for blob-store access concurrency so metadata discovery and
-     * data retrieval stay consistent: both are latency-bound I/O against object stores and should scale the same
-     * way with node size rather than each picking an ad-hoc constant.
+     * processors using the {@code snapshot_meta} thread pool's sizing shape ({@code processors * 3}), clamped to
+     * {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]}. This
+     * is the single source of truth for blob-store access concurrency so metadata discovery and data retrieval stay
+     * consistent: both are latency-bound I/O against object stores and should scale the same way with node size rather
+     * than each picking an ad-hoc constant. The floor keeps small nodes from self-throttling (and from sizing the
+     * {@code esql_external_io} pool too small to run the parse pipeline); the ceiling bounds a single store's load.
      */
     public static int defaultBlobStoreConcurrency(int allocatedProcessors) {
-        return Math.min(allocatedProcessors * BLOB_STORE_CONCURRENCY_PER_PROCESSOR, BLOB_STORE_CONCURRENCY_CEILING);
+        int scaled = allocatedProcessors * BLOB_STORE_CONCURRENCY_PER_PROCESSOR;
+        return Math.min(Math.max(scaled, BLOB_STORE_CONCURRENCY_FLOOR), BLOB_STORE_CONCURRENCY_CEILING);
     }
 
     /** Convenience overload resolving allocated processors from the given settings. */
@@ -56,28 +75,115 @@ public final class ExternalSourceSettings {
     }
 
     /**
-     * The effective per-node blob-store access concurrency that every external access path should read, so one knob
-     * governs metadata discovery and data reads alike. On this branch it resolves to the CPU-bound
-     * {@link #defaultBlobStoreConcurrency(Settings)} default; once the per-query concurrency work (PR B) lands its
-     * operator setting on top, this accessor becomes the override-aware value and both paths pick that up unchanged
-     * — the call sites do not move, only this body does.
+     * The effective per-node blob-store access concurrency that every external access path reads, so one knob
+     * governs metadata discovery and data reads alike: the operator's {@link #MAX_CONCURRENT_REQUESTS} value when
+     * set, otherwise the CPU-bound {@link #defaultBlobStoreConcurrency(Settings)} default. The data-read path bounds
+     * in-flight reads with a per-scheme permit semaphore sized by this value ({@code StorageProviderRegistry}), and
+     * the metadata-discovery fan-out ({@code TransportEsqlQueryAction.externalSourceConcurrency()}) uses the same
+     * value — so an operator override reaches both paths.
      */
     public static int blobStoreConcurrency(Settings settings) {
-        return defaultBlobStoreConcurrency(settings);
+        return MAX_CONCURRENT_REQUESTS.get(settings);
     }
 
     /**
-     * Maximum concurrent in-flight external-storage reads per backend, per node. Sizes the S3/Azure SDK connection
-     * pools and the {@code esql_external_blocking_io} thread pool. Static (NodeScope): thread pools and SDK pools
-     * are fixed at startup.
+     * Thread count for the dedicated {@code esql_external_io} pool ({@code EsqlPlugin}). Sized to exactly the single
+     * concurrency knob {@link #blobStoreConcurrency(Settings)} — no headroom — because every blocking task that lands
+     * on this pool is a permit-gated reader (remote schemes) or is bounded by the pool itself ({@code file://}, which
+     * is not permit-wrapped), so the pool never needs more than {@code N} threads. The parse pipeline's page consumer
+     * runs on {@code esql_worker}, not here (see {@code AsyncExternalSourceOperatorFactory}), so a full pool of readers
+     * can never starve its own drain; that separation is what makes {@code pool == permits} safe rather than
+     * deadlock-prone. One exception to tracking the knob: {@code max_concurrent_requests=0} disables the <em>permit</em>
+     * limiter (unbounded in-flight reads), but the I/O pool still needs threads to run the reads and parse pipeline, so
+     * it falls back to the CPU-scaled {@link #defaultBlobStoreConcurrency(Settings)} default rather than a zero-thread
+     * pool. Always {@code >= 1}.
      */
-    public static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
-        "esql.external.max_connections",
-        512,
-        1,
+    public static int externalIoThreads(Settings settings) {
+        int concurrency = blobStoreConcurrency(settings);
+        return concurrency > 0 ? concurrency : defaultBlobStoreConcurrency(settings);
+    }
+
+    /**
+     * The single external-read concurrency knob, per scheme, per node. It sizes both the per-scheme permit semaphore
+     * that bounds in-flight data reads ({@code StorageProviderRegistry}) and the backend SDK HTTP connection pools
+     * (S3 Netty {@code maxConcurrency}, Azure reactor-netty {@code ConnectionProvider}), and — via
+     * {@link #blobStoreConcurrency(Settings)} — the metadata-discovery fan-out. Set to 0 to disable permit-based
+     * concurrency limiting entirely.
+     * <p>
+     * The default is CPU-bound rather than a fixed literal: {@link #defaultBlobStoreConcurrency(Settings)} — the
+     * {@code snapshot_meta} sizing shape ({@code allocatedProcessors * 3}) clamped to
+     * {@code [}{@value #BLOB_STORE_CONCURRENCY_FLOOR}{@code , }{@value #BLOB_STORE_CONCURRENCY_CEILING}{@code ]}. That
+     * scales in-flight reads with node size so a wide fan-out over many small blobs is not self-throttled by a low
+     * fixed cap, while the floor keeps small nodes from collapsing to a handful of permits and the ceiling bounds a
+     * single store's load. Operators can raise it (up to 500) for high-throughput clusters or lower it when a store
+     * throttles.
+     * <p>
+     * Static ({@link Setting.Property#NodeScope}): the value sizes the per-scheme semaphores and SDK pools when they
+     * are built and there is no settings-update consumer to resize a live {@link java.util.concurrent.Semaphore} or
+     * connection pool, so a change takes effect after a node restart.
+     */
+    public static final Setting<Integer> MAX_CONCURRENT_REQUESTS = Setting.intSetting(
+        "esql.external.max_concurrent_requests",
+        s -> Integer.toString(defaultBlobStoreConcurrency(s)),
+        0,
+        500,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Upper bound on how many stream-only-compressed (gzip/zstd) segmentators may occupy the
+     * {@code esql_external_io} pool at once, across all queries and operators on the node. Each open streaming read
+     * runs one long-lived segmentator that pins a pool thread while it blocks on its chunk/buffer queues and the
+     * upstream decompress stream; its per-chunk parser tasks run on the same pool. Without a cap, enough
+     * concurrently-open reads pin every pool thread and their parser tasks — queued behind the segmentators — never
+     * get a thread, deadlocking the reads (elastic/esql-planning #1093, item 4). Bounding concurrent segmentators
+     * below the pool size guarantees threads remain free for parser tasks.
+     * <p>
+     * Default {@code 0} means "derive": the effective cap tracks the {@code esql_external_io} pool size
+     * ({@link #externalIoThreads(Settings)}), clamped to {@code poolSize - 1} so at least one pool thread always
+     * remains for parser tasks. An explicit positive value overrides the derivation (still clamped below the pool
+     * size). Node-scoped: the pool is sized at startup.
+     */
+    public static final Setting<Integer> MAX_CONCURRENT_SEGMENTATORS = Setting.intSetting(
+        "esql.external.max_concurrent_segmentators",
+        0,
+        0,
         4096,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Effective cap on concurrent stream-only-compressed segmentators for a node, resolving {@link #MAX_CONCURRENT_SEGMENTATORS}
+     * ({@code 0} = derive) and clamping the result to {@code [1, poolSize - 1]} so at least one {@code esql_external_io}
+     * thread always remains for the one-shot parser tasks that a segmentator depends on. The pool size is
+     * {@link #externalIoThreads(Settings)}, which sizes that pool; the derived default tracks it, so the cap is
+     * {@code poolSize - 1} unless an operator sets a lower explicit value. An explicit value above {@code poolSize - 1}
+     * is clamped and logged at WARN so the operator sees it was ineffective.
+     * <p>
+     * Degenerate case: a {@code poolSize == 1} pool (only reachable by explicitly setting
+     * {@code esql.external.max_concurrent_requests=1}) floors the cap at 1, which cannot leave a free parser thread —
+     * parallel streaming needs {@code poolSize >= 2} to be deadlock-free. At that size the deadlock-free path is the
+     * single-pass fallback (parallelism {@code <= 1}), which runs no segmentator; a parallel streaming read on a
+     * one-thread pool is a misconfiguration this cap cannot rescue.
+     */
+    public static int maxConcurrentSegmentators(Settings settings) {
+        int poolSize = externalIoThreads(settings);
+        int configured = MAX_CONCURRENT_SEGMENTATORS.get(settings);
+        int desired = configured > 0 ? configured : poolSize;
+        int cap = Math.max(1, Math.min(desired, poolSize - 1));
+        if (configured > 0 && configured > poolSize - 1) {
+            logger.warn(
+                "[{}]=[{}] exceeds the esql_external_io pool headroom and was clamped to [{}] (pool size [{}] - 1) "
+                    + "so a thread stays free for parser tasks; lower the setting or raise [{}] to make it effective",
+                MAX_CONCURRENT_SEGMENTATORS.getKey(),
+                configured,
+                cap,
+                poolSize,
+                MAX_CONCURRENT_REQUESTS.getKey()
+            );
+        }
+        return cap;
+    }
 
     /**
      * Maximum total time (in seconds) to spend retrying throttled cloud API requests
@@ -157,6 +263,24 @@ public final class ExternalSourceSettings {
     );
 
     /**
+     * Gates provisioning data sources that use workload-identity federation (e.g. S3 {@code role_arn},
+     * GCS {@code sts_audience}, Azure {@code tenant_id}/{@code client_id}). A single setting covers every
+     * file-based provider, since they all funnel through {@code FileDataSourceValidator} and share the
+     * {@code DataSourceConfiguration#hasFederatedAuth()} mechanism.
+     * <p>
+     * Disabled by default. This is an operator-dynamic setting: changes take effect immediately without a node
+     * restart, and it can only be changed by an operator (e.g. via file-based settings), not by an end user
+     * through the public {@code _cluster/settings} API — so it can be enabled fleet-wide (or per-deployment) via
+     * gitops without exposing a customer-facing toggle.
+     */
+    public static final Setting<Boolean> FEDERATED_IDENTITY_ENABLED = Setting.boolSetting(
+        "esql.datasource.federated_identity.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
+    /**
      * Allowlist of local filesystem root paths from which ES|QL {@code file://} external sources are permitted to read.
      * Mirrors {@code path.repo}: the list <em>is</em> the enable — an empty list (the default) disables local-disk reads
      * entirely. When non-empty, a {@code file://} path is allowed only if it normalizes to a location under one of the
@@ -171,12 +295,14 @@ public final class ExternalSourceSettings {
 
     public static List<Setting<?>> settings() {
         return List.of(
-            MAX_CONNECTIONS,
+            MAX_CONCURRENT_REQUESTS,
+            MAX_CONCURRENT_SEGMENTATORS,
             THROTTLE_MAX_RETRY_DURATION,
             MAX_DISCOVERED_FILES,
             MAX_GLOB_EXPANSION,
             WORKLOAD_IDENTITY_ENABLED,
             MANAGED_IDENTITY_ENABLED,
+            FEDERATED_IDENTITY_ENABLED,
             LOCAL_ALLOWED_PATHS
         );
     }

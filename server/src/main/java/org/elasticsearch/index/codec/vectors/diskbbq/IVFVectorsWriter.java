@@ -199,7 +199,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
      * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsWriter} returns a resolved {@link IvfSegmentConfig};
      * other writers return {@code null}.
      */
-    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+    protected IvfSegmentConfig resolveMergeConfig(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         return null;
     }
 
@@ -361,21 +361,15 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         for (int d = 0; d < dimension; d++) {
             centroid[d] /= count;
         }
-        // For flat centroid assignments there is a single global centroid and no SOAR (secondary) centroid assignments,
-        // so we pass an empty array for soarAssignments.
-        int[] assignments = new int[count];
-        return new CentroidInformation(dimension, new float[][] { centroid }, assignments, new SoarAssignments(new int[0]));
+        // For flat centroid assignments there is a single global centroid and no secondary centroid assignments
+        return new CentroidInformation(dimension, new float[][] { centroid }, new int[count], OverspillAssignments.NONE);
     }
 
     @Override
     public final IORunnable mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        // Per-field merge hook (see beginIvfFieldMerge): subclasses such as ESNextDiskBBQVectorsWriter resolve their
-        // segment config here, and it must run for every field, including non-float encodings. The result is intentionally
-        // not used in this base implementation - the float path re-resolves it inside mergeOneFieldIVF and the byte path
-        // writes IvfSegmentConfig.NONE below.
-        beginIvfFieldMerge(fieldInfo, mergeState);
+        IvfSegmentConfig resolvedConfig = resolveMergeConfig(fieldInfo, mergeState);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
-            mergeOneFieldIVF(fieldInfo, mergeState);
+            mergeOneFieldIVF(fieldInfo, mergeState, resolvedConfig);
         } else {
             // we simply write information that the field is present but we don't do anything with it.
             writeMeta(fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, 0, 0, IvfSegmentConfig.NONE);
@@ -442,8 +436,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
     ) throws IOException;
 
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
-    private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        IvfSegmentConfig resolvedConfig = beginIvfFieldMerge(fieldInfo, mergeState);
+    private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig resolvedConfig) throws IOException {
         final IvfSegmentConfig ivfSegmentConfig = resolvedConfig != null ? resolvedConfig : IvfSegmentConfig.NONE;
         final int numVectors;
         String tempRawVectorsFileName = null;

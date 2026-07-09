@@ -519,6 +519,16 @@ true          | null
 null       | false
 ;
 
+containsKeywordField
+required_capability: fn_contains
+from employees | sort emp_no | limit 3 | eval c = contains(first_name, last_name) | keep emp_no, c;
+
+emp_no:integer | c:boolean
+10001          | false
+10002          | false
+10003          | false
+;
+
 // Note: no matches in MV returned
 in
 skip_flattened_rewrite: field_extract_multivalue_null
@@ -625,6 +635,17 @@ ROW a=["foo", "foo", "bar", "foo"]
 // end::mv_dedupe-result[]
 ;
 
+mvDedupeKeywordField
+FROM employees
+| WHERE emp_no == 10001
+| EVAL deduped = MV_DEDUPE(job_positions)
+| KEEP emp_no, deduped
+;
+
+emp_no:integer | deduped:keyword
+10001          | [Accountant, Senior Python Developer]
+;
+
 mvJoin
 // tag::mv_concat[]
 ROW a=["foo", "zoo", "bar"]
@@ -662,6 +683,18 @@ ROW a="foo;bar;baz"
   a:keyword | last_a:keyword
 foo;bar;baz | "baz"
 // end::mv_last-result[]
+;
+
+mvLastKeywordField
+request_stored: skip
+FROM employees
+| WHERE emp_no == 10001
+| EVAL last_job = MV_LAST(job_positions)
+| KEEP emp_no, last_job
+;
+
+emp_no:integer | last_job:keyword
+10001          | "Senior Python Developer"
 ;
 
 mvMax
@@ -1129,6 +1162,23 @@ emp_no:integer | full_name:keyword
 10005          | Kyoichi words words words Maliniak
 ;
 
+mvZipFieldDelim
+required_capability: mv_sort
+
+FROM employees
+| WHERE emp_no in (10001, 10002, 10003, 10004, 10005)
+| EVAL full_name = mv_zip(first_name, last_name, gender)
+| KEEP emp_no, full_name
+| SORT emp_no;
+
+emp_no:integer | full_name:keyword
+10001          | GeorgiMFacello
+10002          | BezalelFSimmel
+10003          | PartoMBamford
+10004          | ChirstianMKoblick
+10005          | KyoichiMMaliniak
+;
+
 
 showTextFields
 from hosts | sort description, card, ip0, ip1 | where host == "beta" | keep host, host_group, description;
@@ -1332,6 +1382,16 @@ Arumugam          |A              |1A94           |true
 Berni             |B              |1B14           |true           
 Bezalel           |B              |1B2            |true           
 Bojan             |B              |1B23           |true
+;
+
+replaceWithFieldRegexAndNewString
+from employees | where emp_no in (10001, 10002, 10003, 10020) | eval replaced = replace(first_name, gender, last_name) | keep emp_no, first_name, gender, last_name, replaced | sort emp_no;
+
+emp_no:integer | first_name:keyword | gender:keyword | last_name:keyword | replaced:keyword
+10001          | Georgi              | M              | Facello            | Georgi
+10002          | Bezalel             | F              | Simmel             | Bezalel
+10003          | Parto               | M              | Bamford            | Parto
+10020          | Mayuko              | M              | Warwick            | Warwickayuko
 ;
 
 replaceRegex
@@ -1689,6 +1749,15 @@ FROM k8s-downsampled METADATA _index
 
 is_there:boolean
 true
+;
+
+endsWithKeywordField
+from employees | sort emp_no | limit 3 | eval e = ends_with(first_name, last_name) | keep emp_no, e;
+
+emp_no:integer | e:boolean
+10001          | false
+10002          | false
+10003          | false
 ;
 
 likeOnIndexWithMinusWhere
@@ -2269,6 +2338,16 @@ gender:keyword | split:keyword
 M              | [foo, bar]
 ;
 
+splitFieldValue
+from employees | where emp_no in (10001, 10002, 10003, 10005) | eval parts = split(last_name, "a") | keep emp_no, last_name, parts | sort emp_no;
+
+emp_no:integer | last_name:keyword | parts:keyword
+10001          | Facello           | [F, cello]
+10002          | Simmel            | Simmel
+10003          | Bamford           | [B, mford]
+10005          | Maliniak          | [M, lini, k]
+;
+
 locate
 // tag::locate[]
 ROW a = "hello"
@@ -2387,6 +2466,15 @@ l1:integer | l2:integer
 null       | 0
 ;
 
+locateKeywordField
+from employees | sort emp_no | limit 3 | eval l = locate(first_name, last_name) | keep emp_no, l;
+
+emp_no:integer | l:integer
+10001          | 0
+10002          | 0
+10003          | 0
+;
+
 mvContains
 required_capability: fn_mv_contains_v1
 // tag::mv_contains[]
@@ -2414,6 +2502,19 @@ ROW setA = ["a","c"], setB = ["a", "b", "c"]
 setA:keyword | setB:keyword | a_subset_of_b:boolean | b_subset_of_a:boolean 
 [a, c]       | [a, b, c]    | true                  | false
 // end::mv_contains_bothsides-result[]
+;
+
+mvContainsKeywordSubset
+required_capability: fn_mv_contains_v1
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL contains = MV_CONTAINS(job_positions, last_name)
+| KEEP emp_no, contains
+;
+
+emp_no:integer | contains:boolean
+10001          | false
 ;
 
 mvContainsCombinations

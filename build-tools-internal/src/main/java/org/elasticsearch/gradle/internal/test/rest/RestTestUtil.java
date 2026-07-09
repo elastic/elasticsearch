@@ -37,7 +37,7 @@ public class RestTestUtil {
      * overload when no Gradle test-cluster functionality is required.
      */
     public static TaskProvider<Test> registerPlainRestTestTask(Project project, SourceSet sourceSet, String taskName) {
-        return project.getExtensions().getByType(RestIntegTests.class).register(taskName, testTask -> {
+        return project.getExtensions().getByType(RestIntegTestsExtension.class).register(taskName, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             testTask.setDescription("Runs the REST tests against an external cluster");
             project.getPlugins().withType(JavaPlugin.class, t -> testTask.mustRunAfter(project.getTasks().named("test")));

@@ -49,12 +49,12 @@ import java.util.Set;
  * {@code register} action (Gradle executes container {@code configureEach} actions in
  * registration order and the {@code register} action last).
  */
-public class RestIntegTests {
+public class RestIntegTestsExtension {
 
     private final Project project;
     private final Set<String> restTestTaskNames = new HashSet<>();
 
-    RestIntegTests(Project project) {
+    public RestIntegTestsExtension(Project project) {
         this.project = project;
     }
 

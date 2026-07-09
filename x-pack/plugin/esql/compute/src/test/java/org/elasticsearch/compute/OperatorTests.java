@@ -512,7 +512,8 @@ public class OperatorTests extends MapperServiceTestCase {
             randomPageSize(),
             limit,
             false, // no scoring
-            () -> 0L
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
         );
     }
 
@@ -530,7 +531,8 @@ public class OperatorTests extends MapperServiceTestCase {
             randomIntBetween(1, 10),
             tagTypes,
             LuceneOperator.NO_LIMIT,
-            () -> 0L
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
         );
     }
 }

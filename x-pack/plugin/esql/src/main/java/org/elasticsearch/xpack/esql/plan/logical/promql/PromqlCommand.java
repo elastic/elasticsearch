@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -65,6 +67,12 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     public static final String INDEX = "index";
     public static final String DEFAULT_PROMQL_INDEX_PATTERN = "metrics-*";
     public static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, INDEX);
+
+    /** Synthetic column tagging each union branch with its position, used for left-preferring dedup. */
+    private static final String BRANCH_COLUMN = "_branch";
+
+    /** Synthetic column name for the materialised {@code @timestamp + offset} expression. */
+    private static final String TIMESTAMP_COLUMN = "_timestamp";
 
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
     // Prometheus selector lookback delta for plain instant selectors without an explicit [range].
@@ -283,6 +291,16 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return STEP;
     }
 
+    /** Name of the synthetic column tagging each union branch with its position, used for left-preferring dedup. */
+    public String branchColumnName() {
+        return BRANCH_COLUMN;
+    }
+
+    /** Name of the synthetic column materialising the offset-shifted {@code @timestamp + offset} evaluation time. */
+    public String timestampColumnName() {
+        return TIMESTAMP_COLUMN;
+    }
+
     public NameId valueId() {
         return valueId;
     }
@@ -403,6 +421,18 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         }
 
         // Validate entire plan
+        // UNION set operators that form a contiguous chain from the root (e.g. `(a or b) or c`) are all
+        // considered "top-level": they are flattened into a single UnionAll during translation.
+        Set<VectorBinarySet> topLevelUnions = collectTopLevelUnionChain(p);
+        if (topLevelUnions.isEmpty() == false) {
+            // A connected chain of U union nodes has U+1 leaf operands (branches), which the translator combines
+            // into a single UnionAll. Reject chains exceeding the UnionAll branch limit with a clear message here
+            // rather than failing later during translation.
+            int branchCount = topLevelUnions.size() + 1;
+            if (Fork.exceedsMaxBranches(branchCount)) {
+                failures.add(fail(p, "PromQL set operator [or] supports up to [{}] operands, got [{}]", Fork.MAX_BRANCHES, branchCount));
+            }
+        }
         Holder<Boolean> root = new Holder<>(true);
         p.forEachDown(lp -> {
             switch (lp) {
@@ -414,9 +444,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
                     }
                     if (s.evaluation() != null) {
-                        if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {
-                            failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
-                        }
+                        // Only constant per-selector time shift is supported at the moment.
+                        // TODO(sidosera): Support heterogeneous offset on binary operators.
                         if (s.evaluation().at().value() != null) {
                             failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
                         }
@@ -485,11 +514,31 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", comp.op()));
                         }
                     }
-                    if (binaryOperator instanceof VectorBinarySet) {
-                        failures.add(fail(lp, "set operators are not supported at this time [{}]", lp.sourceText()));
+                    if (binaryOperator instanceof VectorBinarySet setOp) {
+                        verifySetOperator(failures, setOp, topLevelUnions.contains(setOp));
                     }
                     if (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right())) {
                         failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
+                    }
+                    if (hasSourceBackedExpression(binaryOperator.left())
+                        && hasSourceBackedExpression(binaryOperator.right())
+                        && (usesNestedAcrossSeriesAggregation(binaryOperator.left())
+                            || usesNestedAcrossSeriesAggregation(binaryOperator.right()))) {
+                        failures.add(
+                            fail(lp, "binary expressions with nested aggregations are not supported at this time [{}]", lp.sourceText())
+                        );
+                    }
+                    // Arithmetic/comparison binary operators merge both source-backed operands into a single
+                    // TimeSeriesAggregate (one shared time bucket and timestamp), which cannot represent two
+                    // different offsets. `or` (UNION) translates to independent branches, so per-branch offsets
+                    // are fine and excluded here.
+                    if (binaryOperator instanceof VectorBinarySet == false
+                        && hasSourceBackedExpression(binaryOperator.left())
+                        && hasSourceBackedExpression(binaryOperator.right())
+                        && distinctSelectorOffsets(binaryOperator).size() > 1) {
+                        failures.add(
+                            fail(lp, "binary expressions with different offsets are not supported at this time [{}]", lp.sourceText())
+                        );
                     }
                 }
                 case PlaceholderRelation placeholderRelation -> {
@@ -503,8 +552,92 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         });
     }
 
+    /**
+     * Set operators ({@code and}/{@code or}/{@code unless}) are only partially supported. Phase 1 allows the
+     * {@code or} (UNION) operator when it appears at the top level of the expression and both operands are
+     * instant vectors. The failures here fall into two categories:
+     * <ul>
+     *   <li>Scalar operands are illegal for set operators in PromQL itself, not just in our implementation. We
+     *       mirror Prometheus' wording ({@code set operator "or" not allowed in binary scalar expression}) and
+     *       check it first, so the message does not falsely imply the shape might be supported later.</li>
+     *   <li>Unsupported {@code and}/{@code unless} operators and non-top-level {@code or} are genuine current
+     *       implementation limitations, flagged with "at this time".</li>
+     * </ul>
+     */
+    private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean isTopLevelUnion) {
+        if (PromqlPlan.returnsScalar(setOp.left()) || PromqlPlan.returnsScalar(setOp.right())) {
+            failures.add(fail(setOp, "set operator \"{}\" not allowed in binary scalar expression", setOp.op().keyword()));
+            return;
+        }
+        if (setOp.op() != VectorBinarySet.SetOp.UNION) {
+            failures.add(fail(setOp, "set operator [{}] is not supported at this time [{}]", setOp.op().keyword(), setOp.sourceText()));
+            return;
+        }
+        if (isTopLevelUnion == false) {
+            failures.add(fail(setOp, "set operator [or] is only supported at the top-level at this time [{}]", setOp.sourceText()));
+        }
+    }
+
+    /**
+     * Collects the {@link VectorBinarySet} UNION nodes that form a contiguous chain starting at the plan root.
+     * PromQL {@code or} is left-associative, so {@code a or b or c} parses to {@code (a or b) or c}; explicit
+     * parentheses can also produce right-nested chains. All such union nodes are flattened into a single
+     * {@code UnionAll} during translation, so the verifier treats them all as top-level.
+     */
+    private static Set<VectorBinarySet> collectTopLevelUnionChain(LogicalPlan p) {
+        Set<VectorBinarySet> chain = new HashSet<>();
+        collectTopLevelUnionChain(p, chain);
+        return chain;
+    }
+
+    private static void collectTopLevelUnionChain(LogicalPlan p, Set<VectorBinarySet> chain) {
+        if (p instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION) {
+            chain.add(setOp);
+            collectTopLevelUnionChain(setOp.left(), chain);
+            collectTopLevelUnionChain(setOp.right(), chain);
+        }
+    }
+
+    private static boolean hasSourceBackedExpression(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof Selector && (p instanceof LiteralSelector) == false);
+    }
+
+    private static boolean usesNestedAcrossSeriesAggregation(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.child().anyMatch(AcrossSeriesAggregate.class::isInstance));
+    }
+
     private static boolean usesWithoutGrouping(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT);
+    }
+
+    /**
+     * Collects the distinct signed offsets of the source-backed selectors under {@code plan}. Literal selectors
+     * carry no data window and are excluded. More than one distinct value within a merged binary operator is
+     * unsupported (see the verifier guard).
+     */
+    private static Set<Duration> distinctSelectorOffsets(LogicalPlan plan) {
+        Set<Duration> offsets = new HashSet<>();
+        for (Selector selector : plan.collect(Selector.class)) {
+            if (selector instanceof LiteralSelector == false && selector.evaluation() != null) {
+                offsets.add(selector.evaluation().offsetDuration());
+            }
+        }
+        return offsets;
+    }
+
+    /**
+     * The signed offset shared by the source-backed selectors in {@code branch}, as a constant time shift to add to
+     * {@code @timestamp}. The verifier guarantees a merged branch is offset-uniform (heterogeneous offsets in a binary
+     * expression are rejected), so the first source-backed selector's offset is representative. {@link Duration#ZERO}
+     * when there is none.
+     */
+    public Duration offset(LogicalPlan branch) {
+        for (Selector selector : branch.collect(Selector.class)) {
+            if (selector instanceof LiteralSelector == false && selector.evaluation() != null) {
+                return selector.evaluation().offsetDuration();
+            }
+        }
+        return Duration.ZERO;
     }
 
     /**
@@ -518,6 +651,22 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             window = DEFAULT_LOOKBACK;
         }
         return window;
+    }
+
+    /**
+     * Returns the local evaluation timestamp for the current selector branch.
+     * <p>
+     * Unlike {@link PromqlCommand#timestamp()}, which returns the global evaluation timestamp,
+     * this function returns the plan fragment timestamp and includes any applied offset.
+     */
+    public Expression timestamp(LogicalPlan fragment) {
+        var offset = offset(fragment);
+        var timestamp = timestamp();
+        if (offset.isZero() || timestamp == null || timestamp.resolved() == false) {
+            return timestamp;
+        }
+        // TODO: use unique names?
+        return new ReferenceAttribute(source(), null, TIMESTAMP_COLUMN, timestamp.dataType());
     }
 
     /**

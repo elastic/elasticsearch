@@ -1,5 +1,0 @@
-area: Reindex
-issues: []
-pr: 150808
-summary: Fix division of `max_docs` between slices in reindex
-type: bug

@@ -47,6 +47,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "dense_vector",
             "double",
             "exponential_histogram",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -79,6 +80,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 "dense_vector",
                 "double",
                 "exponential_histogram",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -148,6 +150,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 || dt == DataType.GEOHEX
                 || dt == DataType.DENSE_VECTOR
                 || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.FLATTENED
                 || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
@@ -155,6 +158,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "date",
             "dense_vector",
             "exponential_histogram",
+            "flattened",
             "ip",
             "string",
             "tdigest",

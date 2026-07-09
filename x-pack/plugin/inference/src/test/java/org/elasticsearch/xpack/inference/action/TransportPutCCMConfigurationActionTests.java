@@ -28,6 +28,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.CCMEnabledActionResponse;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
+import org.elasticsearch.xpack.inference.common.InferencePreferences;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -97,6 +99,13 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
 
         featureService = mock(FeatureService.class);
 
+        var inferencePreferencesCache = mock(InferencePreferencesCache.class);
+        doAnswer(invocation -> {
+            ActionListener<InferencePreferences> listener = invocation.getArgument(0);
+            listener.onResponse(InferencePreferences.EMPTY);
+            return Void.TYPE;
+        }).when(inferencePreferencesCache).get(any());
+
         action = new TransportPutCCMConfigurationAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -107,7 +116,8 @@ public class TransportPutCCMConfigurationActionTests extends ESTestCase {
             ccmFeature,
             senderFactory.createSender(),
             settings,
-            featureService
+            featureService,
+            inferencePreferencesCache
         );
     }
 

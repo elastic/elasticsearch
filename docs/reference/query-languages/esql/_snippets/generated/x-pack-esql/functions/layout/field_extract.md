@@ -23,5 +23,8 @@ serverless: preview
 :::{include} ../description/field_extract.md
 :::
 
+:::{include} ../types/field_extract.md
+:::
+
 :::{include} ../examples/field_extract.md
 :::

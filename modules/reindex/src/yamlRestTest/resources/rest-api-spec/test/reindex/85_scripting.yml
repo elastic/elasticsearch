@@ -125,6 +125,61 @@
   - match: { _routing: foo }
 
 ---
+"Add slice alias":
+  - requires:
+      cluster_features: ["index.slice_indexing"]
+      reason: "requires _slice alias support in reindex script metadata"
+
+  - do:
+      index:
+        index:  twitter
+        id:     "1"
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        id:     "2"
+        body:   { "user": "foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: new_twitter
+        body:
+          settings:
+            index.slice.enabled: true
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: twitter
+          dest:
+            index: new_twitter
+            _slice: discard
+          script:
+            lang: painless
+            source: ctx._slice = ctx._source.user
+  - match: {created: 2}
+  - match: {noops: 0}
+
+  - do:
+      get:
+        index:   new_twitter
+        id:      "1"
+        _slice: kimchy
+  - match: { _routing: kimchy }
+
+  - do:
+      get:
+        index:   new_twitter
+        id:      "2"
+        _slice: foo
+  - match: { _routing: foo }
+
+---
 "Noop one doc":
   - do:
       index:

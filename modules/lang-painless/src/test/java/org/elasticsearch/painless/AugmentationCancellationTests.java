@@ -728,9 +728,14 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertFires(compileFillThen("", "big.sum(x -> 1.0d);"), "cancelled-sum-fn");
     }
 
+    /** {@code count(Predicate)} scans the whole iterable counting matches and must poll. */
+    public void testCountAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.count(x -> true);"), "cancelled-count");
+    }
+
     /**
      * Each new Iterable script-aware augmentation must take the no-poll fast path when the script has
-     * no cancellation check installed.  Exercises all six new methods in one script execution.
+     * no cancellation check installed.  Exercises all seven new methods in one script execution.
      */
     public void testIterableAugmentationsNoRunnable() {
         ScriptedMetricAggContexts.InitScript script = compileFillThen(
@@ -740,7 +745,8 @@ public class AugmentationCancellationTests extends ScriptTestCase {
                 + "big.eachWithIndex((x, i) -> x.toString()); "
                 + "big.findResults(x -> x.toString()); "
                 + "big.groupBy(x -> x % 3); "
-                + "big.sum(x -> 1.0d);"
+                + "big.sum(x -> 1.0d); "
+                + "big.count(x -> true);"
         );
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();

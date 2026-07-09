@@ -64,7 +64,9 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
         new EndpointMetadata(
             new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
             new EndpointMetadata.Internal("fingerprint", 1L),
-            new EndpointMetadata.Display("name", "creator")
+            new EndpointMetadata.Display("name", "creator"),
+            List.of(),
+            false
         )
     );
 
@@ -203,17 +205,12 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
     @Override
     protected MinimalServiceSettings mutateInstanceForVersion(MinimalServiceSettings instance, TransportVersion version) {
         var metadataVersion = TransportVersion.fromName("inference_endpoint_metadata_fields_added");
-        var metadataDisplayModelCreatorAddedVersion = TransportVersion.fromName("inference_endpoint_metadata_display_model_creator_added");
 
         var endpointMetadata = instance.endpointMetadata();
         if (version.supports(metadataVersion) == false) {
             endpointMetadata = EndpointMetadata.EMPTY_INSTANCE;
-        } else if (version.supports(metadataDisplayModelCreatorAddedVersion) == false) {
-            endpointMetadata = new EndpointMetadata(
-                endpointMetadata.heuristics(),
-                endpointMetadata.internal(),
-                new EndpointMetadata.Display(endpointMetadata.display().name(), null)
-            );
+        } else {
+            endpointMetadata = EndpointMetadataTests.doMutateInstanceForVersion(endpointMetadata, version);
         }
         return new MinimalServiceSettings(
             instance.service(),

@@ -196,7 +196,7 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         // Apache Commons dependencies
         components.withModule("org.apache.commons:commons-text", ExcludeAllTransitivesRule.class);
 
-        // org.apache.directory.api:api-asn1-ber brings in org.slf4j:slf4j-api:1.7.25. We use 2.0.6
+        // org.apache.directory.api:api-asn1-ber brings in org.slf4j:slf4j-api:1.7.25. We use 2.0.18.
         components.withModule("org.apache.directory.api:api-asn1-ber", ExcludeOtherGroupsTransitiveRule.class);
 
         // org.apache.directory.api:api-ldap-client-api brings in org.apache.mina:mina-core:2.0.16. We use 2.2.4
@@ -225,7 +225,7 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         // org.apache.directory.api:api-ldap-model brings in org.apache.mina:mina-core:2.0.17. We use 2.2.4
         components.withModule("org.apache.directory.api:api-ldap-net-mina", ExcludeOtherGroupsTransitiveRule.class);
 
-        // org.apache.directory.api:api-asn1-ber brings in org.slf4j:slf4j-api:1.7.25. We use 2.0.6
+        // org.apache.directory.api:api-asn1-ber brings in org.slf4j:slf4j-api:1.7.25. We use 2.0.18.
         // TODO: For org.apache.directory.api dependencies we use partially 1.0.1 and partially 1.0.0. We should align these.
         components.withModule("org.apache.directory.api:api-util", ExcludeAllTransitivesRule.class);
 
@@ -236,7 +236,7 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         // org.apache.directory.server:apacheds-core-annotations brings in org.apache.directory.api:api-util:1.0.0. We use 1.0.1.
         components.withModule("org.apache.directory.server:apacheds-core-annotations", ExcludeAllTransitivesRule.class);
 
-        // brings in org.slf4j:slf4j-api:1.7.25. We use 2.0.6
+        // brings in org.slf4j:slf4j-api:1.7.25. We use 2.0.18.
         components.withModule("org.apache.directory.server:apacheds-core", ExcludeAllTransitivesRule.class);
         // brings in org.apache.directory.server:apacheds-core:2.0.0-M24
         components.withModule("org.apache.directory.server:apacheds-interceptor-kerberos", ExcludeAllTransitivesRule.class);
@@ -282,7 +282,7 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         // org.apache.directory.api:api-ldap-client-api brings in org.apache.mina:mina-core:2.0.16. We use 2.2.4
         components.withModule("org.apache.directory.server:apacheds-interceptors-authn", ExcludeAllTransitivesRule.class);
 
-        // org.apache.tika:tika-core brings in org.slf4j:slf4j-api:1.17.36. We use 2.0.6
+        // org.apache.tika:tika-core brings in org.slf4j:slf4j-api:1.17.36. We use 2.0.18.
         components.withModule("org.apache.ftpserver:ftpserver-core", ExcludeByGroup.class, rule -> rule.params(List.of("org.slf4j")));
 
         // Hadoop dependencies
@@ -361,7 +361,7 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         // Apache Santuario dependencies
         components.withModule("org.apache.santuario:xmlsec", ExcludeAllTransitivesRule.class);
 
-        // org.apache.tika:tika-core brings in org.slf4j:slf4j-api:2.0.17. We use 2.0.6
+        // org.apache.tika:tika-core brings in org.slf4j:slf4j-api:2.0.17. We use 2.0.18.
         // org.apache.tika:tika-core brings in commons-io:commons-io:2.20.0. We use 2.5
         components.withModule("org.apache.tika:tika-core", ExcludeOtherGroupsTransitiveRule.class);
 

@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 151339
+summary: Emit Painless compile-time allocation pre-checks
+type: enhancement

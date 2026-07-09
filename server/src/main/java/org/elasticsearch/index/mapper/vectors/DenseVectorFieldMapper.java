@@ -39,6 +39,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -52,8 +53,11 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -119,6 +123,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -136,7 +141,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VER
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
-import static org.elasticsearch.index.IndexVersions.DISK_BBQ_QUANTIZE_BITS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 
@@ -274,8 +278,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions
     public static final int MAX_DIMS_COUNT_BIT = 4096 * Byte.SIZE; // maximum allowed number of dimensions
 
-    public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to
-    // vector
+    // minimum number of dims for floats to be dynamically mapped to vector
+    public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128;
+    // lower threshold used for vectordb index mode
+    public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING_VECTORDB = 32;
     public static final int MAGNITUDE_BYTES = 4;
     public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed
     public static final float DEFAULT_OVERSAMPLE = 3.0F; // Default oversample value
@@ -2715,28 +2721,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     VectorIndexType.BBQ_DISK.name
                 );
             }
-            if (indexVersionCreated.onOrAfter(DISK_BBQ_QUANTIZE_BITS) && experimentalFeaturesEnabled) {
-                if (autoCalibrate) {
-                    return new ESNextDiskBBQVectorsFormat(
-                        ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
-                        clusterSize,
-                        ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                        elementType,
-                        onDiskRescore,
-                        mergingExecutorService,
-                        numMergeWorkers,
-                        doPrecondition,
-                        ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                        flatIndexThreshold,
-                        sliceField,
-                        IvfFlushConfigSource.empty(),
-                        IvfAutoCalibration.mergeConfigResolver(clusterSize)
-                    );
-                }
+            if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE) && experimentalFeaturesEnabled) {
+                IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
+                    ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                    : IvfMergeConfigResolver.useCodecDefault();
                 return new ESNextDiskBBQVectorsFormat(
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
+                    QuantEncoding.fromBits((byte) bits),
                     clusterSize,
-                    ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                    ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
                     onDiskRescore,
                     mergingExecutorService,
@@ -2744,7 +2736,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     doPrecondition,
                     ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                     flatIndexThreshold,
-                    sliceField
+                    sliceField,
+                    IvfFlushConfigSource.empty(),
+                    mergeConfigResolver
+                );
+            } else if (indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE)) {
+                IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
+                    ? IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                    : IvfMergeConfigResolver.useCodecDefault();
+                return new ES950DiskBBQVectorsFormat(
+                    QuantEncoding.fromBits((byte) bits),
+                    clusterSize,
+                    ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                    elementType,
+                    onDiskRescore,
+                    mergingExecutorService,
+                    numMergeWorkers,
+                    doPrecondition,
+                    ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                    flatIndexThreshold,
+                    IvfFlushConfigSource.empty(),
+                    mergeConfigResolver
                 );
             } else {
                 return new ES940DiskBBQVectorsFormat(
@@ -2841,6 +2853,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public boolean doPrecondition() {
             return doPrecondition;
+        }
+
+        public boolean autoCalibrate() {
+            return autoCalibrate;
         }
 
         public int getBits() {
@@ -3387,8 +3403,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     mappingOversample,
                     queryOversample
                 );
-                final String singleSliceRouting = extractSingleSliceRouting(sliceRouting, sliceEnabled);
-                if (singleSliceRouting != null) {
+                final BytesRef[] sliceIds = extractSliceRouting(sliceRouting, sliceEnabled);
+                if (sliceIds != null) {
                     knnQuery = parentFilter != null
                         ? new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
                             name(),
@@ -3400,7 +3416,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             visitRatio,
                             ivfQueryConfigResolver,
                             RoutingFieldMapper.NAME,
-                            new BytesRef(singleSliceRouting)
+                            sliceIds
                         )
                         : new IVFKnnFloatSlicedVectorQuery(
                             name(),
@@ -3411,7 +3427,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             visitRatio,
                             ivfQueryConfigResolver,
                             RoutingFieldMapper.NAME,
-                            new BytesRef(singleSliceRouting)
+                            sliceIds
                         );
                 } else {
                     knnQuery = parentFilter != null
@@ -3454,30 +3470,37 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Nullable
-        private static String extractSingleSliceRouting(@Nullable String sliceRouting, boolean sliceEnabled) {
+        private static BytesRef[] extractSliceRouting(@Nullable String sliceRouting, boolean sliceEnabled) {
             if (sliceRouting == null) {
-                if (sliceEnabled) {
-                    throw new IllegalArgumentException(
-                        "[" + SliceIndexing.PARAM_NAME + "] is required for KNN queries when [index.slice.enabled] is true"
-                    );
-                }
-                return null;
+                return sliceEnabled ? new BytesRef[0] : null;
             }
-            final String trimmed = sliceRouting.trim();
-            if (trimmed.isEmpty()) {
+            String[] sliceValues = Strings.splitStringByCommaToArray(sliceRouting.trim());
+            if (sliceValues.length == 0) {
                 throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] cannot be blank for KNN queries");
             }
-            if (SliceIndexing.SLICE_ALL.equals(trimmed)) {
+            final LinkedHashSet<String> uniqueSliceValues = new LinkedHashSet<>();
+            for (String sliceValue : sliceValues) {
+                uniqueSliceValues.add(validateSliceValue(sliceValue));
+            }
+            final BytesRef[] sliceIds = new BytesRef[uniqueSliceValues.size()];
+            int i = 0;
+            for (String sliceValue : uniqueSliceValues) {
+                sliceIds[i++] = new BytesRef(sliceValue);
+            }
+            return sliceIds;
+        }
+
+        private static String validateSliceValue(String sliceValue) {
+            final String value = sliceValue.trim();
+            if (value.isEmpty()) {
+                throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] cannot be blank for KNN queries");
+            }
+            if (SliceIndexing.SLICE_ALL.equals(value)) {
                 throw new IllegalArgumentException(
                     "[" + SliceIndexing.PARAM_NAME + "] value [" + SliceIndexing.SLICE_ALL + "] is not supported for KNN"
                 );
             }
-            if (trimmed.indexOf(',') >= 0) {
-                throw new IllegalArgumentException(
-                    "[" + SliceIndexing.PARAM_NAME + "] must be a single value for KNN queries, but received [" + trimmed + "]"
-                );
-            }
-            return trimmed;
+            return value;
         }
 
         public VectorSimilarity getSimilarity() {

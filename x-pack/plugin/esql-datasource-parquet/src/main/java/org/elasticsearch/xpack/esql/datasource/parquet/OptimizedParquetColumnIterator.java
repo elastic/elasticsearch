@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
@@ -21,6 +22,8 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
+import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -32,6 +35,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -41,7 +45,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -103,6 +109,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final BlockFactory blockFactory;
     private final String createdBy;
     private final String fileLocation;
+    /** See {@link #coercionWarnings()}. */
+    private SkipWarnings coercionWarnings;
+    /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
+    private final ErrorPolicy errorPolicy;
     private final ColumnInfo[] columnInfos;
     private final PreloadedRowGroupMetadata preloadedMetadata;
     private final StorageObject storageObject;
@@ -317,8 +327,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         ParquetMetadata fullFooter,
         DynamicThreshold dynamicThreshold,
         ColumnDescriptor sortColumnDescriptor,
-        ParquetReaderCounters counters
+        ParquetReaderCounters counters,
+        ErrorPolicy errorPolicy
     ) {
+        this.errorPolicy = errorPolicy;
         this.reader = reader;
         this.projectedSchema = projectedSchema;
         this.attributes = attributes;
@@ -479,6 +491,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (statistics.hasNonNullValue() == false) {
             return dynamicThreshold.dominatesNulls(statistics.getNumNulls());
         }
+        if (dynamicThreshold.elementType() == ElementType.BYTES_REF) {
+            BytesRef min = bytesRefFromStats(statistics.genericGetMin());
+            BytesRef max = bytesRefFromStats(statistics.genericGetMax());
+            return min != null && max != null && dynamicThreshold.dominates(min, max, statistics.getNumNulls());
+        }
         Long rawMin = rawValueFromStats(statistics.genericGetMin());
         Long rawMax = rawValueFromStats(statistics.genericGetMax());
         return rawMin != null && rawMax != null && dynamicThreshold.dominates(rawMin, rawMax, statistics.getNumNulls());
@@ -486,6 +503,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     private RowRanges thresholdRowRanges(int rowGroupOrdinal, BlockMetaData block) {
         if (dynamicThreshold == null || sortColumnPath == null || sortColumnPrimitiveType == null) {
+            return null;
+        }
+        // BYTES_REF thresholding is intentionally row-group level only for now: the page-index path
+        // below interprets bounds as fixed-width numerics, which does not apply to variable-length
+        // string min/max. String TopN therefore prunes at row-group granularity while numeric TopN
+        // also prunes at page granularity. Page-level string pruning (decoding ColumnIndex string
+        // bounds) is a possible follow-up, not an oversight.
+        if (dynamicThreshold.elementType() == ElementType.BYTES_REF) {
             return null;
         }
         ColumnIndex columnIndex = preloadedMetadata.getColumnIndex(rowGroupOrdinal, sortColumnPath);
@@ -531,6 +556,29 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (column.getPath().toDotString().equals(sortColumnPath)) {
                 return column;
             }
+        }
+        return null;
+    }
+
+    /**
+     * Extract a column's raw string statistic ({@code min}/{@code max}) as a {@link BytesRef} for
+     * {@code BYTES_REF} thresholding. The column must be physically {@code BINARY} <em>and</em> carry
+     * a {@link LogicalTypeAnnotation.StringLogicalTypeAnnotation}, which is the only annotation that
+     * guarantees the column's statistics use the unsigned UTF-8 byte order of {@link BytesRef#compareTo}
+     * and the encoded TopN bound. This mirrors the ORC reader's {@code isStringFamily} gate.
+     * <p>
+     * Restricting to that annotation is deliberately conservative. A {@code DECIMAL}-as-binary column
+     * (which a UNION_BY_NAME shape can route here when the logical column is a string) computes its
+     * min/max with a <em>numeric</em> comparator, so reusing those bounds against a string bound would
+     * be incorrect; other unannotated {@code BINARY} columns (raw bytes, JSON/BSON) are byte-comparable
+     * in principle but are skipped here for safety and ORC parity rather than pruned. All such columns
+     * return {@code null} so the row group is never skipped.
+     */
+    private BytesRef bytesRefFromStats(Object value) {
+        if (value instanceof Binary binary
+            && sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY
+            && sortColumnPrimitiveType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.StringLogicalTypeAnnotation) {
+            return new BytesRef(binary.getBytes());
         }
         return null;
     }
@@ -789,11 +837,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (exhausted) {
             return false;
         }
-        if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
-            exhausted = true;
-            cancelPendingPrefetch();
-            return false;
-        }
         if (rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0) {
             exhausted = true;
             return false;
@@ -806,8 +849,22 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 rowsRemainingInGroup = 0;
             }
         }
+        // Serve rows already materialized for the current row group before consulting the
+        // early-termination side channel. dynamicThreshold.noFurtherCandidates() is a volatile flag
+        // that a concurrent TopN worker can flip at any moment (e.g. once a NULLS FIRST top-K
+        // saturates with nulls). Checking it first would let a flip land between a caller's hasNext()
+        // and its next() and turn an already-available batch into a NoSuchElementException — the race
+        // behind the intermittent "Unexpected failure reading external source" surfaced from next().
+        // Early termination still takes effect below, where it stops us from advancing to (and
+        // prefetching) any further row groups; the only extra work is draining the already-decoded,
+        // in-memory current group, which the TopN simply discards.
         if (rowsRemainingInGroup > 0) {
             return true;
+        }
+        if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
+            exhausted = true;
+            cancelPendingPrefetch();
+            return false;
         }
         try {
             return advanceRowGroup();
@@ -1450,7 +1507,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 && columnInfos[i].maxRepLevel() == 0) {
                 ColumnDescriptor desc = columnInfos[i].descriptor();
                 PageReader pr = rowGroup.getPageReader(desc);
-                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], null);
+                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], null, coercionWarnings());
             }
         }
     }
@@ -1471,7 +1528,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 && columnInfos[i].maxRepLevel() == 0) {
                 ColumnDescriptor desc = columnInfos[i].descriptor();
                 PageReader pr = rowGroup.getPageReader(desc);
-                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], survivorRowRanges);
+                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], survivorRowRanges, coercionWarnings());
             }
         }
     }
@@ -1488,7 +1545,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && columnInfos[i].maxRepLevel() == 0) {
                 ColumnDescriptor desc = columnInfos[i].descriptor();
                 PageReader pr = rowGroup.getPageReader(desc);
-                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], currentRowRanges);
+                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], currentRowRanges, coercionWarnings());
             }
         }
         boolean hasListColumns = false;
@@ -2191,10 +2248,40 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return blockFactory.newConstantNullBlock(rowsToRead);
         }
         if (info.maxRepLevel() > 0) {
-            return ParquetColumnDecoding.readListColumn(cr, info, rowsToRead, blockFactory);
+            return ParquetColumnDecoding.readListColumn(
+                cr,
+                info,
+                rowsToRead,
+                blockFactory,
+                attributes.get(colIndex).name(),
+                coercionWarnings()
+            );
         }
         ParquetColumnDecoding.skipValues(cr, rowsToRead);
         return blockFactory.newConstantNullBlock(rowsToRead);
+    }
+
+    /**
+     * Lazily-created sink for per-value declared-coercion failures (capped response Warning
+     * headers + nulled cells); shared by every column and row group of this iterator so the cap
+     * is per read, not per column chunk. Returns {@code null} under {@code fail_fast} — the
+     * strict contract of {@code DeclaredTypeCoercions}, where a {@code null} sink means the
+     * failure propagates and the read fails instead of warn+null.
+     */
+    @Nullable
+    private SkipWarnings coercionWarnings() {
+        if (errorPolicy.isStrict()) {
+            return null;
+        }
+        if (coercionWarnings == null) {
+            coercionWarnings = new SkipWarnings(
+                "Parquet file ["
+                    + fileLocation
+                    + "] has values that could not be coerced to the declared column type; "
+                    + "they are returned as null"
+            );
+        }
+        return coercionWarnings;
     }
 
     @Override
@@ -2208,7 +2295,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // regardless of whether this iterator was opened on the full file or on a range. That's
         // the whole point of file-global addressing: any iterator that emits identities and any
         // extractor over the same file agree without coordination.
-        return new ParquetColumnExtractor(storageObject, formatReader, fullFooter);
+        return new ParquetColumnExtractor(storageObject, formatReader, fullFooter, errorPolicy);
     }
 
     @Override

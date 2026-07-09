@@ -77,6 +77,7 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryResponse;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -97,6 +98,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -173,9 +176,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }).when(shard).close(any(), anyBoolean(), any(), any());
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setUpShardTestResources() throws Exception {
         Settings settings = threadPoolSettings();
         threadPool = setUpThreadPool(settings);
         nodeEnvironment = newNodeEnvironment(settings);
@@ -187,19 +189,32 @@ public abstract class IndexShardTestCase extends ESTestCase {
         writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
         failOnShardFailures();
+        // threadPoolSettings() always explicitly sets the deprecated USE_THREAD_POOL_MERGE_SCHEDULER_SETTING,
+        // which fires a deprecation warning when the cluster settings are read during setup above.
+        // Consume it here so subclasses don't need to assert it in every test method.
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
+    @Override
+    public final void setUp() throws Exception {
+        super.setUp();
     }
 
     protected ThreadPool setUpThreadPool(Settings settings) {
         return new TestThreadPool(getClass().getName(), settings);
     }
 
+    @After
+    public void tearDownShardTestResources() throws Exception {
+        IOUtils.close(nodeEnvironment, this::tearDownThreadPool);
+    }
+
     @Override
-    public void tearDown() throws Exception {
-        try {
-            IOUtils.close(nodeEnvironment, this::tearDownThreadPool);
-        } finally {
-            super.tearDown();
-        }
+    public final void tearDown() throws Exception {
+        super.tearDown();
     }
 
     protected void tearDownThreadPool() {
@@ -677,7 +692,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 MapperMetrics.NOOP,
                 new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
                 new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-                MergeMetrics.NOOP
+                MergeMetrics.NOOP,
+                RecoverySchedulingListener.NOOP
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
@@ -1106,7 +1122,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard, final boolean refresh) throws IOException {
-        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, refresh));
+        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, refresh, false));
     }
 
     protected void assertDocCount(IndexShard shard, int docCount) throws IOException {

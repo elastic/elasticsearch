@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.hamcrest.Matcher;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
@@ -60,7 +61,7 @@ import static org.hamcrest.Matchers.startsWith;
  * </p>
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class FieldExtractPushQueriesIT extends ESRestTestCase {
+public class PushQueriesFieldExtractIT extends ESRestTestCase {
 
     /**
      * Index modes the parameterized suite runs against. {@link #STANDARD} is the baseline,
@@ -82,7 +83,7 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
 
     private final Mode mode;
 
-    public FieldExtractPushQueriesIT(Mode mode) {
+    public PushQueriesFieldExtractIT(Mode mode) {
         this.mode = mode;
     }
 
@@ -410,7 +411,7 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
 
     /**
      * Compute signatures expected on the data driver. {@link #FILTER_IN_QUERY} mirrors
-     * {@code PushQueriesIT.ComputeSignature.FILTER_IN_QUERY} (no FilterOperator). The
+     * {@code PushQueriesStringIT.ComputeSignature.FILTER_IN_QUERY} (no FilterOperator). The
      * {@link #FILTER_IN_COMPUTE} case has an extra {@code ValuesSourceReaderOperator} after
      * {@code LimitOperator} because the WHERE clause reads the flattened sub-field and the
      * KEEP clause reads {@code id}; with two distinct fields we end up with two reader stages.
@@ -441,7 +442,7 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
 
     private void runAndAssert(
         String esqlQuery,
-        org.hamcrest.Matcher<String> luceneQueryMatcher,
+        Matcher<String> luceneQueryMatcher,
         ComputeSignature dataNodeSignature,
         int expectedHitCount
     ) throws IOException {
@@ -467,7 +468,7 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
             List<String> sig = new ArrayList<>();
             for (Map<String, Object> op : operators) {
                 String name = (String) op.get("operator");
-                name = PushQueriesIT.TO_NAME.matcher(name).replaceAll("");
+                name = PushQueriesStringIT.TO_NAME.matcher(name).replaceAll("");
                 sig.add(name);
                 if (name.equals("LuceneSourceOperator")) {
                     MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name))

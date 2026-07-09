@@ -26,7 +26,6 @@ public enum FeatureFlag {
     ),
 
     RANDOM_SAMPLING("es.random_sampling_feature_flag_enabled=true", Version.fromString("9.2.0"), null),
-    ESQL_EXTERNAL_DATASOURCES("es.esql_external_datasources_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
     TSDB_NO_SEQNO("es.tsdb_no_tsbd_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
     PROMETHEUS_FEATURE_FLAG("es.prometheus_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
     SLICE_INDEXING("es.slice_indexing_feature_flag_enabled=true", Version.fromString("9.5.0"), null),

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -350,6 +351,38 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         assertFalse("expected a client warning for the shape conflict", warnings.isEmpty());
         assertTrue("warning should name the conflicting field, got: " + warnings, warnings.stream().anyMatch(w -> w.contains("address")));
+    }
+
+    /**
+     * Same shape conflict as {@link #testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills}, but with a
+     * {@code warningSink} supplied: the decoder must route every emitted message through the sink instead of
+     * {@link HeaderWarning}, since {@link NdJsonPageDecoder}'s decode loop can run on a background reader thread
+     * whose thread-local response headers never reach the client (see {@link SkipWarnings}).
+     */
+    public void testScalarWhereNestedObjectExpectedLenientRoutesThroughWarningSink() throws IOException {
+        String ndjson = "{\"address\": {\"city\": \"NYC\"}, \"id\": 1}\n" + "{\"address\": \"unstructured\", \"id\": 2}\n";
+        List<String> sunk = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                List.of(attribute("address.city", DataType.KEYWORD), attribute("id", DataType.INTEGER)),
+                null,
+                1024,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                "test://decode",
+                NdJsonUtils.JSON_FACTORY,
+                sunk::add
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+            }
+        }
+
+        assertFalse("expected a client warning routed through the sink", sunk.isEmpty());
+        assertTrue("warning should name the conflicting field, got: " + sunk, sunk.stream().anyMatch(w -> w.contains("address")));
+        assertTrue("no message should reach the thread-local response headers when a sink is supplied", drainWarnings().isEmpty());
     }
 
     /**

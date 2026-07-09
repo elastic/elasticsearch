@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.util.ArrayList;
@@ -48,14 +49,14 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         Map<String, String> views,
         String... nestedPaths
     ) {
-        Optional<Throwable> nullifyException = tryRunTestsNullifyOnly(
+        Optional<Throwable> nullifyException = tryRunTestsNullifyOnlyAtVersion(
             query,
             stages,
             randomVersionSupportingOrNull(minimumSupportedVersion),
             views,
             nestedPaths
         );
-        Optional<Throwable> loadException = tryRunTestsLoadOnly(
+        Optional<Throwable> loadException = tryRunTestsLoadOnlyAtVersion(
             query,
             stages,
             randomVersionSupportingOrNull(minimumSupportedVersion),
@@ -81,7 +82,7 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         TransportVersion minimumSupportedVersion,
         String... nestedPaths
     ) {
-        runNullifyOnly(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths);
+        runTestsNullifyOnlyAtVersion(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths);
     }
 
     protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, String... nestedPaths) {
@@ -89,7 +90,7 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     }
 
     protected void runTestsLoadOnly(String query, EnumSet<Stage> stages, TransportVersion minimumSupportedVersion, String... nestedPaths) {
-        runLoadOnly(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths);
+        runTestsLoadOnlyAtVersion(query, stages, randomVersionSupportingOrNull(minimumSupportedVersion), Map.of(), nestedPaths);
     }
 
     /**
@@ -104,7 +105,7 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         TransportVersion maxVersionExclusive,
         String... nestedPaths
     ) {
-        runNullifyOnly(query, stages, TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive), Map.of(), nestedPaths);
+        runTestsNullifyOnlyAtVersion(query, stages, TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive), Map.of(), nestedPaths);
     }
 
     /**
@@ -113,7 +114,7 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
      * exercise a version that predates a given wire-format change.
      */
     protected void runTestsLoadOnlyBelow(String query, EnumSet<Stage> stages, TransportVersion maxVersionExclusive, String... nestedPaths) {
-        runLoadOnly(query, stages, TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive), Map.of(), nestedPaths);
+        runTestsLoadOnlyAtVersion(query, stages, TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive), Map.of(), nestedPaths);
     }
 
     /**
@@ -129,36 +130,36 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         TransportVersion maxVersionExclusive,
         String... nestedPaths
     ) {
-        runLoadOnly(query, stages, randomVersionSupportingButNot(minSupportedVersion, maxVersionExclusive), Map.of(), nestedPaths);
+        runTestsLoadOnlyAtVersion(query, stages, randomVersionSupportingButNot(minSupportedVersion, maxVersionExclusive), Map.of(), nestedPaths);
     }
 
-    /** Runs NULLIFY mode at the given exact transport version (or a builder-default random one if {@code null}); throws on failure. */
-    private void runNullifyOnly(
+    /** Runs NULLIFY mode at the given exact transport version (or a random one if {@code null}) */
+    private void runTestsNullifyOnlyAtVersion(
         String query,
         EnumSet<Stage> stages,
-        TransportVersion transportVersion,
+        @Nullable TransportVersion transportVersion,
         Map<String, String> views,
         String... nestedPaths
     ) {
-        throwOnFailure(tryRunTestsNullifyOnly(query, stages, transportVersion, views, nestedPaths), "Nullify mode failed");
+        throwOnFailure(tryRunTestsNullifyOnlyAtVersion(query, stages, transportVersion, views, nestedPaths), "Nullify mode failed");
     }
 
-    /** Runs LOAD mode at the given exact transport version (or a builder-default random one if {@code null}); throws on failure. */
-    private void runLoadOnly(
+    /** Runs LOAD mode at the given exact transport version (or a random one if {@code null}) */
+    private void runTestsLoadOnlyAtVersion(
         String query,
         EnumSet<Stage> stages,
-        TransportVersion transportVersion,
+        @Nullable TransportVersion transportVersion,
         Map<String, String> views,
         String... nestedPaths
     ) {
-        throwOnFailure(tryRunTestsLoadOnly(query, stages, transportVersion, views, nestedPaths), "Load mode failed");
+        throwOnFailure(tryRunTestsLoadOnlyAtVersion(query, stages, transportVersion, views, nestedPaths), "Load mode failed");
     }
 
-    /** Runs NULLIFY mode at the given exact transport version, or a builder-default random version if {@code null}. */
-    private Optional<Throwable> tryRunTestsNullifyOnly(
+    /** Runs NULLIFY mode at the given exact transport version, or a random version if {@code null}. */
+    private Optional<Throwable> tryRunTestsNullifyOnlyAtVersion(
         String query,
         EnumSet<Stage> stages,
-        TransportVersion transportVersion,
+        @Nullable TransportVersion transportVersion,
         Map<String, String> views,
         String... nestedPaths
     ) {
@@ -169,11 +170,11 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         return builder.tryRun();
     }
 
-    /** Runs LOAD mode at the given exact transport version, or a builder-default random version if {@code null}. */
-    private Optional<Throwable> tryRunTestsLoadOnly(
+    /** Runs LOAD mode at the given exact transport version, or a random version if {@code null}. */
+    private Optional<Throwable> tryRunTestsLoadOnlyAtVersion(
         String query,
         EnumSet<Stage> stages,
-        TransportVersion transportVersion,
+        @Nullable TransportVersion transportVersion,
         Map<String, String> views,
         String... nestedPaths
     ) {

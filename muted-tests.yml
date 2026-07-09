@@ -694,12 +694,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromRightSideWhenNotKept}
   issue: https://github.com/elastic/elasticsearch/issues/153046
-- class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
-  method: testDefaultSettingsFailsOnCrossFileScalarObjectConflict
-  issue: https://github.com/elastic/elasticsearch/issues/153054
-- class: org.elasticsearch.xpack.esql.action.NdJsonCrossFileScalarObjectConflictIT
-  method: testSkipRowPolicyNullFillsAndWarnsClient
-  issue: https://github.com/elastic/elasticsearch/issues/153055
 - class: org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests
   method: testFetchRegion
   issue: https://github.com/elastic/elasticsearch/issues/153058

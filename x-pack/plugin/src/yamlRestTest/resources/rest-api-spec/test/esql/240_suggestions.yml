@@ -6,9 +6,9 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "@timestamp": "2023-10-23T13:55:01.543Z", "agent": "chrome", "response_time": 42 }
+          - { "@timestamp": "2023-10-23T13:55:01.543Z", "agent": "chrome", "response_time": 42, "ip": "82.170.213.79" }
           - { "index": { } }
-          - { "@timestamp": "2023-10-23T13:55:01.544Z", "agent": "firefox", "response_time": 99 }
+          - { "@timestamp": "2023-10-23T13:55:01.544Z", "agent": "firefox", "response_time": 99, "ip": "82.170.213.80" }
 
 ---
 pipe position lists fields:
@@ -31,6 +31,32 @@ field name slot after WHERE:
 
   - exists: fields
   - length: { warnings: 0 }
+
+---
+cursor inside a WHERE equality literal on an ip field does not choke:
+  - do:
+      esql.suggestions:
+        body:
+          query: "FROM test | WHERE ip == \"\""
+          cursor: 25
+
+  - exists: fields
+  - length: { warnings: 0 }
+
+---
+field name slot after IP_LOCATION lists dotted output fields:
+  - do:
+      esql.suggestions:
+        body:
+          # KEEP g.* (rather than one dotted field) keeps every IP_LOCATION output field in
+          # scope for the assertions below even after column pruning.
+          query: "FROM test\n| IP_LOCATION g = ip\n| KEEP g.*"
+          cursor: 39
+
+  - exists: fields
+  - length: { warnings: 0 }
+  - match: { fields.g\.country_iso_code.type: "keyword" }
+  - match: { fields.g\.city_name.type: "keyword" }
 
 ---
 missing query is rejected:

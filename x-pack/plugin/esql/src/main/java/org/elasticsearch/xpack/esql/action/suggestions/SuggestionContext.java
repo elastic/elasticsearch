@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
@@ -63,11 +64,25 @@ public record SuggestionContext(Kind kind, @Nullable LogicalPlan command, @Nulla
      * The deepest command node whose source range contains the cursor, or {@code null} if none does.
      * "Deepest" — nearest the leaves — wins so that, e.g., a {@code WHERE} nested inside a larger plan
      * is preferred over an ancestor whose range also spans the cursor.
+     *
+     * <p>{@link Limit} nodes are skipped entirely, regardless of their own source range. Two
+     * independent sources put a stale or duplicated {@link Source} on a {@code Limit}: the analyzer's
+     * default-limit insertion, and — once the logical optimizer runs (Step 12 wires it into production)
+     * — limit push-down rules that relocate a {@code Limit} deeper into the tree while leaving it
+     * carrying the very same source text as the command it was combined with. A plain "last (i.e.
+     * deepest) match wins" walk would then let that relocated, unrelated {@code Limit} steal the match
+     * away from the real user-authored command (e.g. {@code KEEP}) sitting above it, corrupting
+     * {@link #schemaSource}. A {@code Limit} never carries a field-name or literal completion
+     * opportunity of its own (only its numeric argument, which this detector does not target), so
+     * excluding it entirely is safe.
      */
     @Nullable
     private static LogicalPlan findContainingCommand(LogicalPlan plan, CursorLocation locations, int cursor) {
         LogicalPlan[] found = new LogicalPlan[1];
         plan.forEachDown(node -> {
+            if (node instanceof Limit) {
+                return;
+            }
             Source source = node.source();
             if (source == Source.EMPTY || source.text().isEmpty()) {
                 return;

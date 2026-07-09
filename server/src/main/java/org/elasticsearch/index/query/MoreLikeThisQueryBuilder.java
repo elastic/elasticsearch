@@ -57,7 +57,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -80,9 +79,9 @@ public class MoreLikeThisQueryBuilder extends LeafQueryBuilder<MoreLikeThisQuery
     public static final boolean DEFAULT_INCLUDE = false;
     public static final boolean DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS = true;
 
-    private static final Set<Class<? extends MappedFieldType>> SUPPORTED_FIELD_TYPES = new HashSet<>(
-        Arrays.asList(TextFieldType.class, KeywordFieldType.class)
-    );
+    private static boolean isSupportedFieldType(MappedFieldType fieldType) {
+        return fieldType instanceof TextFieldType || fieldType instanceof KeywordFieldType;
+    }
 
     private static final ParseField FIELDS = new ParseField("fields");
     private static final ParseField LIKE = new ParseField("like");
@@ -919,7 +918,7 @@ public class MoreLikeThisQueryBuilder extends LeafQueryBuilder<MoreLikeThisQuery
         } else {
             for (String field : fields) {
                 MappedFieldType fieldType = context.getFieldType(field);
-                if (fieldType != null && SUPPORTED_FIELD_TYPES.contains(fieldType.getClass()) == false) {
+                if (fieldType != null && isSupportedFieldType(fieldType) == false) {
                     if (failOnUnsupportedField) {
                         throw new IllegalArgumentException("more_like_this only supports text/keyword fields: [" + field + "]");
                     } else {

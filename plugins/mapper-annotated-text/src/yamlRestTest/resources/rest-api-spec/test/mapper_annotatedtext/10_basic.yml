@@ -75,6 +75,44 @@
 
 
 ---
+"combined_fields and more_like_this support annotated_text fields":
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+          mappings:
+            properties:
+              title:
+                type: annotated_text
+              body:
+                type: annotated_text
+
+  - do:
+      index:
+        index: annotated
+        body:
+          "title" : "The [quick brown fox](entity_3789) is brown."
+          "body" : "the lazy dog"
+        refresh: true
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "query" : {"combined_fields" : { "query" : "quick", "fields" : ["title", "body"] } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "query" : {"more_like_this" : { "fields" : ["title"], "like" : "quick brown fox", "min_term_freq" : 1, "min_doc_freq" : 1 } } }
+
+  - match: { hits.total: 1 }
+
+---
 "issue 39395 thread safety issue -requires multiple calls to reveal":
   - do:
       indices.create:

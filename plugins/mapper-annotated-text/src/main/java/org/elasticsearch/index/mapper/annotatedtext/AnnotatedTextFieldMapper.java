@@ -524,6 +524,11 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
+
+        @Override
+        public String familyTypeName() {
+            return TextFieldMapper.CONTENT_TYPE;
+        }
     }
 
     private final IndexVersion indexCreatedVersion;

@@ -30,6 +30,14 @@ public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Intervals.term("donald"), source);
     }
 
+    public void testFamilyTypeName() {
+        MappedFieldType ft = new AnnotatedTextFieldMapper.AnnotatedTextFieldType("field", Collections.emptyMap());
+        assertEquals("annotated_text", ft.typeName());
+        // family type name must stay "text" so text-family query validation (e.g. combined_fields,
+        // more_like_this) treats annotated_text like any other text-family field
+        assertEquals("text", ft.familyTypeName());
+    }
+
     public void testFetchSourceValue() throws IOException {
         MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder(
             "field",

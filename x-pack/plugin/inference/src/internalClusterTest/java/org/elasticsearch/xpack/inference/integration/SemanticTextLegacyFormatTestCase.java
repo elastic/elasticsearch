@@ -217,17 +217,21 @@ public abstract class SemanticTextLegacyFormatTestCase extends ESIntegTestCase {
      * {@code task_type}.
      */
     @SuppressWarnings("unchecked")
-    protected void assertDenseMappingModelSettings(String index, String fieldName) {
-        GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
-        MappingMetadata mappingMetadata = mappingsResponse.getMappings().get(index);
-        assertThat(mappingMetadata, notNullValue());
-        Map<String, Object> properties = (Map<String, Object>) mappingMetadata.getSourceAsMap().get("properties");
-        Map<String, Object> fieldMapping = (Map<String, Object>) properties.get(fieldName);
-        Map<String, Object> modelSettings = (Map<String, Object>) fieldMapping.get("model_settings");
-        assertThat("model_settings.task_type", modelSettings.get("task_type"), notNullValue());
-        assertThat("model_settings.dimensions", modelSettings.get("dimensions"), notNullValue());
-        assertThat("model_settings.similarity", modelSettings.get("similarity"), notNullValue());
-        assertThat("model_settings.element_type", modelSettings.get("element_type"), notNullValue());
+    protected void assertDenseMappingModelSettings(String index, String fieldName) throws Exception {
+        CheckedRunnable<Exception> assertion = () -> {
+            GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
+            MappingMetadata mappingMetadata = mappingsResponse.getMappings().get(index);
+            assertThat(mappingMetadata, notNullValue());
+            Map<String, Object> properties = (Map<String, Object>) mappingMetadata.getSourceAsMap().get("properties");
+            Map<String, Object> fieldMapping = (Map<String, Object>) properties.get(fieldName);
+            Map<String, Object> modelSettings = (Map<String, Object>) fieldMapping.get("model_settings");
+            assertThat("model_settings.task_type", modelSettings.get("task_type"), notNullValue());
+            assertThat("model_settings.dimensions", modelSettings.get("dimensions"), notNullValue());
+            assertThat("model_settings.similarity", modelSettings.get("similarity"), notNullValue());
+            assertThat("model_settings.element_type", modelSettings.get("element_type"), notNullValue());
+        };
+
+        assertBusy(assertion, 5, TimeUnit.SECONDS);
     }
 
     /**

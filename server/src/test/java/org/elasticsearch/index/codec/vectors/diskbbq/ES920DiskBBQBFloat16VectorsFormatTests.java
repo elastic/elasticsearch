@@ -20,7 +20,6 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.junit.After;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
@@ -44,7 +43,8 @@ public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
     private ExecutorService executorService;
 
     @Before
-    public void initVectorsFormat() throws Exception {
+    @Override
+    public void setUp() throws Exception {
         int numMergingThreads = 1;
         if (random().nextBoolean()) {
             numMergingThreads = random().nextInt(2, 4);
@@ -70,13 +70,15 @@ public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
                 numMergingThreads
             );
         }
+        super.setUp();
     }
 
-    @After
-    public void shutdownExecutor() throws Exception {
+    @Override
+    public void tearDown() throws Exception {
         if (executorService != null) {
             executorService.shutdownNow();
         }
+        super.tearDown();
     }
 
     @Override

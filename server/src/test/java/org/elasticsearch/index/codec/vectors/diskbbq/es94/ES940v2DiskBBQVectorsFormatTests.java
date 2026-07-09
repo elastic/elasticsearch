@@ -45,7 +45,8 @@ public class ES940v2DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCa
     }
 
     @Before
-    public void initVectorsFormat() throws Exception {
+    @Override
+    public void setUp() throws Exception {
         format = new ES940DiskBBQVectorsFormat(
             ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_STRIPED,
             64,
@@ -59,6 +60,7 @@ public class ES940v2DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCa
             0,
             ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
         );
+        super.setUp();
     }
 
     @Override

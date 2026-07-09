@@ -47,9 +47,11 @@ public class ES94ScalarQuantizedBFloat16VectorsFormatTests extends BaseQuantized
     private KnnVectorsFormat format;
 
     @Before
-    public void initVectorsFormat() throws Exception {
+    @Override
+    public void setUp() throws Exception {
         int bits = randomFrom(1, 2, 4, 7);
         format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16, bits, false);
+        super.setUp();
     }
 
     @Override

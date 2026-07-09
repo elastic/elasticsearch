@@ -45,7 +45,8 @@ public class ES940DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
     private KnnVectorsFormat format;
 
     @Before
-    public void initVectorsFormat() throws Exception {
+    @Override
+    public void setUp() throws Exception {
         ES940DiskBBQVectorsFormat.QuantEncoding encoding = randomFrom(
             ES940DiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
             ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED,
@@ -90,6 +91,7 @@ public class ES940DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVecto
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
             );
         }
+        super.setUp();
     }
 
     @Override

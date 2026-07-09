@@ -46,7 +46,8 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
     private KnnVectorsFormat format;
 
     @Before
-    public void initVectorsFormat() throws Exception {
+    @Override
+    public void setUp() throws Exception {
         QuantEncoding encoding = randomFrom(QuantEncoding.values());
         if (rarely()) {
             format = new ESNextDiskBBQVectorsFormat(
@@ -89,6 +90,7 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
                 null
             );
         }
+        super.setUp();
     }
 
     @Override

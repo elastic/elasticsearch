@@ -97,8 +97,8 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
 
     /**
      * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
-     * default. Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search context keep-alive to
-     * make sure that it contains any time that we might wait.
+     * default. Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search
+     * context keep-alive to make sure that it contains any time that we might wait.
      */
     private float requestsPerSecond = Float.POSITIVE_INFINITY;
 
@@ -369,8 +369,8 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
 
     /**
      * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
-     * default. Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search context keep-alive to
-     * make sure that it contains any time that we might wait.
+     * default. Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search context
+     * keep-alive to make sure that it contains any time that we might wait.
      */
     public float getRequestsPerSecond() {
         return requestsPerSecond;
@@ -378,8 +378,8 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
 
     /**
      * Set the throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
-     * default. Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search context keep-alive to
-     * make sure that it contains any time that we might wait.
+     * default. Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search context
+     * keep-alive to make sure that it contains any time that we might wait.
      */
     public Self setRequestsPerSecond(float requestsPerSecond) {
         if (requestsPerSecond <= 0) {

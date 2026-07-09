@@ -10,6 +10,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -106,6 +107,35 @@ public interface RecoveryListener {
                 } finally {
                     runAfter.run();
                 }
+            }
+        };
+    }
+
+    /// Returns a listener which delegates `onRecoveryDone` and `onRecoveryAborted` unchanged to the given listener, but routes
+    /// `onRecoveryFailure` through `delegate` instead. `delegate` is responsible for eventually calling `onRecoveryFailure` on the
+    /// given listener itself, e.g. after performing some side work based on the failure.
+    static RecoveryListener delegateFailure(
+        RecoveryListener listener,
+        TriConsumer<RecoveryListener, RecoveryFailedException, Boolean> delegate
+    ) {
+        return new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                listener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                delegate.apply(listener, e, sendShardFailure);
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                listener.onRecoveryAborted();
             }
         };
     }

@@ -8,23 +8,23 @@
  */
 
 module org.elasticsearch.telemetry.apm {
-    requires org.apache.logging.log4j.core;
-    requires org.apache.logging.log4j;
-    requires org.apache.lucene.core;
     requires org.elasticsearch.base;
-    requires org.elasticsearch.logging;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
+    requires org.apache.logging.log4j;
+    requires org.apache.logging.log4j.core;
+    requires org.apache.lucene.core;
     requires io.opentelemetry.api;
     requires io.opentelemetry.context;
-    requires io.opentelemetry.exporter.otlp;
-    requires io.opentelemetry.instrumentation.runtime_telemetry;
-    requires io.opentelemetry.instrumentation_api;
-    requires io.opentelemetry.sdk.common;
-    requires io.opentelemetry.sdk.logs;
-    requires io.opentelemetry.sdk.metrics;
-    requires io.opentelemetry.sdk.trace;
     requires io.opentelemetry.sdk;
+    requires io.opentelemetry.sdk.metrics;
+    requires io.opentelemetry.sdk.logs;
+    requires io.opentelemetry.sdk.trace;
+    requires io.opentelemetry.exporter.otlp;
+    requires io.opentelemetry.instrumentation_api;
+    requires io.opentelemetry.instrumentation.runtime_telemetry;
+    requires io.opentelemetry.sdk.common;
+    requires org.elasticsearch.logging;
     requires opentelemetry.disk.buffering;
     requires kotlin.stdlib;
 

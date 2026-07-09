@@ -31,6 +31,7 @@ final class ClassWriterUtil {
     static final ClassDesc CD_MemoryLayoutArray = ClassDesc.ofDescriptor("[Ljava/lang/foreign/MemoryLayout;");
     static final ClassDesc CD_MemorySegment = ClassDesc.of("java.lang.foreign.MemorySegment");
     static final ClassDesc CD_StructLayout = ClassDesc.of("java.lang.foreign.StructLayout");
+    static final ClassDesc CD_PaddingLayout = ClassDesc.of("java.lang.foreign.PaddingLayout");
     static final ClassDesc CD_MemoryLayoutPathElement = ClassDesc.of("java.lang.foreign.MemoryLayout$PathElement");
     static final ClassDesc CD_Arena = ClassDesc.of("java.lang.foreign.Arena");
     static final ClassDesc CD_VarHandle = ClassDesc.of("java.lang.invoke.VarHandle");

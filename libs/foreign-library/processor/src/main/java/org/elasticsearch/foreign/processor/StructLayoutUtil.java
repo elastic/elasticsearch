@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_PaddingLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_String;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
@@ -28,7 +29,8 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayou
  */
 final class StructLayoutUtil {
 
-    private static final MethodTypeDesc MTD_paddingLayout = MethodTypeDesc.of(CD_MemoryLayout, CD_long);
+    // paddingLayout returns PaddingLayout (a subtype of MemoryLayout); invokestatic requires the exact descriptor.
+    private static final MethodTypeDesc MTD_paddingLayout = MethodTypeDesc.of(CD_PaddingLayout, CD_long);
     private static final MethodTypeDesc MTD_withName = MethodTypeDesc.of(CD_MemoryLayout, CD_String);
 
     private StructLayoutUtil() {}

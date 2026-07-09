@@ -232,7 +232,10 @@ public class ImplClassWriterTests extends ProcessorTestCase {
      * A minimal {@code @LibrarySpecification} with a {@code @StructSpecification} record element,
      * a {@code @StructSpecification} interface with an {@code @ArrayField} method, and a
      * {@code @StructFactory} method must generate a loadable {@code $Impl} class for the library
-     * and for the struct interface, plus a {@code $Pack} class for the record.
+     * and for the struct interface, plus a {@code $Pack} class for the record. The struct classes
+     * must also *initialize* — this exercises the bytecode emitted in {@code <clinit>} against the
+     * real FFM API, catching linkage errors like descriptor mismatches on {@code MemoryLayout.paddingLayout}
+     * that {@code loadClassNoInit} cannot see.
      */
     public void testStructFactoryGeneratesLoadableImplClass() throws Exception {
         String source = """
@@ -264,16 +267,19 @@ public class ImplClassWriterTests extends ProcessorTestCase {
 
         assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
 
-        // Library $Impl
+        // Library $Impl (cannot initialize — <clinit> would attempt to link native symbols)
         Class<?> implClass = result.loadClassNoInit("test.BufLib$Impl");
         assertNotNull("Generated BufLib$Impl class not found", implClass);
 
-        // $Pack companion for Elem record
-        Class<?> packClass = result.loadClassNoInit("test.BufLib$Elem$Pack");
+        // $Pack companion for Elem record — initialize to exercise LAYOUT / offset / VarHandle setup.
+        // If <clinit> throws (e.g. NoSuchMethodError from a bad MethodTypeDesc), loadClass rethrows it.
+        Class<?> packClass = result.loadClass("test.BufLib$Elem$Pack");
         assertNotNull("Generated BufLib$Elem$Pack class not found", packClass);
 
-        // $Impl for Buf struct
-        Class<?> bufImplClass = result.loadClassNoInit("test.BufLib$Buf$Impl");
+        // $Impl for Buf struct — initialize to exercise the full struct layout (short + padding + ADDRESS)
+        // and every VarHandle. This is the assertion that would catch a MemoryLayout.paddingLayout
+        // descriptor mismatch: <clinit> throws before returning and the test fails.
+        Class<?> bufImplClass = result.loadClass("test.BufLib$Buf$Impl");
         assertNotNull("Generated BufLib$Buf$Impl class not found", bufImplClass);
 
         // Buf$Impl must declare the expected static VarHandle fields

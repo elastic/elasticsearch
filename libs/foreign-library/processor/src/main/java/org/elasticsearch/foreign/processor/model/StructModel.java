@@ -15,7 +15,7 @@ import java.util.List;
  * Models a {@code @StructSpecification}-annotated type enclosed in a
  * {@code @LibrarySpecification} interface.
  *
- * <p>For records, {@link #fields()} contains one scalar {@link FieldModel} per record component.
+ * <p>For records, {@link #fields()} contains one scalar {@link StructFieldModel} per record component.
  * For interfaces, {@link #fields()} contains all declared abstract methods in declaration order;
  * plain methods become scalar fields and {@code @ArrayField}-annotated methods become array
  * fields with type {@link NativeType#ADDRESS}.
@@ -24,4 +24,4 @@ import java.util.List;
  * @param isRecord   {@code true} for records; {@code false} for interfaces
  * @param fields     field models in declaration order
  */
-public record StructModel(String simpleName, boolean isRecord, List<FieldModel> fields) {}
+public record StructModel(String simpleName, boolean isRecord, List<StructFieldModel> fields) {}

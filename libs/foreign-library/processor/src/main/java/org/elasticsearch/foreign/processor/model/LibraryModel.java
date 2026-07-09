@@ -92,7 +92,7 @@ public record LibraryModel(
         String simpleName = element.getSimpleName().toString();
         String packageName = env.getElementUtils().getPackageOf(element).getQualifiedName().toString();
 
-        AnnotationMirror specMirror = findAnnotationMirror(element, "org.elasticsearch.foreign.LibrarySpecification");
+        AnnotationMirror specMirror = ProcessorUtil.findAnnotationMirror(element, "org.elasticsearch.foreign.LibrarySpecification");
         List<String> unavailableOn = extractUnavailableOn(specMirror);
 
         boolean hasError = false;
@@ -120,7 +120,10 @@ public record LibraryModel(
                 continue;
             }
             TypeElement typeElement = (TypeElement) enclosed;
-            AnnotationMirror structSpecMirror = findAnnotationMirror(typeElement, "org.elasticsearch.foreign.StructSpecification");
+            AnnotationMirror structSpecMirror = ProcessorUtil.findAnnotationMirror(
+                typeElement,
+                "org.elasticsearch.foreign.StructSpecification"
+            );
             if (structSpecMirror == null) {
                 continue;
             }
@@ -135,181 +138,14 @@ public record LibraryModel(
                 continue;
             }
 
-            String typeSimpleName = typeElement.getSimpleName().toString();
-
-            if (kind == ElementKind.RECORD) {
-                // @StructSpecification record
-                List<FieldModel> fields = new ArrayList<>();
-                boolean fieldError = false;
-                for (RecordComponentElement component : typeElement.getRecordComponents()) {
-                    NativeType fieldType = MethodModel.classifyType(component.asType());
-                    if (fieldType == null
-                        || fieldType == NativeType.VOID
-                        || fieldType == NativeType.STRING
-                        || fieldType == NativeType.ADDRESSABLE) {
-                        messager.printMessage(
-                            Kind.ERROR,
-                            "Unsupported field type '"
-                                + component.asType()
-                                + "' on component '"
-                                + component.getSimpleName()
-                                + "' of @StructSpecification record '"
-                                + typeSimpleName
-                                + "'",
-                            component
-                        );
-                        fieldError = true;
-                    } else {
-                        fields.add(FieldModel.scalar(component.getSimpleName().toString(), fieldType));
-                    }
-                }
-                if (fieldError) {
-                    hasError = true;
-                } else {
-                    structs.add(new StructModel(typeSimpleName, true, List.copyOf(fields)));
-                    structSimpleNames.add(typeSimpleName);
-                }
+            StructModel structModel = kind == ElementKind.RECORD
+                ? buildRecordStructModel(typeElement, messager)
+                : buildInterfaceStructModel(typeElement, structSimpleNames, env, messager);
+            if (structModel == null) {
+                hasError = true;
             } else {
-                // @StructSpecification interface — must extend Addressable and have methods that
-                // describe its layout (scalar methods and optional @ArrayField methods).
-                boolean extendsAddressable = false;
-                for (TypeMirror iface : typeElement.getInterfaces()) {
-                    TypeElement ifaceElement = (TypeElement) env.getTypeUtils().asElement(iface);
-                    if (ifaceElement != null && ifaceElement.getQualifiedName().contentEquals("org.elasticsearch.foreign.Addressable")) {
-                        extendsAddressable = true;
-                        break;
-                    }
-                }
-                if (extendsAddressable == false) {
-                    messager.printMessage(
-                        Kind.ERROR,
-                        "@StructSpecification interface '" + typeSimpleName + "' must extend Addressable",
-                        typeElement
-                    );
-                    hasError = true;
-                    continue;
-                }
-
-                List<FieldModel> interfaceFields = new ArrayList<>();
-                List<String> scalarFieldNames = new ArrayList<>();
-                boolean fieldError = false;
-                for (var enclosedMember : typeElement.getEnclosedElements()) {
-                    if (enclosedMember.getKind() != ElementKind.METHOD) {
-                        continue;
-                    }
-                    ExecutableElement method = (ExecutableElement) enclosedMember;
-                    var mods = method.getModifiers();
-                    if (mods.contains(Modifier.DEFAULT) || mods.contains(Modifier.STATIC)) {
-                        continue;
-                    }
-
-                    String methodName = method.getSimpleName().toString();
-                    AnnotationMirror arrayFieldMirror = findAnnotationMirror(method, "org.elasticsearch.foreign.ArrayField");
-
-                    if (arrayFieldMirror != null) {
-                        // @ArrayField method: indexed accessor returning the element type
-                        if (method.getParameters().size() != 1 || method.getParameters().get(0).asType().getKind() != TypeKind.INT) {
-                            messager.printMessage(
-                                Kind.ERROR,
-                                "@ArrayField method '" + methodName + "' must take a single int parameter",
-                                method
-                            );
-                            fieldError = true;
-                            continue;
-                        }
-                        TypeMirror returnMirror = method.getReturnType();
-                        if (returnMirror.getKind() != TypeKind.DECLARED) {
-                            messager.printMessage(
-                                Kind.ERROR,
-                                "@ArrayField method '" + methodName + "' must return a @StructSpecification record type",
-                                method
-                            );
-                            fieldError = true;
-                            continue;
-                        }
-                        TypeElement elementTypeElement = (TypeElement) env.getTypeUtils().asElement(returnMirror);
-                        String elementSimpleName = elementTypeElement.getSimpleName().toString();
-                        if (structSimpleNames.contains(elementSimpleName) == false) {
-                            messager.printMessage(
-                                Kind.ERROR,
-                                "@ArrayField method '"
-                                    + methodName
-                                    + "' element type '"
-                                    + elementSimpleName
-                                    + "' must be a @StructSpecification record declared in the same @LibrarySpecification interface",
-                                method,
-                                arrayFieldMirror
-                            );
-                            fieldError = true;
-                            continue;
-                        }
-                        String lengthField = annotationStringValue(arrayFieldMirror, "lengthField");
-                        if (lengthField == null || lengthField.isEmpty()) {
-                            messager.printMessage(
-                                Kind.ERROR,
-                                "@ArrayField on '" + methodName + "' requires lengthField",
-                                method,
-                                arrayFieldMirror
-                            );
-                            fieldError = true;
-                            continue;
-                        }
-                        interfaceFields.add(FieldModel.array(methodName, elementSimpleName, lengthField));
-                    } else {
-                        // Scalar field: return type is the field type
-                        NativeType returnType = MethodModel.classifyType(method.getReturnType());
-                        if (returnType == null
-                            || returnType == NativeType.VOID
-                            || returnType == NativeType.STRING
-                            || returnType == NativeType.ADDRESSABLE) {
-                            messager.printMessage(
-                                Kind.ERROR,
-                                "Unsupported field type '"
-                                    + method.getReturnType()
-                                    + "' on method '"
-                                    + methodName
-                                    + "' of @StructSpecification interface '"
-                                    + typeSimpleName
-                                    + "'",
-                                method
-                            );
-                            fieldError = true;
-                            continue;
-                        }
-                        if (method.getParameters().isEmpty() == false) {
-                            messager.printMessage(Kind.ERROR, "Scalar field method '" + methodName + "' must take no parameters", method);
-                            fieldError = true;
-                            continue;
-                        }
-                        interfaceFields.add(FieldModel.scalar(methodName, returnType));
-                        scalarFieldNames.add(methodName);
-                    }
-                }
-
-                // Validate that every @ArrayField's lengthField references a real scalar field on this struct.
-                for (FieldModel fm : interfaceFields) {
-                    if (fm.isArray() && scalarFieldNames.contains(fm.lengthFieldName()) == false) {
-                        messager.printMessage(
-                            Kind.ERROR,
-                            "@ArrayField on '"
-                                + fm.name()
-                                + "' references lengthField '"
-                                + fm.lengthFieldName()
-                                + "' which is not a scalar field on '"
-                                + typeSimpleName
-                                + "'",
-                            typeElement
-                        );
-                        fieldError = true;
-                    }
-                }
-
-                if (fieldError) {
-                    hasError = true;
-                } else {
-                    structs.add(new StructModel(typeSimpleName, false, List.copyOf(interfaceFields)));
-                    structSimpleNames.add(typeSimpleName);
-                }
+                structs.add(structModel);
+                structSimpleNames.add(structModel.simpleName());
             }
         }
 
@@ -365,22 +201,193 @@ public record LibraryModel(
         return List.of();
     }
 
-    private static AnnotationMirror findAnnotationMirror(javax.lang.model.element.Element element, String annotationFqn) {
-        for (AnnotationMirror mirror : element.getAnnotationMirrors()) {
-            TypeElement annotationType = (TypeElement) mirror.getAnnotationType().asElement();
-            if (annotationType.getQualifiedName().contentEquals(annotationFqn)) {
-                return mirror;
+    /**
+     * Builds a {@link StructModel} for a {@code @StructSpecification} record. Emits errors for any
+     * unsupported record component types and returns {@code null} if any error was emitted.
+     */
+    private static StructModel buildRecordStructModel(TypeElement typeElement, Messager messager) {
+        String typeSimpleName = typeElement.getSimpleName().toString();
+        List<StructFieldModel> fields = new ArrayList<>();
+        boolean fieldError = false;
+        for (RecordComponentElement component : typeElement.getRecordComponents()) {
+            NativeType fieldType = ProcessorUtil.classifyType(component.asType());
+            if (fieldType == null
+                || fieldType == NativeType.VOID
+                || fieldType == NativeType.STRING
+                || fieldType == NativeType.ADDRESSABLE) {
+                messager.printMessage(
+                    Kind.ERROR,
+                    "Unsupported field type '"
+                        + component.asType()
+                        + "' on component '"
+                        + component.getSimpleName()
+                        + "' of @StructSpecification record '"
+                        + typeSimpleName
+                        + "'",
+                    component
+                );
+                fieldError = true;
+            } else {
+                fields.add(StructFieldModel.scalar(component.getSimpleName().toString(), fieldType));
             }
         }
-        return null;
+        return fieldError ? null : new StructModel(typeSimpleName, true, List.copyOf(fields));
     }
 
-    private static String annotationStringValue(AnnotationMirror mirror, String attribute) {
-        for (var entry : mirror.getElementValues().entrySet()) {
-            if (entry.getKey().getSimpleName().contentEquals(attribute)) {
-                return entry.getValue().getValue() instanceof String s ? s : null;
+    /**
+     * Builds a {@link StructModel} for a {@code @StructSpecification} interface. Validates that the
+     * interface extends {@code Addressable}, collects a {@link StructFieldModel} for every abstract
+     * method (scalar or {@code @ArrayField}), and validates that every {@code @ArrayField}'s
+     * {@code lengthField} references a real scalar field on the same struct. Returns {@code null}
+     * on any error.
+     */
+    private static StructModel buildInterfaceStructModel(
+        TypeElement typeElement,
+        List<String> priorStructNames,
+        ProcessingEnvironment env,
+        Messager messager
+    ) {
+        String typeSimpleName = typeElement.getSimpleName().toString();
+
+        if (extendsAddressable(typeElement, env) == false) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@StructSpecification interface '" + typeSimpleName + "' must extend Addressable",
+                typeElement
+            );
+            return null;
+        }
+
+        List<StructFieldModel> interfaceFields = new ArrayList<>();
+        List<String> scalarFieldNames = new ArrayList<>();
+        boolean fieldError = false;
+        for (var enclosedMember : typeElement.getEnclosedElements()) {
+            if (enclosedMember.getKind() != ElementKind.METHOD) {
+                continue;
+            }
+            ExecutableElement method = (ExecutableElement) enclosedMember;
+            var mods = method.getModifiers();
+            if (mods.contains(Modifier.DEFAULT) || mods.contains(Modifier.STATIC)) {
+                continue;
+            }
+            StructFieldModel fieldModel = buildInterfaceStructField(method, typeSimpleName, priorStructNames, env, messager);
+            if (fieldModel == null) {
+                fieldError = true;
+                continue;
+            }
+            interfaceFields.add(fieldModel);
+            if (fieldModel.isArray() == false) {
+                scalarFieldNames.add(fieldModel.name());
             }
         }
-        return null;
+
+        // Every @ArrayField's lengthField must name a real scalar field on this same struct.
+        for (StructFieldModel fm : interfaceFields) {
+            if (fm.isArray() && scalarFieldNames.contains(fm.lengthFieldName()) == false) {
+                messager.printMessage(
+                    Kind.ERROR,
+                    "@ArrayField on '"
+                        + fm.name()
+                        + "' references lengthField '"
+                        + fm.lengthFieldName()
+                        + "' which is not a scalar field on '"
+                        + typeSimpleName
+                        + "'",
+                    typeElement
+                );
+                fieldError = true;
+            }
+        }
+
+        return fieldError ? null : new StructModel(typeSimpleName, false, List.copyOf(interfaceFields));
+    }
+
+    /**
+     * Turns a single abstract method on a {@code @StructSpecification} interface into a
+     * {@link StructFieldModel}. Recognises {@code @ArrayField}-annotated indexed accessors and
+     * plain scalar getters. Returns {@code null} on any error.
+     */
+    private static StructFieldModel buildInterfaceStructField(
+        ExecutableElement method,
+        String enclosingStructSimpleName,
+        List<String> priorStructNames,
+        ProcessingEnvironment env,
+        Messager messager
+    ) {
+        String methodName = method.getSimpleName().toString();
+        AnnotationMirror arrayFieldMirror = ProcessorUtil.findAnnotationMirror(method, "org.elasticsearch.foreign.ArrayField");
+
+        if (arrayFieldMirror != null) {
+            if (method.getParameters().size() != 1 || method.getParameters().get(0).asType().getKind() != TypeKind.INT) {
+                messager.printMessage(Kind.ERROR, "@ArrayField method '" + methodName + "' must take a single int parameter", method);
+                return null;
+            }
+            TypeMirror returnMirror = method.getReturnType();
+            if (returnMirror.getKind() != TypeKind.DECLARED) {
+                messager.printMessage(
+                    Kind.ERROR,
+                    "@ArrayField method '" + methodName + "' must return a @StructSpecification record type",
+                    method
+                );
+                return null;
+            }
+            TypeElement elementTypeElement = (TypeElement) env.getTypeUtils().asElement(returnMirror);
+            String elementSimpleName = elementTypeElement.getSimpleName().toString();
+            if (priorStructNames.contains(elementSimpleName) == false) {
+                messager.printMessage(
+                    Kind.ERROR,
+                    "@ArrayField method '"
+                        + methodName
+                        + "' element type '"
+                        + elementSimpleName
+                        + "' must be a @StructSpecification record declared in the same @LibrarySpecification interface",
+                    method,
+                    arrayFieldMirror
+                );
+                return null;
+            }
+            String lengthField = ProcessorUtil.annotationStringValue(arrayFieldMirror, "lengthField");
+            if (lengthField == null || lengthField.isEmpty()) {
+                messager.printMessage(Kind.ERROR, "@ArrayField on '" + methodName + "' requires lengthField", method, arrayFieldMirror);
+                return null;
+            }
+            return StructFieldModel.array(methodName, elementSimpleName, lengthField);
+        }
+
+        // Scalar field: return type is the field type
+        NativeType returnType = ProcessorUtil.classifyType(method.getReturnType());
+        if (returnType == null
+            || returnType == NativeType.VOID
+            || returnType == NativeType.STRING
+            || returnType == NativeType.ADDRESSABLE) {
+            messager.printMessage(
+                Kind.ERROR,
+                "Unsupported field type '"
+                    + method.getReturnType()
+                    + "' on method '"
+                    + methodName
+                    + "' of @StructSpecification interface '"
+                    + enclosingStructSimpleName
+                    + "'",
+                method
+            );
+            return null;
+        }
+        if (method.getParameters().isEmpty() == false) {
+            messager.printMessage(Kind.ERROR, "Scalar field method '" + methodName + "' must take no parameters", method);
+            return null;
+        }
+        return StructFieldModel.scalar(methodName, returnType);
+    }
+
+    /** Returns {@code true} if {@code typeElement} directly extends {@code org.elasticsearch.foreign.Addressable}. */
+    private static boolean extendsAddressable(TypeElement typeElement, ProcessingEnvironment env) {
+        for (TypeMirror iface : typeElement.getInterfaces()) {
+            TypeElement ifaceElement = (TypeElement) env.getTypeUtils().asElement(iface);
+            if (ifaceElement != null && ifaceElement.getQualifiedName().contentEquals("org.elasticsearch.foreign.Addressable")) {
+                return true;
+            }
+        }
+        return false;
     }
 }

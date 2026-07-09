@@ -9,10 +9,10 @@
 
 package org.elasticsearch.foreign.processor;
 
-import org.elasticsearch.foreign.processor.model.FieldModel;
 import org.elasticsearch.foreign.processor.model.LibraryModel;
 import org.elasticsearch.foreign.processor.model.MethodModel;
 import org.elasticsearch.foreign.processor.model.NativeType;
+import org.elasticsearch.foreign.processor.model.StructFieldModel;
 import org.elasticsearch.foreign.processor.model.StructModel;
 
 import java.lang.classfile.ClassBuilder;
@@ -217,7 +217,7 @@ class ImplClassWriter {
             : model.packageName() + "." + model.simpleName() + "$" + struct.simpleName();
         ClassDesc recordDesc = ClassDesc.of(recordQualifiedName);
 
-        List<FieldModel> fields = struct.fields();
+        List<StructFieldModel> fields = struct.fields();
         List<LayoutField> layout = computeLayout(fields);
 
         byte[] classBytes = ClassFile.of().build(packDesc, cb -> {
@@ -229,7 +229,7 @@ class ImplClassWriter {
             cb.withField("LAYOUT", CD_StructLayout, fb -> fb.withFlags(AccessFlag.STATIC, AccessFlag.FINAL));
 
             // One offset field per component (private — used only by pack())
-            for (FieldModel field : fields) {
+            for (StructFieldModel field : fields) {
                 cb.withField(
                     field.name() + "$offset",
                     CD_long,
@@ -238,7 +238,7 @@ class ImplClassWriter {
             }
 
             // One VarHandle field per component (package-private — used by $Impl to read elements)
-            for (FieldModel field : fields) {
+            for (StructFieldModel field : fields) {
                 cb.withField(field.name() + "$vh", CD_VarHandle, fb -> fb.withFlags(AccessFlag.STATIC, AccessFlag.FINAL));
             }
 
@@ -250,7 +250,7 @@ class ImplClassWriter {
                 clinit.putstatic(packDesc, "LAYOUT", CD_StructLayout);
 
                 // Initialize offset for each field
-                for (FieldModel field : fields) {
+                for (StructFieldModel field : fields) {
                     clinit.getstatic(packDesc, "LAYOUT", CD_StructLayout);
                     clinit.loadConstant(1);
                     clinit.anewarray(CD_MemoryLayoutPathElement);
@@ -264,7 +264,7 @@ class ImplClassWriter {
                 }
 
                 // Initialize VarHandle for each field
-                for (FieldModel field : fields) {
+                for (StructFieldModel field : fields) {
                     clinit.getstatic(packDesc, "LAYOUT", CD_StructLayout);
                     clinit.ldc(field.name());
                     clinit.invokestatic(CD_MemoryLayoutPathElement, "groupElement", MTD_groupElement, true);
@@ -288,7 +288,7 @@ class ImplClassWriter {
             // static package-private: no access flags = package-private
             cb.withMethodBody("pack", packMethodDesc, ClassFile.ACC_STATIC, pack -> {
                 // slot 0 = src, slot 1 = dest, slot 2 = baseOffset (long, takes 2 slots)
-                for (FieldModel field : fields) {
+                for (StructFieldModel field : fields) {
                     // dest.set(ValueLayout.JAVA_XXX, baseOffset + <name>$offset, src.<name>())
                     pack.aload(1); // dest
                     emitValueLayout(pack, field.type().layoutType());
@@ -336,7 +336,7 @@ class ImplClassWriter {
         ClassDesc structInterfaceDesc = ClassDesc.of(structInterfaceQualifiedName);
         ClassDesc addressableDesc = ClassDesc.of("org.elasticsearch.foreign.Addressable");
 
-        List<FieldModel> fields = struct.fields();
+        List<StructFieldModel> fields = struct.fields();
         List<LayoutField> layout = computeLayout(fields);
         String packPrefix = model.packageName().isEmpty() ? model.simpleName() : model.packageName() + "." + model.simpleName();
 
@@ -350,7 +350,7 @@ class ImplClassWriter {
             cb.withField("LAYOUT", CD_StructLayout, fb -> fb.withFlags(AccessFlag.STATIC, AccessFlag.FINAL));
 
             // One VarHandle per field: scalar fields use "name$vh", array pointer fields use "name$ptr$vh"
-            for (FieldModel field : fields) {
+            for (StructFieldModel field : fields) {
                 String vhName = field.isArray() ? field.name() + "$ptr$vh" : field.name() + "$vh";
                 cb.withField(vhName, CD_VarHandle, fb -> fb.withFlags(AccessFlag.STATIC, AccessFlag.FINAL));
             }
@@ -364,7 +364,7 @@ class ImplClassWriter {
                 clinit.invokestatic(CD_MemoryLayout, "structLayout", MTD_structLayout, true);
                 clinit.putstatic(structImplDesc, "LAYOUT", CD_StructLayout);
 
-                for (FieldModel field : fields) {
+                for (StructFieldModel field : fields) {
                     String vhName = field.isArray() ? field.name() + "$ptr$vh" : field.name() + "$vh";
                     clinit.getstatic(structImplDesc, "LAYOUT", CD_StructLayout);
                     clinit.ldc(field.name());
@@ -396,9 +396,9 @@ class ImplClassWriter {
             });
 
             // Accessor methods for every field
-            for (FieldModel field : fields) {
+            for (StructFieldModel field : fields) {
                 if (field.isArray()) {
-                    List<FieldModel> elementFields = resolveElementFields(model, field.elementSimpleName());
+                    List<StructFieldModel> elementFields = resolveElementFields(model, field.elementSimpleName());
                     emitArrayFieldGetter(cb, structImplDesc, packPrefix, field, elementFields);
                 } else {
                     emitScalarFieldGetter(cb, structImplDesc, field);
@@ -412,7 +412,7 @@ class ImplClassWriter {
     }
 
     /** Emits a scalar-field accessor: {@code return (<type>) name$vh.get(segment);}. */
-    private static void emitScalarFieldGetter(ClassBuilder cb, ClassDesc structImplDesc, FieldModel field) {
+    private static void emitScalarFieldGetter(ClassBuilder cb, ClassDesc structImplDesc, StructFieldModel field) {
         ClassDesc returnDesc = fieldClassDesc(field.type());
         MethodTypeDesc methodDesc = MethodTypeDesc.of(returnDesc);
         cb.withMethodBody(field.name(), methodDesc, ClassFile.ACC_PUBLIC, code -> {
@@ -433,8 +433,8 @@ class ImplClassWriter {
         ClassBuilder cb,
         ClassDesc structImplDesc,
         String packPrefix,
-        FieldModel arrayField,
-        List<FieldModel> elementFields
+        StructFieldModel arrayField,
+        List<StructFieldModel> elementFields
     ) {
         ClassDesc elementRecordDesc = ClassDesc.of(packPrefix + "$" + arrayField.elementSimpleName());
         ClassDesc elementPackDesc = ClassDesc.of(packPrefix + "$" + arrayField.elementSimpleName() + "$Pack");
@@ -468,7 +468,7 @@ class ImplClassWriter {
             code.new_(elementRecordDesc);
             code.dup();
             List<ClassDesc> ctorParams = new ArrayList<>();
-            for (FieldModel ef : elementFields) {
+            for (StructFieldModel ef : elementFields) {
                 ClassDesc efDesc = fieldClassDesc(ef.type());
                 code.getstatic(elementPackDesc, ef.name() + "$vh", CD_VarHandle);
                 code.aload(5); // elementSeg
@@ -481,7 +481,7 @@ class ImplClassWriter {
     }
 
     /** Looks up the field list of a nested struct in the same library by simple name. */
-    private static List<FieldModel> resolveElementFields(LibraryModel model, String simpleName) {
+    private static List<StructFieldModel> resolveElementFields(LibraryModel model, String simpleName) {
         for (StructModel s : model.structs()) {
             if (s.simpleName().equals(simpleName)) {
                 return s.fields();
@@ -805,12 +805,12 @@ class ImplClassWriter {
             .filter(s -> s.simpleName().equals(nm.structReturnSimpleName()))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Cannot find struct model for " + nm.structReturnSimpleName()));
-        FieldModel arrayField = targetStruct.fields()
+        StructFieldModel arrayField = targetStruct.fields()
             .stream()
-            .filter(FieldModel::isArray)
+            .filter(StructFieldModel::isArray)
             .findFirst()
             .orElseThrow(() -> new AssertionError("Struct " + nm.structReturnSimpleName() + " has no @ArrayField"));
-        FieldModel lengthField = targetStruct.fields()
+        StructFieldModel lengthField = targetStruct.fields()
             .stream()
             .filter(f -> f.name().equals(arrayField.lengthFieldName()))
             .findFirst()
@@ -954,17 +954,17 @@ class ImplClassWriter {
     // -------------------------------------------------------------------------
 
     /** A field along with the padding (in bytes) that precedes it in the struct layout. */
-    private record LayoutField(FieldModel field, long paddingBefore) {}
+    private record LayoutField(StructFieldModel field, long paddingBefore) {}
 
     /**
      * Computes per-field padding using C natural-alignment rules, assuming a 64-bit ADDRESS
      * (8 bytes). Every field is aligned to its own size; padding is inserted before any field
      * whose alignment isn't satisfied by the running offset.
      */
-    private static List<LayoutField> computeLayout(List<FieldModel> fields) {
+    private static List<LayoutField> computeLayout(List<StructFieldModel> fields) {
         List<LayoutField> result = new ArrayList<>();
         long offset = 0;
-        for (FieldModel field : fields) {
+        for (StructFieldModel field : fields) {
             long align = byteAlignment(field.type());
             long padding = (offset % align == 0) ? 0 : (align - offset % align);
             result.add(new LayoutField(field, padding));

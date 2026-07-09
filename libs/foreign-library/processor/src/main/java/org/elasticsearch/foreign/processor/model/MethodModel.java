@@ -114,7 +114,7 @@ public record MethodModel(
         }
 
         // @Function method
-        NativeType returnType = classifyType(method.getReturnType());
+        NativeType returnType = ProcessorUtil.classifyType(method.getReturnType());
         if (returnType == null) {
             messager.printMessage(
                 Kind.ERROR,
@@ -126,7 +126,7 @@ public record MethodModel(
 
         List<NativeType> paramTypes = new ArrayList<>();
         for (var param : method.getParameters()) {
-            NativeType paramType = classifyType(param.asType());
+            NativeType paramType = ProcessorUtil.classifyType(param.asType());
             if (paramType == null || paramType == NativeType.VOID) {
                 messager.printMessage(
                     Kind.ERROR,
@@ -160,14 +160,6 @@ public record MethodModel(
             null,
             null
         );
-    }
-
-    /**
-     * Backward-compatible overload that passes an empty struct name list. Used by existing call
-     * sites that predate struct support.
-     */
-    public static MethodModel from(ExecutableElement method, ProcessingEnvironment env) {
-        return from(method, env, List.of());
     }
 
     private static MethodModel buildStructFactoryModel(
@@ -204,7 +196,7 @@ public record MethodModel(
                 continue;
             }
             ExecutableElement arrayMethod = (ExecutableElement) enclosed;
-            AnnotationMirror arrayFieldMirror = findAnnotationMirror(arrayMethod, "org.elasticsearch.foreign.ArrayField");
+            AnnotationMirror arrayFieldMirror = ProcessorUtil.findAnnotationMirror(arrayMethod, "org.elasticsearch.foreign.ArrayField");
             if (arrayFieldMirror == null) {
                 continue;
             }
@@ -253,36 +245,6 @@ public record MethodModel(
     }
 
     /**
-     * Returns the {@link NativeType} for a {@link TypeMirror}, or {@code null} if the type is not
-     * supported. {@link NativeType#STRING} is returned for {@code java.lang.String} and validity in
-     * a given position (e.g. return-only) is enforced at the call site.
-     */
-    static NativeType classifyType(TypeMirror mirror) {
-        if (mirror.getKind() == TypeKind.VOID) {
-            return NativeType.VOID;
-        }
-        if (mirror.getKind() == TypeKind.DECLARED) {
-            String fqn = ((TypeElement) ((DeclaredType) mirror).asElement()).getQualifiedName().toString();
-            return switch (fqn) {
-                case "java.lang.foreign.MemorySegment" -> NativeType.ADDRESS;
-                case "java.lang.String" -> NativeType.STRING;
-                case "org.elasticsearch.foreign.Addressable" -> NativeType.ADDRESSABLE;
-                default -> null;
-            };
-        }
-        return switch (mirror.getKind()) {
-            case INT -> NativeType.INT;
-            case LONG -> NativeType.LONG;
-            case SHORT -> NativeType.SHORT;
-            case BYTE -> NativeType.BYTE;
-            case BOOLEAN -> NativeType.BOOLEAN;
-            case FLOAT -> NativeType.FLOAT;
-            case DOUBLE -> NativeType.DOUBLE;
-            default -> null;
-        };
-    }
-
-    /**
      * Resolves {@code @Critical.fallbackAdapter()} and verifies the adapter class declares a {@code public static}
      * method with the same name as {@code method} and a parameter list of {@code (MethodHandle, …originalParams)}
      * returning the same type as the annotated method. Returns the adapter's fully-qualified name on success,
@@ -295,12 +257,12 @@ public record MethodModel(
         Messager messager,
         Types types
     ) {
-        AnnotationMirror criticalMirror = findAnnotationMirror(method, "org.elasticsearch.foreign.Critical");
+        AnnotationMirror criticalMirror = ProcessorUtil.findAnnotationMirror(method, "org.elasticsearch.foreign.Critical");
         if (criticalMirror == null) {
             // Caller checked @Critical is present.
             return null;
         }
-        TypeMirror adapterMirror = annotationClassValue(criticalMirror, "fallbackAdapter");
+        TypeMirror adapterMirror = ProcessorUtil.annotationClassValue(criticalMirror, "fallbackAdapter");
         if (adapterMirror == null) {
             messager.printMessage(Kind.ERROR, "@Critical requires fallbackAdapter to be set", method, criticalMirror);
             return null;
@@ -344,25 +306,6 @@ public record MethodModel(
         return adapterFqn;
     }
 
-    private static AnnotationMirror findAnnotationMirror(javax.lang.model.element.Element element, String annotationFqn) {
-        for (AnnotationMirror mirror : element.getAnnotationMirrors()) {
-            TypeElement annotationType = (TypeElement) mirror.getAnnotationType().asElement();
-            if (annotationType.getQualifiedName().contentEquals(annotationFqn)) {
-                return mirror;
-            }
-        }
-        return null;
-    }
-
-    private static TypeMirror annotationClassValue(AnnotationMirror mirror, String attribute) {
-        for (var entry : mirror.getElementValues().entrySet()) {
-            if (entry.getKey().getSimpleName().contentEquals(attribute)) {
-                return entry.getValue().getValue() instanceof TypeMirror tm ? tm : null;
-            }
-        }
-        return null;
-    }
-
     private static ExecutableElement findPublicStaticMethod(TypeElement type, String methodName) {
         for (var enclosed : type.getEnclosedElements()) {
             if (enclosed.getKind() != ElementKind.METHOD) {
@@ -389,11 +332,11 @@ public record MethodModel(
             return false;
         }
         for (int i = 0; i < originalParams.size(); i++) {
-            if (classifyType(params.get(i + 1).asType()) != originalParams.get(i)) {
+            if (ProcessorUtil.classifyType(params.get(i + 1).asType()) != originalParams.get(i)) {
                 return false;
             }
         }
-        return classifyType(adapter.getReturnType()) == originalReturn;
+        return ProcessorUtil.classifyType(adapter.getReturnType()) == originalReturn;
     }
 
     private static boolean isMethodHandle(TypeMirror mirror) {

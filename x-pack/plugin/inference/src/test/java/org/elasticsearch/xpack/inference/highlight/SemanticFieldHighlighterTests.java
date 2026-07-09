@@ -27,12 +27,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
-public class SemanticFieldHighlighterTests extends AbstractSemanticHighlighterTests {
+public class SemanticFieldHighlighterTests extends SemanticHighlighterTests {
 
     public SemanticFieldHighlighterTests() throws IOException {
     }
 
-    @Override
     MapperService createMapperService() throws IOException {
         var mappings = Streams.readFully(SemanticFieldHighlighterTests.class.getResourceAsStream("mappings-semantic.json"));
         return createMapperService(Settings.EMPTY, mappings.utf8ToString());
@@ -50,7 +49,7 @@ public class SemanticFieldHighlighterTests extends AbstractSemanticHighlighterTe
         var mapperService = createMapperService();
         Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
         float[] vector = readDenseVector(queryMap.get("embeddings"));
-        var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_E5);
+        var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD);
 
         KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
             fieldType.getEmbeddingsField().fullPath(),
@@ -68,9 +67,10 @@ public class SemanticFieldHighlighterTests extends AbstractSemanticHighlighterTe
         String[] expectedPassages = ((List<String>) queryMap.get("expected_with_similarity_threshold")).toArray(String[]::new);
         assertHighlightOneDoc(
             mapperService,
+            createSearchExecutionContext(mapperService),
             shardRequest,
             sourceToParse,
-            SEMANTIC_FIELD_E5,
+            SEMANTIC_FIELD,
             expectedPassages.length,
             HighlightBuilder.Order.SCORE,
             expectedPassages
@@ -83,7 +83,7 @@ public class SemanticFieldHighlighterTests extends AbstractSemanticHighlighterTe
         Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
         float[] vector = readDenseVector(queryMap.get("embeddings"));
         var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup()
-            .getFieldType(SEMANTIC_FIELD_E5_DISK_BBQ);
+            .getFieldType(SEMANTIC_FIELD_DISK_BBQ);
 
         KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
             fieldType.getEmbeddingsField().fullPath(),
@@ -101,9 +101,10 @@ public class SemanticFieldHighlighterTests extends AbstractSemanticHighlighterTe
         String[] expectedPassages = ((List<String>) queryMap.get("expected_with_similarity_threshold")).toArray(String[]::new);
         assertHighlightOneDoc(
             mapperService,
+            createSearchExecutionContext(mapperService),
             shardRequest,
             sourceToParse,
-            SEMANTIC_FIELD_E5_DISK_BBQ,
+            SEMANTIC_FIELD_DISK_BBQ,
             expectedPassages.length,
             HighlightBuilder.Order.SCORE,
             expectedPassages
@@ -116,7 +117,7 @@ public class SemanticFieldHighlighterTests extends AbstractSemanticHighlighterTe
         Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
         float[] vector = readDenseVector(queryMap.get("embeddings"));
         var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup()
-            .getFieldType(SEMANTIC_FIELD_E5_DISK_BBQ);
+            .getFieldType(SEMANTIC_FIELD_DISK_BBQ);
 
         KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
             fieldType.getEmbeddingsField().fullPath(),
@@ -135,9 +136,10 @@ public class SemanticFieldHighlighterTests extends AbstractSemanticHighlighterTe
         for (int i = 0; i < expectedScorePassages.length; i++) {
             assertHighlightOneDoc(
                 mapperService,
+                createSearchExecutionContext(mapperService),
                 shardRequest,
                 sourceToParse,
-                SEMANTIC_FIELD_E5_DISK_BBQ,
+                SEMANTIC_FIELD_DISK_BBQ,
                 i + 1,
                 HighlightBuilder.Order.SCORE,
                 Arrays.copyOfRange(expectedScorePassages, 0, i + 1)
@@ -147,9 +149,10 @@ public class SemanticFieldHighlighterTests extends AbstractSemanticHighlighterTe
         String[] expectedOffsetPassages = ((List<String>) queryMap.get("expected_by_offset")).toArray(String[]::new);
         assertHighlightOneDoc(
             mapperService,
+            createSearchExecutionContext(mapperService),
             shardRequest,
             sourceToParse,
-            SEMANTIC_FIELD_E5_DISK_BBQ,
+            SEMANTIC_FIELD_DISK_BBQ,
             expectedOffsetPassages.length,
             HighlightBuilder.Order.NONE,
             expectedOffsetPassages

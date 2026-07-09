@@ -338,10 +338,6 @@ public class CsvIT extends ESTestCase {
             testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST.capabilityName())
         );
         assumeFalseLogging(
-            "CSV tests cannot handle _slice",
-            testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SLICE.capabilityName())
-        );
-        assumeFalseLogging(
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
@@ -570,11 +566,6 @@ public class CsvIT extends ESTestCase {
     private static ResourceLoader<CsvTestsDataLoader.TestDataset> indices = new ResourceLoader<>() {
         @Override
         protected void load(CsvTestsDataLoader.TestDataset dataset) throws IOException {
-            if (dataset.requiredCapabilities().contains(EsqlCapabilities.Cap.METADATA_SLICE)) {
-                logger.info("Skip dataset [{}] since it requires METADATA_SLICE", dataset.indexName());
-                return;
-            }
-
             logger.info("Loading dataset [{}]", dataset.indexName());
             for (String inferenceId : dataset.inferenceEndpoints()) {
                 inference.maybeLoad(inferenceId, INFERENCE_CONFIGS.get(inferenceId));
@@ -584,9 +575,19 @@ public class CsvIT extends ESTestCase {
             assertAcked(cluster.client().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings));
             if (dataset.dataFileName() != null) {
                 var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
                 for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
                     String source = indexLoadStrategy.transformDocument(dataset, document.json().toString());
-                    bulk.add(cluster.client().prepareIndex(dataset.indexName()).setId(document.id()).setSource(source, XContentType.JSON));
+                    var indexRequestBuilder = cluster.client()
+                        .prepareIndex(dataset.indexName())
+                        .setId(document.id())
+                        .setSource(source, XContentType.JSON);
+                    if (document.slice() != null) {
+                        indexRequestBuilder.setRouting(document.slice());
+                        indexRequestBuilder.setRoutingFromSlice(true);
+                    }
+
+                    bulk.add(indexRequestBuilder);
                     if (bulk.numberOfActions() >= BULK_INDEX_BATCH_SIZE) {
                         var result = bulk.get();
                         assertFalse(

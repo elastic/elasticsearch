@@ -1016,7 +1016,7 @@ public class CsvTestsDataLoader {
 
     record Column(String name, String type) {}
 
-    public record Document(String id, StringBuilder json) {}
+    public record Document(String id, String slice, StringBuilder json) {}
 
     public static List<Document> readCsvDocuments(InputStream resource, boolean allowSubFields) {
         try (BufferedReader reader = reader(resource)) {
@@ -1081,7 +1081,6 @@ public class CsvTestsDataLoader {
             int lineNumber = 1;
             Column[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
             List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
-            int sliceColumnIndex = -1;
 
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
@@ -1093,11 +1092,6 @@ public class CsvTestsDataLoader {
                 // the schema row
                 if (columns == null) {
                     columns = parseHeaders(entries, allowSubFields, subFieldsIndices);
-                    Column[] finalColumns = columns;
-                    sliceColumnIndex = IntStream.range(0, columns.length)
-                        .filter(i -> finalColumns[i] != null && SliceIndexing.PARAM_NAME.equals(finalColumns[i].name))
-                        .findFirst()
-                        .orElse(-1);
                 }
                 // data rows
                 else {
@@ -1115,13 +1109,12 @@ public class CsvTestsDataLoader {
                     // id, document
                     var document = parseDocument(columns, entries, lineNumber, subFieldsIndices);
 
-                    String slice = sliceColumnIndex != -1 ? entries[sliceColumnIndex] : null;
                     builder.append(
                         "{\"index\": {\"_index\":\""
                             + indexName
                             + "\""
                             + (document.id() != null ? ", \"_id\": \"" + document.id() + "\"" : "")
-                            + (slice != null ? ", \"_slice\": \"" + slice + "\"" : "")
+                            + (document.slice() != null ? ", \"_slice\": \"" + document.slice() + "\"" : "")
                             + "}}\n"
                     );
                     builder.append(document.json());
@@ -1167,6 +1160,7 @@ public class CsvTestsDataLoader {
     private static Document parseDocument(Column[] columns, String[] entries, int lineNumber, List<Integer> subFieldsIndices) {
         StringBuilder row = new StringBuilder("{");
         String id = null;
+        String slice = null;
         for (int i = 0; i < entries.length; i++) {
             // ignore values that belong to subfields and don't add them to the bulk request
             if (subFieldsIndices.contains(i) == false) {
@@ -1180,7 +1174,7 @@ public class CsvTestsDataLoader {
                     continue;
                 }
                 if (columns[i] != null && SliceIndexing.PARAM_NAME.equals(columns[i].name)) {
-                    // _slice is ignored
+                    slice = entries[i];
                     continue;
                 }
 
@@ -1214,7 +1208,7 @@ public class CsvTestsDataLoader {
             }
         }
         row.append("}\n");
-        return new Document(id, row);
+        return new Document(id, slice, row);
     }
 
     private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");

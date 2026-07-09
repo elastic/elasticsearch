@@ -176,6 +176,25 @@ public class APMAgentSettingsTests extends ESTestCase {
         }
     }
 
+    public void testUpdateMaxTraceDepthPropagatesToTracer() {
+        int depth = randomIntBetween(1, 100);
+        Settings update = Settings.builder().put(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.getKey(), depth).build();
+        triggerUpdateConsumer(Settings.EMPTY, update);
+        verify(apmTelemetryProvider.getTracer()).setMaxTraceDepth(depth);
+    }
+
+    public void testUpdateRecordExceptionStacksPropagatesToTracer() {
+        Settings update = Settings.builder().put(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.getKey(), true).build();
+        triggerUpdateConsumer(Settings.EMPTY, update);
+        verify(apmTelemetryProvider.getTracer()).setRecordExceptionStacks(true);
+    }
+
+    public void testTracingSampleRateIsNotDynamicallyUpdatable() {
+        assertTrue(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.isDynamic());
+        assertTrue(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.isDynamic());
+        assertFalse(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.isDynamic());
+    }
+
     private void triggerUpdateConsumer(Settings initial, Settings update) {
         ClusterService clusterService = mock();
         ClusterSettings clusterSettings = new ClusterSettings(

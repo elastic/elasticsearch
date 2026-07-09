@@ -18,7 +18,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.simdvec.internal.IndexInputUtils;
+import org.elasticsearch.simdvec.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;

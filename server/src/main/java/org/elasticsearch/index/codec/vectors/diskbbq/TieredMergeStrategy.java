@@ -89,7 +89,9 @@ public class TieredMergeStrategy<V> {
         @Override
         public KMeansWithOverspill<V> execute(HierarchicalKMeans<V> kmeans, ClusteringVectorValues<V> vectors, int vectorsPerCluster)
             throws IOException {
-            return kmeans.cluster(vectors, vectorsPerCluster);
+            var result = kmeans.cluster(vectors, vectorsPerCluster);
+            var overspill = kmeans.computeSoar(vectors, result.result(), result.neighborHoods());
+            return new KMeansWithOverspill<>(result.result(), overspill);
         }
     }
 

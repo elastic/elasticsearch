@@ -12,7 +12,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -64,5 +67,38 @@ public class EsqlSuggestionsRequestTests extends ESTestCase {
         assertEquals(request.cursor(), read.cursor());
         assertEquals(request.size(), read.size());
         assertEquals(request.includeSampleValues(), read.includeSampleValues());
+    }
+
+    public void testIndicesFromSingleFromTarget() {
+        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query("FROM foo | KEEP a");
+        assertThat(request.indices(), arrayContaining("foo"));
+    }
+
+    public void testIndicesFromMultipleFromTargets() {
+        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query("FROM foo, bar | KEEP a");
+        assertThat(request.indices(), arrayContainingInAnyOrder("foo", "bar"));
+    }
+
+    public void testIndicesIncludesRemoteQualifiedTargetVerbatim() {
+        // IndicesRequest#indices() surfaces whatever FROM targets are present, remote-qualified or not; the
+        // remote-vs-local distinction is handled downstream (TransportEsqlSuggestionsAction's coordinator-only
+        // fallback), not here.
+        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query("FROM remote:logs | KEEP a");
+        assertThat(request.indices(), arrayContaining("remote:logs"));
+    }
+
+    public void testIndicesEmptyForMalformedQuery() {
+        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query("FROM (((");
+        assertThat(request.indices(), emptyArray());
+    }
+
+    public void testIndicesEmptyWithoutQuery() {
+        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest();
+        assertThat(request.indices(), emptyArray());
+    }
+
+    public void testIndicesCachedAcrossCalls() {
+        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query("FROM foo | KEEP a");
+        assertSame(request.indices(), request.indices());
     }
 }

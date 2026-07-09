@@ -12,23 +12,21 @@ import org.elasticsearch.action.ActionType;
 /**
  * Transport action type for the cursor-aware autocomplete endpoint {@code POST /_esql/suggestions}.
  *
- * <p>This is deliberately a {@code cluster:} action, not an {@code indices:data/read/*} one. The
- * current implementation (see {@link TransportEsqlSuggestionsAction}) only parses the query — it
- * never analyzes it or resolves indices, so it never reads mappings or is subject to per-index
- * field access control. Naming it as an index action would make it eligible for index-scoped
- * {@code read} privileges (it matches the {@code indices:data/read/*} pattern) while the request
- * doesn't implement {@link org.elasticsearch.action.IndicesRequest}, which trips an assertion in
- * {@code RBACEngine} for actions resolved index-name-only. Once the deferred data-node visit
- * lands (see the suggestions API spec, Step 8) and this action actually reads mappings/field
- * access control for a specific index, it should be revisited and likely turned into a proper
- * {@code indices:data/read/*} action carrying {@code IndicesRequest}. Until then it is granted by
- * the existing {@code monitor_esql} cluster privilege, matching {@link EsqlGetQueryAction} and
- * {@link EsqlListQueriesAction}.
+ * <p>This is an {@code indices:data/read/*} action, not a {@code cluster:} one: since the suggestions API
+ * spec's Step 12, {@link TransportEsqlSuggestionsAction} genuinely performs index resolution (parse, view
+ * resolution, dataset resolution, analyze, optimize) on every request that doesn't fall back to the
+ * remote-qualified/coordinator-only path, so it is unambiguously index-scoped from security's point of
+ * view. {@link EsqlSuggestionsRequest} implements {@link org.elasticsearch.action.IndicesRequest},
+ * surfacing the {@code FROM} target(s) parsed from {@code query()}, so RBAC has a declared index set to
+ * check privileges against independent of the query body. The action name matches the
+ * {@code indices:data/read/*} wildcard pattern already covered by {@code IndexPrivilege}'s
+ * {@code READ_AUTOMATON}/{@code READ_FAILURE_STORE_AUTOMATON}, so no new privilege-automaton entry is
+ * needed.
  */
 public class EsqlSuggestionsAction extends ActionType<EsqlSuggestionsResponse> {
 
     public static final EsqlSuggestionsAction INSTANCE = new EsqlSuggestionsAction();
-    public static final String NAME = "cluster:monitor/xpack/esql/suggestions";
+    public static final String NAME = "indices:data/read/esql/suggestions";
 
     private EsqlSuggestionsAction() {
         super(NAME);

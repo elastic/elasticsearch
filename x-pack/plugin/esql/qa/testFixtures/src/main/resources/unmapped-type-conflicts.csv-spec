@@ -30,6 +30,38 @@ ignoreOrder:true
 2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
 ;
 
+// message is keyword-mapped in sample_data and unmapped in no_mapping_sample_data.
+// See https://github.com/elastic/elasticsearch/pull/153015#discussion_r3536219323 for more info about the
+// underlying behavior exercised by this test case.
+typeConflictWithUnmappedToText
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: fn_to_text
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL message_text = TO_TEXT(message)
+| KEEP _index, message, message_text
+;
+ignoreOrder:true
+
+_index:keyword          | message:keyword         | message_text:text
+sample_data             | Connected to 10.1.0.1   | Connected to 10.1.0.1
+sample_data             | Connection error        | Connection error
+sample_data             | Connection error        | Connection error
+sample_data             | Connection error        | Connection error
+sample_data             | Disconnected            | Disconnected
+sample_data             | Connected to 10.1.0.2   | Connected to 10.1.0.2
+sample_data             | Connected to 10.1.0.3   | Connected to 10.1.0.3
+no_mapping_sample_data  | Connected to 10.1.0.1!  | Connected to 10.1.0.1!
+no_mapping_sample_data  | Connection error?       | Connection error?
+no_mapping_sample_data  | Connection error?       | Connection error?
+no_mapping_sample_data  | Connection error?       | Connection error?
+no_mapping_sample_data  | 42                      | 42
+no_mapping_sample_data  | Connected to 10.1.0.2!  | Connected to 10.1.0.2!
+no_mapping_sample_data  | Connected to 10.1.0.3!  | Connected to 10.1.0.3!
+;
+
 
 typeConflictWithUnmappedJustKeepWildcard
 required_capability: optional_fields_v5
@@ -476,6 +508,34 @@ emp_no:integer | gender:text           | _index:keyword
 10002          | null                  | employees_no_gender
 10003          | M                     | employees_gender_text
 10003          | null                  | employees_no_gender
+;
+
+// gender is mapped as TEXT in employees_gender_text and unmapped in employees_no_gender. Other
+// tests show that KEEP of gender falls back to null for the unmapped leg, because TEXT has
+// no available *implicit* conversion from KEYWORD (see
+// EsqlDataTypeConverter#TYPE_TO_CONVERTER_FUNCTION). But an *explicit* TO_TEXT(gender) bypasses that
+// implicit-cast map entirely: TO_TEXT's own accepted types include KEYWORD, so it converts the
+// unmapped leg's value instead of falling back to null.
+typeConflictPartiallyUnmappedTextFieldToText
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+required_capability: fn_to_text
+
+SET unmapped_fields="load"\;
+FROM employees_gender_text, employees_no_gender METADATA _index
+| EVAL gender_text = TO_TEXT(gender)
+| KEEP emp_no, gender_text, _index
+| SORT emp_no, _index
+| LIMIT 6
+;
+
+emp_no:integer | gender_text:text | _index:keyword
+10001          | M                | employees_gender_text
+10001          | M                | employees_no_gender
+10002          | F                | employees_gender_text
+10002          | F                | employees_no_gender
+10003          | M                | employees_gender_text
+10003          | M                | employees_no_gender
 ;
 
 // Verify that partially-mapped non-keyword fields (date, ip, long) are NOT loaded from _source when not mentioned

@@ -1508,7 +1508,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             var indexShard = findIndexShard(index, i);
             var engine = indexShard.getEngineOrNull();
             assertThat(engine, instanceOf(HollowIndexEngine.class));
-            hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), false);
+            // The source node removes the hollow shard blocker asynchronously when it closes the relocated shard, which can lag
+            // behind the cluster-state-based relocation wait above, so retry until the source node has cleaned up.
+            assertBusy(() -> hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), false));
             hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), true);
 
             initialHollowPrimaryTermGenerations.put(
@@ -1518,7 +1520,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         }
         var telemetryPluginA = getTelemetryPlugin(indexNodeA);
         assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA), equalTo((long) numberOfShards));
-        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
+        assertBusy(
+            () -> assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L))
+        );
         var telemetryPluginB = getTelemetryPlugin(indexNodeB);
         assertThat(
             getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB),
@@ -1537,7 +1541,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             var engine = indexShard.getEngineOrNull();
             assertThat(engine, instanceOf(HollowIndexEngine.class));
             hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), true);
-            hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), false);
+            // The source node removes the hollow shard blocker asynchronously when it closes the relocated shard, which can lag
+            // behind the cluster-state-based relocation wait above, so retry until the source node has cleaned up.
+            assertBusy(() -> hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), false));
 
             // No extra flushes triggered on relocating hollow shards with `HollowIndexEngine`
             var commitAfterRelocationToNodeA = internalCluster().getInstance(StatelessCommitService.class, indexNodeA)
@@ -1554,7 +1560,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA),
             equalTo((long) numberOfShards)
         );
-        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB), equalTo(0L));
+        assertBusy(
+            () -> assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB), equalTo(0L))
+        );
     }
 
     public void testRegistrationOnBccWithLastHollowCommitAndDifferentPrimaryTerm() throws Exception {

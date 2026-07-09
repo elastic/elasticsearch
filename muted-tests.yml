@@ -793,9 +793,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTests
   method: testShardRecoveryWarmingPropagatesTimestamp
   issue: https://github.com/elastic/elasticsearch/issues/153223
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
-  method: testSlicesDense
-  issue: https://github.com/elastic/elasticsearch/issues/153272
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/153282
@@ -847,9 +844,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {column_chunk_key_value_metadata}
   issue: https://github.com/elastic/elasticsearch/issues/153361
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
-  method: testSlicesDenseWithFilter
-  issue: https://github.com/elastic/elasticsearch/issues/153362
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {binary}
   issue: https://github.com/elastic/elasticsearch/issues/153364

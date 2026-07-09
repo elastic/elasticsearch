@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.action.AbstractExternalDataSourceIT;
 import org.elasticsearch.xpack.esql.action.AbstractExternalDataSourceIT.EsqlEnterpriseWithDatasourceExtensions;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -66,7 +67,9 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         return plugins;
     }
 
-    public void testCollectorCalledWithNonZeroMetrics() throws Exception {
+    public void testMetricsCollector() throws Exception {
+        // We're using local data source here, which needs the flag
+        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
         lastMetrics = null;
 
         Path dir = createTempDir();

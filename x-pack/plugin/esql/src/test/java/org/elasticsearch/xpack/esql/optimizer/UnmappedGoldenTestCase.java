@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -91,12 +93,43 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
     }
 
     /**
+     * Runs NULLIFY mode at a random version that does <em>not</em> support {@code maxVersionExclusive}. Most queries
+     * don't need this, since NULLIFY nulls out unmapped fields outright rather than resolving a union type; use it
+     * for queries that also have a genuine mapped-vs-mapped type conflict, where NULLIFY still builds a
+     * {@code MultiTypeEsField}/{@code CompactMultiTypeEsField} for the conflicting legs.
+     */
+    protected void runTestsNullifyOnlyBelow(
+        String query,
+        EnumSet<Stage> stages,
+        TransportVersion maxVersionExclusive,
+        String... nestedPaths
+    ) {
+        runNullifyOnly(query, stages, TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive), Map.of(), nestedPaths);
+    }
+
+    /**
      * Runs LOAD mode at a random version that does <em>not</em> support {@code maxVersionExclusive}, unlike the
      * {@code minimumSupportedVersion} overloads which randomize a version that does. Use this to deterministically
      * exercise a version that predates a given wire-format change.
      */
     protected void runTestsLoadOnlyBelow(String query, EnumSet<Stage> stages, TransportVersion maxVersionExclusive, String... nestedPaths) {
         runLoadOnly(query, stages, TransportVersionUtils.randomVersionNotSupporting(maxVersionExclusive), Map.of(), nestedPaths);
+    }
+
+    /**
+     * Same as {@link #runTestsLoadOnlyBelow(String, EnumSet, TransportVersion, String...)}, but also requires the
+     * random version to support {@code minSupportedVersion}. Use this when the query has some other minimum version
+     * requirement (e.g. a TS-mode query needing dimension-column support) that a version predating
+     * {@code maxVersionExclusive} might otherwise not meet.
+     */
+    protected void runTestsLoadOnlyBelow(
+        String query,
+        EnumSet<Stage> stages,
+        TransportVersion minSupportedVersion,
+        TransportVersion maxVersionExclusive,
+        String... nestedPaths
+    ) {
+        runLoadOnly(query, stages, randomVersionSupportingButNot(minSupportedVersion, maxVersionExclusive), Map.of(), nestedPaths);
     }
 
     /** Runs NULLIFY mode at the given exact transport version (or a builder-default random one if {@code null}); throws on failure. */
@@ -153,6 +186,16 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
 
     private static TransportVersion randomVersionSupportingOrNull(TransportVersion minimumSupportedVersion) {
         return minimumSupportedVersion == null ? null : TransportVersionUtils.randomVersionSupporting(minimumSupportedVersion);
+    }
+
+    private static TransportVersion randomVersionSupportingButNot(TransportVersion mustSupport, TransportVersion mustNotSupport) {
+        return RandomPicks.randomFrom(
+            random(),
+            TransportVersionUtils.allReleasedVersions()
+                .stream()
+                .filter(v -> v.supports(mustSupport) && v.supports(mustNotSupport) == false)
+                .toList()
+        );
     }
 
     private static void throwOnFailure(Optional<Throwable> exception, String message) {

@@ -806,49 +806,79 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
-        runTests("""
+        String query = """
             FROM k8s, k8s_unmapped
             | EVAL bytes = network.bytes_in::long
             | KEEP bytes
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testTSTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
-        runTests("""
+        String query = """
             TS k8s, k8s_unmapped
             | EVAL bytes = network.bytes_in::long
             | KEEP bytes
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES, DimensionValues.DIMENSION_VALUES_VERSION);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(
+            query,
+            STAGES,
+            DimensionValues.DIMENSION_VALUES_VERSION,
+            CompactMultiTypeEsField.CompactMultiTypeEsField,
+            "preCompact"
+        );
     }
 
     public void testTypeConflictTimeseriesDoubleUnmappedWithCast() throws Exception {
-        runTests("""
+        String query = """
             FROM k8s, k8s_unmapped
             | EVAL cost = network.cost::double
             | KEEP cost
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testTypeConflictTimeseriesStatsWithCast() throws Exception {
-        runTests("""
+        String query = """
             FROM k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testTSTypeConflictTimeseriesStatsWithCast() throws Exception {
-        runTests("""
+        String query = """
             TS k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES, DimensionValues.DIMENSION_VALUES_VERSION);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(
+            query,
+            STAGES,
+            DimensionValues.DIMENSION_VALUES_VERSION,
+            CompactMultiTypeEsField.CompactMultiTypeEsField,
+            "preCompact"
+        );
     }
 
     public void testTypeConflictTimeseriesWhereWithCast() throws Exception {
-        runTests("""
+        String query = """
             FROM k8s, k8s_unmapped
             | WHERE network.cost::double > 10.0
             | KEEP cluster, network.cost
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testPartiallyMappedField() throws Exception {
@@ -889,19 +919,29 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testTypeConflictMappedAndUnmappedWithCast() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | EVAL event_duration = event_duration::long
             | KEEP event_duration
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
+    // @timestamp is mapped with conflicting types across sample_data_ts_long and sample_data, and unmapped in
+    // no_mapping_sample_data. Unlike a plain two-legged PUNK, this is a genuine mapped-vs-mapped union type
+    // conflict, so NULLIFY also builds a MultiTypeEsField/CompactMultiTypeEsField and needs the version split too.
     public void testTypeConflictMappedTimesTwoAndUnmapped() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data_ts_long, sample_data, no_mapping_sample_data
             | EVAL ts = @timestamp::date
             | KEEP ts
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsNullifyOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testNoTypeConflictKeywordAndUnmappedWhere() throws Exception {

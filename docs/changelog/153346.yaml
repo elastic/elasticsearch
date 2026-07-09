@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 153297
+pr: 153346
+summary: Queries with delay function cannot be cancelled properly
+type: bug

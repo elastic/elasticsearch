@@ -241,11 +241,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeCurrent));
         safeAwait(startHandOffSent);
         ensureGreen(indexName);
-        assertBusy(
-            () -> { assertEquals("Open contexts after shard relocation.", 0, searchService1.getActivePITContexts()); },
-            5,
-            TimeUnit.SECONDS
-        );
+        waitForNoPITContextOnNode(searchNodeCurrent, 5);
 
         // stop the current search node in some cases, this i.e. checks that we close contexts after relocation and don't leak open contexts
         boolean stopFirstNode = randomBoolean();
@@ -591,9 +587,8 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         ensureGreen(indexName);
         logger.info("Search node " + searchNodeCurrent + " excluded.");
 
-        safeSleep(new TimeValue(2, TimeUnit.SECONDS));
         // PIT id should have changed at some point, and all contexts on the source node should be closed
-        assertEquals("Open contexts on node " + searchNodeCurrent + ".", 0L, searchService1.getActivePITContexts());
+        waitForNoPITContextOnNode(searchNodeCurrent, 5);
         assertFalse("pit1 should have changed.", isEquivalentId(pitId1.get(), testDataSetup.pitId1));
 
         thread1Running.set(false);
@@ -1207,7 +1202,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
      * transferred during shard relocation. Three rounds of indexing with refresh-only (no flush)
      * accumulate three CCs in a single VBCC. Each PIT is matched to its CC entry when building the handoff.
      */
-    public void testPointInTimeRelocationPitPositionsInBcc() {
+    public void testPointInTimeRelocationPitPositionsInBcc() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         // ensure three refresh cycles do not trigger a count-based VBCC upload before relocation
         var nodeSettings = Settings.builder()
@@ -1275,6 +1270,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), hasItem(searchNodeB));
+        waitForNoPITContextOnNode(searchNodeA, 5);
 
         AtomicReference<BytesReference> updatedPitFirst = new AtomicReference<>(pitFirst);
         AtomicReference<BytesReference> updatedPitMiddle = new AtomicReference<>(pitMiddle);
@@ -1284,6 +1280,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitFirst)), resp -> {
             // To account for the marker document
             assertHitCount(resp, numDocsFirst + 1);
+            assertFalse("pit should have changed.", isEquivalentId(resp.pointInTimeId(), pitFirst));
             updatedPitFirst.set(resp.pointInTimeId());
         });
         assertResponse(
@@ -1294,6 +1291,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitMiddle)).setSize(1000), resp -> {
             // To account for the marker documents
             assertHitCount(resp, numDocsFirst + numDocsMiddle + 2);
+            assertFalse("pit should have changed.", isEquivalentId(resp.pointInTimeId(), pitMiddle));
             updatedPitMiddle.set(resp.pointInTimeId());
         });
         assertResponse(
@@ -1305,6 +1303,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitLast)).setSize(1000), resp -> {
             // To account for the marker documents
             assertHitCount(resp, numDocsFirst + numDocsMiddle + numDocsLast + 3);
+            assertFalse("pit should have changed.", isEquivalentId(resp.pointInTimeId(), pitLast));
             updatedPitLast.set(resp.pointInTimeId());
         });
         assertResponse(
@@ -1355,15 +1354,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         // Relocate all shards from searchNodeA to searchNodeB.
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
         ensureGreen(indexName);
-        assertBusy(
-            () -> assertEquals(
-                "Source node should have no active PIT contexts after handoff.",
-                0,
-                internalCluster().getInstance(SearchService.class, searchNodeA).getActivePITContexts()
-            ),
-            5,
-            TimeUnit.SECONDS
-        );
+        waitForNoPITContextOnNode(searchNodeA, 5);
 
         getTelemetryPlugin(searchNodeA).collect();
         getTelemetryPlugin(searchNodeB).collect();
@@ -1402,6 +1393,18 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         );
         assertClosePit(updatedPit1.get(), numberOfShards);
         assertClosePit(updatedPit2.get(), numberOfShards);
+    }
+
+    private void waitForNoPITContextOnNode(String searchNodeName, long maxWaitTimeSeconds) throws Exception {
+        assertBusy(
+            () -> assertEquals(
+                "Node " + searchNodeName + " should have no active PIT contexts.",
+                0,
+                internalCluster().getInstance(SearchService.class, searchNodeName).getActivePITContexts()
+            ),
+            maxWaitTimeSeconds,
+            TimeUnit.SECONDS
+        );
     }
 
     private void assertClosePit(BytesReference pitId, int expectedFreedContexts) {

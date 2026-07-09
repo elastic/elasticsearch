@@ -1691,9 +1691,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public RecordSplitter recordSplitter(int maxRecordBytes) {
-        // Splitter chosen once, by the quoting knob — never a per-byte branch. With quoting off
-        // (plain / escaped) the plain terminator scan suffices; quoting needs the quote-state machine.
-        if (options.quoting() == false) {
+        // Splitter chosen once, from the (quoting, escaping) pair - never a per-byte branch. Only plain
+        // data (no quoting, no escaping: every byte literal) has raw line terminators that are always
+        // record boundaries, so only it can use the cheap strided terminator scan. When quoting is on a
+        // raw newline can sit inside a quoted field, and when escaping is on a backslash-escaped raw
+        // newline is in-field content; either way boundary detection needs the quote/escape state machine
+        // and must be driven sequentially from a known record start.
+        if (options.quoting() == false && options.escaping() == false) {
             return new NewlineRecordSplitter(maxRecordBytes);
         }
         return new CsvRecordSplitter(options, maxRecordBytes);

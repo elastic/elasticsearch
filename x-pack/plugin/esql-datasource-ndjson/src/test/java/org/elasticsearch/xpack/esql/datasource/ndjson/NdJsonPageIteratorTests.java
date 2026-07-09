@@ -1149,6 +1149,13 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 }
             });
             assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [long]"));
+            // The recovery hint must name the dataset setting, not a query clause: FROM <dataset> has no
+            // WITH options clause, so a user who followed a "in WITH options" hint would get a parse error.
+            assertThat(
+                e.getMessage(),
+                Matchers.containsString("set error_mode=null_field (or skip_row) to null-fill/skip and warn instead of failing")
+            );
+            assertThat(e.getMessage(), Matchers.not(Matchers.containsString("WITH options")));
         }
     }
 

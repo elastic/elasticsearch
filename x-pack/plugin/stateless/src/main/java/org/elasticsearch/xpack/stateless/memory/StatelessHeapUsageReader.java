@@ -15,15 +15,26 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 
 import java.util.Map;
 
-public class StatelessHeapUsageCollector implements EstimatedHeapUsageCollector {
+/**
+ * {@link EstimatedHeapUsageCollector} SPI implementation that reads heap usage estimates already computed by
+ * {@link StatelessMemoryMetricsService} and hands them to {@link org.elasticsearch.cluster.InternalClusterInfoService}. It performs no
+ * collection of its own: the actual metrics gathering happens in {@link ShardsMappingSizeCollector}, which runs on index nodes and
+ * publishes {@link ShardMappingSize} to the master.
+ * <p>
+ * This class exists only because {@code server} cannot depend on the {@code stateless} plugin: {@link EstimatedHeapUsageCollector} is
+ * the interface server-side code defines so it can ask "what's the estimated heap usage" without knowing stateless exists, and this is
+ * the plugin-side implementation registered for it via SPI (see {@code module-info.java} and {@code META-INF/services}). Both of its
+ * methods are one-line forwards to an already-computed value; there is no logic here to simplify away.
+ */
+public class StatelessHeapUsageReader implements EstimatedHeapUsageCollector {
 
     private final StatelessPlugin plugin;
 
-    public StatelessHeapUsageCollector() {
+    public StatelessHeapUsageReader() {
         throw new IllegalStateException("This no arg constructor only exists for SPI validation");
     }
 
-    public StatelessHeapUsageCollector(StatelessPlugin plugin) {
+    public StatelessHeapUsageReader(StatelessPlugin plugin) {
         this.plugin = plugin;
     }
 

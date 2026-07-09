@@ -1854,6 +1854,11 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
+    }
+
+    @Override
     public boolean isNullable() {
         // Text fields have no null_value parameter, so nullability is governed solely by the doc_values nullability setting.
         return docValuesParameters.nullability();

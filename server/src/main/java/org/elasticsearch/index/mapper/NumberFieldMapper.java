@@ -2527,6 +2527,17 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        // allowMultipleValues==false is a structural invariant of the field type (ie. aggregate_metric_double's metric sub-fields, which
+        // must always be single-valued), not the user-configurable doc_values.multi_value constraint, so it must always fail regardless
+        // of on_failure.
+        if (allowMultipleValues == false) {
+            return DocValuesParameter.Values.OnFailure.FAIL;
+        }
+        return docValuesParameters.onFailure();
+    }
+
+    @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || nullValue != null;
     }

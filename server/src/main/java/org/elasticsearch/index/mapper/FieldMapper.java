@@ -244,25 +244,30 @@ public abstract class FieldMapper extends Mapper {
      * Parse the field value using the provided {@link DocumentParserContext}.
      */
     public void parse(DocumentParserContext context) throws IOException {
+        // Set when a multi_value=false violation is redirected to a failure column (on_failure=ignore) rather than thrown: the value
+        // never reaches this field's own doc values, so normal parsing and multi-fields must be skipped for it.
+        boolean redirectedToFailureColumn = false;
         try {
             if (builderParams.hasScript) {
                 throwIndexingWithScriptParam();
             }
             if (isSingleValueEnforced()) {
-                context.enforceSingleValue(fullPath());
+                redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior()) == false;
             }
-            if (isNullable() == false && context.parser().currentToken().isValue()) {
-                // A non-null value satisfies the [nullability=false] requirement for this Lucene doc.
-                context.markRequiredSatisfied(fullPath());
-            }
+            if (redirectedToFailureColumn == false) {
+                if (isNullable() == false && context.parser().currentToken().isValue()) {
+                    // A non-null value satisfies the [nullability=false] requirement for this Lucene doc.
+                    context.markRequiredSatisfied(fullPath());
+                }
 
-            parseCreateField(context);
+                parseCreateField(context);
+            }
         } catch (Exception e) {
             rethrowAsDocumentParsingException(context, e);
         }
         // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
         // of the mappings
-        if (builderParams.multiFields.mappers.length != 0) {
+        if (redirectedToFailureColumn == false && builderParams.multiFields.mappers.length != 0) {
             doParseMultiFields(context);
         }
     }
@@ -326,11 +331,21 @@ public abstract class FieldMapper extends Mapper {
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
 
     /**
-     * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=false}). When {@code true}, a second value for the same
-     * document throws. Override on mappers that expose the {@code multi_value} doc values mapping parameter.
+     * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=false}). When {@code true}, a second value for the
+     * same document violates the constraint: it either throws or is redirected to a failure column, depending on {@link
+     * #onFailureBehavior()}. Override on mappers that expose the {@code multi_value} doc values mapping parameter.
      */
     protected boolean isSingleValueEnforced() {
         return false;
+    }
+
+    /**
+     * Controls what happens when this field violates a strict doc_values constraint (ie. {@code multi_value=false}), as configured by
+     * the {@code doc_values.on_failure} mapping parameter. Defaults to {@link DocValuesParameter.Values.OnFailure#FAIL}. Override on
+     * mappers that expose the {@code on_failure} doc values mapping parameter.
+     */
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return DocValuesParameter.Values.OnFailure.FAIL;
     }
 
     /**

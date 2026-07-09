@@ -1462,6 +1462,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
+    }
+
+    @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || fieldType().nullValue != null;
     }

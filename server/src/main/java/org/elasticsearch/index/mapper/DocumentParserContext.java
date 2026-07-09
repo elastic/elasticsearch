@@ -408,15 +408,30 @@ public abstract class DocumentParserContext {
 
     /**
      * Enforces that a field configured with {@code multi_value=false} receives at most one value per document. The first call for a given
-     * field name succeeds; a subsequent call for the same name throws {@link IllegalArgumentException}. Shared across all child contexts
-     * so the constraint is respected regardless of which context sub-tree the duplicate value comes from.
+     * field name succeeds; a subsequent call for the same name violates the constraint. Shared across all child contexts so the
+     * constraint is respected regardless of which context sub-tree the duplicate value comes from.
+     * <p>
+     * When {@code onFailure} is {@link FieldMapper.DocValuesParameter.Values.OnFailure#FAIL}, a violation throws {@link
+     * IllegalArgumentException}, rejecting the whole document. When it is {@code IGNORE}, the violating value is instead written to a
+     * per-field failure column (see {@link OnFailureStoredValues}) and the field is marked ignored, so indexing continues without the
+     * value ever reaching the field's own doc values.
+     *
+     * @return {@code true} if the caller should parse and index this value normally; {@code false} if it was redirected to the failure
+     * column and the caller must skip normal parsing (including multi-fields) for it.
      */
-    public final void enforceSingleValue(String fieldName) {
-        if (singleValuedFields.add(fieldName) == false) {
+    public final boolean enforceSingleValue(String fieldName, FieldMapper.DocValuesParameter.Values.OnFailure onFailure)
+        throws IOException {
+        if (singleValuedFields.add(fieldName)) {
+            return true;
+        }
+        if (onFailure == FieldMapper.DocValuesParameter.Values.OnFailure.FAIL) {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"
             );
         }
+        OnFailureStoredValues.storeValueForOnFailureIgnore(this, fieldName, parser());
+        addIgnoredField(fieldName);
+        return false;
     }
 
     /**

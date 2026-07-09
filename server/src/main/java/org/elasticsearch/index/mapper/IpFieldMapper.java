@@ -795,6 +795,11 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
+    }
+
+    @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || nullValueAsString != null;
     }

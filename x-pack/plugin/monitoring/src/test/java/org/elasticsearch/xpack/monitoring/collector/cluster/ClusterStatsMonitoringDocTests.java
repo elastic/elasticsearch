@@ -704,6 +704,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                       "classname": "_plugin_class",
                       "extended_plugins": [],
                       "has_native_controller": false,
+                      "native_controller_enabled_settings": [],
                       "licensed": false,
                       "is_official": false
                     }

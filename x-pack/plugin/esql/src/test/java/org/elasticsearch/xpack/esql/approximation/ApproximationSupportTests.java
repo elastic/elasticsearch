@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.approximation;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
@@ -111,7 +110,6 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
-import org.junit.Before;
 
 import java.net.URL;
 import java.nio.file.DirectoryStream;
@@ -141,10 +139,6 @@ public class ApproximationSupportTests extends ESTestCase {
         // They require chained stats commands.
         TimeSeriesAggregate.class,
         TimeSeriesCollapse.class,
-
-        // SurrogateLogicalPlans: present in the analyzed plan but rewritten during the optimizer's
-        // substitutions phase, before any approximation logic runs.
-        Dedup.class, // rewritten to LimitBy
 
         // HIGHLIGHT is not supported;
         Highlight.class,
@@ -192,8 +186,9 @@ public class ApproximationSupportTests extends ESTestCase {
         CompoundOutputEval.class,
         AbstractSubqueryJoin.class,
 
-        // These plans don't occur in a correct analyzed query.
+        // These plans don't occur in a correct analyzed/optimzed query.
         AntiJoin.class,
+        Dedup.class,
         Drop.class,
         InlineStats.class,
         Keep.class,
@@ -310,12 +305,6 @@ public class ApproximationSupportTests extends ESTestCase {
                 }
             }
         }
-    }
-
-    @Before
-    public void assume() {
-        assumeTrue("needs inline stats approximation", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
-        assumeTrue("needs lookup join approximation", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
     }
 
     public void testAllCommandsWhitelistedOrBlacklisted() throws Exception {

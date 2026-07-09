@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialBinaryGeometryBlockProcessor.flattenIfHeterogeneousCollection;
 
 /**
  * Base test case for spatial functions that take two geometry arguments and return a geometry
@@ -137,8 +138,8 @@ public abstract class AbstractBinarySpatialGeometryFunctionTestCase extends Abst
             return null;
         }
         try {
-            Geometry leftGeom = UNSPECIFIED.wkbToJtsGeometry(leftWkb);
-            Geometry rightGeom = UNSPECIFIED.wkbToJtsGeometry(rightWkb);
+            Geometry leftGeom = flattenIfHeterogeneousCollection(UNSPECIFIED.wkbToJtsGeometry(leftWkb));
+            Geometry rightGeom = flattenIfHeterogeneousCollection(UNSPECIFIED.wkbToJtsGeometry(rightWkb));
             Geometry result = jtsOp.apply(leftGeom, rightGeom);
             return UNSPECIFIED.jtsGeometryToWkb(result);
         } catch (Exception e) {

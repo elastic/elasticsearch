@@ -41,6 +41,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
@@ -51,10 +53,12 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.ingest.geoip.IpDatabase;
 import org.elasticsearch.ingest.geoip.IpDatabaseProvider;
 import org.elasticsearch.ingest.geoip.IpLocationServiceAdapter;
@@ -63,6 +67,8 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -128,6 +134,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -743,11 +750,51 @@ public final class EsqlTestUtils {
         new XPackLicenseState(() -> 0L)
     );
 
+    /**
+     * Build an {@link AnalysisRegistry} for tests, loaded with the given {@link AnalysisPlugin plugins}.
+     * Use this from a per-class {@code @BeforeClass} setter or as a {@code static final} field when a test
+     * needs plugin-contributed analyzers (e.g. {@code english} from {@code CommonAnalysisPlugin}); otherwise
+     * use {@link #TEST_ANALYSIS_REGISTRY}.
+     * <p>
+     * Pins {@code indices.analysis.hunspell.dictionary.lazy=true} so that {@code HunspellService} does not
+     * scan {@code <PATH_HOME>/config/hunspell} at construction. Combined with PATH_HOME pointing at the system
+     * temp dir, this guarantees zero file-system writes from the resulting {@link AnalysisModule} — even if a
+     * stray {@code hunspell/} directory happens to exist under {@code java.io.tmpdir}.
+     */
+    public static AnalysisRegistry analysisRegistry(AnalysisPlugin... plugins) {
+        try {
+            return new AnalysisModule(
+                TestEnvironment.newEnvironment(
+                    Settings.builder()
+                        .put(Environment.PATH_HOME_SETTING.getKey(), System.getProperty("java.io.tmpdir"))
+                        .put("indices.analysis.hunspell.dictionary.lazy", true)
+                        .build()
+                ),
+                List.of(plugins),
+                new StablePluginsRegistry()
+            ).getAnalysisRegistry();
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to build AnalysisRegistry", e);
+        }
+    }
+
+    /**
+     * Shared empty {@link AnalysisRegistry} for tests that build an {@link org.elasticsearch.xpack.esql.analysis.AnalyzerContext}.
+     * Carries only the prebuilt analyzers (no plugin-contributed ones).
+     */
+    public static final AnalysisRegistry TEST_ANALYSIS_REGISTRY = analysisRegistry();
+
     private EsqlTestUtils() {}
 
     public static Configuration configuration(QueryPragmas pragmas, String query, EsqlStatement statement) {
+        // No manual normalize here — TIME_ZONE.canonicalize(ZoneId::normalized) runs inside withOverride,
+        // so this matches production exactly.
+        ResolvedSettings resolved = ResolvedSettings.EMPTY.withOverride(QuerySettings.TIME_ZONE, statement.setting(QuerySettings.TIME_ZONE))
+            .withOverride(
+                QuerySettings.APPROXIMATION,
+                new ApproximationSettings.Builder(false).merge(statement.setting(QuerySettings.APPROXIMATION)).build()
+            );
         return new Configuration(
-            statement.setting(QuerySettings.TIME_ZONE),
             Instant.now(),
             Locale.US,
             null,
@@ -762,8 +809,7 @@ public final class EsqlTestUtils {
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            null,
-            new ApproximationSettings.Builder(false).merge(statement.setting(QuerySettings.APPROXIMATION)).build(),
+            resolved,
             Map.of()
         );
     }

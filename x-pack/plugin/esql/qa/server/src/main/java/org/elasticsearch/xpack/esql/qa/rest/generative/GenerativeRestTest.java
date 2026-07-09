@@ -98,7 +98,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             "missing references \\[.*\\]",
             // https://github.com/elastic/elasticsearch/issues/142026
             "column \\[.*\\] already resolved",
-            // https://github.com/elastic/elasticsearch/issues/142033, https://github.com/elastic/elasticsearch/issues/142026
+            // Subqueries, views and FORK are now supported with unmapped_fields="load" (#142033); this still matches the remaining
+            // restrictions: PROMQL and partially unmapped non-KEYWORD fields.
             "is not supported with unmapped_fields",
             "does not support full-text search function",
             "type \\[null\\] .* not supported",
@@ -107,8 +108,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // https://github.com/elastic/elasticsearch/issues/146036
             "argument of \\[.*\\] must be \\[unsupported\\], found value",
             // https://github.com/elastic/elasticsearch/issues/146074
-            "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]",
-            "FORK is not supported with unmapped_fields=\\\"load\\\""
+            "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]"
         )
     );
 
@@ -491,7 +491,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isForkTopNIndexOutOfBoundsBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkOptimizedIncorrectlyBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isLimitByMvExpandBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
@@ -1070,27 +1069,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ".*Plan \\[(?:LimitBy|TopNBy)\\[.*optimized incorrectly due to missing references.*",
         Pattern.DOTALL
     );
-
-    private static final Pattern LIMIT_BY_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LIMIT\\s+\\S+\\s+BY\\b");
-    private static final Pattern DEDUP_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*DEDUP\\b");
-
-    /**
-     * See https://github.com/elastic/elasticsearch/issues/148513
-     * <p>
-     * The same root cause manifests as either {@code LimitBy[...]} (no upstream SORT) or {@code TopNBy[...]}
-     * (when an upstream SORT gets combined with the LIMIT BY into a TopNBy). DEDUP uses the same LimitBy
-     * plan internally, so it has the same missing-reference failure after MV_EXPAND.
-     */
-    static boolean isLimitByMvExpandBug(String errorMessage, String query) {
-        if (errorMessage == null || query == null) {
-            return false;
-        }
-        if (OPTIMIZED_INCORRECTLY_LIMITBY_PATTERN.matcher(errorMessage).matches() == false) {
-            return false;
-        }
-        return MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
-            && (LIMIT_BY_COMMAND_PATTERN.matcher(query).find() || DEDUP_COMMAND_PATTERN.matcher(query).find());
-    }
 
     private static final Pattern INLINE_STATS_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*INLINE\\s+STATS\\b");
     private static final Pattern DROP_RENAME_KEEP_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*(?:DROP|RENAME|KEEP)\\b");

@@ -29,6 +29,40 @@ sum(avg_over_time(network.cost[5m])):double | step:date
 51.59375                                    | 2024-05-10T00:25:00.000Z
 ;
 
+// `offset 5m` evaluates each step 5m in the past, so the [00:25,00:30] range reproduces the
+// no-offset [00:20,00:25] values, shifted 5m forward in the step labels.
+offset_modifier
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: promql_offset_modifier
+PROMQL index=k8s step=5m start="2024-05-10T00:25:00.000Z" end="2024-05-10T00:30:00.000Z" (
+  sum(avg_over_time(network.cost[5m] offset 5m))
+)
+| SORT step;
+
+sum(avg_over_time(network.cost[5m] offset 5m)):double | step:date
+51.958333333333336                                    | 2024-05-10T00:25:00.000Z
+51.59375                                              | 2024-05-10T00:30:00.000Z
+;
+
+// Negative `offset -5m` (look ahead) evaluates each step 5m in the future, so the [00:15,00:20] range
+// reproduces the same no-offset [00:20,00:25] values, shifted 5m earlier in the step labels.
+negative_offset_modifier
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: promql_offset_modifier
+PROMQL index=k8s step=5m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:20:00.000Z" (
+  sum(avg_over_time(network.cost[5m] offset -5m))
+)
+| SORT step;
+
+sum(avg_over_time(network.cost[5m] offset -5m)):double | step:date
+51.958333333333336                                     | 2024-05-10T00:15:00.000Z
+51.59375                                               | 2024-05-10T00:20:00.000Z
+;
+
 auto_step_buckets
 required_capability: promql_command_v0
 required_capability: promql_buckets_parameter
@@ -1128,6 +1162,45 @@ required_capability: promql_unmapped_fields_filter_nulls
 PROMQL index=k8s step=1h result=(rate(unmapped.metric[1h])) | SORT result;
 
 result:double | step:datetime | _timeseries:keyword
+;
+
+// nullify doesn't affect PROMQL's handling of unmapped fields inside the command.
+nullify_unmapped_metric_cross_series
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_unmapped_fields_filter_nulls
+SET unmapped_fields="nullify"\;
+PROMQL index=k8s step=1h result=(sum by (cluster) (unmapped.metric)) | SORT result
+;
+
+result:double | step:datetime | cluster:keyword
+;
+
+nullify_cross_series_grouping_on_unmapped_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_unmapped_fields_filter_nulls
+SET unmapped_fields="nullify"\;
+PROMQL index=k8s step=1h result=(sum by (unmapped.label) (network.cost)) | SORT result
+;
+
+result:double | step:datetime
+61.0          | 2024-05-10T01:00:00.000Z
+;
+
+// A fully-mapped query is unaffected by nullify.
+nullify_mapped_query_returns_data
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: optional_fields_nullify_tech_preview
+SET unmapped_fields="nullify"\;
+PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost)) | SORT result
+;
+
+result:double | step:datetime            | cluster:keyword
+15.875        | 2024-05-10T01:00:00.000Z | staging
+18.625        | 2024-05-10T01:00:00.000Z | prod
+26.5          | 2024-05-10T01:00:00.000Z | qa
 ;
 
 // PromQL spec: absent labels are treated as having value "".

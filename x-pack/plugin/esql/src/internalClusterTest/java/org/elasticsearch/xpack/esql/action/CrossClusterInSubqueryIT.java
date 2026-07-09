@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
@@ -25,7 +26,10 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -65,6 +69,14 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         );
         // Remote view stored on cluster-a for the rejection-guard test.
         createViewOnCluster(REMOTE_CLUSTER_1, "remote_events_view", "FROM events | LIMIT 1");
+    }
+
+    private static void checkSubqueryWithRowSupport() {
+        assumeTrue("Requires subquery with ROW as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+    }
+
+    private static void checkSubqueryWithTSSupport() {
+        assumeTrue("Requires subquery with TS as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
     }
 
     // ---- SEMI join (top-level IN) ----
@@ -514,30 +526,20 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
         );
     }
 
-    // ---- negative tests: LOOKUP JOIN inside WHERE IN subquery body (issue #149877) ----
+    // ---- LOOKUP JOIN inside WHERE IN subquery body (issue #149877) ----
 
     /**
-     * Negative test tracking https://github.com/elastic/elasticsearch/issues/149877.
-     *
-     * <p>A WHERE IN subquery whose body contains a LOOKUP JOIN referencing a remote lookup index
-     * currently errors in pre-analysis when {@code skipUnavailable=false}. The lookup index
-     * ({@code values_lookup}) exists only on {@code remote-b}, which is the cluster targeted by
-     * the subquery, but field resolution incorrectly contacts other remote clusters and fails when
-     * those clusters do not host the lookup index.
-     *
-     * <p>The correct result (once the bug is fixed) is 1 row with {@code v=4} from
-     * {@code cluster-a}: the subquery filters {@code remote-b:logs-2} to {@code v=4} via the
-     * lookup join, and the outer query selects that value from {@code cluster-a:logs-2}.
-     *
-     * <p>TODO: when issue #149877 is fixed, replace {@code expectThrows} with a positive
-     * assertion: {@code assertThat(values, hasSize(1)); assertEquals(4L, values.get(0).get(0))}.
+     * A WHERE IN subquery whose body contains a LOOKUP JOIN referencing a remote lookup index.
+     * The lookup index ({@code values_lookup}) exists only on {@code remote-b}, which is the
+     * cluster targeted by the subquery. The subquery filters {@code remote-b:logs-2} to {@code v=4}
+     * via the lookup join, and the outer query selects that value from {@code cluster-a:logs-2}.
      */
     public void testInSubqueryWithLookupJoinInSubqueryBodySkipUnavailableFalse() {
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
         try {
-            expectThrows(Exception.class, () -> runQuery("""
+            try (EsqlQueryResponse resp = runQuery("""
                 FROM cluster-a:logs-*
                 | WHERE v IN (
                     FROM remote-b:logs-*
@@ -546,25 +548,19 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
                     | KEEP v
                   )
                 | KEEP v
-                """, false));
+                """, false)) {
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
         } finally {
             clearSkipUnavailable(3);
         }
     }
 
     /**
-     * Negative test tracking https://github.com/elastic/elasticsearch/issues/149877.
-     *
-     * <p>A WHERE IN subquery whose body contains a LOOKUP JOIN referencing a remote lookup index
-     * returns wrong results when {@code skipUnavailable=true}. The cluster hosting the lookup
-     * index ({@code remote-b}) is silently skipped during field resolution, so the inner subquery
-     * yields an empty set and the outer WHERE IN matches no rows.
-     *
-     * <p>The correct result (once the bug is fixed) is 1 row with {@code v=4} from
-     * {@code cluster-a}.
-     *
-     * <p>TODO: when issue #149877 is fixed, replace the {@code assertNotEquals} with:
-     * {@code assertThat(values, hasSize(1)); assertEquals(4L, values.get(0).get(0))}.
+     * A WHERE IN subquery whose body contains a LOOKUP JOIN referencing a remote lookup index,
+     * with {@code skipUnavailable=true}. The subquery filters {@code remote-b:logs-2} to
+     * {@code v=4} via the lookup join, and the outer query selects that value from
+     * {@code cluster-a:logs-2}.
      */
     public void testInSubqueryWithLookupJoinInSubqueryBodySkipUnavailableTrue() {
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 10);
@@ -581,14 +577,239 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
                   )
                 | KEEP v
                 """, true)) {
-                List<List<Object>> values = getValuesList(resp);
-                // Bug: the correct result is List.of(List.of(4L)), but due to #149877 the
-                // lookup resolution fails silently and the inner subquery returns no values.
-                assertNotEquals(List.of(List.of(4L)), values);
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
             }
         } finally {
             clearSkipUnavailable(3);
         }
+    }
+
+    // ---- ROW + LOOKUP JOIN combinations with WHERE IN subqueries ----
+
+    /**
+     * Two placements of a LOOKUP JOIN relative to a WHERE IN subquery whose source is ROW.
+     *
+     * <ol>
+     *   <li>The LOOKUP JOIN lives <b>inside</b> the IN subquery, on top of a ROW source. A ROW produces data on the
+     *       coordinator and carries no index relation, so the lookup index must be resolved on the local cluster rather
+     *       than on the remote outer FROM. The subquery yields {@code v=4} and {@code cluster-a:logs-*} keeps the matching
+     *       row.</li>
+     *   <li>The LOOKUP JOIN lives in the main query <b>after</b> the WHERE whose IN subquery is a plain ROW. The lookup
+     *       then enriches the (single-remote) outer rows, resolving against {@code cluster-a}.</li>
+     * </ol>
+     *
+     * {@code values_lookup} is populated on both the local cluster and cluster-a so either placement resolves regardless of
+     * whether the ROW-based IN is folded to a literal filter or kept as a join.
+     */
+    public void testRowLookupJoinInsideAndAfterWhereInSubquery() {
+        checkSubqueryWithRowSupport();
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+        populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
+
+        // (1) LOOKUP JOIN inside the IN subquery, on top of a ROW source -> the lookup is resolved on the local cluster.
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (
+                ROW v = TO_LONG(4)
+                | LOOKUP JOIN values_lookup ON v == lookup_key
+                | KEEP v
+              )
+            | KEEP v
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+        }
+
+        // (2) LOOKUP JOIN in the main query after a WHERE whose IN subquery is a plain ROW -> the lookup is resolved on
+        // cluster-a (the single remote outer source).
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (ROW v = TO_LONG(4) | KEEP v)
+            | LOOKUP JOIN values_lookup ON v == lookup_key
+            | KEEP v, lookup_name
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(4L, "lookup_4"))));
+        }
+    }
+
+    // ---- negative cases: LOOKUP JOIN referencing a missing index with ROW/FROM/TS IN-subquery sources ----
+
+    /**
+     * The lookup index ({@code missing_lookup}) does not exist on any cluster. With the LOOKUP JOIN placed <b>inside</b> the
+     * IN subquery (on top of the subquery's own source), the lookup is scoped to that source's cluster(s), so the reported
+     * missing-index name is qualified accordingly: local (no prefix) for a ROW source, {@code remote-b} for a remote FROM
+     * source, and {@code cluster-a} for a TS source.
+     */
+    public void testMissingLookupIndexInsideWhereInSubquery() {
+        checkSubqueryWithRowSupport();
+        checkSubqueryWithTSSupport();
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+
+        // ROW source -> lookup scoped to the local cluster
+        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (
+                ROW v = TO_LONG(4)
+                | LOOKUP JOIN missing_lookup ON v == lookup_key
+                | KEEP v
+              )
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [missing_lookup]"));
+
+        // remote FROM source -> lookup scoped to remote-b
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (
+                FROM remote-b:logs-*
+                | LOOKUP JOIN missing_lookup ON v == lookup_key
+                | KEEP v
+              )
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [remote-b:missing_lookup]"));
+
+        // TS source -> lookup scoped to cluster-a
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM *:events
+            | WHERE tag IN (
+                TS cluster-a:ts_metrics
+                | STATS top_bytes = max(max_bytes) BY cluster
+                | LOOKUP JOIN missing_lookup ON cluster == lookup_key
+                | KEEP cluster
+              )
+            | KEEP tag
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+    }
+
+    /**
+     * Same missing lookup index, but with the LOOKUP JOIN placed in the main query <b>after</b> the WHERE IN. The lookup
+     * reads only from the outer FROM (the IN subquery is a row filter whose source does not feed the lookup), so the
+     * missing-index error names only the outer cluster(s) - never the IN-subquery's ROW (local) or remote-b source.
+     */
+    public void testMissingLookupIndexAfterWhereInSubquery() {
+        checkSubqueryWithRowSupport();
+        checkSubqueryWithTSSupport();
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+
+        // ROW IN-subquery + lookup after -> scoped to the outer cluster-a only (the ROW filter does not add the local cluster)
+        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (ROW v = TO_LONG(4) | KEEP v)
+            | LOOKUP JOIN missing_lookup ON v == lookup_key
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+
+        // remote FROM IN-subquery + lookup after -> scoped to the outer cluster-a only (the remote-b filter source is not added)
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (FROM remote-b:logs-* | KEEP v)
+            | LOOKUP JOIN missing_lookup ON v == lookup_key
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+
+        // TS IN-subquery + lookup after -> scoped to the outer source *:events, which spans both remotes
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM *:events
+            | WHERE tag IN (TS cluster-a:ts_metrics | STATS top_bytes = max(max_bytes) BY cluster | KEEP cluster)
+            | LOOKUP JOIN missing_lookup ON tag == lookup_key
+            | KEEP tag
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), allOf(containsString("cluster-a:missing_lookup"), containsString("remote-b:missing_lookup")));
+    }
+
+    /**
+     * Negative (missing lookup index) counterparts to {@code EsqlSessionTests#testComputeLookupJoinIndexScopeMixedSubqueries},
+     * exercised over the three real clusters (local {@code logs-1}, {@code cluster-a:logs-2}, {@code remote-b:logs-2}). The
+     * lookup index {@code missing_lookup} exists nowhere, so each query fails analysis with an {@code Unknown index} error
+     * whose qualified name(s) reveal the computed lookup scope - confirming a lookup is scoped only to the clusters that feed
+     * rows into it, never to a sibling FROM-union branch or an IN subquery used purely as a row filter.
+     */
+    public void testMissingLookupIndexMixedSubqueries() {
+        // (1) FROM subquery has a WHERE IN subquery, the LOOKUP JOIN sits AFTER that WHERE inside the same FROM subquery.
+        // Scoped to cluster-a (the FROM subquery's own source); the IN-filter source remote-b and the sibling local branch
+        // do not feed the lookup.
+        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM (FROM cluster-a:logs-*
+                  | WHERE v IN (FROM remote-b:logs-* | KEEP v)
+                  | LOOKUP JOIN missing_lookup ON v == lookup_key
+                  | KEEP v),
+                 (FROM logs-* | KEEP v)
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+
+        // (2) FROM subquery has a WHERE IN subquery, the LOOKUP JOIN sits INSIDE that IN subquery -> scoped to remote-b.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM (FROM cluster-a:logs-*
+                  | WHERE v IN (FROM remote-b:logs-* | LOOKUP JOIN missing_lookup ON v == lookup_key | KEEP v)
+                  | KEEP v),
+                 (FROM logs-* | KEEP v)
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [remote-b:missing_lookup]"));
+
+        // (3) WHERE IN subquery is a union of two FROM subqueries, each carrying its own LOOKUP JOIN -> union of both sources
+        // cluster-a and remote-b; the outer local source is only filtered, not a lookup source.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM logs-*
+            | WHERE v IN (FROM (FROM cluster-a:logs-* | LOOKUP JOIN missing_lookup ON v == lookup_key | KEEP v),
+                               (FROM remote-b:logs-* | LOOKUP JOIN missing_lookup ON v == lookup_key | KEEP v))
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), allOf(containsString("cluster-a:missing_lookup"), containsString("remote-b:missing_lookup")));
+
+        // (4) WHERE IN subquery is a union of two FROM subqueries, the LOOKUP JOIN sits in the main query AFTER the WHERE ->
+        // scoped to the outer cluster-a only; the IN-filter sources remote-b and local are excluded.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (FROM (FROM remote-b:logs-* | KEEP v), (FROM logs-* | KEEP v))
+            | LOOKUP JOIN missing_lookup ON v == lookup_key
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:missing_lookup]"));
+
+        // (5) Nested IN subqueries, the LOOKUP JOIN sits INSIDE the innermost (local) subquery -> scoped to the local cluster.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (FROM remote-b:logs-*
+                          | WHERE v IN (FROM logs-* | LOOKUP JOIN missing_lookup ON v == lookup_key | KEEP v)
+                          | KEEP v)
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [missing_lookup]"));
+
+        // (6) Nested IN subqueries, the LOOKUP JOIN sits AFTER the inner WHERE but inside the outer IN subquery -> scoped to
+        // remote-b (the outer IN subquery's own source); the inner-filter source local and the outermost cluster-a are excluded.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM cluster-a:logs-*
+            | WHERE v IN (FROM remote-b:logs-*
+                          | WHERE v IN (FROM logs-* | KEEP v)
+                          | LOOKUP JOIN missing_lookup ON v == lookup_key
+                          | KEEP v)
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(ex.getMessage(), containsString("Unknown index [remote-b:missing_lookup]"));
+
+        // (7) Everything at once: a FROM-union whose first branch carries a LOOKUP JOIN (local), a WHERE IN subquery carrying
+        // another LOOKUP JOIN (remote-b), and a top-level LOOKUP JOIN after the WHERE that reads the whole FROM-union
+        // (local + cluster-a). The combined field-caps request reports the missing index on all three clusters.
+        ex = expectThrows(VerificationException.class, () -> runQuery("""
+            FROM (FROM logs-* | LOOKUP JOIN missing_lookup ON v == lookup_key | KEEP v),
+                 (FROM cluster-a:logs-* | KEEP v)
+            | WHERE v IN (FROM remote-b:logs-* | LOOKUP JOIN missing_lookup ON v == lookup_key | KEEP v)
+            | LOOKUP JOIN missing_lookup ON v == lookup_key
+            | KEEP v
+            """, randomBoolean()));
+        assertThat(
+            ex.getMessage(),
+            allOf(
+                containsString("cluster-a:missing_lookup"),
+                containsString("remote-b:missing_lookup"),
+                // the local cluster contributes the unqualified name; its position in the comma-joined list is not guaranteed
+                anyOf(containsString("[missing_lookup,"), containsString(",missing_lookup"))
+            )
+        );
     }
 
     // ---- additional source types: TS, ROW, FROM-union in outer query ----
@@ -603,6 +824,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
      * events with {@code tag == "cluster-a"} match, yielding 6 rows.
      */
     public void testTsSourceInSubquery() {
+        checkSubqueryWithTSSupport();
         setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
         try (EsqlQueryResponse resp = runQuery("""
             FROM *:events
@@ -629,6 +851,7 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase {
      * Events where id == 1 (one per cluster) are returned.
      */
     public void testRowSourceInSubquery() {
+        checkSubqueryWithRowSupport();
         try (EsqlQueryResponse resp = runQuery("""
             FROM *:events, events
             | WHERE id IN (ROW id = 1 | KEEP id)

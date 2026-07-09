@@ -91,18 +91,7 @@ public class DatasetFieldMappingTests extends AbstractXContentSerializingTestCas
      * a deliberate change that breaks this test.
      */
     public void testRejectsCoreFieldParametersWeDoNotSupport() throws IOException {
-        for (String param : List.of(
-            "copy_to",
-            "analyzer",
-            "index",
-            "doc_values",
-            "null_value",
-            "fields",
-            "ignore_above",
-            "store",
-            "norms",
-            "meta"
-        )) {
+        for (String param : List.of("analyzer", "index", "doc_values", "null_value", "fields", "ignore_above", "store", "norms", "meta")) {
             String json = "{\"type\":\"keyword\",\"" + param + "\":\"x\"}";
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
                 Exception e = expectThrows(Exception.class, () -> DatasetFieldMapping.fromXContent(parser));

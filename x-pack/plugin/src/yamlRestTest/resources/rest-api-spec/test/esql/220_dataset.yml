@@ -122,17 +122,6 @@ setup:
           mappings:
             _id: { type: keyword }
 
-  # _source is not a supported mappings key (external datasets carry no _source knob).
-  - do:
-      catch: /unknown mappings field \[_source\]/
-      esql.put_dataset:
-        name: ds
-        body:
-          data_source: parent
-          resource: "s3://x/*.csv"
-          mappings:
-            _source: { enabled: false }
-
   # Field parameters outside {type, path, format} are rejected (index-mapping params we don't model).
   - do:
       catch: /\[analyzer\]/

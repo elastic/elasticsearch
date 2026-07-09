@@ -307,7 +307,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     // execute them all (because the last thread that decreases the ref count to 0 of a {@link RefCountingListener}
                     // also executes its listeners, which in turn might decrease the ref count to 0 of another
                     // {@link RefCountingListerner}, again executing its listeners, etc...).
-                    shardsClosedListenerChainLength++ < 8 ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.generic(),
+                    ++shardsClosedListenerChainLength < 8 ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.generic(),
                     null
                 );
                 if (shardsClosedListenerChainLength >= 8) {

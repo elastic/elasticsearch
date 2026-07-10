@@ -211,7 +211,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "tsv_declared_rename",
         "mapped_ds_for_view",
         "mapped_ds_for_subquery",
-        "ndjson_mv_coerce"
+        "ndjson_mv_coerce",
+        "logs_ts_declared_long"
     );
 
     /**
@@ -2035,6 +2036,69 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("no read-time conversion exists for this pair"));
         assertThat(e.getMessage(), containsString("emp_no"));
         assertThat(e.getMessage(), containsString("long"));
+    }
+
+    private byte[] timestampMicrosFixtureBytes(long... microsValues) throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("message logs { required int64 ts (TIMESTAMP(MICROS,true)); }");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (long micros : microsValues) {
+                Group g = factory.newGroup();
+                g.add("ts", micros);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    /**
+     * End-to-end regression pin for the declared-{@code long}-over-{@code TIMESTAMP(MICROS)} filter-pushdown bug:
+     * such a column decodes to epoch-NANOS, but the file's row-group statistics are in MICROS. Before the fix a
+     * pushed {@code WHERE ts == <nanos>} predicate was compared against micros stats and pruned the matching row
+     * group, so the query returned zero rows — filtering for exactly the value the column reads back found nothing.
+     */
+    public void testWhereOnDeclaredLongTimestampMatchesThroughEngine() throws Exception {
+        Path root = createTempDir();
+        long microsA = 1_600_000_000_000_000L; // reads back as 1_600_000_000_000_000_000 nanos
+        long microsB = 1_700_000_000_000_000L;
+        Files.write(root.resolve("logs.parquet"), timestampMicrosFixtureBytes(microsA, microsB));
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", new DatasetFieldMapping("long", null)); // declare the timestamp column as long (epoch-nanos)
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_ts_declared_long",
+                    "local_ds",
+                    root.toUri() + "*.parquet",
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        // Filter for exactly the nanos value the first row reads back; it must be found (row group not wrongly pruned).
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM logs_ts_declared_long | WHERE ts == 1600000000000000000 | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat("the matching row must survive filter pushdown", getValuesList(response).get(0).get(0), equalTo(1L));
+        }
     }
 
     private Path writeParquetRenameFixture() throws IOException {

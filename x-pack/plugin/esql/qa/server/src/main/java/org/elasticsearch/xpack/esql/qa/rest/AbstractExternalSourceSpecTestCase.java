@@ -452,7 +452,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         String dataSourceName = ensureDataSourceForBackend();
         for (DatasetSource source : testCase.datasetSources) {
             String resource = transformTemplates(source.resource());
-            DatasetRegistry.ensureDataset(client(), source.name(), dataSourceName, resource, source.withJson());
+            DatasetRegistry.ensureDataset(client(), source.name(), dataSourceName, resource, withJsonForSource(source));
         }
         String query = testCase.query;
         logger.debug("Dataset-mode query for {} backend: {}", storageBackend, query);
@@ -561,11 +561,52 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // EXTERNAL string literal so a resource containing a backslash or quote round-trips correctly.
         String literal = source.resource().replace("\\", "\\\\").replace("\"", "\\\"");
         StringBuilder external = new StringBuilder("EXTERNAL \"").append(literal).append("\"");
-        if (source.withJson() != null) {
-            external.append(" WITH ").append(source.withJson());
+        // Apply the same WITH JSON the FROM path uses (adds trim_spaces for the column-aligned csv/tsv
+        // fixtures) so the EXTERNAL-holdout path reads them identically.
+        String withJson = withJsonForSource(source);
+        if (withJson != null) {
+            external.append(" WITH ").append(withJson);
         }
         external.append(tail);
         return external.toString();
+    }
+
+    /**
+     * The {@code WITH}-clause JSON applied to a dataset source, both when registering the dataset
+     * ({@link #runDatasetMode()}) and when rebuilding an {@code EXTERNAL} query
+     * ({@link #rebuildExternalFromDatasets}).
+     * <p>
+     * The CSV/TSV test fixtures (employees.csv, books.csv, ...) are column-aligned with padding spaces for
+     * readability, so their expected spec values assume trimming. The reader default is now no-trim (RFC
+     * 4180 — spaces are part of a field), so read these aligned fixtures with {@code trim_spaces: true} to
+     * keep the expected values valid. Real-world no-trim fidelity is covered by CsvFormatReaderTests unit
+     * tests; a directive that sets {@code trim_spaces} explicitly is left untouched (so a spec can still
+     * exercise the no-trim default end to end).
+     */
+    private String withJsonForSource(DatasetSource source) {
+        // format is the base format or a codec-suffixed variant ("csv", "csv.gz", "tsv.zstd", ...). Other
+        // formats (parquet, ...) reject the trim_spaces key, so only the csv/tsv backends read the
+        // column-aligned fixtures with trimming; the shared injector adds the key.
+        boolean csvOrTsv = format.equals("csv") || format.startsWith("csv.") || format.equals("tsv") || format.startsWith("tsv.");
+        return csvOrTsv ? injectTrimSpaces(source.withJson()) : source.withJson();
+    }
+
+    /**
+     * Adds {@code "trim_spaces": true} to a dataset directive's {@code WITH} JSON, unless it already sets
+     * {@code trim_spaces} (matched as a key — the quoted name followed by a colon, so a value that merely
+     * equals {@code "trim_spaces"} still gets the injection). {@code withJson} is parser-guaranteed to be a
+     * brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the structural closer.
+     */
+    static String injectTrimSpaces(String withJson) {
+        if (withJson != null && withJson.replaceAll("\\s", "").contains("\"trim_spaces\":")) {
+            return withJson;
+        }
+        if (withJson == null) {
+            return "{\"trim_spaces\": true}";
+        }
+        int close = withJson.lastIndexOf('}');
+        String head = withJson.substring(0, close).trim();
+        return head + (head.endsWith("{") ? "" : ", ") + "\"trim_spaces\": true}";
     }
 
     /**

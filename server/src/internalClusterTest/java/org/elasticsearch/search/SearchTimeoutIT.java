@@ -368,6 +368,31 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         assertEquals(RestStatus.TOO_MANY_REQUESTS.getStatus(), ex.status().getStatus());
     }
 
+    public void testRewriteTimeoutWithPartialResults() {
+        SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.SECONDS))
+            .setQuery(new RewriteTimeoutQuery());
+        ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
+            assertThat(searchResponse.isTimedOut(), equalTo(true));
+            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getFailedShards());
+            assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
+            assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
+            assertEquals(0, searchResponse.getHits().getTotalHits().value());
+            assertEquals(0, searchResponse.getHits().getHits().length);
+        });
+    }
+
+    public void testPartialResultsIntolerantRewriteTimeout() {
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.SECONDS))
+                .setQuery(new RewriteTimeoutQuery())
+                .setAllowPartialSearchResults(false)
+        );
+        assertTrue(ex.toString().contains("Time exceeded"));
+        assertEquals(RestStatus.TOO_MANY_REQUESTS.getStatus(), ex.status().getStatus());
+    }
+
     public static final class SearchTimeoutPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<QuerySpec<?>> getQueries() {
@@ -379,7 +404,12 @@ public class SearchTimeoutIT extends ESIntegTestCase {
                 ),
                 new QuerySpec<QueryBuilder>("dfs_knn_timeout", DfsKnnTimeoutQuery::new, parser -> {
                     throw new UnsupportedOperationException();
-                })
+                }),
+                new QuerySpec<QueryBuilder>(
+                    "rewrite_timeout",
+                    RewriteTimeoutQuery::new,
+                    parser -> { throw new UnsupportedOperationException(); }
+                )
             );
         }
 
@@ -619,6 +649,59 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return null;
+        }
+    }
+
+    /**
+     * Query builder which throws a TimeExceededException while the query is being rewritten, before any scoring happens.
+     */
+    public static final class RewriteTimeoutQuery extends DummyQueryBuilder {
+
+        RewriteTimeoutQuery() {}
+
+        RewriteTimeoutQuery(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "rewrite_timeout";
+        }
+
+        @Override
+        protected Query doToQuery(SearchExecutionContext context) {
+            return new Query() {
+                @Override
+                public Query rewrite(IndexSearcher searcher) {
+                    ((ContextIndexSearcher) searcher).throwTimeExceededException();
+                    throw new AssertionError("should have thrown TimeExceededException");
+                }
+
+                @Override
+                public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                    throw new AssertionError("should have timed out during rewrite");
+                }
+
+                @Override
+                public String toString(String field) {
+                    return "rewrite timeout query";
+                }
+
+                @Override
+                public void visit(QueryVisitor visitor) {
+                    visitor.visitLeaf(this);
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    return sameClassAs(obj);
+                }
+
+                @Override
+                public int hashCode() {
+                    return classHash();
+                }
+            };
         }
     }
 

@@ -46,7 +46,7 @@ public class JoinTests extends ESTestCase {
         Row right = new Row(Source.EMPTY, rightFields);
 
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, leftAttributes, rightAttributes, null);
-        Join join = new Join(Source.EMPTY, left, right, joinConfig);
+        Join join = new Join(Source.EMPTY, left, right, joinConfig, false);
 
         // matchfields are a subset of the left and right fields, so they don't contribute to the size of the references set.
         // assertEquals(2 * numMatchFields, join.references().size());
@@ -82,7 +82,7 @@ public class JoinTests extends ESTestCase {
         Row right = new Row(Source.EMPTY, rightFields);
 
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, leftAttributes, rightAttributes, null);
-        Join join = new Join(Source.EMPTY, left, right, joinConfig);
+        Join join = new Join(Source.EMPTY, left, right, joinConfig, false);
         assertTrue(join.config().leftFields().stream().allMatch(ref -> ref.dataType().equals(DataType.INTEGER)));
 
         Join transformedJoin = (Join) join.transformExpressionsOnly(Attribute.class, attr -> attr.withDataType(DataType.BOOLEAN));

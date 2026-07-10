@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -48,6 +49,7 @@ public abstract class DataSourceConfiguration {
 
     private final Map<String, DataSourceConfigDefinition> fieldDefs;
     private final Map<String, Object> values;
+    private final Set<String> preexistingSecretKeys;
 
     /**
      * Parses, normalizes, and validates raw settings from a REST request or CRUD layer.
@@ -65,9 +67,26 @@ public abstract class DataSourceConfiguration {
      * @param fieldDefs the field definitions
      * @throws ValidationException if any validation errors are found
      */
-    @SuppressWarnings("this-escape")
     protected DataSourceConfiguration(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
+        this(raw, fieldDefs, Set.of());
+    }
+
+    /**
+     * Like {@link #DataSourceConfiguration(Map, Map)}, but for a PUT-as-update: a secret field omitted from
+     * {@code raw} is still treated as present (see {@link #hasStoredSecret}) if its name is in
+     * {@code preexistingSecretKeys}, so credential-completeness checks pass when the caller intends to keep
+     * the existing value. The caller excludes any key the request explicitly clears (JSON {@code null}).
+     *
+     * @param preexistingSecretKeys secret field names already stored, empty for a create
+     */
+    @SuppressWarnings("this-escape")
+    protected DataSourceConfiguration(
+        Map<String, Object> raw,
+        Map<String, DataSourceConfigDefinition> fieldDefs,
+        Set<String> preexistingSecretKeys
+    ) {
         this.fieldDefs = fieldDefs;
+        this.preexistingSecretKeys = Set.copyOf(preexistingSecretKeys);
         ValidationException errors = new ValidationException();
         DataSourceValidationUtils.rejectUnknownFields(raw, fieldDefs.keySet(), errors);
         Map<String, Object> parsed = new HashMap<>();
@@ -99,8 +118,18 @@ public abstract class DataSourceConfiguration {
     /** Cross-field validation. Accumulate errors into the provided exception. */
     protected abstract void validate(ValidationException errors);
 
-    /** Returns true if any field marked as secret has a value set. Null values are already excluded. */
+    /** True if any field marked secret has a value set, or a preexisting one carries forward (see {@link #hasStoredSecret}). */
     protected boolean hasAnySecretValue() {
+        return hasAnyExplicitSecretValue() || preexistingSecretKeys.isEmpty() == false;
+    }
+
+    /**
+     * True if any field marked secret has a value set in this request specifically, excluding any preexisting
+     * secret carried forward from a stored value. Use this to distinguish "this request supplied credentials"
+     * from "credentials came from the existing entry" in a conflict message — e.g. rejecting {@code
+     * auth=anonymous} because a stored secret wasn't cleared shouldn't say the request supplied one.
+     */
+    protected boolean hasAnyExplicitSecretValue() {
         for (var entry : values.entrySet()) {
             DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
             assert def != null : "values map should only contain known fields, got [" + entry.getKey() + "]";
@@ -109,6 +138,16 @@ public abstract class DataSourceConfiguration {
             }
         }
         return false;
+    }
+
+    /**
+     * True if the named secret field has a value set in this request, or carries forward from a preexisting
+     * stored value on a PUT-as-update. Use this, not {@code Strings.hasText(get(key))}, in
+     * {@code hasCredentials()}/credential-completeness checks so an update that omits an already-stored
+     * secret still satisfies them.
+     */
+    protected boolean hasStoredSecret(String key) {
+        return Strings.hasText(get(key)) || preexistingSecretKeys.contains(key);
     }
 
     /** Returns true if any field marked as federated identity (aka keyless auth) has a value set. Null values are already excluded. */

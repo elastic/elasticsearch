@@ -22,10 +22,13 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.After;
@@ -36,6 +39,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -83,8 +87,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             null,
             "k:keyword\nhelloworld12\n",
             "line -1:-1: CSV parse error at row [1]: CSV parse error: String value length (12) exceeds the maximum allowed "
-                + "(10, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode to skip_row "
-                + "(or null_field) in WITH options to skip and warn instead of failing"
+                + "(10, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
+                + "(or null_field) to skip and warn instead of failing"
         );
     }
 
@@ -96,8 +100,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             null,
             "k:keyword\n\"helloworld\"\n",
             "line -1:-1: CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
-                + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode to skip_row "
-                + "(or null_field) in WITH options to skip and warn instead of failing"
+                + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
+                + "(or null_field) to skip and warn instead of failing"
         );
     }
 
@@ -109,8 +113,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
             List.of("a"),
             "a:keyword,b:keyword\nshort,helloworld\n",
             "line -1:-1: CSV parse error at row [1]: CSV parse error: String value length (10) exceeds the maximum allowed "
-                + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode to skip_row "
-                + "(or null_field) in WITH options to skip and warn instead of failing"
+                + "(5, from `StreamReadConstraints.getMaxStringLength()`); row: <unparsed>; set error_mode=skip_row "
+                + "(or null_field) to skip and warn instead of failing"
         );
     }
 
@@ -120,10 +124,38 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(br("ok")), row(br("fine"))), rows);
     }
 
+    /**
+     * Both arms report the identical wrapped message for junk after a closing quote — the direct-block arm
+     * previously emitted it without the {@code "CSV parse error: "} prefix that the fallback arm adds.
+     */
+    public void testContentAfterCloseQuoteErrorParity() throws IOException {
+        assertFailFastParity(
+            false,
+            Map.of(),
+            null,
+            "k:keyword\n\"x\"y\n",
+            "line -1:-1: CSV parse error at row [1]: CSV parse error: CSV row has unexpected content after a closing "
+                + "quote; row: <unparsed>; set error_mode=skip_row (or null_field) to skip and warn "
+                + "instead of failing"
+        );
+    }
+
     /** The cap is measured on the trimmed value, so surrounding whitespace does not push a field over. */
     public void testMaxFieldSizeTrimmedWithinCap() throws IOException {
-        List<List<Object>> rows = read(false, Map.of("max_field_size", 5), "k:keyword\n  abc  \n");
+        List<List<Object>> rows = read(false, Map.of("max_field_size", 5, "trim_spaces", true), "k:keyword\n  abc  \n");
         assertEquals(List.of(row(br("abc"))), rows);
+    }
+
+    /**
+     * Under no-trim the cap governs the RAW token, so a padded typed value whose raw length (9) exceeds the
+     * cap (5) is dropped even though its trimmed value (3) would fit — and identically whether the padded
+     * column is projected or not, so projection cannot change whether the row survives.
+     */
+    public void testMaxFieldSizePaddedTypedNoTrimDroppedRegardlessOfProjection() throws IOException {
+        Map<String, Object> config = Map.of("max_field_size", 5);
+        String content = "a:integer,b:integer\n   123   ,7\n";
+        assertEquals(List.of(), read(false, config, skipRow(), null, content));
+        assertEquals(List.of(), read(false, config, skipRow(), List.of("b"), content));
     }
 
     /** A doubled quote decodes to a single character, so {@code "a""b"} (decoded {@code a"b}) is within a cap of 5. */
@@ -143,6 +175,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
      * non-ROOT locale the two would differ only in digit script; forcing ROOT pins the contract in the
      * production-relevant ASCII case without asserting that Jackson locale quirk.
      */
+
     private void assertFailFastParity(boolean tsv, Map<String, Object> config, List<String> projection, String content, String expected)
         throws IOException {
         Locale previous = Locale.getDefault();
@@ -201,9 +234,47 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row((Object) null)), rows);
     }
 
-    public void testDecimalInLongColumnNullFieldYieldsNull() throws IOException {
-        List<List<Object>> rows = read(false, nullField(), "a:long\n1.0\n");
-        assertEquals(List.of(row((Object) null)), rows);
+    public void testDecimalInLongColumnRoundsLikeCastEngine() throws IOException {
+        // A decimal token in a long column now ROUNDS (declared read == ::long, which reuses the
+        // cast engine), where the former Long.parseLong path rejected it as a null-field error.
+        List<List<Object>> rows = read(false, nullField(), "a:long\n1.6\n");
+        assertEquals(List.of(row(2L)), rows);
+    }
+
+    /**
+     * A whitespace-bearing {@code null_value} nulls a typed value that equals the RAW marker, identically on
+     * both arms — the direct arm previously trimmed the value before the marker check and missed it.
+     */
+    public void testPaddedNullMarkerOnTypedColumnParity() throws IOException {
+        // Padded marker " 0 ", value " 0 " (== raw marker) → null on both arms.
+        assertEquals(List.of(row((Object) null)), read(false, Map.of("null_value", " 0 "), "a:integer\n 0 \n"));
+        // Unpadded marker "0", padded value " 0 " → null via the trimmed re-check (both arms already agree).
+        assertEquals(List.of(row((Object) null)), read(false, Map.of("null_value", "0"), "a:integer\n 0 \n"));
+        // A padded value that is NOT the marker still parses.
+        assertEquals(List.of(row(5)), read(false, Map.of("null_value", " 0 "), "a:integer\n 5 \n"));
+        // Escaped path: field "\ 5 " (escaped space + "5 ") decodes to " 5 " == the padded marker, and nulls
+        // on both arms — emitUnquotedEscapedField now defers the typed trim to tryConvertValue like its house
+        // peer, so the raw marker isn't stripped before the check.
+        assertEquals(List.of(row((Object) null)), read(false, Map.of("null_value", " 5 "), "a:integer\n\\ 5 \n"));
+    }
+
+    /** Bracket mode drops trailing whitespace after a closing quote under no-trim, matching the quoted grammar. */
+    public void testBracketTrailingWhitespaceAfterCloseQuoteDropped() throws IOException {
+        // Unprojected read → the full-split bracket walker.
+        assertEquals(
+            List.of(row(br("x"), br("y"))),
+            read(false, Map.of("multi_value_syntax", "brackets"), "a:keyword,b:keyword\nx,\"y\"  \n")
+        );
+        // Projected read → the fused bracket walker.
+        assertEquals(
+            List.of(row(br("y"))),
+            read(false, Map.of("multi_value_syntax", "brackets"), null, List.of("b"), "a:keyword,b:keyword\nx,\"y\"  \n")
+        );
+        // Trailing whitespace then a delimiter (not EOL) — the other disjunct of the skip.
+        assertEquals(
+            List.of(row(br("x"), br("y"), br("z"))),
+            read(false, Map.of("multi_value_syntax", "brackets"), "a:keyword,b:keyword,c:keyword\nx,\"y\" ,z\n")
+        );
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -260,8 +331,20 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     public void testKeywordWhitespaceTrimmed() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\n  spaced  \n");
+        // Trimming a string column is opt-in now (default is no-trim, RFC 4180); with trim_spaces both the
+        // direct-block and Jackson paths trim to "spaced".
+        List<List<Object>> rows = read(false, Map.of("trim_spaces", true), "k:keyword\n  spaced  \n");
         assertEquals(List.of(row(br("spaced"))), rows);
+    }
+
+    public void testKeywordWhitespacePreservedByDefault() throws IOException {
+        // Default is no-trim: a string column keeps its surrounding whitespace, identically on both paths.
+        // Uses a second column so the value under test is not at column 0; column-0 leading-whitespace
+        // preservation is pinned separately by testColumnZeroLeadingWhitespaceCsv / ...TsvPlain, which now
+        // agree on both the direct and house arms under no-trim (QUOTED / PLAIN). (Escaped mode is the only
+        // dialect that still eats col-0 leading whitespace — it stays on Jackson; not exercised here.)
+        List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:keyword\nx,  spaced  \n");
+        assertEquals(List.of(row(br("x"), br("  spaced  "))), rows);
     }
 
     public void testQuotedFieldWithDelimiterAndDoubledQuote() throws IOException {
@@ -276,25 +359,50 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(br("line1\nline2"), br("tail"))), rows);
     }
 
-    public void testEmptyQuotedFieldIsNull() throws IOException {
-        // The current parser collapses an empty quoted field "" to null, exactly like an empty
-        // unquoted cell; pin that so the direct-block parser must match.
+    public void testEmptyQuotedFieldIsEmptyString() throws IOException {
+        // A present-but-empty quoted field "" on a string column reads as the empty string, exactly
+        // like an empty unquoted cell; pin that so the direct-block parser must match.
         List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:keyword\n\"\",x\n");
-        assertEquals(List.of(row(null, br("x"))), rows);
+        assertEquals(List.of(row(br(""), br("x"))), rows);
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Null handling
+    // Empty / null handling
     // ---------------------------------------------------------------------------------------------
 
-    public void testEmptyUnquotedCellIsNull() throws IOException {
+    public void testEmptyCellIsEmptyStringOnStringColumnNullOnNumeric() throws IOException {
+        // A present-but-empty cell reads as the empty string on a string (KEYWORD) column and as null
+        // on a numeric column, which has no empty representation.
         List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:long\n,5\nx,\n");
-        assertEquals(List.of(row(null, 5L), row(br("x"), null)), rows);
+        assertEquals(List.of(row(br(""), 5L), row(br("x"), null)), rows);
     }
 
     public void testCustomNullValue() throws IOException {
         List<List<Object>> rows = read(false, Map.of("null_value", "NULL"), "a:keyword,b:long\nNULL,NULL\nx,5\n");
         assertEquals(List.of(row(null, null), row(br("x"), 5L)), rows);
+    }
+
+    /** A declared KEYWORD column must be able to hold the literal string "null" (any case) — see #1098. */
+    public void testLiteralNullTextOnKeywordIsPreserved() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:long\nnull,1\nNULL,2\n");
+        assertEquals(List.of(row(br("null"), 1L), row(br("NULL"), 2L)), rows);
+    }
+
+    /** Non-string columns keep classifying the literal "null" token as a null marker. */
+    public void testLiteralNullTextOnTypedColumnIsNull() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), "a:long,b:keyword\nnull,null\n1,x\n");
+        assertEquals(List.of(row(null, br("null")), row(1L, br("x"))), rows);
+    }
+
+    /**
+     * B1 inference parity: an untyped header forces inference, which under no-trim samples rows through the
+     * house record tokenizer. The configured {@code null_value} marker must map to null before the inferrer
+     * sees it (it only knows empty / {@code "null"}), so {@code score} infers INTEGER and the marker row reads
+     * back as null on both the direct-block and house arms.
+     */
+    public void testCustomNullValueInferredNumericUnderNoTrim() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("null_value", "NA"), "id,score\n1,NA\n2,7\n");
+        assertEquals(List.of(row(1, null), row(2, 7)), rows);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -311,6 +419,338 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         String iso = "2024-01-15T12:34:56.123456789Z";
         List<List<Object>> rows = read(false, Map.of(), "ts:date_nanos\n" + iso + "\n");
         assertEquals(List.of(row(EsqlDataTypeConverter.dateNanosToLong(iso))), rows);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // File-level datetime_format. The option compiles to an ES DateFormatter, so a pattern means on
+    // CSV/TSV exactly what it means on NDJSON, on a per-column declared `format` and in a date
+    // mapping: zone-aware, missing fields defaulted, named formats and `a||b` composites accepted.
+    //
+    // For DATETIME the zone-offset and date-only cases are twin-pinned against NDJSON over the identical
+    // pattern and bytes (NdJsonPageIteratorTests), so the two formats agree exactly there. DATE_NANOS has
+    // no NDJSON counterpart -- that reader has no date_nanos support -- so its expectations below are
+    // anchored on EsqlDataTypeConverter.dateNanosToLong, the conversion the reader itself calls.
+    //
+    // The pattern outranks the numeric-epoch shortcut whenever it matches the cell, so all-digit patterns
+    // work; a numeric cell the pattern does NOT match falls back to epoch millis
+    // (testDatetimeFormatNumericFallbackWhenPatternDoesNotMatch), which is CSV's stand-in for NDJSON's
+    // JSON-number token bypassing that reader's string formatter.
+    // ---------------------------------------------------------------------------------------------
+
+    /** A zone-bearing pattern honors the parsed offset rather than re-anchoring the wall clock to UTC. */
+    public void testDatetimeFormatHonorsZoneOffset() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ssXXX"),
+            "ts:datetime\n2024-01-01 10:00:00+05:00\n2024-01-01 10:00:00Z\n"
+        );
+        assertEquals(
+            List.of(row(Instant.parse("2024-01-01T05:00:00Z").toEpochMilli()), row(Instant.parse("2024-01-01T10:00:00Z").toEpochMilli())),
+            rows
+        );
+    }
+
+    public void testDateNanosFormatHonorsZoneOffset() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ssXXX"),
+            "ts:date_nanos\n2024-01-01 10:00:00+05:00\n"
+        );
+        assertEquals(List.of(row(EsqlDataTypeConverter.dateNanosToLong("2024-01-01T05:00:00Z"))), rows);
+    }
+
+    /** A date-only pattern parses; the missing time-of-day defaults to midnight UTC. */
+    public void testDatetimeFormatDateOnly() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("datetime_format", "yyyy-MM-dd"), "ts:datetime\n2024-01-01\n");
+        assertEquals(List.of(row(Instant.parse("2024-01-01T00:00:00Z").toEpochMilli())), rows);
+    }
+
+    public void testDateNanosFormatDateOnly() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("datetime_format", "yyyy-MM-dd"), "ts:date_nanos\n2024-01-01\n");
+        assertEquals(List.of(row(EsqlDataTypeConverter.dateNanosToLong("2024-01-01T00:00:00Z"))), rows);
+    }
+
+    /** Sub-millisecond digits survive into the date_nanos block; the datetime block truncates to millis. */
+    public void testDatetimeFormatSubMillisecondPrecision() throws IOException {
+        String pattern = "yyyy-MM-dd HH:mm:ss.SSSSSSSSS";
+        String value = "2024-01-15 12:34:56.123456789";
+        assertEquals(
+            List.of(row(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z"))),
+            read(false, Map.of("datetime_format", pattern), "ts:date_nanos\n" + value + "\n")
+        );
+        assertEquals(
+            List.of(row(Instant.parse("2024-01-15T12:34:56.123Z").toEpochMilli())),
+            read(false, Map.of("datetime_format", pattern), "ts:datetime\n" + value + "\n")
+        );
+    }
+
+    /** BWC: a zone-less pattern keeps producing the UTC-anchored instant it produced before. */
+    public void testDatetimeFormatZonelessPatternUnchanged() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss"), "ts:datetime\n15/01/2021 14:30:00\n");
+        assertEquals(List.of(row(Instant.parse("2021-01-15T14:30:00Z").toEpochMilli())), rows);
+    }
+
+    /** ES named formats and `a||b` composites are accepted, matching NDJSON. */
+    public void testDatetimeFormatNamedFormat() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("datetime_format", "basic_date_time_no_millis"), "ts:datetime\n20240101T100000Z\n");
+        assertEquals(List.of(row(Instant.parse("2024-01-01T10:00:00Z").toEpochMilli())), rows);
+    }
+
+    public void testDatetimeFormatCompositePattern() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd"),
+            "ts:datetime\n2024-01-01 10:00:00\n2024-01-02\n"
+        );
+        assertEquals(
+            List.of(row(Instant.parse("2024-01-01T10:00:00Z").toEpochMilli()), row(Instant.parse("2024-01-02T00:00:00Z").toEpochMilli())),
+            rows
+        );
+    }
+
+    /**
+     * An all-digit pattern now wins over the numeric-epoch shortcut, because the shortcut only claims a cell the
+     * pattern cannot parse. Before this change every value such a pattern would match was swallowed by the shortcut
+     * and reinterpreted as epoch millis: {@code yyyyMMdd} on {@code 20240101} read as 1970-01-01T05:37:20.101Z, and
+     * the ES named formats that compile to all-digit patterns were rejected outright.
+     */
+    public void testDatetimeFormatAllDigitPatternsWin() throws IOException {
+        for (String pattern : List.of("yyyyMMdd", "basic_date")) {
+            assertEquals(
+                "pattern " + pattern,
+                List.of(row(Instant.parse("2024-01-01T00:00:00Z").toEpochMilli())),
+                read(false, Map.of("datetime_format", pattern), "ts:datetime\n20240101\n")
+            );
+        }
+        assertEquals(
+            List.of(row(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli())),
+            read(false, Map.of("datetime_format", "epoch_second"), "ts:datetime\n1609459200\n")
+        );
+        assertEquals(
+            List.of(row(Instant.parse("2024-01-01T00:00:00Z").toEpochMilli())),
+            read(false, Map.of("datetime_format", "year"), "ts:datetime\n2024\n")
+        );
+        // date_nanos rides the same rail.
+        assertEquals(
+            List.of(row(EsqlDataTypeConverter.dateNanosToLong("2021-01-01T00:00:00Z"))),
+            read(false, Map.of("datetime_format", "epoch_second"), "ts:date_nanos\n1609459200\n")
+        );
+    }
+
+    /**
+     * A numeric cell the pattern cannot parse still reads as epoch millis, so a file whose datetime columns use a
+     * string pattern can still carry an epoch column. This is what keeps the precedence change from regressing a
+     * currently-correct read.
+     */
+    public void testDatetimeFormatNumericFallbackWhenPatternDoesNotMatch() throws IOException {
+        long epoch = 1609459200000L; // 2021-01-01T00:00:00Z; 13 digits, no match for yyyy-MM-dd HH:mm:ss
+        assertEquals(List.of(row(epoch)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:datetime\n" + epoch + "\n"));
+        assertEquals(List.of(row(epoch)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:date_nanos\n" + epoch + "\n"));
+        // Negative epoch is numeric and unmatchable by the pattern; it stays epoch.
+        assertEquals(List.of(row(-1000L)), read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"), "ts:datetime\n-1000\n"));
+        // With no file-level pattern at all, the shortcut is untouched.
+        assertEquals(List.of(row(epoch)), read(false, Map.of(), "ts:datetime\n" + epoch + "\n"));
+    }
+
+    /** The per-column declared `format` still outranks both the file-level pattern and the epoch shortcut. */
+    public void testDeclaredColumnFormatOverridesNumericEpochShortcut() throws IOException {
+        CsvFormatReader reader = baseReader(false).withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        StorageObject object = new InMemoryStorageObject("ts:datetime\n1609459200\n".getBytes(StandardCharsets.UTF_8));
+        try (CloseableIterator<Page> pages = reader.read(object, null, 10)) {
+            Page page = pages.next();
+            try {
+                assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Schema inference uses the file-level {@code datetime_format}, so an untyped column in the file's date dialect is
+     * inferred DATETIME rather than KEYWORD. Before this change inference only ever probed ISO-8601, so the option was
+     * a no-op on any CSV whose header does not declare {@code ts:datetime}.
+     */
+    public void testDatetimeFormatDrivesSchemaInference() throws IOException {
+        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss"));
+        StorageObject object = new InMemoryStorageObject("ts\n25/12/2023 10:30:00\n01/01/2024 00:00:00\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(DataType.DATETIME, reader.schema(object).get(0).dataType());
+    }
+
+    /** Without the option, inference still probes ISO-8601 only, and a custom-dialect column stays KEYWORD. */
+    public void testSchemaInferenceWithoutDatetimeFormatUnchanged() throws IOException {
+        StorageObject custom = new InMemoryStorageObject("ts\n25/12/2023 10:30:00\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(DataType.KEYWORD, baseReader(false).schema(custom).get(0).dataType());
+        StorageObject iso = new InMemoryStorageObject("ts\n2023-12-25T10:30:00Z\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(DataType.DATETIME, baseReader(false).schema(iso).get(0).dataType());
+    }
+
+    /** The headerless (synthesized column names) inference path honors the pattern too, not just the header path. */
+    public void testDatetimeFormatDrivesHeaderlessSchemaInference() throws IOException {
+        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(
+            Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss", "header_row", false)
+        );
+        StorageObject object = new InMemoryStorageObject("25/12/2023 10:30:00\n01/01/2024 00:00:00\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(DataType.DATETIME, reader.schema(object).get(0).dataType());
+    }
+
+    /** Numeric candidates are tried before DATETIME, so an all-digit column stays numeric even under an all-digit pattern. */
+    public void testDatetimeFormatDoesNotMakeNumericColumnsDates() throws IOException {
+        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyyMMdd"));
+        StorageObject object = new InMemoryStorageObject("id\n20240101\n20240102\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(DataType.INTEGER, reader.schema(object).get(0).dataType());
+    }
+
+    /**
+     * A per-column declared `format` reaches date_nanos columns, not just datetime. Before this change
+     * tryParseDateNanos never received the column index, so a declared format on a date_nanos column was ignored and
+     * the read failed outright under the default error policy.
+     */
+    public void testDeclaredColumnFormatAppliesToDateNanos() throws IOException {
+        CsvFormatReader reader = baseReader(false).withDeclaredDateFormats(Map.of("ts", "dd/MM/yyyy"));
+        StorageObject object = new InMemoryStorageObject("ts:date_nanos\n02/01/2024\n".getBytes(StandardCharsets.UTF_8));
+        try (CloseableIterator<Page> pages = reader.read(object, null, 10)) {
+            Page page = pages.next();
+            try {
+                assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-02T00:00:00Z"), ((LongBlock) page.getBlock(0)).getLong(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * ES compiles custom patterns with {@link java.time.format.ResolverStyle#STRICT}; the JDK's {@code ofPattern}
+     * defaulted to SMART, which clamped a calendar-invalid day-of-month to the end of the month. {@code 2024-02-31}
+     * therefore used to read as {@code 2024-02-29} and now fails the field, converging on NDJSON and the date mapper.
+     */
+    public void testDatetimeFormatStrictResolverRejectsInvalidCalendarDate() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"),
+            nullField(),
+            null,
+            "ts:datetime\n2024-02-31 10:00:00\n"
+        );
+        assertEquals(List.of(row((Object) null)), rows);
+    }
+
+    /** Named formats and composites reach date_nanos too, not just datetime. */
+    public void testDateNanosFormatNamedFormatAndComposite() throws IOException {
+        assertEquals(
+            List.of(row(EsqlDataTypeConverter.dateNanosToLong("2024-01-01T10:00:00Z"))),
+            read(false, Map.of("datetime_format", "basic_date_time_no_millis"), "ts:date_nanos\n20240101T100000Z\n")
+        );
+        assertEquals(
+            List.of(row(EsqlDataTypeConverter.dateNanosToLong("2024-01-02T00:00:00Z"))),
+            read(false, Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd"), "ts:date_nanos\n2024-01-02\n")
+        );
+    }
+
+    /** Under skip_row a datetime cell the pattern cannot parse drops its whole row; neighbours survive. */
+    public void testDatetimeFormatUnparseableValueSkipRow() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"),
+            skipRow(),
+            null,
+            "id:long,ts:datetime\n1,nope\n2,2024-01-01 10:00:00\n"
+        );
+        assertEquals(List.of(row(2L, Instant.parse("2024-01-01T10:00:00Z").toEpochMilli())), rows);
+    }
+
+    /** An unparseable cell routes through the error policy: null-filled under null_field, surrounding rows survive. */
+    public void testDatetimeFormatUnparseableValueNullsCell() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"),
+            nullField(),
+            null,
+            "id:long,ts:datetime\n1,not-a-date\n2,2024-01-01 10:00:00\n"
+        );
+        assertEquals(List.of(row(1L, null), row(2L, Instant.parse("2024-01-01T10:00:00Z").toEpochMilli())), rows);
+    }
+
+    /**
+     * ...and under the default fail-fast policy the read aborts with that same per-field message rather than letting a
+     * raw parse exception escape the batch. Asserted as a prefix: the two arms render the trailing {@code row:}
+     * fragment differently for <em>every</em> field-level error (Jackson names the columns, the direct arm echoes the
+     * raw record), a pre-existing divergence that has nothing to do with datetime parsing.
+     */
+    public void testDatetimeFormatUnparseableValueFailFast() throws IOException {
+        String content = "id:long,ts:datetime\n1,not-a-date\n";
+        CsvFormatReader base = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"));
+        String expected = "line -1:-1: CSV parse error at row [1]: Failed to parse CSV datetime value [not-a-date]; row: ";
+        for (boolean directBlock : List.of(false, true)) {
+            String message = captureFailFastMessage(base.withDirectBlockEnabled(directBlock), null, content);
+            assertTrue("direct_block=" + directBlock + " message: " + message, message.startsWith(expected));
+        }
+    }
+
+    public void testDateNanosFormatUnparseableValueNullsCell() throws IOException {
+        List<List<Object>> rows = read(
+            false,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ss"),
+            nullField(),
+            null,
+            "id:long,ts:date_nanos\n1,nope\n"
+        );
+        assertEquals(List.of(row(1L, null)), rows);
+    }
+
+    /**
+     * date_nanos cannot hold pre-epoch instants. The pattern MUST match the value here: a value the pattern rejects
+     * merely fails to parse, whereas a value it accepts reaches DateUtils.toLong, whose IllegalArgumentException the
+     * old catch did not cover -- it escaped the batch and aborted the read even under null_field. The range error now
+     * nulls the cell. Post-2262 is the same path on the high side.
+     */
+    public void testDateNanosFormatOutOfRangeInstantNullsCell() throws IOException {
+        String pattern = "yyyy-MM-dd HH:mm:ss";
+        assertEquals(
+            List.of(row(1L, null)),
+            read(false, Map.of("datetime_format", pattern), nullField(), null, "id:long,ts:date_nanos\n1,1900-01-01 00:00:00\n")
+        );
+        assertEquals(
+            List.of(row(1L, null)),
+            read(false, Map.of("datetime_format", pattern), nullField(), null, "id:long,ts:date_nanos\n1,2300-01-01 00:00:00\n")
+        );
+    }
+
+    /**
+     * A time-only pattern used to null the column (LocalDateTime.parse needs a date); it now parses, with the missing
+     * date defaulted to the epoch day by DateFormatters.from. Previously-null becomes a value -- pinned so the epoch-day
+     * default is a decision, not a surprise.
+     */
+    public void testDatetimeFormatTimeOnlyPatternDefaultsToEpochDay() throws IOException {
+        assertEquals(
+            List.of(row(Instant.parse("1970-01-01T10:30:00Z").toEpochMilli())),
+            read(false, Map.of("datetime_format", "HH:mm:ss"), "ts:datetime\n10:30:00\n")
+        );
+    }
+
+    /** TSV shares the reader, so it shares the fix. */
+    public void testTsvDatetimeFormatHonorsZoneOffset() throws IOException {
+        List<List<Object>> rows = read(
+            true,
+            Map.of("datetime_format", "yyyy-MM-dd HH:mm:ssXXX"),
+            "ts:datetime\n2024-01-01 10:00:00+05:00\n"
+        );
+        assertEquals(List.of(row(Instant.parse("2024-01-01T05:00:00Z").toEpochMilli())), rows);
+    }
+
+    /** A per-column declared `format` still overrides the file-level one for that column only. */
+    public void testDeclaredColumnFormatOverridesFileLevelDatetimeFormat() throws IOException {
+        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(Map.of("datetime_format", "yyyy-MM-dd HH:mm:ssXXX"));
+        reader = reader.withDeclaredDateFormats(Map.of("ts", "dd/MM/yyyy"));
+        StorageObject object = new InMemoryStorageObject("ts:datetime\n02/01/2024\n".getBytes(StandardCharsets.UTF_8));
+        try (CloseableIterator<Page> pages = reader.read(object, null, 1024)) {
+            Page page = pages.next();
+            try {
+                assertEquals(Instant.parse("2024-01-02T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -384,9 +824,9 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row((Object) null)), rows);
     }
 
-    public void testTsvPlainDecimalInLongColumnNullFieldYieldsNull() throws IOException {
-        List<List<Object>> rows = read(true, nullField(), "a:long\n1.0\n");
-        assertEquals(List.of(row((Object) null)), rows);
+    public void testTsvPlainDecimalInLongColumnRoundsLikeCastEngine() throws IOException {
+        List<List<Object>> rows = read(true, nullField(), "a:long\n1.6\n");
+        assertEquals(List.of(row(2L)), rows);
     }
 
     public void testTsvPlainDoubleForms() throws IOException {
@@ -405,7 +845,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     public void testTsvPlainKeywordWhitespaceTrimmed() throws IOException {
-        List<List<Object>> rows = read(true, Map.of(), "k:keyword\n  spaced  \n");
+        List<List<Object>> rows = read(true, Map.of("trim_spaces", true), "k:keyword\n  spaced  \n");
         assertEquals(List.of(row(br("spaced"))), rows);
     }
 
@@ -414,9 +854,11 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(br("\u00a0x\u00a0"))), rows);
     }
 
-    public void testTsvPlainEmptyCellIsNull() throws IOException {
+    public void testTsvPlainEmptyCellIsEmptyStringOnStringColumnNullOnNumeric() throws IOException {
+        // A present-but-empty cell reads as the empty string on a string (KEYWORD) column and as null
+        // on a numeric column, which has no empty representation.
         List<List<Object>> rows = read(true, Map.of(), "a:keyword\tb:long\n\t5\nx\t\n");
-        assertEquals(List.of(row(null, 5L), row(br("x"), null)), rows);
+        assertEquals(List.of(row(br(""), 5L), row(br("x"), null)), rows);
     }
 
     public void testTsvPlainCustomNullValue() throws IOException {
@@ -424,9 +866,16 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(null, null), row(br("x"), 5L)), rows);
     }
 
-    public void testTsvPlainLiteralNullTextIsNull() throws IOException {
+    /** A declared KEYWORD column must be able to hold the literal string "null" (any case) — see #1098. */
+    public void testTsvPlainLiteralNullTextOnKeywordIsPreserved() throws IOException {
         List<List<Object>> rows = read(true, Map.of(), "k:keyword\nnull\nNULL\nx\n");
-        assertEquals(List.of(row((Object) null), row((Object) null), row(br("x"))), rows);
+        assertEquals(List.of(row(br("null")), row(br("NULL")), row(br("x"))), rows);
+    }
+
+    /** Non-string columns keep classifying the literal "null" token as a null marker. */
+    public void testTsvPlainLiteralNullTextOnTypedColumnIsNull() throws IOException {
+        List<List<Object>> rows = read(true, Map.of(), "a:long\tb:keyword\nnull\tnull\n1\tx\n");
+        assertEquals(List.of(row(null, br("null")), row(1L, br("x"))), rows);
     }
 
     public void testTsvPlainDatetimeEpochAndIso() throws IOException {
@@ -558,15 +1007,17 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testTsvLeadingDelimiterBeforeCommentPrefixIsDataRow() throws IOException {
         // A TSV line whose first cell is empty (a leading TAB delimiter) is NOT a comment, even though
         // the comment prefix follows: Jackson classifies comments on the first parsed cell, so the
-        // direct path must keep this as a two-column data row rather than dropping it.
+        // direct path must keep this as a two-column data row rather than dropping it. The empty first
+        // cell reads as the empty string on its string column.
         List<List<Object>> rows = read(true, Map.of("comment", "//"), "a:keyword\tb:keyword\nx\ty\n\t// c\n");
-        assertEquals(List.of(row(br("x"), br("y")), row((Object) null, br("// c"))), rows);
+        assertEquals(List.of(row(br("x"), br("y")), row(br(""), br("// c"))), rows);
     }
 
     public void testCommaLeadingDelimiterBeforeCommentPrefixIsDataRow() throws IOException {
         // Same first-cell rule for CSV: an empty first cell before the comment prefix is a data row.
+        // The empty first cell reads as the empty string on its string column.
         List<List<Object>> rows = read(false, Map.of("comment", "//"), "a:keyword,b:keyword\nx,y\n,// c\n");
-        assertEquals(List.of(row(br("x"), br("y")), row((Object) null, br("// c"))), rows);
+        assertEquals(List.of(row(br("x"), br("y")), row(br(""), br("// c"))), rows);
     }
 
     public void testQuotedFirstCellThatDecodesToCommentIsSkipped() throws IOException {
@@ -688,6 +1139,26 @@ public class CsvDirectBlockParityTests extends ESTestCase {
         assertEquals(List.of(row(br("a\tb"))), rows);
     }
 
+    /**
+     * The QUOTED + escaping dialect follows Jackson's CSV escape, whose control set is exactly
+     * {@code \t \n \r \0}; every other {@code \c} — including {@code \b} and {@code \f} — is the literal
+     * {@code c} (the escape only protects the next character). The C-style {@link CsvFormatReader#decodeEscapeChar}
+     * would map {@code \b}/{@code \f} to backspace/form-feed, which is the {@code mode: escaped} semantics and
+     * would diverge from Jackson under trim (its fallback arm). Pinned in both trim polarities so the direct
+     * walker, the house tokenizer, and Jackson all agree.
+     */
+    public void testQuotedEscapedBackslashBAndFAreLiteral() throws IOException {
+        assertEquals(List.of(row(br("abb"))), read(false, Map.of(), "k:keyword\n\"a\\bb\"\n"));
+        assertEquals(List.of(row(br("abb"))), read(false, Map.of("trim_spaces", true), "k:keyword\n\"a\\bb\"\n"));
+        assertEquals(List.of(row(br("afb"))), read(false, Map.of(), "k:keyword\n\"a\\fb\"\n"));
+        assertEquals(List.of(row(br("afb"))), read(false, Map.of("trim_spaces", true), "k:keyword\n\"a\\fb\"\n"));
+        // \t \n \r \0 stay control escapes (unchanged, and agreeing with Jackson).
+        assertEquals(List.of(row(br("a\tb"))), read(false, Map.of("trim_spaces", true), "k:keyword\n\"a\\tb\"\n"));
+        assertEquals(List.of(row(br("a\nb"))), read(false, Map.of("trim_spaces", true), "k:keyword\n\"a\\nb\"\n"));
+        // An unquoted escaped field in the same dialect follows the identical rule.
+        assertEquals(List.of(row(br("abb"))), read(false, Map.of(), "k:keyword\na\\bb\n"));
+    }
+
     public void testUnquotedEscapedCommaIsLiteral() throws IOException {
         List<List<Object>> rows = read(false, Map.of(), "k:keyword\na\\,b\n");
         assertEquals(List.of(row(br("a,b"))), rows);
@@ -733,7 +1204,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     public void testTrailingLoneEscapeDropped() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\nab\\\n");
+        List<List<Object>> rows = read(false, Map.of("trim_spaces", true), "k:keyword\nab\\\n");
         assertEquals(List.of(row(br("ab"))), rows);
     }
 
@@ -744,10 +1215,10 @@ public class CsvDirectBlockParityTests extends ESTestCase {
      * The direct path must match that order.
      */
     public void testUnquotedEscapedTrailingSpaceTrimmedAfterDecode() throws IOException {
-        // Raw field: x\ (x + backslash + space). Jackson: skip-leading-ws, then decode \ → ' ',
-        // giving "x ", then trim trailing decoded ws → "x".
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\nx\\ \n");
-        assertEquals(List.of(row(br("x"))), rows);
+        // Raw field: x\ (x + backslash + space). With trim_spaces: skip-leading-ws, decode \ → ' ' giving
+        // "x ", then trim the trailing decoded ws → "x". Without trim_spaces the decoded "x " is kept.
+        assertEquals(List.of(row(br("x"))), read(false, Map.of("trim_spaces", true), "k:keyword\nx\\ \n"));
+        assertEquals(List.of(row(br("x "))), read(false, Map.of(), "k:keyword\nx\\ \n"));
     }
 
     /**
@@ -758,7 +1229,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testUnquotedEscapedLeadingAndTrailingWhitespaceTrimOrder() throws IOException {
         // Raw field: " x\ " (two spaces + x + backslash + space).
         // Jackson: skip-leading-raw-ws → "x\ ", decode → "x ", trim-trailing-decoded → "x".
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\n  x\\ \n");
+        List<List<Object>> rows = read(false, Map.of("trim_spaces", true), "k:keyword\n  x\\ \n");
         assertEquals(List.of(row(br("x"))), rows);
     }
 
@@ -770,6 +1241,235 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testTwoQuotedFieldsWithEmbeddedDelimiter() throws IOException {
         List<List<Object>> rows = read(false, Map.of(), "a:keyword,b:keyword\n\"p,q\",\"r\"\n");
         assertEquals(List.of(row(br("p,q"), br("r"))), rows);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // B1: padded-quoted fields and column-0 whitespace. Under no-trim the fallback arm is now the house
+    // per-record tokenizer, so each read() below is a direct-vs-house differential; under trim both arms
+    // agree with Jackson (the quirks are masked). Every case is asserted in both polarities.
+    // ---------------------------------------------------------------------------------------------
+
+    public void testPaddedQuoteBeforeQuotedField() throws IOException {
+        assertEquals(List.of(row(br("x"), br("y"))), read(false, Map.of(), "a:keyword,b:keyword\nx,  \"y\"\n"));
+        assertEquals(List.of(row(br("x"), br("y"))), read(false, Map.of("trim_spaces", true), "a:keyword,b:keyword\nx,  \"y\"\n"));
+    }
+
+    public void testPaddedQuoteBeforeQuotedFieldTsvQuotedMode() throws IOException {
+        assertEquals(List.of(row(br("x"), br("y"))), read(true, Map.of("mode", "quoted"), "a:keyword\tb:keyword\nx\t  \"y\"\n"));
+        assertEquals(
+            List.of(row(br("x"), br("y"))),
+            read(true, Map.of("mode", "quoted", "trim_spaces", true), "a:keyword\tb:keyword\nx\t  \"y\"\n")
+        );
+    }
+
+    public void testPaddedQuoteWithEmbeddedDelimiterKeepsThreeColumns() throws IOException {
+        String csv = "a:keyword,b:keyword,c:keyword\nx, \"a,b\",z\n";
+        assertEquals(List.of(row(br("x"), br("a,b"), br("z"))), read(false, Map.of(), csv));
+        assertEquals(List.of(row(br("x"), br("a,b"), br("z"))), read(false, Map.of("trim_spaces", true), csv));
+    }
+
+    public void testPaddedQuoteTypedHeadlineRepro() throws IOException {
+        String csv = "id:integer,name:keyword\n1, \"Alice, PhD\"\n";
+        assertEquals(List.of(row(1, br("Alice, PhD"))), read(false, Map.of(), csv));
+        assertEquals(List.of(row(1, br("Alice, PhD"))), read(false, Map.of("trim_spaces", true), csv));
+    }
+
+    public void testColumnZeroLeadingWhitespaceCsv() throws IOException {
+        assertEquals(List.of(row(br("  a"), br("b"))), read(false, Map.of(), "a:keyword,b:keyword\n  a,b\n"));
+        assertEquals(List.of(row(br("a"), br("b"))), read(false, Map.of("trim_spaces", true), "a:keyword,b:keyword\n  a,b\n"));
+    }
+
+    public void testColumnZeroPaddedBeforeQuoteCsv() throws IOException {
+        assertEquals(List.of(row(br("q"), br("b"))), read(false, Map.of(), "a:keyword,b:keyword\n  \"q\",b\n"));
+        assertEquals(List.of(row(br("q"), br("b"))), read(false, Map.of("trim_spaces", true), "a:keyword,b:keyword\n  \"q\",b\n"));
+    }
+
+    public void testColumnZeroLeadingWhitespaceTsvPlain() throws IOException {
+        assertEquals(List.of(row(br("  a"), br("b"))), read(true, Map.of(), "a:keyword\tb:keyword\n  a\tb\n"));
+        assertEquals(List.of(row(br("a"), br("b"))), read(true, Map.of("trim_spaces", true), "a:keyword\tb:keyword\n  a\tb\n"));
+    }
+
+    public void testTrailingWhitespaceAfterCloseQuoteBothPolarities() throws IOException {
+        assertEquals(List.of(row(br("x"), br("y"))), read(false, Map.of(), "a:keyword,b:keyword\n\"x\"  ,y\n"));
+        assertEquals(List.of(row(br("x"), br("y"))), read(false, Map.of("trim_spaces", true), "a:keyword,b:keyword\n\"x\"  ,y\n"));
+    }
+
+    public void testWhitespaceOnlyLineBothPolarities() throws IOException {
+        assertEquals(List.of(row(br("x")), row(br("y"))), read(false, Map.of(), "a:keyword\nx\n   \ny\n"));
+        assertEquals(List.of(row(br("x")), row(br("y"))), read(false, Map.of("trim_spaces", true), "a:keyword\nx\n   \ny\n"));
+    }
+
+    /**
+     * Prefetch replay: with a tiny {@code schema_sample_size}, the inferred-schema sample rows are read
+     * via the house per-record path and replayed, while later rows flow through a fresh iterator. Padded
+     * quotes inside AND beyond the sample window must tokenize identically (3 columns, {@code a,b} intact)
+     * on both arms.
+     */
+    public void testPrefetchReplayPaddedQuotedAcrossSampleBoundary() throws IOException {
+        String csv = "h1,h2,h3\nx, \"a,b\",z\np, \"c,d\",q\nr, \"e,f\",s\nt, \"g,h\",u\n";
+        List<List<Object>> rows = read(false, Map.of("schema_sample_size", 2), null, null, csv);
+        assertEquals(
+            List.of(
+                row(br("x"), br("a,b"), br("z")),
+                row(br("p"), br("c,d"), br("q")),
+                row(br("r"), br("e,f"), br("s")),
+                row(br("t"), br("g,h"), br("u"))
+            ),
+            rows
+        );
+    }
+
+    /**
+     * {@code _rowPosition} misbind pin: projecting the synthetic offset column (which forces the
+     * recordReader path on both arms) must not change the tokenized value of a padded-quoted data column
+     * versus a read that does not project it.
+     */
+    public void testRowPositionProjectionDoesNotChangeValues() throws IOException {
+        String csv = "id:integer,name:keyword\n1, \"Alice, PhD\"\n2, \"Bob, MD\"\n";
+        assertEquals(List.of(row(br("Alice, PhD")), row(br("Bob, MD"))), read(false, Map.of(), null, List.of("name"), csv));
+        List<List<Object>> withPos = read(false, Map.of(), null, List.of("_rowPosition", "name"), csv);
+        List<Object> names = new ArrayList<>();
+        for (List<Object> r : withPos) {
+            names.add(r.get(1));
+        }
+        assertEquals(List.of(br("Alice, PhD"), br("Bob, MD")), names);
+    }
+
+    /**
+     * Escaped-mode {@code _rowPosition} double-decode pin: projecting the synthetic offset column (which forces
+     * the CsvRecordIterator path) must not re-decode parseRecord's already-decoded values. On disk row 1 carries
+     * {@code x\\ty} and row 2 {@code \\N}; one decode yields {@code x\ty} (literal backslash-t) and the literal
+     * two-character {@code \N}. A second decode would turn those into a TAB and a null.
+     */
+    public void testRowPositionProjectionDoesNotChangeEscapedValues() throws IOException {
+        String tsv = "id:integer\tnote:keyword\n1\tx\\\\ty\n2\t\\\\N\n";
+        assertEquals(List.of(row(br("x\\ty")), row(br("\\N"))), read(true, Map.of("mode", "escaped"), null, List.of("note"), tsv));
+        List<List<Object>> withPos = read(true, Map.of("mode", "escaped"), null, List.of("_rowPosition", "note"), tsv);
+        assertEquals(List.of(br("x\\ty"), br("\\N")), column(withPos, 1));
+    }
+
+    /**
+     * Second axis of the same bug: with an inferred schema the first {@code schema_sample_size} rows are replayed
+     * from the (already-decoded) prefetched sample while later rows come from the live iterator. Under
+     * {@code _rowPosition} both must decode exactly once, so the value must not depend on the row's index
+     * relative to the sample window. Modeled on {@link #testPrefetchReplayPaddedQuotedAcrossSampleBoundary}.
+     */
+    public void testRowPositionEscapedDecodesOnceAcrossSampleBoundary() throws IOException {
+        String tsv = "id\tnote\n1\tx\\\\ty\n2\tx\\\\ty\n3\tx\\\\ty\n4\tx\\\\ty\n";
+        Map<String, Object> config = Map.of("mode", "escaped", "schema_sample_size", 2);
+        List<List<Object>> withPos = read(true, config, null, List.of("_rowPosition", "note"), tsv);
+        assertEquals(List.of(br("x\\ty"), br("x\\ty"), br("x\\ty"), br("x\\ty")), column(withPos, 1));
+    }
+
+    /**
+     * Escaped-mode escape-set breadth under {@code _rowPosition}: every C-style sequence a second decode would
+     * re-interpret. On disk each cell carries a doubled backslash, so one decode yields a literal backslash
+     * followed by the escape letter; a second decode would collapse it to the control character.
+     */
+    public void testRowPositionEscapedDecodesOnceForFullEscapeSet() throws IOException {
+        String tsv = "id:integer\tnote:keyword\n1\t\\\\t\n2\t\\\\n\n3\t\\\\r\n4\t\\\\0\n5\t\\\\b\n6\t\\\\f\n7\t\\\\\\\\\n";
+        List<Object> expected = List.of(br("\\t"), br("\\n"), br("\\r"), br("\\0"), br("\\b"), br("\\f"), br("\\\\"));
+        assertEquals(expected, column(read(true, Map.of("mode", "escaped"), null, List.of("note"), tsv), 0));
+        assertEquals(expected, column(read(true, Map.of("mode", "escaped"), null, List.of("_rowPosition", "note"), tsv), 1));
+    }
+
+    /**
+     * A custom {@code null_value} is matched by Jackson against the RAW token on both escaped arms, so projecting
+     * {@code _rowPosition} must not change which cells are null nor re-decode the surviving ones.
+     */
+    public void testRowPositionEscapedCustomNullValueUnchanged() throws IOException {
+        String tsv = "id:integer\tnote:keyword\n1\tNA\n2\tx\\\\ty\n";
+        Map<String, Object> config = Map.of("mode", "escaped", "null_value", "NA");
+        assertEquals(List.of(row((Object) null), row(br("x\\ty"))), read(true, config, null, List.of("note"), tsv));
+        assertEquals(Arrays.asList(null, br("x\\ty")), column(read(true, config, null, List.of("_rowPosition", "note"), tsv), 1));
+    }
+
+    /**
+     * The escaped-mode routing gate consults no delimiter, so comma-delimited CSV must behave exactly as the TSV
+     * cases above. Pinned separately because every other escaped × {@code _rowPosition} test here is TSV, and a
+     * custom {@code escape} char rides the same {@code decodeFieldValue} that the gate now guards.
+     */
+    public void testRowPositionEscapedDecodesOnceForCommaCsvAndCustomEscapeChar() throws IOException {
+        String csv = "id:integer,note:keyword\n1,x~~ty\n";
+        Map<String, Object> config = Map.of("mode", "escaped", "escape", "~");
+        assertEquals(List.of(row(br("x~ty"))), read(false, config, null, List.of("note"), csv));
+        assertEquals(List.of(br("x~ty")), column(read(false, config, null, List.of("_rowPosition", "note"), csv), 1));
+    }
+
+    /**
+     * Non-regression pin for the OTHER arm of the same routing decision: with stripe capture on and no
+     * {@code _rowPosition}, escaped mode rides {@code newTrackedJacksonBulkIterator}, which delivers RAW values —
+     * so the batch loop must still decode. Guards against "fixing" the double-decode by suppressing the decode
+     * unconditionally, which would leave escape sequences un-decoded on both bulk arms.
+     */
+    public void testEscapedTrackedBulkPathStillDecodesOnce() throws IOException {
+        assertEquals(List.of(row(br("x\\ty"))), readAllScope(Map.of("mode", "escaped"), "note:keyword\nx\\\\ty\n"));
+    }
+
+    /** Projects column {@code index} out of every row. */
+    private static List<Object> column(List<List<Object>> rows, int index) {
+        List<Object> values = new ArrayList<>(rows.size());
+        for (List<Object> r : rows) {
+            values.add(r.get(index));
+        }
+        return values;
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Bracket-mode quote-prefix alignment (B-5): both bracket walkers must drop the outer whitespace
+    // before a quote so ` "y"` yields `y`, matching the direct quoted grammar.
+    // ---------------------------------------------------------------------------------------------
+
+    /** Fused bracket path (splitAndConvertProjected, walker 2) — the default (non-ALL) scope. */
+    public void testBracketModePaddedQuoteFusedPath() throws IOException {
+        List<List<Object>> rows = read(false, Map.of("multi_value_syntax", "brackets"), "a:keyword,b:keyword\nx,  \"y\"\n");
+        assertEquals(List.of(row(br("x"), br("y"))), rows);
+    }
+
+    /** Full-split bracket path (splitCommaDelimiterBracketAwareFields, walker 1) — reached via ALL scope. */
+    public void testBracketModePaddedQuoteAllScopeFullSplitPath() throws IOException {
+        List<List<Object>> rows = readAllScope(Map.of("multi_value_syntax", "brackets"), "a:keyword,b:keyword\nx,  \"y\"\n");
+        assertEquals(List.of(row(br("x"), br("y"))), rows);
+    }
+
+    /**
+     * Reads with an ALL stats scope bound to a throwaway sink, which routes bracket parsing through the
+     * full-split walker rather than the fused one. Only the direct-block arm is exercised (bracket mode is
+     * not direct-eligible, so both arms parse identically); the golden assertion pins the value.
+     */
+    private List<List<Object>> readAllScope(Map<String, Object> config, String content) throws IOException {
+        CsvFormatReader reader = (CsvFormatReader) baseReader(false).withConfig(config);
+        StorageObject object = new InMemoryStorageObject(content.getBytes(StandardCharsets.UTF_8));
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(1024)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0)
+            .stats(0, 1024, true)
+            .statsColumnScope(StripeColumnScope.ALL)
+            .build();
+        List<List<Object>> rows = new ArrayList<>();
+        try (
+            var handle = ExternalStatsCapture.bind(ExternalStatsCapture.newSink());
+            CloseableIterator<Page> pages = reader.read(object, ctx)
+        ) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        List<Object> r = new ArrayList<>(page.getBlockCount());
+                        for (int b = 0; b < page.getBlockCount(); b++) {
+                            r.add(valueAt(page.getBlock(b), p));
+                        }
+                        rows.add(r);
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        return rows;
     }
 
     // ---------------------------------------------------------------------------------------------

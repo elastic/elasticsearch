@@ -336,8 +336,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
             new MultiByteCase("2.0.0-", "🐔", null) // 4-byte UTF-8, surrogate pair, no case
         );
         for (MultiByteCase c : cases) {
-            prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", c.prefix() + c.ch() + "tart").endObject())
-                .get();
+            prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", c.prefix() + c.ch() + "tart").endObject()).get();
         }
         client().admin().indices().prepareRefresh(indexName).get();
 
@@ -350,8 +349,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         // pattern char must not corrupt the automaton
         assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*" + c.ch() + "tart")), 1);
         assertHitCount(
-            client().prepareSearch(indexName)
-                .setQuery(QueryBuilders.wildcardQuery("version", "*" + c.ch() + "tart").caseInsensitive(true)),
+            client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*" + c.ch() + "tart").caseInsensitive(true)),
             1
         );
 

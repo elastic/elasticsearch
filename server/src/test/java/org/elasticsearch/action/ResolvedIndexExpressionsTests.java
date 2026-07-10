@@ -138,9 +138,16 @@ public class ResolvedIndexExpressionsTests extends ESTestCase {
             template
         );
 
+        var legacyVersion = randomFrom(
+            TransportVersionUtils.allReleasedVersions()
+                .stream()
+                .filter(v -> v.supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS))
+                .filter(v -> v.supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS_AUTH_TEMPLATE) == false)
+                .toList()
+        );
         var roundTripped = roundTrip(
             resolved,
-            TransportVersionUtils.randomVersionNotSupporting(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS_AUTH_TEMPLATE)
+            legacyVersion
         );
         assertThat(roundTripped.authorizationFailureTemplate(), equalTo(template));
         assertThat(roundTripped.expressions().getFirst().localExpressions().legacyException().getMessage(), equalTo(template));

@@ -213,7 +213,8 @@ public record MethodModel(
                     + methodName
                     + "' return type '"
                     + structReturnSimpleName
-                    + "' has no @ArrayField method; @StructFactory is only supported for @StructSpecification interfaces with an @ArrayField accessor",
+                    + "' has no @ArrayField method; @StructFactory is only supported for "
+                    + "@StructSpecification interfaces with an @ArrayField accessor",
                 method
             );
             return null;

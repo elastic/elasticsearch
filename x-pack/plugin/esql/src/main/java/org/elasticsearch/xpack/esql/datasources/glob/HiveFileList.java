@@ -42,6 +42,7 @@ final class HiveFileList implements FileList {
      * the file set exactly and the fingerprint is order-independent, so the pass-through value equals what
      * a recomputation over the compacted representation would produce, without re-materializing paths.
      */
+    @Nullable
     private final FileSetFingerprint fileSetFingerprint;
 
     HiveFileList(
@@ -58,7 +59,7 @@ final class HiveFileList implements FileList {
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
         int fileCount,
-        FileSetFingerprint fileSetFingerprint
+        @Nullable FileSetFingerprint fileSetFingerprint
     ) {
         this.basePath = basePath;
         this.partitionColumnNames = partitionColumnNames;
@@ -77,6 +78,7 @@ final class HiveFileList implements FileList {
     }
 
     @Override
+    @Nullable
     public FileSetFingerprint fileSetFingerprint() {
         return fileSetFingerprint;
     }

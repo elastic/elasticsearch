@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggregateIT {
 
     // Enough files that at least one straggler (incomplete stripe coverage) is near-certain, mirroring the
-    // 226-file bench cell where 50 files warmed and 226 did not.
+    // ClickBench cell where the ~50-file glob warmed but the 226-file glob did not.
     private static final int FILE_COUNT = 40;
 
     @Override

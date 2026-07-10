@@ -1051,7 +1051,10 @@ public class ExternalSourceResolver {
      * needs no invalidation: any add/remove/mtime/size change in the set derives a different key. The
      * {@code formatType} slot uses the same extension-based detection the per-file keys use — a stable
      * identity input; the logical source type may only diverge from it via config keys that are already
-     * part of the key's config fingerprint. Package-private for testing.
+     * part of the key's config fingerprint, with one benign exception: the {@code reader} override is
+     * absent from the fingerprint but can only select footer-format (Parquet-family) readers, which the
+     * format gate above refuses — so no dataset key is ever minted for a reader-overridden resolve.
+     * Package-private for testing.
      */
     @Nullable
     SchemaCacheKey datasetAggregateKey(FileList listing, Map<String, Object> config) {
@@ -1091,8 +1094,12 @@ public class ExternalSourceResolver {
                 listing.path(0).objectName(),
                 dataSourceModule.formatReaderRegistry()
             );
-            FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(formatName);
-            return reader != null && reader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn() == false;
+            // Same predicate as foldsAbsentColumnAsImplicitNull, negated: an absent-column stat is only
+            // safe to fold as an implicit null (and thus a dataset COUNT aggregate only correct) for a
+            // KNOWN format that does NOT treat an absent column as implicit null. Delegate so the two
+            // callers can't drift. This rail re-resolves the format from config because it prefetches
+            // before any SourceMetadata (and thus sourceType) exists.
+            return foldsAbsentColumnAsImplicitNull(formatName) == false;
         } catch (Exception e) {
             return false;
         }
@@ -1116,8 +1123,10 @@ public class ExternalSourceResolver {
      * memoized dataset-level aggregate. Centralizes the dataset-aggregate lifecycle both multi-file
      * rails share:
      * <ul>
-     *   <li><b>Per-file merge succeeded</b> — write-through: memoize its row count under the dataset key
-     *   so the NEXT warm query survives per-file entry loss (LRU pressure) without re-merging.</li>
+     *   <li><b>Per-file merge succeeded</b> — write-through on the FIRST such merge for this file set
+     *   (i.e. the prefetch missed): memoize its row count under the dataset key so the NEXT warm query
+     *   survives per-file entry loss (LRU pressure) without re-merging. A later warm resolve whose
+     *   prefetch already hit skips the re-put (the entry is current and was just revived).</li>
      *   <li><b>Per-file merge failed, prefetch hit</b> — serve the memoized aggregate. The prefetch was
      *   read (and TTL/LRU-revived) BEFORE the per-file gather on purpose: under cache pressure the
      *   gather's own {@code putSchema} calls can evict the dataset entry, so reading it after the gather
@@ -1166,10 +1175,13 @@ public class ExternalSourceResolver {
         }
         cacheService.recordStatsAggregateIncomplete();
         if (prefetch.prefetched() != null) {
+            // Needed (per-file merge incomplete) AND present: the fallback actually served.
+            cacheService.recordDatasetAggregateHit();
             return prefetch.prefetched();
         }
-        // Only a needed-and-absent fallback counts as a miss; healthy warm resolves never get here
-        // (their per-file merge succeeded), so the counter stays comparable to dataset_aggregate.hits.
+        // Needed AND absent: the fallback was wanted but missing. Counted symmetrically with the hit above
+        // (both only on the needed path — healthy warm resolves never reach here), so hits/(hits+misses)
+        // is a real fallback hit rate.
         cacheService.recordDatasetAggregateMiss();
         Map<String, Long> pathToMtime = new HashMap<>(listing.fileCount());
         for (int i = 0; i < listing.fileCount(); i++) {

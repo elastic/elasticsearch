@@ -189,10 +189,11 @@ public class ExternalSourceCacheService implements Closeable {
      * {@link SchemaCacheKey#forDatasetAggregate}), or {@code null} on a miss. The map carries only
      * dataset-INDEPENDENT-of-declaration keys — today just {@code _stats.row_count} — never per-column
      * stats, so serving it can never leak a wrongly-normalized MIN/MAX (those keep re-scanning until the
-     * per-file rail serves them). A hit is re-put to refresh the {@code expireAfterWrite} clock and LRU
-     * position: the entry is the warm path's single survival dependency, so a hot dataset must not decay
-     * mid-use while its per-file siblings churn (same revive the per-file reconcile applies to recovered
-     * entries).
+     * per-file rail serves them). A found entry is re-put to refresh the {@code expireAfterWrite} clock
+     * and LRU position: the entry is the warm path's single survival dependency, so a hot dataset must not
+     * decay mid-use while its per-file siblings churn (same revive the per-file reconcile applies to
+     * recovered entries). Does NOT touch the hit/miss counters — those are resolver-driven at the serve
+     * decision (see {@link #recordDatasetAggregateHit} / {@link #recordDatasetAggregateMiss}).
      */
     @Nullable
     public Map<String, Object> getDatasetAggregate(SchemaCacheKey key) {
@@ -201,14 +202,13 @@ public class ExternalSourceCacheService implements Closeable {
         }
         SchemaCacheEntry entry = schemaCache.get(key);
         if (entry == null || entry.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT) instanceof Number == false) {
-            // Not counted as a dataset_aggregate.miss: every resolve prefetches (including healthy warm
-            // resolves whose per-file merge will succeed and never need the aggregate), so counting here
-            // would drown the signal. The resolver notes a miss only when the fallback was actually
-            // needed and absent — see recordDatasetAggregateMiss.
             return null;
         }
+        // No hit/miss counting here: every resolve prefetches (including healthy warm resolves whose
+        // per-file merge will succeed and never need the aggregate), so a get-side counter would count
+        // non-events. The resolver counts a hit/miss only when the fallback was actually needed — see
+        // recordDatasetAggregateHit / recordDatasetAggregateMiss.
         schemaCache.put(key, entry); // refresh write-time TTL + LRU recency
-        datasetAggregateHits.increment();
         return entry.safeMetadata();
     }
 
@@ -305,11 +305,22 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
+     * Counts a dataset-aggregate fallback that was NEEDED (the per-file merge came back incomplete) AND
+     * PRESENT — i.e. the memoized aggregate was actually served. Resolver-driven and symmetric with
+     * {@link #recordDatasetAggregateMiss} so that {@code hits / (hits + misses)} is a true fallback hit
+     * rate over the resolves that actually needed the aggregate.
+     */
+    public void recordDatasetAggregateHit() {
+        datasetAggregateHits.increment();
+    }
+
+    /**
      * Counts a dataset-aggregate fallback that was NEEDED (the per-file merge came back incomplete) but
      * ABSENT. Deliberately resolver-driven rather than incremented inside {@link #getDatasetAggregate}:
      * every multi-file resolve prefetches the aggregate — including healthy warm resolves whose per-file
-     * merge succeeds and never consumes it — so a get-side miss counter would count non-events and stop
-     * being comparable to {@code dataset_aggregate.hits}.
+     * merge succeeds and never consumes it — so a get-side counter would count non-events. Its hit twin
+     * ({@link #recordDatasetAggregateHit}) is counted at the same serve decision, so the two share a
+     * denominator (resolves that needed the fallback) and their ratio is meaningful.
      */
     public void recordDatasetAggregateMiss() {
         datasetAggregateMisses.increment();
@@ -592,9 +603,9 @@ public class ExternalSourceCacheService implements Closeable {
         // get()s: SchemaCacheKey is a 7-component record (path, mtime, formatType, formatConfig, endpoint,
         // region, fileSetFingerprint), so a contribution path alone does not reconstruct a key, and forEach
         // is the only path-agnostic enumeration the Cache exposes that is safe against concurrent LRU
-        // mutation (keys()/values() walk the lock-free LRU list). The sweep is O(cache) for a multi-path reconcile, but that is the price
-        // of
-        // capturing each sibling's pre-eviction entry before the first commit's put() prunes the expired ones.
+        // mutation (keys()/values() walk the lock-free LRU list). The sweep is O(cache) for a multi-path
+        // reconcile, but that is the price of capturing each sibling's pre-eviction entry before the first
+        // commit's put() prunes the expired ones.
         Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> byPath = new HashMap<>();
         schemaCache.forEach((key, entry) -> {
             if (paths.contains(key.canonicalPath())) {
@@ -672,7 +683,7 @@ public class ExternalSourceCacheService implements Closeable {
         long mtimeMillis,
         Object fingerprint
     ) {
-        return key.formatType().endsWith(SchemaCacheKey.DATASET_AGGREGATE_MARKER) == false
+        return key.isDatasetAggregate() == false
             && path.equals(key.canonicalPath())
             && key.lastModifiedEpochMillis() == mtimeMillis
             && Objects.equals(entry.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY), fingerprint);

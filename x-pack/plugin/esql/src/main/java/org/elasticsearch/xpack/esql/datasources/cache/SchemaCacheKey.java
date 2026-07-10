@@ -104,8 +104,11 @@ public record SchemaCacheKey(
 
     /**
      * Reserved {@code formatType} suffix namespace: extension detection ({@code detectFormatType})
-     * derives {@code formatType} from a file name's last dot and therefore never emits {@code '#'}, so
-     * a {@code '#'}-suffixed formatType can only be minted by an explicit factory. Two members exist:
+     * derives {@code formatType} from a file name's last dot, so for any sane object name a
+     * {@code '#'}-suffixed formatType is minted only by an explicit factory. (A pathological object name
+     * literally containing {@code '#dataset-agg'} would collide on the suffix, but a per-file key carries a
+     * null {@code fileSetFingerprint} so it can never equal a dataset key - the only cost is that one file
+     * losing its warm enrichment, a miss, never a wrong answer.) Two members exist:
      * {@link #STRICT_DECLARED_SCHEMA_MARKER} (per-file entries on the strict-declared warm rail, which
      * the reconcile's contribution matching MUST still reach) and {@link #DATASET_AGGREGATE_MARKER}
      * (dataset-level aggregate entries, which contribution matching must NEVER reach - enforced in
@@ -142,6 +145,15 @@ public record SchemaCacheKey(
         String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
         String formatType = (sourceType == null ? "" : sourceType) + DATASET_AGGREGATE_MARKER;
         return new SchemaCacheKey(pattern == null ? "" : pattern, 0L, formatType, buildFormatConfig(config), endpoint, region, fingerprint);
+    }
+
+    /**
+     * True when this key addresses a dataset-level aggregate entry (minted by {@link #forDatasetAggregate})
+     * rather than a per-file schema entry. Centralizes the {@link #DATASET_AGGREGATE_MARKER} check so the
+     * taxonomy lives with the key instead of being re-derived at each call site.
+     */
+    public boolean isDatasetAggregate() {
+        return formatType().endsWith(DATASET_AGGREGATE_MARKER);
     }
 
     /**

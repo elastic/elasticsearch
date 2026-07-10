@@ -95,7 +95,8 @@ public class SchemaCacheKeyTests extends ESTestCase {
         SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", Map.of());
         SchemaCacheKey perFile = SchemaCacheKey.build(PATTERN, 11L, "ndjson", Map.of());
         assertNotEquals(dataset, perFile);
-        assertTrue(dataset.formatType().endsWith(SchemaCacheKey.DATASET_AGGREGATE_MARKER));
+        assertTrue(dataset.isDatasetAggregate());
+        assertFalse(perFile.isDatasetAggregate());
         assertEquals(PATTERN, dataset.canonicalPath());
         assertEquals(new FileSetFingerprint(11, 22), dataset.fileSetFingerprint());
         assertNull(perFile.fileSetFingerprint());

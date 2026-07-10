@@ -39,9 +39,7 @@ public final class ExternalSourceCacheTestAccess {
     public static int invalidatePerFileSchemaEntries(ExternalSourceCacheService service, String pathSubstring, int maxEntries) {
         List<SchemaCacheKey> victims = new ArrayList<>();
         service.schemaCache().forEach((key, entry) -> {
-            if (victims.size() < maxEntries
-                && key.canonicalPath().contains(pathSubstring)
-                && key.formatType().endsWith(SchemaCacheKey.DATASET_AGGREGATE_MARKER) == false) {
+            if (victims.size() < maxEntries && key.canonicalPath().contains(pathSubstring) && key.isDatasetAggregate() == false) {
                 victims.add(key);
             }
         });

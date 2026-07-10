@@ -1679,13 +1679,58 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             // Row-count-only contract: the aggregate must never carry per-column stats, so a warm
             // MIN/MAX can never be served from it (it would skip type normalization).
             assertEquals(1, served.size());
+            // Neither hit nor miss is counted get-side: every resolve prefetches, including healthy warm
+            // resolves that never need the aggregate. Both counters are resolver-driven at the serve
+            // decision (needed-and-present / needed-and-absent), so they share a denominator.
             Map<String, Object> usage = service.usageStats();
-            assertEquals(1L, usage.get("dataset_aggregate.hits"));
-            // A get-side miss is NOT counted: every resolve prefetches, including healthy warm resolves
-            // that never need the aggregate. Only the resolver's needed-and-absent fallback notes a miss.
+            assertEquals(0L, usage.get("dataset_aggregate.hits"));
             assertEquals(0L, usage.get("dataset_aggregate.misses"));
+            service.recordDatasetAggregateHit();
             service.recordDatasetAggregateMiss();
-            assertEquals(1L, service.usageStats().get("dataset_aggregate.misses"));
+            Map<String, Object> after = service.usageStats();
+            assertEquals(1L, after.get("dataset_aggregate.hits"));
+            assertEquals(1L, after.get("dataset_aggregate.misses"));
+        }
+    }
+
+    public void testPendingDatasetAggregateRefusedWhenSingleGlobExceedsPathBudget() {
+        // A single glob whose file count exceeds the whole registry's path budget is refused up front
+        // (safe-miss) — never registered, so it cannot pin the heap. Observable via the pending gauge.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            int overBudget = 65_536 + 1;
+            Map<String, Long> paths = new LinkedHashMap<>();
+            for (int i = 0; i < overBudget; i++) {
+                paths.put("s3://bucket/data/f" + i + ".csv", (long) i);
+            }
+            service.registerPendingDatasetAggregate(datasetKey(), paths, overBudget, "fp", "csv", "s3://bucket/data/*.csv");
+            assertEquals("an over-budget glob registers no promise", 0, service.usageStats().get("dataset_aggregate.pending"));
+        }
+    }
+
+    public void testPendingDatasetAggregateRegistryEvictsWhenTotalPathBudgetExceeded() {
+        // Cross-descriptor path budget: many mid-size globs whose stored paths sum past the budget must
+        // evict the oldest descriptors (not just the count bound), keeping total stored paths in check.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            int pathsPerGlob = 2_000; // 33 * 2000 = 66000 > 65536, so the count bound (64) is not what trips
+            int globs = 33;
+            for (int g = 0; g < globs; g++) {
+                Map<String, Long> paths = new LinkedHashMap<>();
+                for (int i = 0; i < pathsPerGlob; i++) {
+                    paths.put("s3://bucket/g" + g + "/f" + i + ".csv", (long) i);
+                }
+                SchemaCacheKey key = SchemaCacheKey.forDatasetAggregate(
+                    "s3://bucket/g" + g + "/*.csv",
+                    new FileSetFingerprint(g, g),
+                    "csv",
+                    Map.of("format", "csv")
+                );
+                service.registerPendingDatasetAggregate(key, paths, pathsPerGlob, "fp", "csv", "s3://bucket/g" + g + "/*.csv");
+            }
+            int pending = (Integer) service.usageStats().get("dataset_aggregate.pending");
+            // Well under the count bound (64), so the path budget is what evicted: 33 * 2000 would be
+            // 66000 stored paths; the registry drops the oldest until total <= 65536, i.e. fewer than 33.
+            assertThat(pending, lessThan(globs));
+            assertTrue("some descriptors must survive", pending > 0);
         }
     }
 

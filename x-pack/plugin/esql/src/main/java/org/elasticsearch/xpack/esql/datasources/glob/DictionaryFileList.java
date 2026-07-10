@@ -39,6 +39,7 @@ final class DictionaryFileList implements FileList {
      * the file set exactly and the fingerprint is order-independent, so the pass-through value equals what
      * a recomputation over the compacted representation would produce, without re-materializing paths.
      */
+    @Nullable
     private final FileSetFingerprint fileSetFingerprint;
 
     DictionaryFileList(
@@ -52,7 +53,7 @@ final class DictionaryFileList implements FileList {
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
         int fileCount,
-        FileSetFingerprint fileSetFingerprint
+        @Nullable FileSetFingerprint fileSetFingerprint
     ) {
         this.basePath = basePath;
         this.tokens = tokens;
@@ -68,6 +69,7 @@ final class DictionaryFileList implements FileList {
     }
 
     @Override
+    @Nullable
     public FileSetFingerprint fileSetFingerprint() {
         return fileSetFingerprint;
     }

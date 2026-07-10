@@ -50,7 +50,6 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
     private static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
 
     static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
-    static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
     private final BufferScratch scratch = new BufferScratch();
 
@@ -128,26 +127,12 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             subRet3 += sum3.reduceLanes(VectorOperators.ADD);
         }
         // process scalar tail
-        for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
+        for (; i < length; i += Long.BYTES) {
             final long value = memorySegment.get(LAYOUT_LE_LONG, i);
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
             subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
             subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
             subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
-        }
-        for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-            final int value = memorySegment.get(LAYOUT_LE_INT, i);
-            subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
-            subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
-            subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
-            subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
-        }
-        for (; i < length; i++) {
-            int dValue = memorySegment.get(ValueLayout.JAVA_BYTE, i) & 0xFF;
-            subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
-            subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
-            subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
-            subRet3 += Integer.bitCount((q[i + 3 * length] & dValue) & 0xFF);
         }
         return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
     }
@@ -184,26 +169,12 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         subRet2 += sum2.reduceLanes(VectorOperators.ADD);
         subRet3 += sum3.reduceLanes(VectorOperators.ADD);
         // process scalar tail
-        for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
+        for (; i < length; i += Long.BYTES) {
             final long value = memorySegment.get(LAYOUT_LE_LONG, i);
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
             subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
             subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
             subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
-        }
-        for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-            final int value = memorySegment.get(LAYOUT_LE_INT, i);
-            subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
-            subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
-            subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
-            subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
-        }
-        for (; i < length; i++) {
-            int dValue = memorySegment.get(ValueLayout.JAVA_BYTE, i) & 0xFF;
-            subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
-            subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
-            subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
-            subRet3 += Integer.bitCount((q[i + 3 * length] & dValue) & 0xFF);
         }
         return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
     }
@@ -262,26 +233,12 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             subRet2 += sum2.reduceLanes(VectorOperators.ADD);
             subRet3 += sum3.reduceLanes(VectorOperators.ADD);
             // process scalar tail
-            for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES, offset += Long.BYTES) {
+            for (; i < length; i += Long.BYTES, offset += Long.BYTES) {
                 final long value = memorySegment.get(LAYOUT_LE_LONG, offset);
                 subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
                 subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
                 subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
                 subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
-            }
-            for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES, offset += Integer.BYTES) {
-                final int value = memorySegment.get(LAYOUT_LE_INT, offset);
-                subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
-                subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
-                subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
-                subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
-            }
-            for (; i < length; i++, offset++) {
-                int dValue = memorySegment.get(ValueLayout.JAVA_BYTE, offset) & 0xFF;
-                subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
-                subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
-                subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
-                subRet3 += Integer.bitCount((q[i + 3 * length] & dValue) & 0xFF);
             }
             scores[iter] = subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
         }
@@ -349,26 +306,12 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 subRet3 += sum3.reduceLanes(VectorOperators.ADD);
             }
             // process scalar tail
-            for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES, offset += Long.BYTES) {
+            for (; i < length; i += Long.BYTES, offset += Long.BYTES) {
                 final long value = memorySegment.get(LAYOUT_LE_LONG, offset);
                 subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
                 subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
                 subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
                 subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
-            }
-            for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES, offset += Integer.BYTES) {
-                final int value = memorySegment.get(LAYOUT_LE_INT, offset);
-                subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
-                subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
-                subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
-                subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
-            }
-            for (; i < length; i++, offset++) {
-                int dValue = memorySegment.get(ValueLayout.JAVA_BYTE, offset) & 0xFF;
-                subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
-                subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
-                subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
-                subRet3 += Integer.bitCount((q[i + 3 * length] & dValue) & 0xFF);
             }
             scores[iter] = subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
         }
@@ -536,7 +479,12 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         float y1 = queryComponentSum;
         float maxScore = Float.NEGATIVE_INFINITY;
         for (; i < limit; i += FLOAT_SPECIES_256.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, memorySegment, offset + (long)i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            var ax = FloatVector.fromMemorySegment(
+                FLOAT_SPECIES_256,
+                memorySegment,
+                offset + (long) i * Float.BYTES,
+                ByteOrder.LITTLE_ENDIAN
+            );
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 memorySegment,

@@ -145,7 +145,7 @@ public record MethodModel(
         Messager messager,
         Types types
     ) {
-        AnnotationMirror criticalMirror = findAnnotationMirror(method, "org.elasticsearch.foreign.Critical");
+        AnnotationMirror criticalMirror = findAnnotationMirror(method, Critical.class.getName());
         if (criticalMirror == null) {
             // Caller checked @Critical is present.
             return null;

@@ -29,6 +29,16 @@
             "type": "bbq_disk"
           }
         }
+      },
+      "field-semantic-image": {
+        "type": "semantic",
+        "inference_id": ".omni-model-id",
+        "model_settings": {
+          "task_type": "embedding",
+          "dimensions": 384,
+          "similarity": "cosine",
+          "element_type": "float"
+        }
       }
     }
   }

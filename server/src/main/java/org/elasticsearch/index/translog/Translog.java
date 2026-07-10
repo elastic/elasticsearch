@@ -2068,7 +2068,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * <p>TODO: Some tests still produce EIRF-encoded batches. Once the write path fully transitions
          * to the column format, this dispatch collapses to a plain {@code new EscfBatch(...)}.
          */
-        private static SourceBatch openBatch(BytesReference batchData) {
+        public static SourceBatch openBatch(BytesReference batchData) {
             if (batchData.getIntLE(0) == EirfBatch.MAGIC_LE) {
                 return new EirfBatch(batchData, () -> {});
             }

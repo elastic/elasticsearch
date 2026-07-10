@@ -74,7 +74,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowXContentParser;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
@@ -2321,8 +2320,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert origin == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY || origin == Engine.Operation.Origin.LOCAL_RESET;
         ensureWriteAllowed(origin);
 
-        try (EirfBatch eirf = new EirfBatch(batch.batchData(), () -> {})) {
-            final EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(eirf.schema());
+        try (SourceBatch sourceBatch = Translog.IndexBatch.openBatch(batch.batchData())) {
+            final EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(sourceBatch.schema());
             final List<Engine.Index> indexList = new ArrayList<>(batch.ops().size());
 
             for (Translog.IndexBatch.Op meta : batch.ops()) {
@@ -2331,7 +2330,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final SourceToParse source = new SourceToParse(
                     Uid.decodeId(indexOp.uid()),
                     schemaTree,
-                    eirf.getRowReader(indexOp.rowIndex()),
+                    sourceBatch.row(indexOp.rowIndex()),
                     indexOp.xContentType(),
                     indexOp.routing(),
                     Map.of() /* dynamicTemplates */,

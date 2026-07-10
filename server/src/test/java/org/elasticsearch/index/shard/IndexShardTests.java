@@ -79,6 +79,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -3418,6 +3420,65 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(indexCalls.get(), equalTo(numDocs - 1));
         assertThat(getShardDocIDs(primary), containsInAnyOrder("doc-0", "doc-1", "doc-3", "doc-4"));
         assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numDocs - 1));
+        closeShards(primary);
+    }
+
+    public void testRecoverBatchFromTranslogWithEscfEncoding() throws IOException {
+        assumeTrue("batch indexing requires snapshot builds", org.elasticsearch.Build.current().isSnapshot());
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("""
+                { "properties": { "value": { "type": "keyword"}}}""")
+            .settings(settings)
+            .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE))
+            .build();
+
+        final ShardRouting routing = shardRoutingBuilder(new ShardId(metadata.getIndex(), 0), "n1", true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE)
+            .build();
+
+        IndexShard primary = newShard(routing, metadata, null, new InternalEngineFactory());
+
+        primary.markAsRecovering(
+            "store",
+            new RecoveryState(primary.routingEntry(), getFakeDiscoNode(primary.routingEntry().currentNodeId()), null)
+        );
+        recoverFromStore(primary);
+
+        final long term = primary.getOperationPrimaryTerm();
+        final int numDocs = 5;
+        final List<BytesReference> sources = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            try (XContentBuilder source = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                source.map(Map.of("value", "v" + i));
+                sources.add(BytesReference.bytes(source));
+            }
+        }
+        final BytesReference batchData;
+        try (EscfBatch escf = EscfEncoder.encode(sources, XContentType.JSON)) {
+            batchData = new BytesArray(escf.data().toBytesRef(), true);
+        }
+        final List<Translog.IndexBatch.Op> ops = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            ops.add(new Translog.IndexBatch.IndexOp(1L, i, 100L + i, i, XContentType.JSON, Uid.encodeId("doc-" + i), null));
+        }
+        final Translog.IndexBatch batch = new Translog.IndexBatch(batchData, term, ops);
+        try (Translog translog = TestTranslog.newTranslogFromBatch(createTempDir(), primary.shardId(), term, batch)) {
+            primary.recoveryState().getTranslog().totalOperations(numDocs);
+            primary.recoveryState().getTranslog().totalOperationsOnStart(numDocs);
+            primary.state = IndexShardState.RECOVERING;
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                primary.runTranslogRecovery(
+                    primary.getEngine(),
+                    snapshot,
+                    Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                    primary.recoveryState().getTranslog()::incrementRecoveredOperations
+                );
+            }
+        }
+
+        assertThat(getShardDocIDs(primary), containsInAnyOrder("doc-0", "doc-1", "doc-2", "doc-3", "doc-4"));
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numDocs));
         closeShards(primary);
     }
 

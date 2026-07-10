@@ -26,6 +26,13 @@ import java.util.Objects;
  * Keeping this record in the compute module (rather than referencing the ES|QL planning-layer options type) keeps
  * operator wiring localized to the compute package.
  *
+ * @param queryText          source query text used in debug/plan descriptions.
+ * @param preTag             opening tag inserted before each matched term.
+ * @param postTag            closing tag inserted after each matched term.
+ * @param encoder            encoder mode; {@link #HTML_ENCODER} escapes markup, any other value keeps raw text.
+ * @param numberOfFragments  maximum number of fragments per field; {@code 0} means return the whole value.
+ * @param fragmentSize       preferred fragment length in characters when sentence boundaries are used.
+ * @param noMatchSize        fallback leading-text size returned when no query match is found.
  * @param wordBoundary       when {@code true} the unified highlighter breaks fragments on word boundaries instead of
  *                           sentences (the {@code boundary_scanner=word} option).
  * @param locale             locale used by the break iterator (the {@code boundary_scanner_locale} option).
@@ -112,11 +119,11 @@ public record HighlightConfig(
     }
 
     public Analyzer requiredAnalyzer() {
-        return Objects.requireNonNull(analyzer, "highlight analyzer must be set in execution context");
+        return Objects.requireNonNull(analyzer, "HIGHLIGHT analyzer must be set in execution context");
     }
 
     public Query requiredQuery() {
-        return Objects.requireNonNull(query, "highlight query must be set in execution context");
+        return Objects.requireNonNull(query, "HIGHLIGHT query must be set in execution context");
     }
 
     public String describe() {

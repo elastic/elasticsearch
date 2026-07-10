@@ -98,7 +98,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         this.fieldNames = config.fieldNames();
         if (fieldNames.size() != fieldEvaluators.length) {
             throw new IllegalArgumentException(
-                "HIGHLIGHT field name count [" + fieldNames.size() + "] does not match ON field count [" + fieldEvaluators.length + "]"
+                "HIGHLIGHT ON field count [" + fieldNames.size() + "] does not match ON expression count [" + fieldEvaluators.length + "]"
             );
         }
         Encoder encoder = HighlightConfig.HTML_ENCODER.equals(config.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
@@ -182,7 +182,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             }
             block.close();
             throw new IllegalArgumentException(
-                "HIGHLIGHT ON fields must evaluate to keyword/text values but got [" + block.getClass().getSimpleName() + "]"
+                "HIGHLIGHT ON fields must be [text] or [keyword], found [" + block.getClass().getSimpleName() + "]"
             );
         }
     }
@@ -212,7 +212,7 @@ public class HighlightOperator extends AbstractPageMappingOperator {
             try {
                 appendSnippets(field.builder, highlight(searcher, field.name, field.rowText));
             } catch (IOException e) {
-                throw new IllegalStateException("HIGHLIGHT failed to highlight field", e);
+                throw new IllegalStateException("HIGHLIGHT failed for ON field [" + field.name + "]", e);
             }
         }
     }
@@ -258,7 +258,10 @@ public class HighlightOperator extends AbstractPageMappingOperator {
 
     /**
      * Joins all values of a multi-valued field into a single string separated by the highlighter's multi-value
-     * separator, so fragment scanning never crosses a value boundary.
+     * separator, so fragment scanning never crosses a value boundary. This is an intentional divergence from Query
+     * DSL: HIGHLIGHT always keeps fragments aligned to multi-value boundaries (via the {@link SplittingBreakIterator}
+     * on the separator applied in {@link #breakIterator}), whereas the unified highlighter can merge terminator-less
+     * short values that fit within {@code fragment_size} into a single fragment.
      */
     private static String joinValues(BytesRefBlock fieldValues, int row, int valueCount, BytesRef scratch) {
         int firstValueIndex = fieldValues.getFirstValueIndex(row);

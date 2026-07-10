@@ -64,6 +64,18 @@ public final class HighlightQueryTranslator {
     private static final String DEFAULT_FIELD_OPTION = QueryStringQueryBuilder.DEFAULT_FIELD_FIELD.getPreferredName();
     private static final String EMPTY_QUERY_REASON = "HIGHLIGHT query is empty";
     private static final String NO_TERMS_REASON = "HIGHLIGHT query produced no terms";
+    // TODO: Widen QSTR support beyond [default_field] to the query_string options that map onto the classic
+    // Lucene QueryParser without needing an analyzer/mapping/SearchExecutionContext, wired in translateQueryString the same
+    // way MATCH/MATCH_PHRASE options are (read the option map, configure the parser/post-process the query):
+    // - parser setters: default_operator, allow_leading_wildcard, analyze_wildcard, enable_position_increments, phrase_slop,
+    // fuzzy_prefix_length, max_determinized_states (setDeterminizeWorkLimit), rewrite (setMultiTermRewriteMethod via a
+    // QueryParsers.parseRewriteMethod-style helper)
+    // - parser overrides (no classic setter exists): fuzziness (default getFuzzyDistance for a bare '~'), fuzzy_max_expansions
+    // and fuzzy_transpositions (override newFuzzyQuery)
+    // - post-process the parsed query: boost (reuse applyBoost) and minimum_should_match (Queries.maybeApplyMinimumShouldMatch
+    // on the top-level boolean)
+    // These options are rejected until HIGHLIGHT has a real analyzer/mapping: analyzer, quote_analyzer, quote_field_suffix,
+    // auto_generate_synonyms_phrase_query, lenient, time_zone.
     private static final Set<String> QUERY_STRING_ALLOWED_OPTIONS = Set.of(DEFAULT_FIELD_OPTION);
 
     // TODO: support the [analyzer] option once HIGHLIGHT can use non-default analyzers.

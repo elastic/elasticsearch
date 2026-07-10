@@ -250,7 +250,7 @@ public class HighlightOperatorTests extends OperatorTestCase {
             IntBlock intBlock = blockFactory().newConstantIntBlockWith(1, 1);
             try {
                 IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> operator.process(new Page(intBlock)));
-                assertThat(e.getMessage(), startsWith("HIGHLIGHT ON fields must evaluate to keyword/text values"));
+                assertThat(e.getMessage(), startsWith("HIGHLIGHT ON fields must be [text] or [keyword]"));
             } finally {
                 intBlock.close();
             }

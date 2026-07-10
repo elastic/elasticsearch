@@ -252,7 +252,9 @@ highlight_positions:keyword
 ;
 
 
-# number_of_fragments=1 returns the best-scoring value whole; fragments never cross multi-value boundaries.
+# number_of_fragments=1 returns only the best-scoring value. HIGHLIGHT keeps fragments aligned to multi-value
+# boundaries (SplittingBreakIterator on the MV separator); this is an intentional divergence from Query DSL, where a
+# fragment can span values when no sentence boundary separates them and they fit within fragment_size.
 highlightMultivaluedFragmentsDoNotCrossValues
 required_capability: highlight_v4
 
@@ -553,6 +555,20 @@ I love <em>New</em> <em>York</em> City in the spring.
 ;
 
 
+# A quoted phrase matches the exact word sequence and weight-matches wraps it in a single span.
+highlightPhraseQueryWrapsSingleSpan
+required_capability: highlight_v4
+
+ROW content = "The quick brown fox jumps over the lazy dog."
+| HIGHLIGHT "\"quick brown fox\"" ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The <em>quick brown fox</em> jumps over the lazy dog.
+;
+
+
 # order=score with a number_of_fragments cap keeps the highest-scoring fragment: the last value wins despite its order.
 highlightOrderByScoreWithFragmentCap
 required_capability: highlight_v4
@@ -728,20 +744,6 @@ The One <em>Ring</em> was forged by Sauron.
 ;
 
 
-# A quoted phrase matches the exact word sequence and weight-matches wraps it in a single span.
-highlightPhraseQueryWrapsSingleSpan
-required_capability: highlight_v4
-
-ROW content = "The quick brown fox jumps over the lazy dog."
-| HIGHLIGHT "\"quick brown fox\"" ON content
-| KEEP highlight_content
-;
-
-highlight_content:keyword
-The <em>quick brown fox</em> jumps over the lazy dog.
-;
-
-
 # Boolean AND requires every term to be present; both are highlighted when the row matches.
 highlightBooleanAndBothTermsPresent
 required_capability: highlight_v4
@@ -809,6 +811,21 @@ ROW content = "The One Ring was forged by Sauron."
 
 highlight_content:keyword
 The One Ring was forged by <em>Sauron</em>.
+;
+
+
+# A pattern with several wildcards matches every token fitting it: "*a*n*" matches any token with an "a" before an
+# "n", so both Gandalf and Sauron are wrapped while "faced" (an "a" but no following "n") is not.
+highlightWildcardMultipleMatches
+required_capability: highlight_v4
+
+ROW content = "Gandalf faced Sauron."
+| HIGHLIGHT "*a*n*" ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+<em>Gandalf</em> faced <em>Sauron</em>.
 ;
 
 
@@ -936,6 +953,111 @@ FROM books
 book_no:keyword | highlight_title:keyword
 2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
 7350            | <em>Return</em> of the Shadow
+;
+
+
+# QSTR default_field restricts an unqualified term to one ON field; the other ON field is left un-highlighted (null).
+highlightQueryStringDefaultField
+required_capability: highlight_v4
+required_capability: qstr_function
+
+ROW title = "Return of the King", body = "The King returns home"
+| HIGHLIGHT QSTR("king", { "default_field": "title" }) ON title, body
+| KEEP highlight_title, highlight_body
+;
+
+highlight_title:keyword     | highlight_body:keyword
+Return of the <em>King</em> | null
+;
+
+
+# Without default_field, QSTR expands an unqualified term over every ON field, highlighting each independently.
+highlightQueryStringMultiFieldExpansion
+required_capability: highlight_v4
+required_capability: qstr_function
+
+ROW title = "Return of the King", body = "A wise king ruled"
+| HIGHLIGHT QSTR("king") ON title, body
+| KEEP highlight_title, highlight_body
+;
+
+highlight_title:keyword     | highlight_body:keyword
+Return of the <em>King</em> | A wise <em>king</em> ruled
+;
+
+
+# Field-qualified terms target their own field, so each ON field is highlighted by the clause that names it.
+highlightQueryStringFieldQualifiedAcrossFields
+required_capability: highlight_v4
+required_capability: qstr_function
+
+ROW title = "The quick fox", body = "A loyal dog"
+| HIGHLIGHT QSTR("title:fox OR body:dog") ON title, body
+| KEEP highlight_title, highlight_body
+;
+
+highlight_title:keyword | highlight_body:keyword
+The quick <em>fox</em>  | A loyal <em>dog</em>
+;
+
+
+# An explicit field qualifier overrides default_field: body:king targets body, so title is not highlighted.
+highlightQueryStringExplicitFieldOverridesDefaultField
+required_capability: highlight_v4
+required_capability: qstr_function
+
+ROW title = "Return of the King", body = "A wise king ruled"
+| HIGHLIGHT QSTR("body:king", { "default_field": "title" }) ON title, body
+| KEEP highlight_title, highlight_body
+;
+
+highlight_title:keyword | highlight_body:keyword
+null                    | A wise <em>king</em> ruled
+;
+
+
+# A term qualified on a field outside ON can never highlight (require_field_match parity), so the row is null.
+highlightQueryStringFieldQualifiedOutsideOnYieldsNull
+required_capability: highlight_v4
+required_capability: qstr_function
+
+ROW content = "The One Ring was forged by Sauron."
+| HIGHLIGHT QSTR("title:ring") ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+null
+;
+
+
+# A quoted phrase inside QSTR wraps the exact word sequence in a single span, like the literal-string phrase form.
+highlightQueryStringPhrase
+required_capability: highlight_v4
+required_capability: qstr_function
+
+ROW content = "The quick brown fox jumps."
+| HIGHLIGHT QSTR("\"quick brown\"") ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The <em>quick brown</em> fox jumps.
+;
+
+
+# A QSTR range query matches every in-range term, so weight-matches wraps them all and the whole sentence lights up.
+highlightQueryStringRangeMatchesAllTerms
+required_capability: highlight_v4
+required_capability: qstr_function
+
+ROW content = "The One Ring was forged by Sauron."
+| HIGHLIGHT QSTR("content:[a TO z]") ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+<em>The</em> <em>One</em> <em>Ring</em> <em>was</em> <em>forged</em> <em>by</em> <em>Sauron</em>.
 ;
 
 

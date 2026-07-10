@@ -150,6 +150,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -275,6 +276,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     @Nullable
     private volatile RecoveryState recoveryState;
+    private volatile boolean recoveryCancellationRequested = false;
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
@@ -1781,34 +1783,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
-     */
-    public Engine.SearcherSupplier acquireSearcherSupplier() {
-        return acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL);
-    }
-
-    /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      * The supplier is aware of shard splits and will filter documents that have been moved to other shards
      * according to the provided {@link SplitShardCountSummary}.
      * @param splitShardCountSummary a summary of the shard routing state seen when the search request was created
      * @return a searcher supplier
      */
     public Engine.SearcherSupplier acquireExternalSearcherSupplier(SplitShardCountSummary splitShardCountSummary) {
-        return acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL, splitShardCountSummary);
-    }
-
-    /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
-     */
-    public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
-        return acquireSearcherSupplier(scope, SplitShardCountSummary.UNSET);
-    }
-
-    public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope, SplitShardCountSummary splitShardCountSummary) {
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        return engine.acquireSearcherSupplier(this::wrapSearcher, scope, splitShardCountSummary);
+        return engine.acquireSearcherSupplier(this::wrapSearcher, Engine.SearcherScope.EXTERNAL, splitShardCountSummary);
     }
 
     /**
@@ -2001,6 +1985,50 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexEventListener.beforeIndexShardRecovery(this, indexSettings, listener);
     }
 
+    /// Requests cancellation of a recovery that is not yet completed.
+    ///
+    /// In `CREATED` state the flag is stored and checked when the recovery begins.
+    /// In `RECOVERING` state, `StoreRecovery` checks via [#ensureRecoveryNotCancelled] at phase boundaries for non-PEER
+    /// recoveries. Note that `PEER` and `RESHARD_SPLIT` recoveries are currently not supported
+    /// (support will be added in a follow-up, see: elasticsearch-team#2801).
+    ///
+    /// @throws IndexShardNotRecoveringException if the shard is not in `CREATED` or `RECOVERING` state
+    /// @throws IllegalStateException if the ongoing recovery is not of a supported type
+    public void requestRecoveryCancellation() {
+        synchronized (mutex) {
+            if (state == IndexShardState.CREATED) {
+                // Recovery type not yet known. Store the flag.
+                recoveryCancellationRequested = true;
+                return;
+            }
+            if (state != IndexShardState.RECOVERING) {
+                throw new IndexShardNotRecoveringException(shardId, state);
+            }
+            final RecoveryState currentRecoveryState = recoveryState;
+            assert currentRecoveryState != null;
+            final RecoverySource.Type recoveryType = currentRecoveryState.getRecoverySource().getType();
+            switch (recoveryType) {
+                case LOCAL_SHARDS, SNAPSHOT, EXISTING_STORE, EMPTY_STORE -> recoveryCancellationRequested = true;
+                default -> throw new IllegalStateException(
+                    "requestRecoveryCancellation called for an unsupported recovery type " + recoveryType + " on shard " + shardId
+                );
+            }
+        }
+    }
+
+    /// Throws [RecoveryCancelledException] if a cancellation has been requested via [#requestRecoveryCancellation].
+    ///
+    /// Must only be called from within the active recovery sequence [StoreRecovery] phase boundaries (non-PEER
+    /// recoveries). Callers should let the exception propagate up the call stack, or catch it to forward it unchanged
+    /// or wrapped (preserving it as the cause), e.g. via `onFailure`.
+    public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
+        final RecoveryState currentRecoveryState = recoveryState;
+        assert currentRecoveryState != null : "ensureRecoveryNotCancelled should only be called while recovery is active";
+        if (recoveryCancellationRequested) {
+            throw new RecoveryCancelledException(shardId, currentRecoveryState.getSourceNode(), currentRecoveryState.getTargetNode());
+        }
+    }
+
     public void postRecovery(String reason, ActionListener<Void> listener) throws IndexShardStartedException, IndexShardRelocatedException,
         IndexShardClosedException {
         assert postRecoveryComplete == null;
@@ -2044,6 +2072,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (state == IndexShardState.STARTED) {
                         throw new IndexShardStartedException(shardId);
                     }
+                    // It's ok if we missed the request, finish shard recovery, and let the master sort it out.
+                    recoveryCancellationRequested = false;
                     changeState(IndexShardState.POST_RECOVERY, reason);
                 }
             }).addListener(finalListener);
@@ -4639,6 +4669,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             listener.accept(false);
         }
+    }
+
+    /**
+     * Variant of {@link #ensureShardSearchActive(Consumer)} that dispatches the listener on {@code responseExecutor} when a refresh was
+     * pending, keeping non-trivial search-side work off the refresh-completing thread (often an indexing or recovery thread). When no
+     * refresh is pending the listener runs inline on the calling thread; if dispatching fails it is invoked inline with {@code true}.
+     *
+     * @param responseExecutor the executor on which to invoke the listener when it was registered to wait for a refresh
+     * @param listener         the listener to invoke once the pending refresh location is visible. The listener will be called with
+     *                         <code>true</code> if the listener was registered to wait for a refresh.
+     */
+    public final void ensureShardSearchActive(Executor responseExecutor, Consumer<Boolean> listener) {
+        Objects.requireNonNull(responseExecutor);
+        ensureShardSearchActive(wasRegistered -> {
+            if (wasRegistered) {
+                try {
+                    responseExecutor.execute(() -> listener.accept(true));
+                } catch (Exception e) {
+                    logger.warn(() -> format("ensureShardSearchActive could not dispatch to [%s], running inline", responseExecutor), e);
+                    listener.accept(true);
+                }
+            } else {
+                listener.accept(false);
+            }
+        });
     }
 
     /**

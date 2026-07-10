@@ -145,6 +145,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
+    private static final String HIGHLIGHT_PREFIX_KEYWORD = "prefix";
+
     public LogicalPlanBuilder(ParsingContext context) {
         super(context);
     }
@@ -729,7 +731,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> {
             boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
             boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
-            boolean hasTimeSeries = input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES);
+            boolean hasTimeSeries = input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode().isTsdb());
             boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo);
 
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
@@ -1452,9 +1454,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitHighlightCommand(EsqlBaseParser.HighlightCommandContext ctx) {
         Source source = source(ctx);
-        // The prefix isn't user-configurable in v1; the plan node carries it as a field so a future
-        // grammar extension can override it without changing serialization.
-        String prefix = Highlight.DEFAULT_PREFIX;
+        // `prefix = "..."` renames generated highlight columns; default is "highlight_".
+        final String prefix = highlightPrefix(ctx);
         // TODO: support the bare form by deriving the query from a preceding full-text WHERE, stopping at row-shaping
         // commands such as STATS, INLINESTATS, and LOOKUP JOIN.
         Expression query = ctx.queryText == null ? null : visitString(ctx.queryText);
@@ -1469,6 +1470,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             new Highlight(source, p, prefix, query, fields, null, generatedFields),
             ctx.commandNamedParameters()
         );
+    }
+
+    private String highlightPrefix(EsqlBaseParser.HighlightCommandContext ctx) {
+        if (ctx.prefix == null) {
+            return Highlight.DEFAULT_PREFIX;
+        }
+        String prefixKeyword = visitIdentifier(ctx.prefixKeyword);
+        if (HIGHLIGHT_PREFIX_KEYWORD.equalsIgnoreCase(prefixKeyword) == false) {
+            throw new ParsingException(
+                source(ctx.prefixKeyword),
+                "Invalid modifier [{}] in HIGHLIGHT, expected [{}]",
+                prefixKeyword,
+                HIGHLIGHT_PREFIX_KEYWORD
+            );
+        }
+        return BytesRefs.toString(visitString(ctx.prefix).fold(FoldContext.small()));
     }
 
     private Highlight applyHighlightOptions(Highlight h, EsqlBaseParser.CommandNamedParametersContext ctx) {

@@ -19,9 +19,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.tasks.TaskInfo;
@@ -48,11 +50,14 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.completion.Reasoning.ReasoningEffort;
+import static org.elasticsearch.inference.completion.Reasoning.ReasoningSummary;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.ELSER_V2_ENDPOINT_ID;
@@ -60,6 +65,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.response.Elasti
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RERANK_V1_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisChatCompletionWithReasoningAuthorizationResponse;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -83,6 +89,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     private static final MockWebServer webServer = new MockWebServer();
     private static String gatewayUrl;
     private static String chatCompletionResponseBody;
+    private static String chatCompletionReasoningResponseBody;
 
     private ModelRegistry modelRegistry;
     private AuthorizationTaskExecutor authorizationTaskExecutor;
@@ -92,6 +99,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         webServer.start();
         gatewayUrl = getUrl(webServer);
         chatCompletionResponseBody = getEisRainbowSprinklesAuthorizationResponse(gatewayUrl).responseJson();
+        chatCompletionReasoningResponseBody = getEisChatCompletionWithReasoningAuthorizationResponse(gatewayUrl).responseJson();
     }
 
     @Before
@@ -172,6 +180,18 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertWebServerReceivedRequest();
 
         assertChatCompletionEndpointExists();
+    }
+
+    public void testCreatesEisChatCompletionEndpoint_WithReasoning() throws Exception {
+        assertNoAuthorizedEisEndpoints();
+
+        resetWebServerQueues();
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionReasoningResponseBody));
+        restartPollingTaskAndWaitForAuthResponse();
+
+        assertWebServerReceivedRequest();
+
+        assertChatCompletionEndpointWithReasoningExists();
     }
 
     private void assertNoAuthorizedEisEndpoints() throws Exception {
@@ -335,6 +355,24 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertThat(rainbowSprinklesModel.taskType(), is(TaskType.CHAT_COMPLETION));
         assertThat(rainbowSprinklesModel.service(), is(ElasticInferenceService.NAME));
         assertThat(rainbowSprinklesModel.inferenceEntityId(), is(RAINBOW_SPRINKLES_ENDPOINT_ID));
+    }
+
+    private void assertChatCompletionEndpointWithReasoningExists() throws Exception {
+        assertBusy(() -> {
+            var eisEndpoints = getEisEndpoints(modelRegistry);
+            assertThat(eisEndpoints.size(), is(1));
+
+            var rainbowSprinklesModel = eisEndpoints.get(0);
+            assertChatCompletionUnparsedModel(rainbowSprinklesModel);
+            assertTrue(modelRegistry.containsPreconfiguredInferenceEndpointId(RAINBOW_SPRINKLES_ENDPOINT_ID));
+
+            @SuppressWarnings("unchecked")
+            var taskSettings = (Map<String, Object>) rainbowSprinklesModel.settings().get(ModelConfigurations.TASK_SETTINGS);
+            @SuppressWarnings("unchecked")
+            var reasoning = (Map<String, Object>) taskSettings.get(UnifiedCompletionUtils.REASONING_FIELD);
+            assertThat(reasoning.get(UnifiedCompletionUtils.EFFORT_FIELD), is(ReasoningEffort.MEDIUM.toString()));
+            assertThat(reasoning.get(UnifiedCompletionUtils.SUMMARY_FIELD), is(ReasoningSummary.DETAILED.toString()));
+        });
     }
 
     public void testCreatesChatCompletion_AndThenCreatesTextEmbedding() throws Exception {

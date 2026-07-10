@@ -1,0 +1,5 @@
+area: Authentication
+issues: []
+pr: 153098
+summary: Change federated feature flag to cluster config
+type: enhancement

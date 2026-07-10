@@ -97,7 +97,7 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
 
     /**
      * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
-     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * default. Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search context keep-alive to
      * make sure that it contains any time that we might wait.
      */
     private float requestsPerSecond = Float.POSITIVE_INFINITY;
@@ -369,7 +369,7 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
 
     /**
      * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
-     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * default. Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search context keep-alive to
      * make sure that it contains any time that we might wait.
      */
     public float getRequestsPerSecond() {
@@ -378,7 +378,7 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
 
     /**
      * Set the throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
-     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * default. Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search context keep-alive to
      * make sure that it contains any time that we might wait.
      */
     public Self setRequestsPerSecond(float requestsPerSecond) {
@@ -454,7 +454,7 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
     }
 
     /**
-     * Sets resumption data to continue from a previously-acquired scroll ID.
+     * Sets resumption data to continue from a previously-acquired worker state (scroll-API or point-in-time).
      */
     public Self setResumeInfo(ResumeInfo resumeInfo) {
         this.resumeInfo = Objects.requireNonNull(resumeInfo);

@@ -33,7 +33,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * A source of paginated search results. Pumps data out into the passed onResponse consumer. If a scrollable search is used, then the
+ * A source of paginated search results. Pumps data out into the passed onResponse consumer. If scroll-API pagination is used, then the
  * same data may come out several times in case of failures during searching (though not yet). Once the onResponse consumer is done,
  * it should call AsyncResponse.isDone(time) to receive more data (only receives one response at a time).
  * <p>
@@ -169,7 +169,7 @@ public abstract class PaginatedHitSource {
     );
 
     /**
-     * Called to release pagination resources (e.g. clear scroll context).
+     * Called to release pagination resources (e.g. clear scroll-API search context).
      * For PIT-based pagination this is a no-op as the PIT is closed elsewhere.
      *
      * @param onCompletion implementers must call this after completing the release whether they are
@@ -194,7 +194,7 @@ public abstract class PaginatedHitSource {
 
         /**
          * Called when done processing response to signal more data is needed.
-         * @param extraKeepAlive extra time to keep underlying scroll open.
+         * @param extraKeepAlive extra time to extend the search context keep-alive.
          */
         void done(TimeValue extraKeepAlive);
     }

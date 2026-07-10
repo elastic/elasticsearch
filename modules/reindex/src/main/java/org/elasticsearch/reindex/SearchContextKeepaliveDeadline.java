@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 /**
- * Tracks the latest instant until which the client expects scroll/PIT search contexts to remain valid,
+ * Tracks the latest instant until which the client expects scroll-API and PIT search contexts to remain valid,
  * based on keep-alive durations requested with successful searches
  */
 public final class SearchContextKeepaliveDeadline {
@@ -39,7 +39,7 @@ public final class SearchContextKeepaliveDeadline {
     }
 
     /**
-     * Updates the deadline after a successful scroll or PIT search response using the effective keep-alive duration for that request.
+     * Updates the deadline after a successful paginated search response (scroll-API or PIT) using the effective keep-alive duration for that request.
      */
     public void recordSuccessfulExtension(TimeValue effectiveKeepAlive) {
         long extensionMillis = Math.max(0L, effectiveKeepAlive.millis());

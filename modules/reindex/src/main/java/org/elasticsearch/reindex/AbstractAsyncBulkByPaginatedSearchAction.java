@@ -89,7 +89,7 @@ import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
 /**
- * Abstract base for scrolling across a search and executing bulk actions on all results. All package private methods are package private so
+ * Abstract base for paginating across a search and executing bulk actions on all results. All package private methods are package private so
  * their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
  */
 public abstract class AbstractAsyncBulkByPaginatedSearchAction<
@@ -126,7 +126,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     private final BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> scriptApplier;
     private int lastBatchSize;
     /**
-     * The current scroll response being processed. Set atomically so that either {@link #prepareBulkRequest} or
+     * The current paginated search response being processed. Set atomically so that either {@link #prepareBulkRequest} or
      * {@link #finishHim(Exception, List, List, boolean)} can claim exclusive ownership of the remaining hits and release them exactly once.
      */
     private final AtomicReference<ScrollConsumableHitsResponse> currentScrollResponse = new AtomicReference<>();
@@ -138,10 +138,10 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     private final AtomicBoolean requestFinishing = new AtomicBoolean(false);
     /**
      * Keeps track of the total number of bulk operations performed
-     * from a single scroll response. It is possible that
-     * multiple bulk requests are performed from a single scroll
+     * from a single paginated search response. It is possible that
+     * multiple bulk requests are performed from a single paginated search
      * response, meaning that we have to take into account the total
-     * in order to compute a correct scroll keep alive time.
+     * in order to compute a correct search context keep-alive time.
      */
     private final AtomicInteger totalBatchSizeInSingleScrollResponse = new AtomicInteger();
     /**
@@ -1017,7 +1017,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     /**
-     * Seeds {@link #currentScrollResponse} for tests that need a specific scroll ref before {@link #prepareBulkRequest} (e.g. partial-batch
+     * Seeds {@link #currentScrollResponse} for tests that need a specific consumable response before {@link #prepareBulkRequest} (e.g. partial-batch
      * / terminal-finish scenarios). Exists entirely for testing.
      */
     void setCurrentScrollResponseForTests(ScrollConsumableHitsResponse response) {

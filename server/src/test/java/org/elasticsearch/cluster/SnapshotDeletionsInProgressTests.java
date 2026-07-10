@@ -44,8 +44,7 @@ public class SnapshotDeletionsInProgressTests extends SimpleDiffableWireSerializ
     private Supplier<ProjectId> projectIdSupplier;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initProjectIdSupplier() throws Exception {
         projectIdSupplier = ESTestCase::randomProjectIdOrDefault;
     }
 

@@ -13,6 +13,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 
 public class DenseVectorQueryFloatsTests extends AbstractDenseVectorQueryTestCase {
     @Override
@@ -27,11 +28,7 @@ public class DenseVectorQueryFloatsTests extends AbstractDenseVectorQueryTestCas
 
     @Override
     float[] randomVector(int dim) {
-        float[] vector = new float[dim];
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
+        return VectorTestUtils.randomFloatVector(dim);
     }
 
     @Override

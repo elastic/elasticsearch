@@ -13,6 +13,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 
 public class DenseVectorQueryBytesTests extends AbstractDenseVectorQueryTestCase {
     @Override
@@ -35,8 +36,7 @@ public class DenseVectorQueryBytesTests extends AbstractDenseVectorQueryTestCase
 
     @Override
     float[] randomVector(int dim) {
-        byte[] bytes = new byte[dim];
-        random().nextBytes(bytes);
+        byte[] bytes = VectorTestUtils.randomByteVector(dim);
         float[] floats = new float[dim];
         for (int i = 0; i < dim; i++) {
             floats[i] = bytes[i];

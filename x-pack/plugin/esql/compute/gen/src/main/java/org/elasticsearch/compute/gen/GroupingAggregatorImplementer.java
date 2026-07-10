@@ -250,6 +250,10 @@ public class GroupingAggregatorImplementer {
             }
             builder.addMethod(addIntermediateInput(groupIdClass));
         }
+        builder.addMethod(addRawInputGatherLoop(false));
+        if (anyArgumentSupportsVectors) {
+            builder.addMethod(addRawInputGatherLoop(true));
+        }
         if (hasSeen()) {
             builder.addMethod(prepareProcessIntermediateInputPage());
         }
@@ -470,6 +474,22 @@ public class GroupingAggregatorImplementer {
             typeBuilder.addMethod(builder.build());
         }
 
+        MethodSpec.Builder gather = MethodSpec.methodBuilder("addGather").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        gather.addParameter(INT_VECTOR, "groupIds").addParameter(INT_VECTOR, "positions");
+        StringBuilder gatherPattern = new StringBuilder("addRawInput(groupIds, positions");
+        List<Object> gatherParams = new ArrayList<>();
+        for (Argument a : aggParams) {
+            gatherPattern.append(", $L");
+            if (a instanceof BlockArgument) {
+                gatherParams.add(a.blockName());
+            } else {
+                gatherParams.add(valuesAreVector && a.supportsVectorReadAccess() ? a.vectorName() : a.blockName());
+            }
+        }
+        gatherPattern.append(")");
+        gather.addStatement(gatherPattern.toString(), gatherParams.toArray());
+        typeBuilder.addMethod(gather.build());
+
         MethodSpec.Builder close = MethodSpec.methodBuilder("close").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         typeBuilder.addMethod(close.build());
 
@@ -567,6 +587,91 @@ public class GroupingAggregatorImplementer {
 
             if (groupsIsBlock) {
                 builder.endControlFlow();
+            }
+        }
+        builder.endControlFlow();
+        return builder.build();
+    }
+
+    /**
+     * Generate an {@code addRawInput} overload that gathers values by explicit
+     * position rather than reading them contiguously from {@code positionOffset}.
+     * Backs {@code GroupingAggregatorFunction.AddInput#addGather}, used by callers
+     * that have reordered rows out-of-line from group id assignment (e.g.
+     * partitioned hash aggregation's bucket-sort routing). Group ids never carry
+     * multiple values here, so unlike {@link #addRawInputLoop} there's no block
+     * group-id variant or nested group-id loop.
+     * @param valuesAreVector Are the value a {@code Vector} (true) or a {@code Block} (false)
+     */
+    private MethodSpec addRawInputGatherLoop(boolean valuesAreVector) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
+        builder.addModifiers(Modifier.PRIVATE);
+        builder.addParameter(INT_VECTOR, "groupIds").addParameter(INT_VECTOR, "positions");
+
+        for (Argument a : aggParams) {
+            if (a instanceof BlockArgument) {
+                builder.addParameter(a.dataType(true), a.blockName());
+            } else {
+                TypeName typeName = a.type();
+                boolean isVector = valuesAreVector && a.supportsVectorReadAccess();
+                builder.addParameter(isVector ? vectorType(typeName) : blockType(typeName), isVector ? a.vectorName() : a.blockName());
+            }
+        }
+        for (Argument a : aggParams) {
+            if (a.scratchType() != null) {
+                // Add scratch var that will be used for some blocks/vectors, e.g. for bytes_ref
+                builder.addStatement("$T $L = new $T()", a.scratchType(), a.scratchName(), a.scratchType());
+            }
+        }
+
+        builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++)");
+        {
+            builder.addStatement("int valuesPosition = positions.getInt(groupPosition)");
+            if (valuesAreVector == false) {
+                for (Argument a : aggParams) {
+                    if (a instanceof StandardArgument) {
+                        builder.beginControlFlow("if ($L.isNull(valuesPosition))", a.blockName());
+                        builder.addStatement("continue");
+                        builder.endControlFlow();
+                    }
+                }
+            }
+
+            builder.addStatement("int groupId = groupIds.getInt(groupPosition)");
+
+            if (warnExceptions.isEmpty() == false) {
+                builder.beginControlFlow("if (state.hasFailed(groupId))");
+                builder.addStatement("continue");
+                builder.endControlFlow();
+            }
+
+            // Read all vector arguments first, they don't need to be read in nested loops
+            for (Argument a : aggParams) {
+                if (valuesAreVector && a instanceof StandardArgument && a.supportsVectorReadAccess()) {
+                    a.read(builder, a.vectorName(), "valuesPosition");
+                }
+            }
+            // Then read all remaining arguments with nested loops
+            for (Argument a : aggParams) {
+                if (a instanceof StandardArgument && (valuesAreVector == false || a.supportsVectorReadAccess() == false)) {
+                    builder.addStatement("int $L = $L.getFirstValueIndex(valuesPosition)", a.startName(), a.blockName());
+                    builder.addStatement("int $L = $L + $L.getValueCount(valuesPosition)", a.endName(), a.startName(), a.blockName());
+                    builder.beginControlFlow(
+                        "for (int $L = $L; $L < $L; $L++)",
+                        a.offsetName(),
+                        a.startName(),
+                        a.offsetName(),
+                        a.endName(),
+                        a.offsetName()
+                    );
+                    a.read(builder, a.blockName(), a.offsetName());
+                }
+            }
+            combineRawInput(builder);
+            for (Argument a : aggParams) {
+                if (a instanceof StandardArgument && (valuesAreVector == false || a.supportsVectorReadAccess() == false)) {
+                    builder.endControlFlow();
+                }
             }
         }
         builder.endControlFlow();

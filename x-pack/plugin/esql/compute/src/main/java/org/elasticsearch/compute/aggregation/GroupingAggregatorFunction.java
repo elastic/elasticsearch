@@ -104,6 +104,24 @@ public interface GroupingAggregatorFunction extends Releasable {
          *                 or multivalued
          */
         void add(int positionOffset, IntVector groupIds);
+
+        /**
+         * Send a batch of group ids to the aggregator using indirect addressing:
+         * the value backing row {@code k} lives at {@code positions.getInt(k)}
+         * in the page this {@link AddInput} was built from, rather than at a
+         * position contiguous with {@code groupIds}. This supports callers that
+         * have reordered rows out-of-line from group id assignment, e.g.
+         * partitioned hash aggregation's bucket-sort routing.
+         * <p>
+         *     Not every {@link AddInput} implementation supports gather-style
+         *     addressing; the default throws.
+         * </p>
+         * @param groupIds group id for row {@code k} at index {@code k}
+         * @param positions source page position for row {@code k} at index {@code k}
+         */
+        default void addGather(IntVector groupIds, IntVector positions) {
+            throw new UnsupportedOperationException("addGather is not supported by " + getClass());
+        }
     }
 
     /**

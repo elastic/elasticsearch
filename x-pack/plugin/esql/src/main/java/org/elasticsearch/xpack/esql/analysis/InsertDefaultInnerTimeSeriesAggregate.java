@@ -61,6 +61,13 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
     }
 
     public LogicalPlan rule(TimeSeriesAggregate aggregate) {
+        if (aggregate.timestamp() == null || aggregate.timestamp().resolved() == false) {
+            /*
+             * Timestamp was dropped before the function. Leave the aggregate untouched so the Verifier can
+             * report a proper resolution failure
+             */
+            return aggregate;
+        }
         Holder<Boolean> changed = new Holder<>(false);
         List<NamedExpression> newAggregates = aggregate.aggregates().stream().map(agg -> {
             // The actual aggregation functions in aggregates will be aliases, while the groupings in aggregates will be Attributes

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -179,16 +178,21 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractAmazonB
         );
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
 
-        assertThat(updatedServiceSettings, is(new AmazonBedrockEmbeddingsServiceSettings(
-            INITIAL_TEST_REGION,
-            INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROVIDER,
-            INITIAL_TEST_DIMENSIONS,
-            INITIAL_TEST_DIMENSIONS_SET_BY_USER,
-            INITIAL_TEST_MAX_INPUT_TOKENS,
-            INITIAL_TEST_SIMILARITY,
-            DEFAULT_RATE_LIMIT_SETTINGS
-        )));
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new AmazonBedrockEmbeddingsServiceSettings(
+                    INITIAL_TEST_REGION,
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_PROVIDER,
+                    INITIAL_TEST_DIMENSIONS,
+                    INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+                    INITIAL_TEST_MAX_INPUT_TOKENS,
+                    INITIAL_TEST_SIMILARITY,
+                    DEFAULT_RATE_LIMIT_SETTINGS
+                )
+            )
+        );
     }
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {
@@ -240,9 +244,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractAmazonB
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            containsString(
-                Strings.format("[service_settings] unknown field [%s]", DIMENSIONS_SET_BY_USER)
-            )
+            containsString(Strings.format("[service_settings] unknown field [%s]", DIMENSIONS_SET_BY_USER))
         );
     }
 

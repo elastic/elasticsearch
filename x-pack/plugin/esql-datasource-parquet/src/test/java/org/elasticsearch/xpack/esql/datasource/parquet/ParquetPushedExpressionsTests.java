@@ -54,6 +54,7 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT96;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for {@link ParquetPushedExpressions#toFilterPredicate(MessageType)} verifying
@@ -214,6 +215,89 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(repr, containsString(String.valueOf(nanos2 / 1_000)));
     }
 
+    // A mixed-unit glob unifies a column to DATE_NANOS even when this file is TIMESTAMP(MILLIS).
+    // Before the fix, anything but MICROS was treated as physical NANOS and the raw nanos
+    // literal was pushed unmodified against millis stats.
+
+    public void testToFilterPredicateDateNanosOnMillisColumnScalesToMillis() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts")
+            .named("test");
+
+        long nanos = 1_700_000_000_000_000_000L; // exact multiple of 1_000_000 ns
+        long expectedMillis = nanos / 1_000_000;
+        Expression expr = eq("ts", DataType.DATE_NANOS, nanos);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(expectedMillis)));
+        // Before the fix this would have pushed the raw nanos literal (a value ~1e6 times too
+        // large for millis-scale stats), so also assert the raw nanos literal is NOT what's pushed.
+        assertThat(fp.toString(), not(containsString(String.valueOf(nanos))));
+    }
+
+    public void testToFilterPredicateDateNanosMillisGreaterThanRoundsOutward() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts")
+            .named("test");
+
+        long nanos = 1_700_000_000_123_456_789L; // not a multiple of 1_000_000 ns
+        long expectedMillis = Math.floorDiv(nanos, 1_000_000L);
+        Expression expr = new GreaterThan(Source.EMPTY, attr("ts", DataType.DATE_NANOS), lit(nanos, DataType.DATE_NANOS), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(expectedMillis)));
+        // Before the fix this would have pushed the raw nanos literal unmodified.
+        assertThat(fp.toString(), not(containsString(String.valueOf(nanos))));
+    }
+
+    public void testToFilterPredicateDateNanosMillisEqNonDivisibleSkipsPushdown() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts")
+            .named("test");
+
+        long nanos = 1_700_000_000_123_456_789L; // not a multiple of 1_000_000 ns: no millis equals it exactly
+        Expression expr = eq("ts", DataType.DATE_NANOS, nanos);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull(pushed.toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateInListOnDateNanosMillis() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts")
+            .named("test");
+
+        long nanos1 = 1_000_000_000L; // 1_000 millis
+        long nanos2 = 2_000_000_000L; // 2_000 millis
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("ts", DataType.DATE_NANOS),
+            List.of(lit(nanos1, DataType.DATE_NANOS), lit(nanos2, DataType.DATE_NANOS))
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(inExpr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        String repr = fp.toString();
+        assertThat(repr, containsString(String.valueOf(nanos1 / 1_000_000)));
+        assertThat(repr, containsString(String.valueOf(nanos2 / 1_000_000)));
+        // Before the fix these would have pushed the raw nanos literals unmodified.
+        assertThat(repr, not(containsString(String.valueOf(nanos1))));
+        assertThat(repr, not(containsString(String.valueOf(nanos2))));
+    }
+
     // --- DATE (INT32) ---
 
     public void testToFilterPredicateDateInt32() {
@@ -227,6 +311,67 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         FilterPredicate fp = pushed.toFilterPredicate(schema);
         assertNotNull(fp);
         assertThat(fp.toString(), containsString(String.valueOf(expectedDays)));
+    }
+
+    // A DATE column compared against a non-day-aligned millis literal. Naively pushing
+    // floorDiv(millis, DAY) mis-prunes LT and NOT_EQ, wrongly excluding the day bucket
+    // containing the literal.
+
+    public void testDateInt32LessThanMidDayLiteralIncludesContainingDay() {
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        long dayStartMillis = 86400000L * 19723;
+        long midDayMillis = dayStartMillis + 3_600_000L; // one hour into the day: not day-aligned
+        int containingDay = (int) (dayStartMillis / ParquetPushedExpressions.MILLIS_PER_DAY);
+        Expression expr = new LessThan(Source.EMPTY, attr("d", DataType.DATETIME), lit(midDayMillis, DataType.DATETIME), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        // containingDay's start-of-day instant is before the mid-day literal, so it must stay in
+        // (pushed as <=, not <).
+        assertThat(fp.toString(), containsString("lteq(d, " + containingDay));
+    }
+
+    public void testDateInt32NotEqualsMidDayLiteralIsNotPushed() {
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        long dayStartMillis = 86400000L * 19723;
+        long midDayMillis = dayStartMillis + 3_600_000L; // not day-aligned: no day value can ever equal it
+        Expression expr = new NotEquals(Source.EMPTY, attr("d", DataType.DATETIME), lit(midDayMillis, DataType.DATETIME), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        // No day value equals a mid-day instant, so the true predicate matches every row; decline
+        // rather than wrongly excluding containingDay.
+        assertNull(pushed.toFilterPredicate(schema));
+    }
+
+    public void testDateInt32NotEqualsDayAlignedLiteralStillPushes() {
+        // No-regression: a day-aligned (midnight) literal keeps the original notEq behavior.
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        long dayStartMillis = 86400000L * 19723;
+        int day = (int) (dayStartMillis / ParquetPushedExpressions.MILLIS_PER_DAY);
+        Expression expr = new NotEquals(Source.EMPTY, attr("d", DataType.DATETIME), lit(dayStartMillis, DataType.DATETIME), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("noteq(d, " + day));
+    }
+
+    public void testDateInt32LessThanDayAlignedLiteralStillPushesStrict() {
+        // No-regression: a day-aligned literal keeps the original strict LT behavior.
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        long dayStartMillis = 86400000L * 19723;
+        int day = (int) (dayStartMillis / ParquetPushedExpressions.MILLIS_PER_DAY);
+        Expression expr = new LessThan(Source.EMPTY, attr("d", DataType.DATETIME), lit(dayStartMillis, DataType.DATETIME), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("lt(d, " + day));
     }
 
     // --- INT96 (skip pushdown) ---
@@ -730,6 +875,58 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("score"));
     }
 
+    // A DECIMAL(scale>0) column reached via a *declared* long/integer/keyword pushed the literal
+    // against the column's *unscaled* on-disk stats (e.g. `price = 123` against stats stored as
+    // 12300 for scale=2).
+
+    public void testLongEqAgainstDecimalInt64IsNotPushed() {
+        MessageType schema = Types.buildMessage().required(INT64).as(decimalType(2, 18)).named("price").named("test");
+        Expression expr = eq("price", DataType.LONG, 123L);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("LONG predicate against INT64+DECIMAL(scale>0) must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testLongInAgainstDecimalInt64IsNotPushed() {
+        MessageType schema = Types.buildMessage().required(INT64).as(decimalType(2, 18)).named("price").named("test");
+        Expression inExpr = new In(Source.EMPTY, attr("price", DataType.LONG), List.of(lit(123L, DataType.LONG), lit(456L, DataType.LONG)));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(inExpr));
+
+        assertNull("IN over LONG against INT64+DECIMAL(scale>0) must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testIntegerEqAgainstDecimalInt32IsNotPushed() {
+        MessageType schema = Types.buildMessage().required(INT32).as(decimalType(2, 9)).named("price").named("test");
+        Expression expr = eq("price", DataType.INTEGER, 123);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("INTEGER predicate against INT32+DECIMAL(scale>0) must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testKeywordEqAgainstDecimalBinaryIsNotPushed() {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(decimalType(2, 20))
+            .named("price")
+            .named("test");
+        Expression expr = eq("price", DataType.KEYWORD, new BytesRef("123.00"));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("KEYWORD predicate against BINARY+DECIMAL(scale>0) must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testLongEqAgainstScaleZeroDecimalInt64IsPushed() {
+        // No-regression: DECIMAL(scale=0) is exempt — unscaled equals scaled, so the raw on-disk
+        // value already matches the exposed value and pushdown remains safe.
+        MessageType schema = Types.buildMessage().required(INT64).as(decimalType(0, 18)).named("price").named("test");
+        Expression expr = eq("price", DataType.LONG, 123L);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull("DECIMAL(scale=0) must still push like a plain integral column", fp);
+        assertThat(fp.toString(), containsString("123"));
+    }
+
     // -----------------------------------------------------------------------------------
     // esql-planning#1030: a Parquet UINT_32 column (physical INT32) widens to ESQL LONG
     // because unsigned 32-bit values can exceed signed int range. Pushing a longColumn
@@ -903,6 +1100,74 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         MessageType schema = uint32Schema();
         Expression expr = eq("does_not_exist", DataType.LONG, 100_000L);
         assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    // A UINT_64 column declared as (signed) LONG reads the raw bit pattern unflipped, but
+    // parquet-mr still orders its stats with an UNSIGNED comparator. Ordered comparisons need a
+    // sign-split predicate for negative literals; Eq/NotEq and same-sign IN sets are unaffected.
+
+    private static MessageType uint64Schema() {
+        return Types.buildMessage().required(INT64).as(LogicalTypeAnnotation.intType(64, false)).named("u64").named("test");
+    }
+
+    public void testUint64DeclaredLongNegativeLiteralGreaterThanPushesSignSplit() {
+        MessageType schema = uint64Schema();
+        Expression expr = new GreaterThan(Source.EMPTY, attr("u64", DataType.LONG), lit(-1L, DataType.LONG), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("or(lt(u64, " + Long.MIN_VALUE + "), gt(u64, -1))"));
+    }
+
+    public void testUint64DeclaredLongNegativeLiteralLessThanPushesSignSplit() {
+        MessageType schema = uint64Schema();
+        Expression expr = new LessThan(Source.EMPTY, attr("u64", DataType.LONG), lit(-1L, DataType.LONG), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("and(gteq(u64, " + Long.MIN_VALUE + "), lt(u64, -1))"));
+    }
+
+    public void testUint64DeclaredLongNegativeLiteralEqualsStillPushes() {
+        // Eq/NotEq only test raw-bit-pattern range membership, so they're valid under either
+        // ordering and never needed the sign split.
+        MessageType schema = uint64Schema();
+        Expression expr = eq("u64", DataType.LONG, -1L);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("eq(u64, -1)"));
+    }
+
+    public void testUint64DeclaredLongNonNegativeLiteralStillPushes() {
+        // No-regression: non-negative literals agree under signed and unsigned ordering.
+        MessageType schema = uint64Schema();
+        Expression expr = new GreaterThan(Source.EMPTY, attr("u64", DataType.LONG), lit(100_000L, DataType.LONG), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull("non-negative literal against a declared-LONG uint64 column must still push", fp);
+        assertThat(fp.toString(), containsString("100000"));
+    }
+
+    public void testUint64DeclaredLongInMixedSignIsNotPushed() {
+        // A mixed-sign set straddles the sign-bit boundary and corrupts the combined min/max
+        // reasoning parquet-mr's IN pruning does over the whole set.
+        MessageType schema = uint64Schema();
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("u64", DataType.LONG),
+            List.of(lit(100_000L, DataType.LONG), lit(-1L, DataType.LONG))
+        );
+        assertNull(
+            "a mixed-sign IN set against a declared-LONG uint64 column must not be pushed",
+            new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema)
+        );
+    }
+
+    public void testUint64DeclaredLongInAllNegativeStillPushes() {
+        // All-negative (same-sign) literals don't straddle the boundary, so the combined min/max
+        // is still exact and the IN set can push normally.
+        MessageType schema = uint64Schema();
+        Expression inExpr = new In(Source.EMPTY, attr("u64", DataType.LONG), List.of(lit(-1L, DataType.LONG), lit(-2L, DataType.LONG)));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("in(u64"));
     }
 
     // -----------------------------------------------------------------------------------

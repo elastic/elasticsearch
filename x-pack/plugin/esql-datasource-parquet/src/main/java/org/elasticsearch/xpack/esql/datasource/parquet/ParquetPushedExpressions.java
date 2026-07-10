@@ -464,7 +464,18 @@ final class ParquetPushedExpressions {
      */
     private static boolean physicalPrimitiveIs(MessageType schema, String columnName, PrimitiveType.PrimitiveTypeName expected) {
         PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
-        return primitive != null && primitive.getPrimitiveTypeName() == expected;
+        return primitive != null && primitive.getPrimitiveTypeName() == expected && isScaledDecimal(primitive) == false;
+    }
+
+    /**
+     * Whether {@code ptype} is {@code DECIMAL} with a nonzero scale — its on-disk value is the
+     * <b>unscaled</b> integer, not the value a declared/inferred {@code long}/{@code integer}/
+     * {@code keyword} column exposes. Pushing a raw literal against such stats compares mismatched
+     * units. {@code scale=0} is exempt: unscaled equals scaled there.
+     */
+    private static boolean isScaledDecimal(PrimitiveType ptype) {
+        return ptype.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal
+            && decimal.getScale() > 0;
     }
 
     /**
@@ -494,11 +505,22 @@ final class ParquetPushedExpressions {
      */
     private static FilterPredicate buildLongPredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
-        if (ptype == null) {
+        if (ptype == null || isScaledDecimal(ptype)) {
             return null;
         }
         return switch (ptype.getPrimitiveTypeName()) {
-            case INT64 -> orderedPredicate(FilterApi.longColumn(columnName), value != null ? ((Number) value).longValue() : null, op);
+            case INT64 -> {
+                if (value == null) {
+                    yield orderedPredicate(FilterApi.longColumn(columnName), null, op);
+                }
+                long longValue = ((Number) value).longValue();
+                // UINT_64 stats are unsigned-ordered but a declared LONG doesn't sign-flip. Ordered ops
+                // need the sign split below for a negative literal; Eq/NotEq stay order-invariant.
+                if (op.isOrdered() && longValue < 0 && ParquetColumnDecoding.isUnsignedInt64(ptype)) {
+                    yield unsignedInt64SplitPredicate(columnName, longValue, op);
+                }
+                yield orderedPredicate(FilterApi.longColumn(columnName), longValue, op);
+            }
             case INT32 -> {
                 if (value == null) {
                     yield orderedPredicate(FilterApi.intColumn(columnName), null, op);
@@ -507,6 +529,23 @@ final class ParquetPushedExpressions {
                 yield narrowed != null ? orderedPredicate(FilterApi.intColumn(columnName), narrowed, op) : null;
             }
             default -> null;
+        };
+    }
+
+    /**
+     * Builds the exact ordered predicate for a UINT_64 column and a negative (declared-LONG) literal.
+     * Splits the domain at the sign bit — {@code u == 2^63}, the raw bits of {@code Long.MIN_VALUE} —
+     * since unsigned and signed order agree within each half: the low half (non-negative signed
+     * values) always satisfies {@code GT}/{@code GTE} and never {@code LT}/{@code LTE}; the high half
+     * (negative signed values) preserves the original op against the literal.
+     */
+    private static FilterPredicate unsignedInt64SplitPredicate(String columnName, long value, PredicateOp op) {
+        var col = FilterApi.longColumn(columnName);
+        FilterPredicate highHalf = orderedPredicate(col, value, op);
+        return switch (op) {
+            case GT, GTE -> FilterApi.or(FilterApi.lt(col, Long.MIN_VALUE), highHalf);
+            case LT, LTE -> FilterApi.and(FilterApi.gtEq(col, Long.MIN_VALUE), highHalf);
+            case EQ, NOT_EQ -> throw new AssertionError("unsigned split only applies to ordered ops: " + op);
         };
     }
 
@@ -607,8 +646,7 @@ final class ParquetPushedExpressions {
         return switch (ptype.getPrimitiveTypeName()) {
             case INT32 -> {
                 if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
-                    int days = (int) Math.floorDiv(millis, MILLIS_PER_DAY);
-                    yield orderedPredicate(FilterApi.intColumn(columnName), days, op);
+                    yield buildDatePredicate(columnName, millis, op);
                 }
                 yield null;
             }
@@ -622,6 +660,27 @@ final class ParquetPushedExpressions {
             }
             default -> null;
         };
+    }
+
+    /**
+     * Builds an ordered predicate over a {@code DATE} (day-granularity, INT32) column, correcting for a
+     * {@code millis} literal that falls strictly inside a day rather than on its boundary. A decoded
+     * value is always {@code days * MILLIS_PER_DAY} (midnight), so naively pushing
+     * {@code floorDiv(millis, MILLIS_PER_DAY)} under the original op would mis-prune: {@code LT} must
+     * push {@code LTE} instead (the floor day still starts before a mid-day literal), and {@code NOT_EQ}
+     * must decline (no day value can equal a mid-day instant, so the true predicate matches every row).
+     */
+    private static FilterPredicate buildDatePredicate(String columnName, long millis, PredicateOp op) {
+        int floorDays = (int) Math.floorDiv(millis, MILLIS_PER_DAY);
+        if (millis % MILLIS_PER_DAY != 0) {
+            if (op == PredicateOp.NOT_EQ) {
+                return null;
+            }
+            if (op == PredicateOp.LT) {
+                return orderedPredicate(FilterApi.intColumn(columnName), floorDays, PredicateOp.LTE);
+            }
+        }
+        return orderedPredicate(FilterApi.intColumn(columnName), floorDays, op);
     }
 
     /**
@@ -640,14 +699,15 @@ final class ParquetPushedExpressions {
         return millis;
     }
 
+    /** Nanoseconds per Parquet {@code TIMESTAMP(MILLIS)} unit — the MILLIS analog of {@link ParquetColumnDecoding#NANOS_PER_MICRO}. */
+    static final long NANOS_PER_MILLI = 1_000_000L;
+
     /**
-     * Builds a predicate for an ESQL {@code DATE_NANOS} column. These columns come only from INT64
-     * {@code TIMESTAMP(MICROS|NANOS)} (see {@link ParquetFormatReader}'s type mapper), and the query literal is
-     * epoch-nanoseconds. For a physical {@code NANOS} column the bound is pushed exactly. For a physical
-     * {@code MICROS} column the nanosecond bound is converted to a microsecond bound rounded outward
-     * ({@link #nanosBoundToMicros}) so the pushed predicate is never stricter than the true nanosecond predicate —
-     * safe because temporal pushdown is always RECHECK (see {@link ParquetFilterPushdownSupport#isFullyEvaluable}),
-     * so {@code FilterExec} re-applies the exact semantics regardless.
+     * Builds a predicate for an ESQL {@code DATE_NANOS} column (query literal always epoch-nanoseconds).
+     * Normally backed by INT64 {@code TIMESTAMP(MICROS|NANOS)}, but a glob mixing a {@code
+     * TIMESTAMP(NANOS)} file with a {@code TIMESTAMP(MILLIS)} file unifies the column's type to {@code
+     * DATE_NANOS}, so {@code MILLIS} must be handled too. {@code NANOS} pushes exactly;
+     * {@code MICROS}/{@code MILLIS} convert via {@link #nanosBoundToUnit}. Any other annotation declines.
      */
     private static FilterPredicate buildDateNanosPredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
@@ -658,26 +718,29 @@ final class ParquetPushedExpressions {
             return orderedPredicate(FilterApi.longColumn(columnName), null, op);
         }
         long nanos = ((Number) value).longValue();
-        if (ParquetColumnDecoding.isMicrosTimestamp(ptype.getLogicalTypeAnnotation()) == false) {
-            // Physical NANOS: literal and stored unit match, so the bound is exact.
-            return orderedPredicate(FilterApi.longColumn(columnName), nanos, op);
+        if (ptype.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            Long physicalValue = switch (ts.getUnit()) {
+                // Physical NANOS: literal and stored unit match, so the bound is exact.
+                case NANOS -> nanos;
+                case MICROS -> nanosBoundToUnit(nanos, op, ParquetColumnDecoding.NANOS_PER_MICRO);
+                case MILLIS -> nanosBoundToUnit(nanos, op, NANOS_PER_MILLI);
+            };
+            return physicalValue == null ? null : orderedPredicate(FilterApi.longColumn(columnName), physicalValue, op);
         }
-        Long micros = nanosBoundToMicros(nanos, op);
-        return micros == null ? null : orderedPredicate(FilterApi.longColumn(columnName), micros, op);
+        return null;
     }
 
     /**
-     * Converts an epoch-nanosecond bound to the epoch-microsecond bound to push against a physical {@code MICROS}
-     * column, rounding each comparison outward so the pushed predicate never excludes a matching row (a stored
-     * micro {@code m} represents the instant {@code m × 1_000} ns). Equality/inequality are only representable when
-     * the bound is an exact multiple of 1_000 ns; otherwise {@code null} is returned and no predicate is pushed
-     * (the scan plus {@code FilterExec} recheck still yields the correct result, only without pruning).
+     * Converts an epoch-nanosecond bound to the coarser {@code nanosPerUnit} unit, rounding each
+     * comparison outward so the pushed predicate never excludes a matching row. Equality/inequality are
+     * only representable when the bound is an exact multiple of {@code nanosPerUnit}; otherwise {@code
+     * null} skips pushdown.
      */
-    private static Long nanosBoundToMicros(long nanos, PredicateOp op) {
+    private static Long nanosBoundToUnit(long nanos, PredicateOp op, long nanosPerUnit) {
         return switch (op) {
-            case GT, LTE -> Math.floorDiv(nanos, ParquetColumnDecoding.NANOS_PER_MICRO);
-            case GTE, LT -> Math.ceilDiv(nanos, ParquetColumnDecoding.NANOS_PER_MICRO);
-            case EQ, NOT_EQ -> nanos % ParquetColumnDecoding.NANOS_PER_MICRO == 0 ? nanos / ParquetColumnDecoding.NANOS_PER_MICRO : null;
+            case GT, LTE -> Math.floorDiv(nanos, nanosPerUnit);
+            case GTE, LT -> Math.ceilDiv(nanos, nanosPerUnit);
+            case EQ, NOT_EQ -> nanos % nanosPerUnit == 0 ? nanos / nanosPerUnit : null;
         };
     }
 
@@ -740,11 +803,21 @@ final class ParquetPushedExpressions {
      */
     private static FilterPredicate translateLongIn(String columnName, List<Object> rawValues, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
-        if (ptype == null) {
+        if (ptype == null || isScaledDecimal(ptype)) {
             return null;
         }
         return switch (ptype.getPrimitiveTypeName()) {
-            case INT64 -> inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
+            case INT64 -> {
+                // parquet-mr's IN pruning takes ONE combined min/max over the whole set; a sign mix
+                // straddles the unsigned/signed halves and corrupts it, so decline only for a mix
+                // (same-sign sets, including all-negative, stay exact and pushable).
+                if (ParquetColumnDecoding.isUnsignedInt64(ptype)
+                    && rawValues.stream().anyMatch(v -> ((Number) v).longValue() < 0)
+                    && rawValues.stream().anyMatch(v -> ((Number) v).longValue() >= 0)) {
+                    yield null;
+                }
+                yield inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
+            }
             case INT32 -> {
                 List<Object> narrowed = new ArrayList<>();
                 for (Object v : rawValues) {
@@ -790,28 +863,32 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * {@code IN} counterpart to {@link #buildDateNanosPredicate}. The query literals are epoch-nanoseconds. For a
-     * physical {@code NANOS} column each value is pushed exactly. For a physical {@code MICROS} column, an element
-     * can only equal a stored value when it is an exact multiple of 1_000 ns; non-multiples are dropped (they can
-     * never match, so omitting them keeps the pushed set a correct subset). If every element is dropped, no
-     * predicate is pushed and the scan + recheck yields the (empty) result.
+     * {@code IN} counterpart to {@link #buildDateNanosPredicate}: {@code NANOS} pushes each value exactly;
+     * {@code MICROS}/{@code MILLIS} drop elements that aren't an exact multiple of the unit (they can
+     * never match); any other annotation declines.
      */
     private static FilterPredicate translateDateNanosIn(String columnName, List<Object> rawValues, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
         if (ptype == null || ptype.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
             return null;
         }
-        if (ParquetColumnDecoding.isMicrosTimestamp(ptype.getLogicalTypeAnnotation()) == false) {
-            return inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
-        }
-        List<Object> micros = new ArrayList<>();
-        for (Object v : rawValues) {
-            long nanos = ((Number) v).longValue();
-            if (nanos % ParquetColumnDecoding.NANOS_PER_MICRO == 0) {
-                micros.add(nanos / ParquetColumnDecoding.NANOS_PER_MICRO);
+        if (ptype.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            if (ts.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS) {
+                return inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
             }
+            long nanosPerUnit = ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS
+                ? ParquetColumnDecoding.NANOS_PER_MICRO
+                : NANOS_PER_MILLI;
+            List<Object> scaled = new ArrayList<>();
+            for (Object v : rawValues) {
+                long nanos = ((Number) v).longValue();
+                if (nanos % nanosPerUnit == 0) {
+                    scaled.add(nanos / nanosPerUnit);
+                }
+            }
+            return scaled.isEmpty() ? null : inPredicate(FilterApi.longColumn(columnName), scaled, v -> (Long) v);
         }
-        return micros.isEmpty() ? null : inPredicate(FilterApi.longColumn(columnName), micros, v -> (Long) v);
+        return null;
     }
 
     private static <T extends Comparable<T>, C extends Operators.Column<T> & Operators.SupportsEqNotEq> FilterPredicate inPredicate(

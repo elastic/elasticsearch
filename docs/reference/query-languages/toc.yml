@@ -54,6 +54,7 @@ toc:
       - file: query-dsl/vector-queries.md
         children:
           - file: query-dsl/query-dsl-knn-query.md
+          - file: query-dsl/query-dsl-dense-vector-query.md
           - file: query-dsl/query-dsl-sparse-vector-query.md
           - file: query-dsl/query-dsl-semantic-query.md
           - file: query-dsl/query-dsl-text-expansion-query.md

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.sourcebatch;
 
+import org.elasticsearch.xcontent.Text;
+
 /**
  * A forward-only reader over a single array value of a {@link SourceRow}, independent of the physical
  * layout the batch stores the array in.
@@ -39,6 +41,8 @@ public interface ArrayReader {
     double doubleValue();
 
     String stringValue();
+
+    Text textValue();
 
     /** A reader over the current element's payload; the element must be a {@code UNION_ARRAY} or {@code FIXED_ARRAY}. */
     ArrayReader nestedArray();

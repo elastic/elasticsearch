@@ -9,12 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Block;
@@ -25,7 +20,11 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -41,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -53,8 +53,158 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemoteFetchOperatorTests extends ESTestCase {
-    private final List<BlockFactory> blockFactories = new ArrayList<>();
+public class RemoteFetchOperatorTests extends OperatorTestCase {
+    /**
+     * The {@link #simple} harness fetches one integer field whose value the {@link EchoFetchClient} derives
+     * deterministically from each handle's doc id, spread over a few target sessions to exercise grouping.
+     */
+    private static final int SIMPLE_TARGET_SESSIONS = 3;
+
+    @Override
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
+        return new RemoteFetchOperator.Factory(
+            0,
+            List.of(new RemoteFetchService.FetchField("salary", DataType.INTEGER)),
+            List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER)),
+            null,
+            ConfigurationAware.CONFIGURATION_MARKER,
+            3,
+            new ThreadContext(Settings.EMPTY),
+            EchoFetchClient::new
+        );
+    }
+
+    @Override
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("RemoteFetchOperator[channel=0, requestFields=[salary:integer]]");
+    }
+
+    @Override
+    protected Matcher<String> expectedToStringOfSimple() {
+        return expectedDescriptionOfSimple();
+    }
+
+    @Override
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        List<BytesRef> handles = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            int target = i % SIMPLE_TARGET_SESSIONS;
+            handles.add(new RemoteFetchHandle("node-" + target, "session-" + target, target, 0, i).toBytesRef());
+        }
+        return new BytesRefBlockSourceOperator(blockFactory, handles);
+    }
+
+    @Override
+    protected void assertSimpleOutput(List<Page> input, List<Page> results) {
+        assertThat(results.size(), equalTo(input.size()));
+        BytesRef scratch = new BytesRef();
+        for (int pageIndex = 0; pageIndex < input.size(); pageIndex++) {
+            Page inputPage = input.get(pageIndex);
+            Page outputPage = results.get(pageIndex);
+            assertThat(outputPage.getPositionCount(), equalTo(inputPage.getPositionCount()));
+            assertThat(outputPage.getBlockCount(), equalTo(2));
+            BytesRefBlock inputHandles = inputPage.getBlock(0);
+            IntBlock fetched = outputPage.getBlock(1);
+            for (int position = 0; position < inputPage.getPositionCount(); position++) {
+                RemoteFetchHandle handle = RemoteFetchHandle.fromBytesRef(
+                    inputHandles.getBytesRef(inputHandles.getFirstValueIndex(position), scratch)
+                );
+                assertThat(fetched.getInt(fetched.getFirstValueIndex(position)), equalTo(echoValue(handle)));
+            }
+        }
+    }
+
+    @Override
+    protected void assertStatus(@Nullable Map<String, Object> map, List<Page> input, List<Page> output) {
+        assertNull("RemoteFetchOperator does not report a status yet", map);
+    }
+
+    private static int echoValue(RemoteFetchHandle handle) {
+        return handle.doc() * 7;
+    }
+
+    /**
+     * Stub client that answers every batch synchronously with values derived from the handles themselves, standing in
+     * for the transport-backed exchange client that is wired up outside this operator. Response pages are built with
+     * the non-breaking test factory because they represent memory accounted on the remote node, not this driver.
+     */
+    private static class EchoFetchClient implements RemoteFetchService.Client {
+        private final List<EchoExchange> exchanges = new ArrayList<>();
+
+        @Override
+        public RemoteFetchService.TargetExchange openTargetExchange(
+            String nodeId,
+            String sessionId,
+            List<RemoteFetchService.FetchField> fields,
+            PhysicalPlan pushdownPlan,
+            Configuration configuration
+        ) {
+            EchoExchange exchange = new EchoExchange();
+            exchanges.add(exchange);
+            return exchange;
+        }
+
+        @Override
+        public void close() {
+            for (EchoExchange exchange : exchanges) {
+                exchange.close();
+            }
+        }
+
+        private static class EchoExchange implements RemoteFetchService.TargetExchange {
+            private final Queue<Page> pages = new ArrayDeque<>();
+
+            @Override
+            public void sendBatch(long batchId, List<RemoteFetchHandle> handles) {
+                BlockFactory responseFactory = TestBlockFactory.getNonBreakingInstance();
+                try (IntBlock.Builder values = responseFactory.newIntBlockBuilder(handles.size())) {
+                    for (RemoteFetchHandle handle : handles) {
+                        values.appendInt(echoValue(handle));
+                    }
+                    pages.add(new Page(new BatchMetadata(batchId, 0, true), values.build()));
+                }
+            }
+
+            @Override
+            public Page pollPage() {
+                return pages.poll();
+            }
+
+            @Override
+            public IsBlockedResult isBlocked() {
+                return Operator.NOT_BLOCKED;
+            }
+
+            @Override
+            public Exception getFailure() {
+                return null;
+            }
+
+            @Override
+            public void markBatchCompleted(long batchId) {}
+
+            @Override
+            public void finish() {}
+
+            @Override
+            public boolean isFinished() {
+                return true;
+            }
+
+            @Override
+            public IsBlockedResult waitForCompletion() {
+                return Operator.NOT_BLOCKED;
+            }
+
+            @Override
+            public void close() {
+                for (Page page : pages) {
+                    page.releaseBlocks();
+                }
+                pages.clear();
+            }
+        }
+    }
 
     public void testFetchesAcrossNodesAndReassemblesInInputOrder() {
         DriverContext driverContext = driverContext();
@@ -609,27 +759,6 @@ public class RemoteFetchOperatorTests extends ESTestCase {
             IsBlockedResult blocked = operator.isBlocked();
             assertFalse(blocked.listener().isDone());
             assertThat(blocked.reason(), containsString("remote fetch"));
-        }
-    }
-
-    private DriverContext driverContext() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(4)).withCircuitBreaking();
-        BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
-        blockFactories.add(blockFactory);
-        return new DriverContext(bigArrays, blockFactory, null);
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        try {
-            for (BlockFactory blockFactory : blockFactories) {
-                assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
-                assertThat(blockFactory.breaker().getTrippedCount(), equalTo(0L));
-                assertThat(blockFactory.breaker().getName(), equalTo(CircuitBreaker.REQUEST));
-            }
-            MockBigArrays.ensureAllArraysAreReleased();
-        } finally {
-            super.tearDown();
         }
     }
 

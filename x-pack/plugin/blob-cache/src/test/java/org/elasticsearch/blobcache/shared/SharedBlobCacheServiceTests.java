@@ -44,7 +44,6 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.jspecify.annotations.NonNull;
 
 import java.io.IOException;
 import java.io.InputStream;

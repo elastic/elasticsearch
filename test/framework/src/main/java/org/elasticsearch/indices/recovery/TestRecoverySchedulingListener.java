@@ -19,12 +19,22 @@ public abstract class TestRecoverySchedulingListener implements RecoveryScheduli
     public abstract void onRecoverySchedulingChange();
 
     @Override
+    public void onRecoveryCancelledBeforeQueuing(RecoverySource.Type type, RecoveryRole role) {
+        onRecoverySchedulingChange();
+    }
+
+    @Override
     public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
         onRecoverySchedulingChange();
     }
 
     @Override
     public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
+        onRecoverySchedulingChange();
+    }
+
+    @Override
+    public void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
         onRecoverySchedulingChange();
     }
 

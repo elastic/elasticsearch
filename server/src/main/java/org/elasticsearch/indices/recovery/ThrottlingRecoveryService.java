@@ -216,7 +216,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
                     staleRecoveries.add(pending);
                     // Note that updating RecoveryStats is not strictly necessary here and just done out of completeness sake +
                     // easier testing. Indeed, a pending recovery never started, and if its allocation ID has changed or localNode
-                    // became `null`, the old IndexShard objects those stats belong would have already been closed.
+                    // became `null`, the old IndexShard object those stats belong to would have already been closed.
                     pending.stats().targetQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType());
                 }
             }

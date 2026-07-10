@@ -123,12 +123,12 @@ tasks.named('javaRestTest') {
   }
 }
 
-// The csvSpecTest source set (created by the plugin above) hosts NdJsonFormatSpecIT and
-// NdJsonCompressedFormatSpecIT plus their shared abstract base. Keeping them out of
-// javaRestTest prevents tests in that JVM fork from poisoning the JVM-global INGEST guard.
-// No variants are declared — the IT classes are hand-written in src/csvSpecTest/java/ because
-// the generator hardcodes a 6-parameter constructor and these tests need 7+ (StorageBackend,
-// format).
+// The csvSpecTest source set (created by the plugin above) hosts NdJsonFormatSpecIT and the
+// per-csv-spec-file compressed suites (NdJsonCompressedExternal*IT) plus their shared abstract
+// bases. Keeping them out of javaRestTest prevents tests in that JVM fork from poisoning the
+// JVM-global INGEST guard. No variants are declared — the IT classes are hand-written in
+// src/csvSpecTest/java/ because the generator hardcodes a 6-parameter constructor and these tests
+// need 7+ (StorageBackend, format).
 esqlCsvSpecTests {
   specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
   packageName = 'org.elasticsearch.xpack.esql.qa.ndjson'
@@ -141,8 +141,8 @@ tasks.named('processCsvSpecTestResources').configure {
   dependsOn 'generateStandaloneNdjsonFixtures'
 }
 
-// Runs the two csv-spec ITs (NdJsonFormatSpecIT, NdJsonCompressedFormatSpecIT) in their own
-// JVM, separate from javaRestTest. Both extend AbstractNdJsonExternalSpecTestCase, which
+// Runs the csv-spec ITs (NdJsonFormatSpecIT and the NdJsonCompressedExternal*IT suites) in their
+// own JVM, separate from javaRestTest. They all extend AbstractNdJsonExternalSpecTestCase, which
 // declares the shared ElasticsearchCluster at the abstract-class level — INGEST fires exactly
 // once for the entire suite.
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {

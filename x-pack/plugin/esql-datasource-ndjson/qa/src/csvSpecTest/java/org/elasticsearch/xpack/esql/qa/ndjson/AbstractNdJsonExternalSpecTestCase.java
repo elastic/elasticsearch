@@ -16,9 +16,10 @@ import org.junit.ClassRule;
  * Shared cluster base for NDJSON csv-spec tests.
  * <p>
  * Declaring the cluster here — at the abstract-class level — means all concrete subclasses
- * ({@link NdJsonFormatSpecIT}, {@link NdJsonCompressedFormatSpecIT}) inherit the same static
- * {@code cluster} field and therefore share a single {@code ElasticsearchCluster} instance
- * across the entire JVM run. This mirrors the pattern used in
+ * ({@link NdJsonFormatSpecIT} and the per-csv-spec-file compressed suites extending
+ * {@link AbstractNdJsonCompressedFormatSpecTestCase}) inherit the same static {@code cluster} field
+ * and therefore share a single {@code ElasticsearchCluster} instance across the entire JVM run.
+ * This mirrors the pattern used in
  * {@code AbstractParquetExternalSpecTestCase} and lets the JVM-level {@code INGEST} guard in
  * {@code EsqlSpecTestCase} fire exactly once: data is loaded on the first suite and the cluster
  * remains live for subsequent suites without re-loading.

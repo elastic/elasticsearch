@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.qa.ndjson;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.Build;
@@ -20,15 +19,24 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Parameterized integration tests for compressed NDJSON files (.ndjson.gz, .ndjson.zst, .ndjson.zstd, .ndjson.bz2, .ndjson.bz).
- * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL, GCS) and compression format.
+ * Shared base for the per-csv-spec-file compressed-NDJSON suites. Each concrete subclass covers a
+ * single csv-spec file (mirroring the "one IT suite per csv-spec file" split in #152372) and should
+ * complete well within the JVM suite timeout; the single {@code NdJsonCompressedFormatSpecIT} that
+ * bundled every spec file crossed the 600s suite timeout because its
+ * {@code formats × storage-backends} cross product produced a couple thousand tests.
+ * <p>
+ * This base holds the parts every compressed suite shares — the compressed-format matrix, the
+ * multi-file skip list, the 8-arg constructor, and the {@link ThreadLeakFilters} — so each concrete
+ * class is just a spec-file selector. All subclasses inherit the shared cluster declared on
+ * {@link AbstractNdJsonExternalSpecTestCase}, so the cluster starts once and data is ingested once
+ * for the whole JVM run.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
+abstract class AbstractNdJsonCompressedFormatSpecTestCase extends AbstractNdJsonExternalSpecTestCase {
 
     // bzip2 is outside the GA text-format codec surface (uncompressed/gzip/zstd) and is rejected on release
     // builds, so .ndjson.bz2/.ndjson.bz are exercised on snapshot builds only. See elastic/esql-planning#938.
-    private static final List<String> COMPRESSED_FORMATS = Build.current().isSnapshot()
+    protected static final List<String> COMPRESSED_FORMATS = Build.current().isSnapshot()
         ? List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd", "ndjson.bz2", "ndjson.bz")
         : List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd");
 
@@ -46,7 +54,7 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
         "multiFileMetadataSizePositive"
     );
 
-    public NdJsonCompressedFormatSpecIT(
+    protected AbstractNdJsonCompressedFormatSpecTestCase(
         String fileName,
         String groupName,
         String testName,
@@ -65,16 +73,5 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
             assumeTrue(testName + " not supported by NDJSON multi-file path (SchemaAdaptingIterator limitation)", false);
         }
         super.shouldSkipTest(testName);
-    }
-
-    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
-    public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithFormats(
-            COMPRESSED_FORMATS,
-            "/external-basic.csv-spec",
-            "/external-multifile.csv-spec",
-            "/external-multifile-resolution.csv-spec",
-            "/external-multivalue.csv-spec"
-        );
     }
 }

@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Regression coverage for the COUNT(*)-doubling bug on the streaming-compressed read path
- * (issues #150598, #150620, #150723 and the rest of the NdJsonCompressedFormatSpecIT
+ * (issues #150598, #150620, #150723 and the rest of the NdJsonCompressedExternal* spec-IT
  * "expected &lt;100L&gt; but was &lt;200L&gt;" family).
  * <p>
  * The aggregate-metadata cache captures per-chunk row-count stats during a cold scan and serves

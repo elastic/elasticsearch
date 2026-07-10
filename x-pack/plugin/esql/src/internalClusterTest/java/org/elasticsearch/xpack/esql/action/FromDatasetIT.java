@@ -210,7 +210,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "tsv_declared_date",
         "tsv_declared_rename",
         "mapped_ds_for_view",
-        "mapped_ds_for_subquery"
+        "mapped_ds_for_subquery",
+        "ndjson_mv_coerce"
     );
 
     /**
@@ -2345,6 +2346,44 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * inlining (view resolution rewrites the inlined leaf into the external relation, which must keep the mapping —
      * a dropped mapping here would silently read the file's physical type instead of the declared one).
      */
+    /**
+     * A multivalue (array) column declared a coerced type coerces element-by-element — every element of the
+     * position is converted, not just the first, and the position keeps its multivalue shape.
+     */
+    public void testNdjsonMultiValueColumnCoercesElementwise() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("mv.ndjson"), "{\"vals\":[\"10\",\"20\",\"30\"]}\n{\"vals\":[\"40\"]}\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("vals", new DatasetFieldMapping("long", null)); // declare the string array as long
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_mv_coerce",
+                    "local_ds",
+                    root.toUri() + "*.ndjson",
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_mv_coerce | KEEP vals | LIMIT 10"), TIMEOUT)) {
+            assertThat(response.columns().get(0).outputType(), equalTo("long"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            // The 3-element position keeps all three elements, each coerced to long.
+            assertThat(rows.get(0).get(0), equalTo(List.of(10L, 20L, 30L)));
+            assertThat(rows.get(1).get(0), equalTo(40L)); // single-element position renders as a scalar
+        }
+    }
+
     public void testViewOverMappedDatasetPreservesCoercion() throws Exception {
         Path root = createTempDir();
         Files.writeString(root.resolve("d.csv"), "val:integer\n100\n");

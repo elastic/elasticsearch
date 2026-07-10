@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.datasources.glob.FileSetFingerprint;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 
 import java.util.Map;
 import java.util.Set;

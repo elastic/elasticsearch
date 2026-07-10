@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;

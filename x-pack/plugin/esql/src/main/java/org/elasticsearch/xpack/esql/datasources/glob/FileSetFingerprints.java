@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 

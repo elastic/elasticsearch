@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.glob.FileSetFingerprint;
 
 /**
  * Indexed view over a resolved set of files from an external data source.

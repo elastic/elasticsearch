@@ -15,11 +15,11 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
-import org.elasticsearch.xpack.esql.datasources.glob.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -1731,6 +1731,33 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             // 66000 stored paths; the registry drops the oldest until total <= 65536, i.e. fewer than 33.
             assertThat(pending, lessThan(globs));
             assertTrue("some descriptors must survive", pending > 0);
+        }
+    }
+
+    public void testReconcileNeverOverwritesDatasetAggregateRowCount() {
+        // Enforcement test for the dataset-marker exclusion in matchesContribution. A dataset-aggregate
+        // entry holds a WHOLE-SET row count. Here a stray contribution is crafted to match its key on
+        // EVERY other axis — same glob path, mtime 0, and (like the entry) no config fingerprint — so the
+        // isDatasetAggregate() marker guard is the ONLY thing that excludes it. Without that guard the
+        // reconcile would enrich the entry and overwrite the whole-set 100 with the contribution's 42.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String glob = "s3://bucket/data/*.csv";
+            SchemaCacheKey key = SchemaCacheKey.forDatasetAggregate(glob, new FileSetFingerprint(1, 2), "csv", Map.of("format", "csv"));
+            service.putDatasetAggregate(key, 100L, "csv", glob);
+
+            Map<String, Object> strayContribution = new LinkedHashMap<>();
+            strayContribution.put(ExternalStats.MTIME_MILLIS_KEY, 0L); // matches the dataset key's mtime
+            strayContribution.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
+            // No CONFIG_FINGERPRINT_KEY: matches the dataset entry's absent fingerprint too.
+            service.reconcileSourceStats(Map.of(glob, strayContribution));
+
+            Map<String, Object> served = service.getDatasetAggregate(key);
+            assertNotNull(served);
+            assertEquals(
+                "the dataset aggregate's whole-set count must be untouched",
+                100L,
+                served.get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
         }
     }
 

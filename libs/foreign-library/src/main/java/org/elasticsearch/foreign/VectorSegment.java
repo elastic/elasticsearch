@@ -50,4 +50,12 @@ public @interface VectorSegment {
      * {@link #elementBytes()}.
      */
     int elementBits() default 0;
+
+    /**
+     * Whether the segment's address must be aligned to {@link #elementBytes()}. Emitted as a JVM
+     * {@code assert}, so it only runs under {@code -ea} — zero production cost, matching today's
+     * debug-only alignment checks. Requires {@link #elementBytes()} (sub-byte elements have no
+     * natural alignment unit).
+     */
+    boolean aligned() default false;
 }

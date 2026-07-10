@@ -77,4 +77,13 @@ public @interface MatrixSegment {
      * {@code rows * rowPitchBytes} instead of {@code rows * rowBytes}.
      */
     String rowPitchBytesParam() default "";
+
+    /**
+     * Whether the segment's address must be aligned to {@link #elementBytes()}. Emitted as a JVM
+     * {@code assert}, so it only runs under {@code -ea} — zero production cost, matching today's
+     * debug-only alignment checks. Requires the {@link #colsParam()} + {@link #elementBytes()} form
+     * ({@link #rowBytesParam()} has no declared element scalar to align to, and sub-byte
+     * {@link #elementBits()} has no natural alignment unit).
+     */
+    boolean aligned() default false;
 }

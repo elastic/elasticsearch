@@ -37,20 +37,24 @@ public sealed interface BoundsCheckModel {
 
     /**
      * 1D linear shape, from {@code @VectorSegment}: the segment must be at least
-     * {@code count * elementBits / 8} bytes.
+     * {@code count * elementBits / 8} bytes. When {@code aligned}, the processor additionally emits
+     * an {@code assert} that the segment's address is aligned to {@code elementBits / 8} bytes.
      *
      * @param segParamIndex index of the annotated {@code MemorySegment} parameter
      * @param countParamIndex index of the sibling parameter holding the element count
      * @param elementBits bits per element (whole-byte sizes are {@code elementBytes * 8})
+     * @param aligned whether to additionally assert the segment is aligned to {@code elementBits / 8} bytes
      */
-    record VectorSegmentCheck(int segParamIndex, int countParamIndex, int elementBits) implements BoundsCheckModel {}
+    record VectorSegmentCheck(int segParamIndex, int countParamIndex, int elementBits, boolean aligned) implements BoundsCheckModel {}
 
     /**
      * 2D shape, from {@code @MatrixSegment}: the segment must be at least {@code rows * rowBytes}
      * bytes, where {@code rowBytes} is either a direct sibling parameter ({@link #hasDirectRowBytes()})
      * or {@code cols * elementBits / 8}. When {@link #hasRowPitchBytes()}, rows are strided/padded
      * rather than packed contiguously: the required size becomes {@code rows * rowPitchBytes} instead,
-     * and the processor additionally emits a check that {@code (rowPitchBytes < rowBytes)}.
+     * and the processor additionally emits a check that {@code (rowPitchBytes < rowBytes)}. When
+     * {@code aligned}, the processor additionally emits an {@code assert} that the segment's address
+     * is aligned to {@code elementBits / 8} bytes (only possible when {@code colsParamIndex >= 0}).
      *
      * @param segParamIndex index of the annotated {@code MemorySegment} parameter
      * @param rowsParamIndex index of the sibling parameter holding the row count
@@ -61,6 +65,7 @@ public sealed interface BoundsCheckModel {
      *        bytes, or {@code -1} when {@code colsParamIndex}/{@code elementBits} are used instead
      * @param rowPitchBytesParamIndex index of the sibling parameter holding the actual per-row
      *        stride in bytes, or {@code -1} when rows are packed contiguously (no padding)
+     * @param aligned whether to additionally assert the segment is aligned to {@code elementBits / 8} bytes
      */
     record MatrixSegmentCheck(
         int segParamIndex,
@@ -68,7 +73,8 @@ public sealed interface BoundsCheckModel {
         int colsParamIndex,
         int elementBits,
         int rowBytesParamIndex,
-        int rowPitchBytesParamIndex
+        int rowPitchBytesParamIndex,
+        boolean aligned
     ) implements BoundsCheckModel {
 
         /** True if the row size comes from a direct byte-count sibling parameter, not {@code cols * elementBits / 8}. */
@@ -190,7 +196,15 @@ public sealed interface BoundsCheckModel {
         if (elementBits < 0) {
             return null;
         }
-        return new VectorSegmentCheck(segParamIndex, countIndex, elementBits);
+        if (annotation.aligned() && annotation.elementBytes() == 0) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@VectorSegment.aligned on parameter [" + param.getSimpleName() + "] requires elementBytes",
+                param
+            );
+            return null;
+        }
+        return new VectorSegmentCheck(segParamIndex, countIndex, elementBits, annotation.aligned());
     }
 
     private static MatrixSegmentCheck resolveMatrixSegmentCheck(
@@ -233,9 +247,17 @@ public sealed interface BoundsCheckModel {
             if (annotation.elementBytes() != 0 || annotation.elementBits() != 0) {
                 messager.printMessage(
                     Kind.ERROR,
-                    "@MatrixSegment on parameter '"
+                    "@MatrixSegment on parameter ["
                         + param.getSimpleName()
-                        + "' cannot combine rowBytesParam with elementBytes/elementBits",
+                        + "] cannot combine rowBytesParam with elementBytes/elementBits",
+                    param
+                );
+                return null;
+            }
+            if (annotation.aligned()) {
+                messager.printMessage(
+                    Kind.ERROR,
+                    "@MatrixSegment.aligned on parameter [" + param.getSimpleName() + "] requires colsParam + elementBytes",
                     param
                 );
                 return null;
@@ -251,7 +273,7 @@ public sealed interface BoundsCheckModel {
             if (rowBytesIndex < 0) {
                 return null;
             }
-            return new MatrixSegmentCheck(segParamIndex, rowsIndex, -1, 0, rowBytesIndex, rowPitchBytesIndex);
+            return new MatrixSegmentCheck(segParamIndex, rowsIndex, -1, 0, rowBytesIndex, rowPitchBytesIndex, false);
         }
         int colsIndex = resolveCountParamIndex("@MatrixSegment.colsParam", annotation.colsParam(), param, params, paramTypes, messager);
         if (colsIndex < 0) {
@@ -261,7 +283,15 @@ public sealed interface BoundsCheckModel {
         if (elementBits < 0) {
             return null;
         }
-        return new MatrixSegmentCheck(segParamIndex, rowsIndex, colsIndex, elementBits, -1, rowPitchBytesIndex);
+        if (annotation.aligned() && annotation.elementBytes() == 0) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@MatrixSegment.aligned on parameter [" + param.getSimpleName() + "] requires elementBytes",
+                param
+            );
+            return null;
+        }
+        return new MatrixSegmentCheck(segParamIndex, rowsIndex, colsIndex, elementBits, -1, rowPitchBytesIndex, annotation.aligned());
     }
 
     /**

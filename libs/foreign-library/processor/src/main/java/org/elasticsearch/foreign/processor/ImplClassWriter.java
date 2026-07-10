@@ -32,6 +32,7 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegme
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegmentAdapter;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Object;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_String;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_boolean;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
@@ -69,8 +70,15 @@ class ImplClassWriter {
     private static final ClassDesc CD_Objects = ClassDesc.of("java.util.Objects");
     private static final ClassDesc CD_IllegalArgumentException = ClassDesc.of("java.lang.IllegalArgumentException");
 
+    /**
+     * Name of the synthetic field holding the negated result of {@code Class.desiredAssertionStatus()},
+     * mirroring javac's own convention for source-level {@code assert} statements.
+     */
+    private static final String ASSERTIONS_DISABLED_FIELD = "$assertionsDisabled";
+
     private static final MethodTypeDesc MTD_byteSize = MethodTypeDesc.of(CD_long);
     private static final MethodTypeDesc MTD_checkFromIndexSize = MethodTypeDesc.of(CD_long, CD_long, CD_long, CD_long);
+    private static final MethodTypeDesc MTD_desiredAssertionStatus = MethodTypeDesc.of(CD_boolean);
     private static final MethodTypeDesc MTD_FunctionDescriptor_ofVoid = MethodTypeDesc.of(CD_FunctionDescriptor, CD_MemoryLayoutArray);
     private static final MethodTypeDesc MTD_FunctionDescriptor_of = MethodTypeDesc.of(
         CD_FunctionDescriptor,
@@ -124,11 +132,19 @@ class ImplClassWriter {
                 );
             }
 
-            // <clinit>: load the library and initialize each MethodHandle field
+            // Backs the `assert`s emitted for @VectorSegment/@MatrixSegment(aligned = true) checks.
+            cb.withField(
+                ASSERTIONS_DISABLED_FIELD,
+                CD_boolean,
+                fb -> fb.withFlags(AccessFlag.PRIVATE, AccessFlag.STATIC, AccessFlag.FINAL)
+            );
+
+            // <clinit>: load the library, resolve the assertions flag, and initialize each MethodHandle field
             cb.withMethodBody("<clinit>", MethodTypeDesc.of(CD_void), ClassFile.ACC_STATIC, clinit -> {
                 if (model.libraryName().isEmpty() == false) {
                     emitLoadLibrary(clinit, model.libraryName());
                 }
+                emitAssertionsDisabledInit(clinit, generatedDesc);
                 for (var nm : nativeMethods) {
                     emitMhFieldInit(clinit, generatedDesc, nm);
                 }
@@ -160,6 +176,24 @@ class ImplClassWriter {
     private static void emitLoadLibrary(CodeBuilder cb, String libName) {
         cb.ldc(libName);
         cb.invokestatic(CD_LoaderHelper, "loadLibrary", MethodTypeDesc.of(CD_void, CD_String));
+    }
+
+    /**
+     * Initializes {@link #ASSERTIONS_DISABLED_FIELD} exactly as javac does for a source-level
+     * {@code assert} statement — {@code $assertionsDisabled = !GeneratedClass.class.desiredAssertionStatus();}
+     */
+    private static void emitAssertionsDisabledInit(CodeBuilder cb, ClassDesc generatedDesc) {
+        cb.ldc(generatedDesc);
+        cb.invokevirtual(CD_Class, "desiredAssertionStatus", MTD_desiredAssertionStatus);
+        var enabled = cb.newLabel();
+        var stored = cb.newLabel();
+        cb.ifne(enabled); // desiredAssertionStatus() true -> assertions enabled
+        cb.iconst_1(); // disabled = true
+        cb.goto_(stored);
+        cb.labelBinding(enabled);
+        cb.iconst_0(); // disabled = false
+        cb.labelBinding(stored);
+        cb.putstatic(generatedDesc, ASSERTIONS_DISABLED_FIELD, CD_boolean);
     }
 
     /**
@@ -228,7 +262,7 @@ class ImplClassWriter {
 
     private static void emitNativeFunctionMethod(ClassBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
         cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm), ClassFile.ACC_PUBLIC, code -> {
-            emitBoundsChecks(code, nm);
+            emitBoundsChecks(code, generatedDesc, nm);
             boolean hasStringParams = nm.paramTypes().contains(NativeType.STRING);
             if (hasStringParams) {
                 emitNativeFunctionMethodWithStringParams(code, generatedDesc, nm);
@@ -254,13 +288,13 @@ class ImplClassWriter {
      * the very top of the method body — before the try block, so a failing check propagates its own
      * {@link IndexOutOfBoundsException} rather than being wrapped in {@link AssertionError}.
      */
-    private static void emitBoundsChecks(CodeBuilder cb, MethodModel nm) {
+    private static void emitBoundsChecks(CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
         List<NativeType> paramTypes = nm.paramTypes();
         int[] slots = computeParamSlots(paramTypes);
         for (BoundsCheckModel check : nm.boundsChecks()) {
             switch (check) {
-                case BoundsCheckModel.VectorSegmentCheck v -> emitVectorSegmentCheck(cb, paramTypes, slots, v);
-                case BoundsCheckModel.MatrixSegmentCheck m -> emitMatrixSegmentCheck(cb, paramTypes, slots, m);
+                case BoundsCheckModel.VectorSegmentCheck v -> emitVectorSegmentCheck(cb, generatedDesc, paramTypes, slots, v);
+                case BoundsCheckModel.MatrixSegmentCheck m -> emitMatrixSegmentCheck(cb, generatedDesc, paramTypes, slots, m);
             }
         }
     }
@@ -276,9 +310,13 @@ class ImplClassWriter {
         return slots;
     }
 
-    /** Emits {@code Objects.checkFromIndexSize(0L, count * elementBits / 8, segment.byteSize())}. */
+    /**
+     * Emits {@code Objects.checkFromIndexSize(0L, count * elementBits / 8, segment.byteSize())}, plus
+     * an alignment {@code assert} when {@link BoundsCheckModel.VectorSegmentCheck#aligned()}.
+     */
     private static void emitVectorSegmentCheck(
         CodeBuilder cb,
+        ClassDesc generatedDesc,
         List<NativeType> paramTypes,
         int[] slots,
         BoundsCheckModel.VectorSegmentCheck check
@@ -290,16 +328,21 @@ class ImplClassWriter {
         cb.ldc(8L);
         cb.ldiv();
         emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
+        if (check.aligned()) {
+            emitAlignmentAssert(cb, generatedDesc, slots[check.segParamIndex()], check.elementBits() / 8);
+        }
     }
 
     /**
      * Emits code checking {@code segment.byteSize() < rows * rowBytes} (or
-     * {@code rows * rowPitchBytes} when {@link BoundsCheckModel.MatrixSegmentCheck#hasRowPitchBytes()}).
-     * When the row size comes from {@code cols}/{@code elementBits}, the whole
-     * {@code rows * cols * elementBits} product is computed before the single {@code / 8}.
+     * {@code rows * rowPitchBytes} when {@link BoundsCheckModel.MatrixSegmentCheck#hasRowPitchBytes()}),
+     * plus an alignment {@code assert} when {@link BoundsCheckModel.MatrixSegmentCheck#aligned()}. When
+     * the row size comes from {@code cols}/{@code elementBits}, the whole {@code rows * cols * elementBits}
+     * product is computed before the single {@code / 8}.
      */
     private static void emitMatrixSegmentCheck(
         CodeBuilder cb,
+        ClassDesc generatedDesc,
         List<NativeType> paramTypes,
         int[] slots,
         BoundsCheckModel.MatrixSegmentCheck check
@@ -324,6 +367,9 @@ class ImplClassWriter {
             cb.ldiv();
         }
         emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
+        if (check.aligned()) {
+            emitAlignmentAssert(cb, generatedDesc, slots[check.segParamIndex()], check.elementBits() / 8);
+        }
     }
 
     /** Emits {@code if (rowPitchBytes < rowBytes) throw new IllegalArgumentException(...)}. Stack-neutral. */
@@ -374,6 +420,31 @@ class ImplClassWriter {
         cb.invokeinterface(CD_MemorySegment, "byteSize", MTD_byteSize);
         cb.invokestatic(CD_Objects, "checkFromIndexSize", MTD_checkFromIndexSize);
         cb.pop2();
+    }
+
+    /**
+     * Emits {@code assert segment.address() % alignment == 0}, gated by
+     * {@link #ASSERTIONS_DISABLED_FIELD} exactly like a source-level {@code assert} statement would
+     * compile — skipped entirely under normal execution, zero production cost, and throwing
+     * {@link AssertionError} only when assertions are enabled and the segment is misaligned.
+     */
+    private static void emitAlignmentAssert(CodeBuilder cb, ClassDesc generatedDesc, int segSlot, int alignment) {
+        var skip = cb.newLabel();
+        cb.getstatic(generatedDesc, ASSERTIONS_DISABLED_FIELD, CD_boolean);
+        cb.ifne(skip);
+        cb.aload(segSlot);
+        cb.invokeinterface(CD_MemorySegment, "address", MethodTypeDesc.of(CD_long));
+        cb.ldc((long) alignment);
+        cb.lrem();
+        cb.lconst_0();
+        cb.lcmp();
+        cb.ifeq(skip); // remainder == 0 -> aligned, skip the throw
+        cb.new_(CD_AssertionError);
+        cb.dup();
+        cb.ldc("segment not aligned to " + alignment + "-byte boundary");
+        cb.invokespecial(CD_AssertionError, "<init>", MethodTypeDesc.of(CD_void, CD_Object));
+        cb.athrow();
+        cb.labelBinding(skip);
     }
 
     /** Loads an {@code int}/{@code long} parameter and widens it to {@code long} on the stack. */

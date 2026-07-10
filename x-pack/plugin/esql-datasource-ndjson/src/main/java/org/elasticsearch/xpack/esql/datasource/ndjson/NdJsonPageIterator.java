@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -45,6 +46,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -215,7 +217,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         long statsBaseOffset,
         long statsStripeSize,
         boolean statsFileFinal,
-        StripeColumnScope statsColumnScope
+        StripeColumnScope statsColumnScope,
+        @Nullable Consumer<String> warningSink
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         Check.isTrue(counters != null, "counters must not be null");
@@ -251,7 +254,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // mutually exclusive. The fold-in is kept as a correctness invariant for any future overlap.
         this.statsStripeBaseOffset = statsBaseOffset + skipped;
         if (trimLastPartialLine) {
-            inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation, recordSplitter);
+            inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation, recordSplitter, warningSink);
         }
         this.rowLimit = rowLimit;
         // ALL scope harvests min/max/null for EVERY file column, not just the projected ones. The output
@@ -306,7 +309,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 this.sourceLocation,
                 counters,
                 declaredDateFormats,
-                declaredTypeColumns
+                declaredTypeColumns,
+                warningSink
             );
         } else {
             // Streaming/fallback path (object too large for the fast path, unknown length, or a
@@ -328,7 +332,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 this.sourceLocation,
                 counters,
                 declaredDateFormats,
-                declaredTypeColumns
+                declaredTypeColumns,
+                warningSink
             );
         }
         // _rowPosition / _file.record_ref substrate: file-global per-record start offset.
@@ -785,7 +790,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             in,
             errorPolicy,
             sourceLocation,
-            new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES)
+            new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
+            null
         );
     }
 
@@ -795,6 +801,16 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         String sourceLocation,
         NdJsonRecordSplitter recordSplitter
     ) {
-        return new TrimLastPartialLineInputStream(in, errorPolicy, sourceLocation, recordSplitter);
+        return trimLastPartialLine(in, errorPolicy, sourceLocation, recordSplitter, null);
+    }
+
+    static InputStream trimLastPartialLine(
+        InputStream in,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonRecordSplitter recordSplitter,
+        @Nullable Consumer<String> warningSink
+    ) {
+        return new TrimLastPartialLineInputStream(in, errorPolicy, sourceLocation, recordSplitter, warningSink);
     }
 }

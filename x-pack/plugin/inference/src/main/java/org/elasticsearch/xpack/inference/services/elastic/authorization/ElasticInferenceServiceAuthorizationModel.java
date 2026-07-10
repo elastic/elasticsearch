@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.common.parser.DateParser;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
@@ -59,20 +60,27 @@ public class ElasticInferenceServiceAuthorizationModel {
     // public because it's used in tests outside the package
     public static ElasticInferenceServiceAuthorizationModel of(
         ElasticInferenceServiceAuthorizationResponseEntity responseEntity,
-        String baseEisUrl
+        String baseEisUrl,
+        CompletionCompatibilityService completionCompatibilityService
     ) {
         var components = new ElasticInferenceServiceComponents(baseEisUrl);
-        return createInternal(responseEntity.authorizedEndpoints(), responseEntity.removedEndpoints(), components);
+        return createInternal(
+            responseEntity.authorizedEndpoints(),
+            responseEntity.removedEndpoints(),
+            components,
+            completionCompatibilityService
+        );
     }
 
     private static ElasticInferenceServiceAuthorizationModel createInternal(
         List<ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint> responseEndpoints,
         Set<String> removedEndpoints,
-        ElasticInferenceServiceComponents components
+        ElasticInferenceServiceComponents components,
+        CompletionCompatibilityService completionCompatibilityService
     ) {
         var validEndpoints = new ArrayList<ElasticInferenceServiceModel>();
         for (var authorizedEndpoint : responseEndpoints) {
-            var model = createModel(authorizedEndpoint, components);
+            var model = createModel(authorizedEndpoint, components, completionCompatibilityService);
             if (model != null) {
                 validEndpoints.add(model);
             }
@@ -83,7 +91,8 @@ public class ElasticInferenceServiceAuthorizationModel {
 
     private static ElasticInferenceServiceModel createModel(
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
-        ElasticInferenceServiceComponents components
+        ElasticInferenceServiceComponents components,
+        CompletionCompatibilityService completionCompatibilityService
     ) {
         try {
             var taskType = getTaskType(authorizedEndpoint.taskType().elasticsearchTaskType());
@@ -98,8 +107,20 @@ public class ElasticInferenceServiceAuthorizationModel {
             }
 
             return switch (taskType) {
-                case CHAT_COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.CHAT_COMPLETION, components, endpointMetadata);
-                case COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.COMPLETION, components, endpointMetadata);
+                case CHAT_COMPLETION -> createCompletionModel(
+                    authorizedEndpoint,
+                    TaskType.CHAT_COMPLETION,
+                    components,
+                    endpointMetadata,
+                    completionCompatibilityService
+                );
+                case COMPLETION -> createCompletionModel(
+                    authorizedEndpoint,
+                    TaskType.COMPLETION,
+                    components,
+                    endpointMetadata,
+                    completionCompatibilityService
+                );
                 case SPARSE_EMBEDDING -> createSparseTextEmbeddingsModel(authorizedEndpoint, components, endpointMetadata);
                 case TEXT_EMBEDDING, EMBEDDING -> createDenseEmbeddingsModel(authorizedEndpoint, components, taskType, endpointMetadata);
                 case RERANK -> createRerankModel(authorizedEndpoint, components, endpointMetadata);
@@ -168,15 +189,49 @@ public class ElasticInferenceServiceAuthorizationModel {
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
         TaskType taskType,
         ElasticInferenceServiceComponents components,
-        EndpointMetadata endpointMetadata
+        EndpointMetadata endpointMetadata,
+        CompletionCompatibilityService completionCompatibilityService
     ) {
+        var config = getConfigurationOrEmpty(authorizedEndpoint);
+        validateCompletionAuthorizedEndpoint(config, taskType);
+
+        var taskSettings = completionCompatibilityService.getTaskSettingsStrategy(taskType).createTaskSettings(config.reasoning());
+        // This indicates that the cluster does not support reasoning yet (needs to finish upgrading). We'll skip this endpoint and let
+        // a future poll retrieve it after upgrade is complete.
+        if (taskSettings.isEmpty()) {
+            logger.atInfo()
+                .log(
+                    "Skipping authorized endpoint id [{}] with task type [{}] because reasoning is not supported by all nodes "
+                        + "in the cluster",
+                    authorizedEndpoint.id(),
+                    taskType
+                );
+            return null;
+        }
+
         return new ElasticInferenceServiceCompletionModel(
             authorizedEndpoint.id(),
             taskType,
             new ElasticInferenceServiceCompletionServiceSettings(authorizedEndpoint.modelName()),
             components,
-            endpointMetadata
+            endpointMetadata,
+            taskSettings.get()
         );
+    }
+
+    private static void validateCompletionAuthorizedEndpoint(
+        ElasticInferenceServiceAuthorizationResponseEntity.Configuration config,
+        TaskType taskType
+    ) {
+        if (config.reasoning() != null && taskType != TaskType.CHAT_COMPLETION) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "Reasoning is only supported for task type [%s] but was supplied for an endpoint with task type [%s]",
+                    TaskType.CHAT_COMPLETION,
+                    taskType
+                )
+            );
+        }
     }
 
     private static ElasticInferenceServiceSparseEmbeddingsModel createSparseTextEmbeddingsModel(

@@ -35,13 +35,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.lessThan;
+
 public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     private static Settings defaultSettings() {
+        return schemaTtlSettings("5m");
+    }
+
+    /** {@link #defaultSettings()} with a chosen schema TTL — shrunk by the expiry-sweep tests. */
+    private static Settings schemaTtlSettings(String schemaTtl) {
         return Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.schema.ttl", schemaTtl)
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
     }
@@ -567,6 +574,157 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test for the scale mechanism behind the ndjson warm-COUNT loss seen at ClickBench-100M scale:
+     * a cold multi-file scan LONGER than the schema TTL (multi-minute external scans vs the 5m default)
+     * reconciles into a cache whose entries for the scanned glob have ALL expired. Expired entries are
+     * still forEach-visible, but the first commit's {@code put()} prunes every expired entry from the
+     * LRU tail; pre-fix, files #2..N's deltas then matched nothing and were silently dropped — the
+     * multi-file whole-source fold is all-or-nothing, so the warm {@code COUNT(*)} re-scanned the
+     * entire source. Single-file sources self-healed (no sibling entry to sweep), which is exactly the
+     * bench signature: every 1file cell short-circuited even at cold ≫ TTL while multi-file cells with
+     * cold > TTL full-re-scanned. The TTL here is shrunk so the seeded entries are expired by reconcile
+     * time, standing in for "the scan outlived the TTL".
+     */
+    public void testMultiFileStripeCommitSurvivesSchemaTtlExpiry() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("500ms"))) {
+            long mtime = 1000L;
+            String pathA = "s3://bucket/data/hits_00.ndjson";
+            String pathB = "s3://bucket/data/hits_01.ndjson";
+            SchemaCacheKey keyA = SchemaCacheKey.build(pathA, mtime, ".ndjson", Map.of("format", "ndjson"));
+            SchemaCacheKey keyB = SchemaCacheKey.build(pathB, mtime, ".ndjson", Map.of("format", "ndjson"));
+            seedSchemaCache(service, keyA, pathA, "fp");
+            seedSchemaCache(service, keyB, pathB, "fp");
+
+            // Let both entries expire (but remain physically cached — expiry evicts lazily), exactly
+            // the state a scan longer than the TTL leaves behind at reconcile time.
+            Thread.sleep(1200);
+
+            Map<String, List<Map<String, Object>>> contributions = new LinkedHashMap<>();
+            contributions.put(pathA, List.of(stripeFragment(mtime, "fp", 100L, 1024L, 0, 0, 100, true, true, true)));
+            contributions.put(pathB, List.of(stripeFragment(mtime, "fp", 200L, 1024L, 0, 0, 100, true, true, true)));
+            service.reconcileSourceStatsFromContributions(contributions);
+
+            // BOTH files must retain their committed row counts: losing either forfeits the whole
+            // source's warm COUNT(*) (aggregateFileStatistics is all-or-nothing across the glob).
+            assertEquals("first-committed file must keep its stats", 100L, schemaRowCount(service, pathA));
+            assertEquals("sibling file's delta must survive the expiry sweep", 200L, schemaRowCount(service, pathB));
+        }
+    }
+
+    /** Whole-file-contribution twin of {@link #testMultiFileStripeCommitSurvivesSchemaTtlExpiry}. */
+    public void testMultiFileWholeFileCommitSurvivesSchemaTtlExpiry() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("500ms"))) {
+            long mtime = 1000L;
+            String pathA = "s3://bucket/data/hits_00.csv";
+            String pathB = "s3://bucket/data/hits_01.csv";
+            SchemaCacheKey keyA = SchemaCacheKey.build(pathA, mtime, ".csv", Map.of("format", "csv"));
+            SchemaCacheKey keyB = SchemaCacheKey.build(pathB, mtime, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, keyA, pathA, "fp");
+            seedSchemaCache(service, keyB, pathB, "fp");
+
+            Thread.sleep(1200);
+
+            Map<String, List<Map<String, Object>>> contributions = new LinkedHashMap<>();
+            contributions.put(pathA, List.of(wholeFileStats(mtime, "fp", 100L)));
+            contributions.put(pathB, List.of(wholeFileStats(mtime, "fp", 200L)));
+            service.reconcileSourceStatsFromContributions(contributions);
+
+            assertEquals("first-committed file must keep its stats", 100L, schemaRowCount(service, pathA));
+            assertEquals("sibling file's whole-file stats must survive the expiry sweep", 200L, schemaRowCount(service, pathB));
+        }
+    }
+
+    /**
+     * A single-file reconcile whose sole entry has expired must still commit its stats. There is no sibling
+     * to sweep, so the pre-write snapshot is never consulted — the lone path's live sweep finds the
+     * expired-but-still-visible entry and revives it — and {@link ExternalSourceCacheService#snapshotEntriesByPath}
+     * skips the whole-cache forEach entirely. This guards that the skip is behavior-preserving for the common
+     * single-file case (the one that would otherwise pay a doubled full-cache scan).
+     */
+    public void testSingleFileStripeCommitSurvivesSchemaTtlExpiry() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("500ms"))) {
+            long mtime = 1000L;
+            String path = "s3://bucket/data/hits_00.ndjson";
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
+            seedSchemaCache(service, key, path, "fp");
+
+            // Let the entry expire (but remain physically cached — expiry evicts lazily).
+            Thread.sleep(1200);
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(path, List.of(stripeFragment(mtime, "fp", 100L, 1024L, 0, 0, 100, true, true, true)))
+            );
+
+            assertEquals("single-file stats must survive the expiry, snapshot-skip notwithstanding", 100L, schemaRowCount(service, path));
+        }
+    }
+
+    /**
+     * The same {@code (path, mtime, fingerprint)} can live under SEVERAL cache keys — endpoint/region are
+     * {@link SchemaCacheKey} components but not config-fingerprint inputs — and a commit applies its delta to
+     * every one of them. A sibling path's earlier commit can sweep ONE twin (the older, expired one) while the
+     * other is still live; the snapshot recovery must be per key, not all-or-nothing on the live sweep, or the
+     * swept twin's delta is silently lost. Staggered seeding makes the sweep partial deterministically: the
+     * first twin outlives the TTL by reconcile time, the second does not. (If a CI stall expires the second
+     * twin too, both are recovered from the snapshot and the test still passes — it degrades to the
+     * all-swept case rather than false-failing. The one stall that WOULD false-fail is between the two
+     * seeds: a second seed landing past the first twin's TTL sweeps the first twin at seed time, before
+     * any snapshot exists to recover it from. The 3s TTL keeps that window a &gt;2.3s stall inside a
+     * two-statement gap.)
+     */
+    public void testPartialTwinSweepRecoversSweptTwinEntry() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("3s"))) {
+            long mtime = 1000L;
+            String pathA = "s3://bucket/data/hits_00.csv";
+            String pathB = "s3://bucket/data/hits_01.csv";
+            SchemaCacheKey keyA = SchemaCacheKey.build(pathA, mtime, ".csv", Map.of("format", "csv"));
+            SchemaCacheKey twinB1 = SchemaCacheKey.build(pathB, mtime, ".csv", Map.of("format", "csv", "endpoint", "https://e1"));
+            SchemaCacheKey twinB2 = SchemaCacheKey.build(pathB, mtime, ".csv", Map.of("format", "csv", "endpoint", "https://e2"));
+            seedSchemaCache(service, keyA, pathA, "fp");
+            seedSchemaCache(service, twinB1, pathB, "fp");
+            Thread.sleep(700);
+            seedSchemaCache(service, twinB2, pathB, "fp"); // still inside the TTL: seeding must not sweep the first twin
+            Thread.sleep(2500); // now twinB1 and keyA have expired; twinB2 has not
+
+            // Order matters and is honored: pathA must commit before pathB so pathA's put sweeps the expired
+            // twinB1 from the LRU tail BEFORE pathB is collected (that is the partial sweep under test). The
+            // reconcile commits whole-file entries in this LinkedHashMap's insertion order (see the
+            // LinkedHashMap in reconcileSourceStatsFromContributions), so pathA-before-pathB is deterministic
+            // here, not a filename-hashCode accident.
+            Map<String, List<Map<String, Object>>> contributions = new LinkedHashMap<>();
+            contributions.put(pathA, List.of(wholeFileStats(mtime, "fp", 100L)));
+            contributions.put(pathB, List.of(wholeFileStats(mtime, "fp", 200L)));
+            service.reconcileSourceStatsFromContributions(contributions);
+
+            assertEquals("first-committed file must keep its stats", 100L, schemaRowCount(service, keyA));
+            assertEquals("live twin must receive the delta", 200L, schemaRowCount(service, twinB2));
+            assertEquals("twin swept by the sibling commit must be recovered per key", 200L, schemaRowCount(service, twinB1));
+        }
+    }
+
+    /** The committed row count of {@code path}'s entry, read expiry-blind via forEach (get() would hide expired entries). */
+    private static Object schemaRowCount(ExternalSourceCacheService service, String path) {
+        AtomicReference<Object> found = new AtomicReference<>();
+        service.schemaCache().forEach((k, e) -> {
+            if (path.equals(k.canonicalPath())) {
+                found.set(e.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            }
+        });
+        return found.get();
+    }
+
+    /** Key-precise variant of {@link #schemaRowCount(ExternalSourceCacheService, String)} for paths cached under twin keys. */
+    private static Object schemaRowCount(ExternalSourceCacheService service, SchemaCacheKey key) {
+        AtomicReference<Object> found = new AtomicReference<>();
+        service.schemaCache().forEach((k, e) -> {
+            if (key.equals(k)) {
+                found.set(e.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            }
+        });
+        return found.get();
+    }
+
     public void testReconcileSingleCompleteStripe() throws Exception {
         // One chunk fully covers stripe 0 to EOF: complete, marker = 0, whole-file fold = 100.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
@@ -581,7 +739,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
             assertEquals(100L, enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
-            assertEquals(0L, enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            // Once the 0..K fold is complete the per-stripe bookkeeping is compacted away (it has served its
+            // purpose) so the entry weight stays O(1) — see ExternalSourceCacheService#clearStripeState.
+            assertNull(
+                "stripe bookkeeping compacted after a complete fold",
+                enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            );
         }
     }
 
@@ -724,7 +887,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 100L,
                 enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
-            assertEquals(1L, enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            assertNull(
+                "stripe bookkeeping compacted after a complete fold",
+                enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            );
         }
     }
 
@@ -865,6 +1031,34 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             ExternalSourceCacheService.coerceColumnStatsToResolvedTypes(big, names, types, true)
                 .containsKey(SourceStatisticsSerializer.columnMaxKey("l"))
         );
+    }
+
+    /**
+     * A NON-Number extremum on a numeric-typed column — cross-declaration garbage, e.g. a keyword min reconciled onto a
+     * column another dataset over the same file declares DOUBLE (the reconcile matches on path+mtime+config, never the
+     * declared type). It must be DROPPED and marked unservable so the serve safe-misses, never left in the map where
+     * {@code buildBlock}'s {@code (Number)} cast would {@code ClassCastException}. Holds on both the stripe path and the
+     * whole-file path — a non-Number extremum is never servable on a numeric column.
+     */
+    public void testCoerceColumnStatsToResolvedTypesDropsNonNumberOnNumericColumn() {
+        String[] names = { "v" };
+        DataType[] types = { DataType.DOUBLE };
+        for (boolean dropUnrepresentable : new boolean[] { false, true }) {
+            Map<String, Object> in = new LinkedHashMap<>();
+            in.put(SourceStatisticsSerializer.columnMinKey("v"), "alpha"); // keyword min landed on a DOUBLE column
+            in.put(SourceStatisticsSerializer.columnMaxKey("v"), 42.0);    // a valid Double max — must survive untouched
+            Map<String, Object> out = ExternalSourceCacheService.coerceColumnStatsToResolvedTypes(in, names, types, dropUnrepresentable);
+            assertFalse(
+                "non-Number min must be dropped (dropUnrepresentable=" + dropUnrepresentable + ")",
+                out.containsKey(SourceStatisticsSerializer.columnMinKey("v"))
+            );
+            assertEquals(
+                "and marked unservable so the serve safe-misses",
+                Boolean.TRUE,
+                out.get(SourceStatisticsSerializer.columnMinUnservableKey("v"))
+            );
+            assertEquals("a valid Double max is left intact", Double.valueOf(42.0), out.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        }
     }
 
     public void testColumnValueCountFoldsAcrossStripesAsSum() throws Exception {
@@ -1050,6 +1244,50 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test for the second, TTL-independent mechanism of the ndjson warm-COUNT loss: a many-stripe file's
+     * entry must NOT keep its per-stripe sub-entries once the whole-file 0..K fold is complete. Retaining them
+     * makes the entry weight O(stripe count); a multi-file glob of such entries overflows the schema-cache weight
+     * budget, the LRU evicts already-committed sibling entries, and the all-or-nothing multi-file warm serve
+     * re-scans. After a complete fold the entry must hold ONLY the whole-file _stats.* (no _stats.stripe.*),
+     * keeping its weight O(1) and its estimatedBytes small regardless of stripe count.
+     */
+    public void testManyStripeEntryCompactedToConstantWeightAfterCompleteFold() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/big.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
+            seedSchemaCache(service, key, path, "fp");
+
+            int stripes = 500;
+            long grid = 100L;
+            List<Map<String, Object>> fragments = new ArrayList<>(stripes);
+            for (int k = 0; k < stripes; k++) {
+                boolean last = k == stripes - 1;
+                fragments.add(stripeFragment(mtime, "fp", 3L, grid, k, k * grid, (k + 1) * grid, true, true, last));
+            }
+            service.reconcileSourceStatsFromContributions(Map.of(path, fragments));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "whole-file fold sums every stripe",
+                (long) stripes * 3L,
+                enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            long stripeSubEntries = enriched.safeMetadata()
+                .keySet()
+                .stream()
+                .filter(kk -> kk.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX))
+                .count();
+            assertEquals("no per-stripe sub-entries retained after a complete fold", 0L, stripeSubEntries);
+            assertNull("stripe EOF marker compacted", enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            assertNull("stripe grid stamp compacted", enriched.safeMetadata().get(ExternalStats.STRIPE_GRID_KEY));
+            // The entry weight must not scale with stripe count: 500 stripes must weigh no more than a small
+            // constant over a fold-only entry (a retained-stripe entry would be tens of KB heavier).
+            assertThat("compacted entry weight must be O(1), not O(stripe count)", enriched.estimatedBytes(), lessThan(2_000L));
+        }
+    }
+
     public void testReconcileEmptyStripeFromOversizedRecord() throws Exception {
         // A record larger than the grid skips an ordinal entirely — the reader emits an explicit
         // zero-length empty fragment for it (atStripeStart & atStripeEnd). The whole-file fold counts
@@ -1075,7 +1313,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 10L,
                 enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
-            assertEquals(2L, enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            assertNull(
+                "stripe bookkeeping compacted after a complete fold",
+                enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            );
         }
     }
 
@@ -1132,7 +1373,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 stripes * rowsPerStripe,
                 enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
-            assertEquals((long) (stripes - 1), enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            assertNull(
+                "stripe bookkeeping compacted after a complete fold",
+                enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            );
         }
     }
 

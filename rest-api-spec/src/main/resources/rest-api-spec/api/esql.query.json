@@ -27,12 +27,13 @@
     "params": {
       "format": {
         "type": "enum",
-        "description": "A short version of the Accept header, e.g. json, yaml.\n\n`csv`, `tsv`, and `txt` formats will return results in a tabular format, excluding other metadata fields from the response.",
+        "description": "A short version of the Accept header, e.g. json, yaml.\n\n`csv`, `tsv`, `txt`, and `md` formats will return results in a tabular format, excluding other metadata fields from the response.",
         "options": [
           "csv",
           "json",
           "tsv",
           "txt",
+          "md",
           "yaml",
           "cbor",
           "smile",

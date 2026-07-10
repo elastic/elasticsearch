@@ -18,7 +18,7 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.common.lucene.store.DirectAccessIndexInput;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -57,7 +57,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data, NativeAccess.instance());
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data);
                 assertThat(in, instanceOf(DirectAccessInput.class));
                 verifyWithSlice(in, data);
             }
@@ -123,7 +123,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data, NativeAccess.instance());
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data);
                 new MemorySegmentES92NativeInt7VectorsScorer(in, 64, 16);
             }
         }
@@ -158,7 +158,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data, NativeAccess.instance());
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data);
                 assertThat(in, instanceOf(DirectAccessInput.class));
                 verifyWithSliceAddresses(in, data, 64);
             }

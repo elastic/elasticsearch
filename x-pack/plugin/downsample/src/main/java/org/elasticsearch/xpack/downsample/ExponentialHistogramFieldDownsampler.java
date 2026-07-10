@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogramHolder;
@@ -106,8 +107,12 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
             throw new UnsupportedOperationException("This producer should never be called without timestamps");
         }
 
-        void collect(ExponentialHistogramValuesReader docValues, long[] timestamps, IntArrayList docIdBuffer, Temporality temporality)
-            throws IOException {
+        void collect(
+            ExponentialHistogramValuesReader docValues,
+            LongArrayList timestampBuffer,
+            IntArrayList docIdBuffer,
+            Temporality temporality
+        ) throws IOException {
             assert assertTemporality(temporality) : "delegate should change only after a tsid reset";
             if (temporalityCollector == null) {
                 temporalityCollector = switch (temporality) {
@@ -115,7 +120,7 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
                     case CUMULATIVE -> cumulativeCollector;
                 };
             }
-            assert timestamps.length == docIdBuffer.size() : "timestamps and docIdBuffer should have the same size";
+            assert timestampBuffer.size() == docIdBuffer.size() : "timestamps and docIdBuffer should have the same size";
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
                 if (docValues.advanceExact(docId) == false) {
@@ -123,7 +128,7 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
                 }
                 state = State.IN_PROGRESS;
                 ExponentialHistogram value = docValues.histogramValue();
-                temporalityCollector.collect(value, timestamps[i]);
+                temporalityCollector.collect(value, timestampBuffer.get(i));
             }
         }
 

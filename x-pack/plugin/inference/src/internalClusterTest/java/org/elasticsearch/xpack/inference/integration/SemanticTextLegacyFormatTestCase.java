@@ -223,8 +223,11 @@ public abstract class SemanticTextLegacyFormatTestCase extends ESIntegTestCase {
             MappingMetadata mappingMetadata = mappingsResponse.getMappings().get(index);
             assertThat(mappingMetadata, notNullValue());
             Map<String, Object> properties = (Map<String, Object>) mappingMetadata.getSourceAsMap().get("properties");
+            assertThat("properties should not be null", properties, notNullValue());
             Map<String, Object> fieldMapping = (Map<String, Object>) properties.get(fieldName);
+            assertThat("field mapping for [" + fieldName + "] should not be null", fieldMapping, notNullValue());
             Map<String, Object> modelSettings = (Map<String, Object>) fieldMapping.get("model_settings");
+            assertThat("model_settings should not be null", modelSettings, notNullValue());
             assertThat("model_settings.task_type", modelSettings.get("task_type"), notNullValue());
             assertThat("model_settings.dimensions", modelSettings.get("dimensions"), notNullValue());
             assertThat("model_settings.similarity", modelSettings.get("similarity"), notNullValue());

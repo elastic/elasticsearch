@@ -533,9 +533,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     // -----------------------------------------------------------------------
     // on_failure
-    //
-    // NOTE: on_failure is parsed and stored but not yet enforced anywhere, so these tests only cover parsing, defaulting
-    // and serialization - not runtime behavior.
     // -----------------------------------------------------------------------
 
     public void testOnFailureRejectedInNonColumnarMode() throws Exception {
@@ -630,10 +627,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         assertThat(mapper.docValuesParameters().onFailure(), equalTo(FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE));
     }
 
-    // -----------------------------------------------------------------------
-    // on_failure enforcement (DocumentParserContext.enforceSingleValue)
-    // -----------------------------------------------------------------------
-
     /**
      * With {@code on_failure: ignore}, a document that violates {@code multi_value=false} is accepted instead of rejected: the second
      * value is redirected to the field's failure column and the field is recorded in {@code _ignored}, rather than the whole document
@@ -655,7 +648,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         // must not throw, unlike the on_failure=fail (default) case covered by testIndexSettingFalseEnforcesRejectionOfMultipleValues
         ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
 
-        // exactly the first value ("a") is indexed normally; the second ("b") must not also land in the main field
+        // the first value ("a") is indexed normally; the second ("b") must not also land in the main field
         List<IndexableField> mainField = doc.rootDoc().getFields("field");
         assertThat(mainField, hasSize(1));
         assertThat(mainField.get(0).binaryValue().utf8ToString(), equalTo("a"));
@@ -664,7 +657,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         List<IndexableField> failureColumn = doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX);
         assertThat(failureColumn.isEmpty(), equalTo(false));
 
-        // the field is recorded as ignored on this document, same signal used by ignore_above/ignore_malformed
+        // the field is recorded as ignored on this document
         assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())));
     }
 
@@ -708,7 +701,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     /**
      * With {@code on_failure: ignore}, a document missing a {@code nullability=false} field is accepted instead of rejected: the field is
-     * just marked ignored (there is no parser value to write to a failure column for an absent field).
+     * just marked ignored.
      */
     public void testOnFailureIgnoreAcceptsMissingRequiredFieldInsteadOfThrowing() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();

@@ -12,7 +12,6 @@ package org.elasticsearch.common.lucene.search;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -191,14 +190,6 @@ public class AutomatonQueries {
         }
 
         return Operations.concatenate(automata);
-    }
-
-    protected static Automaton toCaseInsensitiveString(BytesRef br) {
-        return toCaseInsensitiveString(br.utf8ToString());
-    }
-
-    public static Automaton toCaseInsensitiveString(String s) {
-        return Automata.makeCaseInsensitiveString(s);
     }
 
     /**

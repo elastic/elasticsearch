@@ -57,61 +57,52 @@ public class AutomatonQueriesTests extends ESTestCase {
         // Kelvin sign (U+212A) should match K and k
         Automaton automaton = Automata.makeCaseInsensitiveChar(0x212A);
         ByteRunAutomaton runAutomaton = new ByteRunAutomaton(automaton);
-        assertTrue(runAutomaton.run(new BytesRef("\u212A").bytes, 0, new BytesRef("\u212A").length));
-        assertTrue(runAutomaton.run(new BytesRef("K").bytes, 0, new BytesRef("K").length));
-        assertTrue(runAutomaton.run(new BytesRef("k").bytes, 0, new BytesRef("k").length));
+        BytesRef br = new BytesRef("\u212A");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("K");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("k");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
 
         // K should also match Kelvin sign
         automaton = Automata.makeCaseInsensitiveChar('K');
         runAutomaton = new ByteRunAutomaton(automaton);
-        assertTrue(runAutomaton.run(new BytesRef("K").bytes, 0, new BytesRef("K").length));
-        assertTrue(runAutomaton.run(new BytesRef("k").bytes, 0, new BytesRef("k").length));
-        assertTrue(runAutomaton.run(new BytesRef("\u212A").bytes, 0, new BytesRef("\u212A").length));
+        br = new BytesRef("K");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("k");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("\u212A");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
 
         // Long S (U+017F) should match s and S
         automaton = Automata.makeCaseInsensitiveChar(0x017F);
         runAutomaton = new ByteRunAutomaton(automaton);
-        assertTrue(runAutomaton.run(new BytesRef("\u017F").bytes, 0, new BytesRef("\u017F").length));
-        assertTrue(runAutomaton.run(new BytesRef("s").bytes, 0, new BytesRef("s").length));
-        assertTrue(runAutomaton.run(new BytesRef("S").bytes, 0, new BytesRef("S").length));
+        br = new BytesRef("\u017F");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("s");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("S");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
 
         // Micro sign (U+00B5) should match Greek small letter mu (U+03BC) and Greek capital letter mu (U+039C)
         automaton = Automata.makeCaseInsensitiveChar(0x00B5);
         runAutomaton = new ByteRunAutomaton(automaton);
-        assertTrue(runAutomaton.run(new BytesRef("\u00B5").bytes, 0, new BytesRef("\u00B5").length));
-        assertTrue(runAutomaton.run(new BytesRef("\u03BC").bytes, 0, new BytesRef("\u03BC").length));
-        assertTrue(runAutomaton.run(new BytesRef("\u039C").bytes, 0, new BytesRef("\u039C").length));
+        br = new BytesRef("\u00B5");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("\u03BC");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef("\u039C");
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
     }
 
-    public void testToCaseInsensitiveString() {
+    public void testMakeCaseInsensitiveString() {
         String s = randomAlphaOfLengthBetween(10, 100);
-        Automaton automaton = AutomatonQueries.toCaseInsensitiveString(s);
+        Automaton automaton = Automata.makeCaseInsensitiveString(s);
         assertTrue(automaton.isDeterministic());
         ByteRunAutomaton runAutomaton = new ByteRunAutomaton(automaton);
         BytesRef br = new BytesRef(s);
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
         br = new BytesRef(randomBoolean() ? s.toLowerCase(Locale.ROOT) : s.toUpperCase(Locale.ROOT));
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-
-        // Unicode strings: both the original and case-folded variants should be accepted
-        s = randomRealisticUnicodeOfLengthBetween(10, 100);
-        automaton = AutomatonQueries.toCaseInsensitiveString(s);
-        runAutomaton = new ByteRunAutomaton(automaton);
-        br = new BytesRef(s);
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-        br = new BytesRef(s.toLowerCase(Locale.ROOT));
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-        br = new BytesRef(s.toUpperCase(Locale.ROOT));
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-
-        s = randomUnicodeOfLengthBetween(10, 100);
-        automaton = AutomatonQueries.toCaseInsensitiveString(s);
-        runAutomaton = new ByteRunAutomaton(automaton);
-        br = new BytesRef(s);
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-        br = new BytesRef(s.toLowerCase(Locale.ROOT));
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-        br = new BytesRef(s.toUpperCase(Locale.ROOT));
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
     }
 
@@ -125,27 +116,6 @@ public class AutomatonQueriesTests extends ESTestCase {
         br = new BytesRef(
             (randomBoolean() ? s.toLowerCase(Locale.ROOT) : s.toUpperCase(Locale.ROOT)) + randomRealisticUnicodeOfLengthBetween(10, 20)
         );
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-
-        // Unicode strings: both the original and case-folded variants should be accepted as prefixes
-        s = randomRealisticUnicodeOfLengthBetween(10, 100);
-        automaton = AutomatonQueries.caseInsensitivePrefix(s);
-        runAutomaton = new ByteRunAutomaton(automaton);
-        br = new BytesRef(s + randomRealisticUnicodeOfLengthBetween(10, 20));
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-        br = new BytesRef(s.toLowerCase(Locale.ROOT) + randomRealisticUnicodeOfLengthBetween(10, 20));
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-        br = new BytesRef(s.toUpperCase(Locale.ROOT) + randomRealisticUnicodeOfLengthBetween(10, 20));
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-
-        s = randomUnicodeOfLengthBetween(10, 100);
-        automaton = AutomatonQueries.caseInsensitivePrefix(s);
-        runAutomaton = new ByteRunAutomaton(automaton);
-        br = new BytesRef(s + randomRealisticUnicodeOfLengthBetween(10, 20));
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-        br = new BytesRef(s.toLowerCase(Locale.ROOT) + randomRealisticUnicodeOfLengthBetween(10, 20));
-        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-        br = new BytesRef(s.toUpperCase(Locale.ROOT) + randomRealisticUnicodeOfLengthBetween(10, 20));
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
     }
 

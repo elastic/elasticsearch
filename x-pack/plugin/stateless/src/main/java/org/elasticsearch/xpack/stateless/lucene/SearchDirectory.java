@@ -598,7 +598,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * Merge the incoming metadata into the current metadata.
      * This is used to merge file metadata from other PIT contexts coming from other nodes.
      * <p>
-     * Timestamps are not re-attributed here: there is no {@link StatelessCompoundCommit} in scope during PIT relocation,
+     * Timestamps are not re-attributed here for {@link StatelessCompoundCommit}s that are not in scope during PIT relocation,
      * so callers must supply {@link BlobFileRanges} that already carry the correct per-file timestamps from the source node.
      *
      * @param incomingFileRanges the metadata to merge into the current metadata

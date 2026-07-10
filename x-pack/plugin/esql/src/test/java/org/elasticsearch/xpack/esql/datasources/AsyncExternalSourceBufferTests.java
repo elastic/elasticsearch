@@ -229,7 +229,7 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
      * {@code onFailure} deliberately leaves already-queued pages in place so the driver can drain them
      * via {@code getOutput()}/{@link AsyncExternalSourceBuffer#pollPage()} before the failure surfaces.
      * But {@link AsyncExternalSourceOperator#close()} always calls {@code finish(true)}, and the prior
-     * implementation gated {@link AsyncExternalSourceBuffer#discardPages} behind the {@code noMoreInputs}
+     * implementation gated {@code AsyncExternalSourceBuffer#discardPages} behind the {@code noMoreInputs}
      * CAS transition — which {@code onFailure} had already performed, so {@code finish(true)} always lost
      * the race and skipped the discard. A close that arrives without the driver ever draining the queue
      * (e.g. cross-driver task cancellation cutting this operator's poll loop before it runs) leaked the

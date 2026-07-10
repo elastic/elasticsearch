@@ -76,6 +76,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -449,7 +450,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                     while (bccIterator.hasNext()) {
                         var statelessCompoundCommit = bccIterator.next();
                         if (statelessCompoundCommit.generation() == indexCommit.getGeneration()) {
-                            assert statelessCompoundCommit.commitFiles().keySet().equals(indexCommit.getFileNames())
+                            assert statelessCompoundCommit.commitFiles().keySet().equals(Set.copyOf(indexCommit.getFileNames()))
                                 : format(
                                     "CC generation [%d] file set %s does not match index commit file set %s",
                                     statelessCompoundCommit.generation(),
@@ -532,6 +533,10 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
         RelocationHandoffResponse(StreamInput in) throws IOException {
             this.pitHandoffResponse = new PITHandoffResponse(in);
+        }
+
+        public List<OpenPITContextInfo> getOpenPITContextInfos() {
+            return pitHandoffResponse.getOpenPITContextInfos();
         }
 
         @Override

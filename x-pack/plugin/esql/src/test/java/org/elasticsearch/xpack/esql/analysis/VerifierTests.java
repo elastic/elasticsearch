@@ -450,6 +450,14 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testForkWithSourceInOneBranch() {
+        // A FORK/UnionAll branch that lacks a _source column present in a sibling branch gets that column null-filled by
+        // Analyzer.resolveFork with a Literal(null, DataType.SOURCE). That null SOURCE literal lands in a synthesized Eval.
+        // SOURCE is excluded from DataType.isRepresentable, so Eval.postAnalysisVerification must carve out a null SOURCE
+        // literal or it wrongly fails the query with "EVAL does not support type [_source]".
+        defaultAnalyzer().query("FROM test METADATA _source | FORK (WHERE emp_no > 0) (WHERE emp_no > 0 | DROP _source)");
+    }
+
     public void testRoundFunctionInvalidInputs() {
         defaultAnalyzer().error(
             "row a = 1, b = \"c\" | eval x = round(b, 3)",

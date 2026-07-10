@@ -450,7 +450,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                     while (bccIterator.hasNext()) {
                         var statelessCompoundCommit = bccIterator.next();
                         if (statelessCompoundCommit.generation() == indexCommit.getGeneration()) {
-                            fromStore = getCommitFileRanges(searchDirectory, indexCommit.getFileNames(), statelessCompoundCommit),;
+                            fromStore = getCommitFileRanges(searchDirectory, indexCommit.getFileNames(), statelessCompoundCommit);
                             break;
                         }
                     }

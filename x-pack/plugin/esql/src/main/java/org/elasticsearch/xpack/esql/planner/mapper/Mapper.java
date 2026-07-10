@@ -207,20 +207,27 @@ public class Mapper {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 
-            if (join.isRemote()) {
-                // This is generally wrong in case of pipeline breakers upstream from the join, but we validate against these.
-                // The only potential pipeline breakers upstream should be limits duplicated past the join from PushdownAndCombineLimits,
-                // but they are okay to perform on the data nodes because they only serve to reduce the number of rows processed and
-                // don't affect correctness due to another limit being downstream.
-                return new FragmentExec(bp);
-            }
-
             PhysicalPlan left = mapInner(bp.left());
 
             // only broadcast joins supported for now - hence push down as a streaming operator
             if (left instanceof FragmentExec) {
-                return new FragmentExec(bp);
+                if (join.isRemote() && join.fallbackToCoordinatorLookupJoin()) {
+                    // The lookup index exists only on the coordinator (remote resolution failed and
+                    // EsqlSession fell back to a local-only lookup). Gather the left side here instead
+                    // of shipping the whole join down to remotes that don't have the index.
+                    left = new ExchangeExec(left.source(), left);
+                } else {
+                    // Data is still on data nodes/remotes — push the whole join down.
+                    // For remote joins the only potential pipeline breakers here are local limits duplicated past
+                    // the join by PushdownAndCombineLimits; they are safe because they only reduce row count and
+                    // another limit is downstream.
+                    return new FragmentExec(bp);
+                }
             }
+            // Data has already been gathered to the coordinator (left is not a FragmentExec).
+            // For remote joins this happens when a pipeline breaker above the join centralised the rows,
+            // or when the lookup index is coordinator-only (see above).
+            // Fall through to the local join path; the coordinator uses its own copy of the lookup index.
 
             PhysicalPlan right = mapInner(bp.right());
             // if the right is data we can use a hash join directly

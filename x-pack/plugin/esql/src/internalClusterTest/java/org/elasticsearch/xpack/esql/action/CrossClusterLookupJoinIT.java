@@ -739,61 +739,204 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testLookupJoinAfterPipelineBreakerAndOtherCommands() throws IOException {
+    public void testCoordinatorLookupJoin() throws IOException {
         setupClusters(3);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
 
         var defaultSettings = Settings.builder();
-        createIndexWithDocument(
-            REMOTE_CLUSTER_1,
-            "data",
-            defaultSettings,
-            Map.of("key", 1, "id", 1, "cluster", "remote-1", "mode", "data-remote-1")
-        );
-        createIndexWithDocument(
-            REMOTE_CLUSTER_2,
-            "data",
-            defaultSettings,
-            Map.of("key", 2, "id", 2, "cluster", "remote-2", "mode", "data-remote-2")
-        );
+        createIndexWithDocument(LOCAL_CLUSTER, "data", defaultSettings, Map.of("key", 0, "cluster", "local"));
+        createIndexWithDocument(REMOTE_CLUSTER_1, "data", defaultSettings, Map.of("key", 1, "cluster", "remote-1"));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "data", defaultSettings, Map.of("key", 2, "cluster", "remote-2"));
 
         var lookupSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP);
         createIndexWithDocument(
             LOCAL_CLUSTER,
+            "coordinator-lookup",
+            lookupSettings,
+            Map.of("key", 0, "mode", "coordinator-only"),
+            Map.of("key", 1, "mode", "coordinator-only"),
+            Map.of("key", 2, "mode", "coordinator-only")
+        );
+        createIndexWithDocument(REMOTE_CLUSTER_1, "remote-lookup", lookupSettings, Map.of("key", 1, "mode", "remote-only"));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "remote-lookup", lookupSettings, Map.of("key", 2, "mode", "remote-only"));
+        createIndexWithDocument(
+            LOCAL_CLUSTER,
             "lookup",
             lookupSettings,
-            Map.of("key", 1, "mode", "local"),
-            Map.of("key", 2, "mode", "local")
+            Map.of("key", 0, "mode", "coordinator"),
+            Map.of("key", 1, "mode", "coordinator"),
+            Map.of("key", 2, "mode", "coordinator")
         );
         createIndexWithDocument(REMOTE_CLUSTER_1, "lookup", lookupSettings, Map.of("key", 1, "mode", "remote"));
         createIndexWithDocument(REMOTE_CLUSTER_2, "lookup", lookupSettings, Map.of("key", 2, "mode", "remote"));
 
-        expectThrows(
-            VerificationException.class,
-            containsString("LOOKUP JOIN with remote indices can't be executed after [LIMIT 1 BY key, cluster, mode]"),
-            () -> runQuery("""
-                FROM *:data
-                | LIMIT 1 BY key, cluster, mode
-                | RENAME mode AS data_mode
-                | LOOKUP JOIN lookup ON key
-                | KEEP key, cluster, data_mode, mode
-                | SORT key
-                """, randomBoolean())
-        );
+        // lookup join on remote data nodes with remote only lookup index
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LOOKUP JOIN remote-lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "remote-only"),
+                        List.of(2L, "remote-2", "remote-only")
+                    )
+                )
+            );
+        }
 
-        expectThrows(
-            VerificationException.class,
-            containsString("LOOKUP JOIN with remote indices can't be executed after [LIMIT 1 BY id, cluster]"),
-            () -> runQuery("""
-                FROM *:data
-                | LIMIT 1 BY id, cluster
-                | RENAME id AS key
-                | LOOKUP JOIN lookup ON key
-                | KEEP key, cluster, mode
-                | SORT key
-                """, randomBoolean())
-        );
+        // lookup join on remote data nodes with lookup index
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LOOKUP JOIN lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "remote"),
+                        List.of(2L, "remote-2", "remote")
+                    )
+                )
+            );
+        }
+
+        // sneaky coordinator mode join
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM (FROM cluster-a:data),(FROM remote-b:data)
+            | LOOKUP JOIN lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator")
+                    )
+                )
+            );
+        }
+
+        // inlined subquery lookup join
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM (FROM *:data)
+            | LOOKUP JOIN lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "remote"),
+                        List.of(2L, "remote-2", "remote")
+                    )
+                )
+            );
+        }
+
+        // lookup join after pipeline breaker on coordinator
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM data
+            | LIMIT 1 BY key
+            | LOOKUP JOIN lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(0L, "local", "coordinator"))));
+        }
+
+        // lookup join after pipeline breaker on coordinator with remote indices
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LIMIT 1 BY key
+            | LOOKUP JOIN lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator")
+                    )
+                )
+            );
+        }
+
+        // lookup join with coordinator only index
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LOOKUP JOIN coordinator-lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator-only"),
+                        List.of(2L, "remote-2", "coordinator-only")
+                    )
+                )
+            );
+        }
+
+        // join and coordinator-only join after
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LOOKUP JOIN lookup ON key
+            | EVAL previous = mode
+            | LOOKUP JOIN coordinator-lookup ON key
+            | KEEP key, cluster, previous, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "remote", "coordinator-only"),
+                        List.of(2L, "remote-2", "remote", "coordinator-only")
+                    )
+                )
+            );
+        }
+
+        // coordinator-only join and join after
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LOOKUP JOIN coordinator-lookup ON key
+            | EVAL previous = mode
+            | LOOKUP JOIN lookup ON key
+            | KEEP key, cluster, previous, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        List.of(1L, "remote-1", "coordinator-only", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator-only", "coordinator")
+                    )
+                )
+            );
+        }
     }
 
     @SafeVarargs
@@ -849,5 +992,4 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         assertAcked(client.admin().indices().prepareCreate(indexName + "_map").setMapping());
         client.admin().indices().prepareRefresh(indexName + "_map").get();
     }
-
 }

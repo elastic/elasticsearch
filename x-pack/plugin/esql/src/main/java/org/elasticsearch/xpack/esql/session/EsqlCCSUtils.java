@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
@@ -172,7 +173,8 @@ public class EsqlCCSUtils {
     }
 
     static String createQualifiedLookupIndexExpressionFromAvailableClusters(Set<String> lookupIndexScope, String localPattern) {
-        return lookupIndexScope.stream()
+        return Stream.concat(Stream.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY), lookupIndexScope.stream())
+            .distinct()
             .map(clusterAlias -> RemoteClusterAware.buildRemoteIndexName(clusterAlias, localPattern))
             .collect(joining(","));
     }

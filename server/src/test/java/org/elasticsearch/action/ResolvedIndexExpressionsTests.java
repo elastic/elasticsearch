@@ -145,10 +145,7 @@ public class ResolvedIndexExpressionsTests extends ESTestCase {
                 .filter(v -> v.supports(ResolvedIndexExpressions.RESOLVED_INDEX_EXPRESSIONS_AUTH_TEMPLATE) == false)
                 .toList()
         );
-        var roundTripped = roundTrip(
-            resolved,
-            legacyVersion
-        );
+        var roundTripped = roundTrip(resolved, legacyVersion);
         assertThat(roundTripped.authorizationFailureTemplate(), equalTo(template));
         assertThat(roundTripped.expressions().getFirst().localExpressions().legacyException().getMessage(), equalTo(template));
         assertThat(

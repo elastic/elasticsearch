@@ -11,6 +11,7 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -21,19 +22,65 @@ import java.util.Locale;
 
 public class AutomatonQueriesTests extends ESTestCase {
 
-    public void testToCaseInsensitiveChar() {
-        int codepoint = randomBoolean() ? randomInt(128) : randomUnicodeOfLength(1).codePointAt(0);
-        Automaton automaton = AutomatonQueries.toCaseInsensitiveChar(codepoint);
+    public void testCaseInsensitiveCharHandlesAscii() {
+        // Verify ASCII case folding works through Lucene's makeCaseInsensitiveChar
+        int codepoint = randomInt(128);
+        Automaton automaton = Automata.makeCaseInsensitiveChar(codepoint);
         assertTrue(automaton.isDeterministic());
         ByteRunAutomaton runAutomaton = new ByteRunAutomaton(automaton);
         BytesRef br = new BytesRef(new String(Character.toChars(codepoint)));
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-        // only codepoints below 128 are converted to a case-insensitive automaton, so only test that for those cases
-        if (codepoint <= 128) {
-            int altCase = Character.isLowerCase(codepoint) ? Character.toUpperCase(codepoint) : Character.toLowerCase(codepoint);
-            br = new BytesRef(new String(Character.toChars(altCase)));
-            assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
-        }
+        int altCase = Character.isLowerCase(codepoint) ? Character.toUpperCase(codepoint) : Character.toLowerCase(codepoint);
+        br = new BytesRef(new String(Character.toChars(altCase)));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+    }
+
+    public void testCaseInsensitiveCharHandlesUnicode() {
+        // Verify Unicode case folding works for non-ASCII codepoints
+        int codepoint = randomUnicodeOfLength(1).codePointAt(0);
+        Automaton automaton = Automata.makeCaseInsensitiveChar(codepoint);
+        assertTrue(automaton.isDeterministic());
+        ByteRunAutomaton runAutomaton = new ByteRunAutomaton(automaton);
+        // original codepoint is always accepted
+        BytesRef br = new BytesRef(new String(Character.toChars(codepoint)));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        // uppercase and lowercase variants are accepted
+        int upper = Character.toUpperCase(codepoint);
+        br = new BytesRef(new String(Character.toChars(upper)));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        int lower = Character.toLowerCase(codepoint);
+        br = new BytesRef(new String(Character.toChars(lower)));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+    }
+
+    public void testCaseInsensitiveCharHandlesSpecialUnicodeMappings() {
+        // Kelvin sign (U+212A) should match K and k
+        Automaton automaton = Automata.makeCaseInsensitiveChar(0x212A);
+        ByteRunAutomaton runAutomaton = new ByteRunAutomaton(automaton);
+        assertTrue(runAutomaton.run(new BytesRef("\u212A").bytes, 0, new BytesRef("\u212A").length));
+        assertTrue(runAutomaton.run(new BytesRef("K").bytes, 0, new BytesRef("K").length));
+        assertTrue(runAutomaton.run(new BytesRef("k").bytes, 0, new BytesRef("k").length));
+
+        // K should also match Kelvin sign
+        automaton = Automata.makeCaseInsensitiveChar('K');
+        runAutomaton = new ByteRunAutomaton(automaton);
+        assertTrue(runAutomaton.run(new BytesRef("K").bytes, 0, new BytesRef("K").length));
+        assertTrue(runAutomaton.run(new BytesRef("k").bytes, 0, new BytesRef("k").length));
+        assertTrue(runAutomaton.run(new BytesRef("\u212A").bytes, 0, new BytesRef("\u212A").length));
+
+        // Long S (U+017F) should match s and S
+        automaton = Automata.makeCaseInsensitiveChar(0x017F);
+        runAutomaton = new ByteRunAutomaton(automaton);
+        assertTrue(runAutomaton.run(new BytesRef("\u017F").bytes, 0, new BytesRef("\u017F").length));
+        assertTrue(runAutomaton.run(new BytesRef("s").bytes, 0, new BytesRef("s").length));
+        assertTrue(runAutomaton.run(new BytesRef("S").bytes, 0, new BytesRef("S").length));
+
+        // Micro sign (U+00B5) should match Greek small letter mu (U+03BC) and Greek capital letter mu (U+039C)
+        automaton = Automata.makeCaseInsensitiveChar(0x00B5);
+        runAutomaton = new ByteRunAutomaton(automaton);
+        assertTrue(runAutomaton.run(new BytesRef("\u00B5").bytes, 0, new BytesRef("\u00B5").length));
+        assertTrue(runAutomaton.run(new BytesRef("\u03BC").bytes, 0, new BytesRef("\u03BC").length));
+        assertTrue(runAutomaton.run(new BytesRef("\u039C").bytes, 0, new BytesRef("\u039C").length));
     }
 
     public void testToCaseInsensitiveString() {
@@ -46,19 +93,25 @@ public class AutomatonQueriesTests extends ESTestCase {
         br = new BytesRef(randomBoolean() ? s.toLowerCase(Locale.ROOT) : s.toUpperCase(Locale.ROOT));
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
 
-        // we cannot really upper/lowercase any random unicode string, for details
-        // see restrictions in AutomatonQueries.toCaseInsensitiveChar, but we can
-        // at least check the original string is accepted
+        // Unicode strings: both the original and case-folded variants should be accepted
         s = randomRealisticUnicodeOfLengthBetween(10, 100);
         automaton = AutomatonQueries.toCaseInsensitiveString(s);
         runAutomaton = new ByteRunAutomaton(automaton);
         br = new BytesRef(s);
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef(s.toLowerCase(Locale.ROOT));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef(s.toUpperCase(Locale.ROOT));
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
 
         s = randomUnicodeOfLengthBetween(10, 100);
         automaton = AutomatonQueries.toCaseInsensitiveString(s);
         runAutomaton = new ByteRunAutomaton(automaton);
         br = new BytesRef(s);
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef(s.toLowerCase(Locale.ROOT));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef(s.toUpperCase(Locale.ROOT));
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
     }
 
@@ -74,19 +127,25 @@ public class AutomatonQueriesTests extends ESTestCase {
         );
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
 
-        // We cannot uppercase or lowercase any random unicode string.
-        // For details see restrictions in AutomatonQueries.toCaseInsensitiveChar.
-        // However, we can at least check the original string is accepted here.
+        // Unicode strings: both the original and case-folded variants should be accepted as prefixes
         s = randomRealisticUnicodeOfLengthBetween(10, 100);
         automaton = AutomatonQueries.caseInsensitivePrefix(s);
         runAutomaton = new ByteRunAutomaton(automaton);
         br = new BytesRef(s + randomRealisticUnicodeOfLengthBetween(10, 20));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef(s.toLowerCase(Locale.ROOT) + randomRealisticUnicodeOfLengthBetween(10, 20));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef(s.toUpperCase(Locale.ROOT) + randomRealisticUnicodeOfLengthBetween(10, 20));
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
 
         s = randomUnicodeOfLengthBetween(10, 100);
         automaton = AutomatonQueries.caseInsensitivePrefix(s);
         runAutomaton = new ByteRunAutomaton(automaton);
         br = new BytesRef(s + randomRealisticUnicodeOfLengthBetween(10, 20));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef(s.toLowerCase(Locale.ROOT) + randomRealisticUnicodeOfLengthBetween(10, 20));
+        assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
+        br = new BytesRef(s.toUpperCase(Locale.ROOT) + randomRealisticUnicodeOfLengthBetween(10, 20));
         assertTrue(runAutomaton.run(br.bytes, br.offset, br.length));
     }
 

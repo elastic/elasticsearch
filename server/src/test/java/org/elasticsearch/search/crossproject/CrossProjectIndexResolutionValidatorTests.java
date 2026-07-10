@@ -1695,16 +1695,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         // given an index expression "shared-index-1,-shared-index-1,shared-index-2,-shared-index-2", it resolves as the below
         var local = new ResolvedIndexExpressions(
             List.of(
-                new ResolvedIndexExpression(
-                    "-shared-index-1",
-                    ResolvedIndexExpression.LocalExpressions.NONE,
-                    Set.of("P1:-shared-index-1")
-                ),
-                new ResolvedIndexExpression(
-                    "-shared-index-2",
-                    ResolvedIndexExpression.LocalExpressions.NONE,
-                    Set.of("P1:-shared-index-2")
-                )
+                new ResolvedIndexExpression("-shared-index-1", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:-shared-index-1")),
+                new ResolvedIndexExpression("-shared-index-2", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:-shared-index-2"))
             ),
             null
         );

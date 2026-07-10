@@ -29,8 +29,8 @@ import java.lang.foreign.MemorySegment;
  * <pre>{@code
  * @Function("dot_product_i7u")
  * int dotProductI7u(
- *     @VectorSegment(count = "length", elementBytes = 1) MemorySegment a,
- *     @VectorSegment(count = "length", elementBytes = 1) MemorySegment b,
+ *     @VectorSegment(countParam = "length", elementBytes = 1) MemorySegment a,
+ *     @VectorSegment(countParam = "length", elementBytes = 1) MemorySegment b,
  *     int length);
  * }</pre>
  */
@@ -40,7 +40,7 @@ import java.lang.foreign.MemorySegment;
 public @interface VectorSegment {
 
     /** Name of the sibling {@code int}/{@code long} parameter holding the element count. */
-    String count();
+    String countParam();
 
     /** Whole-byte element size. Mutually exclusive with {@link #elementBits()}. */
     int elementBytes() default 0;

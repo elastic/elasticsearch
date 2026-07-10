@@ -46,9 +46,11 @@ public sealed interface BoundsCheckModel {
     record VectorSegmentCheck(int segParamIndex, int countParamIndex, int elementBits) implements BoundsCheckModel {}
 
     /**
-     * 2D contiguous shape, from {@code @MatrixSegment}: the segment must be at least
-     * {@code rows * rowBytes} bytes, where {@code rowBytes} is either a direct sibling parameter
-     * ({@link #hasDirectRowBytes()}) or {@code cols * elementBits / 8}.
+     * 2D shape, from {@code @MatrixSegment}: the segment must be at least {@code rows * rowBytes}
+     * bytes, where {@code rowBytes} is either a direct sibling parameter ({@link #hasDirectRowBytes()})
+     * or {@code cols * elementBits / 8}. When {@link #hasRowPitchBytes()}, rows are strided/padded
+     * rather than packed contiguously: the required size becomes {@code rows * rowPitchBytes} instead,
+     * and the processor additionally emits a check that {@code (rowPitchBytes < rowBytes)}.
      *
      * @param segParamIndex index of the annotated {@code MemorySegment} parameter
      * @param rowsParamIndex index of the sibling parameter holding the row count
@@ -57,14 +59,26 @@ public sealed interface BoundsCheckModel {
      * @param elementBits bits per element, meaningful only when {@code colsParamIndex >= 0}
      * @param rowBytesParamIndex index of the sibling parameter already holding the row size in
      *        bytes, or {@code -1} when {@code colsParamIndex}/{@code elementBits} are used instead
+     * @param rowPitchBytesParamIndex index of the sibling parameter holding the actual per-row
+     *        stride in bytes, or {@code -1} when rows are packed contiguously (no padding)
      */
-    record MatrixSegmentCheck(int segParamIndex, int rowsParamIndex, int colsParamIndex, int elementBits, int rowBytesParamIndex)
-        implements
-            BoundsCheckModel {
+    record MatrixSegmentCheck(
+        int segParamIndex,
+        int rowsParamIndex,
+        int colsParamIndex,
+        int elementBits,
+        int rowBytesParamIndex,
+        int rowPitchBytesParamIndex
+    ) implements BoundsCheckModel {
 
         /** True if the row size comes from a direct byte-count sibling parameter, not {@code cols * elementBits / 8}. */
         public boolean hasDirectRowBytes() {
             return rowBytesParamIndex >= 0;
+        }
+
+        /** True if rows are strided/padded — sized via {@code rowPitchBytes} rather than the packed row size. */
+        public boolean hasRowPitchBytes() {
+            return rowPitchBytesParamIndex >= 0;
         }
     }
 
@@ -168,7 +182,7 @@ public sealed interface BoundsCheckModel {
         List<NativeType> paramTypes,
         Messager messager
     ) {
-        int countIndex = resolveCountParamIndex("@VectorSegment.count", annotation.count(), param, params, paramTypes, messager);
+        int countIndex = resolveCountParamIndex("@VectorSegment.countParam", annotation.countParam(), param, params, paramTypes, messager);
         if (countIndex < 0) {
             return null;
         }
@@ -187,16 +201,30 @@ public sealed interface BoundsCheckModel {
         List<NativeType> paramTypes,
         Messager messager
     ) {
-        int rowsIndex = resolveCountParamIndex("@MatrixSegment.rows", annotation.rows(), param, params, paramTypes, messager);
+        int rowsIndex = resolveCountParamIndex("@MatrixSegment.rowsParam", annotation.rowsParam(), param, params, paramTypes, messager);
         if (rowsIndex < 0) {
             return null;
         }
-        boolean hasCols = annotation.cols().isEmpty() == false;
-        boolean hasRowBytes = annotation.rowBytes().isEmpty() == false;
+        int rowPitchBytesIndex = -1;
+        if (annotation.rowPitchBytesParam().isEmpty() == false) {
+            rowPitchBytesIndex = resolveCountParamIndex(
+                "@MatrixSegment.rowPitchBytesParam",
+                annotation.rowPitchBytesParam(),
+                param,
+                params,
+                paramTypes,
+                messager
+            );
+            if (rowPitchBytesIndex < 0) {
+                return null;
+            }
+        }
+        boolean hasCols = annotation.colsParam().isEmpty() == false;
+        boolean hasRowBytes = annotation.rowBytesParam().isEmpty() == false;
         if (hasCols == hasRowBytes) {
             messager.printMessage(
                 Kind.ERROR,
-                "@MatrixSegment on parameter '" + param.getSimpleName() + "' must set exactly one of cols or rowBytes",
+                "@MatrixSegment on parameter '" + param.getSimpleName() + "' must set exactly one of colsParam or rowBytesParam",
                 param
             );
             return null;
@@ -205,14 +233,16 @@ public sealed interface BoundsCheckModel {
             if (annotation.elementBytes() != 0 || annotation.elementBits() != 0) {
                 messager.printMessage(
                     Kind.ERROR,
-                    "@MatrixSegment on parameter '" + param.getSimpleName() + "' cannot combine rowBytes with elementBytes/elementBits",
+                    "@MatrixSegment on parameter '"
+                        + param.getSimpleName()
+                        + "' cannot combine rowBytesParam with elementBytes/elementBits",
                     param
                 );
                 return null;
             }
             int rowBytesIndex = resolveCountParamIndex(
-                "@MatrixSegment.rowBytes",
-                annotation.rowBytes(),
+                "@MatrixSegment.rowBytesParam",
+                annotation.rowBytesParam(),
                 param,
                 params,
                 paramTypes,
@@ -221,9 +251,9 @@ public sealed interface BoundsCheckModel {
             if (rowBytesIndex < 0) {
                 return null;
             }
-            return new MatrixSegmentCheck(segParamIndex, rowsIndex, -1, 0, rowBytesIndex);
+            return new MatrixSegmentCheck(segParamIndex, rowsIndex, -1, 0, rowBytesIndex, rowPitchBytesIndex);
         }
-        int colsIndex = resolveCountParamIndex("@MatrixSegment.cols", annotation.cols(), param, params, paramTypes, messager);
+        int colsIndex = resolveCountParamIndex("@MatrixSegment.colsParam", annotation.colsParam(), param, params, paramTypes, messager);
         if (colsIndex < 0) {
             return null;
         }
@@ -231,7 +261,7 @@ public sealed interface BoundsCheckModel {
         if (elementBits < 0) {
             return null;
         }
-        return new MatrixSegmentCheck(segParamIndex, rowsIndex, colsIndex, elementBits, -1);
+        return new MatrixSegmentCheck(segParamIndex, rowsIndex, colsIndex, elementBits, -1, rowPitchBytesIndex);
     }
 
     /**

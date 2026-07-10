@@ -67,6 +67,7 @@ class ImplClassWriter {
     private static final ClassDesc CD_LinkerAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.LinkerAdapter");
     private static final ClassDesc CD_LoaderHelper = ClassDesc.of("org.elasticsearch.foreign.LoaderHelper");
     private static final ClassDesc CD_Objects = ClassDesc.of("java.util.Objects");
+    private static final ClassDesc CD_IllegalArgumentException = ClassDesc.of("java.lang.IllegalArgumentException");
 
     private static final MethodTypeDesc MTD_byteSize = MethodTypeDesc.of(CD_long);
     private static final MethodTypeDesc MTD_checkFromIndexSize = MethodTypeDesc.of(CD_long, CD_long, CD_long, CD_long);
@@ -292,11 +293,10 @@ class ImplClassWriter {
     }
 
     /**
-     * Emits {@code Objects.checkFromIndexSize(0L, rows * rowBytes, segment.byteSize())}. When the row
-     * size comes from {@code cols}/{@code elementBits}, the whole {@code rows * cols * elementBits}
-     * product is computed before the single {@code / 8}, matching the existing hand-written bulk-check
-     * idiom exactly (dividing per-row first would truncate differently for odd {@code cols} with
-     * sub-byte elements).
+     * Emits code checking {@code segment.byteSize() < rows * rowBytes} (or
+     * {@code rows * rowPitchBytes} when {@link BoundsCheckModel.MatrixSegmentCheck#hasRowPitchBytes()}).
+     * When the row size comes from {@code cols}/{@code elementBits}, the whole
+     * {@code rows * cols * elementBits} product is computed before the single {@code / 8}.
      */
     private static void emitMatrixSegmentCheck(
         CodeBuilder cb,
@@ -304,9 +304,15 @@ class ImplClassWriter {
         int[] slots,
         BoundsCheckModel.MatrixSegmentCheck check
     ) {
+        if (check.hasRowPitchBytes()) {
+            emitRowPitchBytesRelationalCheck(cb, paramTypes, slots, check);
+        }
         cb.lconst_0();
         emitLongParamLoad(cb, paramTypes.get(check.rowsParamIndex()), slots[check.rowsParamIndex()]);
-        if (check.hasDirectRowBytes()) {
+        if (check.hasRowPitchBytes()) {
+            emitLongParamLoad(cb, paramTypes.get(check.rowPitchBytesParamIndex()), slots[check.rowPitchBytesParamIndex()]);
+            cb.lmul();
+        } else if (check.hasDirectRowBytes()) {
             emitLongParamLoad(cb, paramTypes.get(check.rowBytesParamIndex()), slots[check.rowBytesParamIndex()]);
             cb.lmul();
         } else {
@@ -318,6 +324,48 @@ class ImplClassWriter {
             cb.ldiv();
         }
         emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
+    }
+
+    /** Emits {@code if (rowPitchBytes < rowBytes) throw new IllegalArgumentException(...)}. Stack-neutral. */
+    private static void emitRowPitchBytesRelationalCheck(
+        CodeBuilder cb,
+        List<NativeType> paramTypes,
+        int[] slots,
+        BoundsCheckModel.MatrixSegmentCheck check
+    ) {
+        var pitchOk = cb.newLabel();
+        emitLongParamLoad(cb, paramTypes.get(check.rowPitchBytesParamIndex()), slots[check.rowPitchBytesParamIndex()]);
+        emitRowBytesValue(cb, paramTypes, slots, check);
+        cb.lcmp();
+        cb.ifge(pitchOk); // rowPitchBytes - rowBytes >= 0 => rowPitchBytes >= rowBytes, ok
+        cb.new_(CD_IllegalArgumentException);
+        cb.dup();
+        cb.ldc("rowPitchBytesParam must be at least the packed row size");
+        cb.invokespecial(CD_IllegalArgumentException, "<init>", MethodTypeDesc.of(CD_void, CD_String));
+        cb.athrow();
+        cb.labelBinding(pitchOk);
+    }
+
+    /**
+     * Pushes the packed row size in bytes (a direct {@code rowBytesParam}, or {@code cols * elementBits / 8}).
+     * Only used standalone, by {@link #emitRowPitchBytesRelationalCheck} — never as part of the
+     * {@code rows}-multiplied size, where the single-division-at-the-end rule applies instead.
+     */
+    private static void emitRowBytesValue(
+        CodeBuilder cb,
+        List<NativeType> paramTypes,
+        int[] slots,
+        BoundsCheckModel.MatrixSegmentCheck check
+    ) {
+        if (check.hasDirectRowBytes()) {
+            emitLongParamLoad(cb, paramTypes.get(check.rowBytesParamIndex()), slots[check.rowBytesParamIndex()]);
+        } else {
+            emitLongParamLoad(cb, paramTypes.get(check.colsParamIndex()), slots[check.colsParamIndex()]);
+            cb.ldc((long) check.elementBits());
+            cb.lmul();
+            cb.ldc(8L);
+            cb.ldiv();
+        }
     }
 
     /** Stack on entry: {@code [0L, size]}. Pushes {@code segment.byteSize()}, calls the check, discards the result. */

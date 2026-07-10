@@ -21,6 +21,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.SortedDvSingletonOrSet;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
@@ -57,11 +58,17 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
     private final String fieldName;
     private final ByteSizeValue size;
+    private final ArrayOrderSource arrayOrderSource;
 
     public Utf8CodePointsFromOrdsBlockLoader(Warnings warnings, String fieldName, ByteSizeValue size) {
+        this(warnings, fieldName, size, ArrayOrderSource.NONE);
+    }
+
+    public Utf8CodePointsFromOrdsBlockLoader(Warnings warnings, String fieldName, ByteSizeValue size, ArrayOrderSource arrayOrderSource) {
         this.warnings = warnings;
         this.fieldName = fieldName;
         this.size = size;
+        this.arrayOrderSource = arrayOrderSource;
     }
 
     @Override
@@ -87,6 +94,9 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, false);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
+        }
+        if (arrayOrderSource == ArrayOrderSource.INLINE) {
+            return new MultiValuedBinaryArrayOrderInlineNull(warnings, bc.counts(), bc.binary());
         }
         return new MultiValuedBinaryWithSeparateCounts(warnings, bc.counts(), bc.binary());
     }
@@ -556,6 +566,22 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         @Override
         public String toString() {
             return "Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts";
+        }
+    }
+
+    private static class MultiValuedBinaryArrayOrderInlineNull extends MultiValuedBinaryArrayOrderInlineNullLengthReader {
+        MultiValuedBinaryArrayOrderInlineNull(Warnings warnings, TrackingNumericDocValues counts, TrackingBinaryDocValues values) {
+            super(warnings, counts, values);
+        }
+
+        @Override
+        int length(BytesRef bytesRef) {
+            return codePointCountProvider.applyAsInt(bytesRef);
+        }
+
+        @Override
+        public String toString() {
+            return "Utf8CodePointsFromOrds.MultiValuedBinaryArrayOrderInlineNull";
         }
     }
 

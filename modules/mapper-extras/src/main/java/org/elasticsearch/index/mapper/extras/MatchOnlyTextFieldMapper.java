@@ -133,7 +133,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             indexMode.isStrictColumnar(),
             FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
             true,
-            true
+            true,
+            FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
         );
     }
 
@@ -384,7 +385,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 IndexVersion.current(),
                 true,
                 false,
-                new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true),
+                new FieldMapper.DocValuesParameter.Values(
+                    false,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                    true,
+                    true,
+                    FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+                ),
                 false
             );
         }

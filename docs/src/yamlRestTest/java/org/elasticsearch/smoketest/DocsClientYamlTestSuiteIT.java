@@ -87,6 +87,21 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .feature(FeatureFlag.TIME_SERIES_MODE)
+        // Install all non-repository plugins from :plugins:* — mirrors the old testClusters DSL loop.
+        .plugin("analysis-icu")
+        .plugin("analysis-kuromoji")
+        .plugin("analysis-nori")
+        .plugin("analysis-phonetic")
+        .plugin("analysis-smartcn")
+        .plugin("analysis-stempel")
+        .plugin("analysis-ukrainian")
+        .plugin("discovery-azure-classic")
+        .plugin("discovery-ec2")
+        .plugin("discovery-gce")
+        .plugin("mapper-annotated-text")
+        .plugin("mapper-murmur3")
+        .plugin("mapper-size")
+        .plugin("store-smb")
         .keystorePassword("keystore-password")
         // debug ccr test failures:
         // https://github.com/elastic/elasticsearch/issues/95678

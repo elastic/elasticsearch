@@ -116,7 +116,7 @@ public final class RemoteFetchOperator implements Operator {
 
     private static final class PendingGroup {
         private final Group group;
-        private final RemoteFetchService.Exchange exchange;
+        private final RemoteFetchService.TargetExchange exchange;
         private final long batchId;
         private final List<Page> pages = new ArrayList<>();
         private boolean batchSent;
@@ -124,7 +124,7 @@ public final class RemoteFetchOperator implements Operator {
         private boolean complete;
         private boolean hasPositionMapping;
 
-        private PendingGroup(Group group, RemoteFetchService.Exchange exchange, long batchId) {
+        private PendingGroup(Group group, RemoteFetchService.TargetExchange exchange, long batchId) {
             this.group = group;
             this.exchange = exchange;
             this.batchId = batchId;
@@ -144,7 +144,7 @@ public final class RemoteFetchOperator implements Operator {
     private final int maxOutstandingRequests;
     private final RemoteFetchService.Client client;
     private final AtomicLong batchIds = new AtomicLong();
-    private final Map<TargetSession, RemoteFetchService.Exchange> exchanges = new HashMap<>();
+    private final Map<TargetSession, RemoteFetchService.TargetExchange> exchanges = new HashMap<>();
     private final Map<Long, PendingGroup> pendingByBatch = new HashMap<>();
     private final Deque<PendingInput> pendingInputs = new ArrayDeque<>();
     private boolean finishing;
@@ -203,9 +203,15 @@ public final class RemoteFetchOperator implements Operator {
             pendingInput = new PendingInput(inputPage, groupedHandles.groupByPosition(), groupedHandles.offsetByPosition(), pendingGroups);
             pendingInputs.addLast(pendingInput);
             for (Group group : groupedHandles.groups()) {
-                RemoteFetchService.Exchange exchange = exchanges.computeIfAbsent(
+                RemoteFetchService.TargetExchange exchange = exchanges.computeIfAbsent(
                     group.target,
-                    target -> client.openExchange(target.nodeId(), target.retainedSessionId(), requestFields, pushdownPlan, configuration)
+                    target -> client.openTargetExchange(
+                        target.nodeId(),
+                        target.retainedSessionId(),
+                        requestFields,
+                        pushdownPlan,
+                        configuration
+                    )
                 );
                 long batchId = batchIds.incrementAndGet();
                 PendingGroup pendingGroup = new PendingGroup(group, exchange, batchId);
@@ -232,7 +238,7 @@ public final class RemoteFetchOperator implements Operator {
     @Override
     public void finish() {
         finishing = true;
-        for (RemoteFetchService.Exchange exchange : exchanges.values()) {
+        for (RemoteFetchService.TargetExchange exchange : exchanges.values()) {
             exchange.finish();
         }
     }
@@ -246,7 +252,7 @@ public final class RemoteFetchOperator implements Operator {
         if (finishing == false || pendingInputs.isEmpty() == false) {
             return false;
         }
-        for (RemoteFetchService.Exchange exchange : exchanges.values()) {
+        for (RemoteFetchService.TargetExchange exchange : exchanges.values()) {
             if (exchange.isFinished() == false) {
                 return false;
             }
@@ -300,7 +306,7 @@ public final class RemoteFetchOperator implements Operator {
             if (needsInput()) {
                 return NOT_BLOCKED;
             }
-            for (RemoteFetchService.Exchange exchange : exchanges.values()) {
+            for (RemoteFetchService.TargetExchange exchange : exchanges.values()) {
                 if (exchange.isFinished() == false) {
                     return exchange.waitForCompletion();
                 }
@@ -325,7 +331,7 @@ public final class RemoteFetchOperator implements Operator {
         }
         pendingInputs.clear();
         pendingByBatch.clear();
-        for (RemoteFetchService.Exchange exchange : exchanges.values()) {
+        for (RemoteFetchService.TargetExchange exchange : exchanges.values()) {
             Releasables.closeExpectNoException(exchange);
         }
         client.close();
@@ -335,7 +341,7 @@ public final class RemoteFetchOperator implements Operator {
         boolean foundPage;
         do {
             foundPage = false;
-            for (RemoteFetchService.Exchange exchange : exchanges.values()) {
+            for (RemoteFetchService.TargetExchange exchange : exchanges.values()) {
                 Page page;
                 while ((page = exchange.pollPage()) != null) {
                     foundPage = true;
@@ -355,7 +361,7 @@ public final class RemoteFetchOperator implements Operator {
         if (failure != null) {
             return true;
         }
-        for (RemoteFetchService.Exchange exchange : exchanges.values()) {
+        for (RemoteFetchService.TargetExchange exchange : exchanges.values()) {
             Exception exchangeFailure = exchange.getFailure();
             if (exchangeFailure != null) {
                 failure = exchangeFailure;
@@ -539,7 +545,7 @@ public final class RemoteFetchOperator implements Operator {
     }
 
     static void validatePushdownPlan(PhysicalPlan plan) {
-        RemoteFetchPushdownPlanValidator.validate(plan);
+        RemoteFetchPushdownOperatorBuilder.validateSupportedPlan(plan);
     }
 
     private Page mergeFetchedPage(Page inputPage, int[] groupByPosition, int[] offsetByPosition, List<GroupPages> pagesByGroup) {

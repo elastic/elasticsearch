@@ -772,7 +772,7 @@ public class RemoteFetchOperatorTests extends ESTestCase {
         RecordingClient(DriverContext driverContext) {}
 
         @Override
-        public RemoteFetchService.Exchange openExchange(
+        public RemoteFetchService.TargetExchange openTargetExchange(
             String nodeId,
             String sessionId,
             List<RemoteFetchService.FetchField> fields,
@@ -803,7 +803,7 @@ public class RemoteFetchOperatorTests extends ESTestCase {
         @Override
         public void close() {}
 
-        private class RecordingExchange implements RemoteFetchService.Exchange {
+        private class RecordingExchange implements RemoteFetchService.TargetExchange {
             private final String nodeId;
             private final String sessionId;
             private final Queue<Page> pages = new ArrayDeque<>();

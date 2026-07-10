@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -654,11 +655,12 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         // must not throw, unlike the on_failure=fail (default) case covered by testIndexSettingFalseEnforcesRejectionOfMultipleValues
         ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
 
-        // the first value is indexed normally
-        assertThat(doc.rootDoc().getFields("field"), notNullValue());
-        assertThat(doc.rootDoc().getFields("field").isEmpty(), equalTo(false));
+        // exactly the first value ("a") is indexed normally; the second ("b") must not also land in the main field
+        List<IndexableField> mainField = doc.rootDoc().getFields("field");
+        assertThat(mainField, hasSize(1));
+        assertThat(mainField.get(0).binaryValue().utf8ToString(), equalTo("a"));
 
-        // the second (offending) value is redirected to the failure column instead of also landing in the main field
+        // the second (offending) value is redirected to the failure column instead
         List<IndexableField> failureColumn = doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX);
         assertThat(failureColumn.isEmpty(), equalTo(false));
 

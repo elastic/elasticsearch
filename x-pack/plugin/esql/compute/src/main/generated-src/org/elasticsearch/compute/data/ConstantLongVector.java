@@ -23,7 +23,8 @@ import java.util.Arrays;
  */
 public final class ConstantLongVector extends AbstractVector implements LongVector {
 
-    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantLongVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantLongVector.class)
+        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
 
     private final long value;
 

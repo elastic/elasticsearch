@@ -32,7 +32,7 @@ public final class FloatArrayVector extends AbstractVector implements FloatVecto
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
         + RamUsageEstimator.shallowSizeOfInstance(FloatVectorBlock.class)
         // TODO: remove this if/when we account for memory used by Pages
-        + Block.PAGE_MEM_OVERHEAD_PER_BLOCK;
+        + Block.PAGE_MEM_OVERHEAD_PER_BLOCK + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
 
     private final float[] values;
 

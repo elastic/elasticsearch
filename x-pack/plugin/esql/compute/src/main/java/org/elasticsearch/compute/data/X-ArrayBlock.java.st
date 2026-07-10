@@ -34,7 +34,8 @@ $endif$
  */
 public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class)
+        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
 
     private final $Type$ArrayVector vector;
 
@@ -295,6 +296,7 @@ $endif$
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsAtomic();
         vector.allowPassingToDifferentDriver();
     }
 

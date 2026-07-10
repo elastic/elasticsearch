@@ -28,7 +28,8 @@ import java.util.BitSet;
  */
 public final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class)
+        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
 
     private final BytesRefArrayVector vector;
 
@@ -254,6 +255,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsAtomic();
         vector.allowPassingToDifferentDriver();
     }
 

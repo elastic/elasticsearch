@@ -148,6 +148,7 @@ $endif$
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsAtomic();
         vector.allowPassingToDifferentDriver();
     }
 

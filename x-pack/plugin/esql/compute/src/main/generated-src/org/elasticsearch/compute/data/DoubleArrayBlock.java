@@ -25,7 +25,8 @@ import java.util.BitSet;
  */
 public final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayBlock.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayBlock.class)
+        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
 
     private final DoubleArrayVector vector;
 
@@ -239,6 +240,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsAtomic();
         vector.allowPassingToDifferentDriver();
     }
 

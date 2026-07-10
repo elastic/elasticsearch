@@ -23,7 +23,8 @@ import java.util.Arrays;
  */
 public final class ConstantFloatVector extends AbstractVector implements FloatVector {
 
-    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantFloatVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantFloatVector.class)
+        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
 
     private final float value;
 

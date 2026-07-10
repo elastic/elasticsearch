@@ -25,7 +25,8 @@ import java.util.BitSet;
  */
 public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayBlock.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayBlock.class)
+        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
 
     private final IntArrayVector vector;
 
@@ -239,6 +240,7 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsAtomic();
         vector.allowPassingToDifferentDriver();
     }
 

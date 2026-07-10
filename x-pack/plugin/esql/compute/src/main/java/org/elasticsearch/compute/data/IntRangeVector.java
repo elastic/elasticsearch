@@ -14,7 +14,8 @@ import org.elasticsearch.core.ReleasableIterator;
 import java.util.Objects;
 
 final class IntRangeVector extends AbstractVector implements IntVector {
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntRangeVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntRangeVector.class)
+        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
 
     private final int startInclusive;
     private final int endExclusive;

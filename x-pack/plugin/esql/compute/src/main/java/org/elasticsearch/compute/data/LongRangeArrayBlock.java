@@ -86,6 +86,7 @@ public final class LongRangeArrayBlock extends AbstractBlockRefCounter implement
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsAtomic();
         fromBlock.allowPassingToDifferentDriver();
         toBlock.allowPassingToDifferentDriver();
     }

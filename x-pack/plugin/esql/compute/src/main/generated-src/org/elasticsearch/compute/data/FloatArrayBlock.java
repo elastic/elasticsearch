@@ -25,7 +25,8 @@ import java.util.BitSet;
  */
 public final class FloatArrayBlock extends AbstractArrayBlock implements FloatBlock {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FloatArrayBlock.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FloatArrayBlock.class)
+        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
 
     private final FloatArrayVector vector;
 
@@ -239,6 +240,7 @@ public final class FloatArrayBlock extends AbstractArrayBlock implements FloatBl
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsAtomic();
         vector.allowPassingToDifferentDriver();
     }
 

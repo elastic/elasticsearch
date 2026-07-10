@@ -21,7 +21,7 @@ public final class DirectBytesRefVector extends AbstractVector implements BytesR
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
         + RamUsageEstimator.shallowSizeOfInstance(BytesRefVectorBlock.class)
         // TODO: remove this if/when we account for memory used by Pages
-        + Block.PAGE_MEM_OVERHEAD_PER_BLOCK;
+        + Block.PAGE_MEM_OVERHEAD_PER_BLOCK + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
 
     private final byte[] bytes;
     private final int[] startOffsets;

@@ -31,6 +31,7 @@ abstract class AbstractVector extends AbstractBlockRefCounter implements Vector 
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsAtomic();
         blockFactory = blockFactory.parent();
     }
 

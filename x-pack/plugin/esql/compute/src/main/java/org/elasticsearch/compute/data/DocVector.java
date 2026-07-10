@@ -30,7 +30,8 @@ import java.util.function.Consumer;
  */
 public final class DocVector extends AbstractVector implements Vector {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class)
+        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
 
     /**
      * Per position memory cost to build the shard segment doc map required

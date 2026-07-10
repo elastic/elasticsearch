@@ -71,6 +71,7 @@ public final class OrdinalBytesRefVector extends AbstractBlockRefCounter impleme
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsAtomic();
         ordinals.allowPassingToDifferentDriver();
         bytes.allowPassingToDifferentDriver();
     }

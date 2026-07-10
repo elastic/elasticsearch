@@ -25,7 +25,8 @@ import java.util.BitSet;
  */
 public final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayBlock.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayBlock.class)
+        + AbstractBlockRefCounter.REF_COUNT_BYTES_USED;
 
     private final LongArrayVector vector;
 
@@ -239,6 +240,7 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsAtomic();
         vector.allowPassingToDifferentDriver();
     }
 

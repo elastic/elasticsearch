@@ -236,6 +236,42 @@ public final class SpecialFunctionGeneratorRegistry {
             return name + "(" + base + ", " + randomIntBetween(1, 4) + ")";
         });
 
+        // ---- Conditional functions -------------------------------------------
+
+        // case(condition, trueValue[, elseValue]): the generic recursive builder always stops
+        // before optional params, so composite-generated CASE calls never got an elseValue, and
+        // the condition was always a single leaf expression, never an AND/OR of two conditions.
+        // That combination — a constant_keyword equality ANDed with another condition, feeding
+        // CASE(cond, field, null) — is exactly what hid the bug fixed by
+        // https://github.com/elastic/elasticsearch/pull/149752. Give both a chance to happen so
+        // generative tests can reproduce that bug class. See
+        // https://github.com/elastic/elasticsearch/issues/150055
+        r.put("case", (name, sig, cols, unmapped, depth, recurse) -> {
+            String condition = recurse.recurse("boolean", cols, unmapped, depth - 1);
+            if (condition == null) return null;
+            if (randomBoolean()) {
+                String secondCondition = recurse.recurse("boolean", cols, unmapped, depth - 1);
+                if (secondCondition != null) {
+                    condition += (randomBoolean() ? " AND " : " OR ") + secondCondition;
+                }
+            }
+            String trueValue = recurse.recurse(sig.params().get(1).type(), cols, unmapped, depth - 1);
+            if (trueValue == null) return null;
+            StringBuilder call = new StringBuilder(name).append("(").append(condition).append(", ").append(trueValue);
+            if (sig.params().size() > 2 && randomBoolean()) {
+                if (randomBoolean()) {
+                    // the literal, untyped null else-value that triggered #149752
+                    call.append(", null");
+                } else {
+                    String elseValue = recurse.recurse(sig.params().get(2).type(), cols, unmapped, depth - 1);
+                    if (elseValue != null) {
+                        call.append(", ").append(elseValue);
+                    }
+                }
+            }
+            return call.append(")").toString();
+        });
+
         return Collections.unmodifiableMap(r);
     }
 

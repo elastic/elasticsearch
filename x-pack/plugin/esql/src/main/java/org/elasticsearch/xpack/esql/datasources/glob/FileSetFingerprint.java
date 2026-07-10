@@ -13,7 +13,11 @@ package org.elasticsearch.xpack.esql.datasources.glob;
  * Computed by {@link FileSetFingerprints#compute} as a commutative fold over every file's
  * {@code (path, mtime, size)}: the same set listed in any order yields the same fingerprint, and any
  * file added, removed, or modified yields a different one. That makes fingerprint-derived cache keys
- * correct-or-miss by construction — no invalidation protocol. It is an identity for dataset-aggregate
- * cache keying, not a cryptographic commitment: a 128-bit non-adversarial collision is negligible.
+ * correct-or-miss by construction — no invalidation protocol.
+ * <p>
+ * 128 bits, not 64, because a collision serves one set's row count for a different set — a wrong answer,
+ * not a slow path. A 64-bit hash birthday-collides around 2^32 distinct sets (reachable on a long-lived
+ * coordinator); 128 bits (~2^64) makes it negligible. Non-cryptographic (Murmur3): guards accidental
+ * staleness, not an adversary crafting a collision.
  */
 public record FileSetFingerprint(long high, long low) {}

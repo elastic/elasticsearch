@@ -233,125 +233,6 @@ Check the result of an async operation:
 ctx.write(message).addListener(f -> { if (f.isSuccess() ...)});
 ```
 
-### ThreadPool
-
-The [`ThreadPool`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java) class is the central registry for the node's shared named executors and the entry point for obtaining one. Rather than holding
-references to raw `ExecutorService`s, code asks the `ThreadPool` for a named executor and submits work to it.
-
-#### Two pool types
-
-Each pool has a [`ThreadPoolType`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java#L159):
-
-- A **FIXED** pool has a static number of threads, backed by a *bounded* or *unbounded* queue. When the queue fills up, new tasks are
-  *rejected immediately* (surfacing as an `EsRejectedExecutionException`). This gives predictable resource consumption and
-  fast back-pressure under load, so it is used for the hot data paths such as `SEARCH` and `WRITE`.
-- A **SCALING** pool has a thread count that grows on demand between a min and a max, backed by an *unbounded* queue, and
-  its idle threads expire after a keep-alive period. This suits bursty, infrequent work such as `GENERIC`, `MANAGEMENT`,
-  and snapshots.
-
-#### Built-in pools
-
-The built-in pools are declared as string constants in
-[`ThreadPool.Names`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java#L77).
-Plugins register additional pools at startup by overriding
-[`Plugin::getExecutorBuilders(Settings)`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/plugins/Plugin.java#L304).
-
-`CLUSTER_COORDINATION` handles master elections, cluster membership updates, and sending cluster-state publication
-requests. It is sized to a single thread to avoid contention on [Coordinator]'s internal mutex (see the
-[Cluster Coordination](#cluster-coordination) section).
-`GENERIC` scales up to
-[somewhere between 128 and 512 threads](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/DefaultBuiltInExecutorBuilders.java#L33)
-depending on the number of processors, and is used throughout the codebase.
-
-#### `AbstractRunnable` and `ActionRunnable`
-
-Submitting a plain `Runnable` via `execute(...)` works, but the task gets none of the structured handling ES relies on.
-There is no built-in way to distinguish and handle *rejection* (when the queue is full) separately from a normal run exception.
-Any exception thrown from `run()` propagates only as an uncaught exception on the worker thread rather than a callback tied to that specific task.
-Calling `submit(...)` instead wraps the task in a `Future`, and the resulting exception is captured there silently unless
-something later calls `get()` on it. ES therefore prefers two richer abstractions:
-
-- [`AbstractRunnable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/AbstractRunnable.java)
-  extends `Runnable` with structured exception handling and lifecycle hooks: `doRun()` holds the work, `onFailure(Exception)`
-  receives any exception thrown by `doRun()`, `onRejection(Exception)` fires when the queue is full (defaulting to
-  `onFailure`), `onAfter()` always runs like a `finally`, and `isForceExecution()` lets a task bypass a bounded queue's
-  capacity limit.
-- [`ActionRunnable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/ActionRunnable.java)
-  extends `AbstractRunnable` and bridges it to an `ActionListener`, so `onFailure` is routed to `listener.onFailure`.
-
-#### ThreadContext propagation
-
-Every thread managed by ES carries a
-[`ThreadContext`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java),
-which is a map of string headers and transient objects attached to the current logical request, such as authentication
-tokens, tracing IDs, custom request headers, the security context, and other transient objects that should flow with the
-work but not be serialized over the wire. This context is preserved automatically across thread-pool hops. The
-[`EsThreadPoolExecutor`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/EsThreadPoolExecutor.java#L174)
-wraps every submitted task in a `ContextPreservingRunnable` at submission time, and the worker thread restores the
-captured context before `doRun()` and cleans it up afterwards. As a result a request that begins with a user's auth
-token and fans out across search, fetch, and coordination threads carries that token on every hop with no manual
-threading of context through the code.
-
-### ActionListener
-
-See the [Javadocs for `ActionListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java)
-
-`ActionListener<T>` is the primary async callback interface in Elasticsearch, a form of *continuation-passing style*.
-Rather than blocking the caller until an asynchronous operation returns a value, the operation is instead handed "what
-to do next" (the listener) as an argument. The listener is invoked once the operation result is ready. This allows for operations to be composed
-without the caller needing to block and wait for completion, and, because listeners are also invoked from thread-pool
-executors, naturally carries the `ThreadContext` (see [ThreadPool](#threadpool)) across async hops. The contract is a
-two-path pair of methods:
-
-```java
-void onResponse(T response); // success path
-void onFailure(Exception e);  // failure path
-```
-
-The `ActionListener` Javadoc explains why ES deliberately avoids `java.util.concurrent.CompletableFuture` and similar
-mechanisms in production code. They can achieve the same goals, but they permit *blocking* while waiting for a result,
-almost never appropriate where threads are a precious resource, and they can *catch an `Error`*, delaying (or preventing)
-the JVM exit that should follow such a fatal condition. `ActionListener` makes those misuses impossible.
-
-#### Composition
-
-`ActionListener` can be subclassed directly, usually as an anonymous class, when listeners
-implement complex logic. It is important to note that an exception thrown from `onResponse` is not automatically routed to
-`onFailure` and must be handled manually. `ActionListener` also
-provides static factory methods for composing delegates without writing a full implementation. `wrap` builds an
-inline listener from two lambdas, `runAfter` runs a cleanup action once the delegate completes, and
-`delegateFailureAndWrap` handles only the success path while forwarding failures automatically, including failures
-thrown by that success-path logic itself. See the
-[`ActionListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/ActionListener.java)
-class itself for the full set of factory methods and their exact semantics.
-
-#### Fan-out and specialized implementations
-
-When one operation must wait for multiple concurrent sub-operations, there are purpose-built implementations:
-
-- [`GroupedActionListener<T>`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/GroupedActionListener.java)
-  handles a fixed, known number of parallel tasks and collects their results.
-- [`RefCountingListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/RefCountingListener.java)
-  handles a dynamic or unknown number of tasks, or cases where you only need to await all of them without collecting results.
-- [`SubscribableListener<T>`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/SubscribableListener.java)
-  lets multiple independent callers `addListener` to the same result so they are all notified on completion, and its `andThen`
-  supports sequential CPS chaining of steps.
-- [`ThreadedActionListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/ThreadedActionListener.java)
-  wraps a delegate and dispatches its completion onto a specified `Executor`. This is the standard way to fork a
-  listener's continuation off the Netty event-loop thread (see the [Networking](#networking) / Netty discussion above and
-  the [Performance](#performance) note below) so that expensive follow-up work does not run on an I/O thread.
-
-#### Long-Lived Listeners
-
-Distinct from the one-shot `ActionListener` are the event-based, usually long-lived listeners. Registered once with a service, they live for
-the lifetime of the node (or until explicitly deregistered) and follow the classical Observer pattern, in which a subject maintains a list of registered
-listeners and notifies all of them on each event. There is no notion of completion, and the listener keeps receiving
-events. The two most common are
-[`ClusterStateListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateListener.java)
-(fires on every cluster-state update) and
-[`IndexEventListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexEventListener.java)
-(per-index and per-shard lifecycle events).
-
 ### Chunk Encoding
 
 #### XContent
@@ -417,6 +298,174 @@ are some uses of `RestClient`, via `RestClientBuilder`, in the production code. 
 `RestClient` internally as the REST client to the remote elasticsearch cluster, and to take advantage of the compatibility of
 `RestClient` requests with much older elasticsearch versions. The `RestClient` is also used externally by the `Java API Client`
 to communicate with Elasticsearch.
+
+# Concurrency
+
+Elasticsearch runs a mix of network IO, disk IO, and CPU-bound work across a small number of
+network threads and a much larger number of worker threads. The rest of this chapter answers the
+questions that come up when writing concurrent code in this codebase, in the order they naturally
+arise. It starts with what must never block, then covers how work gets represented as a unit that
+can carry its own error handling, where that unit of work actually runs, how its result or failure
+gets back to the caller, and how shared state gets protected when several of these units run at
+once.
+
+## The core rule
+
+The Netty event-loop threads described under [Event-Loop (Transport-Thread)](#event-loop-transport-thread)
+serve many connections each, so blocking one for any real length of time stalls every other
+connection on that thread. The rule that follows from this is simple to state and easy to violate.
+Never block a transport or event-loop thread. Fork any blocking operation or heavy computation onto
+a dedicated pool instead, and only fork work that is actually heavy, since forking has its own
+overhead.
+
+## Representing a unit of work
+
+Submitting a plain `Runnable` via `execute(...)` works, but the task gets none of the structured handling ES relies on.
+There is no built-in way to distinguish and handle *rejection* (when the queue is full) separately from a normal run exception.
+Any exception thrown from `run()` propagates only as an uncaught exception on the worker thread rather than a callback tied to that specific task.
+Calling `submit(...)` instead wraps the task in a `Future`, and the resulting exception is captured there silently unless
+something later calls `get()` on it. ES therefore prefers two richer abstractions:
+
+- [`AbstractRunnable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/AbstractRunnable.java)
+  extends `Runnable` with structured exception handling and lifecycle hooks: `doRun()` holds the work, `onFailure(Exception)`
+  receives any exception thrown by `doRun()`, `onRejection(Exception)` fires when the queue is full (defaulting to
+  `onFailure`), `onAfter()` always runs like a `finally`, and `isForceExecution()` lets a task bypass a bounded queue's
+  capacity limit.
+- [`ActionRunnable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/ActionRunnable.java)
+  extends `AbstractRunnable` and bridges it to an `ActionListener`, so `onFailure` is routed to `listener.onFailure`.
+
+## Choosing where it runs
+
+The [`ThreadPool`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java) class is the central registry for the node's shared named executors and the entry point for obtaining one. Rather than holding
+references to raw `ExecutorService`s, code asks the `ThreadPool` for a named executor and submits work to it.
+
+Elasticsearch does not spin up ad-hoc threads or executors. Every `Runnable` runs on a pool obtained
+from `ThreadPool`. The main exception is third-party libraries such as the AWS, GCP, and Azure SDKs
+used for snapshot repositories, which manage their own internal thread pools (see
+[Other networking stacks](#other-networking-stacks)).
+
+There are many named pools rather than one shared one because each workload needs its own resource
+isolation. A saturated pool for one workload cannot starve another, and each pool gets its own
+sizing, its own back-pressure policy, and its own monitoring through `_cat/thread_pool` and node
+stats. A pool is more than just a named executor.
+
+### Two pool types
+
+Each pool has a [`ThreadPoolType`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java#L159):
+
+- A **FIXED** pool has a static number of threads, backed by a *bounded* or *unbounded* queue. When the queue fills up, new tasks are
+  *rejected immediately* (surfacing as an `EsRejectedExecutionException`). This gives predictable resource consumption and
+  fast back-pressure under load, so it is used for the hot data paths such as `SEARCH` and `WRITE`.
+- A **SCALING** pool has a thread count that grows on demand between a min and a max, backed by an *unbounded* queue, and
+  its idle threads expire after a keep-alive period. This suits bursty, infrequent work such as `GENERIC`, `MANAGEMENT`,
+  and snapshots.
+
+### Built-in pools
+
+The built-in pools are declared as string constants in
+[`ThreadPool.Names`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java#L77).
+Plugins register additional pools at startup by overriding
+[`Plugin::getExecutorBuilders(Settings)`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/plugins/Plugin.java#L304).
+
+`CLUSTER_COORDINATION` handles master elections, cluster membership updates, and sending cluster-state publication
+requests. It is sized to a single thread to avoid contention on [Coordinator]'s internal mutex (see the
+[Cluster Coordination](#cluster-coordination) section).
+`GENERIC` scales up to
+[somewhere between 128 and 512 threads](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/DefaultBuiltInExecutorBuilders.java#L33)
+depending on the number of processors, and is used throughout the codebase.
+`WRITE` is a **FIXED** pool with
+[`allocatedProcessors` threads and a large bounded queue](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/DefaultBuiltInExecutorBuilders.java#L52),
+sized to `max(allocatedProcessors * 750, 10000)`, and it tracks execution time and utilization for
+autoscaling. It performs blocking disk IO through Lucene, which is exactly why it gets its own
+dedicated bounded pool rather than sharing `GENERIC`. This is the same blocking-versus-non-blocking
+placement rule from [The core rule](#the-core-rule) applied to a specific workload. The Netty
+transport-worker threads that receive the request must never block on that IO, so the work is
+handed off to another thread pool such as `WRITE` instead.
+
+## How results and errors flow back
+
+See the [Javadocs for `ActionListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java)
+
+`ActionListener<T>` is the primary async callback interface in Elasticsearch, a form of *continuation-passing style*.
+Rather than blocking the caller until an asynchronous operation returns a value, the operation is instead handed "what
+to do next" (the listener) as an argument. The listener is invoked once the operation result is ready. This allows for operations to be composed
+without the caller needing to block and wait for completion. The contract is a
+two-path pair of methods:
+
+```java
+void onResponse(T response); // success path
+void onFailure(Exception e);  // failure path
+```
+
+The `ActionListener` Javadoc explains why ES deliberately avoids `java.util.concurrent.CompletableFuture` and similar
+mechanisms in production code. They can achieve the same goals, but they permit *blocking* while waiting for a result,
+almost never appropriate where threads are a precious resource, and they can *catch an `Error`*, delaying (or preventing)
+the JVM exit that should follow such a fatal condition. `ActionListener` makes those misuses impossible.
+
+### ThreadContext propagation
+
+Every thread managed by ES carries a
+[`ThreadContext`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java),
+which is a map of string headers and transient objects attached to the current logical request, such as authentication
+tokens, tracing IDs, custom request headers, the security context, and other transient objects that should flow with the
+work but not be serialized over the wire. This is why an `ActionListener` invoked from a thread-pool
+executor automatically carries the `ThreadContext` across that hop without any manual plumbing. The
+[`EsThreadPoolExecutor`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/EsThreadPoolExecutor.java#L174)
+wraps every submitted task in a `ContextPreservingRunnable` at submission time, and the worker thread restores the
+captured context before `doRun()` and cleans it up afterwards. As a result a request that begins with a user's auth
+token and fans out across search, fetch, and coordination threads carries that token on every hop with no manual
+threading of context through the code.
+
+### Composition
+
+`ActionListener` can be subclassed directly, usually as an anonymous class, when listeners
+implement complex logic. It is important to note that an exception thrown from `onResponse` is not automatically routed to
+`onFailure` and must be handled manually. `ActionListener` also
+provides static factory methods for composing delegates without writing a full implementation. `wrap` builds an
+inline listener from two lambdas, `runAfter` runs a cleanup action once the delegate completes, and
+`delegateFailureAndWrap` handles only the success path while forwarding failures automatically, including failures
+thrown by that success-path logic itself. See the
+[`ActionListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/ActionListener.java)
+class itself for the full set of factory methods and their exact semantics.
+
+### Fan-out and specialized implementations
+
+When one operation must wait for multiple concurrent sub-operations, there are purpose-built implementations:
+
+- [`GroupedActionListener<T>`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/GroupedActionListener.java)
+  handles a fixed, known number of parallel tasks and collects their results.
+- [`RefCountingListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/RefCountingListener.java)
+  handles a dynamic or unknown number of tasks, or cases where you only need to await all of them without collecting results.
+- [`SubscribableListener<T>`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/SubscribableListener.java)
+  lets multiple independent callers `addListener` to the same result so they are all notified on completion, and its `andThen`
+  supports sequential CPS chaining of steps.
+- [`ThreadedActionListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/ThreadedActionListener.java)
+  wraps a delegate and dispatches its completion onto a specified `Executor`. This is the standard way to fork a
+  listener's continuation off the Netty event-loop thread (see [The core rule](#the-core-rule) above and
+  the [Performance](#performance) note below) so that expensive follow-up work does not run on an I/O thread.
+
+### Pub/Sub Listeners
+
+The `ActionListener` contract above is **one-shot**. A caller hands over a continuation, and that
+continuation fires exactly once, for either the response or the failure. A different family of
+listeners is **pub/sub** instead. A listener is registered once with a service and stays registered
+for the lifetime of the node, or until explicitly deregistered, receiving a notification every time
+a relevant event occurs. This is the classical Observer pattern, in which a subject maintains a list
+of registered listeners and notifies all of them on each event. There is no notion of completion,
+and the listener keeps receiving events. The two most common are
+[`ClusterStateListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateListener.java)
+(fires on every cluster-state update) and
+[`IndexEventListener`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexEventListener.java)
+(per-index and per-shard lifecycle events).
+
+## Shared mutable state
+
+This section is currently work-in-progress.
+
+When multiple units of work run at once and need to share state, Elasticsearch leans on concurrent collections and the locks described in the
+[Locking](#locking) chapter, but the stronger bias throughout the codebase is to avoid shared
+mutable state in the first place. Cluster state is the clearest example. Rather than locking a
+mutable structure, each update produces a new immutable `ClusterState` instance.
 
 # Cluster Coordination
 
@@ -1445,7 +1494,7 @@ See `TransportMasterNodeAction` Javadoc for a detailed description of the execut
 At the coarsest level, a node acquires a filesystem lock on the `node.lock` file in its data directory at startup (via
 [NodeEnvironment]), which prevents two Elasticsearch processes from sharing the same data path. Finer-grained shard,
 translog, and Lucene locks are described below (see also the [On-Disk Shard Layout](#on-disk-shard-layout) and
-[Concurrency](#concurrency) discussions under [Engine & Store](#engine--store)).
+[Shard Locking Layers](#shard-locking-layers) discussions under [Engine & Store](#engine--store)).
 
 ### ShardLock
 
@@ -1587,7 +1636,7 @@ assembles the write-path customizations used to build the `IndexWriter`, includi
 soft-deletes field, the wrapped `TieredMergePolicy`, and codec selection. Read-path customizations such as the query
 cache and query caching policy are attached separately, when the `Searcher` is built from the `DirectoryReader`.
 
-#### Concurrency
+#### Shard Locking Layers
 
 [NodeEnvironment]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/env/NodeEnvironment.java
 

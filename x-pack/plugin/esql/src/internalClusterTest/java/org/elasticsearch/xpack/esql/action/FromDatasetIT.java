@@ -2196,6 +2196,144 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * The declared schema must win uniformly across a multi-file glob whose files DISAGREE on a column's physical
+     * type — every existing glob test uses identical files, so the reconcile-under-declaration path never runs here.
+     * part1 stores {@code val} as integer, part2 as long with a value that overflows int; declared {@code val: long}
+     * reads both as long, and part2's large value survives (an inferred integer reconcile would have clashed/nulled it).
+     */
+    public void testDeclaredSchemaOverDivergentTypeMultiFileGlob() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("part1.csv"), "val:integer\n100\n");
+        Files.writeString(root.resolve("part2.csv"), "val:long\n5000000000\n"); // 5e9 > Integer.MAX_VALUE
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("val", new DatasetFieldMapping("long", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_divergent_multi",
+                    "local_ds",
+                    root.toUri() + "*.csv",
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_divergent_multi | SORT val | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(1));
+            assertThat(columns.get(0).name(), equalTo("val"));
+            assertThat(columns.get(0).outputType(), equalTo("long"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(100L));          // integer-file value read as long
+            assertThat(rows.get(1).get(0), equalTo(5000000000L));   // long-file value that would overflow an int
+        }
+    }
+
+    /** TSV (shares the CSV reader via the tsv preset): a declared type coerces the file value like CSV/Parquet. */
+    public void testTsvDeclaredTypeCoercionReadsAsDeclared() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("data.tsv"), "val:integer\tname:keyword\n100\tAlice\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("val", new DatasetFieldMapping("long", null)); // retype integer file column to long
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "tsv_declared_type",
+                    "local_ds",
+                    root.toUri() + "*.tsv",
+                    null,
+                    new HashMap<>(Map.of("format", "tsv")),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM tsv_declared_type | KEEP val | LIMIT 1"), TIMEOUT)) {
+            assertThat(response.columns().get(0).outputType(), equalTo("long"));
+            assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
+        }
+    }
+
+    /** TSV declared per-column date {@code format}: a string field declared date parses zone-aware, like the CSV path. */
+    public void testTsvDeclaredDateFormatParsesZoneAware() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("logs.tsv"), "ts:keyword\tnote:keyword\n10/Oct/2000:13:55:36 -0700\thello\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
+        properties.put("note", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "tsv_declared_date",
+                    "local_ds",
+                    root.toUri() + "*.tsv",
+                    null,
+                    new HashMap<>(Map.of("format", "tsv")),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM tsv_declared_date | EVAL ms = ts::long | KEEP ms | LIMIT 1"), TIMEOUT)) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo(ACCESS_LOG_EPOCH_MILLIS)); // -0700 offset honored
+        }
+    }
+
+    /** TSV declared rename (`path`): a logical column reads from a differently-named physical TSV column. */
+    public void testTsvDeclaredRenameReadsByPhysicalColumn() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("e.tsv"), "emp_no:integer\tfirst_name:keyword\n1\tAlice\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", "emp_no"));      // logical id <- physical emp_no
+        properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "tsv_declared_rename",
+                    "local_ds",
+                    root.toUri() + "*.tsv",
+                    null,
+                    new HashMap<>(Map.of("format", "tsv")),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM tsv_declared_rename | KEEP id, name | LIMIT 1"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns.get(0).name(), equalTo("id"));
+            assertThat(columns.get(1).name(), equalTo("name"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(0).get(0), equalTo(1L));
+            assertThat(rows.get(0).get(1), equalTo("Alice"));
+        }
+    }
+
     public void testViewOverExternalDatasetIsQueryable() throws Exception {
         registerDataSource("local_ds", Map.of());
         registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));

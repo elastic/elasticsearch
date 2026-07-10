@@ -43,7 +43,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
 
     /**
-     * Creates an {@link ObjectParser} for the Llama embeddings service settings.
+     * Creates an {@link ObjectParser} for the Bedrock embeddings service settings.
      *
      * @param isPersistentContext whether the parser is applied to the persistent state. This is {@code false} for request parsing (so that
      *                            unexpected fields are rejected) and {@code true} for persisted configuration (so that fields written by
@@ -173,7 +173,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
             return Update.PARSER.apply(xParser, null).mergeInto(this);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse Llama embeddings service settings update", e);
+            throw new ElasticsearchParseException("Failed to parse Bedrock embeddings service settings update", e);
         }
     }
 
@@ -199,7 +199,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     }
 
     /**
-     * Accumulates the embeddings-specific fields on top of the common Llama fields and builds a
+     * Accumulates the embeddings-specific fields on top of the common Bedrock fields and builds a
      * {@link AmazonBedrockEmbeddingsServiceSettings}, enforcing that {@code dimensions} and {@code max_input_tokens} are positive.
      */
     public static class Builder extends AmazonBedrockServiceSettings.Builder<AmazonBedrockEmbeddingsServiceSettings> {

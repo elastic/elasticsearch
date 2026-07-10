@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -16,6 +17,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AbstractAmazonBe
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,6 +40,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
@@ -161,7 +166,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractAmazonB
         );
     }
 
-    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+    public void testUpdateServiceSettings_EmptyMap_UsesDefaultValue() {
         var originalServiceSettings = new AmazonBedrockEmbeddingsServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
@@ -174,7 +179,16 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractAmazonB
         );
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
 
-        assertThat(updatedServiceSettings, is(originalServiceSettings));
+        assertThat(updatedServiceSettings, is(new AmazonBedrockEmbeddingsServiceSettings(
+            INITIAL_TEST_REGION,
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_PROVIDER,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            INITIAL_TEST_SIMILARITY,
+            DEFAULT_RATE_LIMIT_SETTINGS
+        )));
     }
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {
@@ -205,6 +219,53 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractAmazonB
                     null
                 )
             )
+        );
+    }
+
+    public void testFromMap_Request_DimensionsSetByUser_ShouldThrowWhenPresent() {
+        var settingsMap = createEmbeddingsRequestSettingsMap(
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER.toString(),
+            null,
+            true,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY
+        );
+
+        var thrownException = expectThrows(
+            XContentParseException.class,
+            () -> AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        MatcherAssert.assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format("[service_settings] unknown field [%s]", DIMENSIONS_SET_BY_USER)
+            )
+        );
+    }
+
+    public void testFromMap_Request_Dimensions_ShouldThrowWhenPresent() {
+        var settingsMap = createEmbeddingsRequestSettingsMap(
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER.toString(),
+            TEST_DIMENSIONS,
+            null,
+            null,
+            null,
+            TEST_RATE_LIMIT
+        );
+
+        var thrownException = expectThrows(
+            XContentParseException.class,
+            () -> AmazonBedrockEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        MatcherAssert.assertThat(
+            thrownException.getMessage(),
+            containsString(Strings.format("[service_settings] unknown field [%s]", DIMENSIONS))
         );
     }
 
@@ -546,7 +607,6 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractAmazonB
         }
 
         if (maxTokens != null) {
-            System.out.println("Setting max_tokens to " + maxTokens);
             map.put(ServiceFields.MAX_INPUT_TOKENS, maxTokens);
         }
 

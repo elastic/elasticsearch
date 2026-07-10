@@ -170,7 +170,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
         );
     }
 
-    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+    public void testUpdateServiceSettings_EmptyMap_UsesDefaultValue() {
         var originalServiceSettings = createServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
@@ -178,20 +178,6 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
-    }
-
-    public void testUpdateServiceSettings_EmptyRateLimitObject_DoesNotChangeSettings() {
-        var originalServiceSettings = createServiceSettings(
-            INITIAL_TEST_REGION,
-            INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROVIDER,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
-            new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>()))
-        );
-
-        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {

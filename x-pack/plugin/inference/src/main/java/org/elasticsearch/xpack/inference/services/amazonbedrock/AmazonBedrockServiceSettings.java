@@ -78,7 +78,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
     // setting this to 240 requests per minute (4 requests / sec) is a sane default for us as it should be enough for
     // decent throughput without exceeding the minimal for _most_ items. The user should consult
     // the table above if using a model that might have a lesser limit (e.g. Anthropic Claude 3.5)
-    protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240);
+    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240);
 
     /**
      * Accumulates the parsed common fields and assembles a {@link AmazonBedrockServiceSettings}, enforcing that the required fields are

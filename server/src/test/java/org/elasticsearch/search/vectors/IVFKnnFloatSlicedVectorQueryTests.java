@@ -29,8 +29,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.junit.Before;
 
@@ -40,7 +40,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase {
@@ -69,12 +68,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
 
     @Override
     float[] randomVector(int dim) {
-        float[] vector = new float[dim];
-        for (int i = 0; i < dim; i++) {
-            vector[i] = randomFloat();
-        }
-        VectorUtil.l2normalize(vector);
-        return vector;
+        return VectorTestUtils.randomNormalizedFloatVector(dim);
     }
 
     @Override

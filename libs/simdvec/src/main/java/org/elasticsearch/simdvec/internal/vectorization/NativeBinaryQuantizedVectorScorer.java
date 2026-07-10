@@ -11,8 +11,8 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.AddressesScratch;
-import org.elasticsearch.simdvec.internal.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.OffsetsScratch;
 import org.elasticsearch.simdvec.internal.Similarities;
 

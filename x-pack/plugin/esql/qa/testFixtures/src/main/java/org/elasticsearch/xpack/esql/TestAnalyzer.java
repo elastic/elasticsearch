@@ -96,6 +96,7 @@ public class TestAnalyzer {
     private final List<PendingEnrich> pendingEnrichResolutions = new ArrayList<>();
 
     private record PendingEnrich(String policyName, Enrich.Mode mode, ResolvedEnrichPolicy resolved, String error) {}
+
     private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
     private TimestampBounds timestampBounds;

@@ -141,7 +141,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * from a single paginated search response. It is possible that
      * multiple bulk requests are performed from a single paginated search
      * response, meaning that we have to take into account the total
-     * in order to compute a correct scroll/PIT keep alive time
+     * in order to compute a correct search context keep-alive time.
      */
     private final AtomicInteger totalBatchSizeInSinglePaginatedSearchResponse = new AtomicInteger();
     /**

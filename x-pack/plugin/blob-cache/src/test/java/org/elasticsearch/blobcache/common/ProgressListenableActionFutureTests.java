@@ -448,6 +448,7 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         assertTrue(listener.isDone());
     }
 
+    // Test that a race between lower completing and upper forwarding progress to the parent does not cause assertion errors.
     public void testConcurrentSplitProgressForwardingIsIdempotent() throws Exception {
         final int iterations = 100;
         for (int i = 0; i < iterations; i++) {
@@ -491,6 +492,63 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
 
             final Throwable t = failure.get();
             assertThat("Split progress forwarding should cause assertion errors", t, nullValue());
+        }
+    }
+
+    // Recursive split: lower is itself split into lowerLower/lowerUpper. When lowerLower completes while lowerUpper is
+    // still progressing, lower's catch-up (running on the thread that completed lowerLower) and lowerUpper's forwards
+    // both drive lower.doOnProgress on different threads, so lower forwards to the parent from two threads. Because the
+    // forward happens outside lower's lock, those forwards can reach the parent out of order.
+    public void testConcurrentNestedSplitProgressForwardingIsIdempotent() throws Exception {
+        final int iterations = 100;
+        for (int i = 0; i < iterations; i++) {
+            final long end = 3000L;
+            final long parentSplit = 2000L;
+            final long lowerSplit = 1000L;
+            final ProgressListenableActionFuture future = new ProgressListenableActionFuture(0L, end, null);
+            final ProgressListenableActionFuture[] parts = future.split(parentSplit);
+            final ProgressListenableActionFuture lower = parts[0];
+            final ProgressListenableActionFuture upper = parts[1];
+            final ProgressListenableActionFuture[] lowerParts = lower.split(lowerSplit);
+            final ProgressListenableActionFuture lowerLower = lowerParts[0];
+            final ProgressListenableActionFuture lowerUpper = lowerParts[1];
+
+            final CyclicBarrier barrier = new CyclicBarrier(2);
+            final AtomicReference<Throwable> failure = new AtomicReference<>();
+
+            final Thread lowerUpperThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    // Sweep lowerUpper across its whole range so its forwards to lower (once ungated by lowerLower's
+                    // completion) race with lower's catch-up forwarding to the parent.
+                    for (long p = lowerSplit + 1L; p < parentSplit; p++) {
+                        lowerUpper.onProgress(p);
+                    }
+                    lowerUpper.onResponse(parentSplit);
+                } catch (Throwable t) {
+                    failure.compareAndSet(null, t);
+                }
+            }, "lower-upper-" + i);
+
+            final Thread lowerLowerThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    lowerLower.onResponse(lowerSplit);
+                } catch (Throwable t) {
+                    failure.compareAndSet(null, t);
+                }
+            }, "lower-lower-" + i);
+
+            lowerUpperThread.start();
+            lowerLowerThread.start();
+            lowerUpperThread.join();
+            lowerLowerThread.join();
+
+            assertThat("nested split progress forwarding tripped a concurrency bug", failure.get(), nullValue());
+
+            // Complete the outer upper half so the whole future can complete cleanly.
+            upper.onResponse(end);
+            assertTrue(future.isDone());
         }
     }
 

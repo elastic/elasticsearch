@@ -14,6 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class TieredMergeStrategyTests extends ESTestCase {
 
     public void testAllSmallSegmentsSelectsFullRebuild() {
@@ -29,7 +31,7 @@ public class TieredMergeStrategyTests extends ESTestCase {
         int[] sizes = { 8000, 500, 500, 500, 500 };
         int[] centroids = { 120, 8, 8, 8, 8 };
         TieredMergeStrategy.MergeAction<float[]> action = assertAction(strategy, sizes, centroids, TieredMergeStrategy.Strategy.INSERTION);
-        assertTrue(action instanceof TieredMergeStrategy.Insertion<float[]>);
+        assertThat(action, instanceOf(TieredMergeStrategy.Insertion.class));
         // Dominant segment (index 0) centroids should be captured
         assertEquals(120, ((TieredMergeStrategy.Insertion<float[]>) action).seedCentroids().size());
     }
@@ -53,7 +55,7 @@ public class TieredMergeStrategyTests extends ESTestCase {
             centroids,
             TieredMergeStrategy.Strategy.CONCATENATION
         );
-        assertTrue(action instanceof TieredMergeStrategy.Concatenation<float[]>);
+        assertThat(action, instanceOf(TieredMergeStrategy.Concatenation.class));
         // Should collect all 40 centroids
         assertEquals(40, ((TieredMergeStrategy.Concatenation<float[]>) action).seedCentroids().size());
     }
@@ -143,7 +145,6 @@ public class TieredMergeStrategyTests extends ESTestCase {
         assertAction(strategy, sizes, centroids, TieredMergeStrategy.Strategy.INSERTION);
     }
 
-    @SuppressWarnings("unchecked")
     public void testConcatenationSkipsNullCentroidData() {
         TieredMergeStrategy<float[]> strategy = new TieredMergeStrategy<>(64, CentroidOps.FLOAT);
         int[] sizes = { 3000, 4000, 500 };
@@ -156,7 +157,6 @@ public class TieredMergeStrategyTests extends ESTestCase {
         assertEquals(40, ((TieredMergeStrategy.Concatenation<float[]>) action).seedCentroids().size());
     }
 
-    @SuppressWarnings("unchecked")
     public void testConcatenationCoveredVectorCountExcludesNullSegments() {
         TieredMergeStrategy<float[]> strategy = new TieredMergeStrategy<>(64, CentroidOps.FLOAT);
         // Segments 0 + 1 surface priors; segment 2 does not (e.g. legacy ES920/ES940 reader returns null).
@@ -171,7 +171,6 @@ public class TieredMergeStrategyTests extends ESTestCase {
         assertEquals(7000, concat.coveredVectorCount());
     }
 
-    @SuppressWarnings("unchecked")
     public void testConcatenationCoveredVectorCountFullCoverage() {
         TieredMergeStrategy<float[]> strategy = new TieredMergeStrategy<>(64, CentroidOps.FLOAT);
         int[] sizes = { 3000, 4000 };
@@ -185,7 +184,6 @@ public class TieredMergeStrategyTests extends ESTestCase {
     /**
      * Helper that runs selectAction via synthetic centroid data and verifies the strategy.
      */
-    @SuppressWarnings("unchecked")
     private static TieredMergeStrategy.MergeAction<float[]> assertAction(
         TieredMergeStrategy<float[]> strategy,
         int[] sizes,
@@ -198,7 +196,6 @@ public class TieredMergeStrategyTests extends ESTestCase {
         return action;
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static IVFVectorsReader.CentroidData[] makeCentroidData(int[] centroidCounts) {
         IVFVectorsReader.CentroidData[] data = new IVFVectorsReader.CentroidData[centroidCounts.length];
         for (int i = 0; i < centroidCounts.length; i++) {

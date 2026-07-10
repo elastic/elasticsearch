@@ -71,7 +71,6 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -432,7 +431,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             assert luceneCommitPointBlobLocation != null : "commit point [" + indexCommit + "] not found in search directory";
             final var bccTermAndGen = luceneCommitPointBlobLocation.getBatchedCompoundCommitTermAndGeneration();
             final var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation());
-            final Collection<String> commitFileNames = indexCommit.getFileNames();
+            final var metadataFromSearchDirectory = searchDirectory.getBlobFileRangesForFiles(indexCommit.getFileNames());
 
             recoveryExecutor.execute(ActionRunnable.wrap(listener, (innerListener) -> {
                 final Map<String, BlobFileRanges> metadata;
@@ -446,25 +445,32 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                         bccTermAndGen,
                         new BlobMetadata(bccBlobName, luceneCommitPointBlobLocation.offset())
                     );
-                    Map<String, BlobFileRanges> fromStore = null;
+                    Map<String, BlobFileRanges> metadataFromStore = null;
                     while (bccIterator.hasNext()) {
                         var statelessCompoundCommit = bccIterator.next();
                         if (statelessCompoundCommit.generation() == indexCommit.getGeneration()) {
-                            fromStore = getCommitFileRanges(searchDirectory, indexCommit.getFileNames(), statelessCompoundCommit);
+                            assert statelessCompoundCommit.commitFiles().keySet().equals(indexCommit.getFileNames())
+                                : format(
+                                    "CC generation [%d] file set %s does not match index commit file set %s",
+                                    statelessCompoundCommit.generation(),
+                                    statelessCompoundCommit.commitFiles().keySet(),
+                                    indexCommit.getFileNames()
+                                );
+                            metadataFromStore = overrideBlobFileRangesTimestamp(metadataFromSearchDirectory, statelessCompoundCommit);
                             break;
                         }
                     }
-                    if (fromStore == null) {
+                    if (metadataFromStore == null) {
                         throw new IllegalStateException("commit [" + indexCommit + "] not found in object store");
                     }
-                    metadata = fromStore;
+                    metadata = metadataFromStore;
                 } else {
                     // The BCC has not been uploaded to the object store yet (e.g. the commit was
                     // created by a flush-by-refresh). Fall back to the SearchDirectory's file metadata.
                     logger.debug(
                         () -> format("BCC blob [%s] not yet uploaded for shard [%s], using SearchDirectory metadata", bccBlobName, shardId)
                     );
-                    metadata = searchDirectory.getBlobFileRangesForFiles(commitFileNames);
+                    metadata = metadataFromSearchDirectory;
                 }
                 innerListener.onResponse(
                     Optional.of(
@@ -494,15 +500,13 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     /// For each file the method prefers the [BlobFileRanges] already held by the local [SearchDirectory] when its recorded
     /// [BlobLocation] matches the canonical location in the CC. That entry may carry replicated byte ranges that allow the target node
     /// to warm the header and footer of a segment from the first region of the blob, avoiding an extra seek. When the SearchDirectory entry
-    /// is absent or points to a different location (e.g. a generational file written by an earlier CC in the same BCC), the canonical
+    /// points to a different location (e.g. a generational file written by an earlier CC in the same BCC), the canonical
     /// location from the CC is used directly, stamped with the CC's own timestamp so the target node can make informed cache-eviction
     /// decisions.
-    private static Map<String, BlobFileRanges> getCommitFileRanges(
-        final SearchDirectory searchDirectory,
-        final Collection<String> fileNames,
+    private static Map<String, BlobFileRanges> overrideBlobFileRangesTimestamp(
+        final Map<String, BlobFileRanges> metadata,
         final StatelessCompoundCommit statelessCompoundCommit
     ) {
-        final Map<String, BlobFileRanges> metadata = searchDirectory.getBlobFileRangesForFiles(fileNames);
         final var ccTimestamp = statelessCompoundCommit.getTimestampFieldValueRange();
         return statelessCompoundCommit.commitFiles().entrySet().stream().collect(toUnmodifiableMap(Map.Entry::getKey, e -> {
             final String fileName = e.getKey();

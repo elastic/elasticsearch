@@ -563,6 +563,9 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * @param fileNames The names of the files for which to retrieve the metadata.
      */
     public Map<String, BlobFileRanges> getBlobFileRangesForFiles(final Collection<String> fileNames) {
+        if (fileNames == null || fileNames.isEmpty()) {
+            return Map.of();
+        }
         final Map<String, BlobFileRanges> metadata = new HashMap<>(fileNames.size());
         for (String fileName : fileNames) {
             final BlobFileRanges blobFileRanges = currentMetadata.get(fileName);

@@ -323,40 +323,53 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         );
     }
 
+    // prefix: indexed version prefix; ch: multi-byte test char; upperCh: uppercase variant, or null if the char has no case
+    private record MultiByteCase(String prefix, String ch, String upperCh) {}
+
     public void testWildcardQueryUnicode() throws Exception {
         String indexName = "test_wildcard_unicode";
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
         ensureGreen(indexName);
 
-        prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", "1.0.0-σtart").endObject()).get();
-        prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", "2.0.0-🐔tart").endObject()).get();
+        List<MultiByteCase> cases = List.of(
+            new MultiByteCase("1.0.0-", "σ", "Σ"), // 2-byte UTF-8
+            new MultiByteCase("2.0.0-", "🐔", null) // 4-byte UTF-8, surrogate pair, no case
+        );
+        for (MultiByteCase c : cases) {
+            prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", c.prefix() + c.ch() + "tart").endObject())
+                .get();
+        }
         client().admin().indices().prepareRefresh(indexName).get();
 
-        // multi-byte pattern char must not corrupt the automaton
-        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*σtart")), 1);
+        for (MultiByteCase c : cases) {
+            checkMultiByteWildcard(indexName, c);
+        }
+    }
+
+    private void checkMultiByteWildcard(String indexName, MultiByteCase c) {
+        // pattern char must not corrupt the automaton
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*" + c.ch() + "tart")), 1);
         assertHitCount(
-            client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*σtart").caseInsensitive(true)),
+            client().prepareSearch(indexName)
+                .setQuery(QueryBuilders.wildcardQuery("version", "*" + c.ch() + "tart").caseInsensitive(true)),
             1
         );
 
-        // cross-case unicode folding unimplemented; pinned for when it lands
-        assertHitCount(
-            client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*Σtart").caseInsensitive(true)),
-            0
-        );
+        // '*' must traverse the char, trailing it directly or on both sides
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", c.prefix() + c.ch() + "*")), 1);
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*" + c.ch() + "*")), 1);
 
-        // '?' must consume one full char, not one raw byte
-        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "1.0.0-?tart")), 1);
+        if (c.upperCh() != null) {
+            // cross-case unicode folding unimplemented; pinned for when it lands
+            assertHitCount(
+                client().prepareSearch(indexName)
+                    .setQuery(QueryBuilders.wildcardQuery("version", "*" + c.upperCh() + "tart").caseInsensitive(true)),
+                0
+            );
+        }
 
-        // astral-plane (4-byte UTF-8, surrogate-pair) pattern char must not corrupt the automaton
-        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*🐔tart")), 1);
-        assertHitCount(
-            client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*🐔tart").caseInsensitive(true)),
-            1
-        );
-
-        // '?' must consume one full astral-plane char (4 UTF-8 bytes), not a single byte of it
-        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "2.0.0-?tart")), 1);
+        // '?' must consume one full char, not a single byte of it
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", c.prefix() + "?tart")), 1);
     }
 
     private void checkWildcardQuery(String indexName, String query, String... expectedResults) {

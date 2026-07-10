@@ -47,7 +47,8 @@ public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         List<BytesRef> handles = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            handles.add(new RemoteFetchHandle("node-1", "session-1", between(0, 10), between(0, 100), between(0, 10_000)).toBytesRef());
+            // Doc positions are unique per handle, matching production where each handle points at a distinct doc.
+            handles.add(new RemoteFetchHandle("node-1", "session-1", between(0, 10), between(0, 100), i).toBytesRef());
         }
         return new BytesRefBlockSourceOperator(blockFactory, handles);
     }

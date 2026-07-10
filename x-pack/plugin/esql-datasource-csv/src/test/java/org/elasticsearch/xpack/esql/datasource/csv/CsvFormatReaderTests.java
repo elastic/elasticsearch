@@ -4677,6 +4677,55 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A declared {@code double} column preserves the non-finite IEEE tokens {@code NaN}/{@code Infinity}/{@code -Infinity}
+     * (matching the columnar read and {@code ::double}, a deliberate divergence from the finite-only mapper rule).
+     */
+    public void testDoubleColumnAcceptsNaNAndInfinityTokens() throws IOException {
+        String csv = "d:double\nNaN\nInfinity\n-Infinity\n3.5\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            DoubleBlock d = (DoubleBlock) iterator.next().getBlock(0);
+            assertTrue("NaN token", Double.isNaN(d.getDouble(0)));
+            assertEquals(Double.POSITIVE_INFINITY, d.getDouble(1), 0.0);
+            assertEquals(Double.NEGATIVE_INFINITY, d.getDouble(2), 0.0);
+            assertEquals(3.5, d.getDouble(3), 0.0);
+        }
+    }
+
+    /** A declared {@code long} token above {@code Long.MAX_VALUE} is an overflow routed through the error policy. */
+    public void testStringToLongOverflowHonorsErrorPolicy() throws IOException {
+        String csv = "n:long\n99999999999999999999\n"; // > Long.MAX_VALUE
+
+        StorageObject strict = createStorageObject(csv);
+        expectThrows(ParsingException.class, () -> {
+            try (
+                CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(
+                    strict,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next();
+                }
+            }
+        });
+        drainWarnings();
+
+        StorageObject lenient = createStorageObject(csv);
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+        try (
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(
+                lenient,
+                FormatReadContext.builder().batchSize(10).errorPolicy(nullField).build()
+            )
+        ) {
+            assertTrue("overflow nulls the cell under null_field", it.next().getBlock(0).isNull(0));
+        }
+        assertFalse("overflow warns", drainWarnings().isEmpty());
+    }
+
     /** The TSV preset shares {@link CsvFormatReader}, so the strict declared-boolean rule must hold there too. */
     public void testTsvDeclaredBooleanRejectsNonBooleanToken() throws IOException {
         String tsv = "active:boolean\tname:keyword\nyes\tAlice\n";

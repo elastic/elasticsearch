@@ -177,3 +177,50 @@ setup:
 
   # Counterpart assertion for the data source side: even if one existed, it would not appear here.
   - is_false: metadata.esql_datasource
+
+---
+"mappings-validator-rejections":
+  # Semantic validator rejections (DeclaredSchemaValidator) run inside validatePutDataset, after the parent data
+  # source is resolved — so create one, then assert an undeclarable type and a [format] on a non-date column are
+  # both rejected with an actionable message.
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/dataset/{name}
+          capabilities: [dataset_declared_schema]
+      test_runner_features: capabilities
+      reason: "declared mappings validation"
+
+  - do:
+      esql.put_data_source:
+        name: parent
+        body:
+          type: s3
+          settings:
+            auth: anonymous
+
+  - do:
+      catch: /unsupported declared type \[geo_point\] for column \[g\]/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            properties:
+              g: { type: geo_point }
+
+  - do:
+      catch: /\[format\] on column \[msg\] is only supported on \[date\] columns/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            properties:
+              msg: { type: keyword, format: "yyyy-MM-dd" }
+
+  - do:
+      esql.delete_data_source:
+        name: parent

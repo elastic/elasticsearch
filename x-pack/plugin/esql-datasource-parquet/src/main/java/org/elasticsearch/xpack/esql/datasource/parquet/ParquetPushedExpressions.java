@@ -471,14 +471,17 @@ final class ParquetPushedExpressions {
      *       and keeps this one predicate simple);</li>
      *   <li>{@code DATE} — days decode x86_400_000 to epoch-millis.</li>
      * </ul>
-     * {@code TIME(MILLIS)} is a plain INT32-&gt;LONG identity widen (millis-of-day, no scaling), so it is <b>not</b>
-     * declined — the raw stat matches the block value and the predicate is pushable (see
+     * {@code TIME}: only {@code MICROS} scales (x1000 to nanos-of-day, mismatching the micros stat — see
+     * {@code ParquetColumnDecoding}) and is declined; {@code TIME(MILLIS)} (INT32) and {@code TIME(NANOS)} are
+     * identity widens whose raw stat matches the block value, so they stay pushable (see
      * {@code testTimeMillisAnalogousInt32WidenToLongIsPushed}). The single authority both LONG push paths
      * ({@link #buildLongPredicate} and {@link #translateLongIn}) consult before pushing.
      */
     private static boolean pushDeclinedForUnitMismatch(LogicalTypeAnnotation annotation) {
         return annotation instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation
-            || annotation instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation;
+            || annotation instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation
+            || (annotation instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time
+                && time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS);
     }
 
     private static boolean physicalPrimitiveIs(MessageType schema, String columnName, PrimitiveType.PrimitiveTypeName expected) {
@@ -518,11 +521,11 @@ final class ParquetPushedExpressions {
         }
         // A temporal-annotated column reaching a LONG predicate has a unit transform between the block value and
         // the raw physical value the row-group statistics hold: TIMESTAMP(MICROS)->epoch-nanos (x1000),
-        // DATE(days)->epoch-millis (x86_400_000), TIME(micros)->x1000. The literal is in the decoded unit, the
-        // stats are in the physical unit, so pushing it prunes row groups that genuinely match. Pruning is
-        // unrecoverable — RECHECK guards against false positives, not against rows we never read — so decline and
-        // let FilterExec apply the real semantics. Reached via a DECLARED long over a temporal column, or an
-        // inferred TIME_* column; inferred datetime/date_nanos go through the unit-aware build*Predicate arms.
+        // DATE(days)->epoch-millis (x86_400_000), TIME(MICROS)->nanos-of-day (x1000). The literal is in the decoded
+        // unit, the stats are in the physical unit, so pushing it prunes row groups that genuinely match. Pruning is
+        // unrecoverable — RECHECK guards against false positives, not against rows we never read — so decline and let
+        // FilterExec apply the real semantics. Reached via a DECLARED long over a TIMESTAMP/DATE column or an
+        // inferred TIME(MICROS) column; inferred datetime/date_nanos go through the unit-aware build*Predicate arms.
         if (pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
             return null;
         }

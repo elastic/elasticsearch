@@ -3386,7 +3386,10 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertFalse("the out-of-range coercion warns", drainWarnings().isEmpty());
     }
 
-    /** A physical string column declared {@code integer} — the string&rarr;integer columnar arm (only long/double/boolean/ip were driven before). */
+    /**
+     * A physical string column declared {@code integer} — the string&rarr;integer columnar arm (only
+     * long/double/boolean/ip were driven before).
+     */
     public void testStringDeclaredIntegerCoerces() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.BINARY)
@@ -3488,6 +3491,32 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ) {
             LongBlock l = (LongBlock) it.next().getBlock(0);
             assertEquals(millis, l.getLong(0));
+        }
+    }
+
+    /** A physical DOUBLE column read as declared {@code double} preserves non-finite IEEE values (NaN/Infinity). */
+    public void testDoubleFileNonFiniteValuesPassThroughDeclared() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.DOUBLE).named("d").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group a = factory.newGroup();
+            a.add("d", Double.NaN);
+            Group b = factory.newGroup();
+            b.add("d", Double.POSITIVE_INFINITY);
+            Group c = factory.newGroup();
+            c.add("d", Double.NEGATIVE_INFINITY);
+            return List.of(a, b, c);
+        });
+        List<Attribute> asDouble = List.of(new ReferenceAttribute(Source.EMPTY, "d", DataType.DOUBLE));
+        try (
+            CloseableIterator<Page> it = declaredReader("d").readRange(
+                createStorageObject(parquetData),
+                new RangeReadContext(List.of("d"), 10, 0, parquetData.length, asDouble, ErrorPolicy.STRICT)
+            )
+        ) {
+            DoubleBlock d = (DoubleBlock) it.next().getBlock(0);
+            assertTrue(Double.isNaN(d.getDouble(0)));
+            assertEquals(Double.POSITIVE_INFINITY, d.getDouble(1), 0.0);
+            assertEquals(Double.NEGATIVE_INFINITY, d.getDouble(2), 0.0);
         }
     }
 

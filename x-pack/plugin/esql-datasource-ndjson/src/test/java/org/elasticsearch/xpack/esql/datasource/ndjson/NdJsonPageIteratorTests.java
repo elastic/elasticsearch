@@ -1221,6 +1221,35 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
     }
 
+    /** A declared {@code double} preserves the non-finite string tokens NaN/Infinity/-Infinity (IEEE passthrough). */
+    public void testDeclaredDoubleNaNInfinityStringTokens() throws IOException {
+        String ndjson = """
+            {"d": "NaN"}
+            {"d": "Infinity"}
+            {"d": "-Infinity"}
+            """;
+        var object = new BytesStorageObject("file:///nf.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "d", DataType.DOUBLE));
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("d"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            var page = iterator.next();
+            DoubleBlock d = page.getBlock(0);
+            assertTrue(Double.isNaN(d.getDouble(0)));
+            assertEquals(Double.POSITIVE_INFINITY, d.getDouble(1), 0.0);
+            assertEquals(Double.NEGATIVE_INFINITY, d.getDouble(2), 0.0);
+        }
+    }
+
     public void testDeclaredDatetimeFormatOverridesNumericEpochShortcut() throws IOException {
         // A column declared {datetime, format:"yyyyMMdd"} must read the numeric token 20260101 as
         // 2026-01-01 (the declared format is authoritative), NOT as epoch millis — matching CSV and the

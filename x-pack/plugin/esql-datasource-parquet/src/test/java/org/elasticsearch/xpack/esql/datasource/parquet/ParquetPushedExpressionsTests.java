@@ -170,6 +170,25 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertNull("declared long IN over DATE must not push", new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema));
     }
 
+    /**
+     * A physical {@code TIME(MICROS)} column infers to {@code long} and decodes x1000 to nanos-of-day while its
+     * stats stay in micros — the same unit-mismatch class, so a LONG predicate over it must decline. {@code TIME(MILLIS)}
+     * stays pushable (identity widen; see {@code testTimeMillisAnalogousInt32WidenToLongIsPushed}).
+     */
+    public void testLongOverTimeMicrosDeclinesPushdown() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("t")
+            .named("test");
+
+        Expression cmp = eq("t", DataType.LONG, 43_200_000_000L);
+        assertNull("long over TIME(MICROS) must not push", new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema));
+
+        Expression inExpr = new In(Source.EMPTY, attr("t", DataType.LONG), List.of(lit(43_200_000_000L, DataType.LONG)));
+        assertNull("long IN over TIME(MICROS) must not push", new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema));
+    }
+
     /** A plain INT64 IN still pushes — the decline is scoped to temporal-annotated columns. */
     public void testPlainInt64InStillPushes() {
         MessageType schema = Types.buildMessage().required(INT64).named("n").named("test");

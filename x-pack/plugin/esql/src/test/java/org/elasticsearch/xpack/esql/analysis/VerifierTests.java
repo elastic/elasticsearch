@@ -1948,8 +1948,10 @@ public class VerifierTests extends ESTestCase {
 
         checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"", true);
 
+        // MATCH_PHRASE supports runtime search on text expressions only; substring/concat produce keyword,
+        // so these non-indexed columns are still rejected until keyword runtime support lands.
         checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")", false);
+        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")", true);
 
         checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
     }
@@ -2366,11 +2368,8 @@ public class VerifierTests extends ESTestCase {
         // match and : support runtime search and can operate on EVAL columns
         fullText().query("from test | eval name = title | where match(name, \"Meditation\")");
         fullText().query("from test | eval name = title | where name : \"Meditation\"");
-        // match_phrase still requires an index field
-        fullText().error(
-            "from test | eval name = title | where match_phrase(name, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping")
-        );
+        // match_phrase supports runtime search on text EVAL columns
+        fullText().query("from test | eval name = title | where match_phrase(name, \"Meditation\")");
     }
 
     /**
@@ -2396,14 +2395,14 @@ public class VerifierTests extends ESTestCase {
         fullText().query("from test | dissect title \"%{extracted}\" | rename extracted as x | where match(x, \"Meditation\")");
         fullText().query("from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match(y, \"Meditation\")");
 
-        // MATCH_PHRASE still requires an argument that is a field from an index mapping
+        // MATCH_PHRASE supports runtime search on renamed text expressions
+        fullText().query("from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")");
+
+        // MATCH_PHRASE runtime search does not support keyword expressions yet (concat, grok, dissect and
+        // substring all produce keyword), so these still require a field from an index mapping
         fullText().error(
             "from test | eval text = concat(title, body) | rename text as content | where match_phrase(content, \"Meditation\")",
             containsString("[MatchPhrase] function cannot operate on [content], which is not a field from an index mapping")
-        );
-        fullText().error(
-            "from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
         );
         fullText().error(
             "from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",

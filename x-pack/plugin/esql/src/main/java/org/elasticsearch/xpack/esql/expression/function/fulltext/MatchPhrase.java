@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -30,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery;
 
@@ -236,4 +241,47 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions());
     }
 
+    @Override
+    protected boolean isRuntimeSearch() {
+        // Runtime match_phrase is under development (snapshot builds only) and currently supports only text
+        // expressions.
+        // TODO keyword expressions still require an index-mapped field.
+        return EsqlCapabilities.Cap.MATCH_PHRASE_RUNTIME_SEARCH.isEnabled()
+            && fieldAsFieldAttribute() == null
+            && (field.dataType() == TEXT || field.dataType() == NULL);
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (fieldAsFieldAttribute() == null) {
+            return Translatable.NO;
+        }
+        return super.translatable(pushdownPredicates);
+    }
+
+    @Override
+    protected void fieldVerifier(LogicalPlan plan, FullTextFunction function, Expression field, Failures failures) {
+        super.fieldVerifier(plan, function, field, failures);
+        if (isRuntimeSearch() == false) {
+            return;
+        }
+        if (options() != null) {
+            failures.add(
+                Failure.fail(
+                    field,
+                    "Options are not supported for [MATCH_PHRASE] function call on non-index-mapped field [" + field.sourceText() + "]"
+                )
+            );
+        }
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (false == isRuntimeSearch()) {
+            // we push down match_phrase to the shards as a Lucene query.
+            return super.toEvaluator(toEvaluator);
+        }
+
+        return runtimeTextEvaluator(toEvaluator, RuntimeSearch.PhraseMatcher::new);
+    }
 }

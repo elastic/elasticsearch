@@ -188,7 +188,7 @@ public sealed interface BoundsCheckModel {
         List<NativeType> paramTypes,
         Messager messager
     ) {
-        int countIndex = resolveCountParamIndex("@VectorSegment.countParam", annotation.countParam(), param, params, paramTypes, messager);
+        int countIndex = resolveIntSiblingParam("@VectorSegment.countParam", annotation.countParam(), param, params, paramTypes, messager);
         if (countIndex < 0) {
             return null;
         }
@@ -215,13 +215,13 @@ public sealed interface BoundsCheckModel {
         List<NativeType> paramTypes,
         Messager messager
     ) {
-        int rowsIndex = resolveCountParamIndex("@MatrixSegment.rowsParam", annotation.rowsParam(), param, params, paramTypes, messager);
+        int rowsIndex = resolveIntSiblingParam("@MatrixSegment.rowsParam", annotation.rowsParam(), param, params, paramTypes, messager);
         if (rowsIndex < 0) {
             return null;
         }
         int rowPitchBytesIndex = -1;
         if (annotation.rowPitchBytesParam().isEmpty() == false) {
-            rowPitchBytesIndex = resolveCountParamIndex(
+            rowPitchBytesIndex = resolveIntSiblingParam(
                 "@MatrixSegment.rowPitchBytesParam",
                 annotation.rowPitchBytesParam(),
                 param,
@@ -262,7 +262,7 @@ public sealed interface BoundsCheckModel {
                 );
                 return null;
             }
-            int rowBytesIndex = resolveCountParamIndex(
+            int rowBytesIndex = resolveIntSiblingParam(
                 "@MatrixSegment.rowBytesParam",
                 annotation.rowBytesParam(),
                 param,
@@ -275,7 +275,7 @@ public sealed interface BoundsCheckModel {
             }
             return new MatrixSegmentCheck(segParamIndex, rowsIndex, -1, 0, rowBytesIndex, rowPitchBytesIndex, false);
         }
-        int colsIndex = resolveCountParamIndex("@MatrixSegment.colsParam", annotation.colsParam(), param, params, paramTypes, messager);
+        int colsIndex = resolveIntSiblingParam("@MatrixSegment.colsParam", annotation.colsParam(), param, params, paramTypes, messager);
         if (colsIndex < 0) {
             return null;
         }
@@ -299,7 +299,7 @@ public sealed interface BoundsCheckModel {
      * {@code int}/{@code long} parameter. Returns the resolved index, or {@code -1} (with a
      * {@link Kind#ERROR} emitted) on failure.
      */
-    private static int resolveCountParamIndex(
+    private static int resolveIntSiblingParam(
         String attributeDescription,
         String paramName,
         VariableElement annotatedParam,

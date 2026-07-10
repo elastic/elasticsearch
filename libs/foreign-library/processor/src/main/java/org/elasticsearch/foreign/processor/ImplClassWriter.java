@@ -529,7 +529,7 @@ class ImplClassWriter {
                     tryBlock.astore(marshaledSlot);
                     marshaledSlot++;
                 }
-                slot += (paramType == NativeType.LONG || paramType == NativeType.DOUBLE) ? 2 : 1;
+                slot += slotWidth(paramType);
             }
 
             // Push method handle, then all params (String params → their marshaled MemorySegment slots)

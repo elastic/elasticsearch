@@ -19,7 +19,7 @@ import java.lang.annotation.Target;
  * modeling a native-call bounds check.
  *
  * <p>The processor discovers which annotations on a parameter participate in bounds checking by
- * scanning for this meta-annotation (see {@code MethodModel#boundsAnnotationsOn}).
+ * scanning for this meta-annotation (see {@code BoundsCheckModel#boundsAnnotationsOn}).
  */
 @Retention(RetentionPolicy.CLASS)
 @Target(ElementType.ANNOTATION_TYPE)

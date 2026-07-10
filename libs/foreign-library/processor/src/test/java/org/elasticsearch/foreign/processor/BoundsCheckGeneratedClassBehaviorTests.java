@@ -9,6 +9,8 @@
 
 package org.elasticsearch.foreign.processor;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.lang.foreign.MemorySegment;
 
 /**
@@ -23,6 +25,10 @@ import java.lang.foreign.MemorySegment;
  * fit specifically because it's pure/read-only and doesn't itself care about alignment, so it's safe
  * to call regardless of whether our own checks behave correctly.
  */
+@SuppressForbidden(
+    reason = "tests instantiate package-private processor-generated classes and invoke their public methods "
+        + "cross-package; getDeclaredConstructor/setAccessible is the only way to do that via reflection"
+)
 public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
 
     /**
@@ -321,6 +327,60 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
                 b.set(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) i);
             }
             int cmp = (int) memcmp.invoke(instance, a, b, 4L);
+            assertEquals(0, cmp);
+        }
+    }
+
+    /**
+     * Verifies the sub-byte {@code elementBits} path, focusing in particular on the byte
+     * size math.
+     */
+    public void testMatrixSegmentElementBitsMultipliesBeforeDividing() throws Exception {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.MatrixSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 4) MemorySegment a,
+                    MemorySegment b,
+                    long n);
+            }
+            """;
+
+        CompilationResult result = compile("test.MemCmpLib", source);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        Class<?> implClass = result.loadClass("test.MemCmpLib$Impl");
+        java.lang.reflect.Constructor<?> ctor = implClass.getDeclaredConstructor();
+        ctor.setAccessible(true);
+        Object instance = ctor.newInstance();
+        java.lang.reflect.Method memcmp = implClass.getMethod("memcmp", MemorySegment.class, MemorySegment.class, long.class);
+        memcmp.setAccessible(true);
+
+        // rows = cols = n = 3, elementBits = 4: correct size = (3*3*4)/8 = 4 bytes. A naive
+        // per-row computation ((3*4)/8 = 1, then 3*1 = 3) would wrongly accept a 3-byte segment.
+        try (var arena = java.lang.foreign.Arena.ofConfined()) {
+            MemorySegment b = arena.allocate(4);
+            MemorySegment tooSmall = arena.allocate(3);
+
+            try {
+                memcmp.invoke(instance, tooSmall, b, 3L);
+                fail("Expected IndexOutOfBoundsException");
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                assertTrue("Expected IndexOutOfBoundsException, got: " + e.getCause(), e.getCause() instanceof IndexOutOfBoundsException);
+            }
+
+            MemorySegment a = arena.allocate(4);
+            for (int i = 0; i < 3; i++) {
+                a.set(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) i);
+                b.set(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) i);
+            }
+            int cmp = (int) memcmp.invoke(instance, a, b, 3L);
             assertEquals(0, cmp);
         }
     }

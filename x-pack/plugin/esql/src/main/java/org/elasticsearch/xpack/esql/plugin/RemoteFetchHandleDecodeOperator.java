@@ -8,45 +8,47 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Objects;
+import java.io.UncheckedIOException;
 
 /**
  * Decodes remote fetch handles into a doc-location page suitable for {@link org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator}.
  * <p>
- * Input pages contain exactly one bytes block with one serialized {@link RemoteFetchHandle} per row.
+ * This is a strict one-to-one page mapping: each input page produces exactly one output page, so the operator never
+ * accumulates pages. Input pages contain exactly one bytes block with one serialized {@link RemoteFetchHandle} per row.
  * Output pages contain:
  * <ul>
  *     <li>channel 0: doc block (shard, segment, doc)</li>
  *     <li>channel 1 (optional): position mapping used by pushdown filtering</li>
  * </ul>
  */
-final class RemoteFetchHandleDecodeOperator implements Operator {
+final class RemoteFetchHandleDecodeOperator extends AbstractPageMappingOperator {
+    record Factory(boolean includePositionMapping) implements Operator.OperatorFactory {
+        @Override
+        public Operator get(DriverContext driverContext) {
+            return new RemoteFetchHandleDecodeOperator(driverContext.blockFactory(), includePositionMapping);
+        }
+
+        @Override
+        public String describe() {
+            return "RemoteFetchHandleDecodeOperator[include_position_mapping=" + includePositionMapping + "]";
+        }
+    }
+
     private final BlockFactory blockFactory;
     private final boolean includePositionMapping;
-    private final Deque<Page> outputQueue = new ArrayDeque<>();
-    private boolean finished;
-    private Exception failure;
-    private int pagesReceived;
-    private int pagesEmitted;
-    private long rowsReceived;
-    private long rowsEmitted;
 
     RemoteFetchHandleDecodeOperator(BlockFactory blockFactory, boolean includePositionMapping) {
         this.blockFactory = blockFactory;
@@ -54,71 +56,15 @@ final class RemoteFetchHandleDecodeOperator implements Operator {
     }
 
     @Override
-    public boolean needsInput() {
-        return finished == false && failure == null;
+    protected Page process(Page page) {
+        Page decoded = decodeHandles(page);
+        page.releaseBlocks();
+        return decoded;
     }
 
     @Override
-    public void addInput(Page page) {
-        try {
-            if (failure != null) {
-                return;
-            }
-            pagesReceived++;
-            rowsReceived += page.getPositionCount();
-            Page decoded = decodeHandles(page);
-            outputQueue.add(decoded);
-        } catch (Exception e) {
-            failure = e;
-        } finally {
-            page.releaseBlocks();
-        }
-    }
-
-    @Override
-    public void finish() {
-        finished = true;
-    }
-
-    @Override
-    public boolean isFinished() {
-        return (finished || failure != null) && outputQueue.isEmpty();
-    }
-
-    @Override
-    public boolean canProduceMoreDataWithoutExtraInput() {
-        return outputQueue.isEmpty() == false || failure != null;
-    }
-
-    @Override
-    public Page getOutput() {
-        if (failure == null) {
-            Page page = outputQueue.pollFirst();
-            if (page != null) {
-                pagesEmitted++;
-                rowsEmitted += page.getPositionCount();
-            }
-            return page;
-        }
-        Exception e = failure;
-        failure = null;
-        if (e instanceof RuntimeException re) {
-            throw re;
-        }
-        throw new IllegalStateException("remote fetch handle decode failed", e);
-    }
-
-    @Override
-    public void close() {
-        for (Page page : outputQueue) {
-            Releasables.closeExpectNoException(page::releaseBlocks);
-        }
-        outputQueue.clear();
-    }
-
-    @Override
-    public Operator.Status status() {
-        return new Status(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
+    public String toString() {
+        return "RemoteFetchHandleDecodeOperator[include_position_mapping=" + includePositionMapping + "]";
     }
 
     private Page decodeHandles(Page page) {
@@ -127,8 +73,10 @@ final class RemoteFetchHandleDecodeOperator implements Operator {
         }
         BytesRefBlock handlesBlock = page.getBlock(0);
         BytesRef scratch = new BytesRef();
-        String expectedNodeId = null;
-        String expectedSessionId = null;
+        // All handles in one batch must target the same node and retained session. Instead of materializing the two
+        // strings for every row, decode them once from the first handle and compare the serialized prefix bytes of
+        // every subsequent handle.
+        BytesRef expectedTargetSessionPrefix = null;
         try (
             DocVector.FixedBuilder docBuilder = DocVector.newFixedBuilder(blockFactory, page.getPositionCount());
             IntBlock.Builder positionBuilder = includePositionMapping ? blockFactory.newIntBlockBuilder(page.getPositionCount()) : null
@@ -140,27 +88,32 @@ final class RemoteFetchHandleDecodeOperator implements Operator {
                 if (handlesBlock.getValueCount(position) != 1) {
                     throw new IllegalStateException("remote fetch handle block must have exactly one value per row");
                 }
-                RemoteFetchHandle handle = RemoteFetchHandle.fromBytesRef(
-                    handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(position), scratch)
-                );
-                if (expectedNodeId == null) {
-                    expectedNodeId = handle.nodeId();
-                    expectedSessionId = handle.retainedSessionId();
-                } else if (expectedNodeId.equals(handle.nodeId()) == false
-                    || expectedSessionId.equals(handle.retainedSessionId()) == false) {
-                        throw new IllegalStateException(
-                            "remote fetch batch must contain handles from a single target session but saw ["
-                                + expectedNodeId
-                                + "/"
-                                + expectedSessionId
-                                + "] and ["
-                                + handle.nodeId()
-                                + "/"
-                                + handle.retainedSessionId()
-                                + "]"
-                        );
-                    }
-                docBuilder.append(handle.shard(), handle.segment(), handle.doc());
+                BytesRef handleBytes = handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(position), scratch);
+                if (expectedTargetSessionPrefix == null) {
+                    RemoteFetchHandle first = RemoteFetchHandle.fromBytesRef(handleBytes);
+                    expectedTargetSessionPrefix = RemoteFetchHandle.encodeTargetSessionPrefix(first.nodeId(), first.retainedSessionId());
+                    docBuilder.append(first.shard(), first.segment(), first.doc());
+                } else if (RemoteFetchHandle.startsWithTargetSessionPrefix(handleBytes, expectedTargetSessionPrefix)) {
+                    appendDocAfterPrefix(docBuilder, handleBytes, expectedTargetSessionPrefix.length);
+                } else {
+                    RemoteFetchHandle expected = RemoteFetchHandle.fromBytesRef(
+                        handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(0), scratch)
+                    );
+                    RemoteFetchHandle actual = RemoteFetchHandle.fromBytesRef(
+                        handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(position), scratch)
+                    );
+                    throw new IllegalStateException(
+                        "remote fetch batch must contain handles from a single target session but saw ["
+                            + expected.nodeId()
+                            + "/"
+                            + expected.retainedSessionId()
+                            + "] and ["
+                            + actual.nodeId()
+                            + "/"
+                            + actual.retainedSessionId()
+                            + "]"
+                    );
+                }
                 if (positionBuilder != null) {
                     positionBuilder.appendInt(position);
                 }
@@ -169,70 +122,22 @@ final class RemoteFetchHandleDecodeOperator implements Operator {
             if (positionBuilder == null) {
                 return new Page(docBlock);
             }
-            return new Page(docBlock, positionBuilder.build());
+            Block positionBlock;
+            try {
+                positionBlock = positionBuilder.build();
+            } catch (Exception e) {
+                Releasables.closeExpectNoException(docBlock);
+                throw e;
+            }
+            return new Page(docBlock, positionBlock);
         }
     }
 
-    public record Status(int pagesReceived, int pagesEmitted, long rowsReceived, long rowsEmitted) implements Operator.Status {
-        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-            Operator.Status.class,
-            "remote_fetch_handle_decode",
-            Status::new
-        );
-        private static final TransportVersion REMOTE_FETCH_HANDLE_DECODE_STATUS = TransportVersion.fromName(
-            "remote_fetch_handle_decode_status"
-        );
-
-        Status(StreamInput in) throws IOException {
-            this(in.readVInt(), in.readVInt(), in.readVLong(), in.readVLong());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(pagesReceived);
-            out.writeVInt(pagesEmitted);
-            out.writeVLong(rowsReceived);
-            out.writeVLong(rowsEmitted);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return ENTRY.name;
-        }
-
-        @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            return REMOTE_FETCH_HANDLE_DECODE_STATUS;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("pages_received", pagesReceived);
-            builder.field("pages_emitted", pagesEmitted);
-            builder.field("rows_received", rowsReceived);
-            builder.field("rows_emitted", rowsEmitted);
-            return builder.endObject();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Status status = (Status) o;
-            return pagesReceived == status.pagesReceived
-                && pagesEmitted == status.pagesEmitted
-                && rowsReceived == status.rowsReceived
-                && rowsEmitted == status.rowsEmitted;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
+    private static void appendDocAfterPrefix(DocVector.FixedBuilder docBuilder, BytesRef handleBytes, int prefixLength) {
+        try (StreamInput in = StreamInput.wrap(handleBytes.bytes, handleBytes.offset + prefixLength, handleBytes.length - prefixLength)) {
+            docBuilder.append(in.readVInt(), in.readVInt(), in.readVInt());
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to decode remote fetch handle", e);
         }
     }
 }

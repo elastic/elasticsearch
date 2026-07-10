@@ -8,18 +8,77 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
+import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemoteFetchHandleDecodeOperatorTests extends ESTestCase {
+public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
+    private final boolean includePositionMapping = randomBoolean();
+
+    @Override
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
+        return new RemoteFetchHandleDecodeOperator.Factory(includePositionMapping);
+    }
+
+    @Override
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("RemoteFetchHandleDecodeOperator[include_position_mapping=" + includePositionMapping + "]");
+    }
+
+    @Override
+    protected Matcher<String> expectedToStringOfSimple() {
+        return expectedDescriptionOfSimple();
+    }
+
+    @Override
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        List<BytesRef> handles = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            handles.add(new RemoteFetchHandle("node-1", "session-1", between(0, 10), between(0, 100), between(0, 10_000)).toBytesRef());
+        }
+        return new BytesRefBlockSourceOperator(blockFactory, handles);
+    }
+
+    @Override
+    protected void assertSimpleOutput(List<Page> input, List<Page> results) {
+        assertThat(results.size(), equalTo(input.size()));
+        BytesRef scratch = new BytesRef();
+        for (int pageIndex = 0; pageIndex < input.size(); pageIndex++) {
+            Page inputPage = input.get(pageIndex);
+            Page outputPage = results.get(pageIndex);
+            assertThat(outputPage.getPositionCount(), equalTo(inputPage.getPositionCount()));
+            assertThat(outputPage.getBlockCount(), equalTo(includePositionMapping ? 2 : 1));
+            BytesRefBlock handlesBlock = inputPage.getBlock(0);
+            DocBlock docBlock = outputPage.getBlock(0);
+            for (int position = 0; position < inputPage.getPositionCount(); position++) {
+                RemoteFetchHandle handle = RemoteFetchHandle.fromBytesRef(
+                    handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(position), scratch)
+                );
+                assertThat(docBlock.asVector().shards().getInt(position), equalTo(handle.shard()));
+                assertThat(docBlock.asVector().segments().getInt(position), equalTo(handle.segment()));
+                assertThat(docBlock.asVector().docs().getInt(position), equalTo(handle.doc()));
+            }
+            if (includePositionMapping) {
+                IntBlock positionBlock = outputPage.getBlock(1);
+                for (int position = 0; position < inputPage.getPositionCount(); position++) {
+                    assertThat(positionBlock.getInt(positionBlock.getFirstValueIndex(position)), equalTo(position));
+                }
+            }
+        }
+    }
 
     public void testDecodeHandlesBuildsDocBlock() {
         Page input = null;

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -209,7 +210,8 @@ public final class RemoteFetchService {
 
     private static Configuration readConfiguration(StreamInput in) throws IOException {
         return new Configuration(
-            // TODO make Configuration Releasable
+            // The configuration is always serialized without tables (see ExchangeSetupRequest#writeTo), so no block
+            // memory is attached to it and a non-recycling, non-breaking factory is safe here.
             new BlockStreamInput(
                 in,
                 BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build()
@@ -620,9 +622,11 @@ public final class RemoteFetchService {
                 );
             }
             logger.debug(
-                "starting remote fetch exchange setup [{}] with operator chain [{}]",
-                request.retainedSessionId(),
-                describeOperatorChain(intermediate)
+                () -> Strings.format(
+                    "starting remote fetch exchange setup [%s] with operator chain [%s]",
+                    request.retainedSessionId(),
+                    describeOperatorChain(intermediate)
+                )
             );
             server.startWithOperators(
                 driverContext,
@@ -654,43 +658,59 @@ public final class RemoteFetchService {
     ) {
         boolean includePositionMapping = request.pushdownPlan() != null;
         List<Operator> operators = new ArrayList<>();
-        operators.add(new RemoteFetchHandleDecodeOperator(driverContext.blockFactory(), includePositionMapping));
-
-        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = buildFieldInfos(request.fields(), shardContexts, settings);
-        IndexedByShardId<ValuesSourceReaderOperator.ShardContext> readerContexts = shardContexts.map(
-            c -> new ValuesSourceReaderOperator.ShardContext(
-                c.searcher().getIndexReader(),
-                c::newSourceLoader,
-                c.storedFieldsSequentialProportion()
-            )
-        );
-        operators.add(
-            new ValuesSourceReaderOperator.Factory(
-                settings.valuesLoadingJumboSize(),
-                fieldInfos,
-                readerContexts,
-                fieldInfos.size() <= settings.reuseColumnLoadersThreshold(),
-                0,
-                settings.sourceReservationFactor(),
-                settings.docSequenceBytesRefFieldThreshold(),
-                () -> 0L
-            ).get(driverContext)
-        );
-        operators.add(new ProjectOperatorFactory(fetchedFieldsProjection(fieldInfos.size(), includePositionMapping)).get(driverContext));
+        boolean success = false;
         try {
-            operators.addAll(
-                pushdownOperatorBuilder.buildOperators(
-                    request.pushdownPlan(),
-                    shardContexts,
-                    request.configuration().newFoldContext(),
-                    driverContext
+            operators.add(new RemoteFetchHandleDecodeOperator(driverContext.blockFactory(), includePositionMapping));
+
+            List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = buildFieldInfos(request.fields(), shardContexts, settings);
+            IndexedByShardId<ValuesSourceReaderOperator.ShardContext> readerContexts = shardContexts.map(
+                c -> new ValuesSourceReaderOperator.ShardContext(
+                    c.searcher().getIndexReader(),
+                    c::newSourceLoader,
+                    c.storedFieldsSequentialProportion()
                 )
             );
-        } catch (Exception e) {
-            String planName = request.pushdownPlan() == null ? "none" : request.pushdownPlan().getClass().getSimpleName();
-            throw new IllegalStateException("failed to build remote fetch pushdown operators for plan [" + planName + "]", e);
+            operators.add(
+                new ValuesSourceReaderOperator.Factory(
+                    settings.valuesLoadingJumboSize(),
+                    fieldInfos,
+                    readerContexts,
+                    fieldInfos.size() <= settings.reuseColumnLoadersThreshold(),
+                    0,
+                    settings.sourceReservationFactor(),
+                    settings.docSequenceBytesRefFieldThreshold(),
+                    () -> 0L
+                ).get(driverContext)
+            );
+            operators.add(
+                new ProjectOperatorFactory(fetchedFieldsProjection(fieldInfos.size(), includePositionMapping)).get(driverContext)
+            );
+            if (request.pushdownPlan() != null) {
+                try {
+                    operators.addAll(
+                        pushdownOperatorBuilder.buildOperators(
+                            request.pushdownPlan(),
+                            shardContexts,
+                            request.configuration().newFoldContext(),
+                            driverContext
+                        )
+                    );
+                } catch (Exception e) {
+                    throw new IllegalStateException(
+                        "failed to build remote fetch pushdown operators for plan ["
+                            + request.pushdownPlan().getClass().getSimpleName()
+                            + "]",
+                        e
+                    );
+                }
+            }
+            success = true;
+            return operators;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(Releasables.wrap(operators));
+            }
         }
-        return operators;
     }
 
     private static List<ValuesSourceReaderOperator.FieldInfo> buildFieldInfos(

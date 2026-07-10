@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -63,16 +64,14 @@ final class RemoteFetchPushdownOperatorBuilder {
     }
 
     private static void validateSupportedFragment(LogicalPlan plan) {
-        if (plan instanceof RemoteFetchSource) {
-            return;
-        }
-        if (plan instanceof Eval || plan instanceof Filter || plan instanceof Project) {
-            for (LogicalPlan child : plan.children()) {
-                validateSupportedFragment(child);
+        plan.forEachDown(node -> {
+            if (node instanceof RemoteFetchSource == false
+                && node instanceof Eval == false
+                && node instanceof Filter == false
+                && node instanceof Project == false) {
+                throw new IllegalArgumentException(unsupportedPlanMessage(node));
             }
-            return;
-        }
-        throw new IllegalArgumentException(unsupportedPlanMessage(plan));
+        });
     }
 
     private static String unsupportedPlanMessage(Object plan) {
@@ -80,10 +79,10 @@ final class RemoteFetchPushdownOperatorBuilder {
     }
 
     /**
-     * Builds runtime operators from a supported pushdown plan.
+     * Builds runtime operators from a supported, non-null pushdown plan.
      * <p>
      * Callers should validate request-time payloads with {@link #validateSupportedPlan(PhysicalPlan)} before invoking
-     * this method.
+     * this method, and skip the call entirely when the request carries no pushdown plan.
      */
     List<Operator> buildOperators(
         PhysicalPlan pushdownPlan,
@@ -92,16 +91,24 @@ final class RemoteFetchPushdownOperatorBuilder {
         DriverContext driverContext
     ) {
         if (pushdownPlan == null) {
-            return List.of();
+            throw new IllegalArgumentException("remote fetch pushdown plan must not be null");
         }
         List<Operator.OperatorFactory> factories = new ArrayList<>();
         PushdownPipeline pipeline = buildPipeline(pushdownPlan, factories, shardContexts, foldContext);
         List<Operator> operators = new ArrayList<>(factories.size() + 1);
-        for (Operator.OperatorFactory factory : factories) {
-            operators.add(factory.get(driverContext));
+        boolean success = false;
+        try {
+            for (Operator.OperatorFactory factory : factories) {
+                operators.add(factory.get(driverContext));
+            }
+            appendPositionFinalizerIfNeeded(operators, pipeline, driverContext);
+            success = true;
+            return operators;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(Releasables.wrap(operators));
+            }
         }
-        appendPositionFinalizerIfNeeded(operators, pipeline, driverContext);
-        return operators;
     }
 
     private PushdownPipeline buildPipeline(
@@ -150,8 +157,20 @@ final class RemoteFetchPushdownOperatorBuilder {
             Layout.Builder builder = new Layout.Builder();
             builder.append(sourcePlan.output());
             List<Attribute> output = sourcePlan.output();
-            NameId positionAttributeId = output.isEmpty() ? null : output.getLast().id();
-            return new PushdownPipeline(builder.build(), positionAttributeId);
+            // The position-mapping attribute is always the trailing attribute in the source output; verify by name
+            // instead of trusting the position alone so a malformed fragment fails fast rather than mapping the
+            // wrong channel.
+            Attribute positionAttribute = output.isEmpty() ? null : output.getLast();
+            if (positionAttribute == null || positionAttribute.name().equals(RemoteFetchSource.POSITION_ATTRIBUTE_NAME) == false) {
+                throw new IllegalStateException(
+                    "remote fetch pushdown source must end with the position-mapping attribute ["
+                        + RemoteFetchSource.POSITION_ATTRIBUTE_NAME
+                        + "] but ends with ["
+                        + (positionAttribute == null ? "nothing" : positionAttribute.name())
+                        + "]"
+                );
+            }
+            return new PushdownPipeline(builder.build(), positionAttribute.id());
         }
         if (plan instanceof Eval evalPlan) {
             PushdownPipeline child = buildFragmentPipeline(evalPlan.child(), factories, shardContexts, foldContext);

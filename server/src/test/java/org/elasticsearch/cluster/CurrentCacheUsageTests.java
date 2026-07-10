@@ -26,20 +26,16 @@ public class CurrentCacheUsageTests extends AbstractWireSerializingTestCase<Curr
 
     @Override
     protected CurrentCacheUsage mutateInstance(CurrentCacheUsage instance) {
-        return switch (between(0, 2)) {
-            case 0 -> new CurrentCacheUsage(
+        if (randomBoolean()) {
+            return new CurrentCacheUsage(
                 randomValueOtherThan(instance.cacheSizeInBytes(), CurrentCacheUsageTests::randomNonNegativeLong),
                 instance.currentCacheCommitmentInBytes()
             );
-            case 1 -> new CurrentCacheUsage(
+        } else {
+            return new CurrentCacheUsage(
                 instance.cacheSizeInBytes(),
                 randomValueOtherThan(instance.currentCacheCommitmentInBytes(), CurrentCacheUsageTests::randomNonNegativeLong)
             );
-            case 2 -> new CurrentCacheUsage(
-                randomValueOtherThan(instance.cacheSizeInBytes(), CurrentCacheUsageTests::randomNonNegativeLong),
-                randomValueOtherThan(instance.currentCacheCommitmentInBytes(), CurrentCacheUsageTests::randomNonNegativeLong)
-            );
-            default -> throw new AssertionError("unexpected mutation branch");
-        };
+        }
     }
 }

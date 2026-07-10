@@ -26,21 +26,17 @@ public class BoostedAndUnboostedCacheSizesTests extends AbstractWireSerializingT
 
     @Override
     protected BoostedAndUnboostedCacheSizes mutateInstance(BoostedAndUnboostedCacheSizes instance) {
-        return switch (between(0, 2)) {
-            case 0 -> new BoostedAndUnboostedCacheSizes(
+        if (randomBoolean()) {
+            return new BoostedAndUnboostedCacheSizes(
                 randomValueOtherThan(instance.boostedCacheSizeInBytes(), BoostedAndUnboostedCacheSizesTests::randomCacheSize),
                 instance.unboostedCacheSizeInBytes()
             );
-            case 1 -> new BoostedAndUnboostedCacheSizes(
+        } else {
+            return new BoostedAndUnboostedCacheSizes(
                 instance.boostedCacheSizeInBytes(),
                 randomValueOtherThan(instance.unboostedCacheSizeInBytes(), BoostedAndUnboostedCacheSizesTests::randomCacheSize)
             );
-            case 2 -> new BoostedAndUnboostedCacheSizes(
-                randomValueOtherThan(instance.boostedCacheSizeInBytes(), BoostedAndUnboostedCacheSizesTests::randomCacheSize),
-                randomValueOtherThan(instance.unboostedCacheSizeInBytes(), BoostedAndUnboostedCacheSizesTests::randomCacheSize)
-            );
-            default -> throw new AssertionError("unexpected mutation branch");
-        };
+        }
     }
 
     private static long randomCacheSize() {

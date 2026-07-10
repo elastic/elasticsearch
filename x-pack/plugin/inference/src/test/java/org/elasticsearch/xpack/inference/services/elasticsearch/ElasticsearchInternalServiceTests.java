@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
@@ -1787,6 +1789,49 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         }
     }
 
+    public void testResolveModelPlatformVariant_SingleLinuxX86() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        assertEquals(
+            MlPlatformArchitecturesUtil.LINUX_X86_64,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of("linux-x86_64"), clusterSettings)
+        );
+    }
+
+    public void testResolveModelPlatformVariant_SingleLinuxAarch64() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        assertEquals(
+            MlPlatformArchitecturesUtil.PLATFORM_AGNOSTIC,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of("linux-aarch64"), clusterSettings)
+        );
+    }
+
+    public void testResolveModelPlatformVariant_MixedArchitectures() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        assertEquals(
+            MlPlatformArchitecturesUtil.PLATFORM_AGNOSTIC,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of("linux-x86_64", "linux-aarch64"), clusterSettings)
+        );
+    }
+
+    public void testResolveModelPlatformVariant_EmptyNotCloud() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        assertEquals(
+            MlPlatformArchitecturesUtil.PLATFORM_AGNOSTIC,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of(), clusterSettings)
+        );
+    }
+
+    public void testResolveModelPlatformVariant_EmptyCloud() {
+        var clusterSettings = new ClusterSettings(
+            Settings.builder().put(MachineLearningField.MAX_LAZY_ML_NODES.getKey(), 1).build(),
+            Set.of(MachineLearningField.MAX_LAZY_ML_NODES)
+        );
+        assertEquals(
+            MlPlatformArchitecturesUtil.LINUX_X86_64,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of(), clusterSettings)
+        );
+    }
+
     public void testIsDefaultId() {
         var service = createService(mock(Client.class));
         assertTrue(service.isDefaultId(".elser-2-elasticsearch"));
@@ -1996,14 +2041,18 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
     public void testUpdateWithoutMlEnabled() throws IOException, InterruptedException {
         var cs = mock(ClusterService.class);
-        var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        var cSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(MachineLearningField.MAX_LAZY_ML_NODES, MachineLearningField.MODEL_PLATFORM_ARCHITECTURES)
+        );
         when(cs.getClusterSettings()).thenReturn(cSettings);
         var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
             mock(),
             threadPool,
             cs,
             Settings.builder().put("xpack.ml.enabled", false).build(),
-            inferenceStats
+            inferenceStats,
+            mock(FeatureService.class)
         );
         try (var service = new ElasticsearchInternalService(context)) {
             var models = List.of(mock(Model.class));
@@ -2039,14 +2088,18 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         when(client.threadPool()).thenReturn(threadPool);
 
         var cs = mock(ClusterService.class);
-        var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        var cSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(MachineLearningField.MAX_LAZY_ML_NODES, MachineLearningField.MODEL_PLATFORM_ARCHITECTURES)
+        );
         when(cs.getClusterSettings()).thenReturn(cSettings);
         var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
             client,
             threadPool,
             cs,
             Settings.builder().put("xpack.ml.enabled", true).build(),
-            inferenceStats
+            inferenceStats,
+            mock(FeatureService.class)
         );
         try (var service = new ElasticsearchInternalService(context)) {
             List<Model> models = List.of(model);
@@ -2190,7 +2243,8 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             threadPool,
             clusterService,
             Settings.EMPTY,
-            inferenceStats
+            inferenceStats,
+            mock(FeatureService.class)
         );
         var service = new ElasticsearchInternalService(context);
 
@@ -2234,7 +2288,8 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             threadPool,
             clusterService,
             Settings.EMPTY,
-            inferenceStats
+            inferenceStats,
+            mock(FeatureService.class)
         );
         var service = new ElasticsearchInternalService(context);
 
@@ -2273,10 +2328,21 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         var cs = mock(ClusterService.class);
         var cSettings = new ClusterSettings(
             Settings.EMPTY,
-            Set.of(MachineLearningField.MAX_LAZY_ML_NODES, InferencePlugin.INFERENCE_QUERY_TIMEOUT)
+            Set.of(
+                MachineLearningField.MAX_LAZY_ML_NODES,
+                MachineLearningField.MODEL_PLATFORM_ARCHITECTURES,
+                InferencePlugin.INFERENCE_QUERY_TIMEOUT
+            )
         );
         when(cs.getClusterSettings()).thenReturn(cSettings);
-        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(client, threadPool, cs, Settings.EMPTY, inferenceStats);
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            client,
+            threadPool,
+            cs,
+            Settings.EMPTY,
+            inferenceStats,
+            mock(FeatureService.class)
+        );
         return new ElasticsearchInternalService(context);
     }
 
@@ -2330,7 +2396,8 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             threadPool,
             mock(ClusterService.class),
             Settings.EMPTY,
-            inferenceStats
+            inferenceStats,
+            mock(FeatureService.class)
         );
         return new ElasticsearchInternalService(context, l -> l.onResponse(modelVariant));
     }

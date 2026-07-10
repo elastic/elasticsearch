@@ -351,7 +351,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 return;
             }
         }
-        final LongSupplier directoryBytesRead = directoryBytesReadSupplier();
+        final LongSupplier directoryBytesRead = directoryBytesReadSupplier(indicesService);
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
@@ -569,7 +569,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      * Returns a {@link LongSupplier} for the current thread's store directory bytes read counter.
      * Returns {@code () -> 0L} when the {@code directory_metrics} feature flag is disabled.
      */
-    protected LongSupplier directoryBytesReadSupplier() {
+    protected static LongSupplier directoryBytesReadSupplier(IndicesService indicesService) {
         if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
             return indicesService::currentStoreBytesRead;
         }

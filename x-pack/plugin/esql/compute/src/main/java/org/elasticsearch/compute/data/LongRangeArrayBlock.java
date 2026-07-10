@@ -51,7 +51,7 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
 
     @Override
     public int getTotalValueCount() {
-        return fromBlock.getTotalValueCount() + toBlock.getTotalValueCount();
+        return fromBlock.getTotalValueCount();
     }
 
     @Override
@@ -66,7 +66,7 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
 
     @Override
     public int getValueCount(int position) {
-        return Math.max(fromBlock.getValueCount(position), toBlock.getValueCount(position));
+        return fromBlock.getValueCount(position);
     }
 
     @Override

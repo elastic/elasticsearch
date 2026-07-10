@@ -67,12 +67,19 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
     }
 
     @Override
-    TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
-        throws IOException {
+    TopDocs getLeafResults(
+        LeafReaderContext ctx,
+        Weight filterWeight,
+        IVFCollectorManager knnCollectorManager,
+        float visitRatio,
+        boolean usePrecondition
+    ) throws IOException {
         final LeafReader reader = ctx.reader();
         if (reader.numDocs() == 0) {
             return TopDocsCollector.EMPTY_TOPDOCS;
         }
+        // all slices in a segment share the segment's preconditioner, so resolve the query once.
+        final float[] leafQuery = segmentQuery(ctx, usePrecondition);
         final Bits liveDocs = reader.getLiveDocs();
         final int maxDoc = reader.maxDoc();
         final Sort sort = reader.getMetaData().sort();
@@ -150,7 +157,8 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
                     costSupplier,
                     liveDocs,
                     maxDoc,
-                    ctx
+                    ctx,
+                    leafQuery
                 );
             }
         } else {
@@ -165,7 +173,8 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
                     costSupplier,
                     liveDocs,
                     maxDoc,
-                    ctx
+                    ctx,
+                    leafQuery
                 );
             }
         }
@@ -184,7 +193,8 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         LongSupplier costSupplier,
         Bits liveDocs,
         int maxDoc,
-        LeafReaderContext context
+        LeafReaderContext context,
+        float[] leafQuery
     ) throws IOException {
         final IOSupplier<ESAcceptDocs.SliceAcceptDocs> sliceAcceptDocsSupplier = () -> getSliceAcceptDocsSupplier(
             sortedDocValues,
@@ -206,7 +216,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
                 sliceAcceptDocsSupplier
             );
         }
-        context.reader().searchNearestVectors(field, query, knnCollector, acceptDocs);
+        context.reader().searchNearestVectors(field, leafQuery, knnCollector, acceptDocs);
     }
 
     private int[] sliceToSortedOrds(SortedDocValues sortedDocValues, BytesRef[] sliceIds) throws IOException {
@@ -231,7 +241,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             minDocID = 0;
         } else {
             skipper.advance(ord, Long.MAX_VALUE);
-            minDocID = skipper.minValue() == ord ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, ord);
+            minDocID = skipper.minValue(0) == ord ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, ord);
         }
         int maxDocID;
         if (skipper.maxValue() == ord) {
@@ -239,7 +249,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         } else {
             int nextOrd = ord + 1;
             skipper.advance(nextOrd, Long.MAX_VALUE);
-            maxDocID = skipper.minValue() == nextOrd ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, nextOrd);
+            maxDocID = skipper.minValue(0) == nextOrd ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, nextOrd);
         }
         return new ESAcceptDocs.SliceAcceptDocs(minDocID, maxDocID);
     }

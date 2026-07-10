@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.List;
@@ -277,34 +275,22 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("Unknown column [something]"));
     }
 
-    public void testWhereMatchEvalColumn() {
-        var query = """
-            FROM test
-            | EVAL upper_content = to_upper(content)
-            | WHERE upper_content:"FOX"
-            | KEEP id
-            """;
-
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[:] operator cannot operate on [upper_content], which is not a field from an index mapping")
-        );
-    }
-
     public void testWhereMatchOverWrittenColumn() {
         var query = """
             FROM test
             | DROP content
-            | EVAL content = CONCAT("document with ID ", to_str(id))
+            | EVAL content = to_text(CONCAT("document with ID ", to_str(id)))
             | WHERE content:"document"
+            | KEEP id, content
+            | SORT id
+            | LIMIT 2
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[:] operator cannot operate on [content], which is not a field from an index mapping")
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(resp.values(), List.of(List.of(1, "document with ID 1"), List.of(2, "document with ID 2")));
+        }
     }
 
     public void testWhereMatchAfterStats() {
@@ -331,19 +317,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             assertColumnTypes(resp.columns(), List.of("integer"));
             assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
         }
-    }
-
-    public void testWhereMatchWithRow() {
-        var query = """
-            ROW content = "a brown fox"
-            | WHERE content:"fox"
-            """;
-
-        var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("line 2:9: [:] operator cannot operate on [content], which is not a field from an index mapping")
-        );
     }
 
     public void testMatchWithinEval() {
@@ -374,30 +347,20 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | MV_EXPAND content
+            | EVAL content = to_text(content)
             | WHERE content : "fox"
+            | SORT id, content
+            | KEEP id, content
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
-    }
-
-    public void testMatchOperatorAfterMvExpandWithIntermediateCommands() {
-        var error = expectThrows(VerificationException.class, () -> run("""
-            FROM test
-            | MV_EXPAND content
-            | EVAL upper_content = to_upper(content)
-            | WHERE content : "fox"
-            """));
-        assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
-
-        error = expectThrows(VerificationException.class, () -> run("""
-            FROM test
-            | MV_EXPAND content
-            | SORT id
-            | KEEP id, content
-            | WHERE content : "fox"
-            """));
-        assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, "This is a brown fox"), List.of(6, "The quick brown fox jumps over the lazy dog"))
+            );
+        }
     }
 
     public void testWhereFalseBeforeInlineStatsWithMatchOperator() {
@@ -430,17 +393,13 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchWithRow() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
         var query = """
             ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
             | MV_EXPAND content
             | WHERE content:"dog"
             | SORT content
             """;
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
-
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("content"));
             assertColumnTypes(resp.columns(), List.of("text"));
             assertValues(resp.values(), List.of(List.of("This dog is really brown"), List.of("This is a brown dog")));
@@ -448,8 +407,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMatchRuntimeExpression() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
         var query = """
             FROM test
             | EVAL new_content = to_text(concat(content, " and a white cat"))
@@ -458,9 +415,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             | KEEP new_content
             """;
 
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
-
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+        try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("new_content"));
             assertColumnTypes(resp.columns(), List.of("text"));
             assertValues(

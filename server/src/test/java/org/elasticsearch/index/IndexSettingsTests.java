@@ -260,18 +260,6 @@ public class IndexSettingsTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("unknown setting [index.slice.enabled]"));
     }
 
-    public void testSliceEnabledSettingRequiresValidation() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new IndexSettings(
-                newIndexMeta("index", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build()),
-                Settings.EMPTY
-            )
-        );
-        assertThat(exception.getMessage(), containsString("index.slice.enabled"));
-    }
-
     public void testSliceEnabledSettingRejectedForTimeSeriesMode() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IllegalArgumentException exception = expectThrows(
@@ -282,7 +270,6 @@ public class IndexSettingsTests extends ESTestCase {
                     Settings.builder()
                         .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
                         .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
-                        .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
                         .put(IndexSettings.SLICE_ENABLED.getKey(), true)
                         .build()
                 ),
@@ -1218,9 +1205,7 @@ public class IndexSettingsTests extends ESTestCase {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.LOGSDB));
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
-        }
+        modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
         IndexMode mode = randomFrom(modes);
         Settings.Builder builder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), mode.getName())
@@ -1267,7 +1252,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDisableSequenceNumbersDefaultForColumnarModes() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
         // Test COLUMNAR mode
@@ -1298,8 +1282,6 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testDynamicStringsAutoTextDefaultByIndexMode() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         // COLUMNAR and LOGSDB_COLUMNAR default to false (keyword, high-cardinality)
         for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();

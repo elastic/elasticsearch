@@ -170,6 +170,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             stages,
             searchStats,
             transportVersion,
+            true,
             null,
             null,
             null,
@@ -188,6 +189,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private SearchStats searchStats;
         private String[] nestedPath;
         private TransportVersion transportVersion;
+        private boolean explicitTransportVersion;
         private Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory;
         private AliasFilter aliasFilter;
         private ProjectMetadata datasetMetadata;
@@ -252,6 +254,7 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public TestBuilder transportVersion(TransportVersion transportVersion) {
             this.transportVersion = transportVersion;
+            this.explicitTransportVersion = true;
             return this;
         }
 
@@ -299,6 +302,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 stages,
                 searchStats,
                 transportVersion,
+                explicitTransportVersion,
                 optimizerFactory,
                 aliasFilter,
                 datasetMetadata,
@@ -325,6 +329,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         EnumSet<Stage> stages,
         SearchStats searchStats,
         TransportVersion transportVersion,
+        boolean explicitTransportVersion,
         Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory,
         AliasFilter aliasFilter,
         ProjectMetadata datasetMetadata,
@@ -369,13 +374,14 @@ public abstract class GoldenTestCase extends ESTestCase {
             Path queryPath = PathUtils.get(basePath.toString(), queryPathParts);
             Files.createDirectories(queryPath.getParent());
             Files.writeString(queryPath, esqlQuery);
+            TransportVersion version = effectiveTransportVersion(queryPath.getParent());
             UnmappedResolution unmappedResolution = statement.setting(UNMAPPED_FIELDS);
             TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
                 .addTestLookup()
                 .addMultiColumnJoinableLookup()
                 .addAnalysisTestsEnrichResolution()
                 .addAnalysisTestsInferenceResolution()
-                .minimumTransportVersion(transportVersion)
+                .minimumTransportVersion(version)
                 .externalSourceResolution(externalSourceResolution)
                 .unmappedResolution(unmappedResolution);
             boolean trackUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD
@@ -393,7 +399,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 return result;
             }
             var configuration = EsqlTestUtils.configuration(new QueryPragmas(Settings.EMPTY), esqlQuery, statement);
-            var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
+            var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), version);
             var optimizer = optimizerFactory != null
                 ? optimizerFactory.apply(optimizerContext)
                 : new LogicalPlanOptimizer(optimizerContext);
@@ -413,10 +419,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 // optimization. Since subplan execution is not done in the golden tests,
                 // manually replace the placeholders instead by a fixed value.
                 logicallyOptimized = ApproximationPlan.substituteSampleProbability(logicallyOptimized, SAMPLE_PROBABILITY);
-                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, transportVersion));
-                PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(
-                    new Mapper().map(new Versioned<>(logicallyOptimized, transportVersion))
-                );
+                var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, version));
+                PhysicalPlan physicalPlan = physicalPlanOptimizer.optimize(new Mapper().map(new Versioned<>(logicallyOptimized, version)));
                 if (stages.contains(Stage.PHYSICAL_OPTIMIZATION)) {
                     result.add(Tuple.tuple(Stage.PHYSICAL_OPTIMIZATION, verifyOrWrite(physicalPlan, Stage.PHYSICAL_OPTIMIZATION)));
                 }
@@ -528,12 +532,38 @@ public abstract class GoldenTestCase extends ESTestCase {
             return result;
         }
 
+        /**
+         * The version to actually run at. When the test did not pin a version and this run (over)writes expected files —
+         * {@code -Dgolden.overwrite}, or a fresh test with no expected files yet — the run uses {@code TransportVersion.current()}:
+         * committed golden files must not depend on the version {@code randomMinimumVersion()} happened to draw, or regenerating
+         * twice can produce different bytes. Tests that pin a version keep it; they own their version choice.
+         */
+        private TransportVersion effectiveTransportVersion(Path outputDir) throws IOException {
+            if (explicitTransportVersion == false && (overwriteMode() || hasExpectedFiles(outputDir) == false)) {
+                return TransportVersion.current();
+            }
+            return transportVersion;
+        }
+
+        private static boolean overwriteMode() {
+            return System.getProperty("golden.overwrite") != null;
+        }
+
+        private static boolean hasExpectedFiles(Path dir) throws IOException {
+            if (Files.notExists(dir)) {
+                return false;
+            }
+            try (var files = Files.list(dir)) {
+                return files.anyMatch(f -> f.getFileName().toString().endsWith(".expected"));
+            }
+        }
+
         private <T extends QueryPlan<T>> TestResult verifyOrWrite(T plan, Stage stage) throws IOException {
             return verifyOrWrite(plan, outputPath(stage));
         }
 
         private <T extends QueryPlan<T>> TestResult verifyOrWrite(T plan, Path outputFile) throws IOException {
-            if (System.getProperty("golden.overwrite") != null) {
+            if (overwriteMode()) {
                 logger.info("Overwriting file {}", outputFile);
                 return createNewOutput(outputFile, plan);
             } else {

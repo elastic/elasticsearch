@@ -75,6 +75,15 @@ You can use this in combination with `-Dtests.method` to overwrite specific test
 This can also be used in combination with `git diff` to inspect the differences if you prefer that
 method to comparing `.actual` and `.expected` files.
 
+### Which transport version do written files reflect?
+
+Golden tests normally run with a *random* minimum transport version (to cover mixed- and
+remote-cluster planning), but written files must not depend on what the randomizer happened to
+draw — otherwise regenerating twice can produce different bytes. So whenever a run **writes**
+expected files — under `-Dgolden.overwrite`, or the first run of a new test that has no expected
+files yet — it uses the **current** transport version instead of a random one, unless the test
+explicitly pins a version (then the pinned version is used as-is).
+
 ## How do I run **all** the golden tests?
 ```sh
 ./gradlew :x-pack:plugin:esql:test --tests "*GoldenTests"

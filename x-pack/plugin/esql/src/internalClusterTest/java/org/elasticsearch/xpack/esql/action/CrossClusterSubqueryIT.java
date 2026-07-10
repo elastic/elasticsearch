@@ -1451,17 +1451,16 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     /**
-     * REMOTE mode ENRICH is scoped to the remote branch it lives in, but resolving where the policy must exist still
-     * looks at every cluster referenced anywhere in the query - including the sibling local FROM-subquery branch - even
-     * though that branch does not feed the ENRICH. The policy is only present on the remote, so resolution fails on
-     * {@code _local}.
+     * REMOTE mode ENRICH is scoped to the remote branch it lives in - the sibling local FROM-subquery branch never feeds it,
+     * so it doesn't matter that the local branch is unfiltered and touches the local cluster. The policy only needs to exist
+     * on cluster-a (the ENRICH's own source), so the query succeeds even though the policy is missing locally.
      */
-    public void testEnrichWithSubqueriesRemoteModeFailsIfMissingOnLocal() {
+    public void testEnrichWithSubqueriesRemoteModeSucceedsEvenIfMissingOnSiblingLocalBranch() {
         setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
         try {
-            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+            try (EsqlQueryResponse resp = runQuery("""
                 FROM
                     (FROM logs-*),
                     (FROM cluster-a:logs-*
@@ -1469,8 +1468,15 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
                      | ENRICH _remote:values_enrich ON v WITH enrich_name
                      | KEEP v)
                 | KEEP v
-                """, false));
-            assertThat(ex.getMessage(), containsString("cannot find enrich policy [values_enrich] on clusters [_local]"));
+                | SORT v
+                | WHERE v < 5
+                """, false)) {
+                // local logs-1 (unfiltered, v in [0,9]) unioned with the enriched cluster-a branch (v=4 only)
+                assertThat(
+                    getValuesList(resp),
+                    equalTo(List.of(List.of(0L), List.of(1L), List.of(2L), List.of(3L), List.of(4L), List.of(4L)))
+                );
+            }
         } finally {
             deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
@@ -1511,7 +1517,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     }
 
     /**
-     * Same shape as {@link #testEnrichWithSubqueriesRemoteModeFailsIfMissingOnLocal}, but the policy also exists locally,
+     * Same shape as {@link #testEnrichWithSubqueriesRemoteModeSucceedsEvenIfMissingOnSiblingLocalBranch}, but the policy also exists locally,
      * so resolution succeeds. The local branch is filtered down to no rows so only the enriched remote branch contributes.
      */
     public void testEnrichWithSubqueriesRemoteModeSucceedsWhenPresentOnLocalAndRemote() {

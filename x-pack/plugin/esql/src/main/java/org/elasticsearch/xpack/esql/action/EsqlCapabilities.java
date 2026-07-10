@@ -3354,6 +3354,12 @@ public class EsqlCapabilities {
          */
         SPATIAL_BBOX_VALIDATION_FIX,
 
+        /**
+         * ENRICH policy resolution is scoped to the clusters that actually feed rows into that specific ENRICH (its own
+         * FROM-subquery branch or WHERE-IN subquery), instead of every cluster touched anywhere in the whole query.
+         */
+        ENRICH_SCOPED_TO_SUBQUERY,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

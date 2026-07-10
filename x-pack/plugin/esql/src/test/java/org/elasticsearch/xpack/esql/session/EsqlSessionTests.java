@@ -36,11 +36,13 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -54,6 +56,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class EsqlSessionTests extends ESTestCase {
@@ -372,6 +375,212 @@ public class EsqlSessionTests extends ESTestCase {
                 equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote-1", "remote-2"))
             );
         }
+    }
+
+    public void testComputeEnrichScope() {
+        {
+            // enrich on a local index
+            var plan = TEST_PARSER.parseQuery("FROM index | ENRICH policy ON key");
+            var resolution = createIndexResolution("index");
+            assertThat(
+                EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+        }
+        {
+            // enrich on a remote index
+            var plan = TEST_PARSER.parseQuery("FROM remote:index | ENRICH policy ON key");
+            var resolution = createIndexResolution("remote:index");
+            assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution), equalTo(Set.of("remote")));
+        }
+        {
+            // enrich on a row: a ROW has no index relation but produces data on the coordinator, so the policy must be
+            // resolved on the local (coordinating) cluster
+            var plan = TEST_PARSER.parseQuery("ROW key=1 | ENRICH policy ON key");
+            var resolution = createIndexResolution();
+            assertThat(
+                EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+        }
+        {
+            // main-query enrich over a union of a remote index and a ROW: both local and remote cluster are in scope
+            var plan = TEST_PARSER.parseQuery("FROM remote:index, (ROW key=1) | ENRICH policy ON key");
+            var resolution = createIndexResolution("remote:index");
+            assertThat(
+                EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote"))
+            );
+        }
+        {
+            // enrich nested inside a ROW subquery branch: only the local cluster is in scope
+            var plan = TEST_PARSER.parseQuery("FROM remote:index, (ROW key=1 | ENRICH policy ON key)");
+            var resolution = createIndexResolution("remote:index");
+            assertThat(
+                EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+        }
+        {
+            // enrich nested inside a subquery branch on a remote index: only the remote cluster is in scope
+            var plan = TEST_PARSER.parseQuery("FROM (ROW key=1), (FROM remote:index | ENRICH policy ON key)");
+            var resolution = createIndexResolution("remote:index");
+            assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution), equalTo(Set.of("remote")));
+        }
+        {
+            // multiple enriches over the same local source
+            var plan = TEST_PARSER.parseQuery("""
+                FROM index
+                | ENRICH policy-1 ON key
+                | ENRICH policy-2 ON key""");
+            var resolution = createIndexResolution("index");
+            assertThat(
+                EsqlSession.computeEnrichScope(enrichNamed(plan, "policy-1"), resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+            assertThat(
+                EsqlSession.computeEnrichScope(enrichNamed(plan, "policy-2"), resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+        }
+        {
+            // enriches in FROM subqueries, plus one in the main query after the union
+            var plan = TEST_PARSER.parseQuery("""
+                FROM (FROM data | ENRICH policy-0 ON key),
+                     (FROM remote-1:data | ENRICH policy-1 ON key),
+                     (FROM remote-2:data | ENRICH policy-2 ON key)
+                | ENRICH policy-3 ON key
+                | KEEP key, cluster, location
+                | SORT key
+                """);
+            var resolution = createIndexResolution("data", "remote-1:data", "remote-2:data");
+            assertThat(
+                EsqlSession.computeEnrichScope(enrichNamed(plan, "policy-0"), resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+            assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy-1"), resolution), equalTo(Set.of("remote-1")));
+            assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy-2"), resolution), equalTo(Set.of("remote-2")));
+            assertThat(
+                EsqlSession.computeEnrichScope(enrichNamed(plan, "policy-3"), resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "remote-1", "remote-2"))
+            );
+        }
+    }
+
+    public void testComputeEnrichScopeWhereInSubquery() {
+        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+
+        {
+            // ENRICH inside IN subquery on a local index
+            var plan = InSubqueryResolver.resolve(TEST_PARSER.parseQuery("FROM main | WHERE x IN (FROM sub | ENRICH policy ON x)"));
+            var resolution = createIndexResolution("main", "sub");
+            assertThat(
+                EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+        }
+        {
+            // ENRICH inside IN subquery on a remote index
+            var plan = InSubqueryResolver.resolve(TEST_PARSER.parseQuery("FROM main | WHERE x IN (FROM remote:sub | ENRICH policy ON x)"));
+            var resolution = createIndexResolution("main", "remote:sub");
+            assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution), equalTo(Set.of("remote")));
+        }
+        {
+            // ENRICH at top level AND inside the IN subquery: each is scoped independently to its own feeding source
+            var plan = InSubqueryResolver.resolve(
+                TEST_PARSER.parseQuery("FROM main | ENRICH policy-a ON x | WHERE x IN (FROM remote:sub | ENRICH policy-b ON x)")
+            );
+            var resolution = createIndexResolution("main", "remote:sub");
+            assertThat(
+                EsqlSession.computeEnrichScope(enrichNamed(plan, "policy-a"), resolution),
+                equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
+            );
+            assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy-b"), resolution), equalTo(Set.of("remote")));
+        }
+        {
+            // ENRICH in the main query AFTER a WHERE whose IN subquery is a ROW - the ROW is a row filter that does not feed
+            // the enrich, so the scope is the outer source only and the local cluster is NOT added
+            var plan = InSubqueryResolver.resolve(TEST_PARSER.parseQuery("FROM remote:main | WHERE x IN (ROW x = 1) | ENRICH policy ON x"));
+            var resolution = createIndexResolution("remote:main");
+            assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution), equalTo(Set.of("remote")));
+        }
+        {
+            // ENRICH in the main query AFTER a WHERE whose IN subquery reads from another remote - that remote is a row
+            // filter source, not an enrich source, so the scope is the outer source only
+            var plan = InSubqueryResolver.resolve(
+                TEST_PARSER.parseQuery("FROM remote:main | WHERE x IN (FROM other:sub) | ENRICH policy ON x")
+            );
+            var resolution = createIndexResolution("remote:main", "other:sub");
+            assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution), equalTo(Set.of("remote")));
+        }
+    }
+
+    /**
+     * Exercises {@link EsqlSession#computeEnrichScope} on mixed shapes that combine FROM subqueries and WHERE IN subqueries,
+     * mirroring {@link #testComputeLookupJoinIndexScopeMixedSubqueries}. The key invariant is that an ENRICH is scoped to the
+     * clusters that actually feed rows into it, never to the source of a sibling FROM-union branch nor to an IN subquery used
+     * only as a row filter.
+     */
+    public void testComputeEnrichScopeMixedSubqueries() {
+        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+
+        {
+            // FROM subquery has a WHERE IN subquery, the ENRICH sits AFTER that WHERE inside the same FROM subquery. It reads
+            // from remote-1 (the FROM subquery's own source); neither the IN-filter source remote-2 nor the sibling FROM-union
+            // branch remote-3 feed it.
+            var plan = InSubqueryResolver.resolve(TEST_PARSER.parseQuery("""
+                FROM (FROM remote-1:a | WHERE x IN (FROM remote-2:b) | ENRICH policy ON x),
+                     (FROM remote-3:c)
+                """));
+            var resolution = createIndexResolution("remote-1:a", "remote-2:b", "remote-3:c");
+            assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution), equalTo(Set.of("remote-1")));
+        }
+        {
+            // FROM subquery has a WHERE IN subquery, the ENRICH sits INSIDE that IN subquery. It reads from remote-2 (the IN
+            // subquery's source) only.
+            var plan = InSubqueryResolver.resolve(TEST_PARSER.parseQuery("""
+                FROM (FROM remote-1:a | WHERE x IN (FROM remote-2:b | ENRICH policy ON x)),
+                     (FROM remote-3:c)
+                """));
+            var resolution = createIndexResolution("remote-1:a", "remote-2:b", "remote-3:c");
+            assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution), equalTo(Set.of("remote-2")));
+        }
+        {
+            // The WHERE IN subquery is a union of two FROM subqueries, but the ENRICH sits in the main query AFTER the WHERE.
+            // It reads only from the outer source remote-0; the IN-filter sources remote-1/remote-2 are excluded.
+            var plan = InSubqueryResolver.resolve(TEST_PARSER.parseQuery("""
+                FROM remote-0:main
+                | WHERE x IN (FROM (FROM remote-1:a), (FROM remote-2:b))
+                | ENRICH policy ON x
+                """));
+            var resolution = createIndexResolution("remote-0:main", "remote-1:a", "remote-2:b");
+            assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution), equalTo(Set.of("remote-0")));
+        }
+        {
+            // Nested IN subqueries (outer IN -> inner IN), the ENRICH sits INSIDE the innermost subquery. It reads from
+            // remote-2 only; the intermediate remote-1 and the outermost remote-0 are filter sources.
+            var plan = InSubqueryResolver.resolve(TEST_PARSER.parseQuery("""
+                FROM remote-0:main
+                | WHERE x IN (FROM remote-1:a | WHERE y IN (FROM remote-2:b | ENRICH policy ON y))
+                """));
+            var resolution = createIndexResolution("remote-0:main", "remote-1:a", "remote-2:b");
+            assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution), equalTo(Set.of("remote-2")));
+        }
+    }
+
+    /**
+     * Returns the sole {@link Enrich} node with the given (resolved) policy name in {@code plan}, failing if there isn't
+     * exactly one - test queries give each ENRICH occurrence under test a distinct policy name to disambiguate it.
+     */
+    private static Enrich enrichNamed(LogicalPlan plan, String policyName) {
+        List<Enrich> matches = new ArrayList<>();
+        plan.forEachUp(Enrich.class, e -> {
+            if (e.resolvedPolicyName().equals(policyName)) {
+                matches.add(e);
+            }
+        });
+        assertThat(matches, hasSize(1));
+        return matches.get(0);
     }
 
     private static Map<IndexPattern, IndexResolution> createIndexResolution(String... indices) {

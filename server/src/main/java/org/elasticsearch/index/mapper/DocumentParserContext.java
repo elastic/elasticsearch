@@ -417,13 +417,8 @@ public abstract class DocumentParserContext {
      * per-field failure column (see {@link OnFailureStoredValues}) and the field is marked ignored, so indexing continues without the
      * value ever reaching the field's own doc values.
      * <p>
-     * {@code IGNORE} only redirects genuine scalar values. {@code START_OBJECT}/{@code START_ARRAY} still throw regardless of
-     * {@code onFailure}: encoding one would consume the whole structure from the parser ({@code copyCurrentStructure}), which is more
-     * than a single value and would desynchronize the caller's position; a scalar-typed field seeing one is a type mismatch, not a
-     * cardinality violation, so it isn't {@code on_failure}'s to smooth over. In practice this is unreachable today for any field that can
-     * actually configure {@code multi_value}/{@code on_failure} (strict columnar mode disables subobjects, so an object value is
-     * auto-flattened into new fields, and nested arrays are decomposed element-by-element, before either could reach this method); this
-     * guards the invariant defensively in case that changes rather than relying on it silently.
+     * {@code IGNORE} only redirects scalar values. {@code START_OBJECT}/{@code START_ARRAY} still throw regardless of
+     * {@code onFailure}, since redirecting one would require consuming the whole structure from the parser.
      *
      * @return {@code true} if this value was redirected to the failure column and the caller must skip normal parsing (including
      * multi-fields) for it; {@code false} if the caller should parse and index this value normally.
@@ -434,8 +429,15 @@ public abstract class DocumentParserContext {
             return false;
         }
         XContentParser.Token token = parser().currentToken();
-        boolean redirectable = token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY;
-        if (onFailure == FieldMapper.DocValuesParameter.Values.OnFailure.FAIL || redirectable == false) {
+        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
+            throw new IllegalArgumentException(
+                "Field ["
+                    + fieldName
+                    + "] is configured with [multi_value=false] and encountered an object or array as its second value,"
+                    + " which is not supported regardless of [on_failure]"
+            );
+        }
+        if (onFailure == FieldMapper.DocValuesParameter.Values.OnFailure.FAIL) {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"
             );
@@ -457,10 +459,8 @@ public abstract class DocumentParserContext {
      * Enforce that the current Lucene doc carries a non-null value for every {@code [nullability=false]} field scoped to it. Called once
      * per Lucene doc: the root doc against the root scope, each nested instance against its own nested path.
      * <p>
-     * A missing field whose resolved {@code on_failure} is {@link FieldMapper.DocValuesParameter.Values.OnFailure#FAIL} is thrown for, as
-     * before. One resolved to {@code IGNORE} is instead just marked ignored: there is no parser value to redirect to a failure column
-     * here (unlike {@link #enforceSingleValue}, this runs once per Lucene doc, after every field has already been parsed, and "missing" and
-     * "explicit null" are indistinguishable by this point), so {@code IGNORE} simply drops the requirement for that field on this doc.
+     * A missing field resolved to {@code on_failure=FAIL} is thrown for, as before. One resolved to {@code IGNORE} is instead just
+     * marked ignored - there's no parser value to redirect to a failure column for a field that was never provided.
      */
     public final void enforceRequiredFields() {
         if (mappingLookup.hasRequiredFields() == false) {
@@ -482,12 +482,9 @@ public abstract class DocumentParserContext {
         }
         // sortedDifference gives a deterministic message regardless of iteration order; only allocated on the (cold) failure path.
         SortedSet<String> missing = Sets.sortedDifference(required, satisfied);
-        SortedSet<String> toFail = missing;
+        SortedSet<String> toFail = new TreeSet<>(missing);
         for (String fieldName : missing) {
             if (onFailureBehavior(fieldName) == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
-                if (toFail == missing) {
-                    toFail = new TreeSet<>(missing);
-                }
                 toFail.remove(fieldName);
                 addIgnoredField(fieldName);
             }

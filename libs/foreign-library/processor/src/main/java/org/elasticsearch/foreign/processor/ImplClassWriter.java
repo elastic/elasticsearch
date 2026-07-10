@@ -35,6 +35,7 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
+import static org.elasticsearch.foreign.processor.model.LibraryModel.RESOLVER_INTERFACE_FQN;
 
 /**
  * Generates {@code <InterfaceName>$Impl} class files for {@code @LibrarySpecification}-annotated interfaces.
@@ -191,7 +192,7 @@ class ImplClassWriter {
         cb.invokespecial(resolverDesc, "<init>", MethodTypeDesc.of(CD_void));
         cb.ldc(nm.cSymbol());
         cb.invokestatic(CD_LinkerHelper, "defaultLookup", MTD_defaultLookup);
-        cb.invokeinterface(ClassDesc.of("org.elasticsearch.foreign.NativeSymbolResolver"), "resolve", MTD_resolve);
+        cb.invokeinterface(ClassDesc.of(RESOLVER_INTERFACE_FQN), "resolve", MTD_resolve);
 
         // linker.downcallHandle(resolvedSymbol, descriptor, options)
         emitFunctionDescriptor(cb, nm.returnType(), nm.paramTypes());

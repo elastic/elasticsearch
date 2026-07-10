@@ -14,10 +14,10 @@ import java.lang.foreign.SymbolLookup;
 
 /**
  * Default symbol resolver that looks up a symbol by its exact name.
- * Used when no custom {@link NativeSymbolResolver} is specified on a
+ * Used when no custom {@link SymbolResolver} is specified on a
  * {@link LibrarySpecification @LibrarySpecification}.
  */
-public final class DefaultSymbolResolver implements NativeSymbolResolver {
+public final class DefaultSymbolResolver implements SymbolResolver {
 
     @Override
     public MemorySegment resolve(String symbolName, SymbolLookup lookup) {

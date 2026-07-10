@@ -26,7 +26,7 @@ import java.lang.foreign.SymbolLookup;
  * <p>Example — a resolver that tries capability-suffixed symbols before falling back to the base name:
  *
  * <pre>{@code
- * public class TieredResolver implements NativeSymbolResolver {
+ * public class TieredResolver implements SymbolResolver {
  *     private final int capLevel = detectCapabilityLevel();
  *
  *     @Override
@@ -44,7 +44,7 @@ import java.lang.foreign.SymbolLookup;
  * }</pre>
  */
 @FunctionalInterface
-public interface NativeSymbolResolver {
+public interface SymbolResolver {
     /**
      * Resolves a native symbol name to its function pointer.
      *

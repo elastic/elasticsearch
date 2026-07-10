@@ -20,7 +20,7 @@ import java.lang.invoke.MethodHandle;
 public class SymbolResolverClassTests extends ProcessorTestCase {
 
     /**
-     * A valid resolver implementing NativeSymbolResolver with a no-arg constructor compiles cleanly.
+     * A valid resolver implementing SymbolResolver with a no-arg constructor compiles cleanly.
      */
     public void testValidResolverCompiles() throws Exception {
         String source = """
@@ -29,8 +29,8 @@ public class SymbolResolverClassTests extends ProcessorTestCase {
             import java.lang.foreign.SymbolLookup;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.NativeSymbolResolver;
-            class MyResolver implements NativeSymbolResolver {
+            import org.elasticsearch.foreign.SymbolResolver;
+            class MyResolver implements SymbolResolver {
                 public MyResolver() {}
                 @Override
                 public MemorySegment resolve(String symbolName, SymbolLookup lookup) {
@@ -56,8 +56,8 @@ public class SymbolResolverClassTests extends ProcessorTestCase {
     }
 
     /**
-     * The resolver class must implement NativeSymbolResolver. The type bound on the annotation
-     * parameter ({@code Class<? extends NativeSymbolResolver>}) causes javac to reject a class
+     * The resolver class must implement SymbolResolver. The type bound on the annotation
+     * parameter ({@code Class<? extends SymbolResolver>}) causes javac to reject a class
      * that doesn't implement the interface before the processor even runs.
      */
     public void testResolverNotImplementingInterfaceEmitsError() {
@@ -77,7 +77,7 @@ public class SymbolResolverClassTests extends ProcessorTestCase {
 
         CompilationResult result = compile("test.MyLib", source);
 
-        assertFalse("Expected compilation to fail when resolver doesn't implement NativeSymbolResolver", result.success());
+        assertFalse("Expected compilation to fail when resolver doesn't implement SymbolResolver", result.success());
         boolean hasError = result.errors().stream().anyMatch(msg -> msg.contains("cannot be converted to"));
         assertTrue("Expected type mismatch error but got: " + result.errors(), hasError);
     }
@@ -92,8 +92,8 @@ public class SymbolResolverClassTests extends ProcessorTestCase {
             import java.lang.foreign.SymbolLookup;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.NativeSymbolResolver;
-            class BadResolver implements NativeSymbolResolver {
+            import org.elasticsearch.foreign.SymbolResolver;
+            class BadResolver implements SymbolResolver {
                 public BadResolver(String config) {}
                 @Override
                 public MemorySegment resolve(String symbolName, SymbolLookup lookup) {
@@ -145,8 +145,8 @@ public class SymbolResolverClassTests extends ProcessorTestCase {
             import java.lang.foreign.SymbolLookup;
             import org.elasticsearch.foreign.LibrarySpecification;
             import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.NativeSymbolResolver;
-            class PrefixResolver implements NativeSymbolResolver {
+            import org.elasticsearch.foreign.SymbolResolver;
+            class PrefixResolver implements SymbolResolver {
                 public PrefixResolver() {}
                 @Override
                 public MemorySegment resolve(String symbolName, SymbolLookup lookup) {

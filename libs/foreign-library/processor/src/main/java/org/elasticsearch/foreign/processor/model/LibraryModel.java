@@ -9,7 +9,9 @@
 
 package org.elasticsearch.foreign.processor.model;
 
+import org.elasticsearch.foreign.DefaultSymbolResolver;
 import org.elasticsearch.foreign.LibrarySpecification;
+import org.elasticsearch.foreign.SymbolResolver;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,11 +40,11 @@ import javax.tools.Diagnostic.Kind;
  *
  * @param qualifiedName the fully-qualified interface name
  * @param simpleName the simple interface name
- * @param packageName the package name (may be empty)
- * @param libraryName the native library name from {@code @LibrarySpecification.name()} (may be empty)
+ * @param packageName the package name (can be empty)
+ * @param libraryName the native library name from {@code @LibrarySpecification.name()} (can be empty)
  * @param methods all native methods in declaration order
  * @param unavailableOn enum constant names of platforms where this library is unavailable (empty means available everywhere)
- * @param symbolResolverClassName fully-qualified name of the {@code NativeSymbolResolver} implementation
+ * @param symbolResolverClassName fully-qualified name of the {@link SymbolResolver} implementation
  *        (defaults to {@code org.elasticsearch.foreign.DefaultSymbolResolver})
  */
 public record LibraryModel(
@@ -64,8 +66,9 @@ public record LibraryModel(
         "WINDOWS_X64"
     );
 
-    private static final String RESOLVER_INTERFACE_FQN = "org.elasticsearch.foreign.NativeSymbolResolver";
-    private static final String DEFAULT_RESOLVER = "org.elasticsearch.foreign.DefaultSymbolResolver";
+    public static final String RESOLVER_INTERFACE_FQN = SymbolResolver.class.getName();
+    public static final String DEFAULT_RESOLVER_FQN = DefaultSymbolResolver.class.getName();
+    public static final String LIBRARY_SPECIFICATION_FQN = LibrarySpecification.class.getName();
 
     /** Fully-qualified name of the {@code $Impl} class generated for this library. */
     public String implQualifiedName() {
@@ -97,7 +100,7 @@ public record LibraryModel(
         String simpleName = element.getSimpleName().toString();
         String packageName = env.getElementUtils().getPackageOf(element).getQualifiedName().toString();
 
-        AnnotationMirror specMirror = findAnnotationMirror(element, "org.elasticsearch.foreign.LibrarySpecification");
+        AnnotationMirror specMirror = findAnnotationMirror(element);
         List<String> unavailableOn = extractUnavailableOn(specMirror);
 
         List<MethodModel> methods = new ArrayList<>();
@@ -140,22 +143,22 @@ public record LibraryModel(
     }
 
     /**
-     * Resolves and validates the {@code symbolResolver} attribute from {@code @LibrarySpecification}.
-     * Returns the default ({@code DefaultSymbolResolver}) when no custom resolver is specified.
-     * The resolver class must implement {@code NativeSymbolResolver} and have a public no-arg constructor.
+     * Resolves and validates the {@code symbolResolver} attribute from {@link LibrarySpecification}.
+     * Returns the default ({@link DefaultSymbolResolver}) when no custom resolver is specified.
+     * The resolver class must implement {@link SymbolResolver} and have a public no-arg constructor.
      *
      * @return the resolver's fully-qualified name (never null on success), or {@code null} if validation failed
      *         (error already emitted).
      */
     private static String resolveAndValidateSymbolResolver(TypeElement element, Messager messager, Types types) {
-        AnnotationMirror specMirror = findAnnotationMirror(element, "org.elasticsearch.foreign.LibrarySpecification");
+        AnnotationMirror specMirror = findAnnotationMirror(element);
         if (specMirror == null) {
-            return DEFAULT_RESOLVER;
+            return DEFAULT_RESOLVER_FQN;
         }
 
         TypeMirror resolverTypeMirror = ModelUtil.annotationClassValue(specMirror, "symbolResolver");
         if (resolverTypeMirror == null) {
-            return DEFAULT_RESOLVER;
+            return DEFAULT_RESOLVER_FQN;
         }
 
         TypeElement resolverElement = types.asElement(resolverTypeMirror) instanceof TypeElement te ? te : null;
@@ -166,15 +169,15 @@ public record LibraryModel(
 
         String resolverFqn = resolverElement.getQualifiedName().toString();
 
-        if (resolverFqn.equals(DEFAULT_RESOLVER)) {
-            return DEFAULT_RESOLVER;
+        if (resolverFqn.equals(DEFAULT_RESOLVER_FQN)) {
+            return DEFAULT_RESOLVER_FQN;
         }
 
-        TypeElement resolverInterface = findTypeElement(resolverElement, types, RESOLVER_INTERFACE_FQN);
+        TypeElement resolverInterface = findTypeElement(resolverElement, RESOLVER_INTERFACE_FQN);
         if (resolverInterface == null) {
             messager.printMessage(
                 Kind.ERROR,
-                "symbolResolver class '" + resolverFqn + "' must implement NativeSymbolResolver",
+                "symbolResolver class [" + resolverFqn + "] must implement [" + RESOLVER_INTERFACE_FQN + "]",
                 element,
                 specMirror
             );
@@ -184,7 +187,7 @@ public record LibraryModel(
         if (hasPublicNoArgConstructor(resolverElement) == false) {
             messager.printMessage(
                 Kind.ERROR,
-                "symbolResolver class '" + resolverFqn + "' must have a public no-arg constructor",
+                "symbolResolver class [" + resolverFqn + "] must have a public no-arg constructor",
                 element,
                 specMirror
             );
@@ -195,7 +198,7 @@ public record LibraryModel(
     }
 
     /** Checks whether the given type implements (directly or transitively) the interface with the given FQN. */
-    private static TypeElement findTypeElement(TypeElement type, Types types, String interfaceFqn) {
+    private static TypeElement findTypeElement(TypeElement type, String interfaceFqn) {
         for (TypeMirror iface : type.getInterfaces()) {
             if (iface.getKind() != TypeKind.DECLARED) {
                 continue;
@@ -204,7 +207,7 @@ public record LibraryModel(
             if (ifaceElement.getQualifiedName().contentEquals(interfaceFqn)) {
                 return ifaceElement;
             }
-            TypeElement found = findTypeElement(ifaceElement, types, interfaceFqn);
+            TypeElement found = findTypeElement(ifaceElement, interfaceFqn);
             if (found != null) {
                 return found;
             }
@@ -255,10 +258,10 @@ public record LibraryModel(
         return List.of();
     }
 
-    private static AnnotationMirror findAnnotationMirror(TypeElement element, String annotationFqn) {
+    private static AnnotationMirror findAnnotationMirror(TypeElement element) {
         for (AnnotationMirror mirror : element.getAnnotationMirrors()) {
             TypeElement annotationType = (TypeElement) mirror.getAnnotationType().asElement();
-            if (annotationType.getQualifiedName().contentEquals(annotationFqn)) {
+            if (annotationType.getQualifiedName().contentEquals(LibraryModel.LIBRARY_SPECIFICATION_FQN)) {
                 return mirror;
             }
         }

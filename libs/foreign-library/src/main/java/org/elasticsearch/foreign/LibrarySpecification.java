@@ -55,10 +55,10 @@ import java.lang.annotation.Target;
  * not loaded and the provider returns {@code null}.
  *
  * <p>To customize how native symbols are resolved
- * specify a custom {@link NativeSymbolResolver} via {@link #symbolResolver()}:
+ * specify a custom {@link SymbolResolver} via {@link #symbolResolver()}:
  *
  * <pre>{@code
- * public class PrefixResolver implements NativeSymbolResolver {
+ * public class PrefixResolver implements SymbolResolver {
  *     public MemorySegment resolve(String symbolName, SymbolLookup lookup) {
  *         return lookup.find("mylib_" + symbolName).orElseThrow(
  *             () -> new UnsatisfiedLinkError(symbolName));
@@ -90,5 +90,5 @@ public @interface LibrarySpecification {
      * {@link Function @Function} annotations to native function pointers at class-init time.
      * Defaults to {@link DefaultSymbolResolver}, which looks up symbols by their exact name.
      */
-    Class<? extends NativeSymbolResolver> symbolResolver() default DefaultSymbolResolver.class;
+    Class<? extends SymbolResolver> symbolResolver() default DefaultSymbolResolver.class;
 }

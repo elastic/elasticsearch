@@ -58,6 +58,16 @@ public final class DeclaredSchemaValidator {
         DataType.IP
     );
 
+    /**
+     * The types a user may declare on a dataset mapping. Exposed so a format reader's tests can pin that the reader
+     * actually builds every declarable type with the shape {@link
+     * org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions#elementTypeFor} prescribes — the drift
+     * that let a declared {@code unsigned_long} pass validation and then fail at read.
+     */
+    public static Set<DataType> declarableTypes() {
+        return DECLARABLE_TYPES;
+    }
+
     public static void validate(DatasetMapping mapping) {
         if (mapping == null) {
             return;

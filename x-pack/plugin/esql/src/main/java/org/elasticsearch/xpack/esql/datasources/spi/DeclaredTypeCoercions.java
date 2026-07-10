@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Nullable;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigDecimal;
@@ -449,8 +451,13 @@ public final class DeclaredTypeCoercions {
      * NumberType.parse} with {@code coerce=true}: numeric strings parse, decimals truncate toward
      * zero, out-of-[0, 2^64-1]-range throws. Returns the sign-flip block encoding
      * ({@link NumericUtils#asLongUnsigned(BigInteger)}), matching the index path.
+     * <p>
+     * Public for the same reason as {@link #strictParseBoolean} and {@link #parseDatetimeMillis}: the text
+     * readers (CSV/TSV, NDJSON) decode a token to a {@link String} or {@link Number} themselves and then
+     * delegate the declared-type conversion here, so a declared {@code unsigned_long} produces the identical
+     * block encoding regardless of file format.
      */
-    private static long coerceToUnsignedLong(Object value) {
+    public static long coerceToUnsignedLong(Object value) {
         BigInteger big;
         if (value instanceof BigInteger bigInteger) {
             big = bigInteger;
@@ -493,15 +500,34 @@ public final class DeclaredTypeCoercions {
         };
     }
 
-    private static Block.Builder builderFor(DataType to, BlockFactory blockFactory, int positions) {
-        return switch (to) {
-            case INTEGER -> blockFactory.newIntBlockBuilder(positions);
-            case LONG, UNSIGNED_LONG, DATETIME, DATE_NANOS -> blockFactory.newLongBlockBuilder(positions);
-            case DOUBLE -> blockFactory.newDoubleBlockBuilder(positions);
-            case BOOLEAN -> blockFactory.newBooleanBlockBuilder(positions);
-            case KEYWORD, TEXT, IP -> blockFactory.newBytesRefBlockBuilder(positions);
-            default -> throw new IllegalArgumentException("cannot coerce into [" + to.typeName() + "] blocks");
+    /**
+     * The one {@link DataType} &rarr; {@link ElementType} authority for every reader that materializes a declared or
+     * projected column into a block. The <em>enumeration</em> is not repeated here: it is delegated to
+     * {@link PlannerUtils#toElementType}, the engine-wide mapping, so exactly one {@code DataType} switch over block
+     * shape exists in the codebase. What this method adds is the declared-read <em>guard</em>, expressed on the
+     * {@link ElementType} axis rather than as a second {@code DataType} enumeration: the scalar shapes this SPI's
+     * {@link #valueWriter} knows how to append, plus {@link ElementType#NULL}.
+     * <p>
+     * Expressing the guard on the shape axis is what keeps the readers honest. A future declarable type inherits its
+     * block shape automatically, while a {@code DOC}/{@code COMPOSITE}/{@code AGGREGATE_METRIC_DOUBLE}-shaped type
+     * still fails loudly at page setup instead of silently building the wrong block. Format readers must call this
+     * rather than re-deriving the mapping locally — the reader-local copies are exactly how {@code unsigned_long}
+     * came to be accepted at dataset-create time and then unreadable at query time.
+     */
+    public static ElementType elementTypeFor(DataType type) {
+        ElementType elementType = PlannerUtils.toElementType(type);
+        return switch (elementType) {
+            case BOOLEAN, INT, LONG, DOUBLE, BYTES_REF, NULL -> elementType;
+            default -> throw new IllegalArgumentException("type [" + type.typeName() + "] is not readable as a declared column");
         };
+    }
+
+    /**
+     * The block builder for a declared column's target type, derived from {@link #elementTypeFor} so the builder and
+     * the {@link ElementType} a reader projects can never disagree.
+     */
+    public static Block.Builder builderFor(DataType to, BlockFactory blockFactory, int positions) {
+        return elementTypeFor(to).newBlockBuilder(positions, blockFactory);
     }
 
     private interface ValueWriter {

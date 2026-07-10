@@ -1346,7 +1346,7 @@ public class NdJsonPageDecoder implements Closeable {
                 try {
                     blockBuilder = DeclaredTypeCoercions.builderFor(dataType, blockFactory, batchSize);
                 } catch (IllegalArgumentException e) {
-                    throw unsupportedTypeForNdjson(dataType);
+                    throw unsupportedTypeForNdjson(dataType, e);
                 }
                 blockBuilders[blockIdx] = blockBuilder;
             }
@@ -1367,8 +1367,13 @@ public class NdJsonPageDecoder implements Closeable {
          * supported type takes the per-cell error policy instead.
          */
         private IllegalArgumentException unsupportedTypeForNdjson(DataType type) {
+            return unsupportedTypeForNdjson(type, null);
+        }
+
+        private IllegalArgumentException unsupportedTypeForNdjson(DataType type, Throwable cause) {
             return new IllegalArgumentException(
-                "column [" + name + "] has declared type [" + type.typeName() + "] which is not supported for NDJSON reads"
+                "column [" + name + "] has declared type [" + type.typeName() + "] which is not supported for NDJSON reads",
+                cause
             );
         }
 
@@ -1806,7 +1811,10 @@ public class NdJsonPageDecoder implements Closeable {
                 try {
                     long encoded = DeclaredTypeCoercions.coerceToUnsignedLong(parser.getValueAsString());
                     ((LongBlock.Builder) blockBuilder).appendLong(encoded);
-                } catch (IllegalArgumentException | InvalidArgumentException e) {
+                } catch (IllegalArgumentException e) {
+                    // coerceToUnsignedLong signals every bad token with an IllegalArgumentException (its range guard,
+                    // the ArithmeticException remap, and the NumberFormatException subclass from BigDecimal); unlike
+                    // strictParseBoolean it never throws InvalidArgumentException, so one catch clause covers it.
                     coercionFailure(blockBuilder, parser, inArray, DataType.UNSIGNED_LONG);
                 }
             } else {

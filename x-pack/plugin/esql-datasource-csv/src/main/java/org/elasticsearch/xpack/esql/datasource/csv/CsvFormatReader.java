@@ -5711,7 +5711,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // the file format. Fractional and scientific tokens truncate toward zero, matching ::unsigned_long
                 // and deliberately unlike the round-half behavior of the long/integer coercers.
                 return DeclaredTypeCoercions.coerceToUnsignedLong(value);
-            } catch (IllegalArgumentException | InvalidArgumentException e) {
+            } catch (IllegalArgumentException e) {
+                // coerceToUnsignedLong signals every bad token with an IllegalArgumentException (its range guard, the
+                // ArithmeticException remap, and the NumberFormatException subclass from BigDecimal); unlike
+                // strictParseBoolean it never throws InvalidArgumentException, so one catch clause covers it.
                 lastFieldError = "Failed to parse CSV value [" + value + "] as [UNSIGNED_LONG]";
                 return null;
             }

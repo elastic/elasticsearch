@@ -208,6 +208,25 @@ final class LongBlockHash extends BlockHash {
     }
 
     @Override
+    public Router router() {
+        if (hash instanceof LongSwissHash swiss) {
+            return new Router() {
+                @Override
+                public int partitionHashOfKey(Block keyBlock, int position) {
+                    return LongSwissHash.hash(((LongBlock) keyBlock).getLong(position));
+                }
+
+                @Override
+                public int addKey(Block keyBlock, int position, int hash) {
+                    long key = ((LongBlock) keyBlock).getLong(position);
+                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
+                }
+            };
+        }
+        return null;
+    }
+
+    @Override
     public void close() {
         prefetchBarrier.flush();
         hash.close();

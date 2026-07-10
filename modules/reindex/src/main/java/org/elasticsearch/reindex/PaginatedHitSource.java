@@ -169,7 +169,7 @@ public abstract class PaginatedHitSource {
     );
 
     /**
-     * Called to release pagination resources (e.g. clear scroll search context).
+     * Called to release pagination resources (e.g. clear scroll context).
      * For PIT-based pagination this is a no-op as the PIT is closed elsewhere.
      *
      * @param onCompletion implementers must call this after completing the release whether they are

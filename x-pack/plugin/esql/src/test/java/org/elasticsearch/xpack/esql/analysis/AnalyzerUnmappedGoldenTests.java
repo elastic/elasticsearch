@@ -806,49 +806,79 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
-        runTests("""
+        String query = """
             FROM k8s, k8s_unmapped
             | EVAL bytes = network.bytes_in::long
             | KEEP bytes
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testTSTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
-        runTests("""
+        String query = """
             TS k8s, k8s_unmapped
             | EVAL bytes = network.bytes_in::long
             | KEEP bytes
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES, DimensionValues.DIMENSION_VALUES_VERSION);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBetween(
+            query,
+            STAGES,
+            DimensionValues.DIMENSION_VALUES_VERSION,
+            CompactMultiTypeEsField.CompactMultiTypeEsField,
+            "preCompact"
+        );
     }
 
     public void testTypeConflictTimeseriesDoubleUnmappedWithCast() throws Exception {
-        runTests("""
+        String query = """
             FROM k8s, k8s_unmapped
             | EVAL cost = network.cost::double
             | KEEP cost
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testTypeConflictTimeseriesStatsWithCast() throws Exception {
-        runTests("""
+        String query = """
             FROM k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testTSTypeConflictTimeseriesStatsWithCast() throws Exception {
-        runTests("""
+        String query = """
             TS k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES, DimensionValues.DIMENSION_VALUES_VERSION);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBetween(
+            query,
+            STAGES,
+            DimensionValues.DIMENSION_VALUES_VERSION,
+            CompactMultiTypeEsField.CompactMultiTypeEsField,
+            "preCompact"
+        );
     }
 
     public void testTypeConflictTimeseriesWhereWithCast() throws Exception {
-        runTests("""
+        String query = """
             FROM k8s, k8s_unmapped
             | WHERE network.cost::double > 10.0
             | KEEP cluster, network.cost
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testPartiallyMappedField() throws Exception {
@@ -859,73 +889,116 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testMappedInOneIndexOnly() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | KEEP message
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testMappedInOneIndexOnlyCast() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | EVAL x = message :: LONG
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+    }
+
+    // message is keyword-mapped in sample_data and unmapped (loaded as keyword) in no_mapping_sample_data, so it
+    // surfaces as a PotentiallyUnmappedKeywordEsField rather than a two-legged PUNK requiring a type conversion.
+    // TO_TEXT is applied directly to that field attribute, so no keyword->keyword auto-cast happens.
+    // See also testSingleTypeTextUnmappedToText.
+    public void testMappedInOneIndexOnlyToText() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | EVAL message_text = TO_TEXT(message)
+            | KEEP message_text
             """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testMappedToNonKeywordInOneIndexOnly() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | KEEP event_duration
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testTypeConflictMappedAndUnmappedWithCast() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | EVAL event_duration = event_duration::long
             | KEEP event_duration
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
+    // @timestamp is mapped with conflicting types across sample_data_ts_long and sample_data, and unmapped in
+    // no_mapping_sample_data. Unlike a plain two-legged PUNK, this is a genuine mapped-vs-mapped union type
+    // conflict, so NULLIFY also builds a MultiTypeEsField/CompactMultiTypeEsField and needs the version split too.
     public void testTypeConflictMappedTimesTwoAndUnmapped() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data_ts_long, sample_data, no_mapping_sample_data
             | EVAL ts = @timestamp::date
             | KEEP ts
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsNullifyOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testNoTypeConflictKeywordAndUnmappedWhere() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | WHERE message::keyword LIKE "Connected*"
             | KEEP message
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     // All fields are partially unmapped (no_mapping_sample_data has no mapped fields).
     // Keyword fields should become PotentiallyUnmappedKeywordEsField; non-keyword fields should become InvalidMappedField.
     // No explicit field reference — all fields come from the implicit output of FROM.
     public void testPartiallyMappedFieldsAutomaticallyFound() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     // Same as testPartiallyMappedFieldsAutomaticallyFound, but with an explicit KEEP * to verify wildcard expansion
     // handles partially-mapped fields correctly.
     public void testPartiallyMappedFieldsAutomaticallyFoundKeepStar() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | KEEP *
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testPartiallyMappedNonKeywordFieldMarkedAsPotentiallyUnmapped() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | KEEP @timestamp, event_duration
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     public void testSingleTypeTextUnmappedNoCastLoadOnly() throws Exception {
@@ -933,6 +1006,19 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM text_state_mapped, text_state_unmapped
             | KEEP txt
             """, STAGES);
+    }
+
+    // The 'txt' field is text-mapped in text_state_mapped and unmapped (loaded as keyword) in text_state_unmapped.
+    // TEXT is excluded from TYPE_TO_CONVERTER_FUNCTION, so ResolveTwoLeggedPunksInEsRelation cannot auto-cast the
+    // unmapped leg to TEXT ahead of time. TO_TEXT is instead fused directly onto the raw values of both legs,
+    // exactly as for the keyword case in testMappedInOneIndexOnlyToText.
+    // https://github.com/elastic/elasticsearch/pull/153015#discussion_r3544806310.
+    public void testSingleTypeTextUnmappedToText() throws Exception {
+        runTests("""
+            FROM text_state_mapped, text_state_unmapped
+            | EVAL txt_text = TO_TEXT(txt)
+            | KEEP txt_text
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testSingleTypeDenseVectorUnmappedNoCastLoadOnly() throws Exception {
@@ -1025,26 +1111,35 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
 
     // DROP a single partially-mapped keyword field (message), leaving only non-keyword fields.
     public void testPartiallyMappedFieldsDropOnePartiallyMapped() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | DROP message
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     // DROP a single partially-mapped non-keyword field (event_duration), leaving message and the other non-keyword fields.
     public void testPartiallyMappedFieldsDropOnePartiallyMappedNonKeyword() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | DROP event_duration
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     // DROP with wildcards on partially-mapped non-keyword fields, leaving only the keyword field (message).
     public void testPartiallyMappedFieldsDropNonKeywordWithWildcards() throws Exception {
-        runTests("""
+        String query = """
             FROM sample_data, no_mapping_sample_data
             | DROP *_ip, *_duration, @timestamp
-            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+            """;
+        runTestsNullifyOnly(query, STAGES);
+        runTestsLoadOnly(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+        runTestsLoadOnlyBelow(query, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField, "preCompact");
     }
 
     // DROP with wildcards on partially-mapped keyword fields, leaving only a few non-keyword fields.

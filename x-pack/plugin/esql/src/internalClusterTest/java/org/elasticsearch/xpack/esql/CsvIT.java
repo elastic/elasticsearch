@@ -351,6 +351,7 @@ public class CsvIT extends ESTestCase {
         );
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
+        CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesLocalCluster);
         CsvTestUtils.checkPragma(testCase.pragmas);
 
         currentGroupName = groupName;
@@ -575,9 +576,19 @@ public class CsvIT extends ESTestCase {
             assertAcked(cluster.client().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings));
             if (dataset.dataFileName() != null) {
                 var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
                 for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
                     String source = indexLoadStrategy.transformDocument(dataset, document.json().toString());
-                    bulk.add(cluster.client().prepareIndex(dataset.indexName()).setId(document.id()).setSource(source, XContentType.JSON));
+                    var indexRequestBuilder = cluster.client()
+                        .prepareIndex(dataset.indexName())
+                        .setId(document.id())
+                        .setSource(source, XContentType.JSON);
+                    if (document.slice() != null) {
+                        indexRequestBuilder.setRouting(document.slice());
+                        indexRequestBuilder.setRoutingFromSlice(true);
+                    }
+
+                    bulk.add(indexRequestBuilder);
                     if (bulk.numberOfActions() >= BULK_INDEX_BATCH_SIZE) {
                         var result = bulk.get();
                         assertFalse(

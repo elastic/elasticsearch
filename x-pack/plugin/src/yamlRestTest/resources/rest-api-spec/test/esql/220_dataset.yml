@@ -122,18 +122,7 @@ setup:
           mappings:
             _id: { type: keyword }
 
-  # _source supports only [enabled].
-  - do:
-      catch: /unknown \[_source\] field \[mode\]; only \[enabled\] is supported/
-      esql.put_dataset:
-        name: ds
-        body:
-          data_source: parent
-          resource: "s3://x/*.csv"
-          mappings:
-            _source: { mode: synthetic }
-
-  # Field parameters outside {type, path, copy_to} are rejected (index-mapping params we don't model).
+  # Field parameters outside {type, path, format} are rejected (index-mapping params we don't model).
   - do:
       catch: /\[analyzer\]/
       esql.put_dataset:

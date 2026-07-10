@@ -80,6 +80,29 @@ import static org.mockito.Mockito.when;
  */
 public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
+    public void testResolveDispatchModeSequentialWhenSplitterNotStridedSafe() {
+        // A quoted CSV/TSV reader reports a non-strided splitter, so the uncompressed file must be read as one
+        // sequential stream through the streaming coordinator rather than segmented at arbitrary offsets.
+        SegmentableFormatReader quoted = mock(SegmentableFormatReader.class);
+        RecordSplitter nonStrided = mock(RecordSplitter.class);
+        when(nonStrided.supportsStridedProbing()).thenReturn(false);
+        when(quoted.recordSplitter()).thenReturn(nonStrided);
+        assertEquals(
+            AsyncExternalSourceOperatorFactory.ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL,
+            AsyncExternalSourceOperatorFactory.resolveDispatchMode(quoted)
+        );
+
+        // A plain (quoting-off) reader keeps strided probing, so it stays on the offset-segmented parallel path.
+        SegmentableFormatReader plain = mock(SegmentableFormatReader.class);
+        RecordSplitter strided = mock(RecordSplitter.class);
+        when(strided.supportsStridedProbing()).thenReturn(true);
+        when(plain.recordSplitter()).thenReturn(strided);
+        assertEquals(
+            AsyncExternalSourceOperatorFactory.ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED,
+            AsyncExternalSourceOperatorFactory.resolveDispatchMode(plain)
+        );
+    }
+
     public void testConstructorValidation() {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
@@ -1397,6 +1420,35 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue("describe should mention parallel-parse for segmentable readers", description.contains("parallel-parse(4)"));
     }
 
+    /**
+     * A quoting-on reader hands out a non-strided splitter, so with parsing parallelism the factory must
+     * dispatch to the sequential (whole-file, quote-aware) branch. This asserts the {@code describe()} label
+     * the end-to-end IT relies on but cannot itself observe (the profile shows the clean operator name,
+     * not the parse mode).
+     */
+    public void testDescribeShowsQuotedSequentialParseMode() {
+        SegmentableFormatReader formatReader = new NonStridedSegmentableFormatReader();
+        StorageProvider storageProvider = mock(StorageProvider.class);
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            StoragePath.of("file:///test.csv"),
+            List.of(
+                new FieldAttribute(Source.EMPTY, "x", new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+            ),
+            100,
+            10,
+            Runnable::run
+        ).parsingParallelism(4).build();
+
+        String description = factory.describe();
+        assertTrue(
+            "describe should mention quoted-sequential-parse for non-strided readers: " + description,
+            description.contains("quoted-sequential-parse(4)")
+        );
+    }
+
     public void testDescribeShowsSyncWrapperForParallelism1() {
         TrackingSegmentableFormatReader formatReader = new TrackingSegmentableFormatReader();
         StorageProvider storageProvider = mock(StorageProvider.class);
@@ -2617,6 +2669,58 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
+     * A quoted/escaped (non-strided) uncompressed reader must only ever be handed a whole-file split: split
+     * discovery routes such files through {@code requiresSequentialWholeFileRead} to a single leader-bearing
+     * split at offset 0. A partial split (no file leader, a non-zero offset, or a record-aligned macro-split
+     * that covers only part of the file) can only arrive from an older coordinator in a mixed-version
+     * cluster. Reading one mid-file would misread an in-quote newline as a record terminator, so the
+     * sequential branch fails loud rather than reading mid-file and silently miscounting.
+     */
+    public void testOpenWithParallelismQuotedSequentialRejectsPartialSplits() throws IOException {
+        AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
+            new NonStridedSegmentableFormatReader(),
+            Runnable::run
+        );
+        byte[] payload = "\"a\nb\",c\nd,e\n".getBytes(StandardCharsets.UTF_8);
+
+        // recordAlignedMacroSplit, splitIncludesFileLeader, baseFileOffset: each of the three
+        // whole-file invariants, violated in isolation, must be rejected.
+        assertRejectsNonWholeFileSplit(factory, payload, false, false, 0L); // no file leader
+        assertRejectsNonWholeFileSplit(factory, payload, false, true, 128L); // non-zero file offset
+        assertRejectsNonWholeFileSplit(factory, payload, true, true, 0L); // record-aligned macro-split
+    }
+
+    private static void assertRejectsNonWholeFileSplit(
+        AsyncExternalSourceOperatorFactory factory,
+        byte[] payload,
+        boolean recordAlignedMacroSplit,
+        boolean splitIncludesFileLeader,
+        long baseFileOffset
+    ) {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> factory.openWithParallelism(
+                new NonStridedSegmentableFormatReader(),
+                bytesStorageObject(payload),
+                List.of("a"),
+                ErrorPolicy.STRICT,
+                recordAlignedMacroSplit,
+                splitIncludesFileLeader,
+                false,
+                null,
+                baseFileOffset,
+                null,
+                null,
+                null
+            )
+        );
+        assertTrue(
+            "unexpected message: " + e.getMessage(),
+            e.getMessage().startsWith("quoted uncompressed reads must be whole-file splits")
+        );
+    }
+
+    /**
      * Minimal splittable codec stub so dispatch tests avoid wiring real bzip2 parallel scanners.
      */
     private static final class StubSplittableCodec implements SplittableDecompressionCodec {
@@ -3343,6 +3447,18 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * A segmentable reader whose splitter reports {@code supportsStridedProbing() == false}, mirroring a
+     * quoting-on CSV/TSV reader. Drives the factory onto the {@code SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL}
+     * dispatch branch.
+     */
+    private static class NonStridedSegmentableFormatReader extends TrackingSegmentableFormatReader {
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.nonStridedSplitter(maxRecordBytes);
+        }
     }
 
     private static class LargeStorageProvider implements StorageProvider {

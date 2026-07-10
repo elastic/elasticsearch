@@ -117,6 +117,7 @@ public record KMeansWithOverspill<V>(KMeansResult<V> result, OverspillAssignment
             if (index < 0) {
                 index = -index - 2; // go back one to the offset < ordinal, as that's the assignment containing this ordinal
             }
+            // if this ordinal is out of range for the indexed assignment, that's ok, it'll just return an empty iterator
             var iterator = assignments[index].getAssignmentsFor(ordinal - assignmentOffsets[index]);
             return new MappingIntIterator(iterator, centroidOffsets[index]);
         }

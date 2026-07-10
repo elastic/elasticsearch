@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.Before;
 
 import java.io.BufferedWriter;
 import java.nio.file.Files;
@@ -32,6 +33,17 @@ public abstract class AbstractWarmDatasetAggregateIT extends AbstractExternalDat
 
     /** Each file clears several 64kb segments so the parallel-parse / per-stripe fold path is exercised per file. */
     protected static final int FILE_BYTES = 512_000;
+
+    /**
+     * These suites drive the {@code parsing_parallelism} pragma to select the SEGMENTABLE_UNCOMPRESSED
+     * parallel-parse regime the dataset-aggregate fold is built for. Pragmas are rejected on release
+     * builds, so skip the whole suite there rather than run it in an unintended serial-parse shape — the
+     * snapshot {@code internalClusterTest} run is the real coverage. Mirrors {@link AbstractPausableIntegTestCase}.
+     */
+    @Before
+    public void requireQueryPragmas() {
+        assumeTrue("requires the snapshot-only parsing_parallelism pragma", canUseQueryPragmas());
+    }
 
     @Override
     protected QueryPragmas getPragmas() {

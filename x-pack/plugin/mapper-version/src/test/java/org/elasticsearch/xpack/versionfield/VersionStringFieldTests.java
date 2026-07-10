@@ -323,6 +323,31 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testWildcardQueryUnicode() throws Exception {
+        String indexName = "test_wildcard_unicode";
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
+        ensureGreen(indexName);
+
+        prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", "1.0.0-σtart").endObject()).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // multi-byte pattern char must not corrupt the automaton
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*σtart")), 1);
+        assertHitCount(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*σtart").caseInsensitive(true)),
+            1
+        );
+
+        // cross-case unicode folding unimplemented; pinned for when it lands
+        assertHitCount(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*Σtart").caseInsensitive(true)),
+            0
+        );
+
+        // '?' must consume one full char, not one raw byte
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "1.0.0-?tart")), 1);
+    }
+
     private void checkWildcardQuery(String indexName, String query, String... expectedResults) {
         assertResponse(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", query)), response -> {
             assertEquals(expectedResults.length, response.getHits().getTotalHits().value());

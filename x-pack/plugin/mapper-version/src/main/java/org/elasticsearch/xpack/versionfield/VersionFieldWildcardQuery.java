@@ -11,9 +11,11 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.UTF32ToUTF8;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 
 import java.util.ArrayList;
@@ -35,6 +37,9 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
         )
     );
 
+    // '?' as UTF-8 bytes: one full char, not one raw byte
+    private static final Automaton ANY_UTF8_CHAR = new UTF32ToUTF8().convert(Automata.makeAnyChar());
+
     private static final byte WILDCARD_STRING = '*';
 
     private static final byte WILDCARD_CHAR = '?';
@@ -52,10 +57,13 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
 
         BytesRef wildcardText = wildcardquery.bytes();
         boolean containsPreReleaseSeparator = false;
+        UnicodeUtil.UTF8CodePoint reusableCodePoint = new UnicodeUtil.UTF8CodePoint();
+        UTF32ToUTF8 utf32ToUtf8 = new UTF32ToUTF8();
 
         for (int i = 0; i < wildcardText.length;) {
             final byte c = wildcardText.bytes[wildcardText.offset + i];
-            int length = Character.charCount(c);
+            // set below for multi-byte chars
+            int length = 1;
 
             switch (c) {
                 case WILDCARD_STRING:
@@ -65,7 +73,7 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                     // this should also match leading digits, which have optional leading numeric marker and length bytes
                     automata.add(OPTIONAL_NUMERIC_CHARPREFIX);
                     automata.add(OPTIONAL_RELEASE_SEPARATOR);
-                    automata.add(Automata.makeAnyChar());
+                    automata.add(ANY_UTF8_CHAR);
                     break;
 
                 case '-':
@@ -102,10 +110,19 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                     automata.add(Automata.makeChar(c));
                     break;
                 default:
-                    if (caseInsensitive == false) {
-                        automata.add(Automata.makeChar(c));
+                    if (c >= 0) {
+                        // ASCII: byte value == codepoint
+                        automata.add(caseInsensitive ? AutomatonQueries.toCaseInsensitiveChar(c) : Automata.makeChar(c));
                     } else {
-                        automata.add(AutomatonQueries.toCaseInsensitiveChar(c));
+                        // multi-byte lead byte: decode full codepoint
+                        UnicodeUtil.codePointAt(wildcardText.bytes, wildcardText.offset + i, reusableCodePoint);
+                        length = reusableCodePoint.numBytes;
+                        int codepoint = reusableCodePoint.codePoint;
+                        Automaton charAutomaton = caseInsensitive
+                            ? AutomatonQueries.toCaseInsensitiveChar(codepoint)
+                            : Automata.makeChar(codepoint);
+                        // convert codepoint automaton to UTF-8 bytes
+                        automata.add(utf32ToUtf8.convert(charAutomaton));
                     }
             }
             i += length;

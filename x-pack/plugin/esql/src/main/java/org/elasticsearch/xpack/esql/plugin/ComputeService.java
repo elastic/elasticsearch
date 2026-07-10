@@ -812,9 +812,7 @@ public class ComputeService {
     ) {
         final PhysicalPlan splitPlan;
         final ExternalDistributionResult distributionResult;
-        if (execInfo != null) {
-            execInfo.queryProfile().splitDiscovery().start();
-        }
+        long splitDiscoveryStart = System.nanoTime();
         try {
             // Phase 2 split discovery runs synchronously here and can be long (thousands of footer
             // reads); thread the query's cancellation signal so a cancel aborts it promptly. A cancel
@@ -826,7 +824,7 @@ public class ComputeService {
             return;
         } finally {
             if (execInfo != null) {
-                execInfo.queryProfile().splitDiscovery().stop();
+                execInfo.queryProfile().addSplitDiscoveryNanos(System.nanoTime() - splitDiscoveryStart);
             }
         }
         final PhysicalPlan resolvedPlan = distributionResult.plan();

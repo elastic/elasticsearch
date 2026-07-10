@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -89,6 +90,21 @@ public final class AsyncExternalSourceBuffer {
     private final Queue<String> pendingWarnings = new ConcurrentLinkedQueue<>();
 
     /**
+     * Cap on informational warning lines a single query may emit via {@link #recordInformationalWarning}
+     * across every concurrently-parsed segment/chunk. Each {@code SkipWarnings} instance already caps its
+     * own detail count at {@link SkipWarnings#MAX_ADDED_WARNINGS}, but that cap is per reader instance, not
+     * per query — a parallel or macro-split read constructs one instance per chunk/segment, so without a
+     * cap here a single read could add far more than that to {@link #pendingWarnings}, multiplying response
+     * header count by chunk/segment count. The {@code +2} mirrors the 1 summary + 1 overflow line a single
+     * {@code SkipWarnings} instance adds around its own cap.
+     */
+    private static final int MAX_INFORMATIONAL_WARNINGS = SkipWarnings.MAX_ADDED_WARNINGS + 2;
+
+    // Each caller gets a unique count, so exactly one caller ever sees count == MAX_INFORMATIONAL_WARNINGS
+    // and adds the overflow line — no separate overflow flag needed.
+    private final AtomicInteger informationalWarningsAdded = new AtomicInteger();
+
+    /**
      * Set when the background reader path drops data under a lenient policy — currently a streaming
      * {@code max_record_size} truncation under a non-strict {@code error_mode}. Surfaced through the
      * operator's {@code Status} into {@link org.elasticsearch.compute.operator.DriverCompletionInfo} so the
@@ -154,14 +170,27 @@ public final class AsyncExternalSourceBuffer {
      * thread rather than lost on a background reader thread, without changing what they signal. See
      * {@link #recordWarning} for the one warning that maps to {@link #partial}.
      * <p>
-     * This is a plain append: it does not cap. A single {@code SkipWarnings} instance caps its own
-     * per-event details at {@code SkipWarnings.MAX_ADDED_WARNINGS}, but a read fans out into one instance
-     * per chunk/segment/file, so the per-query ceiling on this channel is enforced upstream by the
-     * {@code InformationalWarningBudget} the {@code AsyncExternalSourceOperatorFactory} gates every
-     * informational sink through before it reaches this method.
+     * Each {@code SkipWarnings} instance caps its own per-event details at
+     * {@code SkipWarnings.MAX_ADDED_WARNINGS} (20), but that cap is per reader instance, not per query:
+     * a parallel or macro-split read constructs one {@code SkipWarnings} per chunk/segment. This method
+     * applies {@link #MAX_INFORMATIONAL_WARNINGS} as a single cap across every caller so that a read
+     * split into many chunks/segments cannot multiply {@link #pendingWarnings}'s size by chunk/segment
+     * count — otherwise a large enough split count can grow response headers past what the client (or
+     * an intermediate proxy) is willing to accept.
+     * <p>
+     * That cap bounds a single driver's contribution, because one buffer is created per driver. To bound
+     * the channel per source per node rather than only per driver (a multi-file glob or macro-split read
+     * fans across parallel drivers, each with its own buffer), {@code AsyncExternalSourceOperatorFactory}
+     * additionally gates every informational sink through one shared {@code InformationalWarningBudget}
+     * before it reaches this method; the per-source and per-buffer bounds compose.
      */
     public void recordInformationalWarning(String warning) {
-        pendingWarnings.add(warning);
+        int count = informationalWarningsAdded.incrementAndGet();
+        if (count < MAX_INFORMATIONAL_WARNINGS) {
+            pendingWarnings.add(warning);
+        } else if (count == MAX_INFORMATIONAL_WARNINGS) {
+            pendingWarnings.add("... further reader warnings suppressed (more than " + (MAX_INFORMATIONAL_WARNINGS - 1) + " recorded)");
+        }
     }
 
     /** Removes and returns the next recorded warning, or {@code null} if none remain. */

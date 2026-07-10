@@ -634,7 +634,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                             randomBoolean() ? null : randomAlphaOfLength(4)
                         )
                     ),
-                    randomBoolean() ? null : randomBoolean(),
                     randomBoolean() ? null : randomAlphaOfLength(5)
                 )
             );

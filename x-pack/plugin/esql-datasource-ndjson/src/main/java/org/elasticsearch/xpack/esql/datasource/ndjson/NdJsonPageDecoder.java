@@ -1927,10 +1927,10 @@ public class NdJsonPageDecoder implements Closeable {
             // CsvFormatReader does); null_field keeps the record and nulls this one cell. Both warn.
             // A value coercion failure under skip_row drops the whole record (matching CsvFormatReader and the
             // Mode.SKIP_ROW "drop the entire bad row" contract). This deliberately differs from shapeConflict, which
-            // null-fills the field and keeps the record even under skip_row: a scalar-vs-object shape conflict is
-            // detected mid-decode after the record's other columns already decoded, so it cannot cheaply roll the
-            // record back (per #1028, pinned by testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills). A
-            // coercion failure has no such partial-decode constraint, so it honors the drop.
+            // keeps the record and null-fills only the conflicting field even under skip_row — a documented behavior
+            // choice pinned by testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills, not a technical constraint
+            // (both run inside decodePageLenient's per-record scratch, so shapeConflict could drop too). Unifying the
+            // two is a deferred decision; here the coercion failure honors the drop.
             boolean skipRow = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
             String message = base + (skipRow ? " — this record is skipped" : " — this record's [" + name + "] is null");
             if (inArray == false) {

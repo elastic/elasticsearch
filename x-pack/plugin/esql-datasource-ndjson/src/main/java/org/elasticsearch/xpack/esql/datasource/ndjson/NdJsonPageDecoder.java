@@ -243,6 +243,14 @@ public class NdJsonPageDecoder implements Closeable {
      */
     private final Set<String> declaredTypeColumns;
 
+    /**
+     * Set by {@link BlockDecoder#coercionFailure} while decoding the current record when the policy is
+     * {@link ErrorPolicy.Mode#SKIP_ROW}: the record carries an uncoercible value and must be dropped whole
+     * rather than committed with a null cell. Reset per record by {@link #decodePageLenient}, which is the
+     * only decode loop that can drop a record ({@code FAIL_FAST} throws instead).
+     */
+    private boolean rowDroppedBySkipRow;
+
     /** Number of malformed records observed during decoding (lenient policies swallow these). */
     long errorCount() {
         return errorCount;
@@ -1051,6 +1059,7 @@ public class NdJsonPageDecoder implements Closeable {
 
             totalRowCount++;
             this.blockTracker.clear();
+            this.rowDroppedBySkipRow = false;
             // Capture before decodeObject / recovery advance the parser. The slice-relative offset feeds
             // the max_record_size span check; the file-global offset feeds _rowPosition and truncation.
             boolean trackOffset = capEnforced || rowPositionSlot >= 0;
@@ -1108,6 +1117,13 @@ public class NdJsonPageDecoder implements Closeable {
                 if (rowPositionSlot >= 0) {
                     ((LongBlock.Builder) rowScratch[rowPositionSlot]).appendLong(recordOffset);
                     blockTracker.set(rowPositionSlot);
+                }
+                if (rowDroppedBySkipRow) {
+                    // error_mode: skip_row. An uncoercible value makes the whole record bad, so it never reaches
+                    // the page — matching CsvFormatReader, and matching ErrorPolicy.Mode.SKIP_ROW's contract
+                    // ("drop the entire bad row"). The scratch builders are released by the finally below and
+                    // rebuilt for the next record; nothing partial is committed. NULL_FIELD still null-fills.
+                    continue;
                 }
                 for (int i = 0; i < rowScratch.length; i++) {
                     if (blockTracker.get(i) == false) {
@@ -1891,7 +1907,7 @@ public class NdJsonPageDecoder implements Closeable {
             String value = parser.getValueAsString();
             // Not "the declared type": this path also fires for a supported-pair failure on an INFERRED column
             // (e.g. a bad string in an inferred long), where the target type was not declared.
-            String message = "column ["
+            String base = "column ["
                 + name
                 + "] at line ["
                 + totalRowCount
@@ -1899,18 +1915,23 @@ public class NdJsonPageDecoder implements Closeable {
                 + value
                 + "] could not be coerced to type ["
                 + target.typeName()
-                + "] — this record's ["
-                + name
-                + "] is null";
+                + "]";
             parser.skipChildren();
             if (errorPolicy.isStrict()) {
                 // Mirror CsvFormatReader.onRowErrorImpl's field-error hint so the fail-fast message is actionable.
                 throw new EsqlIllegalArgumentException(
-                    message + "; set error_mode=null_field (or skip_row) to null-fill/skip and warn instead of failing"
+                    base + "; set error_mode=null_field (or skip_row) to null-fill/skip and warn instead of failing"
                 );
             }
+            // skip_row drops the whole record (ErrorPolicy.Mode.SKIP_ROW: "drop the entire bad row", as
+            // CsvFormatReader does); null_field keeps the record and nulls this one cell. Both warn.
+            boolean skipRow = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
+            String message = base + (skipRow ? " — this record is skipped" : " — this record's [" + name + "] is null");
             if (inArray == false) {
                 builder.appendNull();
+            }
+            if (skipRow) {
+                rowDroppedBySkipRow = true;
             }
             errorCount++;
             skipWarnings.add(message);

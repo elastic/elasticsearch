@@ -105,6 +105,41 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString(String.valueOf(millis * 1000)));
     }
 
+    // --- Declared LONG over a TIMESTAMP column (unit mismatch) ---
+
+    /**
+     * A column DECLARED as {@code long} over a physical {@code TIMESTAMP(MICROS)} decodes through the temporal
+     * path, which scales micros to epoch-nanos — so the block value is 1000x the raw value the row-group
+     * statistics hold. Pushing that nanos literal against the raw micros stats prunes row groups that genuinely
+     * match, losing rows (RECHECK cannot resurrect a row group that was never read). We decline instead.
+     */
+    public void testDeclaredLongOverTimestampMicrosDeclinesPushdown() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+
+        // The value a declared-long read of a 1_600_000_000_000_000-micros row actually yields.
+        long nanos = 1_600_000_000_000_000_000L;
+        Expression expr = eq("ts", DataType.LONG, nanos);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("declared long over TIMESTAMP(MICROS) must not push a raw predicate", pushed.toFilterPredicate(schema));
+    }
+
+    /** A declared {@code long} over a plain (un-annotated) INT64 still pushes — the decline is scoped to timestamps. */
+    public void testDeclaredLongOverPlainInt64StillPushes() {
+        MessageType schema = Types.buildMessage().required(INT64).named("n").named("test");
+
+        Expression expr = eq("n", DataType.LONG, 42L);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull("a plain INT64 column must still push", fp);
+        assertThat(fp.toString(), containsString("42"));
+    }
+
     // --- TIMESTAMP_NANOS (INT64) ---
 
     public void testToFilterPredicateTimestampNanos() {

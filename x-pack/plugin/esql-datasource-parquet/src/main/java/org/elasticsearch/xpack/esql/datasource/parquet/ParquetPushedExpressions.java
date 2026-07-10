@@ -497,6 +497,16 @@ final class ParquetPushedExpressions {
         if (ptype == null) {
             return null;
         }
+        // A TIMESTAMP-annotated INT64 only reaches this arm when the column's type was DECLARED as long
+        // (an inferred timestamp routes to the unit-aware buildDatetimePredicate/buildDateNanosPredicate).
+        // The declared read decodes through the temporal path, where TIMESTAMP(MICROS) is scaled to
+        // epoch-nanos, so the block value is NOT the raw physical value the row-group statistics hold.
+        // Pushing the literal against those raw stats prunes row groups that genuinely match, and pruning
+        // is unrecoverable — RECHECK guards against false positives, not against rows we never read.
+        // Decline; FilterExec still applies the real ESQL semantics.
+        if (ptype.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+            return null;
+        }
         return switch (ptype.getPrimitiveTypeName()) {
             case INT64 -> orderedPredicate(FilterApi.longColumn(columnName), value != null ? ((Number) value).longValue() : null, op);
             case INT32 -> {

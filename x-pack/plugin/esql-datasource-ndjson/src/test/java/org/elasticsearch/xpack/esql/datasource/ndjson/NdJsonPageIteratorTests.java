@@ -1159,6 +1159,68 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code testDeclaredNumericBadStringFailsUnderStrict} advertises {@code error_mode=null_field} as the recovery.
+     * Honour that advice: the offending cell nulls, its neighbours decode, and the failure surfaces as a warning
+     * rather than vanishing silently.
+     */
+    public void testDeclaredCoercionFailureNullFieldWarnsAndNulls() throws IOException {
+        String ndjson = """
+            {"n": "1"}
+            {"n": "notanumber"}
+            {"n": "3"}
+            """;
+        var object = new BytesStorageObject("file:///bad.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG));
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(nullField).readSchema(schema).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock n = page.getBlock(0);
+            assertEquals(1L, n.getLong(n.getFirstValueIndex(0)));
+            assertTrue("the uncoercible token must null its cell", n.isNull(1));
+            assertEquals(3L, n.getLong(n.getFirstValueIndex(2)));
+        }
+        assertFalse("null_field must warn about the coercion failure", drainWarnings().isEmpty());
+    }
+
+    /**
+     * The same advice names {@code skip_row}, and {@link ErrorPolicy.Mode#SKIP_ROW} means "drop the entire bad
+     * row" — as {@code CsvFormatReader} does. The offending record is dropped whole; its neighbours still decode.
+     */
+    public void testDeclaredCoercionFailureSkipRowDropsLine() throws IOException {
+        String ndjson = """
+            {"n": "1"}
+            {"n": "notanumber"}
+            {"n": "3"}
+            """;
+        var object = new BytesStorageObject("file:///bad.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG));
+        ErrorPolicy skipRow = new ErrorPolicy(10, true);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(skipRow).readSchema(schema).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals("the record with the uncoercible value is dropped whole", 2, page.getPositionCount());
+            LongBlock n = page.getBlock(0);
+            assertEquals(1L, n.getLong(n.getFirstValueIndex(0)));
+            assertEquals(3L, n.getLong(n.getFirstValueIndex(1)));
+        }
+        assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
+    }
+
     public void testDeclaredDatetimeFormatOverridesNumericEpochShortcut() throws IOException {
         // A column declared {datetime, format:"yyyyMMdd"} must read the numeric token 20260101 as
         // 2026-01-01 (the declared format is authoritative), NOT as epoch millis — matching CSV and the

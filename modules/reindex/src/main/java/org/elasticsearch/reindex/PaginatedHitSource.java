@@ -33,7 +33,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * A source of paginated search results. Pumps data out into the passed onResponse consumer. If scroll-API pagination is used, then the
+ * A source of paginated search results. Pumps data out into the passed onResponse consumer. If a scrollable search is used, then the
  * same data may come out several times in case of failures during searching (though not yet). Once the onResponse consumer is done,
  * it should call AsyncResponse.isDone(time) to receive more data (only receives one response at a time).
  * <p>

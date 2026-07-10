@@ -13,6 +13,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.internal.AddressesScratch;
+import org.elasticsearch.simdvec.internal.BufferScratch;
 import org.elasticsearch.simdvec.internal.OffsetsScratch;
 import org.elasticsearch.simdvec.internal.Similarities;
 
@@ -22,7 +23,7 @@ import java.lang.foreign.ValueLayout;
 
 public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantizedVectorScorer {
 
-    private byte[] scratch;
+    private final BufferScratch bufferScratch = new BufferScratch();
     private final AddressesScratch addrsScratch = new AddressesScratch();
     private final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
@@ -43,7 +44,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
 
         var offset = ((long) targetOrd * byteSize);
         slice.seek(offset);
-        return IndexInputUtils.withSlice(slice, byteSize, this::getScratch, segment -> {
+        return IndexInputUtils.withSlice(slice, byteSize, bufferScratch::get, segment -> {
             var indexLowerInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes);
             var indexUpperInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes + Float.BYTES);
             var indexAdditionalCorrection = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes + 2 * Float.BYTES);
@@ -126,12 +127,5 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
             );
         }
         return maxScore[0];
-    }
-
-    protected byte[] getScratch(int len) {
-        if (scratch == null || scratch.length < len) {
-            scratch = new byte[len];
-        }
-        return scratch;
     }
 }

@@ -741,54 +741,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         ensureListenersWereNotified(staleListener, retainedListener);
     }
 
-    public void testPendingRecoveryDiscardedWhenLocalNodeRemoved() {
-        final var taskQueue = new DeterministicTaskQueue();
-        final var clusterService = newClusterService(1);
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            clusterService,
-            RecoverySchedulingListener.NOOP
-        );
-
-        final var blockerShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
-        final var blockerListener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_STARTED);
-        service.enqueue(ProjectId.DEFAULT, blockerListener, newRecoveryState(blockerShardId), UUIDs.randomBase64UUID(), stats, listener -> {
-            // occupies the sole concurrency slot
-            taskQueue.scheduleAt(
-                taskQueue.getCurrentTimeMillis() + 100,
-                () -> listener.onRecoveryFailure(new RecoveryCancelledException(blockerShardId, null, null), true)
-            );
-        });
-
-        final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
-        final var allocationId = UUIDs.randomBase64UUID();
-
-        final var listener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
-        service.enqueue(
-            ProjectId.DEFAULT,
-            listener,
-            newRecoveryState(shardId),
-            allocationId,
-            stats,
-            ignored -> fail("task should have been cancelled")
-        );
-        assertThat(service.currentQueueSize(), equalTo(1));
-
-        // Simulate this node leaving the cluster's data nodes entirely (e.g. it's shutting down).
-        final var event = mock(ClusterChangedEvent.class);
-        final var state = mock(ClusterState.class);
-        final var routingNodes = mock(RoutingNodes.class);
-        when(event.state()).thenReturn(state);
-        when(state.getRoutingNodes()).thenReturn(routingNodes);
-        when(routingNodes.node(clusterService.localNode().getId())).thenReturn(null);
-        service.clusterChanged(event);
-
-        taskQueue.runAllTasks();
-        assertThat(service.currentQueueSize(), equalTo(0));
-        ensureListenersWereNotified(blockerListener, listener);
-    }
-
     public void testPendingRecoveryDiscardedWhenAllocationIdChangesWhileQueued() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(1);

@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.hamcrest.Matchers;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,6 +64,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -144,7 +147,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
 
-        CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
+        // Plain mode: the drain contract is format-agnostic, but computeSegments now refuses non-strided
+        // splitters (default/quoted CSV), which are read whole-file instead. Plain CSV keeps strided probing.
+        SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
         List<long[]> segments = ParallelParsingCoordinator.computeSegments(
             csvReader,
             object,
@@ -160,6 +165,71 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan(fileLength / 2)
         );
+    }
+
+    /**
+     * A non-strided but proven-capable splitter (default/quoted CSV, whose quoted fields may embed newlines) is
+     * segmented via the proven-probe path: {@link ParallelParsingCoordinator#computeSegments} emits segments
+     * whose boundaries are all true record starts. Correctness is checked against the trusted sequential scanner
+     * {@link RecordSplitter#findNextRecordBoundary} looped from the file start (its prefix sums are the true
+     * record starts), so a boundary cut inside a quoted field or after a lone {@code \r} would fail. The segments
+     * must also cover the whole file with no gaps.
+     */
+    public void testComputeSegmentsProvesQuotedSplitterBoundaries() throws IOException {
+        StringBuilder csv = new StringBuilder("id,name\n");
+        int row = 0;
+        while (csv.length() < 3 * 1024 * 1024) {
+            if (row % 2 == 0) {
+                csv.append(row).append(",\"embedded\nnewline \"\"q\"\"\"\n");
+            } else {
+                csv.append(row).append(",\"value\"\r\n"); // CRLF row so the oracle also guards \r handling
+            }
+            row++;
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(payload);
+        // Default construction => quoting on => CsvRecordSplitter: non-strided but proven-capable.
+        CsvFormatReader csvReader = new CsvFormatReader(blockFactory());
+        Set<Long> trueStarts = trueRecordStarts(csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES), payload);
+
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(
+            csvReader,
+            obj,
+            payload.length,
+            4,
+            csvReader.minimumSegmentSize()
+        );
+
+        assertThat("expected multiple proven segments", segments.size(), Matchers.greaterThan(1));
+        long covered = 0;
+        long cursor = 0;
+        for (long[] seg : segments) {
+            assertEquals("segments must be contiguous with no gaps", cursor, seg[0]);
+            covered += seg[1];
+            cursor = seg[0] + seg[1];
+            if (seg[0] == 0L) {
+                continue;
+            }
+            assertTrue("segment boundary " + seg[0] + " must be a true record start", trueStarts.contains(seg[0]));
+        }
+        assertEquals("segments must cover the entire file", payload.length, covered);
+    }
+
+    /**
+     * True record starts: the file start (0) plus every prefix sum of {@link RecordSplitter#findNextRecordBoundary}
+     * consumed lengths from the trusted sequential scanner.
+     */
+    private static Set<Long> trueRecordStarts(RecordSplitter splitter, byte[] payload) throws IOException {
+        Set<Long> starts = new TreeSet<>();
+        starts.add(0L);
+        long acc = 0;
+        BufferedInputStream in = new BufferedInputStream(new ByteArrayInputStream(payload));
+        long consumed;
+        while ((consumed = splitter.findNextRecordBoundary(in)) >= 0) {
+            acc += consumed;
+            starts.add(acc);
+        }
+        return starts;
     }
 
     /**
@@ -960,7 +1030,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
         byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         StorageObject obj = new InMemoryStorageObject(bytes);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory());
+        // Plain mode: the parallel-segment path applies to strided-safe CSV. Default/quoted CSV is now routed
+        // to the whole-file sequential reader and would be rejected by computeSegments' strided-probing guard.
+        SegmentableFormatReader reader = (SegmentableFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("mode", "plain"));
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
@@ -992,9 +1064,11 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         assertTrue("payload must exceed 2*minimumSegmentSize for parallel parsing", bodyLength > 2 * 1024 * 1024);
         StorageObject nonLeadingRange = new RangeStorageObject(full, headerBytes, bodyLength);
 
-        CsvFormatReader base = new CsvFormatReader(blockFactory());
+        // Plain mode: non-leading macro-splits only exist for strided-safe CSV. Default/quoted CSV is read
+        // whole-file and would be rejected by computeSegments' strided-probing guard.
+        SegmentableFormatReader base = (SegmentableFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("mode", "plain"));
         SourceMetadata meta = base.metadata(full);
-        CsvFormatReader withSchema = base.withSchema(meta.schema());
+        SegmentableFormatReader withSchema = (SegmentableFormatReader) base.withSchema(meta.schema());
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {

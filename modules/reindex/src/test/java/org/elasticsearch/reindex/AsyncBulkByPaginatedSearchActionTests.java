@@ -460,7 +460,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     }
 
     /**
-     * Tests that each scroll response is a batch and that the batch is launched properly.
+     * Tests that each paginated search response is a batch and that the batch is launched properly.
      */
     public void testPaginatedSearchResponseBatchingBehavior() throws Exception {
         boolean usePit = configurePitOrScroll();
@@ -617,8 +617,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     }
 
     /**
-     * Mimicks shard search failures usually caused by the data node serving the
-     * scroll request going down.
+     * Mimics shard search failures usually caused by the data node serving the paginated search request going down.
      */
     public void testShardFailuresAbortRequest() throws Exception {
         boolean usePit = configurePitOrScroll();
@@ -1441,9 +1440,9 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     }
 
     /**
-     * Complementary to {@link #testPartialPaginatedSearchRequestFinishing}: {@link AbstractAsyncBulkByPaginatedSearchAction#finishHim} runs first
-     * and wins {@link AbstractAsyncBulkByPaginatedSearchAction#currentScrollResponse}'s {@code getAndSet(null)}, releasing unconsumed hits.
-     * A later {@link AbstractAsyncBulkByPaginatedSearchAction#prepareBulkRequest} for the same
+     * Complementary to {@link #testPartialPaginatedSearchRequestFinishing}: {@link AbstractAsyncBulkByPaginatedSearchAction#finishHim}
+     * runs first and wins {@link AbstractAsyncBulkByPaginatedSearchAction#currentScrollResponse}'s {@code getAndSet(null)}, releasing
+     * unconsumed hits. A later {@link AbstractAsyncBulkByPaginatedSearchAction#prepareBulkRequest} for the same
      * {@link AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse} must lose
      * the {@code compareAndSet(asyncResponse, null)} race and return without consuming or releasing again.
      */

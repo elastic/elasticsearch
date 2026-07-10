@@ -149,17 +149,16 @@ public final class AsyncExternalSourceBuffer {
      * Use this for warnings relayed from format-reader {@code SkipWarnings} sinks (see {@code
      * FormatReadContext#informationalWarningSink()} / {@code RangeReadContext#informationalWarningSink()})
      * — e.g. CSV/NDJSON per-record skip/null-fill handling or Parquet on-disk/planner type mismatches.
-     * This preserves these warnings' pre-existing behavior of never flipping {@link #partial} (previously
-     * they only ever reached {@link org.elasticsearch.common.logging.HeaderWarning} directly, which has
-     * no notion of {@link #partial} either); this method only fixes their delivery when the read runs
-     * off the driver thread, without changing what they signal. See {@link #recordWarning} for the one
-     * warning that has always mapped to {@link #partial}.
+     * These warnings never flip {@link #partial} ({@link #partial} tracks only the {@code max_record_size}
+     * truncation, not per-record null-fills); this method relays them so they are re-emitted on the driver
+     * thread rather than lost on a background reader thread, without changing what they signal. See
+     * {@link #recordWarning} for the one warning that maps to {@link #partial}.
      * <p>
-     * Each {@code SkipWarnings} instance caps its own per-event details at
-     * {@code SkipWarnings.MAX_ADDED_WARNINGS} (20), but that cap is per reader instance, not per query:
-     * a parallel or macro-split read constructs one {@code SkipWarnings} per chunk/segment, so a single
-     * read can add well more than 20 entries to {@link #pendingWarnings} here — this queue itself is
-     * unbounded.
+     * This is a plain append: it does not cap. A single {@code SkipWarnings} instance caps its own
+     * per-event details at {@code SkipWarnings.MAX_ADDED_WARNINGS}, but a read fans out into one instance
+     * per chunk/segment/file, so the per-query ceiling on this channel is enforced upstream by the
+     * {@code InformationalWarningBudget} the {@code AsyncExternalSourceOperatorFactory} gates every
+     * informational sink through before it reaches this method.
      */
     public void recordInformationalWarning(String warning) {
         pendingWarnings.add(warning);

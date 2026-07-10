@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
@@ -307,6 +309,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * factory created from the same driver context.
      */
     private final Map<DriverContext, SourceExtractors> sourceExtractorsPerDriver = new ConcurrentHashMap<>();
+
+    /**
+     * One budget shared across every driver this factory hands out, so the informational-warning
+     * channel is capped and deduplicated per source per node rather than per driver (see
+     * {@link InformationalWarningBudget}). Every informational sink built below routes through it.
+     */
+    private final InformationalWarningBudget informationalWarningBudget = new InformationalWarningBudget(SkipWarnings.MAX_ADDED_WARNINGS);
 
     private AsyncExternalSourceOperatorFactory(
         StorageProvider storageProvider,
@@ -962,8 +971,40 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * {@link Builder#build} time.
      */
     private int registerExtractorFromProducer(ColumnExtractorProducer producer, DriverContext driverContext) throws IOException {
-        ColumnExtractor extractor = producer.createColumnExtractor();
+        ColumnExtractor extractor = producer.createColumnExtractor(driverThreadInformationalWarningSink());
         return sourceExtractorsFor(driverContext).register(extractor);
+    }
+
+    /**
+     * Budget-gated informational-warning sink for readers that run off the driver thread (the eager
+     * scan on a background reader thread). A surviving warning is recorded on {@code buffer} and
+     * re-emitted on the driver thread when the source operator closes (see
+     * {@link AsyncExternalSourceBuffer#recordInformationalWarning}); emitting from the reader thread
+     * directly would land the header on a {@code ThreadContext} that is never merged into the response.
+     */
+    private Consumer<String> bufferedInformationalWarningSink(AsyncExternalSourceBuffer buffer) {
+        return warning -> {
+            String toRecord = informationalWarningBudget.accept(warning);
+            if (toRecord != null) {
+                buffer.recordInformationalWarning(toRecord);
+            }
+        };
+    }
+
+    /**
+     * Budget-gated informational-warning sink for the deferred (TopN) extractor, which runs on the
+     * driver thread and therefore emits directly to {@link HeaderWarning}. It must not route through
+     * the source buffer: {@code Driver} closes the source operator (draining the buffer's pending
+     * warnings) as soon as it finishes, which can happen before the paired extract operator runs, so
+     * a buffered extractor warning would never be drained.
+     */
+    private Consumer<String> driverThreadInformationalWarningSink() {
+        return warning -> {
+            String toRecord = informationalWarningBudget.accept(warning);
+            if (toRecord != null) {
+                HeaderWarning.addWarning(toRecord);
+            }
+        };
     }
 
     /**
@@ -1915,7 +1956,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     rangeEnd,
                     PhysicalNames.translateSchema(perFileResolvedAttributes, renames),
                     errorPolicy,
-                    state.buffer::recordInformationalWarning
+                    bufferedInformationalWarningSink(state.buffer)
                 );
                 if (fileContext != null) {
                     rangeCtx.setFileContext(fileContext);
@@ -1981,7 +2022,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     fileSplit.offset(),
                     state.buffer.capturedSourceMetadataSink(),
                     state.buffer::recordWarning,
-                    state.buffer::recordInformationalWarning
+                    bufferedInformationalWarningSink(state.buffer)
                 );
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
@@ -2006,7 +2047,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         // its trailing stripe to EOF).
                         .stats(fileSplit.offset(), statsStripeSize, splitIsFileFinal)
                         .statsColumnScope(statsColumnScope)
-                        .informationalWarningSink(state.buffer::recordInformationalWarning)
+                        .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -2179,7 +2220,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 0L,
                 state.buffer.capturedSourceMetadataSink(),
                 state.buffer::recordWarning,
-                state.buffer::recordInformationalWarning
+                bufferedInformationalWarningSink(state.buffer)
             );
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
@@ -2191,7 +2232,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
-                    .informationalWarningSink(state.buffer::recordInformationalWarning)
+                    .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
                     .build();
                 pages = fileReader.read(obj, ctx);
             }
@@ -2271,7 +2312,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .errorPolicy(errorPolicy)
             .maxRecordBytes(maxRecordBytes)
             .statsColumnScope(statsColumnScope)
-            .informationalWarningSink(buffer::recordInformationalWarning)
+            .informationalWarningSink(bufferedInformationalWarningSink(buffer))
             .build();
         FormatReader reader = readerWithDynamicThreshold(formatReader);
         reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
@@ -2314,7 +2355,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 0L,
                 buffer.capturedSourceMetadataSink(),
                 buffer::recordWarning,
-                buffer::recordInformationalWarning
+                bufferedInformationalWarningSink(buffer)
             );
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -2324,7 +2365,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .errorPolicy(errorPolicy)
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
-                    .informationalWarningSink(buffer::recordInformationalWarning)
+                    .informationalWarningSink(bufferedInformationalWarningSink(buffer))
                     .build();
                 pages = reader.read(storageObject, ctx);
             }

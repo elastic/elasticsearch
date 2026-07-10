@@ -68,6 +68,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.function.Consumer;
 
 /**
  * Default Parquet column iterator with vectorized decoding and I/O prefetch.
@@ -111,6 +112,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final String fileLocation;
     /** See {@link #coercionWarnings()}. */
     private SkipWarnings coercionWarnings;
+    /**
+     * Relay for this eager read's per-value coercion warnings, or {@code null} to fall back to
+     * emitting directly via {@code HeaderWarning}. This iterator
+     * runs on a background reader thread under the async source, so a non-null sink (the source
+     * buffer relay) is required for the warnings to reach the response; see {@link #coercionWarnings()}.
+     */
+    @Nullable
+    private final Consumer<String> warningSink;
     /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
     private final ErrorPolicy errorPolicy;
     private final ColumnInfo[] columnInfos;
@@ -153,7 +162,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final int rowPositionColumnIndex;
     /**
      * Owning {@link ParquetFormatReader}; only consulted when the iterator builds a matching
-     * {@link ColumnExtractor} via {@link #createColumnExtractor()}. Kept out of the regular emit
+     * {@link ColumnExtractor} via {@link #createColumnExtractor(Consumer)}. Kept out of the regular emit
      * paths so the iterator does not depend on the broader format reader's state for forward scan.
      */
     private final ParquetFormatReader formatReader;
@@ -170,7 +179,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /**
      * High bits OR-ed into every emitted {@code _rowPosition} value once
      * {@link #setExtractorId(int)} has been called: {@code ((long) extractorId) << LOCAL_POSITION_BITS}.
-     * The factory installs the id between {@link #createColumnExtractor()} and the first call to
+     * The factory installs the id between {@link #createColumnExtractor(Consumer)} and the first call to
      * {@link #next()}, so by the time we materialise {@code _rowPosition} we always have a value
      * for it. Stays at {@code -1} when the projection has no row-position column ({@link
      * #rowPositionColumnIndex} {@code < 0}); we never read the field in that case.
@@ -328,9 +337,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         DynamicThreshold dynamicThreshold,
         ColumnDescriptor sortColumnDescriptor,
         ParquetReaderCounters counters,
-        ErrorPolicy errorPolicy
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> warningSink
     ) {
         this.errorPolicy = errorPolicy;
+        this.warningSink = warningSink;
         this.reader = reader;
         this.projectedSchema = projectedSchema;
         this.attributes = attributes;
@@ -2278,14 +2289,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 "Parquet file ["
                     + fileLocation
                     + "] has values that could not be coerced to the declared column type; "
-                    + "they are returned as null"
+                    + "they are returned as null",
+                warningSink
             );
         }
         return coercionWarnings;
     }
 
     @Override
-    public ColumnExtractor createColumnExtractor() {
+    public ColumnExtractor createColumnExtractor(@Nullable Consumer<String> driverThreadWarningSink) {
         if (rowPositionColumnIndex < 0) {
             throw new IllegalStateException(
                 "createColumnExtractor called on iterator without [" + ColumnExtractor.ROW_POSITION_COLUMN + "] in projection"
@@ -2295,7 +2307,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // regardless of whether this iterator was opened on the full file or on a range. That's
         // the whole point of file-global addressing: any iterator that emits identities and any
         // extractor over the same file agree without coordination.
-        return new ParquetColumnExtractor(storageObject, formatReader, fullFooter, errorPolicy);
+        // The extractor runs on the driver thread (the eager warningSink relays through the source
+        // buffer, which the driver drains before the extractor runs), so it takes the caller's
+        // driver-thread sink rather than this iterator's buffered one.
+        return new ParquetColumnExtractor(storageObject, formatReader, fullFooter, errorPolicy, driverThreadWarningSink);
     }
 
     @Override

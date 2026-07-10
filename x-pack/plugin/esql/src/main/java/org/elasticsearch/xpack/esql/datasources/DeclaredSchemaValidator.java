@@ -13,7 +13,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -73,17 +72,13 @@ public final class DeclaredSchemaValidator {
                 throw new IllegalArgumentException("[dynamic: false] requires at least one declared column under [properties]");
             }
             // Physical-name uniqueness for the read (move) columns: a column's physical name is its `path`, or its
-            // logical name. Two columns resolving to one physical break the 1:1 read-path rename, so reject. (A COPY is
-            // NOT a shared physical: `copy_to` is materialized as an EVAL above the relation, so it never touches the
-            // read path — only the OUTPUT name must be unique, checked below.)
-            Set<String> outputNames = new HashSet<>();
+            // logical name. Two columns resolving to one physical break the 1:1 read-path rename, so reject.
             Map<String, String> physicalToLogical = new HashMap<>();
             for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
                 requireNonBlank(e.getKey(), "column name");
                 requireNonBlank(e.getValue().path(), "path of column [" + e.getKey() + "]");
                 validateType(e.getKey(), e.getValue().type());
                 validateFormat(e.getKey(), e.getValue().type(), e.getValue().format());
-                outputNames.add(e.getKey()); // property keys are unique by JSON-object semantics
                 String logical = e.getKey();
                 String physical = e.getValue().path() != null ? e.getValue().path() : logical;
                 String clash = physicalToLogical.putIfAbsent(physical, logical);
@@ -93,30 +88,7 @@ public final class DeclaredSchemaValidator {
                     );
                 }
             }
-            // Every copy_to target is a NEW output column — it must not collide with a declared column or another target.
-            Set<String> copyToTargets = new HashSet<>();
-            for (Map.Entry<String, DatasetFieldMapping> e : mappings.properties().entrySet()) {
-                for (String copyTo : e.getValue().copyTo()) {
-                    requireNonBlank(copyTo, "copy_to target of column [" + e.getKey() + "]");
-                    if (outputNames.add(copyTo) == false) {
-                        throw new IllegalArgumentException(
-                            "copy_to target [" + copyTo + "] on column [" + e.getKey() + "] collides with another declared column"
-                        );
-                    }
-                    copyToTargets.add(copyTo);
-                }
-            }
             requireNonBlank(mappings.idPath(), "[_id] path");
-            // _id must be stamped from a column that is actually read from the file. A copy_to target is a projection
-            // computed above the read (it has no per-row storage the reader can see), so pointing _id at one would
-            // silently produce null ids — reject it at PUT instead.
-            if (mappings.idPath() != null && copyToTargets.contains(mappings.idPath())) {
-                throw new IllegalArgumentException(
-                    "[_id] path ["
-                        + mappings.idPath()
-                        + "] references a copy_to target; _id must be read from a column of the file, not a copy"
-                );
-            }
             boolean strict = mappings.dynamic() == DatasetMapping.Dynamic.FALSE;
             validateIdPath(mappings, strict);
         }

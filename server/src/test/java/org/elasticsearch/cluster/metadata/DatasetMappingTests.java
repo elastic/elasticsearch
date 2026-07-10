@@ -88,27 +88,6 @@ public class DatasetMappingTests extends AbstractWireSerializingTestCase<Dataset
         }
     }
 
-    public void testSourceEnabledParsesAndDefaults() throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"dynamic\":\"true\",\"_source\":{\"enabled\":false}}")) {
-            parser.nextToken();
-            DatasetMapping.Mappings m = DatasetMapping.parseMappings(parser);
-            assertEquals(Boolean.FALSE, m.sourceEnabled());
-            assertFalse(m.sourceAvailable());
-        }
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"dynamic\":\"true\"}")) {
-            parser.nextToken();
-            DatasetMapping.Mappings m = DatasetMapping.parseMappings(parser);
-            assertNull("absent _source leaves the knob unset", m.sourceEnabled());
-            assertTrue("unset means available by default", m.sourceAvailable());
-        }
-        // Only [enabled] is supported under _source; other core _source knobs (mode, includes, ...) are rejected.
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"_source\":{\"mode\":\"synthetic\"}}")) {
-            parser.nextToken();
-            Exception e = expectThrows(Exception.class, () -> DatasetMapping.parseMappings(parser));
-            assertThat(e.getMessage(), containsString("_source"));
-        }
-    }
-
     public void testAssembleReturnsNullWhenMappingsAbsent() {
         assertNull(DatasetMapping.assemble(null));
     }

@@ -201,7 +201,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
                 assert clusterService.localNode().canContainData() == false
                     && pendingRecoveries.isEmpty()
                     && cancelledAllocationIds.isEmpty()
-                    : "this node received the cluster state update so its either a data node and its RoutingNode "
+                    : "this node received the cluster state update so it's either a data node and its RoutingNode "
                         + "entry must be non-null or it's not a data node and it should not have any recoveries";
                 return;
             }

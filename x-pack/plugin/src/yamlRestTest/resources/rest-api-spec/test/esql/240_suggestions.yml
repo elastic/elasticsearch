@@ -74,6 +74,40 @@ multiline query via block scalar:
   - length: { warnings: 0 }
 
 ---
+hot tier keyword equality samples values:
+  - do:
+      indices.create:
+        index: test_keyword_values
+        body:
+          mappings:
+            properties:
+              k:
+                type: keyword
+  - do:
+      bulk:
+        index: "test_keyword_values"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "k": "alpha" }
+          - { "index": { } }
+          - { "k": "alpha" }
+          - { "index": { } }
+          - { "k": "beta" }
+
+  - do:
+      esql.suggestions:
+        body:
+          # cursor sits inside the empty string literal, right after the opening quote
+          query: "FROM test_keyword_values | WHERE k == \"\""
+          cursor: 39
+          include_sample_values: true
+
+  - exists: fields
+  - exists: fields.k.values
+  - match: { warnings: ["hot_only"] }
+
+---
 missing query is rejected:
   - do:
       catch: bad_request

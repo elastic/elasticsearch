@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.suggestions.valuesampling.HotTierValueSampler;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -49,4 +53,49 @@ public class TransportEsqlSuggestionsActionTests extends ESTestCase {
         LogicalPlan plan = TEST_PARSER.parseQuery("FROM logs,other_logs | KEEP a");
         assertThat(TransportEsqlSuggestionsAction.hasRemoteTarget(plan), equalTo(false));
     }
+
+    // Step 19: warnings wiring for the hot-tier value-sampling path.
+
+    public void testWarningsForSampleResultOnlyHotOnlyWhenComplete() {
+        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), false, false);
+        assertThat(TransportEsqlSuggestionsAction.warningsForSampleResult(result), contains(EsqlSuggestionsResponse.Warning.HOT_ONLY));
+    }
+
+    public void testWarningsForSampleResultAddsShardsSkippedOnPartial() {
+        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), true, false);
+        assertThat(
+            TransportEsqlSuggestionsAction.warningsForSampleResult(result),
+            contains(EsqlSuggestionsResponse.Warning.HOT_ONLY, EsqlSuggestionsResponse.Warning.SHARDS_SKIPPED)
+        );
+    }
+
+    public void testWarningsForSampleResultAddsDlsActive() {
+        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), false, true);
+        assertThat(
+            TransportEsqlSuggestionsAction.warningsForSampleResult(result),
+            contains(EsqlSuggestionsResponse.Warning.HOT_ONLY, EsqlSuggestionsResponse.Warning.DLS_ACTIVE)
+        );
+    }
+
+    public void testWarningsForSampleResultCombinesShardsSkippedAndDlsActive() {
+        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), true, true);
+        assertThat(
+            TransportEsqlSuggestionsAction.warningsForSampleResult(result),
+            contains(
+                EsqlSuggestionsResponse.Warning.HOT_ONLY,
+                EsqlSuggestionsResponse.Warning.SHARDS_SKIPPED,
+                EsqlSuggestionsResponse.Warning.DLS_ACTIVE
+            )
+        );
+    }
+
+    public void testNoHotNodesShortCircuitCarriesOnlyHotOnly() {
+        // Step 18's no-fan-out short-circuit: SampleResult.NO_HOT_NODES itself carries neither
+        // shards_skipped nor dls_active signals, so only hot_only attaches.
+        assertThat(
+            TransportEsqlSuggestionsAction.warningsForSampleResult(HotTierValueSampler.SampleResult.NO_HOT_NODES),
+            contains(EsqlSuggestionsResponse.Warning.HOT_ONLY)
+        );
+    }
 }
+

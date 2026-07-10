@@ -1,0 +1,140 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action.suggestions.valuesampling;
+
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportAddress;
+
+import java.net.InetAddress;
+import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+
+/**
+ * Unit tests for the pure, cluster-state-driven pieces of {@link HotTierValueSampler} (see the
+ * suggestions API spec, Step 18) that don't need a live cluster: mapping-type resolution and hot-tier
+ * node bundling. The fan-out/merge/security logic needs a running node and is covered by
+ * {@code EsqlSuggestionsActionIT}-style integration coverage instead.
+ */
+public class HotTierValueSamplerTests extends ESTestCase {
+
+    public void testIsPlainKeywordMappingAcceptsPlainKeyword() {
+        ProjectMetadata metadata = projectWithMapping("""
+            { "properties": { "status": { "type": "keyword" } } }
+            """);
+        assertTrue(HotTierValueSampler.isPlainKeywordMapping(metadata, "test", "status"));
+    }
+
+    public void testIsPlainKeywordMappingRejectsConstantKeyword() {
+        ProjectMetadata metadata = projectWithMapping("""
+            { "properties": { "status": { "type": "constant_keyword" } } }
+            """);
+        assertFalse(HotTierValueSampler.isPlainKeywordMapping(metadata, "test", "status"));
+    }
+
+    public void testIsPlainKeywordMappingRejectsWildcard() {
+        ProjectMetadata metadata = projectWithMapping("""
+            { "properties": { "status": { "type": "wildcard" } } }
+            """);
+        assertFalse(HotTierValueSampler.isPlainKeywordMapping(metadata, "test", "status"));
+    }
+
+    public void testIsPlainKeywordMappingRejectsMissingField() {
+        ProjectMetadata metadata = projectWithMapping("""
+            { "properties": { "status": { "type": "keyword" } } }
+            """);
+        assertFalse(HotTierValueSampler.isPlainKeywordMapping(metadata, "test", "nope"));
+    }
+
+    public void testIsPlainKeywordMappingResolvesDottedPath() {
+        ProjectMetadata metadata = projectWithMapping("""
+            { "properties": { "g": { "properties": { "country_iso_code": { "type": "keyword" } } } } }
+            """);
+        assertTrue(HotTierValueSampler.isPlainKeywordMapping(metadata, "test", "g.country_iso_code"));
+    }
+
+    public void testHotTierNodeBundlesOnlyIncludesHotNodes() {
+        DiscoveryNode hotNode = discoveryNode("hot-node", Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
+        DiscoveryNode warmOnlyNode = discoveryNode("warm-node", Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(hotNode).add(warmOnlyNode).localNodeId("hot-node").build();
+
+        Index index = new Index("test", "uuid");
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "hot-node", true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "warm-node", true, ShardRoutingState.STARTED))
+            .build();
+        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
+
+        Map<String, Set<ShardId>> bundles = HotTierValueSampler.hotTierNodeBundles(routingTable, nodes, Set.of("test"));
+
+        assertThat(bundles, hasKey("hot-node"));
+        assertThat(bundles.get("hot-node"), containsInAnyOrder(new ShardId(index, 0)));
+        assertFalse(bundles.containsKey("warm-node"));
+    }
+
+    public void testHotTierNodeBundlesEmptyWhenNoHotNode() {
+        DiscoveryNode warmOnlyNode = discoveryNode("warm-node", Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE));
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(warmOnlyNode).localNodeId("warm-node").build();
+
+        Index index = new Index("test", "uuid");
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "warm-node", true, ShardRoutingState.STARTED))
+            .build();
+        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
+
+        Map<String, Set<ShardId>> bundles = HotTierValueSampler.hotTierNodeBundles(routingTable, nodes, Set.of("test"));
+
+        assertThat(bundles, anEmptyMap());
+    }
+
+    public void testHotTierNodeBundlesTreatsGenericDataRoleAsHot() {
+        // A single-tier (non-tiered) deployment's plain "data" role node counts as hot too — see
+        // DataTier#isHotNode and Step 21's single-node-cluster acceptance case.
+        DiscoveryNode genericDataNode = discoveryNode("data-node", Set.of(DiscoveryNodeRole.DATA_ROLE));
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(genericDataNode).localNodeId("data-node").build();
+
+        Index index = new Index("test", "uuid");
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "data-node", true, ShardRoutingState.STARTED))
+            .build();
+        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
+
+        Map<String, Set<ShardId>> bundles = HotTierValueSampler.hotTierNodeBundles(routingTable, nodes, Set.of("test"));
+
+        assertThat(bundles.keySet(), equalTo(Set.of("data-node")));
+    }
+
+    private static ProjectMetadata projectWithMapping(String mappingJson) {
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(1, 0))
+            .putMapping(mappingJson)
+            .build();
+        return ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, false).build();
+    }
+
+    private static DiscoveryNode discoveryNode(String id, Set<DiscoveryNodeRole> roles) {
+        return DiscoveryNodeUtils.create(id, new TransportAddress(InetAddress.getLoopbackAddress(), 0), Map.of(), roles);
+    }
+}

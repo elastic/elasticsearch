@@ -25,10 +25,12 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
@@ -105,11 +107,16 @@ public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
     }
 
     private Response runSuggestions(String user, String query, int cursor) throws IOException {
+        return runSuggestions(user, query, cursor, false);
+    }
+
+    private Response runSuggestions(String user, String query, int cursor, boolean includeSampleValues) throws IOException {
         Request request = new Request("POST", "/_esql/suggestions");
         XContentBuilder json = JsonXContent.contentBuilder();
         json.startObject();
         json.field("query", query);
         json.field("cursor", cursor);
+        json.field("include_sample_values", includeSampleValues);
         json.endObject();
         request.setJsonEntity(Strings.toString(json));
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
@@ -179,5 +186,61 @@ public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
         ResponseException e = expectThrows(ResponseException.class, () -> runSuggestions("user1", query, query.length() + 999));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(e.getMessage(), containsString("[cursor] must be within"));
+    }
+
+    /**
+     * Step 20: the hot-tier value-sampling path is the first one that reads documents at all, and reading
+     * a raw {@code TermsEnum} bypasses normal per-document security filtering entirely — it needs its own
+     * explicit FLS gate. {@code org} is FLS-denied for {@code fls_user} on {@code index} (see {@code
+     * roles.yml}'s {@code grant: [value, partial]}), so a {@code WHERE org == "..."} equality context must
+     * degrade safely: no {@code values}, no error.
+     */
+    public void testFieldLevelSecurityDegradesHotTierValueSampling() throws IOException {
+        String query = "FROM index | WHERE org == \"\"";
+        int cursor = query.indexOf("\"\"") + 1;
+        // fls_user cannot see `org` at all (it is not in the role's field_security grant list), so
+        // analysis of a query referencing it may reasonably fail before the value-sampling path is even
+        // reached — that is itself a safe degradation (no leak), just not the same shape as a shard-level
+        // FLS skip. Either outcome is acceptable here; what must never happen is `values` coming back.
+        try {
+            Response resp = runSuggestions("fls_user", query, cursor, true);
+            Map<String, Object> body = entityAsMap(resp);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> fields = (Map<String, Object>) body.get("fields");
+            if (fields.containsKey("org")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> org = (Map<String, Object>) fields.get("org");
+                assertThat(org, not(hasKey("values")));
+            }
+        } catch (ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        }
+    }
+
+    /**
+     * Step 20: {@code dls_user}'s role has a non-match-all DLS query on {@code lookup-user2} ({@code org ==
+     * marketing}). Unlike a real search, a raw {@code TermsEnum} read can't be filtered per document, so the
+     * gate refuses the read outright rather than serving DLS-inconsistent {@code docFreq} numbers —
+     * {@code dls_active} attaches and no {@code values} come back for the field.
+     */
+    public void testDocumentLevelSecurityDegradesHotTierValueSampling() throws IOException {
+        String query = "FROM lookup-user2 | WHERE org == \"\"";
+        int cursor = query.indexOf("\"\"") + 1;
+        // Unlike fls_user, dls_user's role grants full field visibility on lookup-user2 (only a
+        // document-level, non-match-all query restricts it), so analysis succeeds normally and the
+        // hot-tier gate is the thing actually under test here.
+        Response resp = runSuggestions("dls_user", query, cursor, true);
+        assertOK(resp);
+        Map<String, Object> body = entityAsMap(resp);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fields = (Map<String, Object>) body.get("fields");
+        if (fields.containsKey("org")) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> org = (Map<String, Object>) fields.get("org");
+            assertThat(org, not(hasKey("values")));
+        }
+        @SuppressWarnings("unchecked")
+        List<String> warnings = (List<String>) body.get("warnings");
+        assertThat(warnings, hasItem("dls_active"));
     }
 }

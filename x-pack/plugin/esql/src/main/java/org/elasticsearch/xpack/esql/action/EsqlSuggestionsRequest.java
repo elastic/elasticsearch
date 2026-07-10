@@ -34,8 +34,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * <p>{@code includeSampleValues} selects between two modes:
  * <ul>
  *     <li>{@code false} (default): coordinator-only, field-name/type completion, no data-node visit.</li>
- *     <li>{@code true}: additionally samples {@code values}/{@code range} from data nodes (deferred
- *     — see the suggestions API spec).</li>
+ *     <li>{@code true}: additionally samples {@code values} from hot-tier data nodes for a
+ *     {@code STRING_LITERAL_EQUALITY}/{@code keyword} target (Steps 18–20); {@code range} sampling and
+ *     every other context/type remain deferred — see the suggestions API spec.</li>
  * </ul>
  */
 public class EsqlSuggestionsRequest extends ActionRequest implements IndicesRequest {

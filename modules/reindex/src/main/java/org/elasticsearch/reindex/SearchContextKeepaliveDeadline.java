@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 /**
- * Tracks the latest instant until which the client expects scroll-API and PIT search contexts to remain valid,
+ * Tracks the latest instant until which the client expects scroll/PIT search contexts to remain valid,
  * based on keep-alive durations requested with successful searches
  */
 public final class SearchContextKeepaliveDeadline {

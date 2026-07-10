@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 /**
  * Implementation of {@link PaginatedHitSource.Hit} that wraps a {@link SearchHit} from a local
- * {@link org.elasticsearch.client.internal.Client} search. Shared by scroll-API and PIT-based
+ * {@link org.elasticsearch.client.internal.Client} search. Shared by scroll-based and PIT-based
  * paginated hit sources. Callers must invoke {@link #release()} when the hit is no longer needed.
  */
 

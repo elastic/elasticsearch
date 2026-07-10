@@ -118,6 +118,45 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public abstract BitArray seenGroupIds(BigArrays bigArrays);
 
     /**
+     * Optional capability for partitioned-hash-aggregation-style callers that need to compute
+     * a key's partition (via a hash) before deciding which sub-table's {@link BlockHash} to
+     * route it into, then insert the key into that chosen sub-table's own {@link BlockHash} —
+     * reusing the hash already computed rather than hashing the key twice.
+     * <p>
+     *     Not every {@link BlockHash} can support this: it requires a single-valued, non-null
+     *     key column backed by a hash table implementation that separates hash computation from
+     *     insertion. {@link #router} returns {@code null} when unsupported, and callers must
+     *     have a fallback for that case.
+     * </p>
+     */
+    public interface Router {
+        /**
+         * Compute the partition hash for the single, non-null key value at {@code position} in
+         * {@code keyBlock}, without inserting it.
+         */
+        int partitionHashOfKey(Block keyBlock, int position);
+
+        /**
+         * Insert (or look up) the single, non-null key value at {@code position} in
+         * {@code keyBlock}, reusing a {@code hash} already computed by
+         * {@link #partitionHashOfKey} for that same value, and return its group id — numbered
+         * the same way {@link #add} numbers groups (e.g. reserving {@code 0} for null, even
+         * though a {@link Router} is never actually called for a null key).
+         */
+        int addKey(Block keyBlock, int position, int hash);
+    }
+
+    /**
+     * This {@link BlockHash}'s {@link Router} capability, or {@code null} if this
+     * implementation doesn't support it. See {@link Router} for what "supports" means.
+     * Only {@link LongBlockHash}, and only when SwissHash is available on this JVM, returns
+     * non-{@code null} today.
+     */
+    public Router router() {
+        return null;
+    }
+
+    /**
      * A single sort key entry in a composite {@link TopNDef}.
      *
      * @param groupingIndex index of the corresponding entry in the {@code GroupSpec} list (0 = first grouping key)

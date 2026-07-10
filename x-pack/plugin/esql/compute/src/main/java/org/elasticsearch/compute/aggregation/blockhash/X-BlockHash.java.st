@@ -361,6 +361,27 @@ $endif$
         return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1)).seenGroupIds(bigArrays);
     }
 
+$if(long)$
+    @Override
+    public Router router() {
+        if (hash instanceof LongSwissHash swiss) {
+            return new Router() {
+                @Override
+                public int partitionHashOfKey(Block keyBlock, int position) {
+                    return LongSwissHash.hash((($Type$Block) keyBlock).getLong(position));
+                }
+
+                @Override
+                public int addKey(Block keyBlock, int position, int hash) {
+                    long key = (($Type$Block) keyBlock).getLong(position);
+                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
+                }
+            };
+        }
+        return null;
+    }
+
+$endif$
     @Override
     public void close() {
 $if(BytesRef)$

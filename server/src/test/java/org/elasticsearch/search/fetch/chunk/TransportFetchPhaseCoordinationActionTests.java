@@ -79,8 +79,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
     private CircuitBreakerService breakerService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startServices() throws Exception {
         threadPool = new TestThreadPool(getTestName());
         transportService = MockTransportService.createNewService(
             Settings.EMPTY,
@@ -106,8 +105,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void stopServices() throws Exception {
         if (transportService != null) {
             transportService.close();
         }

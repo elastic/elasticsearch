@@ -74,6 +74,9 @@ import static org.hamcrest.Matchers.is;
 
 public class CustomServiceTests extends AbstractInferenceServiceTests {
 
+    private static final String TASK_SETTINGS_KEY = "task_settings_key";
+    private static final String SECRET_SETTINGS_KEY = "test_key";
+
     public CustomServiceTests() {
         super(createTestConfiguration());
     }
@@ -152,11 +155,11 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         var customModel = (CustomModel) model;
 
         assertThat(customModel.getServiceSettings().getUrl(), is("http://www.abc.com"));
-        assertThat(customModel.getTaskSettings().getParameters(), is(Map.of("test_key", "test_value")));
+        assertThat(customModel.getTaskSettings().getParameters(), is(Map.of(TASK_SETTINGS_KEY, "test_value")));
         if (modelIncludesSecrets) {
             assertThat(
                 customModel.getSecretSettings().getSecretParameters(),
-                is(Map.of("test_key", new SecureString("test_value".toCharArray())))
+                is(Map.of(SECRET_SETTINGS_KEY, new SecureString("test_value".toCharArray())))
             );
         }
 
@@ -235,11 +238,11 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
     }
 
     private static Map<String, Object> createTaskSettingsMap() {
-        return new HashMap<>(Map.of(CustomTaskSettings.PARAMETERS, new HashMap<>(Map.of("test_key", "test_value"))));
+        return new HashMap<>(Map.of(CustomTaskSettings.PARAMETERS, new HashMap<>(Map.of(TASK_SETTINGS_KEY, "test_value"))));
     }
 
     private static Map<String, Object> createSecretSettingsMap() {
-        return new HashMap<>(Map.of(CustomSecretSettings.SECRET_PARAMETERS, new HashMap<>(Map.of("test_key", "test_value"))));
+        return new HashMap<>(Map.of(CustomSecretSettings.SECRET_PARAMETERS, new HashMap<>(Map.of(SECRET_SETTINGS_KEY, "test_value"))));
     }
 
     private static CustomModel createInternalEmbeddingModel(SimilarityMeasure similarityMeasure) {
@@ -274,8 +277,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 parser,
                 new RateLimitSettings(10_000)
             ),
-            new CustomTaskSettings(Map.of("key", "test_value")),
-            new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray())))
+            new CustomTaskSettings(Map.of(TASK_SETTINGS_KEY, "test_value")),
+            new CustomSecretSettings(Map.of(SECRET_SETTINGS_KEY, new SecureString("test_value".toCharArray())))
         );
     }
 
@@ -303,8 +306,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 batchSize,
                 InputTypeTranslator.EMPTY_TRANSLATOR
             ),
-            new CustomTaskSettings(Map.of("key", "test_value")),
-            new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray()))),
+            new CustomTaskSettings(Map.of(TASK_SETTINGS_KEY, "test_value")),
+            new CustomSecretSettings(Map.of(SECRET_SETTINGS_KEY, new SecureString("test_value".toCharArray()))),
             chunkingSettings
         );
     }
@@ -328,8 +331,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 customResponseParser,
                 new RateLimitSettings(10_000)
             ),
-            new CustomTaskSettings(Map.of("key", "test_value")),
-            new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray()))),
+            new CustomTaskSettings(Map.of(TASK_SETTINGS_KEY, "test_value")),
+            new CustomSecretSettings(Map.of(SECRET_SETTINGS_KEY, new SecureString("test_value".toCharArray()))),
             chunkingSettings
         );
     }
@@ -669,7 +672,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 )
             );
 
-            var config = getRequestConfigMap(settingsMap, createTaskSettingsMap(), createSecretSettingsMap());
+            var config = getRequestConfigMap(settingsMap, Map.of(), Map.of());
 
             var listener = new PlainActionFuture<Model>();
             service.parseRequestConfig("id", TaskType.COMPLETION, config, listener);
@@ -715,7 +718,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 )
             );
 
-            var config = getRequestConfigMap(serviceSettingsMap, createTaskSettingsMap(), chunkingSettingsMap, createSecretSettingsMap());
+            var config = getRequestConfigMap(serviceSettingsMap, Map.of(), chunkingSettingsMap, Map.of());
             var listener = new PlainActionFuture<Model>();
 
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, listener);

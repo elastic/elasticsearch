@@ -62,7 +62,6 @@ class ImplClassWriter {
     private static final ClassDesc CD_LinkerOption = ClassDesc.of("java.lang.foreign.Linker$Option");
     private static final ClassDesc CD_LinkerOptionArray = ClassDesc.ofDescriptor("[Ljava/lang/foreign/Linker$Option;");
     private static final ClassDesc CD_AssertionError = ClassDesc.of("java.lang.AssertionError");
-    private static final ClassDesc CD_Throwable = ClassDesc.of("java.lang.Throwable");
     private static final ClassDesc CD_Class = ClassDesc.of("java.lang.Class");
     private static final ClassDesc CD_Arena = ClassDesc.of("java.lang.foreign.Arena");
     private static final ClassDesc CD_Linker = ClassDesc.of("java.lang.foreign.Linker");
@@ -299,7 +298,7 @@ class ImplClassWriter {
                     catchBlock.new_(CD_AssertionError);
                     catchBlock.dup_x1();
                     catchBlock.swap();
-                    catchBlock.invokespecial(CD_AssertionError, "<init>", MethodTypeDesc.of(CD_void, CD_Throwable));
+                    catchBlock.invokespecial(CD_AssertionError, "<init>", MethodTypeDesc.of(CD_void, CD_Object));
                     catchBlock.athrow();
                 }));
             }
@@ -568,7 +567,7 @@ class ImplClassWriter {
             catchBlock.new_(CD_AssertionError);
             catchBlock.dup_x1();
             catchBlock.swap();
-            catchBlock.invokespecial(CD_AssertionError, "<init>", MethodTypeDesc.of(CD_void, CD_Throwable));
+            catchBlock.invokespecial(CD_AssertionError, "<init>", MethodTypeDesc.of(CD_void, CD_Object));
             catchBlock.athrow();
         }));
     }

@@ -21,7 +21,7 @@ import java.lang.annotation.Target;
  * <p>The processor discovers which annotations on a parameter participate in bounds checking by
  * scanning for this meta-annotation (see {@code MethodModel#boundsAnnotationsOn}).
  */
-@Retention(RetentionPolicy.SOURCE)
+@Retention(RetentionPolicy.CLASS)
 @Target(ElementType.ANNOTATION_TYPE)
 public @interface BoundsCheck {
 }

@@ -111,9 +111,9 @@ public sealed interface BoundsCheckModel {
                 if (boundsAnnotations.size() > 1) {
                     messager.printMessage(
                         Kind.ERROR,
-                        "Parameter '"
+                        "Parameter ["
                             + param.getSimpleName()
-                            + "' cannot combine multiple bounds-check annotations: "
+                            + "] cannot combine multiple bounds-check annotations: "
                             + describeAnnotationTypes(boundsAnnotations),
                         param
                     );
@@ -163,7 +163,7 @@ public sealed interface BoundsCheckModel {
         if (paramTypes.get(segParamIndex) != NativeType.ADDRESS) {
             messager.printMessage(
                 Kind.ERROR,
-                "A bounds-check annotation can only be applied to a MemorySegment parameter, got '" + param.getSimpleName() + "'",
+                "A bounds-check annotation can only be applied to a MemorySegment parameter, got [" + param.getSimpleName() + "]",
                 param
             );
             return null;
@@ -199,7 +199,7 @@ public sealed interface BoundsCheckModel {
         if (annotation.aligned() && annotation.elementBytes() == 0) {
             messager.printMessage(
                 Kind.ERROR,
-                "@VectorSegment.aligned on parameter [" + param.getSimpleName() + "] requires elementBytes",
+                "@VectorSegment.aligned on parameter [" + param.getSimpleName() + "] requires 'elementBytes'",
                 param
             );
             return null;
@@ -238,7 +238,7 @@ public sealed interface BoundsCheckModel {
         if (hasCols == hasRowBytes) {
             messager.printMessage(
                 Kind.ERROR,
-                "@MatrixSegment on parameter '" + param.getSimpleName() + "' must set exactly one of colsParam or rowBytesParam",
+                "@MatrixSegment on parameter [" + param.getSimpleName() + "] must set exactly one of 'colsParam' or 'rowBytesParam'",
                 param
             );
             return null;
@@ -249,7 +249,7 @@ public sealed interface BoundsCheckModel {
                     Kind.ERROR,
                     "@MatrixSegment on parameter ["
                         + param.getSimpleName()
-                        + "] cannot combine rowBytesParam with elementBytes/elementBits",
+                        + "] cannot combine 'rowBytesParam' with 'elementBytes'/'elementBits'",
                     param
                 );
                 return null;
@@ -257,7 +257,7 @@ public sealed interface BoundsCheckModel {
             if (annotation.aligned()) {
                 messager.printMessage(
                     Kind.ERROR,
-                    "@MatrixSegment.aligned on parameter [" + param.getSimpleName() + "] requires colsParam + elementBytes",
+                    "@MatrixSegment.aligned on parameter [" + param.getSimpleName() + "] requires 'colsParam' + 'elementBytes'",
                     param
                 );
                 return null;
@@ -286,7 +286,7 @@ public sealed interface BoundsCheckModel {
         if (annotation.aligned() && annotation.elementBytes() == 0) {
             messager.printMessage(
                 Kind.ERROR,
-                "@MatrixSegment.aligned on parameter [" + param.getSimpleName() + "] requires elementBytes",
+                "@MatrixSegment.aligned on parameter [" + param.getSimpleName() + "] requires 'elementBytes'",
                 param
             );
             return null;
@@ -313,7 +313,7 @@ public sealed interface BoundsCheckModel {
                 if (type != NativeType.INT && type != NativeType.LONG) {
                     messager.printMessage(
                         Kind.ERROR,
-                        attributeDescription + " parameter '" + paramName + "' must be int or long, got: " + type,
+                        attributeDescription + " parameter [" + paramName + "] must be int or long, got: " + type,
                         annotatedParam
                     );
                     return -1;
@@ -321,7 +321,7 @@ public sealed interface BoundsCheckModel {
                 return i;
             }
         }
-        messager.printMessage(Kind.ERROR, attributeDescription + " references unknown parameter '" + paramName + "'", annotatedParam);
+        messager.printMessage(Kind.ERROR, attributeDescription + " references unknown parameter [" + paramName + "]", annotatedParam);
         return -1;
     }
 
@@ -343,9 +343,9 @@ public sealed interface BoundsCheckModel {
             messager.printMessage(
                 Kind.ERROR,
                 annotationName
-                    + " on parameter '"
+                    + " on parameter ["
                     + annotatedParam.getSimpleName()
-                    + "' requires exactly one of elementBytes or elementBits",
+                    + "] requires exactly one of 'elementBytes' or 'elementBits'",
                 annotatedParam
             );
             return -1;
@@ -354,7 +354,7 @@ public sealed interface BoundsCheckModel {
             if (elementBytes < 0) {
                 messager.printMessage(
                     Kind.ERROR,
-                    annotationName + ".elementBytes on parameter '" + annotatedParam.getSimpleName() + "' must be positive",
+                    annotationName + ".elementBytes on parameter [" + annotatedParam.getSimpleName() + "] must be positive",
                     annotatedParam
                 );
                 return -1;
@@ -364,7 +364,7 @@ public sealed interface BoundsCheckModel {
         if (elementBits < 0) {
             messager.printMessage(
                 Kind.ERROR,
-                annotationName + ".elementBits on parameter '" + annotatedParam.getSimpleName() + "' must be positive",
+                annotationName + ".elementBits on parameter [" + annotatedParam.getSimpleName() + "] must be positive",
                 annotatedParam
             );
             return -1;

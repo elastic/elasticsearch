@@ -107,4 +107,24 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(asm, containsString("sanitizeEstimate"));
         assertThat(asm, containsString("$checkAllocBytes"));
     }
+
+    public void testNoEmittedTrackingBytecodeForDefCallWhenDisabled() {
+        // A def-dispatched call to an annotated target must be clean when tracking is off.
+        String asm = bytecode("def s = 'hello'; s.substring(0, 3); return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+        assertThat(asm, not(containsString("AllocationEstimators")));
+        assertThat(asm, not(containsString("sanitizeEstimate")));
+    }
+
+    public void testDefCallChargeIsBootstrapSideNotEmittedWhenEnabled() {
+        // Unlike the statically-typed path (see testEstimatorBytecodePresentWhenEnabled), a def call's estimator charge is
+        // applied at runtime inside Def.lookupMethod (the bootstrap), not with emitted per-site bytecode — so even with tracking
+        // on the def call site emits no estimator markers. ("x" is returned to avoid an autobox charge muddying the check; the
+        // only ON/OFF bytecode difference for the def call is the scriptThis push, exercised behaviorally in
+        // AllocationDefDispatchTests.)
+        String asm = bytecode("def s = 'hello'; s.substring(0, 3); return 'x';", 1024 * 1024L);
+        assertThat(asm, not(containsString("AllocationEstimators")));
+        assertThat(asm, not(containsString("sanitizeEstimate")));
+    }
 }

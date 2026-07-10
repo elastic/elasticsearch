@@ -784,6 +784,20 @@ a:integer | a1:integer
 1         | 1
 ;
 
+mvSliceKeywordField
+required_capability: mv_sort
+request_stored: skip
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL sliced = MV_SLICE(job_positions, 0, 0)
+| KEEP emp_no, sliced
+;
+
+emp_no:integer | sliced:keyword
+10001          | "Accountant"
+;
+
 mvSliceOutOfBound
 required_capability: mv_sort
 

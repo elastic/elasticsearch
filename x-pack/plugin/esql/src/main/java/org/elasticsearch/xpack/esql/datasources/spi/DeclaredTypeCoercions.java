@@ -39,8 +39,10 @@ import java.util.function.IntFunction;
 /**
  * The single source of truth for declared-type coercion on external datasets: which
  * (physical file type &rarr; declared type) pairs an external reader coerces at read time, how a
- * decoded physical block becomes a declared-type block ({@link #castBlock}), and the one scalar
- * conversion the string &rarr; date pair uses everywhere ({@link #parseDatetimeMillis}).
+ * decoded physical block becomes a declared-type block ({@link #castBlock}), the block shape a
+ * declared type reads into ({@link #elementTypeFor}/{@link #builderFor}, which every text and
+ * columnar reader consults instead of re-deriving it), and the one scalar conversion the
+ * string &rarr; date pair uses everywhere ({@link #parseDatetimeMillis}).
  *
  * <h2>The one concept: reading a file IS ingesting it</h2>
  * A dataset mapping may declare a column type that differs from the type physically in the file
@@ -481,7 +483,7 @@ public final class DeclaredTypeCoercions {
             // fail the whole read, which is exactly the class of failure declared unsigned_long support removes.
             throw new IllegalArgumentException("Value [" + value + "] is out of range for an unsigned_long", e);
         }
-        if (big.signum() < 0 || NumericUtils.isUnsignedLong(big) == false) {
+        if (NumericUtils.isUnsignedLong(big) == false) {  // isUnsignedLong already rejects negatives (signum >= 0)
             throw new IllegalArgumentException("Value [" + value + "] is out of range for an unsigned_long");
         }
         return NumericUtils.asLongUnsigned(big);

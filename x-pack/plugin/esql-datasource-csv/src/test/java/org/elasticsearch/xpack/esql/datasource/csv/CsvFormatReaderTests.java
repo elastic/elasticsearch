@@ -8012,6 +8012,29 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertFalse("ArithmeticException must not escape the coercer", e instanceof ArithmeticException);
     }
 
+    /**
+     * skip_row drops the whole row carrying a bad unsigned_long cell rather than nulling it — completing the
+     * error_mode matrix (fail_fast and null_field are pinned above). The bad value rides the same per-field policy
+     * channel every other declared type uses, so this confirms unsigned_long is wired into it, not special-cased.
+     */
+    public void testDeclaredUnsignedLongBadValueSkipRowDropsTheRow() throws IOException {
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "v", DataType.UNSIGNED_LONG)
+        );
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "skip_row", "max_errors", 100));
+        try (CloseableIterator<Page> it = reader.read(createStorageObject("id,v\n1,5\n2,-1\n3,7\n"), declaredCtx(schema))) {
+            assertTrue(it.hasNext());
+            Page page = it.next();
+            // Row 2 (v=-1, out of range) is dropped; rows 1 and 3 survive.
+            assertEquals(2, page.getPositionCount());
+            LongBlock v = (LongBlock) page.getBlock(1);
+            assertEquals(encoded("5"), v.getLong(0));
+            assertEquals(encoded("7"), v.getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
     /** TSV rides the same reader; a declared unsigned_long must read identically there. */
     public void testDeclaredUnsignedLongReadsFromTsv() throws IOException {
         FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", "\t"));

@@ -1338,7 +1338,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
 
     /**
      * ANY mode ENRICH applied to the result of a FROM-subquery union spanning the local cluster and both remotes.
-     * Since ANY mode can be pushed down anywhere, the policy must exist on every cluster involved in the query.
      */
     public void testEnrichWithSubqueriesAnyModeSucceedsWhenPresentOnAllClusters() {
         setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
@@ -1364,6 +1363,26 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
             deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
             deleteEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich");
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        }
+    }
+
+    public void testEnrichWithSubqueriesAnyModeFailsWhenMissingOnASomeClusters() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+                FROM (FROM logs-*), (FROM *:logs-*)
+                | WHERE v > 1 AND v < 7
+                | ENRICH values_enrich ON v WITH enrich_name
+                | KEEP v
+                | SORT v
+                """, false));
+            assertThat(ex.getMessage(), containsString("cannot find enrich policy [values_enrich] on clusters [cluster-a, remote-b]"));
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
             setSkipUnavailable(REMOTE_CLUSTER_2, false);
         }
@@ -1408,6 +1427,34 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         try {
             try (EsqlQueryResponse resp = runQuery("""
                 FROM (FROM logs-*), (FROM cluster-a:logs-*)
+                | WHERE v > 1 AND v < 7
+                | ENRICH _coordinator:values_enrich ON v WITH enrich_name
+                | KEEP v
+                | SORT v
+                """, false)) {
+                assertThat(
+                    getValuesList(resp),
+                    equalTo(List.of(List.of(2L), List.of(3L), List.of(4L), List.of(4L), List.of(5L), List.of(6L)))
+                );
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        }
+    }
+
+    /**
+     * COORDINATOR mode ENRICH applied inside a FROM subquery and in the outer query: the query succeeds if the ENRICH policy exists in
+     * the local cluster
+     */
+    public void testEnrichWithSubqueriesCoordinatorModeSucceedsWithMixedScopes() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM (FROM logs-*), (FROM cluster-a:logs-* | ENRICH _coordinator:values_enrich ON v WITH enrich_name)
                 | WHERE v > 1 AND v < 7
                 | ENRICH _coordinator:values_enrich ON v WITH enrich_name
                 | KEEP v
@@ -1479,6 +1526,38 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             }
         } finally {
             deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
+            setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        }
+    }
+
+    /**
+     * REMOTE mode ENRICH requires the policy to execute on the data nodes, in this query it would try to execute in the coordinator
+     */
+    public void testEnrichWithSubqueriesRemoteModeFailsWithMixedScope() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+                FROM
+                    (FROM remote-b:logs-*),
+                    (FROM cluster-a:logs-*
+                     | WHERE v > 1 AND v < 7
+                     | ENRICH _remote:values_enrich ON v WITH enrich_name
+                     | KEEP v)
+                | ENRICH _remote:values_enrich ON v WITH enrich_name
+                | KEEP v
+                | SORT v
+                | WHERE v < 5
+                """, false));
+            assertThat(ex.getMessage(), containsString("ENRICH with remote policy can't be executed after [(FROM remote-b:logs-*)"));
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich");
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
             setSkipUnavailable(REMOTE_CLUSTER_2, false);
         }

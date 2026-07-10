@@ -37,8 +37,7 @@ public class ResponseCollectorServiceTests extends ESTestCase {
     private ThreadPool threadpool;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startCollectorService() throws Exception {
         threadpool = new TestThreadPool("response_collector_tests");
         clusterService = new ClusterService(
             Settings.EMPTY,
@@ -50,8 +49,7 @@ public class ResponseCollectorServiceTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadpool.shutdownNow();
     }
 

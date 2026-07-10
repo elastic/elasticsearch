@@ -3949,6 +3949,35 @@ public class AnalyzerTests extends ESTestCase {
             );
     }
 
+    /**
+     * TO_TEXT only accepts {@code keyword}/{@code text} inputs (see {@code ToText#EVALUATORS}). When
+     * a union-typed field has a leg outside that set (here {@code ip} vs {@code keyword}), the
+     * conversion function can't resolve every leg, so the field falls through to the generic
+     * ambiguous-type-conflict error rather than being implicitly converted. This pins that
+     * "forbid for now" boundary so intentionally widening TO_TEXT's accepted union legs is a
+     * deliberate, test-breaking change. See union_types.csv-spec#multiIndexIpToTextWithExplicitCast
+     * for the supported workaround (an explicit inner cast to a type TO_TEXT does accept).
+     */
+    public void testToTextOnNonStringUnionTypeFails() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "ip")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "keyword"))
+            ),
+            List.of()
+        );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
+        analyzer().addIndex(resolution)
+            .error(
+                "FROM foo, bar | EVAL x = TO_TEXT(value)",
+                equalTo(
+                    "Found 1 problem\n"
+                        + "line 1:34: Cannot use field [value] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[ip] in [foo], [keyword] in [bar]"
+                )
+            );
+    }
+
     public void testValidFuse() {
         LogicalPlan plan = basic().query("""
              from test metadata _id, _index, _score

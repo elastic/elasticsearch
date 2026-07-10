@@ -957,7 +957,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     /**
      * Duplicate-path guard on the write-through: a comma-separated list can name the same file twice;
      * the reconciliation rail's per-file merge folds a per-path MAP (deduplicated) while the scan reads
-     * the listing MULTISET, so memoizing that merge under the content token would persist an undercount
+     * the listing MULTISET, so memoizing that merge under the file-set fingerprint would persist an undercount
      * beyond eviction. A distinct listing is the positive control.
      */
     public void testDatasetAggregateWriteThroughRefusedForDuplicatePaths() {

@@ -1038,7 +1038,7 @@ public class ExternalSourceResolver {
 
     /**
      * The dataset-level aggregate key for one multi-file resolve, or {@code null} when the shape does not
-     * qualify: single file, no content token, a non-cacheable provider (handled by callers), or — the
+     * qualify: single file, no file-set fingerprint, a non-cacheable provider (handled by callers), or — the
      * format gate — a format that folds an absent column stat as implicit nulls (Parquet/ORC). The
      * aggregate is ROW-COUNT-ONLY, and under the footer implicit-nulls contract an absent per-column
      * stat reads as "all null", so serving the aggregate to a footer-format {@code COUNT(col)} would
@@ -1047,7 +1047,7 @@ public class ExternalSourceResolver {
      * promise registration together. (Precedent: {@code strictSingleFileMetadata} refuses
      * {@code FILE_TYPED_FORMATS} on its warm rail for the same reason family.)
      * <p>
-     * Keyed on the listing's content token (see {@link SchemaCacheKey#forDatasetAggregate}), so it
+     * Keyed on the listing's file-set fingerprint (see {@link SchemaCacheKey#forDatasetAggregate}), so it
      * needs no invalidation: any add/remove/mtime/size change in the set derives a different key. The
      * {@code formatType} slot uses the same extension-based detection the per-file keys use — a stable
      * identity input; the logical source type may only diverge from it via config keys that are already
@@ -1055,7 +1055,7 @@ public class ExternalSourceResolver {
      */
     @Nullable
     SchemaCacheKey datasetAggregateKey(FileList listing, Map<String, Object> config) {
-        if (listing == null || listing.contentToken() == null || listing.fileCount() < 2) {
+        if (listing == null || listing.fileSetFingerprint() == null || listing.fileCount() < 2) {
             return null;
         }
         if (datasetAggregateSafeForFormat(listing, config) == false) {
@@ -1063,7 +1063,7 @@ public class ExternalSourceResolver {
         }
         return SchemaCacheKey.forDatasetAggregate(
             listing.originalPattern(),
-            listing.contentToken(),
+            listing.fileSetFingerprint(),
             detectFormatType(listing.path(0)),
             config
         );
@@ -1148,7 +1148,7 @@ public class ExternalSourceResolver {
             Object rowCount = aggregatedStats.get(SourceStatisticsSerializer.STATS_ROW_COUNT);
             // Duplicate-path guard on the write-through: a comma-separated list can name the same file
             // twice, and the reconciliation rail's per-file merge folds a per-path MAP (deduplicated)
-            // while the scan reads the listing MULTISET — memoizing that merge under the token would
+            // while the scan reads the listing MULTISET — memoizing that merge under the fingerprint would
             // persist an undercount beyond eviction. NOTE: the per-file rail SERVING that dedup merge
             // immediately is a pre-existing main bug tracked separately (GA issue); this guard only
             // keeps the dataset aggregate from memoizing it.

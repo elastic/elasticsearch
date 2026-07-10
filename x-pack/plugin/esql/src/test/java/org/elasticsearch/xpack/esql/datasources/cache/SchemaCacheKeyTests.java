@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.glob.ContentToken;
+import org.elasticsearch.xpack.esql.datasources.glob.FileSetFingerprint;
 
 import java.util.Map;
 
 /**
  * Locks the identity contract of {@link SchemaCacheKey#forDatasetAggregate}: the key must change with
- * the listing content token, the format-affecting config, and the source type — and must be
+ * the listing's file-set fingerprint, the format-affecting config, and the source type — and must be
  * structurally distinct from every per-file key so the per-file reconcile/lookup paths can never
  * touch a dataset-aggregate entry.
  */
@@ -23,15 +23,25 @@ public class SchemaCacheKeyTests extends ESTestCase {
     private static final String PATTERN = "s3://bucket/data/*.ndjson";
 
     public void testDatasetAggregateKeyStableForSameInputs() {
-        SchemaCacheKey a = SchemaCacheKey.forDatasetAggregate(PATTERN, new ContentToken(11, 22), "ndjson", Map.of("format", "ndjson"));
-        SchemaCacheKey b = SchemaCacheKey.forDatasetAggregate(PATTERN, new ContentToken(11, 22), "ndjson", Map.of("format", "ndjson"));
+        SchemaCacheKey a = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            new FileSetFingerprint(11, 22),
+            "ndjson",
+            Map.of("format", "ndjson")
+        );
+        SchemaCacheKey b = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            new FileSetFingerprint(11, 22),
+            "ndjson",
+            Map.of("format", "ndjson")
+        );
         assertEquals(a, b);
     }
 
-    public void testDatasetAggregateKeyChangesWithEitherTokenLane() {
-        SchemaCacheKey base = SchemaCacheKey.forDatasetAggregate(PATTERN, new ContentToken(11, 22), "ndjson", Map.of());
-        assertNotEquals(base, SchemaCacheKey.forDatasetAggregate(PATTERN, new ContentToken(12, 22), "ndjson", Map.of()));
-        assertNotEquals(base, SchemaCacheKey.forDatasetAggregate(PATTERN, new ContentToken(11, 23), "ndjson", Map.of()));
+    public void testDatasetAggregateKeyChangesWithEitherFingerprintLane() {
+        SchemaCacheKey base = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", Map.of());
+        assertNotEquals(base, SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(12, 22), "ndjson", Map.of()));
+        assertNotEquals(base, SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 23), "ndjson", Map.of()));
     }
 
     public void testDatasetAggregateKeyChangesWithFormatAffectingConfig() {
@@ -39,13 +49,13 @@ public class SchemaCacheKeyTests extends ESTestCase {
         // never serve a query running under another — the config fingerprint is part of the key.
         SchemaCacheKey strict = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
-            new ContentToken(11, 22),
+            new FileSetFingerprint(11, 22),
             "ndjson",
             Map.of("error_mode", "fail_fast")
         );
         SchemaCacheKey lenient = SchemaCacheKey.forDatasetAggregate(
             PATTERN,
-            new ContentToken(11, 22),
+            new FileSetFingerprint(11, 22),
             "ndjson",
             Map.of("error_mode", "skip_row")
         );
@@ -55,29 +65,39 @@ public class SchemaCacheKeyTests extends ESTestCase {
     public void testDatasetAggregateKeyIgnoresCredentials() {
         // Mirrors buildFormatConfig: credentials are not row-interpretation-affecting, so two users
         // over the same files share the aggregate (the schema cache is shared by design).
-        SchemaCacheKey a = SchemaCacheKey.forDatasetAggregate(PATTERN, new ContentToken(11, 22), "ndjson", Map.of("access_key", "userA"));
-        SchemaCacheKey b = SchemaCacheKey.forDatasetAggregate(PATTERN, new ContentToken(11, 22), "ndjson", Map.of("access_key", "userB"));
+        SchemaCacheKey a = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            new FileSetFingerprint(11, 22),
+            "ndjson",
+            Map.of("access_key", "userA")
+        );
+        SchemaCacheKey b = SchemaCacheKey.forDatasetAggregate(
+            PATTERN,
+            new FileSetFingerprint(11, 22),
+            "ndjson",
+            Map.of("access_key", "userB")
+        );
         assertEquals(a, b);
     }
 
     public void testDatasetAggregateKeyChangesWithSourceType() {
-        SchemaCacheKey ndjson = SchemaCacheKey.forDatasetAggregate(PATTERN, new ContentToken(11, 22), "ndjson", Map.of());
-        SchemaCacheKey csv = SchemaCacheKey.forDatasetAggregate(PATTERN, new ContentToken(11, 22), "csv", Map.of());
+        SchemaCacheKey ndjson = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", Map.of());
+        SchemaCacheKey csv = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "csv", Map.of());
         assertNotEquals(ndjson, csv);
     }
 
     public void testDatasetAggregateKeyDistinctFromPerFileKeys() {
         // Even a per-file key crafted over the same strings cannot equal a dataset key: the dataset
         // formatType carries the reserved '#' marker suffix (extension detection derives formatType
-        // from a file name's last dot and so never emits '#'), and the content token rides the
-        // dedicated datasetToken component, which every per-file key leaves null. canonicalPath stays
-        // the plain glob pattern (diagnostics-friendly, no smuggled separators).
-        SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(PATTERN, new ContentToken(11, 22), "ndjson", Map.of());
+        // from a file name's last dot and so never emits '#'), and the file-set fingerprint rides the
+        // dedicated fileSetFingerprint component, which every per-file key leaves null. canonicalPath
+        // stays the plain glob pattern (diagnostics-friendly, no smuggled separators).
+        SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", Map.of());
         SchemaCacheKey perFile = SchemaCacheKey.build(PATTERN, 11L, "ndjson", Map.of());
         assertNotEquals(dataset, perFile);
         assertTrue(dataset.formatType().endsWith(SchemaCacheKey.DATASET_AGGREGATE_MARKER));
         assertEquals(PATTERN, dataset.canonicalPath());
-        assertEquals(new ContentToken(11, 22), dataset.datasetToken());
-        assertNull(perFile.datasetToken());
+        assertEquals(new FileSetFingerprint(11, 22), dataset.fileSetFingerprint());
+        assertNull(perFile.fileSetFingerprint());
     }
 }

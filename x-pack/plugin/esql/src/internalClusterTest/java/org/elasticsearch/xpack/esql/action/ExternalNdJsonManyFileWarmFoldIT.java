@@ -14,11 +14,8 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheTestAccess;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
-import java.io.BufferedWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
@@ -26,7 +23,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -37,22 +33,20 @@ import static org.hamcrest.Matchers.equalTo;
  * moment ONE file lacks {@code _stats.row_count}), so under schema-cache LRU pressure — simulated here
  * with a deliberately tiny {@code esql.source.cache.size} — a single evicted per-file entry used to
  * force every file to re-scan. The fix is the DATASET-LEVEL row-count aggregate: a single entry keyed
- * by the listing's content token (path+mtime+size of every file), materialized by the cold scan's
+ * by the listing's file-set fingerprint (path+mtime+size of every file), materialized by the cold scan's
  * reconcile and served when the per-file merge comes back incomplete, so warm {@code COUNT(*)} needs
  * exactly one cache survival instead of N.
  * <p>
  * The CSV arm is the control (same shape, same fix); the surgical arm below removes ONE per-file entry
  * explicitly, making the failure mode deterministic instead of load-dependent; the file-set mutation
- * arm proves the content-token key is correct-or-miss (any add/touch re-scans and serves the NEW truth,
+ * arm proves the file-set-fingerprint key is correct-or-miss (any add/touch re-scans and serves the NEW truth,
  * then re-warms).
  */
-public class ExternalNdJsonManyFileWarmFoldIT extends AbstractExternalDataSourceIT {
+public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggregateIT {
 
     // Enough files that at least one straggler (incomplete stripe coverage) is near-certain, mirroring the
     // 226-file bench cell where 50 files warmed and 226 did not.
     private static final int FILE_COUNT = 40;
-    // Each file clears several 64kb segments so the parallel-parse / per-stripe fold path is exercised per file.
-    private static final int FILE_BYTES = 512_000;
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -69,23 +63,6 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractExternalDataSource
             // entries cannot all coexist, forcing LRU eviction of already-committed siblings.
             .put("esql.source.cache.size", "48kb")
             .build();
-    }
-
-    @Override
-    protected QueryPragmas getPragmas() {
-        // parsing_parallelism > 1 selects the SEGMENTABLE_UNCOMPRESSED parallel-parse path (the bench regime).
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 8).put("max_concurrent_open_segments", 2).build());
-    }
-
-    /**
-     * The warm-stats cache is coordinator-local (per-node), so cold and warm MUST run on the same
-     * coordinator or the warm lookup misses for a reason unrelated to the fold. Pin both to master
-     * (mirrors {@link ExternalNdJsonMultiStripeFoldIT}) and apply the parallel-parse pragmas.
-     */
-    @Override
-    public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
-        request.pragmas(getPragmas());
-        return client(internalCluster().getMasterName()).execute(EsqlQueryAction.INSTANCE, request).actionGet(timeout);
     }
 
     public void testNdjsonManyFileCountStarWarmShortCircuits() throws Exception {
@@ -140,7 +117,7 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractExternalDataSource
     }
 
     /**
-     * The correct-or-miss arm: the dataset aggregate is keyed by the listing's content token, so ANY
+     * The correct-or-miss arm: the dataset aggregate is keyed by the listing's file-set fingerprint, so ANY
      * file-set change (a file added, a file's mtime touched) must MISS it — the next query re-scans and
      * returns the new truth — and the re-scan's reconcile re-materializes the aggregate for the NEW set,
      * so the query after that warms again. Serving a stale count at any step is the wrong-answer failure
@@ -211,49 +188,4 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractExternalDataSource
         }
     }
 
-    private static void assertCount(EsqlQueryResponse response, long expected) {
-        List<List<Object>> rows = getValuesList(response);
-        assertThat(rows.size(), equalTo(1));
-        assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(expected));
-    }
-
-    private static String globUri(Path dir, String pattern) {
-        String dirUri = StoragePath.fileUri(dir).toString();
-        if (dirUri.endsWith("/") == false) {
-            dirUri += "/";
-        }
-        return dirUri + pattern;
-    }
-
-    private static long writeNdjsonFile(Path file, long base) throws Exception {
-        long rows = 0;
-        try (BufferedWriter w = Files.newBufferedWriter(file)) {
-            int written = 0;
-            while (written < FILE_BYTES) {
-                long a = base + rows;
-                String line = "{\"a\":" + a + ",\"b\":" + (a * 10) + "}\n";
-                w.write(line);
-                written += line.length();
-                rows++;
-            }
-        }
-        return rows;
-    }
-
-    private static long writeCsvFile(Path file, long base) throws Exception {
-        long rows = 0;
-        try (BufferedWriter w = Files.newBufferedWriter(file)) {
-            String header = "a,b\n";
-            w.write(header);
-            int written = header.length();
-            while (written < FILE_BYTES) {
-                long a = base + rows;
-                String line = a + "," + (a * 10) + "\n";
-                w.write(line);
-                written += line.length();
-                rows++;
-            }
-        }
-        return rows;
-    }
 }

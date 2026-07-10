@@ -14,12 +14,8 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheTestAccess;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
-import java.io.BufferedWriter;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -45,10 +41,9 @@ import static org.hamcrest.Matchers.equalTo;
  * per-file merge was failing by construction; it cannot pass through per-file luck. These arms are
  * red on a build without the dataset-level aggregate.
  */
-public class ExternalWarmDatasetAggregatePartialEvictionIT extends AbstractExternalDataSourceIT {
+public class ExternalWarmDatasetAggregatePartialEvictionIT extends AbstractWarmDatasetAggregateIT {
 
     private static final int FILE_COUNT = 40;
-    private static final int FILE_BYTES = 512_000;
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -66,23 +61,6 @@ public class ExternalWarmDatasetAggregatePartialEvictionIT extends AbstractExter
             // explicitly, making "exactly one file missing" a deterministic construction.
             .put("esql.source.cache.size", "10mb")
             .build();
-    }
-
-    @Override
-    protected QueryPragmas getPragmas() {
-        // parsing_parallelism > 1 selects the SEGMENTABLE_UNCOMPRESSED parallel-parse path (the bench regime).
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 8).put("max_concurrent_open_segments", 2).build());
-    }
-
-    /**
-     * The warm-stats cache is coordinator-local (per-node), so cold and warm MUST run on the same
-     * coordinator or the warm lookup misses for a reason unrelated to the fold. Pin both to master
-     * (mirrors {@link ExternalNdJsonManyFileWarmFoldIT}) and apply the parallel-parse pragmas.
-     */
-    @Override
-    public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
-        request.pragmas(getPragmas());
-        return client(internalCluster().getMasterName()).execute(EsqlQueryAction.INSTANCE, request).actionGet(timeout);
     }
 
     public void testNdjsonWarmCountSurvivesOneMissingPerFileEntry() throws Exception {
@@ -193,49 +171,4 @@ public class ExternalWarmDatasetAggregatePartialEvictionIT extends AbstractExter
         }
     }
 
-    private static void assertCount(EsqlQueryResponse response, long expected) {
-        List<List<Object>> rows = getValuesList(response);
-        assertThat(rows.size(), equalTo(1));
-        assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(expected));
-    }
-
-    private static String globUri(Path dir, String pattern) {
-        String dirUri = StoragePath.fileUri(dir).toString();
-        if (dirUri.endsWith("/") == false) {
-            dirUri += "/";
-        }
-        return dirUri + pattern;
-    }
-
-    private static long writeNdjsonFile(Path file, long base) throws Exception {
-        long rows = 0;
-        try (BufferedWriter w = Files.newBufferedWriter(file)) {
-            int written = 0;
-            while (written < FILE_BYTES) {
-                long a = base + rows;
-                String line = "{\"a\":" + a + ",\"b\":" + (a * 10) + "}\n";
-                w.write(line);
-                written += line.length();
-                rows++;
-            }
-        }
-        return rows;
-    }
-
-    private static long writeCsvFile(Path file, long base) throws Exception {
-        long rows = 0;
-        try (BufferedWriter w = Files.newBufferedWriter(file)) {
-            String header = "a,b\n";
-            w.write(header);
-            int written = header.length();
-            while (written < FILE_BYTES) {
-                long a = base + rows;
-                String line = a + "," + (a * 10) + "\n";
-                w.write(line);
-                written += line.length();
-                rows++;
-            }
-        }
-        return rows;
-    }
 }

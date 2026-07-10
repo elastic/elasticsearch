@@ -19,12 +19,12 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * Locks the {@link FileList} content-token contract the dataset-level aggregate cache key depends on:
- * the token is a pure function of the file SET (order-independent), and ANY membership or per-file
- * (mtime, size) change produces a different token — which is exactly what makes a token-derived cache
- * key correct-or-miss with no invalidation protocol.
+ * Locks the {@link FileList} file-set-fingerprint contract the dataset-level aggregate cache key
+ * depends on: the fingerprint is a pure function of the file SET (order-independent), and ANY
+ * membership or per-file (mtime, size) change produces a different fingerprint — which is exactly what
+ * makes a fingerprint-derived cache key correct-or-miss with no invalidation protocol.
  */
-public class FileListContentTokenTests extends ESTestCase {
+public class FileSetFingerprintsTests extends ESTestCase {
 
     private static StorageEntry entry(String path, long size, long mtimeMillis) {
         return new StorageEntry(StoragePath.of(path), size, Instant.ofEpochMilli(mtimeMillis));
@@ -38,79 +38,79 @@ public class FileListContentTokenTests extends ESTestCase {
         return entries;
     }
 
-    public void testTokenIsOrderIndependent() {
+    public void testFingerprintIsOrderIndependent() {
         List<StorageEntry> entries = sampleEntries(20);
         FileList inOrder = GlobExpander.fileListOf(entries, "s3://bucket/data/*.ndjson");
         List<StorageEntry> shuffled = new ArrayList<>(entries);
         Collections.shuffle(shuffled, new Random(randomLong()));
         FileList outOfOrder = GlobExpander.fileListOf(shuffled, "s3://bucket/data/*.ndjson");
 
-        assertNotNull(inOrder.contentToken());
-        assertNotNull(outOfOrder.contentToken());
-        assertEquals(inOrder.contentToken(), outOfOrder.contentToken());
+        assertNotNull(inOrder.fileSetFingerprint());
+        assertNotNull(outOfOrder.fileSetFingerprint());
+        assertEquals(inOrder.fileSetFingerprint(), outOfOrder.fileSetFingerprint());
     }
 
-    public void testMtimeChangeChangesToken() {
+    public void testMtimeChangeChangesFingerprint() {
         List<StorageEntry> entries = sampleEntries(5);
         FileList before = GlobExpander.fileListOf(entries, "p");
         List<StorageEntry> touched = new ArrayList<>(entries);
         StorageEntry victim = touched.get(2);
         touched.set(2, entry(victim.path().toString(), victim.length(), victim.lastModified().toEpochMilli() + 1));
         FileList after = GlobExpander.fileListOf(touched, "p");
-        assertTokensDiffer(before, after);
+        assertFingerprintsDiffer(before, after);
     }
 
-    public void testSizeChangeChangesToken() {
+    public void testSizeChangeChangesFingerprint() {
         List<StorageEntry> entries = sampleEntries(5);
         FileList before = GlobExpander.fileListOf(entries, "p");
         List<StorageEntry> touched = new ArrayList<>(entries);
         StorageEntry victim = touched.get(4);
         touched.set(4, entry(victim.path().toString(), victim.length() + 1, victim.lastModified().toEpochMilli()));
         FileList after = GlobExpander.fileListOf(touched, "p");
-        assertTokensDiffer(before, after);
+        assertFingerprintsDiffer(before, after);
     }
 
-    public void testAddedFileChangesToken() {
+    public void testAddedFileChangesFingerprint() {
         List<StorageEntry> entries = sampleEntries(5);
         FileList before = GlobExpander.fileListOf(entries, "p");
         List<StorageEntry> grown = new ArrayList<>(entries);
         grown.add(entry("s3://bucket/data/part-99.ndjson", 7L, 9L));
         FileList after = GlobExpander.fileListOf(grown, "p");
-        assertTokensDiffer(before, after);
+        assertFingerprintsDiffer(before, after);
     }
 
-    public void testRemovedFileChangesToken() {
+    public void testRemovedFileChangesFingerprint() {
         List<StorageEntry> entries = sampleEntries(5);
         FileList before = GlobExpander.fileListOf(entries, "p");
         List<StorageEntry> shrunk = new ArrayList<>(entries);
         shrunk.remove(1);
         FileList after = GlobExpander.fileListOf(shrunk, "p");
-        assertTokensDiffer(before, after);
+        assertFingerprintsDiffer(before, after);
     }
 
-    public void testCompactionPreservesToken() {
-        // Dictionary compaction preserves the file set exactly, so the pass-through token must equal
-        // the raw list's — the dataset-aggregate key must not depend on which representation the
+    public void testCompactionPreservesFingerprint() {
+        // Dictionary compaction preserves the file set exactly, so the pass-through fingerprint must
+        // equal the raw list's — the dataset-aggregate key must not depend on which representation the
         // listing cache happens to hold.
         FileList raw = GlobExpander.fileListOf(sampleEntries(10), "s3://bucket/data/*.ndjson");
         FileList compact = GlobExpander.compact(raw, "s3://bucket/data/");
         assertNotSame(raw, compact);
-        assertNotNull(compact.contentToken());
-        assertEquals(raw.contentToken(), compact.contentToken());
+        assertNotNull(compact.fileSetFingerprint());
+        assertEquals(raw.fileSetFingerprint(), compact.fileSetFingerprint());
     }
 
-    public void testSentinelsCarryNoToken() {
-        assertNull(FileList.UNRESOLVED.contentToken());
-        assertNull(FileList.EMPTY.contentToken());
+    public void testSentinelsCarryNoFingerprint() {
+        assertNull(FileList.UNRESOLVED.fileSetFingerprint());
+        assertNull(FileList.EMPTY.fileSetFingerprint());
     }
 
-    private static void assertTokensDiffer(FileList a, FileList b) {
-        ContentToken tokenA = a.contentToken();
-        ContentToken tokenB = b.contentToken();
-        assertNotNull(tokenA);
-        assertNotNull(tokenB);
+    private static void assertFingerprintsDiffer(FileList a, FileList b) {
+        FileSetFingerprint fingerprintA = a.fileSetFingerprint();
+        FileSetFingerprint fingerprintB = b.fileSetFingerprint();
+        assertNotNull(fingerprintA);
+        assertNotNull(fingerprintB);
         // Both 64-bit lanes flipping on a single-field change is the whole point of the per-lane
         // perturbation; a same-high collision here would mean the mix dropped a lane.
-        assertFalse(tokenA.high() == tokenB.high() && tokenA.low() == tokenB.low());
+        assertFalse(fingerprintA.high() == fingerprintB.high() && fingerprintA.low() == fingerprintB.low());
     }
 }

@@ -25,7 +25,7 @@ final class GenericFileList implements FileList {
     private final List<StorageEntry> files;
     private final String originalPattern;
     private final PartitionMetadata partitionMetadata;
-    private final ContentToken contentToken;
+    private final FileSetFingerprint fileSetFingerprint;
 
     GenericFileList(List<StorageEntry> files, String originalPattern) {
         this(files, originalPattern, null);
@@ -40,7 +40,7 @@ final class GenericFileList implements FileList {
         this.partitionMetadata = partitionMetadata;
         // Computed eagerly, exactly once per listing build: consumers (the dataset-aggregate cache key)
         // need it O(1) at resolve time, and construction is the one place the entry walk is already paid.
-        this.contentToken = FileListContentToken.compute(files);
+        this.fileSetFingerprint = FileSetFingerprints.compute(files);
     }
 
     List<StorageEntry> files() {
@@ -89,8 +89,8 @@ final class GenericFileList implements FileList {
     }
 
     @Override
-    public ContentToken contentToken() {
-        return contentToken;
+    public FileSetFingerprint fileSetFingerprint() {
+        return fileSetFingerprint;
     }
 
     @Override

@@ -35,11 +35,11 @@ final class DictionaryFileList implements FileList {
     private final PartitionMetadata partitionMetadata;
     private final int fileCount;
     /**
-     * Content token carried over from the raw list this was compacted from — compaction preserves the
-     * file set exactly and the token is order-independent, so the pass-through value equals what a
-     * recomputation over the compacted representation would produce, without re-materializing paths.
+     * File-set fingerprint carried over from the raw list this was compacted from — compaction preserves
+     * the file set exactly and the fingerprint is order-independent, so the pass-through value equals what
+     * a recomputation over the compacted representation would produce, without re-materializing paths.
      */
-    private final ContentToken contentToken;
+    private final FileSetFingerprint fileSetFingerprint;
 
     DictionaryFileList(
         String basePath,
@@ -52,7 +52,7 @@ final class DictionaryFileList implements FileList {
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
         int fileCount,
-        ContentToken contentToken
+        FileSetFingerprint fileSetFingerprint
     ) {
         this.basePath = basePath;
         this.tokens = tokens;
@@ -64,12 +64,12 @@ final class DictionaryFileList implements FileList {
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
         this.fileCount = fileCount;
-        this.contentToken = contentToken;
+        this.fileSetFingerprint = fileSetFingerprint;
     }
 
     @Override
-    public ContentToken contentToken() {
-        return contentToken;
+    public FileSetFingerprint fileSetFingerprint() {
+        return fileSetFingerprint;
     }
 
     @Override

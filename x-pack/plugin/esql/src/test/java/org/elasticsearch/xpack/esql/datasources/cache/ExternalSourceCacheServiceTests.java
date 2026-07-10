@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
-import org.elasticsearch.xpack.esql.datasources.glob.ContentToken;
+import org.elasticsearch.xpack.esql.datasources.glob.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -1660,7 +1660,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     // --- dataset-level aggregate (warm COUNT(*) survival independent of per-file entries) ---
 
     private static SchemaCacheKey datasetKey() {
-        return SchemaCacheKey.forDatasetAggregate("s3://bucket/data/*.csv", new ContentToken(111, 222), "csv", Map.of("format", "csv"));
+        return SchemaCacheKey.forDatasetAggregate(
+            "s3://bucket/data/*.csv",
+            new FileSetFingerprint(111, 222),
+            "csv",
+            Map.of("format", "csv")
+        );
     }
 
     public void testDatasetAggregateRoundtrip() {
@@ -1728,6 +1733,34 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             Map<String, Object> served = service.getDatasetAggregate(key);
             assertNotNull("stripe folds reaching whole-file completeness must fulfill the promise", served);
+            assertEquals(100L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
+    public void testPendingDatasetAggregateFulfilledByDirectDeltaFoldWithNoSeededEntry() {
+        // The eviction-pressure variant of the stripe-fold fulfillment: the files' schema entries are
+        // NOT in the cache at reconcile time (exactly the LRU pressure the dataset aggregate exists
+        // for), so the entry-side commitStripeDelta fold cannot run. Fulfillment must ride the direct
+        // per-query delta fold (foldQueryDeltaStripes) — proving the dataset promise does not depend
+        // on per-file cache survival.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "file:///data/a.ndjson";
+            String pathB = "file:///data/b.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = datasetKey();
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, mtime, pathB, mtime), 2, "fp", "ndjson", "file:///data/*.ndjson");
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(
+                    pathA,
+                    List.of(stripeFragment(mtime, "fp", 40L, 64L, 0L, 0L, 30L, true, true, true)),
+                    pathB,
+                    List.of(stripeFragment(mtime, "fp", 60L, 64L, 0L, 0L, 30L, true, true, true))
+                )
+            );
+
+            Map<String, Object> served = service.getDatasetAggregate(key);
+            assertNotNull("a whole-file-complete delta must fulfill the promise without a cached schema entry", served);
             assertEquals(100L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         }
     }
@@ -1806,10 +1839,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             Map<String, Long> paths = Map.of(pathA, 1000L, pathB, 2000L);
-            SchemaCacheKey oldest = SchemaCacheKey.forDatasetAggregate("g0", new ContentToken(0, 0), "csv", Map.of());
+            SchemaCacheKey oldest = SchemaCacheKey.forDatasetAggregate("g0", new FileSetFingerprint(0, 0), "csv", Map.of());
             service.registerPendingDatasetAggregate(oldest, paths, 2, "fp", "csv", "g0");
             for (int i = 1; i <= 64; i++) {
-                SchemaCacheKey k = SchemaCacheKey.forDatasetAggregate("g" + i, new ContentToken(i, i), "csv", Map.of());
+                SchemaCacheKey k = SchemaCacheKey.forDatasetAggregate("g" + i, new FileSetFingerprint(i, i), "csv", Map.of());
                 service.registerPendingDatasetAggregate(k, paths, 2, "fp", "csv", "g" + i);
             }
 
@@ -1818,7 +1851,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
 
             assertNull("evicted oldest promise must not materialize", service.getDatasetAggregate(oldest));
-            SchemaCacheKey newest = SchemaCacheKey.forDatasetAggregate("g64", new ContentToken(64, 64), "csv", Map.of());
+            SchemaCacheKey newest = SchemaCacheKey.forDatasetAggregate("g64", new FileSetFingerprint(64, 64), "csv", Map.of());
             Map<String, Object> served = service.getDatasetAggregate(newest);
             assertNotNull("surviving promise must materialize", served);
             assertEquals(300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));

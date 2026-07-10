@@ -294,7 +294,12 @@ public class ExternalSourceCacheService implements Closeable {
         }
     }
 
-    /** Counts a warm multi-file resolve whose per-file stats aggregate came back incomplete (observability). */
+    /**
+     * Counts a resolve whose per-file stats aggregate came back incomplete (observability). Only
+     * aggregate-QUALIFYING resolves are counted (multi-file, text-format, file-set-fingerprint-bearing,
+     * cacheable provider): the caller sits after the {@code datasetKey == null} early-return in
+     * {@code ExternalSourceResolver#applyDatasetAggregate}, so non-qualifying incompletes never reach it.
+     */
     public void recordStatsAggregateIncomplete() {
         statsAggregateIncomplete.increment();
     }
@@ -584,10 +589,11 @@ public class ExternalSourceCacheService implements Closeable {
             return Map.of(); // no sibling to evict — the fallback is never consulted; skip the whole-cache sweep
         }
         // One whole-cache forEach, filtered to the contribution paths. This cannot be a set of per-path
-        // get()s: SchemaCacheKey is a 6-tuple (path, mtime, formatType, formatConfig, endpoint, region), so
-        // a contribution path alone does not reconstruct a key, and forEach is the only path-agnostic
-        // enumeration the Cache exposes that is safe against concurrent LRU mutation (keys()/values() walk
-        // the lock-free LRU list). The sweep is O(cache) for a multi-path reconcile, but that is the price of
+        // get()s: SchemaCacheKey is a 7-component record (path, mtime, formatType, formatConfig, endpoint,
+        // region, fileSetFingerprint), so a contribution path alone does not reconstruct a key, and forEach
+        // is the only path-agnostic enumeration the Cache exposes that is safe against concurrent LRU
+        // mutation (keys()/values() walk the lock-free LRU list). The sweep is O(cache) for a multi-path reconcile, but that is the price
+        // of
         // capturing each sibling's pre-eviction entry before the first commit's put() prunes the expired ones.
         Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> byPath = new HashMap<>();
         schemaCache.forEach((key, entry) -> {

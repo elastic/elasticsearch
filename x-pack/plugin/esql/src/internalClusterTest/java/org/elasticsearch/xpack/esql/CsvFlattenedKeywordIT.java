@@ -1342,10 +1342,9 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "MATCH_OPERATOR:query is missing",
         "MAX_OVER_TIME:field is missing",
         "MIN_OVER_TIME:field is missing",
-        // MV_SORT's order argument must be foldable (MvSort#resolveType calls Validations.isFoldable
-        // on it), so a field_extract(...) call there is rejected by the verifier regardless of
-        // flattened rewriting; no csv-spec entry can exercise this slot with a field reference.
-        "MV_SORT:order is missing",
+        // MV_SORT's order argument is now marked as a CONSTANT hint in the function's docs
+        // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
+        // check below) and never appears here as missing.
         "NETWORK_DIRECTION:internal_networks is missing",
         "NOT_EQUALS:lhs is missing",
         "NOT_EQUALS:rhs is missing",

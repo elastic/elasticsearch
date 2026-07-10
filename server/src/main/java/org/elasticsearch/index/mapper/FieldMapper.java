@@ -244,8 +244,9 @@ public abstract class FieldMapper extends Mapper {
      * Parse the field value using the provided {@link DocumentParserContext}.
      */
     public void parse(DocumentParserContext context) throws IOException {
-        // Set when a multi_value=false violation is redirected to a failure column (on_failure=ignore) rather than thrown: the value
-        // never reaches this field's own doc values, so normal parsing and multi-fields must be skipped for it.
+        // Set when a multi_value=false violation is redirected to a failure column (on_failure=ignore) rather than thrown: the value is
+        // skipped entirely rather than parsed, so it never reaches this field's indexed/stored/doc-values representation, multi-fields,
+        // or any other mapper-specific side effect of parseCreateField.
         boolean redirectedToFailureColumn = false;
         try {
             if (builderParams.hasScript) {

@@ -168,15 +168,19 @@ public final class DocumentParser {
 
             executeIndexTimeScripts(context);
 
-            context.processArrayOffsets(context);
-            for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
-                metadataMapper.postParse(context);
-            }
             // Required-field enforcement is per Lucene document, not per _source document. This is done in order to accommodate nested
             // objects. A nested object yields one Lucene doc per array element, each enforced at its own close (see parseObjectOrNested)
             // against a fresh per-doc tally. A non-nested mapping yields exactly one Lucene doc, so the root check here covers it; the
             // empty-doc ({}) short-circuit above still reaches this call.
+            // Must run before the metadata mappers' postParse loop below: on_failure=ignore marks fields ignored rather than throwing,
+            // and IgnoredFieldMapper.postParse (one of the metadata mappers) builds the _ignored field from getIgnoredFields() at that
+            // point, so any field marked ignored after that point would silently miss _ignored.
             context.enforceRequiredFields();
+
+            context.processArrayOffsets(context);
+            for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
+                metadataMapper.postParse(context);
+            }
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
         }

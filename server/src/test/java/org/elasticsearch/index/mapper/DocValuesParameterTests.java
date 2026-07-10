@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DocValuesParameterTests extends MapperServiceTestCase {
@@ -701,5 +702,48 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
         assertThat(doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX).isEmpty(), equalTo(true));
         assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(false));
+    }
+
+    /**
+     * With {@code on_failure: ignore}, a document missing a {@code nullability=false} field is accepted instead of rejected: the field is
+     * just marked ignored (there is no parser value to write to a failure column for an absent field).
+     */
+    public void testOnFailureIgnoreAcceptsMissingRequiredFieldInsteadOfThrowing() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("nullability", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> {}));
+        assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())));
+    }
+
+    /**
+     * on_failure is resolved per required field: with two missing {@code nullability=false} fields, only the one configured with
+     * {@code fail} aborts the document; the other, configured with {@code ignore}, is merely marked ignored.
+     */
+    public void testOnFailureMixedPerFieldOnlyFailsForFailField() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("ignored")
+                .field("type", "keyword")
+                .startObject("doc_values")
+                .field("nullability", false)
+                .field("on_failure", "ignore")
+                .endObject()
+                .endObject();
+            b.startObject("failed").field("type", "keyword").startObject("doc_values").field("nullability", false).endObject().endObject();
+        })).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
+        assertThat(e.getCause().getMessage(), containsString("[failed]"));
+        assertThat(e.getCause().getMessage(), not(containsString("[ignored]")));
     }
 }

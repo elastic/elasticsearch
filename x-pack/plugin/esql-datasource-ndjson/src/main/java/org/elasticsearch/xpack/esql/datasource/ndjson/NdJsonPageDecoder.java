@@ -1362,8 +1362,9 @@ public class NdJsonPageDecoder implements Closeable {
          * The declared type passed create + resolution (it is in {@code DeclaredSchemaValidator.DECLARABLE_TYPES})
          * but NDJSON has no decoder arm for it, or the declared-read SPI has no block shape for it. Names the
          * column and type so the failure is actionable rather than a bare internal error.
-         * Reserved for the {@code default} arm of the two type switches: an unexpected value there is a coverage
-         * gap, not a routine per-record condition.
+         * Raised from builder setup, where the SPI rejects the type, and from the {@code default} arm of the value
+         * decode switch. Either is a coverage gap, not a routine per-record condition: a bad <em>value</em> of a
+         * supported type takes the per-cell error policy instead.
          */
         private IllegalArgumentException unsupportedTypeForNdjson(DataType type) {
             return new IllegalArgumentException(

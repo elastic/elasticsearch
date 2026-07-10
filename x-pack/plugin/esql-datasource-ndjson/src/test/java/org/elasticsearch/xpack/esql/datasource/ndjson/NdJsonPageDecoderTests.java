@@ -672,6 +672,21 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
     }
 
+    /**
+     * "1e999999999" makes BigDecimal.toBigInteger() throw ArithmeticException -- not an IllegalArgumentException, so
+     * an unhandled one escapes the per-cell catch and hard-fails the read on every error_mode. It must be an
+     * ordinary out-of-range cell instead.
+     */
+    public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
+        String ndjson = "{\"v\":\"1e999999999\"}\n{\"v\":1e999999999}\n{\"v\":5}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.UNSIGNED_LONG, ErrorPolicy.LENIENT)) {
+            LongBlock block = page.getBlock(0);
+            assertTrue("string exotic exponent nulls the cell", block.isNull(0));
+            assertTrue("numeric exotic exponent nulls the cell", block.isNull(1));
+            assertEquals("the good cell still decodes", encoded("5"), block.getLong(2));
+        }
+    }
+
     /** Multivalue unsigned_long arrays decode element-by-element through the same coercer. */
     public void testDeclaredUnsignedLongMultivalue() throws IOException {
         try (Page page = decodeOneColumn("{\"v\":[1,18446744073709551615]}\n", DataType.UNSIGNED_LONG, ErrorPolicy.STRICT)) {

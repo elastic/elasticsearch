@@ -7980,6 +7980,38 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("the good cell still reads", encoded("5"), block.getLong(3));
     }
 
+    /** Multivalue unsigned_long cells parse element-by-element through the same coercer. */
+    public void testDeclaredUnsignedLongMultivalue() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        LongBlock block = readOneUnsignedLongColumn(reader, "v\n[1,18446744073709551615]\n");
+        assertEquals(2, block.getValueCount(0));
+        int first = block.getFirstValueIndex(0);
+        assertEquals(encoded("1"), block.getLong(first));
+        assertEquals(encoded("18446744073709551615"), block.getLong(first + 1));
+    }
+
+    /**
+     * A token whose decimal exponent is large enough that expanding it would overflow BigInteger --
+     * "1e999999999" -- makes BigDecimal.toBigInteger() throw ArithmeticException, which is not an
+     * IllegalArgumentException. Unhandled it escapes the per-field catch and hard-fails the whole read on every
+     * error_mode, which is precisely the failure declared unsigned_long support exists to remove. It must instead
+     * be an ordinary out-of-range cell.
+     */
+    public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
+        String csv = "v\n1e999999999\n1e-999999999\n5\n";
+
+        FormatReader lenient = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field", "max_errors", 100));
+        LongBlock block = readOneUnsignedLongColumn(lenient, csv);
+        assertTrue("huge positive exponent nulls the cell", block.isNull(0));
+        assertTrue("huge negative exponent nulls the cell", block.isNull(1));
+        assertEquals("the good cell still reads", encoded("5"), block.getLong(2));
+
+        // fail_fast still fails, but as an ordinary bad-value failure, not an escaped ArithmeticException.
+        FormatReader failFast = new CsvFormatReader(blockFactory);
+        Exception e = expectThrows(Exception.class, () -> readOneUnsignedLongColumn(failFast, csv));
+        assertFalse("ArithmeticException must not escape the coercer", e instanceof ArithmeticException);
+    }
+
     /** TSV rides the same reader; a declared unsigned_long must read identically there. */
     public void testDeclaredUnsignedLongReadsFromTsv() throws IOException {
         FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", "\t"));

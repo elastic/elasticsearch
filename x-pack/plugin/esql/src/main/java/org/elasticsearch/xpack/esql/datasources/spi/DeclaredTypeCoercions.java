@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -459,14 +460,25 @@ public final class DeclaredTypeCoercions {
      */
     public static long coerceToUnsignedLong(Object value) {
         BigInteger big;
-        if (value instanceof BigInteger bigInteger) {
-            big = bigInteger;
-        } else if (value instanceof Double || value instanceof Float) {
-            big = BigDecimal.valueOf(((Number) value).doubleValue()).toBigInteger();
-        } else if (value instanceof Number number) {
-            big = BigInteger.valueOf(number.longValue());
-        } else {
-            big = new BigDecimal(value.toString()).toBigInteger();
+        try {
+            if (value instanceof BigInteger bigInteger) {
+                big = bigInteger;
+            } else if (value instanceof Double || value instanceof Float) {
+                big = BigDecimal.valueOf(((Number) value).doubleValue()).toBigInteger();
+            } else if (value instanceof Number number) {
+                big = BigInteger.valueOf(number.longValue());
+            } else {
+                big = new BigDecimal(value.toString()).toBigInteger();
+            }
+        } catch (ArithmeticException e) {
+            // BigDecimal.toBigInteger() throws (rather than returning a value we could range-check) when the
+            // decimal exponent is large enough that expanding it would overflow BigInteger's supported range --
+            // e.g. "1e999999999" or "1e-999999999". Such a token is out of [0, 2^64-1] by definition, so it is the
+            // same failure as any other out-of-range value and must reach callers as the same exception type. It is
+            // remapped here, at the one place that parses, rather than in each caller's catch clause: an
+            // ArithmeticException escaping this method would bypass every reader's per-cell error policy and hard-
+            // fail the whole read, which is exactly the class of failure declared unsigned_long support removes.
+            throw new IllegalArgumentException("Value [" + value + "] is out of range for an unsigned_long", e);
         }
         if (big.signum() < 0 || NumericUtils.isUnsignedLong(big) == false) {
             throw new IllegalArgumentException("Value [" + value + "] is out of range for an unsigned_long");
@@ -501,21 +513,32 @@ public final class DeclaredTypeCoercions {
     }
 
     /**
-     * The one {@link DataType} &rarr; {@link ElementType} authority for every reader that materializes a declared or
-     * projected column into a block. The <em>enumeration</em> is not repeated here: it is delegated to
-     * {@link PlannerUtils#toElementType}, the engine-wide mapping, so exactly one {@code DataType} switch over block
-     * shape exists in the codebase. What this method adds is the declared-read <em>guard</em>, expressed on the
-     * {@link ElementType} axis rather than as a second {@code DataType} enumeration: the scalar shapes this SPI's
-     * {@link #valueWriter} knows how to append, plus {@link ElementType#NULL}.
+     * The {@link DataType} &rarr; {@link ElementType} authority for the declared-read path: every format reader that
+     * materializes a declared or projected column into a block resolves its shape here. The <em>enumeration</em> is
+     * not repeated: it is delegated to {@link PlannerUtils#toElementType}, the engine-wide mapping, so the
+     * declared-read path holds no second {@code DataType} switch over block shape. What this method adds is the
+     * declared-read <em>guard</em>, expressed on the {@link ElementType} axis rather than as a second {@code DataType}
+     * enumeration: the scalar shapes this SPI's {@link #valueWriter} knows how to append, plus {@link ElementType#NULL}.
      * <p>
      * Expressing the guard on the shape axis is what keeps the readers honest. A future declarable type inherits its
      * block shape automatically, while a {@code DOC}/{@code COMPOSITE}/{@code AGGREGATE_METRIC_DOUBLE}-shaped type
      * still fails loudly at page setup instead of silently building the wrong block. Format readers must call this
      * rather than re-deriving the mapping locally — the reader-local copies are exactly how {@code unsigned_long}
      * came to be accepted at dataset-create time and then unreadable at query time.
+     *
+     * @throws IllegalArgumentException if the type has no block shape this SPI can write. This is the only exception
+     *         this method throws: {@link PlannerUtils#toElementType} signals its own unmappable types with an
+     *         {@code EsqlIllegalArgumentException}, which is <em>not</em> an {@code IllegalArgumentException}, so it
+     *         is remapped here. Callers therefore need one catch clause, and the contract matches the per-reader
+     *         mappings this method replaced.
      */
     public static ElementType elementTypeFor(DataType type) {
-        ElementType elementType = PlannerUtils.toElementType(type);
+        final ElementType elementType;
+        try {
+            elementType = PlannerUtils.toElementType(type);
+        } catch (EsqlIllegalArgumentException e) {
+            throw new IllegalArgumentException("type [" + type.typeName() + "] is not readable as a declared column", e);
+        }
         return switch (elementType) {
             case BOOLEAN, INT, LONG, DOUBLE, BYTES_REF, NULL -> elementType;
             default -> throw new IllegalArgumentException("type [" + type.typeName() + "] is not readable as a declared column");

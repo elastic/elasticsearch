@@ -21,6 +21,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.HttpDownloadRetry;
 import org.junit.rules.ExternalResource;
 
 import java.io.ByteArrayOutputStream;
@@ -71,6 +72,12 @@ public class ClickBenchFixture extends ExternalResource {
     private static final int DOWNLOAD_TIMEOUT_MS = 120_000;
     private static final byte[] PARQUET_MAGIC = { 'P', 'A', 'R', '1' };
     private static final int SPLIT_COUNT = 5;
+
+    // Same retry policy as ParquetTestingIT#downloadFile, so the two fixtures behave consistently
+    // against occasional rate-limiting/transient errors from their respective third-party hosts.
+    private static final int DOWNLOAD_MAX_ATTEMPTS = 4;
+    private static final long DOWNLOAD_INITIAL_BACKOFF_MILLIS = 1000L;
+    private static final long DOWNLOAD_MAX_BACKOFF_MILLIS = 8000L;
 
     /**
      * The 18 file indices with the smallest RG0, sorted by RG0 compressed size ascending.
@@ -153,7 +160,24 @@ public class ClickBenchFixture extends ExternalResource {
             String url = BASE_URL + idx + SUFFIX;
             logger.info("Downloading RG0 from hits_{}", idx);
             Path tmpFile = rawDir.resolve("rg0_" + idx + ".parquet.tmp");
-            boolean ok = downloadRG0ToFile(url, tmpFile);
+            boolean ok;
+            try {
+                ok = HttpDownloadRetry.withRetries(
+                    logger,
+                    "download RG0 from hits_" + idx,
+                    DOWNLOAD_MAX_ATTEMPTS,
+                    DOWNLOAD_INITIAL_BACKOFF_MILLIS,
+                    DOWNLOAD_MAX_BACKOFF_MILLIS,
+                    () -> downloadRG0ToFile(url, tmpFile)
+                );
+            } catch (IOException e) {
+                // A single source file's download failure that persists across retries (e.g. a permanent
+                // 404, or transient errors that outlasted the retry budget) should not abort the whole
+                // fixture and fail every test in the suite -- skip this file like the ok == false path.
+                logger.warn("Failed to download RG0 from hits_{}, skipping: {}", idx, e.getMessage());
+                Files.deleteIfExists(tmpFile);
+                continue;
+            }
             if (ok == false) {
                 logger.warn("Failed to download RG0 from hits_{}, skipping", idx);
                 Files.deleteIfExists(tmpFile);
@@ -334,6 +358,10 @@ public class ClickBenchFixture extends ExternalResource {
         conn.setConnectTimeout(DOWNLOAD_TIMEOUT_MS);
         conn.setReadTimeout(DOWNLOAD_TIMEOUT_MS);
         try {
+            int code = conn.getResponseCode();
+            if (code != 200) {
+                throw new HttpDownloadRetry.HttpStatusException("HTTP HEAD to [" + url + "] failed with status " + code, code);
+            }
             return conn.getContentLengthLong();
         } finally {
             conn.disconnect();
@@ -349,7 +377,7 @@ public class ClickBenchFixture extends ExternalResource {
         try {
             int code = conn.getResponseCode();
             if (code != 206 && code != 200) {
-                throw new IOException("HTTP range request to [" + url + "] failed with status " + code);
+                throw new HttpDownloadRetry.HttpStatusException("HTTP range request to [" + url + "] failed with status " + code, code);
             }
             try (InputStream in = conn.getInputStream()) {
                 return in.readAllBytes();

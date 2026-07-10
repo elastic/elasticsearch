@@ -1017,7 +1017,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     /**
-     * Seeds {@link #currentPaginatedSearchResponse} for tests that need a specific scroll ref before {@link #prepareBulkRequest}
+     * Seeds {@link #currentPaginatedSearchResponse} for tests that need a specific response ref before {@link #prepareBulkRequest}
      * (e.g. partial-batch / terminal-finish scenarios). Exists entirely for testing.
      */
     void setCurrentPaginatedSearchResponseForTests(PaginatedSearchConsumableHitsResponse response) {

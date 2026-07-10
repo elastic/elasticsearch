@@ -224,6 +224,12 @@ public class IndexModuleTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
+    @Override
+    protected List<String> filteredWarnings() {
+        // USE_THREAD_POOL_MERGE_SCHEDULER_SETTING is deprecated and used in setUp to exercise both enabled/disabled paths
+        return List.of(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey());
+    }
+
     private IndexService newIndexService(IndexModule module) throws IOException {
         return module.newIndexService(
             CREATE_INDEX,

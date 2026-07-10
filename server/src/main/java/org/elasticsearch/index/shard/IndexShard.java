@@ -2303,6 +2303,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
+    /**
+     * Indexes a whole {@link Translog.IndexBatch} in one call to {@link Engine#indexBatch}, without
+     * exploding it into individual {@link Translog.Operation}s.
+     *
+     * @return the per-op results, or {@code null} if an op in the batch requires a dynamic mapping
+     * update. A {@code null} return signals the caller to fall back to replaying this batch's ops
+     * sequentially via {@link #applyTranslogOperation}, which matches the non-batch recovery path
+     * exactly (ops preceding the offending one are still applied and counted).
+     */
+    @Nullable
     private List<Engine.IndexResult> applyTranslogBatch(Engine engine, Translog.IndexBatch batch, Engine.Operation.Origin origin)
         throws IOException {
         assert batch.primaryTerm() <= getOperationPrimaryTerm()
@@ -2345,15 +2355,38 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     getRelativeTimeInNanos()
                 );
 
-                // If any of the idx has dynamic updates fail the batch (Similar to single op)
+                // If any op needs a dynamic mapping update, we cannot index the whole batch at once.
+                // Signal the caller to replay this batch sequentially so behavior is identical to
+                // the per-op recovery path.
                 if (idx.parsedDoc().dynamicMappingsUpdate() != null) {
-                    throw new IllegalArgumentException("unexpected mapping update: " + idx.parsedDoc().dynamicMappingsUpdate());
+                    return null;
                 }
 
                 indexList.add(idx);
 
             }
             return indexBatch(engine, indexList, null);
+        }
+    }
+
+    /**
+     * Applies a single translog operation during recovery, throwing on any non-success result.
+     *
+     * @return {@code true} if the operation succeeded.
+     */
+    private boolean applyTranslogOperationChecked(Engine engine, Translog.Operation operation, Engine.Operation.Origin origin)
+        throws Exception {
+        logger.trace("[translog] recover op {}", operation);
+        Engine.Result result = applyTranslogOperation(engine, operation, origin);
+        switch (result.getResultType()) {
+            case SUCCESS:
+                return true;
+            case FAILURE:
+                throw result.getFailure();
+            case MAPPING_UPDATE_REQUIRED:
+                throw new IllegalArgumentException("unexpected mapping update: " + result.getRequiredMappingUpdate());
+            default:
+                throw new AssertionError("Unknown result type [" + result.getResultType() + "]");
         }
     }
 
@@ -2368,55 +2401,64 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         while ((record = snapshot.nextRecord()) != null) {
             try {
                 if (record instanceof Translog.IndexBatch batch) {
-                    List<Engine.IndexResult> results = applyTranslogBatch(engine, batch, origin);
-                    final long succeeded = results.stream().filter(r -> r.getResultType() == Engine.Result.Type.SUCCESS).count();
-                    opsRecovered += (int) succeeded;
-                    for (long i = 0; i < succeeded; i++) {
-                        onOperationRecovered.run();
-                    }
-
-                    final List<Engine.IndexResult> failures = results.stream()
-                        .filter(r -> r.getResultType() != Engine.Result.Type.SUCCESS)
-                        .toList();
-
-                    for (Engine.IndexResult failure : failures) {
-                        switch (failure.getResultType()) {
-                            case FAILURE:
-                                throw failure.getFailure();
-                            default:
-                                throw new AssertionError("Unknown result type [" + failure.getResultType() + "]");
+                    final List<Engine.IndexResult> results = applyTranslogBatch(engine, batch, origin);
+                    if (results == null) {
+                        // Fallback: an op in the batch needs a dynamic mapping update. This is extremely unlikely
+                        // since this is a recovery path, but to keep replay consistent with single operation, we
+                        // explode the batch and replay operations individually.
+                        for (Translog.Operation operation : batch.explode()) {
+                            try {
+                                if (applyTranslogOperationChecked(engine, operation, origin)) {
+                                    opsRecovered++;
+                                    onOperationRecovered.run();
+                                }
+                            } catch (Exception e) {
+                                handleTranslogRecoveryFailure(origin, e);
+                            }
+                        }
+                    } else {
+                        Engine.IndexResult firstFailure = null;
+                        for (Engine.IndexResult result : results) {
+                            if (result.getResultType() == Engine.Result.Type.SUCCESS) {
+                                opsRecovered++;
+                                onOperationRecovered.run();
+                            } else if (firstFailure == null) {
+                                firstFailure = result;
+                            }
+                        }
+                        if (firstFailure != null) {
+                            if (firstFailure.getResultType() == Engine.Result.Type.FAILURE) {
+                                throw firstFailure.getFailure();
+                            } else {
+                                throw new AssertionError("Unknown result type [" + firstFailure.getResultType() + "]");
+                            }
                         }
                     }
-
                 } else {
                     final Translog.Operation operation = (Translog.Operation) record;
-                    logger.trace("[translog] recover op {}", operation);
-                    Engine.Result result = applyTranslogOperation(engine, operation, origin);
-                    switch (result.getResultType()) {
-                        case FAILURE:
-                            throw result.getFailure();
-                        case MAPPING_UPDATE_REQUIRED:
-                            throw new IllegalArgumentException("unexpected mapping update: " + result.getRequiredMappingUpdate());
-                        case SUCCESS:
-                            break;
-                        default:
-                            throw new AssertionError("Unknown result type [" + result.getResultType() + "]");
+                    if (applyTranslogOperationChecked(engine, operation, origin)) {
+                        opsRecovered++;
+                        onOperationRecovered.run();
                     }
-
-                    opsRecovered++;
-                    onOperationRecovered.run();
                 }
             } catch (Exception e) {
-                // TODO: Don't enable this leniency unless users explicitly opt-in
-                if (origin == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY && ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
-                    // mainly for MapperParsingException and Failure to detect xcontent
-                    logger.info("ignoring recovery of a corrupt translog entry", e);
-                } else {
-                    throw ExceptionsHelper.convertToRuntime(e);
-                }
+                handleTranslogRecoveryFailure(origin, e);
             }
         }
         return opsRecovered;
+    }
+
+    /**
+     * Helper method to handle leniency.
+     */
+    private void handleTranslogRecoveryFailure(Engine.Operation.Origin origin, Exception e) {
+        // TODO: Don't enable this leniency unless users explicitly opt-in
+        if (origin == Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY && ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
+            // mainly for MapperParsingException and Failure to detect xcontent
+            logger.info("ignoring recovery of a corrupt translog entry", e);
+        } else {
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
     }
 
     private void loadGlobalCheckpointToReplicationTracker() throws IOException {

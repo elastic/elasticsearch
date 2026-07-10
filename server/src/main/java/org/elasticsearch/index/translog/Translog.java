@@ -75,6 +75,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongConsumer;
+import java.util.function.LongPredicate;
 import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1156,8 +1157,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         Translog.Operation next() throws IOException;
 
         /**
-         * Returns the next `Translog.Operation` or `Translog.BatchIndex` for translog recovery
-         * Defaults to {@link #next()}
+         * Returns the next {@link Translog.Operation} or {@link Translog.IndexBatch} for translog
+         * recovery. Defaults to {@link #next()}.
          */
         default Translog.Record nextRecord() throws IOException {
             return next();
@@ -1218,21 +1219,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     continue;
                 }
                 final Translog.IndexBatch batch = (Translog.IndexBatch) record;
-                final List<Translog.IndexBatch.Op> inRangeOps = new ArrayList<>(batch.ops().size());
-                for (Translog.IndexBatch.Op o : batch.ops()) {
-                    if (fromSeqNo <= o.seqNo() && o.seqNo() <= toSeqNo) {
-                        inRangeOps.add(o);
-                    } else {
-                        filteredOpsCount++;
-                    }
-                }
-                if (inRangeOps.isEmpty()) {
+                final Translog.IndexBatch filtered = batch.filterOps(seqNo -> fromSeqNo <= seqNo && seqNo <= toSeqNo);
+                if (filtered == null) {
+                    filteredOpsCount += batch.docCount();
                     continue;
                 }
-
-                return inRangeOps.size() == batch.ops().size()
-                    ? batch
-                    : new Translog.IndexBatch(batch.batchData(), batch.primaryTerm(), inRangeOps);
+                filteredOpsCount += batch.docCount() - filtered.docCount();
+                return filtered;
             }
             return null;
         }
@@ -1981,6 +1974,27 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         public int docCount() {
             return ops.size();
+        }
+
+        /**
+         * Returns a batch containing only the ops whose {@link Op#seqNo()} satisfies {@code keep},
+         * sharing the same {@link #batchData}. Returns {@code this} when every op is kept, or
+         * {@code null} when none are kept (the caller should skip the batch entirely in that case).
+         */
+        public IndexBatch filterOps(LongPredicate keep) {
+            final List<Op> filtered = new ArrayList<>(ops.size());
+            for (Op op : ops) {
+                if (keep.test(op.seqNo())) {
+                    filtered.add(op);
+                }
+            }
+            if (filtered.isEmpty()) {
+                return null;
+            }
+            if (filtered.size() == ops.size()) {
+                return this;
+            }
+            return new IndexBatch(batchData, primaryTerm, filtered);
         }
 
         @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,7 +30,7 @@ final class MultiSnapshot implements Translog.Snapshot {
     private final Closeable onClose;
     private int index;
     private final SeqNoSet seenSeqNo;
-    private final java.util.ArrayDeque<Translog.Operation> pendingOps = new java.util.ArrayDeque<>();
+    private final ArrayDeque<Translog.Operation> pendingOps = new ArrayDeque<>();
 
     /**
      * Creates a new point in time snapshot of the given snapshots. Those snapshots are always iterated in-order.

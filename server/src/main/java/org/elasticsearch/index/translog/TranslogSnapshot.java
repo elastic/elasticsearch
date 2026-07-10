@@ -15,7 +15,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
@@ -64,7 +63,8 @@ final class TranslogSnapshot extends BaseTranslogReader {
     }
 
     /**
-     * Used for translog recovery. Returns Operation for a single op and a BatchIndex for a batch read
+     * Used for translog recovery. Returns an {@link Translog.Operation} for a single op and a
+     * {@link Translog.IndexBatch} for a batch read.
      * @throws IOException
      */
     public Translog.Record nextRecord() throws IOException {
@@ -87,21 +87,16 @@ final class TranslogSnapshot extends BaseTranslogReader {
             final Translog.IndexBatch batch = (Translog.IndexBatch) record;
             readOperations += batch.docCount();
 
-            final List<Translog.IndexBatch.Op> batchOps = new ArrayList<>(batch.ops().size());
-            for (Translog.IndexBatch.Op batchOp : batch.ops()) {
-                if (batchOp.seqNo() <= checkpoint.trimmedAboveSeqNo || checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                    batchOps.add(batchOp);
-                } else {
-                    skippedOperations++;
-                }
-            }
-            if (batchOps.isEmpty()) {
+            final long trimmedAboveSeqNo = checkpoint.trimmedAboveSeqNo;
+            final Translog.IndexBatch filtered = batch.filterOps(
+                seqNo -> seqNo <= trimmedAboveSeqNo || trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO
+            );
+            if (filtered == null) {
+                skippedOperations += batch.docCount();
                 continue;
             }
-            // If some records were trimmed, send a trimmed batch, else send the whole batch
-            return batch.ops().size() == batchOps.size()
-                ? batch
-                : new Translog.IndexBatch(batch.batchData(), batch.primaryTerm(), batchOps);
+            skippedOperations += batch.docCount() - filtered.docCount();
+            return filtered;
         }
 
         reuse = null; // release buffer, it may be large and is no longer needed

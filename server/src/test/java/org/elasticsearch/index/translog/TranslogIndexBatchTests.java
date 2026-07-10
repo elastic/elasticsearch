@@ -278,6 +278,39 @@ public class TranslogIndexBatchTests extends ESTestCase {
         }
     }
 
+    public void testFilterOpsKeepsAllReturnsSameInstance() throws IOException {
+        final List<Map<String, Object>> docs = List.of(Map.of("field", "a"), Map.of("field", "b"), Map.of("field", "c"));
+        final Translog.IndexBatch batch = buildBatch(docs, XContentType.JSON, 10L, primaryTerm.get());
+
+        final Translog.IndexBatch filtered = batch.filterOps(seqNo -> true);
+
+        assertSame(batch, filtered);
+    }
+
+    public void testFilterOpsDropsSomeReturnsTrimmedBatch() throws IOException {
+        final List<Map<String, Object>> docs = List.of(Map.of("field", "a"), Map.of("field", "b"), Map.of("field", "c"));
+        final Translog.IndexBatch batch = buildBatch(docs, XContentType.JSON, 10L, primaryTerm.get());
+
+        // Keep seqNos 10 and 12, drop seqNo 11.
+        final Translog.IndexBatch filtered = batch.filterOps(seqNo -> seqNo != 11L);
+
+        assertNotSame(batch, filtered);
+        assertEquals(2, filtered.docCount());
+        assertEquals(List.of(10L, 12L), filtered.ops().stream().map(Translog.IndexBatch.Op::seqNo).toList());
+        // The trimmed batch shares the same underlying row data as the original.
+        assertSame(batch.batchData(), filtered.batchData());
+        assertEquals(batch.primaryTerm(), filtered.primaryTerm());
+    }
+
+    public void testFilterOpsDropsAllReturnsNull() throws IOException {
+        final List<Map<String, Object>> docs = List.of(Map.of("field", "a"), Map.of("field", "b"));
+        final Translog.IndexBatch batch = buildBatch(docs, XContentType.JSON, 10L, primaryTerm.get());
+
+        final Translog.IndexBatch filtered = batch.filterOps(seqNo -> false);
+
+        assertNull(filtered);
+    }
+
     public void testNextRecordExplodesBatchContainingNoOp() throws IOException {
         final XContentType xContentType = XContentType.JSON;
         final List<BytesReference> sources = List.of(new BytesArray("{\"k\":\"row-0\"}"), new BytesArray("{\"k\":\"row-2\"}"));

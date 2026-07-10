@@ -1368,13 +1368,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public List<IndexResult> indexBatch(List<Index> operations, @Nullable SourceBatch batch) throws IOException {
-
-        if (batch == null) {
-            assert operations.getFirst().origin().isFromTranslog();
-        } else {
-            assert operations.size() == batch.docCount()
-                : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
-        }
+        assert assertValidBatchCall(operations, batch);
 
         try (var ignored = acquireEnsureOpenRef()) {
             // If the first operation is recovery they are all recovery
@@ -1420,6 +1414,20 @@ public class InternalEngine extends Engine {
 
             return Arrays.asList(allResults);
         }
+    }
+
+    /**
+     * A {@code null} batch is only permitted when replaying from translog. Otherwise the
+     * operations must map 1:1 onto the batch's rows.
+     */
+    private static boolean assertValidBatchCall(List<Index> operations, @Nullable SourceBatch batch) {
+        if (batch == null) {
+            assert operations.getFirst().origin().isFromTranslog() : "null batch only permitted for translog replay";
+        } else {
+            assert operations.size() == batch.docCount()
+                : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
+        }
+        return true;
     }
 
     private static boolean assertNoDuplicateUidsInSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize) {

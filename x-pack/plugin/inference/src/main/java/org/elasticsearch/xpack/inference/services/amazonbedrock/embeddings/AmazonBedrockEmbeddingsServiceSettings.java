@@ -214,7 +214,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         }
 
         public void setDimensionsSetByUser(Boolean dimensionsSetByUser) {
-            this.dimensionsSetByUser = dimensionsSetByUser;
+            this.dimensionsSetByUser = Objects.requireNonNullElse(dimensionsSetByUser, Boolean.FALSE);
         }
 
         public void setSimilarity(SimilarityMeasure similarity) {
@@ -230,14 +230,14 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         protected AmazonBedrockEmbeddingsServiceSettings build(
             String region,
             String model,
-            String provider,
+            AmazonBedrockProvider provider,
             RateLimitSettings rateLimitSettings,
             ConfigurationParseContext context
         ) {
             return new AmazonBedrockEmbeddingsServiceSettings(
                 region,
                 model,
-                AmazonBedrockProvider.fromString(provider),
+                provider,
                 dimensions,
                 // Set the dimensionsSetByUser flag only if we're parsing the request and dimensions was populated by the user
                 dimensionsSetByUser,

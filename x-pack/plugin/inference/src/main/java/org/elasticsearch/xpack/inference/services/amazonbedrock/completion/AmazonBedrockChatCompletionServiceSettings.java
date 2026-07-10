@@ -69,14 +69,14 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
         protected AmazonBedrockChatCompletionServiceSettings build(
             String region,
             String model,
-            String provider,
+            AmazonBedrockProvider provider,
             RateLimitSettings rateLimitSettings,
             ConfigurationParseContext context
         ) {
             return new AmazonBedrockChatCompletionServiceSettings(
                 region,
                 model,
-                AmazonBedrockProvider.fromString(provider),
+                provider,
                 rateLimitSettings
             );
         }

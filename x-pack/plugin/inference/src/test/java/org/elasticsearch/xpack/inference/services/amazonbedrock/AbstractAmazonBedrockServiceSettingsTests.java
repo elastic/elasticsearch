@@ -170,7 +170,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
         );
     }
 
-    public void testUpdateServiceSettings_EmptyMap_UsesDefaultValue() {
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
         var originalServiceSettings = createServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,

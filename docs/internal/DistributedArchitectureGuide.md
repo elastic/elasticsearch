@@ -235,8 +235,7 @@ ctx.write(message).addListener(f -> { if (f.isSuccess() ...)});
 
 ### ThreadPool
 
-The [`ThreadPool`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java) class
-is a central registry that owns most executors in a node and is the entry point for getting one. Rather than holding
+The [`ThreadPool`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/ThreadPool.java) class is the central registry for the node's shared named executors and the entry point for obtaining one. Rather than holding
 references to raw `ExecutorService`s, code asks the `ThreadPool` for a named executor and submits work to it.
 
 #### Two pool types
@@ -257,20 +256,19 @@ The built-in pools are declared as string constants in
 Plugins register additional pools at startup by overriding
 [`Plugin::getExecutorBuilders(Settings)`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/plugins/Plugin.java#L304).
 
-`CLUSTER_COORDINATION` carries all cluster state updates. It is sized to a **single thread by design** so that
-cluster state updates, master elections and cluster membership updates are serialized and correctness is guaranteed (see the [Cluster Coordination](#cluster-coordination) section).
+`CLUSTER_COORDINATION` handles master elections, cluster membership updates, and sending cluster-state publication
+requests. It is sized to a single thread to avoid contention on [Coordinator]'s internal mutex (see the
+[Cluster Coordination](#cluster-coordination) section).
 `GENERIC` scales up to
 [somewhere between 128 and 512 threads](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/threadpool/DefaultBuiltInExecutorBuilders.java#L33)
-depending on the number of processors, and is used throughout the codebase. That high limit makes it tempting to
-block on a `Future`. Doing so risks deadlock if that future's completion
-itself depends on other work queued on `GENERIC`.
+depending on the number of processors, and is used throughout the codebase.
 
 #### `AbstractRunnable` and `ActionRunnable`
 
 Submitting a plain `Runnable` via `execute(...)` works, but the task gets none of the structured handling ES relies on.
-There is no way to distinguish *rejection* (the queue was full) from a normal run, and any exception thrown from `run()`
-propagates only as an uncaught exception on the worker thread rather than a callback tied to that specific task. Calling
-`submit(...)` instead wraps the task in a `Future`, and the resulting exception is captured there silently unless
+There is no built-in way to distinguish and handle *rejection* (when the queue is full) separately from a normal run exception.
+Any exception thrown from `run()` propagates only as an uncaught exception on the worker thread rather than a callback tied to that specific task.
+Calling `submit(...)` instead wraps the task in a `Future`, and the resulting exception is captured there silently unless
 something later calls `get()` on it. ES therefore prefers two richer abstractions:
 
 - [`AbstractRunnable`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/util/concurrent/AbstractRunnable.java)
@@ -345,7 +343,7 @@ When one operation must wait for multiple concurrent sub-operations, there are p
 
 #### Long-Lived Listeners
 
-Distinct from the one-shot `ActionListener` are the *long-lived* listeners. Registered once with a service, they live for
+Distinct from the one-shot `ActionListener` are the event-based, usually long-lived listeners. Registered once with a service, they live for
 the lifetime of the node (or until explicitly deregistered) and follow the classical Observer pattern, in which a subject maintains a list of registered
 listeners and notifies all of them on each event. There is no notion of completion, and the listener keeps receiving
 events. The two most common are

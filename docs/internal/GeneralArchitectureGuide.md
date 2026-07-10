@@ -264,7 +264,7 @@ settings.
 
 Built-in settings are declared as `public static final` fields on the class that owns them, and then registered by listing them in
 `ClusterSettings.BUILT_IN_CLUSTER_SETTINGS` or `IndexScopedSettings.BUILT_IN_INDEX_SETTINGS`. The `SettingsModule` validates that
-each setting declares exactly one scope property, detects duplicate registrations, and builds the final `ClusterSettings`,
+each setting's scope properties are not conflicting, detects duplicate registrations, and builds the final `ClusterSettings`,
 `IndexScopedSettings`, and `ProjectScopedSettings` instances.
 
 The node-local `elasticsearch.yml` file is static and read once by the [Environment][] at startup, becoming the node's `Settings`

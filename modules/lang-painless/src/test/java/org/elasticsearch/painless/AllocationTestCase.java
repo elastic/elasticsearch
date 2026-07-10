@@ -49,13 +49,18 @@ public abstract class AllocationTestCase extends ScriptTestCase {
 
     /** Asserts that running {@code source} under a 1b limit trips the allocation limit. */
     protected void assertTripsLimit(String source) {
-        PainlessTestScript script = compile(source, "1b");
+        assertTripsLimit(source, "1b");
+    }
+
+    /** Asserts that running {@code source} under {@code limit} trips the allocation limit. */
+    protected void assertTripsLimit(String source, String limit) {
+        PainlessTestScript script = compile(source, limit);
         ScriptException e = expectThrows(ScriptException.class, script::execute);
         for (Throwable t = e; t != null; t = t.getCause()) {
             if (t.getMessage() != null && t.getMessage().contains("allocation limit exceeded")) {
                 return;
             }
         }
-        throw new AssertionError("expected an allocation limit error for [" + source + "], but got: " + e, e);
+        throw new AssertionError("expected an allocation limit error for [" + source + "] under [" + limit + "], but got: " + e, e);
     }
 }

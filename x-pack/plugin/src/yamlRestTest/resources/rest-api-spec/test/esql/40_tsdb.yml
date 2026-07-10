@@ -917,7 +917,7 @@ first/last with null sort and dropped timestamp fails cleanly:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ ts_command_v0, fix_agg_first_last_foldables_in_sort_field ]
+          capabilities: [ ts_command_v0, fn_first_fix_null_sort_dropped_timestamp, fn_last_fix_null_sort_dropped_timestamp ]
       reason: "TS specific check"
 
   - do:

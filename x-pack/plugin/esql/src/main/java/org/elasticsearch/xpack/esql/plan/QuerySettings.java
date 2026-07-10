@@ -83,33 +83,32 @@ public final class QuerySettings {
         .build();
 
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "9.3.0", description = """
-        Determines how unmapped fields are treated. Possible values are:
+        Determines how unmapped fields are treated.
+        For a conceptual overview and use cases, refer to [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
+
+        Possible values are:
 
         - `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields.
         - `NULLIFY` : Treats unmapped fields as null values.
         - `LOAD` : Loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md)
         with type `keyword`. Or nullifies them if absent from `_source`. {applies_to}`stack: preview 9.4`
 
-        An `unmapped field` is a field referenced in a query that does not exist in the mapping of the index being queried.
-        When querying multiple indices, a field is considered `partially unmapped` if it exists in the mapping of some
-        indices but not others.
-
-        Unmapped fields are different from
-        [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md).
-        Runtime fields are computed fields defined in the index
-        mapping that {{esql}} treats like regular mapped fields.
-        You cannot define new runtime fields at search time in
-        {{esql}}, but you can use the
-        [`EVAL`](/reference/query-languages/esql/commands/eval.md)
-        command to create computed columns instead.
-
         [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 
         Special notes about the `LOAD` option:
-        - `FORK`, `LOOKUP JOIN`, subqueries, views, and full-text search functions are not yet supported anywhere in the query.
+        - `FORK`, `LOOKUP JOIN`, subqueries, and views are not yet supported anywhere in the query.
         - Referencing subfields of `flattened` parents is not supported.
-        - Referencing partially unmapped non-keyword fields must be inside a cast or a conversion function (e.g. `::TYPE` or `TO_TYPE`),
-        unless referenced in a `KEEP` or `DROP`.
+        - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported.
+          {applies_to}`stack: preview 9.5`
+          - Full-text search functions are not supported anywhere in the query. {applies_to}`stack: preview =9.4`
+        - [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) on partially unmapped
+          `dense_vector` fields is not yet supported.
+        - Partially unmapped non-`keyword` fields can be used in expressions. If the field is mapped to a single type and there's an
+          available conversion from `keyword` to that type, the implicit conversion is applied. If there's no available conversion,
+          and an explicit one has not been provided by the user, values remain typed where mapped and are `null` for rows from
+          indices where the field is unmapped. {applies_to}`stack: preview 9.5`
+          - Partially unmapped non-`keyword` fields must be referenced inside a cast or conversion function (e.g. `::TYPE` or `TO_TYPE`),
+            unless referenced in `KEEP` or `DROP`. {applies_to}`stack: preview =9.4`
         """)
     @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = """
         Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,
@@ -127,6 +126,20 @@ public final class QuerySettings {
         "unmapped_fields",
         QuerySettings::parseUnmappedResolution
     ).withDefault(UnmappedResolution.DEFAULT).withPreview().build();
+
+    @Param(
+        name = "column_metadata",
+        type = { "boolean" },
+        since = "9.5.0",
+        description = "When enabled, column metadata is added to the `_query` response as additional `_meta` properties."
+            + " Defaults to `false`. Currently, only `_meta.bucket` is added for columns corresponding to the `BUCKET` function"
+            + " and contains bucket interval and unit for queries where it can be determined."
+    )
+    public static final QuerySettingDef<Boolean> COLUMN_METADATA = QuerySettingDef.bool("column_metadata")
+        .withDefault(Boolean.FALSE)
+        .withPreview()
+        .withRequestBody()
+        .build();
 
     @Param(
         name = "approximation",
@@ -170,7 +183,7 @@ public final class QuerySettings {
      * request parser, the resolver, and telemetry all iterate this list. Add a new setting's constant here when
      * you declare it. Referencing this field initializes the class, so there is no load-order hazard.
      */
-    public static final List<QuerySettingDef<?>> ALL = List.of(TIME_ZONE, PROJECT_ROUTING, UNMAPPED_FIELDS, APPROXIMATION);
+    public static final List<QuerySettingDef<?>> ALL = List.of(APPROXIMATION, COLUMN_METADATA, PROJECT_ROUTING, TIME_ZONE, UNMAPPED_FIELDS);
 
     private static final Map<String, QuerySettingDef<?>> BY_NAME = byName(ALL);
 

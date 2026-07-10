@@ -19,6 +19,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.BaseBFloat16KnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
@@ -47,7 +48,7 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
     @Before
     @Override
     public void setUp() throws Exception {
-        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = randomFrom(ESNextDiskBBQVectorsFormat.QuantEncoding.values());
+        QuantEncoding encoding = randomFrom(QuantEncoding.values());
         if (rarely()) {
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,

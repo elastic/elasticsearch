@@ -39,13 +39,13 @@ import java.util.function.BooleanSupplier;
  * so heavy dependencies (S3 client, HTTP client, etc.) are only loaded when
  * an EXTERNAL query actually targets that backend.
  *
- * <p>All providers are automatically wrapped with retry logic for transient storage
- * failures (503, 429, connection resets, timeouts). Wrap order:
- * {@code caller → Retryable(with adaptive backoff) → raw provider}
+ * <p>All non-file providers are automatically wrapped with per-scheme concurrency limiting and retry logic for
+ * transient storage failures (503, 429, connection resets, timeouts). Wrap order:
+ * {@code caller → Retryable(with adaptive backoff) → ConcurrencyLimited → raw provider}
  *
- * <p>Adaptive backoff state is shared per-throttle-scope across all providers
- * (including per-query config providers), because cloud API rate limits are per
- * account/IP, not per client instance.
+ * <p>Concurrency limiters are shared per-scheme and adaptive backoff state is shared per-throttle-scope across all
+ * providers (including per-query config providers), because cloud API rate limits are per account/IP, not per client
+ * instance.
  *
  * <p>Registration methods are intended for single-threaded initialization only
  * (called from the {@link DataSourceModule} constructor).
@@ -59,6 +59,10 @@ public class StorageProviderRegistry implements Closeable {
     private final List<StorageProvider> createdProviders = new ArrayList<>();
 
     private final Map<String, RetryPolicy> scopedPolicies = new ConcurrentHashMap<>();
+    // Per-scheme in-flight-read permit semaphores and their per-query budget allocators. Shared per-scheme across
+    // all providers (including per-query config providers): cloud API rate limits are per account/IP, not per client.
+    private final Map<String, ConcurrencyLimiter> limiters = new ConcurrentHashMap<>();
+    private final Map<String, ConcurrencyBudgetAllocator> allocators = new ConcurrentHashMap<>();
 
     // Cache for providers created with a non-empty per-query configuration map.
     // Avoids reconstructing cloud clients (S3, GCS, Azure) for repeated calls with the same config.
@@ -70,6 +74,8 @@ public class StorageProviderRegistry implements Closeable {
     @Nullable
     private final DataSourceCredentials credentials;
     private final int throttleMaxRetryDurationSeconds;
+    /** Per-node in-flight-read permit count sizing each per-scheme {@link ConcurrencyLimiter}; 0 disables limiting. */
+    private final int maxConcurrentRequests;
     /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
     private final RetryScheduler retryScheduler;
     /**
@@ -122,6 +128,7 @@ public class StorageProviderRegistry implements Closeable {
         this.retryScheduler = retryScheduler != null ? retryScheduler : RetryScheduler.DIRECT;
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
         this.localFileAccess = localFileAccess != null ? localFileAccess : LocalFileAccess.UNRESTRICTED;
+        this.maxConcurrentRequests = ExternalSourceSettings.blobStoreConcurrency(this.settings);
     }
 
     public void registerFactory(String scheme, StorageProviderFactory factory) {
@@ -226,7 +233,7 @@ public class StorageProviderRegistry implements Closeable {
         try {
             return configuredProviderCache.getOrCreate(cacheKey, () -> {
                 Configured<StorageProvider> raw = factory.createTrackingConsumedKeys(settings, storageConfig);
-                return new Configured<>(wrapProvider(raw.value()), raw.consumedKeys());
+                return new Configured<>(wrapProvider(raw.value(), normalizedScheme), raw.consumedKeys());
             });
         } catch (RuntimeException e) {
             throw e;
@@ -258,18 +265,41 @@ public class StorageProviderRegistry implements Closeable {
         if (factory == null) {
             throw new IllegalArgumentException("No storage provider registered for scheme: " + normalizedScheme);
         }
-        provider = wrapProvider(factory.create(settings));
+        provider = wrapProvider(factory.create(settings), normalizedScheme);
         providers.put(normalizedScheme, provider);
         createdProviders.add(provider);
         return provider;
     }
 
-    private StorageProvider wrapProvider(StorageProvider provider) {
-        // The adaptive backoff is selected per throttle scope (per-bucket/account) at read time, not baked in here:
-        // a hot bucket backs off only its own traffic, not every read on the same store. The retry/backoff layer is
-        // inert for file:// (local reads raise plain IOExceptions, never the throttling-typed
-        // ExternalUnavailableException it retries on).
-        return new RetryableStorageProvider(provider, retryScheduler, this::retryPolicyForScope);
+    private StorageProvider wrapProvider(StorageProvider provider, String scheme) {
+        // Wrap order: caller -> Retryable(per-scope adaptive backoff) -> ConcurrencyLimited(per-scheme permits) -> raw.
+        // The permit semaphore bounds in-flight reads per scheme; file:// is exempt (local reads are not rate-limited
+        // and raise plain IOExceptions, never the throttling-typed ExternalUnavailableException the retry layer acts
+        // on). The adaptive backoff is selected per throttle scope (per-bucket/account) at read time, so a hot bucket
+        // backs off only its own traffic, not every read on the same store.
+        StorageProvider bounded = "file".equals(scheme)
+            ? provider
+            : new ConcurrencyLimitedStorageProvider(provider, limiterForScheme(scheme));
+        return new RetryableStorageProvider(bounded, retryScheduler, this::retryPolicyForScope);
+    }
+
+    /**
+     * Per-query concurrency budget allocator for the given scheme, or {@code null} when per-query budgeting does not
+     * apply (file scheme, or permit limiting disabled via {@code max_concurrent_requests=0}). Shared per-scheme so a
+     * single query cannot starve others on the same backend.
+     */
+    public ConcurrencyBudgetAllocator allocatorForScheme(String scheme) {
+        if ("file".equals(scheme) || maxConcurrentRequests <= 0) {
+            return null;
+        }
+        return allocators.computeIfAbsent(scheme, k -> new ConcurrencyBudgetAllocator(maxConcurrentRequests));
+    }
+
+    private ConcurrencyLimiter limiterForScheme(String scheme) {
+        return limiters.computeIfAbsent(
+            scheme,
+            k -> maxConcurrentRequests <= 0 ? ConcurrencyLimiter.UNLIMITED : new ConcurrencyLimiter(maxConcurrentRequests)
+        );
     }
 
     private RetryPolicy retryPolicyForScope(StoragePath path) {

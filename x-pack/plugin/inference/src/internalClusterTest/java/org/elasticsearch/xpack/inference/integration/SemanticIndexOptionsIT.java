@@ -9,14 +9,8 @@ package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
-import org.junit.Before;
 
 public class SemanticIndexOptionsIT extends SemanticFieldIndexOptionsTestCase {
-
-    @Before
-    public void assumeFeatureFlagEnabled() {
-        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-    }
 
     @Override
     protected String fieldType() {

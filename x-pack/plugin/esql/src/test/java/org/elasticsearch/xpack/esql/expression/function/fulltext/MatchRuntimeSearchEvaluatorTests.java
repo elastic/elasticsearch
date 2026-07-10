@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -19,10 +18,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -30,10 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,7 +37,6 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -49,9 +44,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * End-to-end execution tests for runtime {@code match} (the {@code runtime_lexical_search} path, where the field is
+ * End-to-end execution tests for runtime {@code match}, where the field is
  * not a Lucene-mapped index field). Unlike {@link MatchTests}, which only checks type resolution and serialization,
  * this builds the actual runtime evaluators and runs them over real {@link Block}s.
  * <p>
@@ -61,16 +57,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
 
-    private static final Configuration RUNTIME_CONFIG = configuration(
-        new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build())
-    );
-
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
-
-    @Before
-    public void assumeRuntimeSearchSupported() {
-        assumeTrue("requires the runtime match capability to be enabled", EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled());
-    }
 
     @After
     public void allMemoryReleased() {
@@ -120,7 +107,7 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
     private static Match runtimeMatch(DataType fieldType, Object queryValue, DataType queryType) {
         ReferenceAttribute field = new ReferenceAttribute(Source.EMPTY, "field", fieldType);
         Literal query = new Literal(Source.EMPTY, queryValue, queryType);
-        Match match = new Match(Source.EMPTY, field, query, null, RUNTIME_CONFIG);
+        Match match = new Match(Source.EMPTY, field, query, null);
         assertTrue("expected a runtime search, not a pushed-down query", match.isRuntimeSearch());
         return match;
     }
@@ -188,6 +175,40 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
             builder.appendNull();
         }));
         assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithZeroQueryTerms() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("! ! !"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("This is a Brown fox"));
+            builder.appendBytesRef(new BytesRef("The cat sat on the mat"));
+        }));
+        assertArrayEquals(new Boolean[] { false, false }, result);
+    }
+
+    public void testTextAndTermNormalization() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("cat dog"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("The CAT sat on the mat"));
+            builder.appendBytesRef(new BytesRef("LAZY DOG"));
+        }));
+        assertArrayEquals(new Boolean[] { true, true }, result);
+    }
+
+    public void testTextAndMultiTermQuery() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("fox dog"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("This is a brown fox"));
+            builder.appendBytesRef(new BytesRef("This is a brown dog"));
+            builder.appendBytesRef(new BytesRef("Just a turtle"));
+            builder.appendBytesRef(new BytesRef("This dog is really brown"));
+        }));
+        assertArrayEquals(new Boolean[] { true, true, false, true }, result);
+    }
+
+    public void testTextWithZeroTermsValues() {
+        Boolean[] result = evaluate(runtimeMatch(TEXT, new BytesRef("fox"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("! !"));
+            builder.appendBytesRef(new BytesRef(""));
+        }));
+        assertArrayEquals(new Boolean[] { false, false }, result);
     }
 
     // ---- keyword: exact (unanalyzed) matching ----
@@ -262,6 +283,11 @@ public class MatchRuntimeSearchEvaluatorTests extends ESTestCase {
             }
         });
         assertArrayEquals(new Boolean[] { true, false, false }, result);
+    }
+
+    public void testTextWithZeroTermsQueryUsesConstantBlock() {
+        Match match = runtimeMatch(TEXT, new BytesRef("! ! !"), TEXT);
+        assertThat(match.toEvaluator(toEvaluator()), instanceOf(ConstantEvaluators.CONSTANT_FALSE_FACTORY.getClass()));
     }
 
     /**

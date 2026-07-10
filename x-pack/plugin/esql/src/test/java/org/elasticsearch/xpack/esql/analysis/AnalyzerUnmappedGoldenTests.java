@@ -90,6 +90,15 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    // A pattern DROP that doesn't match the missing field still lets nullify inject it for a later KEEP.
+    public void testDropPatternThenKeepMissing() throws Exception {
+        runTestsNullifyOnly("""
+            FROM employees
+            | DROP emp_*
+            | KEEP does_not_exist_field
+            """, STAGES);
+    }
+
     public void testRename() throws Exception {
         runTests("""
             FROM employees
@@ -801,7 +810,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM k8s, k8s_unmapped
             | EVAL bytes = network.bytes_in::long
             | KEEP bytes
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testTSTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
@@ -809,7 +818,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             TS k8s, k8s_unmapped
             | EVAL bytes = network.bytes_in::long
             | KEEP bytes
-            """, DimensionValues.DIMENSION_VALUES_VERSION);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testTypeConflictTimeseriesDoubleUnmappedWithCast() throws Exception {
@@ -817,21 +826,21 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM k8s, k8s_unmapped
             | EVAL cost = network.cost::double
             | KEEP cost
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testTypeConflictTimeseriesStatsWithCast() throws Exception {
         runTests("""
             FROM k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testTSTypeConflictTimeseriesStatsWithCast() throws Exception {
         runTests("""
             TS k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
-            """, DimensionValues.DIMENSION_VALUES_VERSION);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testTypeConflictTimeseriesWhereWithCast() throws Exception {
@@ -839,7 +848,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM k8s, k8s_unmapped
             | WHERE network.cost::double > 10.0
             | KEEP cluster, network.cost
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testPartiallyMappedField() throws Exception {
@@ -863,6 +872,18 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
+    // message is keyword-mapped in sample_data and unmapped (loaded as keyword) in no_mapping_sample_data, so it
+    // surfaces as a PotentiallyUnmappedKeywordEsField rather than a two-legged PUNK requiring a type conversion.
+    // TO_TEXT is applied directly to that field attribute, so no keyword->keyword auto-cast happens.
+    // See also testSingleTypeTextUnmappedToText.
+    public void testMappedInOneIndexOnlyToText() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | EVAL message_text = TO_TEXT(message)
+            | KEEP message_text
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
     public void testMappedToNonKeywordInOneIndexOnly() throws Exception {
         runTests("""
             FROM sample_data, no_mapping_sample_data
@@ -875,7 +896,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | EVAL event_duration = event_duration::long
             | KEEP event_duration
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testTypeConflictMappedTimesTwoAndUnmapped() throws Exception {
@@ -883,7 +904,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data_ts_long, sample_data, no_mapping_sample_data
             | EVAL ts = @timestamp::date
             | KEEP ts
-            """);
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
     }
 
     public void testNoTypeConflictKeywordAndUnmappedWhere() throws Exception {
@@ -917,6 +938,86 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | KEEP @timestamp, event_duration
             """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    public void testSingleTypeTextUnmappedNoCastLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped
+            | KEEP txt
+            """, STAGES);
+    }
+
+    // The 'txt' field is text-mapped in text_state_mapped and unmapped (loaded as keyword) in text_state_unmapped.
+    // TEXT is excluded from TYPE_TO_CONVERTER_FUNCTION, so ResolveTwoLeggedPunksInEsRelation cannot auto-cast the
+    // unmapped leg to TEXT ahead of time. TO_TEXT is instead fused directly onto the raw values of both legs,
+    // exactly as for the keyword case in testMappedInOneIndexOnlyToText.
+    // https://github.com/elastic/elasticsearch/pull/153015#discussion_r3544806310.
+    public void testSingleTypeTextUnmappedToText() throws Exception {
+        runTests("""
+            FROM text_state_mapped, text_state_unmapped
+            | EVAL txt_text = TO_TEXT(txt)
+            | KEEP txt_text
+            """, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    public void testSingleTypeDenseVectorUnmappedNoCastLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM dense_vector, dense_vector_unmapped
+            | KEEP float_vector
+            """, STAGES);
+    }
+
+    public void testSingleTypeAggregateMetricDoubleUnmappedNoCastLoadOnly() throws Exception {
+        runTestsLoadOnly("""
+            FROM k8s-downsampled, k8s_unmapped
+            | KEEP network.eth0.tx
+            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    public void testSingleTypeTextUnmappedWithMatchOperatorLoadOnly() throws Exception {
+        assumeTrue("Requires match operator", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped
+            | WHERE txt:"Faulkner"
+            | KEEP txt
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextUnmappedWithMatchFunctionLoadOnly() throws Exception {
+        assumeTrue("Requires MATCH_FUNCTION", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped
+            | WHERE match(txt, "Faulkner")
+            | KEEP txt
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextMappedUnmappedAndNonExistentWithMatchFunctionLoadOnly() throws Exception {
+        assumeTrue("Requires MATCH_FUNCTION", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped, text_state_nonexistent
+            | WHERE match(txt, "Faulkner") OR txt IS NULL
+            | KEEP txt
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextMappedUnmappedAndNonExistentWithMatchFunctionAndMetadataKeepLoadOnly() throws Exception {
+        assumeTrue("Requires MATCH_FUNCTION", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped, text_state_nonexistent METADATA _index
+            | WHERE match(txt, "Faulkner") OR txt IS NULL
+            | KEEP _index, doc_id, txt
+            | SORT _index
+            """, STAGES);
+    }
+
+    public void testSingleTypeTextUnmappedWithMatchPhraseFunctionLoadOnly() throws Exception {
+        assumeTrue("Requires MATCH_PHRASE_FUNCTION", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
+        runTestsLoadOnly("""
+            FROM text_state_mapped, text_state_unmapped
+            | WHERE match_phrase(txt, "William Faulkner")
+            | KEEP txt
+            """, STAGES);
     }
 
     // first_name and last_name are keyword, partially unmapped (missing in employees_no_names).

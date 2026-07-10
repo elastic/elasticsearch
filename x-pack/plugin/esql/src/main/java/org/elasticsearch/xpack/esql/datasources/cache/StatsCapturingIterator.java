@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -63,6 +64,24 @@ public final class StatsCapturingIterator implements CloseableIterator<Page>, Co
     @Override
     public Page next() {
         return delegate.next();
+    }
+
+    /**
+     * Forward the async-ready signal to the delegate. This wrapper is a thin pass-through for
+     * {@code hasNext}/{@code next}, so it must be one for readiness too: the producer-loop drain calls
+     * {@code waitForReady()} on the outermost iterator and parks the executor thread while it is not
+     * done. Without this override the default {@link CloseableIterator#waitForReady()} (immediately
+     * done) would swallow the delegate's real signal, and the drain would fall through to a blocking
+     * {@code hasNext()} on a parser-backed delegate — the multi-file text-read deadlock.
+     */
+    @Override
+    public SubscribableListener<Void> waitForReady() {
+        return delegate.waitForReady();
+    }
+
+    @Override
+    public Page tryAdvance() {
+        return delegate.tryAdvance();
     }
 
     @Override

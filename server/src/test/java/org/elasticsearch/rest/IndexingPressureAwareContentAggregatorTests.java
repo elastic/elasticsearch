@@ -42,9 +42,7 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
     private IndexingPressureAwareContentAggregator aggregator;
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void releaseContent() throws Exception {
         Optional.ofNullable(contentRef.get()).ifPresent(ReleasableBytesReference::close);
         assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
     }

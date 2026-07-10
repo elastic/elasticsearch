@@ -6,6 +6,6 @@
   ],
   "serverlessOnly" : false,
   "preview" : true,
-  "snapshotOnly" : true,
+  "snapshotOnly" : false,
   "description" : "When enabled, column metadata is added to the `_query` response as additional `_meta` properties. Defaults to `false`. Currently, only `_meta.bucket` is added for columns corresponding to the `BUCKET` function and contains bucket interval and unit for queries where it can be determined."
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -417,6 +418,68 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                     List.of("The quick brown fox jumps over the lazy dog", 6, 6, "The quick brown fox jumps over the lazy dog")
                 )
             );
+        }
+    }
+
+    /**
+     * Regression for when {@code LOOKUP JOIN} looks like:
+     * {@snippet lang="esql" :
+     *   | LOOKUP JOIN kw_lookup ON <something> AND MATCH(rhs_field, "fox")
+     * }
+     * <p>
+     *     This has to do with a "bulk" optimization in the lookup join.
+     * </p>
+     */
+    public void testMatchInLookupJoinWithKeywordJoinField() {
+        assumeTrue(
+            "requires LOOKUP JOIN with full-text function support",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
+        );
+
+        var client = client().admin().indices();
+
+        // Lookup index: keyword join field + text field for MATCH
+        assertAcked(
+            client.prepareCreate("kw_lookup")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup"))
+                .setMapping("tag", "type=keyword", "description", "type=text")
+        );
+        client().prepareBulk()
+            .add(new IndexRequest("kw_lookup").source("tag", "fox_tag", "description", "This is a brown fox"))
+            .add(new IndexRequest("kw_lookup").source("tag", "dog_tag", "description", "This is a brown dog"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        // Main index: keyword field matching the lookup join field
+        assertAcked(
+            client.prepareCreate("kw_main")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping("left_tag", "type=keyword", "value", "type=integer")
+        );
+        client().prepareBulk()
+            .add(new IndexRequest("kw_main").source("left_tag", "fox_tag", "value", 1))
+            .add(new IndexRequest("kw_main").source("left_tag", "dog_tag", "value", 2))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        ensureYellow("kw_main", "kw_lookup");
+
+        // keyword join triggers LuceneBulkLookup; after that, PushFiltersToSource cannot push
+        // MATCH to Lucene (plan pattern mismatch), so MATCH stays in FilterExec.
+        // Before the fix this caused: IndexOutOfBoundsException: no shards on LuceneQueryEvaluator
+        var query = """
+            FROM kw_main
+            | LOOKUP JOIN kw_lookup ON left_tag == tag AND MATCH(description, "fox")
+            | WHERE description IS NOT NULL
+            | KEEP left_tag, value, description
+            | SORT left_tag
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("left_tag", "value", "description"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            // Only fox_tag's description matches "fox"; dog_tag has null description and is filtered out
+            assertValues(resp.values(), List.of(List.of("fox_tag", 1, "This is a brown fox")));
         }
     }
 

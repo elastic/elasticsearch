@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -503,6 +504,28 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertCCSExecutionInfoDetails(executionInfo);
+        }
+    }
+
+    public void testLocalJoinAndRemoteSubquery() {
+        populateLookupIndex(LOCAL_CLUSTER, "values_lookup", 10);
+
+        try (var response = runQuery("""
+            FROM
+                (FROM logs-* | STATS mv = max(v) BY tag | LOOKUP JOIN values_lookup on mv == lookup_key),
+                (FROM *:logs-* | STATS mv = max(v) BY tag)
+            | KEEP tag, lookup_tag, mv
+            | SORT tag
+            """, randomBoolean())) {
+            assertEquals(
+                getValuesList(response),
+                List.of(
+                    List.of("local", "local", 9L),
+                    // lookup_tag is only populated on local indices above and not joined on remote indices below
+                    Arrays.asList("remote", null, 81L)
+                )
+            );
+            assertCCSExecutionInfoDetails(response.getExecutionInfo());
         }
     }
 
@@ -1306,18 +1329,21 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 20);
         populateLookupIndex(REMOTE_CLUSTER_2, "values_lookup", 20);
 
-        VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
-            FROM
-                (FROM logs-* | STATS key = count(*) | EVAL src = "from-local"
-                 | LOOKUP JOIN values_lookup ON key == lookup_key | KEEP src, key, lookup_tag),
-                (TS *:metrics | WHERE host == "h1" | STATS key = TO_LONG(max(cpu)) | EVAL src = "ts-remote"
-                 | LOOKUP JOIN values_lookup ON key == lookup_key | KEEP src, key, lookup_tag),
-                (ROW src = "row", key = TO_LONG(5) | LOOKUP JOIN values_lookup ON key == lookup_key
-                 | KEEP src, key, lookup_tag)
-            | KEEP src, key, lookup_tag
-            | SORT src, key
-            """, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("LOOKUP JOIN with remote indices can't be executed after [STATS key = count(*)]"));
+        expectThrows(
+            VerificationException.class,
+            containsString("LOOKUP JOIN with remote indices can't be executed after [STATS key = TO_LONG(max(cpu))]"),
+            () -> runQuery("""
+                FROM
+                    (FROM logs-* | STATS key = count(*) | EVAL src = "from-local"
+                     | LOOKUP JOIN values_lookup ON key == lookup_key | KEEP src, key, lookup_tag),
+                    (TS *:metrics | WHERE host == "h1" | STATS key = TO_LONG(max(cpu)) | EVAL src = "ts-remote"
+                     | LOOKUP JOIN values_lookup ON key == lookup_key | KEEP src, key, lookup_tag),
+                    (ROW src = "row", key = TO_LONG(5) | LOOKUP JOIN values_lookup ON key == lookup_key
+                     | KEEP src, key, lookup_tag)
+                | KEEP src, key, lookup_tag
+                | SORT src, key
+                """, randomBoolean())
+        );
     }
 
     private void populateTimeSeriesIndex(String clusterAlias, String indexName) {

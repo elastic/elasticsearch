@@ -44,6 +44,7 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.jspecify.annotations.NonNull;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -2780,19 +2781,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
 
-        final var bulkTaskCount = new AtomicInteger(0);
         final var threadPool = new TestThreadPool("test");
-        final var currentLatch = new AtomicReference<CountDownLatch>();
-        final var bulkExecutor = new StoppableExecutorServiceWrapper(threadPool.generic()) {
-            @Override
-            public void execute(Runnable command) {
-                bulkTaskCount.incrementAndGet();
-                super.execute(() -> {
-                    command.run();
-                    currentLatch.get().countDown();
-                });
-            }
-        };
 
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -2809,9 +2798,10 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final var cacheKey = generateCacheKey();
                 assertEquals(5, cacheService.freeRegionCount());
                 final long blobLength = size(250); // 3 regions
-                AtomicLong bytesRead = new AtomicLong(0L);
+                final AtomicLong bytesRead = new AtomicLong(0L);
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-                currentLatch.set(new CountDownLatch(1));
+                final var bulkTaskCount = new AtomicInteger(0);
+                final var executionFinishedLatch = new CountDownLatch(1);
                 cacheService.fetchRegion(
                     cacheKey,
                     0,
@@ -2824,13 +2814,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                             progressUpdater.accept(length);
                         }
                     ),
-                    bulkExecutor,
+                    bulkExecutor(threadPool, bulkTaskCount, executionFinishedLatch),
                     true,
                     future
                 );
 
                 var fetched = future.get(10, TimeUnit.SECONDS);
-                safeAwait(currentLatch.get());
+                safeAwait(executionFinishedLatch);
                 assertThat("Region has been fetched", fetched, is(true));
                 assertEquals(regionSize, bytesRead.get());
                 assertEquals(4, cacheService.freeRegionCount());
@@ -2843,11 +2833,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
                 final var cacheKey = generateCacheKey();
                 final long blobLength = regionSize * remainingFreeRegions;
-                AtomicLong bytesRead = new AtomicLong(0L);
+                final AtomicLong bytesRead = new AtomicLong(0L);
 
                 final PlainActionFuture<Collection<Boolean>> future = new PlainActionFuture<>();
                 final var listener = new GroupedActionListener<>(remainingFreeRegions, future);
-                currentLatch.set(new CountDownLatch(remainingFreeRegions));
+                final var bulkTaskCount = new AtomicInteger(0);
+                final var executionFinishedLatch = new CountDownLatch(remainingFreeRegions);
                 for (int region = 0; region < remainingFreeRegions; region++) {
                     cacheService.fetchRegion(
                         cacheKey,
@@ -2861,18 +2852,18 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                 progressUpdater.accept(length);
                             }
                         ),
-                        bulkExecutor,
+                        bulkExecutor(threadPool, bulkTaskCount, executionFinishedLatch),
                         true,
                         listener
                     );
                 }
 
                 var results = future.get(10, TimeUnit.SECONDS);
-                safeAwait(currentLatch.get());
+                safeAwait(executionFinishedLatch);
                 assertThat(results.stream().allMatch(result -> result), is(true));
                 assertEquals(blobLength, bytesRead.get());
                 assertEquals(0, cacheService.freeRegionCount());
-                assertEquals(1 + remainingFreeRegions, bulkTaskCount.get());
+                assertEquals(remainingFreeRegions, bulkTaskCount.get());
             }
             {
                 // cache fully used, no entry old enough to be evicted and force=false should not evict entries
@@ -2889,7 +2880,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                             throw new AssertionError("should not be executed");
                         }
                     ),
-                    bulkExecutor,
+                    threadPool.generic(),
                     false,
                     future
                 );
@@ -2899,13 +2890,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             {
                 // cache fully used, but force=true, so the cache should evict regions to make space for the requested regions
                 assertEquals(0, cacheService.freeRegionCount());
-                AtomicLong bytesRead = new AtomicLong(0L);
+                final AtomicLong bytesRead = new AtomicLong(0L);
                 final var cacheKey = generateCacheKey();
                 final PlainActionFuture<Collection<Boolean>> future = new PlainActionFuture<>();
-                var regionsToFetch = randomIntBetween(1, (int) (cacheSize / regionSize));
+                final var regionsToFetch = randomIntBetween(1, (int) (cacheSize / regionSize));
                 final var listener = new GroupedActionListener<>(regionsToFetch, future);
-                long blobLength = regionsToFetch * regionSize;
-                currentLatch.set(new CountDownLatch(regionsToFetch));
+                final long blobLength = regionsToFetch * regionSize;
+                final var bulkTaskCount = new AtomicInteger(0);
+                final var executionFinishedLatch = new CountDownLatch(regionsToFetch);
                 for (int region = 0; region < regionsToFetch; region++) {
                     cacheService.fetchRegion(
                         cacheKey,
@@ -2919,30 +2911,31 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                 progressUpdater.accept(length);
                             }
                         ),
-                        bulkExecutor,
+                        bulkExecutor(threadPool, bulkTaskCount, executionFinishedLatch),
                         true,
                         listener
                     );
                 }
 
                 var results = future.get(10, TimeUnit.SECONDS);
-                safeAwait(currentLatch.get());
+                safeAwait(executionFinishedLatch);
                 assertThat(results.stream().allMatch(result -> result), is(true));
                 assertEquals(blobLength, bytesRead.get());
                 assertEquals(0, cacheService.freeRegionCount());
-                assertEquals(regionsToFetch + 5, bulkTaskCount.get());
+                assertEquals(regionsToFetch, bulkTaskCount.get());
             }
             {
+                final var bulkTaskCount = new AtomicInteger(0);
                 cacheService.computeDecay();
 
                 // We explicitly called computeDecay, meaning that some regions must have been demoted to level 0,
                 // therefore there should be enough room to fetch the requested range regardless of the force flag.
                 final var cacheKey = generateCacheKey();
                 assertEquals(0, cacheService.freeRegionCount());
-                long blobLength = randomLongBetween(1L, regionSize);
-                AtomicLong bytesRead = new AtomicLong(0L);
+                final long blobLength = randomLongBetween(1L, regionSize);
+                final AtomicLong bytesRead = new AtomicLong(0L);
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-                currentLatch.set(new CountDownLatch(1));
+                final var executionFinishedLatch = new CountDownLatch(1);
                 cacheService.fetchRegion(
                     cacheKey,
                     0,
@@ -2955,13 +2948,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                             progressUpdater.accept(length);
                         }
                     ),
-                    bulkExecutor,
+                    bulkExecutor(threadPool, bulkTaskCount, executionFinishedLatch),
                     randomBoolean(),
                     future
                 );
 
                 var fetched = future.get(10, TimeUnit.SECONDS);
-                safeAwait(currentLatch.get());
+                safeAwait(executionFinishedLatch);
                 assertThat("Region has been fetched", fetched, is(true));
                 assertEquals(blobLength, bytesRead.get());
                 assertEquals(0, cacheService.freeRegionCount());
@@ -2969,6 +2962,23 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         } finally {
             TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
+    }
+
+    private static StoppableExecutorServiceWrapper bulkExecutor(
+        final TestThreadPool threadPool,
+        final AtomicInteger bulkTaskCount,
+        final CountDownLatch executionFinishedLatch
+    ) {
+        return new StoppableExecutorServiceWrapper(threadPool.generic()) {
+            @Override
+            public void execute(Runnable command) {
+                bulkTaskCount.incrementAndGet();
+                super.execute(() -> {
+                    command.run();
+                    executionFinishedLatch.countDown();
+                });
+            }
+        };
     }
 
     public void testMaybeFetchRange() throws Exception {

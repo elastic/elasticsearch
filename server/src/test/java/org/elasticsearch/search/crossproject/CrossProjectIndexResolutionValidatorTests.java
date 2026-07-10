@@ -1440,11 +1440,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         var local = new ResolvedIndexExpressions(
             List.of(
                 new ResolvedIndexExpression("*:metrics", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:metrics", "P2:metrics")),
-                new ResolvedIndexExpression(
-                    "*:logs",
-                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE),
-                    Set.of("P1:logs", "P2:logs")
-                )
+                new ResolvedIndexExpression("*:logs", ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:logs", "P2:logs"))
             ),
             null
         );

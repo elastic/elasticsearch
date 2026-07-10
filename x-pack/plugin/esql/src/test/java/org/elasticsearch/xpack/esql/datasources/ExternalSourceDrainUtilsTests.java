@@ -16,6 +16,8 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,17 +45,15 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
 
     private ExecutorService exec;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startExecutor() {
         exec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "drain-test"));
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void stopExecutor() throws Exception {
         exec.shutdown();
         assertTrue(exec.awaitTermination(30, TimeUnit.SECONDS));
-        super.tearDown();
     }
 
     private static Page createTestPage(int numColumns, int numRows) {

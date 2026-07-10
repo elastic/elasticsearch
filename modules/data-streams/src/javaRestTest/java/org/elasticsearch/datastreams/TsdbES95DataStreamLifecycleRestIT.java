@@ -244,6 +244,9 @@ public class TsdbES95DataStreamLifecycleRestIT extends ESRestTestCase {
 
     private void bulkIndex(final String streamName, int docCount, int gaugeStart) throws IOException {
         final String writeIdx = writeBackingIndex(streamName);
+        // Stateless loads a new backing index's search shards from the object store asynchronously;
+        // wait for them before the count read below, which runs on the search node.
+        ensureGreen(writeIdx);
         final long startMs = readBackingIndexStartTime(writeIdx).toEpochMilli();
         final long existing = documentCount(writeIdx);
         final StringBuilder bulk = new StringBuilder();

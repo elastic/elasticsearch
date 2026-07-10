@@ -90,7 +90,7 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
     }
 
     @Override
-    public ClusteringFloatVectorValues copy() {
+    public ClusteringFloatVectorValues copy() throws IOException {
         return new KMeansFloatVectorValues(vectors.copy(), docs != null ? docs.copy() : null, numVectors);
     }
 
@@ -120,7 +120,7 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
 
         int dims();
 
-        VectorSupplier copy();
+        VectorSupplier copy() throws IOException;
     }
 
     private record OnHeapVectorSupplier(List<float[]> vectors, int dims) implements VectorSupplier {
@@ -164,7 +164,7 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
     private sealed interface DocSupplier permits OnHeapDocSupplier, OffHeapDocSupplier {
         int ordToDoc(int ord);
 
-        DocSupplier copy();
+        DocSupplier copy() throws IOException;
     }
 
     private record OnHeapDocSupplier(int[] docs) implements DocSupplier {
@@ -190,14 +190,10 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
         }
 
         @Override
-        public DocSupplier copy() {
+        public DocSupplier copy() throws IOException {
             IndexInput docsCopy = docs.clone();
-            try {
-                RandomAccessInput randomDocsCopy = docsCopy.randomAccessSlice(0, docsCopy.length());
-                return new OffHeapDocSupplier(docsCopy, randomDocsCopy);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            RandomAccessInput randomDocsCopy = docsCopy.randomAccessSlice(0, docsCopy.length());
+            return new OffHeapDocSupplier(docsCopy, randomDocsCopy);
         }
     }
 
@@ -222,12 +218,8 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
         }
 
         @Override
-        public VectorSupplier copy() {
-            try {
-                return new FloatVectorValuesSupplier(fvv.copy(), ordinals);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+        public VectorSupplier copy() throws IOException {
+            return new FloatVectorValuesSupplier(fvv.copy(), ordinals);
         }
     }
 }

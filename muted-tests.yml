@@ -532,15 +532,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:highlight.highlightFieldWithNoMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152240
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/152259
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDateRangeIT
   method: test {csv-spec:date_range.rangeWithinPointMultiValueSomeMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152267
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDifferenceTests
-  method: testFold {TestCase=geo_shape and geo_shape}
-  issue: https://github.com/elastic/elasticsearch/issues/152281
 - class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
   method: testCancelAllReindexTasksByActionWithMixedRelocationState
   issue: https://github.com/elastic/elasticsearch/issues/152291
@@ -559,9 +553,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecFoldingIT
   method: test {csv-spec:folding.dateNanos_GreaterThan_MultiValueConstant}
   issue: https://github.com/elastic/elasticsearch/issues/152314
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StUnionTests
-  method: testFold {TestCase=geo_shape and geo_shape}
-  issue: https://github.com/elastic/elasticsearch/issues/152323
 - class: org.elasticsearch.gradle.internal.archunit.IsolatedProjectsArchUnitSpec
   method: the getRootProject baseline contains no stale entries
   issue: https://github.com/elastic/elasticsearch/issues/152341
@@ -661,9 +652,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:exponential_histogram.allAggsInlineGrouped}
   issue: https://github.com/elastic/elasticsearch/issues/153123
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:spatial_shapes.convertCartesianShapeFromStringParseError}
-  issue: https://github.com/elastic/elasticsearch/issues/153154
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testRelocateHollowableShardWithConnectionFailure
   issue: https://github.com/elastic/elasticsearch/issues/153156
@@ -793,15 +781,27 @@ tests:
 - class: org.elasticsearch.upgrades.MlAssignmentPlannerUpgradeIT
   method: testMlAssignmentPlannerUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/153417
-- class: org.elasticsearch.test.rest.yaml.RcsCcsVectorsYamlTestSuiteIT
-  method: test {p0=search.vectors/42_knn_search_bbq_flat/Test knn search}
-  issue: https://github.com/elastic/elasticsearch/issues/153430
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsIT
   method: test {csv-spec:stats.sumWithOverflowGroupingRow}
   issue: https://github.com/elastic/elasticsearch/issues/153434
-- class: org.elasticsearch.index.codec.vectors.cluster.ByteHierarchicalKMeansTests
-  method: testHKmeans
-  issue: https://github.com/elastic/elasticsearch/issues/153449
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationClosingSourceContexts
   issue: https://github.com/elastic/elasticsearch/issues/153452
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-multifile-resolution.ubnSalaryStats [ndjson.zstd/AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/153470
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-multivalue.mvMinFromSplit [ndjson.zst/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/153471
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testRegistrationOnBccWithLastHollowCommitAndDifferentPrimaryTerm
+  issue: https://github.com/elastic/elasticsearch/issues/153472
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/42_knn_search_bbq_flat/Test knn search}
+  issue: https://github.com/elastic/elasticsearch/issues/153476
+- class: org.elasticsearch.xpack.monitoring.MultiNodesStatsTests
+  method: testMultipleNodes
+  issue: https://github.com/elastic/elasticsearch/issues/153497
+- class: org.elasticsearch.xpack.transform.checkpoint.TransformGetCheckpointIT
+  method: testGetCheckpointTimeoutExceeded
+  issue: https://github.com/elastic/elasticsearch/issues/150934

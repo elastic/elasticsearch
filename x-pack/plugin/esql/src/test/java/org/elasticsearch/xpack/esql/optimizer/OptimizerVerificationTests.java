@@ -533,6 +533,64 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             the SORT after it, or add a LIMIT after the SORT"""));
     }
 
+    public void testDateRangeNotSupportedAsInlineStatsAddedField() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+        assumeTrue("date_range field type must be enabled", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        assumeTrue("VALUES on date_range must be enabled", EsqlCapabilities.Cap.VALUES_DATE_RANGE.isEnabled());
+        var testAnalyzer = analyzer().addIndex("decades", "mapping-decades.json");
+
+        // VALUES(date_range) is a legitimate aggregate output (and works fine under plain STATS), but INLINE STATS
+        // broadcasts aggregate outputs back onto the original rows via Block#lookup, which the date_range block
+        // implementation doesn't support.
+        var err = error(testAnalyzer.query("""
+            FROM decades
+            | INLINE STATS r = VALUES(date_range) BY decade
+            """));
+
+        assertThat(err, is("2:16: INLINE STATS cannot use [r] of type [DATE_RANGE] as an aggregate output"));
+    }
+
+    public void testExponentialHistogramNotSupportedAsInlineStatsAddedField() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+        var testAnalyzer = analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json");
+
+        // FIRST(exponential_histogram_field, ...) is a legitimate aggregate output (works fine under plain STATS),
+        // but INLINE STATS broadcasts aggregate outputs back onto the original rows via Block#lookup, which the
+        // exponential_histogram block implementation doesn't support.
+        var err = error(testAnalyzer.query("""
+            FROM exp_histo_sample
+            | INLINE STATS r = FIRST(responseTime, @timestamp) BY instance
+            """));
+
+        assertThat(err, is("2:16: INLINE STATS cannot use [r] of type [EXPONENTIAL_HISTOGRAM] as an aggregate output"));
+    }
+
+    public void testDateRangeSupportedAsLookupJoinAddedField() {
+        assumeTrue("date_range field type must be enabled", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        var testAnalyzer = analyzer().addIndex("decades", "mapping-decades.json").addLookupIndex("decades_lookup", "mapping-decades.json");
+
+        // Unlike INLINE STATS, a genuine LOOKUP JOIN reads its added fields straight from the lookup index via
+        // LookupJoinExec rather than broadcasting pre-computed in-memory values with Block#lookup, so a raw
+        // date_range-mapped column here is fine - the check guarding INLINE STATS/legacy LOOKUP above must not
+        // reject this.
+        optimize(testAnalyzer.query("""
+            FROM decades
+            | LOOKUP JOIN decades_lookup ON decade
+            """));
+    }
+
+    public void testTDigestNotSupportedAsInlineStatsAddedField() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+        var testAnalyzer = analyzer().addIndex("tdigest_standard_index", "mapping-tdigest_standard_index.json");
+
+        var err = error(testAnalyzer.query("""
+            FROM tdigest_standard_index
+            | INLINE STATS r = FIRST(responseTime, @timestamp) BY instance
+            """));
+
+        assertThat(err, is("2:16: INLINE STATS cannot use [r] of type [TDIGEST] as an aggregate output"));
+    }
+
     public void testEnrichRemoteRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 

@@ -20,8 +20,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardNotStartedException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.fail;
@@ -159,5 +164,95 @@ public class SplitTargetServiceTests extends ESTestCase {
             }
         });
         action.run();
+    }
+
+    public void testInitiateSplitWithSourceShardActionRetries() {
+        var time = new AtomicInteger(0);
+        var threadPool = new ThreadPool() {
+            @Override
+            public long relativeTimeInMillis() {
+                return time.getAndAdd(1000);
+            }
+
+            @Override
+            public ExecutorService generic() {
+                return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+            }
+
+            @Override
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                executor.execute(command);
+                // Only used for cancellation
+                return null;
+            }
+        };
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.threadPool()).thenReturn(threadPool);
+
+        var reshardIndexService = mock(ReshardIndexService.class);
+
+        var sourceShardId = new ShardId("index", "uuid", 0);
+        var requests = new AtomicInteger(0);
+        var failingClient = new NoOpClient(threadPool) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (action.name().equals(TransportReshardSplitAction.TYPE.name())) {
+                    requests.incrementAndGet();
+
+                    var exception = randomFrom(
+                        new IndexShardNotStartedException(sourceShardId, IndexShardState.RECOVERING),
+                        new IndexNotFoundException("", "index"),
+                        new ShardNotFoundException(sourceShardId)
+                    );
+                    listener.onFailure(exception);
+                }
+            }
+        };
+
+        var sts = new SplitTargetService(Settings.EMPTY, failingClient, clusterService, reshardIndexService);
+        var action = sts.createInitiateSplitWithSourceShardAction(
+            dummySplit(),
+            new AtomicBoolean(false),
+            TimeValue.timeValueMillis(5000),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    fail("Should never happen");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // Should be 5 given the custom time implementation (5 times by 1000 millis exceeds 5000 millis timeout).
+                    assertEquals(5, requests.get());
+                }
+            }
+        );
+
+        action.run();
+    }
+
+    private static SplitTargetService.Split dummySplit() {
+        var targetShardId = new ShardId("index", "1", 1);
+        var sourceNode = new DiscoveryNode(
+            "node1",
+            "node_1",
+            new TransportAddress(TransportAddress.META_ADDRESS, 10000),
+            Map.of(),
+            Set.of(),
+            null
+        );
+        var targetNode = new DiscoveryNode(
+            "node2",
+            "node_2",
+            new TransportAddress(TransportAddress.META_ADDRESS, 10001),
+            Map.of(),
+            Set.of(),
+            null
+        );
+        return new SplitTargetService.Split(targetShardId, sourceNode, targetNode, 2, 2);
     }
 }

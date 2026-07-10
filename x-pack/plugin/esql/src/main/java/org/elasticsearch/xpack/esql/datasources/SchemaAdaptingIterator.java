@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.io.IOException;
 import java.util.List;
@@ -66,12 +68,31 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
     /**
      * File-side ES|QL type per reader-emitted block, in reader-natural (projected) order, or
      * {@code null} when no caller cares to disambiguate. Used exclusively by
-     * {@link ColumnMapping#mapPage(Page, BlockFactory, DataType[])} to tell apart
-     * {@code LongBlock} sources (DATETIME / DATE_NANOS / LONG share one block class) when
-     * casting to KEYWORD.
+     * {@link ColumnMapping#mapPage(Page, BlockFactory, DataType[], String[], SkipWarnings)} to
+     * tell apart {@code LongBlock} sources (DATETIME / DATE_NANOS / LONG share one block class)
+     * when casting to KEYWORD.
      */
     @Nullable
     private final DataType[] perFileColumnTypes;
+    /** Output column name per mapping slot; names the column in per-value cast warnings. */
+    private final String[] outputColumnNames;
+    /**
+     * Lazily-created sink for per-value reconciliation-cast failures, shared by every page of
+     * this iterator so the warning cap is per file read. Mirrors the readers' declared-coercion
+     * sinks (e.g. {@code ParquetColumnIterator#coercionWarnings()}) so a value that cannot be
+     * represented at the unified type warns and nulls identically to one that cannot be coerced
+     * to a declared type.
+     */
+    private SkipWarnings castWarnings;
+
+    private SkipWarnings castWarnings() {
+        if (castWarnings == null) {
+            castWarnings = new SkipWarnings(
+                "Cross-file schema unification could not convert some values to the unified column type; they are returned as null"
+            );
+        }
+        return castWarnings;
+    }
 
     SchemaAdaptingIterator(
         CloseableIterator<Page> delegate,
@@ -115,6 +136,7 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         this.blockFactory = blockFactory;
         this.rowPositionInputIndex = rowPositionInputIndex;
         this.perFileColumnTypes = perFileColumnTypes;
+        this.outputColumnNames = outputSchema.stream().map(Attribute::name).toArray(String[]::new);
     }
 
     @Override
@@ -122,18 +144,37 @@ final class SchemaAdaptingIterator implements CloseableIterator<Page>, ColumnExt
         return delegate.hasNext();
     }
 
+    /**
+     * Forward the async-ready signal so the producer-loop drain parks (rather than blocking in a
+     * parser-backed {@code hasNext()}) across the inter-chunk gap. Without this the default
+     * immediately-done {@link CloseableIterator#waitForReady()} would swallow the delegate's real
+     * signal — the multi-file text-read deadlock.
+     */
+    @Override
+    public SubscribableListener<Void> waitForReady() {
+        return delegate.waitForReady();
+    }
+
+    @Override
+    public Page tryAdvance() {
+        Page filePage = delegate.tryAdvance();
+        return filePage != null ? adaptPage(filePage) : null;
+    }
+
     @Override
     public Page next() {
         if (delegate.hasNext() == false) {
             throw new NoSuchElementException();
         }
-        Page filePage = delegate.next();
+        return adaptPage(delegate.next());
+    }
+
+    private Page adaptPage(Page filePage) {
         try {
-            Page schemaAdapted = mapping.mapPage(filePage, blockFactory, perFileColumnTypes);
+            Page schemaAdapted = mapping.mapPage(filePage, blockFactory, perFileColumnTypes, outputColumnNames, castWarnings());
             if (rowPositionInputIndex < 0) {
                 return schemaAdapted;
             }
-            // Extend the schema-adapted page with the row-position block in the trailing slot.
             int width = schemaAdapted.getBlockCount();
             Block[] withRowPos = new Block[width + 1];
             try {

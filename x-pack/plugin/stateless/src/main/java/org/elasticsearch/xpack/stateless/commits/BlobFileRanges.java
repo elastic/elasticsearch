@@ -22,6 +22,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.unmodifiableNavigableMap;
 
@@ -215,11 +216,31 @@ public class BlobFileRanges implements Writeable {
         return blobFileRanges;
     }
 
-    public static long midpointMillisOrUnknown(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
+    /**
+     * Returns a positive epoch millis timestamp representing the midpoint of the given range, or
+     * {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} if the range is null.
+     */
+    public static long midpointMillisOrUnknownForCache(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
         if (range == null) {
             return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
         }
-        return range.midpointMillis();
+        long midpointMillis = range.midpointMillis();
+        // Cache-region timestamps must be positive epoch millis or a negative sentinel value.
+        return midpointMillis > 0L ? midpointMillis : 1L;
+    }
+
+    /**
+     * Returns the most recent known timestamp between two timestamps, treating {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} as the
+     * lesser-known value so any known timestamp wins.
+     */
+    public static long mostRecentKnownTimestamp(long a, long b) {
+        if (a == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            return b;
+        }
+        if (b == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            return a;
+        }
+        return Math.max(a, b);
     }
 
     public boolean hasReplicatedRanges() {
@@ -264,5 +285,9 @@ public class BlobFileRanges implements Writeable {
     // for tests only
     public @Nullable Long locationOfFirstReplicatedContents() {
         return replicatedRanges.isEmpty() ? null : replicatedRanges.firstEntry().getValue().copy;
+    }
+
+    public void forEachReplicatedRange(BiConsumer<Long, Short> consumer) {
+        replicatedRanges.forEach((position, replicated) -> consumer.accept(replicated.copy(), replicated.length()));
     }
 }

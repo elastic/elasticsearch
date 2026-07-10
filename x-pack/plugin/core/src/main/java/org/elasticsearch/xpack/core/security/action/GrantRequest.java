@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public abstract class GrantRequest extends LegacyActionRequest {
+public abstract class GrantRequest extends UntypedActionRequest {
     protected final Grant grant;
 
     public GrantRequest() {

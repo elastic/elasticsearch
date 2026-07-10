@@ -25,7 +25,10 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
@@ -34,6 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -121,15 +125,17 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /**
-     * Match function requires field from index mapping; EXTERNAL fields are rejected.
+     * MATCH function can operate on external (non-index) fields via runtime lexical search.
      */
-    public void testWithMatchFunctionRejected() {
+    public void testWithMatchFunctionAccepted() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
-        external().error(
-            "EXTERNAL \"" + S3_PATH + "\" | WHERE MATCH(first_name, \"foo\")",
-            containsString("function cannot operate on [first_name], which is not a field from an index mapping")
-        );
+        var plan = external().query("EXTERNAL \"" + S3_PATH + "\" | WHERE MATCH(first_name, \"foo\")");
+        Project project = as(plan, Project.class);
+        Limit limit = as(project.child(), Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        assertThat(filter.condition(), instanceOf(Match.class));
+        assertThat(filter.child(), instanceOf(ExternalRelation.class));
     }
 
     /**
@@ -356,8 +362,9 @@ public class AnalyzerExternalTests extends ESTestCase {
     /**
      * {@code _tier} (canonical name {@code DataTierFieldMapper.NAME}) is snapshot-only in the
      * standard metadata registry. The binding rule must mirror that: in non-snapshot builds, the
-     * name is unknown and skipped (the verifier later surfaces "Unknown column" if the user
-     * references it downstream).
+     * name is unknown, so requesting it via {@link #analyzeExternalWithMetadata} (which models it
+     * as a plain {@link UnresolvedAttribute}, not a METADATA-clause pattern) fails verification
+     * with the usual "Unknown column" diagnostic; in snapshot builds it binds normally.
      */
     public void testStandardMetadataTierSnapshotOnly() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
@@ -365,12 +372,15 @@ public class AnalyzerExternalTests extends ESTestCase {
         DataType registered = MetadataAttribute.dataType("_tier");
         boolean snapshotOnly = registered == null;
 
-        var leafOutput = externalLeafOutput(analyzeExternalWithMetadata(S3_PATH, employeesSchema(), List.of("_tier"), "my_dataset"));
-
-        boolean bound = leafOutput.stream().anyMatch(a -> a.name().equals("_tier"));
         if (snapshotOnly) {
-            assertFalse("_tier must not bind outside snapshot builds", bound);
+            org.elasticsearch.xpack.esql.VerificationException e = expectThrows(
+                org.elasticsearch.xpack.esql.VerificationException.class,
+                () -> analyzeExternalWithMetadata(S3_PATH, employeesSchema(), List.of("_tier"), "my_dataset")
+            );
+            assertThat(e.getMessage(), containsString("Unknown column [_tier]"));
         } else {
+            var leafOutput = externalLeafOutput(analyzeExternalWithMetadata(S3_PATH, employeesSchema(), List.of("_tier"), "my_dataset"));
+            boolean bound = leafOutput.stream().anyMatch(a -> a.name().equals("_tier"));
             assertTrue("_tier must bind in snapshot builds", bound);
         }
     }

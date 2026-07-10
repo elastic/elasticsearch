@@ -264,7 +264,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
      */
     public static class CommonUpdate {
 
-        protected StatefulValue<RateLimitSettings> rateLimitSettings;
+        protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();;
 
         /**
          * Resolves the rate limit settings to use after applying the update following the tri-state convention: an omitted field keeps

@@ -2,5 +2,5 @@ area: Search
 issues:
  - 95120
 pr: 153513
-summary: Use Lucene's Unicode case folding for case-insensitive queries
+summary: "Extend case_insensitive queries to use Unicode simple case folding (previously ASCII-only)"
 type: bug

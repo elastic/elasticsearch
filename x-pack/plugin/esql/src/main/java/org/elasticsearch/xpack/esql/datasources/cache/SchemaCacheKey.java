@@ -15,6 +15,12 @@ import java.util.TreeMap;
  * Cache key for schema inference results. Includes mtime-in-key for invalidation.
  * Endpoint and region are included because the same canonical path on different
  * endpoints resolves to different objects.
+ * <p>
+ * {@code datasetTokenH1}/{@code datasetTokenH2} carry the 128-bit listing content token of a
+ * dataset-level aggregate key (see {@link #forDatasetAggregate}); they are {@code 0} for every
+ * per-file key. Named components rather than smuggling the lanes into the mtime/path slots —
+ * mirrors the {@code ListingCacheKey} credential-hash precedent (two named {@code long} lanes),
+ * and record equality/hashCode pick them up automatically.
  */
 public record SchemaCacheKey(
     String canonicalPath,
@@ -22,7 +28,9 @@ public record SchemaCacheKey(
     String formatType,
     String formatConfig,
     String endpoint,
-    String region
+    String region,
+    long datasetTokenH1,
+    long datasetTokenH2
 ) {
     // Keep this set in sync with every option keyed off the WITH map by a FormatReader's
     // parseOptionsFromConfig / withConfig. The intent is broader than "changes the inferred
@@ -90,7 +98,59 @@ public record SchemaCacheKey(
         String endpoint = config != null ? String.valueOf(config.getOrDefault("endpoint", "")) : "";
         String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
         String formatConfig = buildFormatConfig(config);
-        return new SchemaCacheKey(canonicalPath, mtime, formatType != null ? formatType : "", formatConfig, endpoint, region);
+        return new SchemaCacheKey(canonicalPath, mtime, formatType != null ? formatType : "", formatConfig, endpoint, region, 0L, 0L);
+    }
+
+    /**
+     * Reserved {@code formatType} suffix namespace: extension detection ({@code detectFormatType})
+     * derives {@code formatType} from a file name's last dot and therefore never emits {@code '#'}, so
+     * a {@code '#'}-suffixed formatType can only be minted by an explicit factory. Two members exist:
+     * {@link #STRICT_DECLARED_SCHEMA_MARKER} (per-file entries on the strict-declared warm rail, which
+     * the reconcile's contribution matching MUST still reach) and {@link #DATASET_AGGREGATE_MARKER}
+     * (dataset-level aggregate entries, which contribution matching must NEVER reach - enforced in
+     * {@code ExternalSourceCacheService#matchesContribution}). Co-located here so their distinctness is
+     * visible at the declaration site.
+     */
+    public static final String STRICT_DECLARED_SCHEMA_MARKER = "#strict-declared";
+    public static final String DATASET_AGGREGATE_MARKER = "#dataset-agg";
+
+    /**
+     * Key for a dataset-level aggregate entry: the memoized multi-file stats fold for one resolved file
+     * SET under one format config. Identity is the listing's 128-bit content token (a commutative fold of
+     * every file's path + mtime + size, plus the file count - see {@code FileList#contentTokenH1}), which
+     * makes the key correct-or-miss by construction: any file added, removed, or modified derives a
+     * different key, and the stale entry simply ages out via LRU/TTL - no invalidation protocol. The
+     * token rides the two dedicated {@code datasetTokenH1}/{@code datasetTokenH2} record components
+     * (mirrors the {@code ListingCacheKey} credential-hash lanes); {@code canonicalPath} is the glob
+     * pattern (diagnostics-friendly) and the marker-suffixed {@code formatType} keeps these entries out
+     * of the per-file contribution-matching paths.
+     * <p>
+     * Known residual, inherited from the per-file rail: under a lenient error policy
+     * ({@code skip_row}/{@code null_field}) a harvested row count can be declaration-dependent (see the
+     * {@code warmsRowCountSafely} discussion on the strict single-file rail). The dataset aggregate
+     * memoizes exactly what the per-file rail serves, so it neither narrows nor widens that residual -
+     * both must be closed together by the declared-schema fingerprint follow-up.
+     */
+    public static SchemaCacheKey forDatasetAggregate(
+        String pattern,
+        long contentTokenH1,
+        long contentTokenH2,
+        String sourceType,
+        Map<String, Object> config
+    ) {
+        String endpoint = config != null ? String.valueOf(config.getOrDefault("endpoint", "")) : "";
+        String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
+        String formatType = (sourceType == null ? "" : sourceType) + DATASET_AGGREGATE_MARKER;
+        return new SchemaCacheKey(
+            pattern == null ? "" : pattern,
+            0L,
+            formatType,
+            buildFormatConfig(config),
+            endpoint,
+            region,
+            contentTokenH1,
+            contentTokenH2
+        );
     }
 
     /**

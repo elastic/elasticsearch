@@ -25,6 +25,8 @@ final class GenericFileList implements FileList {
     private final List<StorageEntry> files;
     private final String originalPattern;
     private final PartitionMetadata partitionMetadata;
+    private final long contentTokenH1;
+    private final long contentTokenH2;
 
     GenericFileList(List<StorageEntry> files, String originalPattern) {
         this(files, originalPattern, null);
@@ -37,6 +39,11 @@ final class GenericFileList implements FileList {
         this.files = files;
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
+        // Computed eagerly, exactly once per listing build: consumers (the dataset-aggregate cache key)
+        // need it O(1) at resolve time, and construction is the one place the entry walk is already paid.
+        long[] token = FileListContentToken.compute(files);
+        this.contentTokenH1 = token[0];
+        this.contentTokenH2 = token[1];
     }
 
     List<StorageEntry> files() {
@@ -82,6 +89,21 @@ final class GenericFileList implements FileList {
     public long estimatedBytes() {
         // 64B object header + ~700B per StorageEntry (path String + Instant + long)
         return 64 + files.size() * 700L;
+    }
+
+    @Override
+    public boolean hasContentToken() {
+        return true;
+    }
+
+    @Override
+    public long contentTokenH1() {
+        return contentTokenH1;
+    }
+
+    @Override
+    public long contentTokenH2() {
+        return contentTokenH2;
     }
 
     @Override

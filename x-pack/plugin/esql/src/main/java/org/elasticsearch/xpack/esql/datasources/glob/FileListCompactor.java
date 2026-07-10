@@ -224,7 +224,9 @@ final class FileListCompactor {
             sharedExt,
             raw.originalPattern(),
             raw.partitionMetadata(),
-            count
+            count,
+            raw.contentTokenH1(),
+            raw.contentTokenH2()
         );
     }
 
@@ -349,7 +351,9 @@ final class FileListCompactor {
             sharedExt,
             raw.originalPattern(),
             raw.partitionMetadata(),
-            count
+            count,
+            raw.contentTokenH1(),
+            raw.contentTokenH2()
         );
     }
 

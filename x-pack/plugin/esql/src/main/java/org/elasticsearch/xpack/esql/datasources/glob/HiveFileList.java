@@ -37,6 +37,13 @@ final class HiveFileList implements FileList {
     @Nullable
     private final PartitionMetadata partitionMetadata;
     private final int fileCount;
+    /**
+     * Content token carried over from the raw list this was compacted from — compaction preserves the
+     * file set exactly and the token is order-independent, so the pass-through value equals what a
+     * recomputation over the compacted representation would produce, without re-materializing paths.
+     */
+    private final long contentTokenH1;
+    private final long contentTokenH2;
 
     HiveFileList(
         String basePath,
@@ -51,7 +58,9 @@ final class HiveFileList implements FileList {
         @Nullable String sharedExtension,
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
-        int fileCount
+        int fileCount,
+        long contentTokenH1,
+        long contentTokenH2
     ) {
         this.basePath = basePath;
         this.partitionColumnNames = partitionColumnNames;
@@ -66,6 +75,23 @@ final class HiveFileList implements FileList {
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
         this.fileCount = fileCount;
+        this.contentTokenH1 = contentTokenH1;
+        this.contentTokenH2 = contentTokenH2;
+    }
+
+    @Override
+    public boolean hasContentToken() {
+        return true;
+    }
+
+    @Override
+    public long contentTokenH1() {
+        return contentTokenH1;
+    }
+
+    @Override
+    public long contentTokenH2() {
+        return contentTokenH2;
     }
 
     private int findGroup(int fileIndex) {

@@ -148,4 +148,32 @@ public interface FileList {
     boolean isEmpty();
 
     long estimatedBytes();
+
+    /**
+     * Whether this listing carries a {@linkplain #contentTokenH1() content token}. {@code false} for the
+     * sentinels and for implementations that do not compute one; callers must check this before consuming
+     * the token lanes (a {@code (0, 0)} token is not a valid identity).
+     */
+    default boolean hasContentToken() {
+        return false;
+    }
+
+    /**
+     * First 64-bit lane of the 128-bit content token identifying the resolved file SET: a commutative
+     * fold over every file's {@code (path, mtime, size)} plus the file count, computed once when the
+     * listing is built. The same set listed in any order yields the same token; any file added, removed,
+     * or modified (mtime or size) yields a different one. This makes the token a content-addressed cache
+     * key for dataset-level derived state (e.g. the warm COUNT(*) aggregate): keys derived from it are
+     * correct-or-miss by construction, with no separate invalidation protocol — and they survive listing
+     * refreshes (the 30s listing TTL) as long as the underlying files are unchanged, because the token
+     * derives from listing CONTENT, not listing object identity.
+     */
+    default long contentTokenH1() {
+        return 0;
+    }
+
+    /** Second 64-bit lane of the content token; see {@link #contentTokenH1()}. */
+    default long contentTokenH2() {
+        return 0;
+    }
 }

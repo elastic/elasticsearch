@@ -24,7 +24,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 /**
- * Decodes remote fetch handles into a doc-location page suitable for {@link org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator}.
+ * Decodes remote fetch handles into a doc-location page suitable for
+ * {@link org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator}.
  * <p>
  * This is a strict one-to-one page mapping: each input page produces exactly one output page, so the operator never
  * accumulates pages. Input pages contain exactly one bytes block with one serialized {@link RemoteFetchHandle} per row.

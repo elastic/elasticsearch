@@ -44,11 +44,6 @@ public final class DeclaredSchemaResolver {
      * Expand a {@code mappings} block into its declared <b>base</b> logical columns, keyed by logical name in
      * declaration order. A property contributes exactly one column ({@code path} is a <em>move</em>: physical =
      * path, or the logical name when unset), so this is a 1:1 physical↔logical mapping.
-     *
-     * <p>A {@code copy_to} target is deliberately NOT expanded here: a copy is materialized as an {@code EVAL
-     * target = <this column>} projected above the external relation (see {@code Analyzer.ResolveExternalRelations}), reusing
-     * the plan's projection/pushdown/cast machinery. Keeping copies out of the read/reconciliation schema is what lets
-     * every format get copy for free and leaves the read path untouched.
      */
     private static LinkedHashMap<String, ColSpec> declaredLogicalColumns(DatasetMapping.Mappings mappings) {
         LinkedHashMap<String, ColSpec> cols = new LinkedHashMap<>();
@@ -63,8 +58,7 @@ public final class DeclaredSchemaResolver {
 
     /**
      * The declared columns as ES|QL attributes, keyed by <b>logical</b> name and in declaration order. Returns an empty
-     * list when there is no {@code mappings} block (an _id/_source-only mappings block contributes no columns). A {@code copy_to} does
-     * not appear here — it is materialized as an {@code EVAL} above the relation, not a base column.
+     * list when there is no {@code mappings} block (an _id-only mappings block contributes no columns).
      */
     public static List<Attribute> declaredAttributes(DatasetMapping mapping) {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
@@ -82,9 +76,8 @@ public final class DeclaredSchemaResolver {
     /**
      * Logical&rarr;physical name map for the columns that declare a {@code path} move (logical name &ne; physical
      * name). Empty when nothing renames. The map is 1:1 (a physical is claimed by at most one logical — validation
-     * enforces it), so its {@link PhysicalNames#inverse} is well-defined. A {@code copy_to} is NOT in this map — it is
-     * an {@code EVAL} above the relation, never a read-path rename. {@link PhysicalNames} uses this at the last-mile
-     * reader-facing boundaries; the reader and {@code ColumnMapping} stay rename-agnostic.
+     * enforces it), so its {@link PhysicalNames#inverse} is well-defined. {@link PhysicalNames} uses this at the
+     * last-mile reader-facing boundaries; the reader and {@code ColumnMapping} stay rename-agnostic.
      */
     public static Map<String, String> renameMap(DatasetMapping mapping) {
         DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
@@ -133,7 +126,7 @@ public final class DeclaredSchemaResolver {
         }
         LinkedHashMap<String, ColSpec> declaredLogicals = declaredLogicalColumns(mappings);
         // physical (file) name -> the declared logical name + type that overrides it. Exactly 1:1: validation rejects
-        // two columns sharing a physical, and a copy_to is an EVAL above the relation, so it never reaches the resolver.
+        // two columns sharing a physical.
         Map<String, String> logicalByPhysical = new LinkedHashMap<>();
         Map<String, DataType> typeByPhysical = new LinkedHashMap<>();
         for (Map.Entry<String, ColSpec> e : declaredLogicals.entrySet()) {

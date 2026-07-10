@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.NullSpliceRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -2534,8 +2535,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * and the diagnostic string cannot drift.
      */
     enum ParallelDispatchMode {
-        /** Reader is a {@link SegmentableFormatReader} over an uncompressed input. */
+        /** Reader is a {@link SegmentableFormatReader} over an uncompressed input whose splitter supports strided probing. */
         SEGMENTABLE_UNCOMPRESSED,
+        /**
+         * Reader is a {@link SegmentableFormatReader} over an uncompressed input whose splitter cannot be probed at
+         * arbitrary offsets (quoted CSV/TSV with embedded newlines). Read the whole file as one sequential stream through
+         * the streaming coordinator so boundaries are found quote-aware in a single pass.
+         */
+        SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL,
         /** Reader wraps a stream-only codec (gzip, zstd); use the streaming-parallel coordinator. */
         STREAM_ONLY_COMPRESSED,
         /** Reader wraps a splittable / indexed codec (bzip2); falls back to single-threaded reads for now. */
@@ -2555,6 +2562,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 return ParallelDispatchMode.SPLITTABLE_OR_INDEXED_COMPRESSED;
             }
             return ParallelDispatchMode.STREAM_ONLY_COMPRESSED;
+        }
+        RecordSplitter splitter = seg.recordSplitter();
+        // A null splitter (only reachable from mocks) keeps the strided default.
+        if (splitter != null && splitter.supportsStridedProbing() == false) {
+            return ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL;
         }
         return ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED;
     }
@@ -2604,6 +2616,92 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     externalSourceMetrics,
                     warningSink
                 );
+            }
+            case SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL -> {
+                SegmentableFormatReader seg = resolveSegmentableReader(reader);
+                RecordSplitter splitter = seg.recordSplitter();
+                // Proven-capable quoted/escaped CSV/TSV: the proven probe and exact walk guarantee every split
+                // boundary is a true record start, so the seekable coordinator reads any range correctly - a
+                // non-leader macro-split range or the whole file alike (leader-aware, baseFileOffset-correct,
+                // absolute _stats coverage). It is also size-aware: a file below twice the reader's minimum
+                // segment size reads single-threaded and a larger one range-macro-splits with a bounded
+                // as-ready queue, so the buffer footprint scales with the open-segment window. The streaming
+                // coordinator below eagerly allocates parallelism-many segment-sized (1 MiB) buffers per file
+                // up front; that is necessary for a sequential-only stream but wastes memory on a seekable
+                // file, and at high parallelism and concurrency it exhausts the heap.
+                if (splitter != null && splitter.supportsProvenProbing()) {
+                    return ParallelParsingCoordinator.parallelRead(
+                        seg,
+                        obj,
+                        cols,
+                        batchSize,
+                        parsingParallelism,
+                        executor,
+                        policy,
+                        recordAlignedMacroSplit,
+                        splitIncludesFileLeader,
+                        perFileReadSchema,
+                        baseFileOffset,
+                        maxConcurrentOpenSegments,
+                        captureSink,
+                        maxRecordBytes,
+                        statsStripeSize,
+                        statsColumnScope,
+                        splitIsFileFinal,
+                        externalSourceMetrics
+                    );
+                }
+                // Bracket multi-value CSV cannot prove a record start at a mid-file offset (bracket depth is
+                // unbounded), so it is never macro-split: discovery gates it to a single whole-file split, read
+                // as one sequential stream through the streaming coordinator, which finds record boundaries
+                // quote-aware in a single pass and parses the resulting chunks in parallel. The stream begins at
+                // the file leader, so chunk 0 carries the header exactly as the streaming path expects.
+                //
+                // A non-leader or mid-file range here has no correct read: its arbitrary start cannot be probed
+                // (an in-quote newline would be misread as a record terminator), so neither this streaming path
+                // nor a single-threaded fallback can read it. The reachable cause is a mixed-version cluster
+                // where an older coordinator that predates whole-file gating produced such a split (FileSplit is
+                // a NamedWriteable). Declining to a single-threaded mid-file read would read mid-file and
+                // silently miscount, so throw instead.
+                if (splitIncludesFileLeader == false || baseFileOffset != 0L || recordAlignedMacroSplit) {
+                    throw new IllegalStateException(
+                        "quoted uncompressed reads must be whole-file splits; got leader="
+                            + splitIncludesFileLeader
+                            + " offset="
+                            + baseFileOffset
+                            + " recordAlignedMacroSplit="
+                            + recordAlignedMacroSplit
+                    );
+                }
+                InputStream raw = obj.newStream();
+                try {
+                    return StreamingParallelParsingCoordinator.parallelRead(
+                        seg,
+                        raw,
+                        obj,
+                        cols,
+                        batchSize,
+                        parsingParallelism,
+                        executor,
+                        policy,
+                        perFileReadSchema,
+                        baseFileOffset,
+                        maxRecordBytes,
+                        captureSink,
+                        statsStripeSize,
+                        statsColumnScope,
+                        new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
+                        streamingSegmentatorAdmission,
+                        producerBlockFactory != null ? producerBlockFactory.breaker() : new NoopCircuitBreaker("streaming-parse")
+                    );
+                } catch (Exception e) {
+                    try {
+                        obj.abortStream(raw);
+                    } catch (IOException abortEx) {
+                        e.addSuppressed(abortEx);
+                    }
+                    throw e;
+                }
             }
             case STREAM_ONLY_COMPRESSED -> {
                 // No open-segment cap here, unlike SEGMENTABLE_UNCOMPRESSED: a compressed file is read as a
@@ -2665,6 +2763,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // the single-threaded path through the CompressionDelegatingFormatReader, which
                 // wraps the StorageObject in a DecompressingStorageObject before reading.
                 CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
+                // Mirror the uncompressed guard: a quoted (non-strided) file cannot be read from an arbitrary
+                // mid-file offset, so a block-aligned or otherwise mid-file split of one has no correct read.
+                // Discovery gates such files to a single whole-file split, so this can only happen with a stale
+                // split from an older coordinator that predates whole-file gating (FileSplit is a
+                // NamedWriteable). Fail loud instead of
+                // dropping to the single-threaded fallback below, which would read mid-file and silently
+                // miscount. A null splitter (mocks) keeps the strided default and takes the normal fallback.
+                SegmentableFormatReader compressedSeg = resolveSegmentableReader(reader);
+                RecordSplitter compressedSplitter = compressedSeg == null ? null : compressedSeg.recordSplitter();
+                boolean midFileSplit = recordAlignedMacroSplit || baseFileOffset != 0L;
+                if (compressedSplitter != null && compressedSplitter.supportsStridedProbing() == false && midFileSplit) {
+                    throw new IllegalStateException(
+                        "quoted compressed reads must be whole-file splits; got codec="
+                            + cdr.codec().name()
+                            + " offset="
+                            + baseFileOffset
+                            + " recordAlignedMacroSplit="
+                            + recordAlignedMacroSplit
+                    );
+                }
                 logger.debug(
                     "falling back to single-threaded read for splittable/indexed codec [{}]: "
                         + "codec-aware parallel decompression not yet wired",
@@ -2684,6 +2802,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         } else if (parsingParallelism > 1) {
             asyncMode = switch (resolveDispatchMode(formatReader)) {
                 case SEGMENTABLE_UNCOMPRESSED -> "parallel-parse(" + parsingParallelism + ")";
+                case SEGMENTABLE_UNCOMPRESSED_SEQUENTIAL -> "quoted-sequential-parse(" + parsingParallelism + ")";
                 case STREAM_ONLY_COMPRESSED -> "streaming-parallel-parse(" + parsingParallelism + ")";
                 // Splittable / indexed compressed paths fall back to single-threaded reads
                 // until codec-aware parallel decompression is wired in openWithParallelism.

@@ -7,13 +7,24 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.Query;
+
+import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * Compute-side configuration handed straight to {@link HighlightOperator}.
- * The planner resolves the user-facing {@code WITH { ... }} options into the primitive values carried here, and the
- * operator builds its Lucene machinery from them. Keeping this record in the compute module (rather than referencing
- * the ES|QL planning-layer options type) means the operator depends only on plain primitives.
+ * <p>
+ * It contains two groups of values:
+ * <ul>
+ *     <li>user-facing highlight options resolved from {@code WITH { ... }}</li>
+ *     <li>execution context ({@link Analyzer}, translated {@link Query}, and target field names) attached during
+ *     planning via {@link #withExecutionContext(Analyzer, Query, List)}</li>
+ * </ul>
+ * Keeping this record in the compute module (rather than referencing the ES|QL planning-layer options type) keeps
+ * operator wiring localized to the compute package.
  *
  * @param wordBoundary       when {@code true} the unified highlighter breaks fragments on word boundaries instead of
  *                           sentences (the {@code boundary_scanner=word} option).
@@ -22,6 +33,9 @@ import java.util.Locale;
  *                           (the {@code order=score} option).
  * @param maxAnalyzedOffset  per-field analysis bound; a negative value means "use the default index setting" in the
  *                           current coordinator-side operator.
+ * @param analyzer           analyzer used to build the per-row memory index and configure the unified highlighter.
+ * @param query              translated Lucene query used for matching and snippet extraction.
+ * @param fieldNames         highlighted field names, in the same order as field evaluators.
  */
 public record HighlightConfig(
     String queryText,
@@ -34,11 +48,76 @@ public record HighlightConfig(
     boolean wordBoundary,
     Locale locale,
     boolean orderByScore,
-    int maxAnalyzedOffset
+    int maxAnalyzedOffset,
+    Analyzer analyzer,
+    Query query,
+    List<String> fieldNames
 ) {
 
     /** Encoder name that escapes HTML markup in the highlighted text; any other value uses the default (no escaping). */
     public static final String HTML_ENCODER = "html";
+
+    public HighlightConfig(
+        String queryText,
+        String preTag,
+        String postTag,
+        String encoder,
+        int numberOfFragments,
+        int fragmentSize,
+        int noMatchSize,
+        boolean wordBoundary,
+        Locale locale,
+        boolean orderByScore,
+        int maxAnalyzedOffset
+    ) {
+        this(
+            queryText,
+            preTag,
+            postTag,
+            encoder,
+            numberOfFragments,
+            fragmentSize,
+            noMatchSize,
+            wordBoundary,
+            locale,
+            orderByScore,
+            maxAnalyzedOffset,
+            null,
+            null,
+            List.of()
+        );
+    }
+
+    public HighlightConfig {
+        fieldNames = List.copyOf(fieldNames);
+    }
+
+    public HighlightConfig withExecutionContext(Analyzer analyzer, Query query, List<String> fieldNames) {
+        return new HighlightConfig(
+            queryText,
+            preTag,
+            postTag,
+            encoder,
+            numberOfFragments,
+            fragmentSize,
+            noMatchSize,
+            wordBoundary,
+            locale,
+            orderByScore,
+            maxAnalyzedOffset,
+            analyzer,
+            query,
+            fieldNames
+        );
+    }
+
+    public Analyzer requiredAnalyzer() {
+        return Objects.requireNonNull(analyzer, "highlight analyzer must be set in execution context");
+    }
+
+    public Query requiredQuery() {
+        return Objects.requireNonNull(query, "highlight query must be set in execution context");
+    }
 
     public String describe() {
         return "query="

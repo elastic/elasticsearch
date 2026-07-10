@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
@@ -150,6 +152,7 @@ import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -1316,10 +1319,23 @@ public class LocalExecutionPlanner {
 
         Expression queryExpr = highlight.query();
         if (queryExpr == null) {
-            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query string");
+            throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query");
         }
-        String queryText = BytesRefs.toString(queryExpr.fold(context.foldCtx));
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
+        Analyzer analyzer = Highlight.DEFAULT_ANALYZER;
+        List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
+
+        String literal = Highlight.queryTextIfLiteral(queryExpr);
+        String queryText;
+        Query query;
+        if (literal != null) {
+            queryText = literal;
+            query = HighlightQueryTranslator.translateLiteral(literal, fieldNames, analyzer);
+        } else {
+            queryText = queryExpr.sourceText();
+            query = HighlightQueryTranslator.translate(queryExpr, fieldNames, analyzer);
+        }
+
         HighlightConfig config = new HighlightConfig(
             queryText,
             options.preTag(),
@@ -1332,17 +1348,17 @@ public class LocalExecutionPlanner {
             options.boundaryScannerLocale(),
             HighlightOptions.ORDER_SCORE.equals(options.order()),
             options.maxAnalyzedOffset()
-        );
+        ).withExecutionContext(analyzer, query, fieldNames);
 
         List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
             .stream()
             .map(field -> EvalMapper.toEvaluator(context.foldCtx(), field, source.layout, context.analysisRegistry()))
             .toList();
 
+        Layout.Builder layoutBuilder = source.layout.builder();
         // Append one keyword column per highlighted field.
         // The generated attributes are appended in the same order as the ON fields,
         // so the operator's appended blocks line up with these layout channels.
-        Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(highlight.generatedFields());
 
         return source.with(new HighlightOperator.Factory(config, fieldEvaluators), layoutBuilder.build());

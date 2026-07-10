@@ -87,7 +87,7 @@ setup:
   - match: {values.2.1: "abcdef"}
 
 ---
-"Test mv max":
+"Test mv_max":
   - requires:
       cluster_features: ["mapper.keyword.mv_max_function_fuse_to_load"]
       reason: "testing mv_max fuse to load"

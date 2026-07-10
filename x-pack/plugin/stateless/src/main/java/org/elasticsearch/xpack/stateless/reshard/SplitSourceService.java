@@ -280,7 +280,7 @@ public class SplitSourceService {
             // relocated. The new target shard instance will repeatedly fail recovery until the current split request completes.
             if (targetPrimaryTerm >= currentSplit.targetPrimaryTerm) {
                 // Cancel current split request as it is likely stale
-                taskManager.cancelTaskAndDescendants(task, "stale split request", false, ActionListener.noop());
+                taskManager.cancelTaskAndDescendants(currentSplit.task, "stale split request", false, ActionListener.noop());
             }
             String message = String.format(
                 Locale.ROOT,

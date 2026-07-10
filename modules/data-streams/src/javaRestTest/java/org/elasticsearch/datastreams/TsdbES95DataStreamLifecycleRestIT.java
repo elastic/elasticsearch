@@ -217,8 +217,7 @@ public class TsdbES95DataStreamLifecycleRestIT extends ESRestTestCase {
                   "index.mode": "time_series",
                   "index.routing_path": ["hostname"],
                   "index.time_series.es95_codec.enabled": %s,
-                  "index.number_of_shards": 1,
-                  "index.number_of_replicas": 0
+                  "index.number_of_shards": 1
                 },
                 "mappings": {
                   "properties": {

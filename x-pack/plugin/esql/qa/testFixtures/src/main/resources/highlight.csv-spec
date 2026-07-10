@@ -1143,3 +1143,228 @@ book_no:keyword | highlight_title:keyword
 2714            | null
 7350            | null
 ;
+
+
+# HIGHLIGHT re-analyzes its ON fields on the coordinator, so it works on fields produced
+# upstream by EVAL, DISSECT, GROK, STATS, ENRICH, LOOKUP JOIN, FORK and FUSE.
+
+# HIGHLIGHT wraps the match in a field built by EVAL CONCAT.
+highlightEvalConcatComputedField
+required_capability: highlight_v4
+
+ROW a = "quick brown", b = "fox jumps"
+| EVAL c = CONCAT(a, " ", b)
+| HIGHLIGHT "fox" ON c
+| KEEP highlight_c
+;
+
+highlight_c:keyword
+quick brown <em>fox</em> jumps
+;
+
+
+# HIGHLIGHT sees the post-EVAL value: TO_LOWER lowercases the text before it is highlighted.
+highlightEvalToLowerComputedField
+required_capability: highlight_v4
+
+ROW t = "The RING Of Power"
+| EVAL c = TO_LOWER(t)
+| HIGHLIGHT "ring" ON c
+| KEEP highlight_c
+;
+
+highlight_c:keyword
+the <em>ring</em> of power
+;
+
+
+# A multivalued field built by EVAL (MV_APPEND) is highlighted value-by-value, order preserved.
+highlightEvalMultivalueComputedField
+required_capability: highlight_v4
+
+ROW a = "fast fox", b = "lazy fox"
+| EVAL c = MV_APPEND(a, b)
+| HIGHLIGHT "fox" ON c
+| KEEP highlight_c
+;
+
+highlight_c:keyword
+[fast <em>fox</em>, lazy <em>fox</em>]
+;
+
+
+# DISSECT extracts a keyword column; HIGHLIGHT then wraps the match in that extracted value.
+highlightDissectExtractedField
+required_capability: highlight_v4
+
+ROW raw = "2024 Sauron Mordor"
+| DISSECT raw "%{yr} %{name} %{place}"
+| HIGHLIGHT "sauron" ON name
+| KEEP highlight_name
+;
+
+highlight_name:keyword
+<em>Sauron</em>
+;
+
+
+# GROK extracts a message column; HIGHLIGHT wraps the match in the extracted text.
+highlightGrokExtractedField
+required_capability: highlight_v4
+
+ROW raw = "id=7 the ring of power"
+| GROK raw "id=%{NUMBER:id} %{GREEDYDATA:msg}"
+| HIGHLIGHT "ring" ON msg
+| KEEP highlight_msg
+;
+
+highlight_msg:keyword
+the <em>ring</em> of power
+;
+
+
+# After MV_EXPAND each value is its own row; HIGHLIGHT runs per row, so the non-matching row is null.
+highlightAfterMvExpand
+required_capability: highlight_v4
+
+ROW tags = ["quick fox", "lazy dog"]
+| MV_EXPAND tags
+| HIGHLIGHT "fox" ON tags
+| KEEP tags, highlight_tags
+| SORT tags
+;
+
+tags:keyword | highlight_tags:keyword
+lazy dog     | null
+quick fox    | quick <em>fox</em>
+;
+
+
+# HIGHLIGHT on a STATS grouping key: the aggregated key column is highlighted like any text value.
+highlightStatsGroupingKey
+required_capability: highlight_v4
+
+FROM books
+| WHERE book_no == "8875"
+| STATS n = COUNT(*) BY a = author.keyword
+| HIGHLIGHT "tolkien" ON a
+| KEEP a, highlight_a, n
+;
+
+a:keyword                 | highlight_a:keyword                 | n:long
+John Ronald Reuel Tolkien | John Ronald Reuel <em>Tolkien</em> | 1
+;
+
+
+# HIGHLIGHT on a VALUES() aggregate: the collected value is re-analyzed and both query terms are wrapped.
+highlightStatsValues
+required_capability: highlight_v4
+required_capability: agg_values
+
+FROM books
+| WHERE book_no == "2714"
+| STATS t = VALUES(title) BY book_no
+| HIGHLIGHT "return king" ON t
+| KEEP book_no, highlight_t
+;
+
+book_no:keyword | highlight_t:keyword
+2714            | <em>Return</em> of the <em>King</em> Being the Third Part of The Lord of the Rings
+;
+
+
+# HIGHLIGHT on a field added by ENRICH: the enriched keyword value is re-analyzed and highlighted.
+highlightAfterEnrich
+required_capability: highlight_v4
+required_capability: enrich_load
+
+ROW client_ip = "172.21.0.5"
+| ENRICH clientip_policy ON client_ip
+| HIGHLIGHT "development" ON env
+| KEEP highlight_env
+;
+
+highlight_env:keyword
+<em>Development</em>
+;
+
+
+# HIGHLIGHT on a field brought in by LOOKUP JOIN: the joined value is highlighted after the join.
+highlightAfterLookupJoin
+required_capability: highlight_v4
+required_capability: join_lookup_v12
+
+ROW language_code = 1
+| LOOKUP JOIN languages_lookup ON language_code
+| HIGHLIGHT "english" ON language_name
+| KEEP highlight_language_name
+;
+
+highlight_language_name:keyword
+<em>English</em>
+;
+
+
+# HIGHLIGHT inside FORK branches: each branch highlights the same field with its own query, keeping outputs independent.
+highlightInsideForkBranch
+required_capability: highlight_v4
+required_capability: fork_v9
+
+FROM books
+| WHERE book_no == "2714"
+| FORK (HIGHLIGHT "return" ON title | KEEP book_no, highlight_title)
+       (HIGHLIGHT "king" ON title | KEEP book_no, highlight_title)
+| KEEP _fork, book_no, highlight_title
+| SORT _fork
+;
+
+_fork:keyword | book_no:keyword | highlight_title:keyword
+fork1         | 2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+fork2         | 2714            | Return of the <em>King</em> Being the Third Part of The Lord of the Rings
+;
+
+
+# HIGHLIGHT after FORK: the merged fork output is highlighted once, wrapping the match in every branch's rows.
+highlightAfterFork
+required_capability: highlight_v4
+required_capability: fork_v9
+
+FROM books
+| WHERE book_no == "2714" OR book_no == "7350"
+| FORK (WHERE book_no == "2714")
+       (WHERE book_no == "7350")
+| HIGHLIGHT "return" ON title
+| KEEP _fork, book_no, highlight_title
+| SORT _fork
+;
+
+_fork:keyword | book_no:keyword | highlight_title:keyword
+fork1         | 2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+fork2         | 7350            | <em>Return</em> of the Shadow
+;
+
+
+# HIGHLIGHT after FUSE: the reciprocal-rank-fused result set is highlighted. Note the sentence-boundary
+# fragmentation on titles with internal periods (e.g. "The J. R. R. Tolkien Audio Collection").
+highlightAfterForkFuse
+required_capability: highlight_v4
+required_capability: fork_v9
+required_capability: fuse_v6
+required_capability: match_operator_colon
+
+FROM books METADATA _score, _id, _index
+| WHERE title:"Tolkien"
+| FORK (SORT _score DESC, book_no | LIMIT 3)
+       (WHERE author:"Tolkien" | SORT _score DESC, book_no | LIMIT 3)
+| FUSE
+| HIGHLIGHT "tolkien" ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+| LIMIT 5
+;
+
+book_no:keyword | highlight_title:keyword
+1463            | Realms of <em>Tolkien</em>: Images of Middle-earth
+2130            | <em>Tolkien</em> Audio Collection
+5335            | Letters of J R R <em>Tolkien</em>
+;

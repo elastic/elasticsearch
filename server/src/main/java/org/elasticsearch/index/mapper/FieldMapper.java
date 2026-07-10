@@ -241,6 +241,17 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Whether this mapper can be driven through the columnar bulk batch-mapping path (see
+     * {@code ShardBatchMapper}), which invokes each mapper once per batch over whole columns rather
+     * than once per document. Defaults to {@code false}; supported mappers override once they
+     * implement the columnar mapping entry point. Field (non-metadata) mappers do not yet support
+     * columnar parsing — only {@link MetadataFieldMapper} subclasses currently override this.
+     */
+    public boolean supportsColumnarParse() {
+        return false;
+    }
+
+    /**
      * Parse the field value using the provided {@link DocumentParserContext}.
      */
     public void parse(DocumentParserContext context) throws IOException {

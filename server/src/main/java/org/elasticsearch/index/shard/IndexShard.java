@@ -94,6 +94,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.GetResult;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -163,7 +164,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
@@ -1142,29 +1142,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Applies a batch of index operations on the primary. Returns null if any operation requires a mapping update,
      * signaling the caller to fall back to the item-by-item path.
      */
-    public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(List<Engine.Index> operations, SourceBatch batch) throws IOException {
+    public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(EngineBatch batch) throws IOException {
         ensureWriteAllowed(Engine.Operation.Origin.PRIMARY);
         final Engine engine = getEngine();
-        return indexBatch(engine, operations, batch);
+        return indexBatch(engine, batch);
     }
 
     /**
      * Applies a batch of index operations on a replica.
      */
-    public List<Engine.IndexResult> applyIndexOperationBatchOnReplica(List<Engine.Index> operations, SourceBatch batch) throws IOException {
+    public List<Engine.IndexResult> applyIndexOperationBatchOnReplica(EngineBatch batch) throws IOException {
         ensureWriteAllowed(Engine.Operation.Origin.REPLICA);
         final Engine engine = getEngine();
-        return indexBatch(engine, operations, batch);
+        return indexBatch(engine, batch);
     }
 
-    private List<Engine.IndexResult> indexBatch(Engine engine, List<Engine.Index> operations, SourceBatch batch) throws IOException {
-        List<Engine.Index> preIndexOps = new ArrayList<>(operations.size());
+    private List<Engine.IndexResult> indexBatch(Engine engine, EngineBatch batch) throws IOException {
+        List<Engine.Index> preIndexOps = new ArrayList<>(batch.operations().size());
         // TODO: Right now the only production users are stats. Should add batch listener.
-        for (Engine.Index op : operations) {
+        for (Engine.Index op : batch.operations()) {
             preIndexOps.add(indexingOperationListeners.preIndex(shardId, op));
         }
+        final EngineBatch preIndexBatch = new EngineBatch(preIndexOps, batch.sourceBatch(), batch.columnBatch(), batch.mappingContext());
         try {
-            List<Engine.IndexResult> results = engine.indexBatch(preIndexOps, batch);
+            List<Engine.IndexResult> results = engine.indexBatch(preIndexBatch);
             // TODO: Look at if these can be batch optimized
             for (int i = 0; i < results.size(); i++) {
                 indexingOperationListeners.postIndex(shardId, preIndexOps.get(i), results.get(i));

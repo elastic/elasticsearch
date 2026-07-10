@@ -287,6 +287,14 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         return NAME;
     }
 
+    @Override
+    public boolean supportsColumnarParse() {
+        // postParse is a genuine no-op when disabled (the common case for non-data-stream indices).
+        // The enabled case validates @timestamp against the index's time bounds, which requires
+        // reading the value a columnar @timestamp field mapper recorded — not yet supported.
+        return enabled == false;
+    }
+
     public boolean isEnabled() {
         return enabled;
     }

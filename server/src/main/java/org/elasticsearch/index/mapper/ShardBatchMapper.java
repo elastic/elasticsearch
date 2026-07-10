@@ -12,27 +12,22 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.eirf.EirfRowToXContent;
-import org.elasticsearch.eirf.EirfRowXContentParser;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.SourceBatch;
-import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Batch-time mapper resolution and per-row field parsing for the bulk batch-indexing fast path.
+ * Batch-time mapper resolution and columnar batch mapping for the bulk batch-indexing fast path.
  *
  * <p>Workflow:
  * <ol>
@@ -42,12 +37,19 @@ import java.util.List;
  *     outside the v1 support matrix — runtime fields, index-time scripts, dynamic mapping,
  *     unsupported mapper types, etc. — causes the method to return {@code null}, at which point
  *     {@link ShardBatchIndexer} falls back to the sequential path.</li>
- *     <li>{@link #parseMappings(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution)}
- *     runs per chunk. For each row it drives the pre-resolved mappers through their
- *     {@link FieldMapper#parse(org.elasticsearch.index.mapper.DocumentParserContext)} entry point
- *     using {@link EirfRowXContentParser#positionAtLeafValue(int)} as the value source, and
- *     assembles {@link Engine.Index} operations.</li>
+ *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution)}
+ *     runs per chunk. It invokes each metadata mapper once for the whole chunk — see
+ *     {@link MetadataFieldMapper#preColumnarParse} / {@link MetadataFieldMapper#postColumnarParse} —
+ *     attaching one Lucene column per batch-wide value (id, source, engine-assigned seq-no/version,
+ *     ...) via {@link BatchMappingContext}, and assembles {@link Engine.Index} operations plus the
+ *     resulting {@link EngineBatch}.</li>
  * </ol>
+ *
+ * <p><b>First-pass scope:</b> only metadata mappers support columnar parsing so far (see
+ * {@link FieldMapper#supportsColumnarParse()} overrides). Field (non-metadata) mappers do not yet,
+ * so {@link #mapColumnBatch} only fully engages for chunks whose schema has no leaves at all (every
+ * document in the chunk has an empty {@code {}} body) — any chunk with real field data falls back to
+ * the sequential path, same as an unsupported mapper or dynamic mapping update.
  */
 public final class ShardBatchMapper {
 
@@ -110,7 +112,7 @@ public final class ShardBatchMapper {
             final FieldMapper fieldMapper = (FieldMapper) resolved;
 
             if (fieldMapper.supportsBatchIndexing() == false) {
-                logger.debug(
+                logger.info(
                     "batch indexing disabled: mapper at [{}] of type [{}] does not support batch indexing",
                     fullPath,
                     fieldMapper.typeName()
@@ -147,136 +149,98 @@ public final class ShardBatchMapper {
     }
 
     /**
-     * Parse one chunk of rows into {@link Engine.Index} operations, driving each pre-resolved
-     * mapper through its normal {@link FieldMapper#parse} entry point with an
-     * {@link EirfRowXContentParser} positioned at the leaf's value. Returns {@code null} if any
-     * unexpected condition is hit; the caller will then fall back to the sequential path.
+     * Attempts the columnar batch-mapping fast path for one chunk. Returns {@code null} (the
+     * fallback signal — same contract as {@link #resolveMappers}) if any resolved field mapper or
+     * any sorted metadata mapper does not support columnar parsing, or if mapping hits an
+     * unexpected exception.
      */
-    public static List<Engine.Index> parseMappings(
+    public static EngineBatch mapColumnBatch(
         BulkItemRequest[] items,
         SourceBatch batch,
         IndexShard primary,
-        int chunkEnd,
         int chunkStart,
+        int chunkEnd,
         BatchMapperResolution resolution
-    ) throws IOException {
-        final List<Engine.Index> operations = new ArrayList<>(chunkEnd - chunkStart);
-        final SourceSchema schema = batch.schema();
+    ) {
+        for (FieldMapper mapper : resolution.columnMappers()) {
+            if (mapper != null && mapper.supportsColumnarParse() == false) {
+                logger.debug("columnar batch mapping disabled: mapper of type [{}] does not support columnar parsing", mapper.typeName());
+                return null;
+            }
+        }
+
         final MappingLookup mappingLookup = primary.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
-        // The schema tree is required by the EirfRowXContentParser constructor but is not used
-        // along the per-leaf positioning path; built once per chunk.
-        final EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(schema);
-        final FieldMapper[] columnMappers = resolution.columnMappers();
-
-        for (int i = chunkStart; i < chunkEnd; i++) {
-            final IndexRequest indexRequest = (IndexRequest) items[i].request();
-            final SourceRow row = batch.row(i);
-            final EirfRowXContentParser rowParser = new EirfRowXContentParser(schemaTree, row);
-
-            final XContentType xContentType = indexRequest.getContentType() != null ? indexRequest.getContentType() : XContentType.JSON;
-            // TODO: Right now we materialize a source back to avoid breaking translog assertions. We should fix the translog assertions
-            // and move to just materializing the original x-content source for stored source mapping
-            final BytesReference source = rowToSource(row, schema, xContentType);
-            // TODO: Metering and getIncludeSourceOnError currently do not work with EIRF parsing
-            final SourceToParse sourceToParse = new SourceToParse(
-                indexRequest.id(),
-                source,
-                xContentType,
-                indexRequest.routing(),
-                indexRequest.getDynamicTemplates(),
-                indexRequest.getDynamicTemplateParams(),
-                indexRequest.getIncludeSourceOnError(),
-                XContentMeteringParserDecorator.NOOP,
-                indexRequest.tsid()
-            );
-
-            final ParsedDocument parsedDoc;
-            try {
-                parsedDoc = parseRow(
-                    sourceToParse,
-                    mappingLookup,
-                    metadataMappers,
-                    rowParser,
-                    columnMappers,
-                    primary.mapperService().parserContext()
+        for (MetadataFieldMapper mapper : metadataMappers) {
+            if (mapper.supportsColumnarParse() == false) {
+                logger.debug(
+                    "columnar batch mapping disabled: metadata mapper of type [{}] does not support columnar parsing",
+                    mapper.typeName()
                 );
-            } catch (Exception e) {
-                logger.warn("batch indexing on primary failed to parse row [{}], falling back", i, e);
                 return null;
             }
-            if (parsedDoc.dynamicMappingsUpdate() != null) {
-                // Should not happen given resolve-time guards; defense in depth.
-                logger.debug("batch indexing on primary encountered unexpected dynamic mapping update at item [{}], falling back", i);
-                return null;
-            }
+        }
 
+        final int docCount = chunkEnd - chunkStart;
+        final IndexRequest[] requests = new IndexRequest[docCount];
+        for (int d = 0; d < docCount; d++) {
+            requests[d] = (IndexRequest) items[chunkStart + d].request();
+        }
+        final BatchMappingContext context = new BatchMappingContext(requests, mappingLookup, primary.indexSettings());
+
+        try {
+            for (MetadataFieldMapper metadataMapper : metadataMappers) {
+                metadataMapper.preColumnarParse(context);
+            }
+            // No field (non-metadata) mappers run yet — see class javadoc. Once one supports
+            // columnar parsing it is invoked here, once per batch, over resolution.columnMappers().
+            for (MetadataFieldMapper metadataMapper : metadataMappers) {
+                metadataMapper.postColumnarParse(context);
+            }
+        } catch (Exception e) {
+            logger.warn("columnar batch mapping failed, falling back", e);
+            return null;
+        }
+
+        final List<Engine.Index> operations = new ArrayList<>(docCount);
+        // Placeholder: the real _seq_no/_primary_term/_version values live in the columns the
+        // engine fills post-mapping (see BatchMappingContext#seqNoArray et al.); this LuceneDocument
+        // is otherwise empty this pass since no field mapper has added anything to it.
+        final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
+            primary.indexSettings().seqNoIndexOptions()
+        );
+        for (int d = 0; d < docCount; d++) {
+            final IndexRequest request = requests[d];
+            final XContentType xContentType = request.getContentType() != null ? request.getContentType() : XContentType.JSON;
+            final ParsedDocument parsedDoc = new ParsedDocument(
+                VersionFieldMapper.versionField(),
+                seqID,
+                request.id(),
+                request.routing(),
+                List.of(new LuceneDocument()),
+                request.source(),
+                xContentType,
+                null,
+                XContentMeteringParserDecorator.UNKNOWN_SIZE
+            );
             operations.add(
                 new Engine.Index(
                     Uid.encodeId(parsedDoc.id()),
                     parsedDoc,
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
                     primary.getOperationPrimaryTerm(),
-                    indexRequest.version(),
-                    indexRequest.versionType(),
+                    request.version(),
+                    request.versionType(),
                     Engine.Operation.Origin.PRIMARY,
                     primary.getRelativeTimeInNanos(),
-                    indexRequest.getAutoGeneratedTimestamp(),
-                    indexRequest.isRetry(),
-                    indexRequest.ifSeqNo(),
-                    indexRequest.ifPrimaryTerm()
+                    request.getAutoGeneratedTimestamp(),
+                    request.isRetry(),
+                    request.ifSeqNo(),
+                    request.ifPrimaryTerm()
                 )
             );
         }
-        return operations;
-    }
 
-    private static ParsedDocument parseRow(
-        SourceToParse sourceToParse,
-        MappingLookup mappingLookup,
-        MetadataFieldMapper[] metadataMappers,
-        EirfRowXContentParser rowParser,
-        FieldMapper[] columnMappers,
-        MappingParserContext mappingParserContext
-    ) throws IOException {
-        final BatchDocumentParserContext ctx = new BatchDocumentParserContext(mappingLookup, mappingParserContext, sourceToParse);
-
-        for (MetadataFieldMapper metadataMapper : metadataMappers) {
-            metadataMapper.preParse(ctx);
-        }
-
-        for (int leaf = 0; leaf < columnMappers.length; leaf++) {
-            final FieldMapper mapper = columnMappers[leaf];
-            if (mapper == null) {
-                continue;
-            }
-            rowParser.positionAtLeafValue(leaf);
-            ctx.setParser(rowParser);
-            mapper.parse(ctx);
-        }
-        ctx.setParser(null);
-
-        for (MetadataFieldMapper metadataMapper : metadataMappers) {
-            metadataMapper.postParse(ctx);
-        }
-
-        final LuceneDocument doc = ctx.rootDoc();
-        return new ParsedDocument(
-            ctx.version(),
-            ctx.seqID(),
-            ctx.id(),
-            sourceToParse.routing(),
-            List.of(doc),
-            sourceToParse.source(),
-            null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
-        );
-    }
-
-    private static BytesReference rowToSource(SourceRow row, SourceSchema schema, XContentType xContentType) throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            EirfRowToXContent.writeRow(row, schema, builder);
-            return BytesReference.bytes(builder);
-        }
+        return new EngineBatch(operations, batch.slice(chunkStart, chunkEnd), context, context);
     }
 }

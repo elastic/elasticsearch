@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.eirf.EirfRowXContentParser;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -127,15 +128,12 @@ public final class ShardBatchIndexer {
 
         for (int chunkStart = 0; chunkStart < items.length; chunkStart += BATCH_CHUNK_SIZE) {
             final int chunkEnd = Math.min(chunkStart + BATCH_CHUNK_SIZE, items.length);
-            final List<Engine.Index> operations = ShardBatchMapper.parseMappings(items, batch, primary, chunkEnd, chunkStart, resolution);
-            if (operations == null) {
+            final EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(items, batch, primary, chunkStart, chunkEnd, resolution);
+            if (engineBatch == null) {
                 return;
             }
 
-            // The chunk's operations map 1:1 to the rows [chunkStart, chunkEnd); pass the matching slice so the
-            // engine can write them as a single Translog.IndexBatch record.
-            final SourceBatch chunkBatch = batch.slice(chunkStart, chunkEnd);
-            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(operations, chunkBatch);
+            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(engineBatch);
 
             for (Engine.IndexResult result : results) {
                 assert context.hasMoreOperationsToExecute();
@@ -223,9 +221,12 @@ public final class ShardBatchIndexer {
 
             if (operations.isEmpty() == false) {
                 // operations are the contiguous run [chunkStart, chunkStart + operations.size()); pass the matching slice
-                // so the engine writes them as a single Translog.IndexBatch record.
+                // so the engine writes them as a single Translog.IndexBatch record. These operations were built via the
+                // traditional per-document parser (above), not the columnar mapping path, so there is no real
+                // ColumnBatchProvider/BatchMappingContext to offer — the engine falls back to per-operation indexing.
                 final SourceBatch chunkBatch = batch.slice(chunkStart, chunkStart + operations.size());
-                final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(operations, chunkBatch);
+                final EngineBatch engineBatch = new EngineBatch(operations, chunkBatch, null, null);
+                final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(engineBatch);
                 for (Engine.IndexResult result : results) {
                     if (result.getFailure() != null) {
                         throw result.getFailure();

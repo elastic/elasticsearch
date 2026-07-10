@@ -10,8 +10,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -393,6 +396,49 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             targetDoc.add(new StringField(fieldType().name(), routing, Field.Store.YES));
             context.addToFieldNames(fieldType().name());
         }
+    }
+
+    // Mirrors the non-doc-values branch of addRoutingField: indexed (DOCS), not tokenized, stored.
+    private static final IndexableFieldType ROUTING_COLUMN_FIELD_TYPE = buildRoutingColumnFieldType();
+
+    private static IndexableFieldType buildRoutingColumnFieldType() {
+        FieldType ft = new FieldType();
+        ft.setIndexOptions(IndexOptions.DOCS);
+        ft.setTokenized(false);
+        ft.setOmitNorms(true);
+        ft.setStored(true);
+        ft.freeze();
+        return ft;
+    }
+
+    @Override
+    public boolean supportsColumnarParse() {
+        // The doc-values (sorted, skip-index) routing storage mode is only used for sliced/strict-
+        // columnar index configs; that Lucene column shape is not yet ported here, so those indices
+        // fall back for now. The default (stored + indexed) mode is fully supported.
+        return docValues == false;
+    }
+
+    @Override
+    public void preColumnarParse(BatchMappingContext context) {
+        final int docCount = context.docCount();
+        final BytesRef[] routings = new BytesRef[docCount];
+        boolean any = false;
+        for (int d = 0; d < docCount; d++) {
+            final String routing = context.routing(d);
+            if (routing != null) {
+                routings[d] = new BytesRef(routing);
+                any = true;
+            }
+        }
+        if (any == false) {
+            return;
+        }
+        // TODO(columnar): the row path also calls context.addToFieldNames(NAME) here so _routing
+        // participates in _field_names-based exists queries; the columnar path has no _field_names
+        // column plumbing yet. Narrow, documented gap — does not affect indices that never set an
+        // explicit routing value.
+        context.addColumn(LuceneColumns.arrayBinaryColumn(routings, fieldType().name(), ROUTING_COLUMN_FIELD_TYPE));
     }
 
     @Override

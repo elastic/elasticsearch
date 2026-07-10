@@ -234,6 +234,18 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         );
     }
 
+    @Override
+    public boolean supportsColumnarParse() {
+        return true;
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) {
+        // No-op this pass: per-field ignored source is only ever produced by field (non-metadata)
+        // mappers recording an ignored value, and none support columnar parsing yet — there is
+        // nothing to write. See IgnoredFieldMapper#postColumnarParse for the analogous gap.
+    }
+
     // In rare cases decoding values stored in this field can fail leading to entire source
     // not being available.
     // We would like to have an option to lose some values in synthetic source

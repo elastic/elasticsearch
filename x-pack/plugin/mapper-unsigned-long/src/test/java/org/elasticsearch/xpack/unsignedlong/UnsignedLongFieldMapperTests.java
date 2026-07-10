@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.action.bulk.BulkItemRequest;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -17,11 +15,9 @@ import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowBuilder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -33,7 +29,6 @@ import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.WholeNumberFieldMapperTests;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -55,8 +50,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
@@ -591,41 +584,44 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         }
     }
 
-    public void testBatchParseEncodesValue() throws IOException {
-        // Max unsigned long string → encoded as Long.MAX_VALUE in the sortable signed-long form
-        // used by doc values; max signed long → encoded as -1.
-        MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "unsigned_long")));
-        BulkItemRequest[] items = {
-            new BulkItemRequest(0, new IndexRequest("idx").id("1")),
-            new BulkItemRequest(1, new IndexRequest("idx").id("2")) };
-        try (EirfRowBuilder builder = new EirfRowBuilder()) {
-            builder.startDocument();
-            builder.setString("field", "18446744073709551615"); // 2^64 - 1
-            builder.endDocument();
-            builder.startDocument();
-            builder.setString("field", "9223372036854775807"); // 2^63 - 1
-            builder.endDocument();
-            try (EirfBatch batch = builder.build()) {
-                List<Engine.Index> ops = parseBatch(ms, batch, items);
-                assertThat(ops.get(0).parsedDoc().rootDoc().getField("field").numericValue().longValue(), equalTo(Long.MAX_VALUE));
-                assertThat(ops.get(1).parsedDoc().rootDoc().getField("field").numericValue().longValue(), equalTo(-1L));
-            }
-        }
-    }
-
-    public void testBatchParseIgnoreMalformed() throws IOException {
-        MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "unsigned_long").field("ignore_malformed", true)));
-        BulkItemRequest[] items = { new BulkItemRequest(0, new IndexRequest("idx").id("1")) };
-        try (EirfBatch batch = singleStringRowBatch("field", "not-a-number")) {
-            List<Engine.Index> ops = parseBatch(ms, batch, items);
-            LuceneDocument doc = ops.get(0).parsedDoc().rootDoc();
-            assertThat(doc.getFields("field"), empty());
-            assertTrue(
-                "ignore_malformed should record the field name in _ignored",
-                doc.getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue()))
-            );
-        }
-    }
+    // TODO(columnar): ShardBatchMapper.parseMappings (row-major field parsing) was replaced by the
+    // columnar batch-mapping path (mapColumnBatch), which only metadata mappers support so far.
+    // Re-enable once UnsignedLongFieldMapper supports columnar parsing.
+    // public void testBatchParseEncodesValue() throws IOException {
+    // // Max unsigned long string → encoded as Long.MAX_VALUE in the sortable signed-long form
+    // // used by doc values; max signed long → encoded as -1.
+    // MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "unsigned_long")));
+    // BulkItemRequest[] items = {
+    // new BulkItemRequest(0, new IndexRequest("idx").id("1")),
+    // new BulkItemRequest(1, new IndexRequest("idx").id("2")) };
+    // try (EirfRowBuilder builder = new EirfRowBuilder()) {
+    // builder.startDocument();
+    // builder.setString("field", "18446744073709551615"); // 2^64 - 1
+    // builder.endDocument();
+    // builder.startDocument();
+    // builder.setString("field", "9223372036854775807"); // 2^63 - 1
+    // builder.endDocument();
+    // try (EirfBatch batch = builder.build()) {
+    // List<Engine.Index> ops = parseBatch(ms, batch, items);
+    // assertThat(ops.get(0).parsedDoc().rootDoc().getField("field").numericValue().longValue(), equalTo(Long.MAX_VALUE));
+    // assertThat(ops.get(1).parsedDoc().rootDoc().getField("field").numericValue().longValue(), equalTo(-1L));
+    // }
+    // }
+    // }
+    //
+    // public void testBatchParseIgnoreMalformed() throws IOException {
+    // MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "unsigned_long").field("ignore_malformed", true)));
+    // BulkItemRequest[] items = { new BulkItemRequest(0, new IndexRequest("idx").id("1")) };
+    // try (EirfBatch batch = singleStringRowBatch("field", "not-a-number")) {
+    // List<Engine.Index> ops = parseBatch(ms, batch, items);
+    // LuceneDocument doc = ops.get(0).parsedDoc().rootDoc();
+    // assertThat(doc.getFields("field"), empty());
+    // assertTrue(
+    // "ignore_malformed should record the field name in _ignored",
+    // doc.getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue()))
+    // );
+    // }
+    // }
 
     private static EirfBatch singleStringRowBatch(String field, String value) {
         try (EirfRowBuilder builder = new EirfRowBuilder()) {
@@ -636,16 +632,18 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         }
     }
 
-    private static List<Engine.Index> parseBatch(MapperService ms, EirfBatch batch, BulkItemRequest[] items) throws IOException {
-        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), ms.mappingLookup());
-        assertNotNull("expected batch path to support this mapping", resolution);
-        IndexShard primary = mock(IndexShard.class);
-        when(primary.mapperService()).thenReturn(ms);
-        when(primary.getOperationPrimaryTerm()).thenReturn(1L);
-        when(primary.getRelativeTimeInNanos()).thenReturn(0L);
-        List<Engine.Index> ops = ShardBatchMapper.parseMappings(items, batch, primary, items.length, 0, resolution);
-        assertNotNull("parseMappings returned null (fallback signal)", ops);
-        assertThat(ops, hasSize(items.length));
-        return ops;
-    }
+    // TODO(columnar): unused now that the row-major parse tests above are disabled; re-enable
+    // alongside them once UnsignedLongFieldMapper supports columnar parsing.
+    // private static List<Engine.Index> parseBatch(MapperService ms, EirfBatch batch, BulkItemRequest[] items) throws IOException {
+    // BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), ms.mappingLookup());
+    // assertNotNull("expected batch path to support this mapping", resolution);
+    // IndexShard primary = mock(IndexShard.class);
+    // when(primary.mapperService()).thenReturn(ms);
+    // when(primary.getOperationPrimaryTerm()).thenReturn(1L);
+    // when(primary.getRelativeTimeInNanos()).thenReturn(0L);
+    // List<Engine.Index> ops = ShardBatchMapper.parseMappings(items, batch, primary, items.length, 0, resolution);
+    // assertNotNull("parseMappings returned null (fallback signal)", ops);
+    // assertThat(ops, hasSize(items.length));
+    // return ops;
+    // }
 }

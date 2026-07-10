@@ -261,6 +261,28 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         // do nothing
     }
 
+    /**
+     * Called once per batch, before any columnar field mapping, on the columnar bulk batch-mapping
+     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse()}
+     * returns {@code true}; mirrors the role of {@link #preParse} in the row-major path, but reads
+     * per-document values off {@link BatchMappingContext} and attaches a Lucene column spanning the
+     * whole batch via {@link BatchMappingContext#addColumn} rather than adding a per-document
+     * {@link org.apache.lucene.document.Field}. Defaults to a no-op.
+     */
+    public void preColumnarParse(BatchMappingContext context) throws IOException {
+        // do nothing
+    }
+
+    /**
+     * Called once per batch, after all columnar field mapping, on the columnar bulk batch-mapping
+     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse()}
+     * returns {@code true}; mirrors the role of {@link #postParse} in the row-major path. Defaults
+     * to a no-op.
+     */
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        // do nothing
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);

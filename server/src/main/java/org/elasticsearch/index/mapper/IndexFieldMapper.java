@@ -162,4 +162,10 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
+    // No preParse/postParse override — nothing to port for the columnar path either.
+    @Override
+    public boolean supportsColumnarParse() {
+        return true;
+    }
 }

@@ -142,4 +142,18 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
+    @Override
+    public boolean supportsColumnarParse() {
+        return true;
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) {
+        // No-op this pass: only field (non-metadata) mappers add ignored-field names
+        // (DocumentParserContext#addIgnoredField), and none support columnar parsing yet, so there
+        // is never anything to emit here. Once a columnar field mapper can record an ignored field
+        // per document, this needs a per-document "ignored field names" column analogous to the
+        // row path's per-doc SortedSetDocValuesField/StringField(NAME, ignoredField) entries.
+    }
 }

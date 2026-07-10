@@ -110,6 +110,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.sourcebatch.ColumnBatchProvider;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1367,9 +1368,10 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
-        assert operations.size() == batch.docCount()
-            : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
+    public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
+        final List<Index> operations = engineBatch.operations();
+        assert operations.size() == engineBatch.sourceBatch().docCount()
+            : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + engineBatch.sourceBatch().docCount() + "]";
         try (var ignored = acquireEnsureOpenRef()) {
             // If the first operation is recovery they are all recovery
             boolean isRecovery = operations.getFirst().origin().isRecovery();
@@ -1399,7 +1401,7 @@ public class InternalEngine extends Engine {
                     }
 
                     assert assertNoDuplicateUidsInSubBatch(operations, idx, subBatchCount);
-                    processSubBatch(operations, idx, subBatchCount, batch, allResults);
+                    processSubBatch(operations, idx, subBatchCount, engineBatch, allResults);
                 } catch (RuntimeException | IOException e) {
                     failOnTragicEvent(idx, subBatchCount, operations, e);
                     throw e;
@@ -1447,8 +1449,32 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void processSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize, SourceBatch batch, IndexResult[] allResults)
-        throws IOException {
+    /**
+     * Whether every operation in this sub-batch is a clean, append-only Lucene write with no early
+     * result already set — the precondition for handing the whole sub-batch to
+     * {@code IndexWriter#addBatch} in one call instead of looping {@link #indexIntoLucene}.
+     */
+    private static boolean isColumnBatchEligible(IndexingStrategy[] plans, IndexResult[] allResults, int subBatchIdx, int subBatchSize) {
+        for (int i = 0; i < subBatchSize; i++) {
+            if (allResults[subBatchIdx + i] != null) {
+                return false; // early (e.g. preflight failure) result already set
+            }
+            final IndexingStrategy plan = plans[i];
+            if (plan.indexIntoLucene == false || plan.useLuceneUpdateDocument || plan.addStaleOpToLucene) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void processSubBatch(
+        List<Index> operations,
+        int subBatchIdx,
+        int subBatchSize,
+        EngineBatch engineBatch,
+        IndexResult[] allResults
+    ) throws IOException {
+        final SourceBatch batch = engineBatch.sourceBatch();
         final boolean fromTranslog = operations.getFirst().origin().isFromTranslog();
         assert assertNoMixedRecoveryOperations(operations);
         final Index[] subBatchOps = new Index[subBatchSize];
@@ -1556,26 +1582,53 @@ public class InternalEngine extends Engine {
             }
 
             // Lucene
-            for (int i = 0; i < subBatchSize; i++) {
-                int originalIdx = subBatchIdx + i;
-                if (allResults[originalIdx] != null) {
-                    // early result already set
-                    continue;
+            final ColumnBatchProvider columnProvider = engineBatch.columnBatch();
+            final boolean useColumnBatch = columnProvider != null
+                && subBatchIdx == 0
+                && subBatchSize == columnProvider.docCount()
+                && isColumnBatchEligible(plans, allResults, subBatchIdx, subBatchSize);
+            if (useColumnBatch) {
+                for (int i = 0; i < subBatchSize; i++) {
+                    Index op = subBatchOps[i];
+                    IndexingStrategy plan = plans[i];
+                    columnProvider.setSeqNo(i, op.seqNo());
+                    columnProvider.setPrimaryTerm(i, op.primaryTerm());
+                    columnProvider.setVersion(i, plan.versionForIndexing);
                 }
-                IndexingStrategy plan = plans[i];
-                Index op = subBatchOps[i];
-
-                if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
-                    // TODO: Should be able to optimize batch adds of append-only documents
-                    allResults[originalIdx] = indexIntoLucene(op, plan);
-                } else {
-                    allResults[originalIdx] = new IndexResult(
+                indexWriter.addBatch(columnProvider.columnBatch(0, subBatchSize));
+                for (int i = 0; i < subBatchSize; i++) {
+                    Index op = subBatchOps[i];
+                    IndexingStrategy plan = plans[i];
+                    allResults[subBatchIdx + i] = new IndexResult(
                         plan.versionForIndexing,
                         op.primaryTerm(),
                         op.seqNo(),
                         plan.currentNotFoundOrDeleted,
                         op.id()
                     );
+                }
+            } else {
+                for (int i = 0; i < subBatchSize; i++) {
+                    int originalIdx = subBatchIdx + i;
+                    if (allResults[originalIdx] != null) {
+                        // early result already set
+                        continue;
+                    }
+                    IndexingStrategy plan = plans[i];
+                    Index op = subBatchOps[i];
+
+                    if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
+                        // TODO: Should be able to optimize batch adds of append-only documents
+                        allResults[originalIdx] = indexIntoLucene(op, plan);
+                    } else {
+                        allResults[originalIdx] = new IndexResult(
+                            plan.versionForIndexing,
+                            op.primaryTerm(),
+                            op.seqNo(),
+                            plan.currentNotFoundOrDeleted,
+                            op.id()
+                        );
+                    }
                 }
             }
 

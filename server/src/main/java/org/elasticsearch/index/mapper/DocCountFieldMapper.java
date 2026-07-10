@@ -131,6 +131,12 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    // No preParse/postParse override — nothing to port for the columnar path either.
+    @Override
+    public boolean supportsColumnarParse() {
+        return true;
+    }
+
     /**
      * Creates a doc count field using numeric doc values (new format).
      */

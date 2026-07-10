@@ -10,7 +10,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -107,5 +111,29 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    private static final IndexableFieldType VERSION_COLUMN_FIELD_TYPE = buildVersionColumnFieldType();
+
+    private static IndexableFieldType buildVersionColumnFieldType() {
+        FieldType ft = new FieldType();
+        ft.setDocValuesType(DocValuesType.NUMERIC);
+        ft.freeze();
+        return ft;
+    }
+
+    @Override
+    public boolean supportsColumnarParse() {
+        return true;
+    }
+
+    @Override
+    public void preColumnarParse(BatchMappingContext context) {
+        // Engine-assigned: register an array-backed column over the context's mutable version
+        // array; the engine fills the real per-document value (see InternalEngine) after mapping,
+        // just before requesting the ColumnBatch.
+        context.addColumn(
+            LuceneColumns.arrayLongColumn(context.versionArray(), NAME, VERSION_COLUMN_FIELD_TYPE, LongColumn.NumericKind.LONG)
+        );
     }
 }

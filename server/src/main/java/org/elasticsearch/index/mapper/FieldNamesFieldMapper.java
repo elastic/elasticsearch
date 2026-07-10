@@ -190,4 +190,12 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
+    // No preParse/postParse override — _field_names is populated via addToFieldNames calls from
+    // other mappers, which the columnar path does not yet wire up (see e.g.
+    // RoutingFieldMapper#preColumnarParse). Nothing for this mapper itself to port.
+    @Override
+    public boolean supportsColumnarParse() {
+        return true;
+    }
 }

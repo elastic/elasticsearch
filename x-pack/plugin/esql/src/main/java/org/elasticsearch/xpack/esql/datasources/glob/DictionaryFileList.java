@@ -39,8 +39,7 @@ final class DictionaryFileList implements FileList {
      * file set exactly and the token is order-independent, so the pass-through value equals what a
      * recomputation over the compacted representation would produce, without re-materializing paths.
      */
-    private final long contentTokenH1;
-    private final long contentTokenH2;
+    private final ContentToken contentToken;
 
     DictionaryFileList(
         String basePath,
@@ -53,8 +52,7 @@ final class DictionaryFileList implements FileList {
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
         int fileCount,
-        long contentTokenH1,
-        long contentTokenH2
+        ContentToken contentToken
     ) {
         this.basePath = basePath;
         this.tokens = tokens;
@@ -66,23 +64,12 @@ final class DictionaryFileList implements FileList {
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
         this.fileCount = fileCount;
-        this.contentTokenH1 = contentTokenH1;
-        this.contentTokenH2 = contentTokenH2;
+        this.contentToken = contentToken;
     }
 
     @Override
-    public boolean hasContentToken() {
-        return true;
-    }
-
-    @Override
-    public long contentTokenH1() {
-        return contentTokenH1;
-    }
-
-    @Override
-    public long contentTokenH2() {
-        return contentTokenH2;
+    public ContentToken contentToken() {
+        return contentToken;
     }
 
     @Override

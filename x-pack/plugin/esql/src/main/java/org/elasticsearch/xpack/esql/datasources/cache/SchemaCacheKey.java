@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.glob.ContentToken;
+
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -16,11 +19,10 @@ import java.util.TreeMap;
  * Endpoint and region are included because the same canonical path on different
  * endpoints resolves to different objects.
  * <p>
- * {@code datasetTokenH1}/{@code datasetTokenH2} carry the 128-bit listing content token of a
- * dataset-level aggregate key (see {@link #forDatasetAggregate}); they are {@code 0} for every
- * per-file key. Named components rather than smuggling the lanes into the mtime/path slots —
- * mirrors the {@code ListingCacheKey} credential-hash precedent (two named {@code long} lanes),
- * and record equality/hashCode pick them up automatically.
+ * {@code datasetToken} carries the 128-bit listing content token of a dataset-level aggregate key
+ * (see {@link #forDatasetAggregate}); it is {@code null} for every per-file key. A named component
+ * rather than smuggling the token into the mtime/path slots — record equality/hashCode pick it up
+ * automatically.
  */
 public record SchemaCacheKey(
     String canonicalPath,
@@ -29,8 +31,7 @@ public record SchemaCacheKey(
     String formatConfig,
     String endpoint,
     String region,
-    long datasetTokenH1,
-    long datasetTokenH2
+    @Nullable ContentToken datasetToken
 ) {
     // Keep this set in sync with every option keyed off the WITH map by a FormatReader's
     // parseOptionsFromConfig / withConfig. The intent is broader than "changes the inferred
@@ -98,7 +99,7 @@ public record SchemaCacheKey(
         String endpoint = config != null ? String.valueOf(config.getOrDefault("endpoint", "")) : "";
         String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
         String formatConfig = buildFormatConfig(config);
-        return new SchemaCacheKey(canonicalPath, mtime, formatType != null ? formatType : "", formatConfig, endpoint, region, 0L, 0L);
+        return new SchemaCacheKey(canonicalPath, mtime, formatType != null ? formatType : "", formatConfig, endpoint, region, null);
     }
 
     /**
@@ -117,11 +118,10 @@ public record SchemaCacheKey(
     /**
      * Key for a dataset-level aggregate entry: the memoized multi-file stats fold for one resolved file
      * SET under one format config. Identity is the listing's 128-bit content token (a commutative fold of
-     * every file's path + mtime + size, plus the file count - see {@code FileList#contentTokenH1}), which
+     * every file's path + mtime + size, plus the file count - see {@code FileList#contentToken}), which
      * makes the key correct-or-miss by construction: any file added, removed, or modified derives a
      * different key, and the stale entry simply ages out via LRU/TTL - no invalidation protocol. The
-     * token rides the two dedicated {@code datasetTokenH1}/{@code datasetTokenH2} record components
-     * (mirrors the {@code ListingCacheKey} credential-hash lanes); {@code canonicalPath} is the glob
+     * token rides the dedicated {@code datasetToken} record component; {@code canonicalPath} is the glob
      * pattern (diagnostics-friendly) and the marker-suffixed {@code formatType} keeps these entries out
      * of the per-file contribution-matching paths.
      * <p>
@@ -131,26 +131,11 @@ public record SchemaCacheKey(
      * memoizes exactly what the per-file rail serves, so it neither narrows nor widens that residual -
      * both must be closed together by the declared-schema fingerprint follow-up.
      */
-    public static SchemaCacheKey forDatasetAggregate(
-        String pattern,
-        long contentTokenH1,
-        long contentTokenH2,
-        String sourceType,
-        Map<String, Object> config
-    ) {
+    public static SchemaCacheKey forDatasetAggregate(String pattern, ContentToken token, String sourceType, Map<String, Object> config) {
         String endpoint = config != null ? String.valueOf(config.getOrDefault("endpoint", "")) : "";
         String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
         String formatType = (sourceType == null ? "" : sourceType) + DATASET_AGGREGATE_MARKER;
-        return new SchemaCacheKey(
-            pattern == null ? "" : pattern,
-            0L,
-            formatType,
-            buildFormatConfig(config),
-            endpoint,
-            region,
-            contentTokenH1,
-            contentTokenH2
-        );
+        return new SchemaCacheKey(pattern == null ? "" : pattern, 0L, formatType, buildFormatConfig(config), endpoint, region, token);
     }
 
     /**

@@ -1055,16 +1055,15 @@ public class ExternalSourceResolver {
      */
     @Nullable
     SchemaCacheKey datasetAggregateKey(FileList listing, Map<String, Object> config) {
-        if (listing == null || listing.hasContentToken() == false || listing.fileCount() < 2) {
+        if (listing == null || listing.contentToken() == null || listing.fileCount() < 2) {
             return null;
         }
-        if (formatSafeMissesAbsentColumnStats(listing, config) == false) {
+        if (datasetAggregateSafeForFormat(listing, config) == false) {
             return null;
         }
         return SchemaCacheKey.forDatasetAggregate(
             listing.originalPattern(),
-            listing.contentTokenH1(),
-            listing.contentTokenH2(),
+            listing.contentToken(),
             detectFormatType(listing.path(0)),
             config
         );
@@ -1085,7 +1084,7 @@ public class ExternalSourceResolver {
      * {@code java.lang.IllegalArgumentException}) on an unregistered extension, and the aggregate is an
      * optimization that must never turn a resolvable read into a throw — hence the broad catch.
      */
-    private boolean formatSafeMissesAbsentColumnStats(FileList listing, Map<String, Object> config) {
+    private boolean datasetAggregateSafeForFormat(FileList listing, Map<String, Object> config) {
         try {
             String formatName = FormatNameResolver.resolveFormatName(
                 config,
@@ -1158,13 +1157,13 @@ public class ExternalSourceResolver {
             }
             return aggregatedStats;
         }
-        cacheService.noteStatsAggregateIncomplete();
+        cacheService.recordStatsAggregateIncomplete();
         if (prefetch.prefetched() != null) {
             return prefetch.prefetched();
         }
         // Only a needed-and-absent fallback counts as a miss; healthy warm resolves never get here
         // (their per-file merge succeeded), so the counter stays comparable to dataset_aggregate.hits.
-        cacheService.noteDatasetAggregateMiss();
+        cacheService.recordDatasetAggregateMiss();
         Map<String, Long> pathToMtime = new HashMap<>(listing.fileCount());
         for (int i = 0; i < listing.fileCount(); i++) {
             pathToMtime.put(listing.path(i).toString(), listing.lastModifiedMillis(i));

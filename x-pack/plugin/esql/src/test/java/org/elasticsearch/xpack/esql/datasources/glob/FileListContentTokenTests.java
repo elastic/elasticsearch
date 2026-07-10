@@ -45,10 +45,9 @@ public class FileListContentTokenTests extends ESTestCase {
         Collections.shuffle(shuffled, new Random(randomLong()));
         FileList outOfOrder = GlobExpander.fileListOf(shuffled, "s3://bucket/data/*.ndjson");
 
-        assertTrue(inOrder.hasContentToken());
-        assertTrue(outOfOrder.hasContentToken());
-        assertEquals(inOrder.contentTokenH1(), outOfOrder.contentTokenH1());
-        assertEquals(inOrder.contentTokenH2(), outOfOrder.contentTokenH2());
+        assertNotNull(inOrder.contentToken());
+        assertNotNull(outOfOrder.contentToken());
+        assertEquals(inOrder.contentToken(), outOfOrder.contentToken());
     }
 
     public void testMtimeChangeChangesToken() {
@@ -96,21 +95,22 @@ public class FileListContentTokenTests extends ESTestCase {
         FileList raw = GlobExpander.fileListOf(sampleEntries(10), "s3://bucket/data/*.ndjson");
         FileList compact = GlobExpander.compact(raw, "s3://bucket/data/");
         assertNotSame(raw, compact);
-        assertTrue(compact.hasContentToken());
-        assertEquals(raw.contentTokenH1(), compact.contentTokenH1());
-        assertEquals(raw.contentTokenH2(), compact.contentTokenH2());
+        assertNotNull(compact.contentToken());
+        assertEquals(raw.contentToken(), compact.contentToken());
     }
 
     public void testSentinelsCarryNoToken() {
-        assertFalse(FileList.UNRESOLVED.hasContentToken());
-        assertFalse(FileList.EMPTY.hasContentToken());
+        assertNull(FileList.UNRESOLVED.contentToken());
+        assertNull(FileList.EMPTY.contentToken());
     }
 
     private static void assertTokensDiffer(FileList a, FileList b) {
-        assertTrue(a.hasContentToken());
-        assertTrue(b.hasContentToken());
+        ContentToken tokenA = a.contentToken();
+        ContentToken tokenB = b.contentToken();
+        assertNotNull(tokenA);
+        assertNotNull(tokenB);
         // Both 64-bit lanes flipping on a single-field change is the whole point of the per-lane
-        // perturbation; a same-H1 collision here would mean the mix dropped a lane.
-        assertFalse(a.contentTokenH1() == b.contentTokenH1() && a.contentTokenH2() == b.contentTokenH2());
+        // perturbation; a same-high collision here would mean the mix dropped a lane.
+        assertFalse(tokenA.high() == tokenB.high() && tokenA.low() == tokenB.low());
     }
 }

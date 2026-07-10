@@ -204,7 +204,7 @@ public class ExternalSourceCacheService implements Closeable {
             // Not counted as a dataset_aggregate.miss: every resolve prefetches (including healthy warm
             // resolves whose per-file merge will succeed and never need the aggregate), so counting here
             // would drown the signal. The resolver notes a miss only when the fallback was actually
-            // needed and absent — see noteDatasetAggregateMiss.
+            // needed and absent — see recordDatasetAggregateMiss.
             return null;
         }
         schemaCache.put(key, entry); // refresh write-time TTL + LRU recency
@@ -295,7 +295,7 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /** Counts a warm multi-file resolve whose per-file stats aggregate came back incomplete (observability). */
-    public void noteStatsAggregateIncomplete() {
+    public void recordStatsAggregateIncomplete() {
         statsAggregateIncomplete.increment();
     }
 
@@ -306,7 +306,7 @@ public class ExternalSourceCacheService implements Closeable {
      * merge succeeds and never consumes it — so a get-side miss counter would count non-events and stop
      * being comparable to {@code dataset_aggregate.hits}.
      */
-    public void noteDatasetAggregateMiss() {
+    public void recordDatasetAggregateMiss() {
         datasetAggregateMisses.increment();
     }
 
@@ -411,7 +411,7 @@ public class ExternalSourceCacheService implements Closeable {
                     // weight-evicted at reconcile time. A full cold scan's delta is whole-file complete on
                     // its own (every stripe 0..EOF observed by THIS query), so fold it directly — the
                     // dataset promise must not depend on per-file cache survival.
-                    foldedWholeFile = foldDeltaToWholeFile(delta);
+                    foldedWholeFile = foldQueryDeltaStripes(delta);
                 }
                 if (foldedWholeFile != null) {
                     completedWholeFile.put(e.getKey(), foldedWholeFile);
@@ -468,7 +468,7 @@ public class ExternalSourceCacheService implements Closeable {
      * deliberately NOT attempted here; a partial scan simply does not fulfill the dataset promise.
      */
     @Nullable
-    private static Map<String, Object> foldDeltaToWholeFile(StripeDelta delta) {
+    private static Map<String, Object> foldQueryDeltaStripes(StripeDelta delta) {
         // TRIPWIRE — coercion asymmetry vs foldCommittedStripes: the stripes folded here are the delta's
         // RAW per-stripe stats, while foldCommittedStripes folds entry-committed stripes that went through
         // coerceColumnStatsToResolvedTypes. Safe today because this fold's only consumer is the dataset
@@ -483,7 +483,7 @@ public class ExternalSourceCacheService implements Closeable {
      * {@code stripeAt}, requiring every ordinal present (all-or-nothing — a gap means knowledge is
      * incomplete and the fold safe-misses with {@code null}), then merges and re-keys via
      * {@link #mergeStripesAndRekey}. {@link #foldCommittedStripes} walks the entry-committed
-     * {@code _stats.stripe.<k>} sub-entries; {@link #foldDeltaToWholeFile} walks one query's raw delta.
+     * {@code _stats.stripe.<k>} sub-entries; {@link #foldQueryDeltaStripes} walks one query's raw delta.
      */
     @Nullable
     private static Map<String, Object> foldStripes(
@@ -1105,7 +1105,7 @@ public class ExternalSourceCacheService implements Closeable {
     private static Map<String, Object> foldCommittedStripes(Map<String, Object> enriched, StripeDelta delta) {
         long lastIndex = enriched.get(ExternalStats.STRIPE_LAST_INDEX_KEY) instanceof Number n ? n.longValue() : -1L;
         // The stripes folded here went through coerceColumnStatsToResolvedTypes when committed — see the
-        // TRIPWIRE on foldDeltaToWholeFile for the coercion asymmetry between the two foldStripes callers.
+        // TRIPWIRE on foldQueryDeltaStripes for the coercion asymmetry between the two foldStripes callers.
         return foldStripes(lastIndex, k -> {
             if (enriched.get(ExternalStats.STRIPE_ENTRY_PREFIX + k) instanceof Map<?, ?> stripe) {
                 @SuppressWarnings("unchecked")

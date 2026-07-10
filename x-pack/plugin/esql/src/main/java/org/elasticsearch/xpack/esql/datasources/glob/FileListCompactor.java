@@ -225,8 +225,7 @@ final class FileListCompactor {
             raw.originalPattern(),
             raw.partitionMetadata(),
             count,
-            raw.contentTokenH1(),
-            raw.contentTokenH2()
+            raw.contentToken()
         );
     }
 
@@ -352,8 +351,7 @@ final class FileListCompactor {
             raw.originalPattern(),
             raw.partitionMetadata(),
             count,
-            raw.contentTokenH1(),
-            raw.contentTokenH2()
+            raw.contentToken()
         );
     }
 

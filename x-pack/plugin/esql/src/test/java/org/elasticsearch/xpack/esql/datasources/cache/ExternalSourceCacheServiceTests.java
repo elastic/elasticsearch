@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.glob.ContentToken;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -1659,7 +1660,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     // --- dataset-level aggregate (warm COUNT(*) survival independent of per-file entries) ---
 
     private static SchemaCacheKey datasetKey() {
-        return SchemaCacheKey.forDatasetAggregate("s3://bucket/data/*.csv", 111L, 222L, "csv", Map.of("format", "csv"));
+        return SchemaCacheKey.forDatasetAggregate("s3://bucket/data/*.csv", new ContentToken(111, 222), "csv", Map.of("format", "csv"));
     }
 
     public void testDatasetAggregateRoundtrip() {
@@ -1678,7 +1679,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             // A get-side miss is NOT counted: every resolve prefetches, including healthy warm resolves
             // that never need the aggregate. Only the resolver's needed-and-absent fallback notes a miss.
             assertEquals(0L, usage.get("dataset_aggregate.misses"));
-            service.noteDatasetAggregateMiss();
+            service.recordDatasetAggregateMiss();
             assertEquals(1L, service.usageStats().get("dataset_aggregate.misses"));
         }
     }
@@ -1805,10 +1806,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             Map<String, Long> paths = Map.of(pathA, 1000L, pathB, 2000L);
-            SchemaCacheKey oldest = SchemaCacheKey.forDatasetAggregate("g0", 0L, 0L, "csv", Map.of());
+            SchemaCacheKey oldest = SchemaCacheKey.forDatasetAggregate("g0", new ContentToken(0, 0), "csv", Map.of());
             service.registerPendingDatasetAggregate(oldest, paths, 2, "fp", "csv", "g0");
             for (int i = 1; i <= 64; i++) {
-                SchemaCacheKey k = SchemaCacheKey.forDatasetAggregate("g" + i, i, i, "csv", Map.of());
+                SchemaCacheKey k = SchemaCacheKey.forDatasetAggregate("g" + i, new ContentToken(i, i), "csv", Map.of());
                 service.registerPendingDatasetAggregate(k, paths, 2, "fp", "csv", "g" + i);
             }
 
@@ -1817,7 +1818,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
 
             assertNull("evicted oldest promise must not materialize", service.getDatasetAggregate(oldest));
-            SchemaCacheKey newest = SchemaCacheKey.forDatasetAggregate("g64", 64L, 64L, "csv", Map.of());
+            SchemaCacheKey newest = SchemaCacheKey.forDatasetAggregate("g64", new ContentToken(64, 64), "csv", Map.of());
             Map<String, Object> served = service.getDatasetAggregate(newest);
             assertNotNull("surviving promise must materialize", served);
             assertEquals(300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));

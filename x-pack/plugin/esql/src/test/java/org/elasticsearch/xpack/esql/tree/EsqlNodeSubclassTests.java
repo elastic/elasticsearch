@@ -24,9 +24,11 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -47,6 +50,7 @@ import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.RemoteFetchHandleFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -60,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
@@ -79,9 +84,11 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.mockito.exceptions.base.MockitoException;
 
@@ -504,6 +511,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of()), null, null);
         } else if (argClass == ExternalSchema.class) {
             return new ExternalSchema(List.of());
+        } else if (argClass == DeclaredReadSpec.class) {
+            // Typed carrier record; populate every component (renames, idPath, dateFormats, declaredTypeColumns) so
+            // transform/mutation tests exercise a fully-loaded value rather than an all-but-renames empty one.
+            return DeclaredReadSpec.of(
+                Map.of(randomAlphaOfLength(4), randomAlphaOfLength(5)),
+                randomBoolean() ? randomAlphaOfLength(4) : null,
+                Map.of(randomAlphaOfLength(4), "yyyy-MM-dd"),
+                Set.of(randomAlphaOfLength(4), randomAlphaOfLength(5))
+            );
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked
             return new MatchConfig(randomAlphaOfLength(5), randomInt(10), randomFrom(DataType.types()));
@@ -515,6 +531,12 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomGeoDistanceSort();
         } else if (toBuildClass == Pow.class && Expression.class.isAssignableFrom(argClass)) {
             return randomResolvedExpression(randomBoolean() ? FieldAttribute.class : Literal.class);
+        } else if (toBuildClass == RemoteFetchHandleFunction.class && argClass == Attribute.class) {
+            // RemoteFetchHandleFunction requires a metadata _doc attribute.
+            return new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false);
+        } else if (toBuildClass == RemoteFetchExec.class && argClass == PhysicalPlan.class) {
+            // RemoteFetchExec requires fetch-side shape FragmentExec(RemoteFetchSource).
+            return randomRemoteFetchFragment();
         } else if (isPlanNodeClass(toBuildClass) && Expression.class.isAssignableFrom(argClass)) {
             return randomResolvedExpression(argClass);
         } else if (argClass == Stat.class) {
@@ -610,6 +632,23 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
         if (argClass == PromqlFunctionDefinition.class) {
             return PromqlBuiltinFunctionDefinitions.VECTOR;
+        }
+
+        if (argClass == org.elasticsearch.cluster.metadata.DatasetMapping.class) {
+            // final type, can't be mocked — build a small real instance (declared mapping on UnresolvedExternalRelation)
+            return new org.elasticsearch.cluster.metadata.DatasetMapping(
+                new org.elasticsearch.cluster.metadata.DatasetMapping.Mappings(
+                    randomFrom(org.elasticsearch.cluster.metadata.DatasetMapping.Dynamic.values()),
+                    java.util.Map.of(
+                        randomAlphaOfLength(5),
+                        new org.elasticsearch.cluster.metadata.DatasetFieldMapping(
+                            "keyword",
+                            randomBoolean() ? null : randomAlphaOfLength(4)
+                        )
+                    ),
+                    randomBoolean() ? null : randomAlphaOfLength(5)
+                )
+            );
         }
 
         try {
@@ -872,6 +911,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             randomIndexNameWithModes(),
             randomFieldAttributes(0, 10, false)
         );
+    }
+
+    private static FragmentExec randomRemoteFetchFragment() {
+        RemoteFetchSource remoteFetchSource = new RemoteFetchSource(Source.EMPTY, randomFieldAttributes(1, 4, false));
+        return new FragmentExec(Source.EMPTY, remoteFetchSource, randomQuery(), between(0, Integer.MAX_VALUE));
     }
 
     static QueryBuilder randomQuery() {

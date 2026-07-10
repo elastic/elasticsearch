@@ -34,6 +34,7 @@ dependencies {
   // disk-buffering's serialization layer (Wire) depends on Okio.
   implementation "com.squareup.okio:okio-jvm:3.17.0"
   implementation "io.opentelemetry.instrumentation:opentelemetry-runtime-telemetry:${otelInstrumentationVersion}"
+  implementation "io.opentelemetry.instrumentation:opentelemetry-instrumentation-api:${otelInstrumentationVersion}"
 
   implementation "io.opentelemetry:opentelemetry-sdk-common:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-sdk-trace:${otelVersion}"

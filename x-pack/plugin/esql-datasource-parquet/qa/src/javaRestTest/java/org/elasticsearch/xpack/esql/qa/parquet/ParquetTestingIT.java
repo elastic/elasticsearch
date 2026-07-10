@@ -30,6 +30,7 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -40,7 +41,10 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.datasource.parquet.PlainCompressionCodecFactory;
 import org.elasticsearch.xpack.esql.datasource.parquet.PlainParquetReadOptions;
+import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
+import org.elasticsearch.xpack.esql.datasources.HttpDownloadRetry;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
@@ -79,6 +83,9 @@ public class ParquetTestingIT extends ESRestTestCase {
 
     private static final String HASH = "fa255dfacf58c8bab428b5d0117d188acc8ad03f";
     private static final String BASE_URL = "https://raw.githubusercontent.com/apache/parquet-testing/" + HASH;
+
+    /** Single {@code http}-type data source every dataset in this suite binds to; created once, cleaned up at teardown. */
+    private static final String HTTP_DATA_SOURCE = "parquet_http_ds";
 
     /**
      * Good data files from apache/parquet-testing that ESQL should be able to read.
@@ -181,6 +188,12 @@ public class ParquetTestingIT extends ESRestTestCase {
 
     private static CloseableHttpClient httpClient;
 
+    /** Datasets and {@code http} data sources are gated to snapshot builds today (same gate as {@code DataSourceCrudRestIT}). */
+    @BeforeClass
+    public static void requireSnapshotBuild() {
+        assumeTrue("datasources not available in release builds yet", Build.current().isSnapshot());
+    }
+
     @BeforeClass
     public static void initHttpClient() {
         httpClient = HttpClients.createDefault();
@@ -192,6 +205,20 @@ public class ParquetTestingIT extends ESRestTestCase {
             httpClient.close();
             httpClient = null;
         }
+    }
+
+    @AfterClass
+    public static void cleanupDatasets() throws IOException {
+        try {
+            DatasetRegistry.cleanup(client());
+        } finally {
+            DatasetRegistry.clearCaches();
+        }
+    }
+
+    @Before
+    public void registerHttpDataSource() throws IOException {
+        DatasetRegistry.ensureDataSource(client(), HTTP_DATA_SOURCE, "http", Map.of());
     }
 
     private final String parquetFile;
@@ -223,18 +250,31 @@ public class ParquetTestingIT extends ESRestTestCase {
 
     public void testParquetFile() throws Exception {
         String url = BASE_URL + "/" + parquetFile;
+        // Bind a dataset to the file's URL so the query reads it via FROM <dataset> (the http data source is
+        // registered once in registerHttpDataSource). Format is inferred from the .parquet extension; datasets
+        // do not take a format setting.
+        String dataset = DatasetRegistry.sanitizeDatasetName("pq_", parquetFile);
+        DatasetRegistry.ensureDataset(client(), dataset, HTTP_DATA_SOURCE, url, null);
 
         if (isBadData) {
-            testBadData(url);
+            testBadData(dataset);
         } else {
-            testGoodData(url);
+            testGoodData(url, dataset);
         }
     }
 
-    private void testGoodData(String url) throws Exception {
+    private void testGoodData(String url, String dataset) throws Exception {
         logger.info("Testing good data: {}", parquetFile);
 
-        byte[] parquetBytes = downloadFile(url);
+        byte[] parquetBytes;
+        try {
+            parquetBytes = downloadFile(url);
+        } catch (IOException e) {
+            // raw.githubusercontent.com occasionally rate-limits (HTTP 429) the pinned-commit fixture under
+            // CI load; that is an environmental condition, not a reader regression.
+            assumeNoException("Unable to download parquet-testing fixture [" + url + "]", e);
+            return;
+        }
         GroundTruth groundTruth;
         try {
             groundTruth = readGroundTruth(parquetBytes);
@@ -242,7 +282,7 @@ public class ParquetTestingIT extends ESRestTestCase {
             // parquet-mr can't read this file (e.g. empty snappy page in datapage_v2_empty_datapage.snappy)
             // but ESQL might handle it fine — verify ESQL doesn't error out
             logger.warn("Ground truth reader failed for {}: {} — verifying ESQL reads it OK", parquetFile, e.getMessage());
-            String query = buildQuery(url, 100000);
+            String query = buildQuery(dataset, 100000);
             Map<String, Object> result = runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
             assertNotNull("ESQL should read " + parquetFile + " despite parquet-mr failure", result.get("columns"));
             return;
@@ -253,7 +293,7 @@ public class ParquetTestingIT extends ESRestTestCase {
             return;
         }
 
-        String query = buildQuery(url, Math.max(groundTruth.numRows + 1, 100000));
+        String query = buildQuery(dataset, Math.max(groundTruth.numRows + 1, 100000));
         Map<String, Object> result;
         try {
             result = runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
@@ -308,8 +348,8 @@ public class ParquetTestingIT extends ESRestTestCase {
         }
     }
 
-    private void testBadData(String url) throws Exception {
-        String query = buildQuery(url, 10000);
+    private void testBadData(String dataset) throws Exception {
+        String query = buildQuery(dataset, 10000);
         logger.info("Testing bad data: {}", parquetFile);
 
         if (BAD_DATA_READS_OK.contains(parquetFile)) {
@@ -706,16 +746,37 @@ public class ParquetTestingIT extends ESRestTestCase {
         return java.time.Instant.ofEpochMilli(epochMillis).toString();
     }
 
-    private static String buildQuery(String url, int limit) {
-        return "EXTERNAL \"" + url + "\" | LIMIT " + limit;
+    private static String buildQuery(String dataset, int limit) {
+        return "FROM " + dataset + " | LIMIT " + limit;
     }
 
+    private static final int DOWNLOAD_MAX_ATTEMPTS = 4;
+    private static final long DOWNLOAD_INITIAL_BACKOFF_MILLIS = 1000L;
+    private static final long DOWNLOAD_MAX_BACKOFF_MILLIS = 8000L;
+
+    /**
+     * Downloads {@code url}, retrying transient failures (HTTP 429/5xx, or connection-level errors below
+     * the HTTP layer) via {@link HttpDownloadRetry#withRetries}. A permanent HTTP error (e.g. 404) is
+     * thrown immediately without retrying. Throws the last failure once attempts are exhausted; the
+     * caller treats that as an environmental skip rather than a test failure.
+     */
     private static byte[] downloadFile(String url) throws IOException {
+        return HttpDownloadRetry.withRetries(
+            logger,
+            "download [" + url + "]",
+            DOWNLOAD_MAX_ATTEMPTS,
+            DOWNLOAD_INITIAL_BACKOFF_MILLIS,
+            DOWNLOAD_MAX_BACKOFF_MILLIS,
+            () -> downloadFileOnce(url)
+        );
+    }
+
+    private static byte[] downloadFileOnce(String url) throws IOException {
         HttpGet request = new HttpGet(url);
         try (CloseableHttpResponse response = httpClient.execute(request)) {
             int status = response.getStatusLine().getStatusCode();
             if (status != 200) {
-                throw new IOException("Failed to download " + url + ": HTTP " + status);
+                throw new HttpDownloadRetry.HttpStatusException("Failed to download " + url + ": HTTP " + status, status);
             }
             return EntityUtils.toByteArray(response.getEntity());
         }

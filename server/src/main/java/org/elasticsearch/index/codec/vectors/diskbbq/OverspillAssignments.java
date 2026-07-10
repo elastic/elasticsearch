@@ -9,9 +9,35 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
 
 public interface OverspillAssignments {
+
+    OverspillAssignments NONE = new OverspillAssignments() {
+        @Override
+        public int size() {
+            return 0;
+        }
+
+        @Override
+        public PrimitiveIterator.OfInt getAssignmentsFor(int ordinal) {
+            return EMPTY_ITERATOR;
+        }
+    };
+
+    PrimitiveIterator.OfInt EMPTY_ITERATOR = new PrimitiveIterator.OfInt() {
+        @Override
+        public boolean hasNext() {
+            return false;
+        }
+
+        @Override
+        public int nextInt() {
+            throw new NoSuchElementException();
+        }
+    };
+
     int size();
 
     PrimitiveIterator.OfInt getAssignmentsFor(int ordinal);

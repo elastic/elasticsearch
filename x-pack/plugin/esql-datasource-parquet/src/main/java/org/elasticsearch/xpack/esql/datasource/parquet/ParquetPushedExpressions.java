@@ -450,19 +450,6 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * Returns {@code true} when the file's physical primitive at {@code columnName} (which may be a
-     * dotted path into a nested STRUCT) is exactly {@code expected}.
-     *
-     * <p>The INTEGER/KEYWORD/BOOLEAN predicate arms guard on this before minting a {@link FilterApi}
-     * column of the matching kind. A declared retype is a supported coercion ({@code
-     * DeclaredTypeCoercions.supports}), so {@code keyword} over a physical {@code INT64}, or {@code
-     * integer} over a physical {@code INT64}, reaches those arms — without the guard they would push a
-     * BINARY/INT32/BOOLEAN predicate against a column the file stores as something else, which
-     * parquet-mr rejects as a declared-type mismatch or (worse) mis-prunes. Declining is safe: these
-     * predicates are RECHECK, so {@code FilterExec} re-applies the real ESQL semantics — the same
-     * reasoning as {@link #buildLongPredicate} and {@link #isPhysicalDouble}.
-     */
-    /**
      * Whether decoding a physical column into an ESQL {@code long} applies a unit transform the raw row-group
      * statistics do not carry, so a raw {@code long} predicate pushed against those stats mis-prunes:
      * <ul>
@@ -484,6 +471,19 @@ final class ParquetPushedExpressions {
                 && time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS);
     }
 
+    /**
+     * Returns {@code true} when the file's physical primitive at {@code columnName} (which may be a
+     * dotted path into a nested STRUCT) is exactly {@code expected}.
+     *
+     * <p>The INTEGER/KEYWORD/BOOLEAN predicate arms guard on this before minting a {@link FilterApi}
+     * column of the matching kind. A declared retype is a supported coercion ({@code
+     * DeclaredTypeCoercions.supports}), so {@code keyword} over a physical {@code INT64}, or {@code
+     * integer} over a physical {@code INT64}, reaches those arms — without the guard they would push a
+     * BINARY/INT32/BOOLEAN predicate against a column the file stores as something else, which
+     * parquet-mr rejects as a declared-type mismatch or (worse) mis-prunes. Declining is safe: these
+     * predicates are RECHECK, so {@code FilterExec} re-applies the real ESQL semantics — the same
+     * reasoning as {@link #buildLongPredicate} and {@link #isPhysicalDouble}.
+     */
     private static boolean physicalPrimitiveIs(MessageType schema, String columnName, PrimitiveType.PrimitiveTypeName expected) {
         PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
         return primitive != null && primitive.getPrimitiveTypeName() == expected;

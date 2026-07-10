@@ -120,8 +120,9 @@ public class FileSetFingerprintsTests extends ESTestCase {
         FileSetFingerprint fingerprintB = b.fileSetFingerprint();
         assertNotNull(fingerprintA);
         assertNotNull(fingerprintB);
-        // Both 64-bit lanes flipping on a single-field change is the whole point of the per-lane
-        // perturbation; a same-high collision here would mean the mix dropped a lane.
+        // A single-field change must perturb the fingerprint: at least one lane differs. (Both lanes flip
+        // in practice via the per-lane perturbation; asserting only "not identical" avoids a spurious
+        // failure if one lane's avalanche happens to coincide.)
         assertFalse(fingerprintA.high() == fingerprintB.high() && fingerprintA.low() == fingerprintB.low());
     }
 }

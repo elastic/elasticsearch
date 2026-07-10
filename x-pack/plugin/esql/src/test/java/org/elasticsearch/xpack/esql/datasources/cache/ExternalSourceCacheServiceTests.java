@@ -1727,10 +1727,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 service.registerPendingDatasetAggregate(key, paths, pathsPerGlob, "fp", "csv", "s3://bucket/g" + g + "/*.csv");
             }
             int pending = (Integer) service.usageStats().get("dataset_aggregate.pending");
-            // Well under the count bound (64), so the path budget is what evicted: 33 * 2000 would be
-            // 66000 stored paths; the registry drops the oldest until total <= 65536, i.e. fewer than 33.
-            assertThat(pending, lessThan(globs));
-            assertTrue("some descriptors must survive", pending > 0);
+            // Well under the count bound (64), so the path budget is what evicted, deterministically:
+            // 33 * 2000 = 66000 > 65536, dropping the single oldest descriptor (2000 paths) brings it to
+            // 64000 <= 65536, so exactly 32 survive. Pin the count to catch an eviction-order regression.
+            assertEquals(globs - 1, pending);
         }
     }
 

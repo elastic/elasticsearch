@@ -1044,6 +1044,46 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * The needed-path counters must fire from the serve decision: a needed-and-present serve bumps
+     * dataset_aggregate.hits, a needed-and-absent serve bumps dataset_aggregate.misses, and they share
+     * the "the per-file merge was incomplete" denominator. Guards against silently zeroing the metric
+     * (the get side deliberately counts nothing).
+     */
+    public void testApplyDatasetAggregateCountsHitAndMissOnNeededPath() {
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(Settings.EMPTY)) {
+            ExternalSourceResolver resolver = datasetGateResolver(cacheService);
+            SourceMetadata referenceMeta = new SimpleSourceMetadata(List.of(), "ndjson", "s3://bucket/data/a.ndjson");
+            FileList distinct = GlobExpander.fileListOf(
+                List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
+                "s3://bucket/data/*.ndjson"
+            );
+            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, Map.of());
+
+            // Needed (per-file merge null) AND present (prefetch hit) -> one hit, no miss.
+            resolver.applyDatasetAggregate(
+                new ExternalSourceResolver.DatasetAggregatePrefetch(key, Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L)),
+                null,
+                distinct,
+                referenceMeta,
+                Map.of()
+            );
+            assertEquals(1L, cacheService.usageStats().get("dataset_aggregate.hits"));
+            assertEquals(0L, cacheService.usageStats().get("dataset_aggregate.misses"));
+
+            // Needed AND absent (prefetch miss) -> one miss, hit unchanged.
+            resolver.applyDatasetAggregate(
+                new ExternalSourceResolver.DatasetAggregatePrefetch(key, null),
+                null,
+                distinct,
+                referenceMeta,
+                Map.of()
+            );
+            assertEquals(1L, cacheService.usageStats().get("dataset_aggregate.hits"));
+            assertEquals(1L, cacheService.usageStats().get("dataset_aggregate.misses"));
+        }
+    }
+
     /** Shared parquet+ndjson module for the dataset-aggregate gate tests; see {@link TextAggregatePushdownSupport}. */
     private ExternalSourceResolver datasetGateResolver(ExternalSourceCacheService cacheService) {
         StubFormatReaderWithStats footerReader = new StubFormatReaderWithStats(Map.of(), Map.of());

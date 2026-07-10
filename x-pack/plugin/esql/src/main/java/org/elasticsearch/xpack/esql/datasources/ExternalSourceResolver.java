@@ -1201,7 +1201,13 @@ public class ExternalSourceResolver {
         return null;
     }
 
-    /** True when no path appears twice in the listing (comma-lists may repeat a file; globs cannot). O(N), resolve-time only. */
+    /**
+     * True when no path appears twice in the listing (comma-lists may repeat a file; globs cannot). O(N),
+     * resolve-time only. Same duplicate-path guard as the promise rail's {@code size != expectedFileCount}
+     * check in {@code ExternalSourceCacheService#registerPendingDatasetAggregate}, encoded here as a set on
+     * the write-through path so the common warm-non-evicted resolve pays the O(N) scan only when it writes,
+     * not on every key-mint.
+     */
     private static boolean listingPathsAreDistinct(FileList listing) {
         Set<String> unique = new HashSet<>(listing.fileCount());
         for (int i = 0; i < listing.fileCount(); i++) {

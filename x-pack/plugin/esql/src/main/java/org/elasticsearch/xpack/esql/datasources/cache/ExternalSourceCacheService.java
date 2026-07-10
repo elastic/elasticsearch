@@ -261,7 +261,10 @@ public class ExternalSourceCacheService implements Closeable {
             return;
         }
         if (pathToMtimeMillis.size() != expectedFileCount) {
-            return; // duplicate paths in the listing — a unique-path sum would undercount the multiset scan
+            // Duplicate paths in the listing — a unique-path sum would undercount the multiset scan. Same
+            // guard as ExternalSourceResolver#listingPathsAreDistinct on the write-through rail, encoded
+            // here as size-vs-count because the map has already deduplicated.
+            return;
         }
         if (pathToMtimeMillis.size() > MAX_PENDING_TOTAL_PATHS) {
             return; // one glob beyond the whole registry's path budget — safe-miss rather than pin the heap
@@ -299,6 +302,11 @@ public class ExternalSourceCacheService implements Closeable {
      * aggregate-QUALIFYING resolves are counted (multi-file, text-format, file-set-fingerprint-bearing,
      * cacheable provider): the caller sits after the {@code datasetKey == null} early-return in
      * {@code ExternalSourceResolver#applyDatasetAggregate}, so non-qualifying incompletes never reach it.
+     * <p>
+     * Today {@code stats_aggregate.incomplete == dataset_aggregate.hits + dataset_aggregate.misses}
+     * exactly (every incomplete then resolves to precisely one of hit/miss on the same needed path). Kept
+     * as its own counter so the "the per-file merge was incomplete" signal survives a future serve path
+     * that grows a third outcome and breaks that identity.
      */
     public void recordStatsAggregateIncomplete() {
         statsAggregateIncomplete.increment();
@@ -1256,8 +1264,8 @@ public class ExternalSourceCacheService implements Closeable {
             long mtimeMillis = ((Number) mtimeObj).longValue();
             // Enrich the schema entry whose config matches the contribution. SchemaCacheKey is keyed on
             // path + mtime + formatType + formatConfig + endpoint + region, so the SAME file can have
-            // several entries — one per (formatType, formatConfig) tuple (e.g. WITH {"header_row": true}
-            // vs {"header_row": false} count rows differently). The config fingerprint disambiguates
+            // several entries — one per (formatType, formatConfig) tuple (e.g. header_row=true vs
+            // header_row=false count rows differently). The config fingerprint disambiguates
             // them, and it is node-stable: both the data node's contribution and the coordinator's entry
             // derive it from SchemaCacheKey.buildFormatConfig of the same logical config, so the guard
             // holds across JVMs (coordinator != data node) — the warm short-circuit's whole point.

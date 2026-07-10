@@ -11,9 +11,10 @@ package org.elasticsearch.xpack.esql.datasources;
  * The 128-bit fingerprint of a resolved file SET, carried as two 64-bit Murmur3 lanes.
  * <p>
  * Computed by {@code FileSetFingerprints#compute} as a commutative fold over every file's
- * {@code (path, mtime, size)}: the same set listed in any order yields the same fingerprint, and any
- * file added, removed, or modified yields a different one. That makes fingerprint-derived cache keys
- * correct-or-miss by construction — no invalidation protocol.
+ * {@code (path, mtime, size)}, with the file count mixed into the final avalanche: the same set listed
+ * in any order yields the same fingerprint, and any file added, removed, or modified yields a different
+ * one. That makes fingerprint-derived cache keys correct-or-miss by construction — no invalidation
+ * protocol.
  * <p>
  * 128 bits, not 64, because a collision serves one set's row count for a different set — a wrong answer,
  * not a slow path. A 64-bit hash birthday-collides around 2^32 distinct sets (reachable on a long-lived

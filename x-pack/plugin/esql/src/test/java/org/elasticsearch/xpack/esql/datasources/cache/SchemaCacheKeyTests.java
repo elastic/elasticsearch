@@ -87,11 +87,11 @@ public class SchemaCacheKeyTests extends ESTestCase {
     }
 
     public void testDatasetAggregateKeyDistinctFromPerFileKeys() {
-        // Even a per-file key crafted over the same strings cannot equal a dataset key: the dataset
-        // formatType carries the reserved '#' marker suffix (extension detection derives formatType
-        // from a file name's last dot and so never emits '#'), and the file-set fingerprint rides the
-        // dedicated fileSetFingerprint component, which every per-file key leaves null. canonicalPath
-        // stays the plain glob pattern (diagnostics-friendly, no smuggled separators).
+        // Even a per-file key crafted over the same strings cannot equal a dataset key: the file-set
+        // fingerprint rides the dedicated fileSetFingerprint component, which every per-file key leaves
+        // null (so a pathological '#dataset-agg'-bearing object name at most loses warm enrichment, never
+        // collides). canonicalPath stays the plain glob pattern (diagnostics-friendly, no smuggled
+        // separators).
         SchemaCacheKey dataset = SchemaCacheKey.forDatasetAggregate(PATTERN, new FileSetFingerprint(11, 22), "ndjson", Map.of());
         SchemaCacheKey perFile = SchemaCacheKey.build(PATTERN, 11L, "ndjson", Map.of());
         assertNotEquals(dataset, perFile);

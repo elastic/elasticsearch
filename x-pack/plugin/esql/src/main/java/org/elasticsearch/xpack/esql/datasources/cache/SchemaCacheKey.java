@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -141,6 +142,10 @@ public record SchemaCacheKey(
         String sourceType,
         Map<String, Object> config
     ) {
+        // A dataset key is identified two ways — the marker suffix on formatType and a non-null
+        // fileSetFingerprint (isDatasetAggregate() vs the collision defense). Require the fingerprint here
+        // so a marker-suffixed key with a null fingerprint is never representable and the two agree.
+        Objects.requireNonNull(fingerprint, "dataset aggregate key requires a non-null file-set fingerprint");
         String endpoint = config != null ? String.valueOf(config.getOrDefault("endpoint", "")) : "";
         String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
         String formatType = (sourceType == null ? "" : sourceType) + DATASET_AGGREGATE_MARKER;

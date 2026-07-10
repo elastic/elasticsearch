@@ -33,7 +33,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *     deleted</li>
  *     <li>it's {@code syntactic sugar}, a delete-by-query is equivalent to a paginated search and corresponding bulk-deletes by ID</li>
  *     <li>it's executed on a {@code point-in-time} snapshot, a delete-by-query will only delete the documents that are visible at the
- *     point in time the delete-by-query was started, using snapshot semantics consistent with point-in-time or scroll-API search</li>
+ *     point in time the delete-by-query was started</li>
  *     <li>it's {@code consistent}, a delete-by-query will yield consistent results across all replicas of a shard</li>
  *     <li>it's {@code forward-compatible}, a delete-by-query will only send IDs to the shards as deletes such that no queries are
  *     stored in the transaction logs that might not be supported in the future.</li>

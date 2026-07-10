@@ -12,6 +12,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 
 import java.io.IOException;
@@ -58,6 +59,37 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         var deploymentStats = stats.get(0).get("deployment_stats");
         assertNotNull(stats.toString(), deploymentStats);
 
+        forceStopMlNodeDeployment(deploymentId);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAttachToDeployment_TextEmbedding() throws IOException {
+        // reproduces https://github.com/elastic/elasticsearch/issues/144860
+        var deploymentId = ".multilingual-e5-small";
+
+        putE5TrainedModels(deploymentId);
+        deployE5TrainedModels(deploymentId);
+
+        var inferenceId = "inference_on_existing_e5_deployment";
+        var putModel = putModel(inferenceId, endpointConfig(deploymentId), TaskType.TEXT_EMBEDDING);
+        var serviceSettings = (Map<String, Object>) putModel.get("service_settings");
+        assertThat(putModel.toString(), serviceSettings.get("dimensions"), is(384));
+        assertNotNull(putModel.toString(), serviceSettings.get("similarity"));
+        assertNotNull(putModel.toString(), serviceSettings.get("element_type"));
+
+        // Note: on GET, the endpoint is reconstructed from the model_id (a built-in E5 model here), not the
+        // deployment_id, so it does not carry dimensions/similarity/element_type in its response. That is a
+        // pre-existing, unrelated behavior of the built-in E5 model settings and is out of scope for this fix.
+        var getModel = getModel(inferenceId);
+        assertThat(
+            getModel.get("service_settings"),
+            is(Map.of("num_allocations", 1, "num_threads", 1, "model_id", ".multilingual-e5-small", "deployment_id", deploymentId))
+        );
+
+        var results = infer(inferenceId, List.of("washing machine"));
+        assertNotNull(results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING));
+
+        deleteModel(inferenceId);
         forceStopMlNodeDeployment(deploymentId);
     }
 

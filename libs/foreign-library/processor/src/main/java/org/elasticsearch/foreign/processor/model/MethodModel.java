@@ -23,7 +23,6 @@ import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
@@ -114,7 +113,7 @@ public record MethodModel(
         }
 
         // @Function method
-        NativeType returnType = ProcessorUtil.classifyType(method.getReturnType());
+        NativeType returnType = ModelUtil.classifyType(method.getReturnType());
         if (returnType == null) {
             messager.printMessage(
                 Kind.ERROR,
@@ -126,7 +125,7 @@ public record MethodModel(
 
         List<NativeType> paramTypes = new ArrayList<>();
         for (var param : method.getParameters()) {
-            NativeType paramType = ProcessorUtil.classifyType(param.asType());
+            NativeType paramType = ModelUtil.classifyType(param.asType());
             if (paramType == null || paramType == NativeType.VOID) {
                 messager.printMessage(
                     Kind.ERROR,
@@ -196,7 +195,7 @@ public record MethodModel(
                 continue;
             }
             ExecutableElement arrayMethod = (ExecutableElement) enclosed;
-            AnnotationMirror arrayFieldMirror = ProcessorUtil.findAnnotationMirror(arrayMethod, "org.elasticsearch.foreign.ArrayField");
+            AnnotationMirror arrayFieldMirror = ModelUtil.findAnnotationMirror(arrayMethod, "org.elasticsearch.foreign.ArrayField");
             if (arrayFieldMirror == null) {
                 continue;
             }
@@ -257,12 +256,12 @@ public record MethodModel(
         Messager messager,
         Types types
     ) {
-        AnnotationMirror criticalMirror = ProcessorUtil.findAnnotationMirror(method, "org.elasticsearch.foreign.Critical");
+        AnnotationMirror criticalMirror = ModelUtil.findAnnotationMirror(method, "org.elasticsearch.foreign.Critical");
         if (criticalMirror == null) {
             // Caller checked @Critical is present.
             return null;
         }
-        TypeMirror adapterMirror = ProcessorUtil.annotationClassValue(criticalMirror, "fallbackAdapter");
+        TypeMirror adapterMirror = ModelUtil.annotationClassValue(criticalMirror, "fallbackAdapter");
         if (adapterMirror == null) {
             messager.printMessage(Kind.ERROR, "@Critical requires fallbackAdapter to be set", method, criticalMirror);
             return null;
@@ -275,7 +274,7 @@ public record MethodModel(
         String methodName = method.getSimpleName().toString();
         String adapterFqn = adapterElement.getQualifiedName().toString();
 
-        ExecutableElement adapterMethod = findPublicStaticMethod(adapterElement, methodName);
+        ExecutableElement adapterMethod = ModelUtil.findPublicStaticMethod(adapterElement, methodName);
         if (adapterMethod == null) {
             messager.printMessage(
                 Kind.ERROR,
@@ -306,23 +305,6 @@ public record MethodModel(
         return adapterFqn;
     }
 
-    private static ExecutableElement findPublicStaticMethod(TypeElement type, String methodName) {
-        for (var enclosed : type.getEnclosedElements()) {
-            if (enclosed.getKind() != ElementKind.METHOD) {
-                continue;
-            }
-            ExecutableElement m = (ExecutableElement) enclosed;
-            if (m.getSimpleName().contentEquals(methodName) == false) {
-                continue;
-            }
-            var modifiers = m.getModifiers();
-            if (modifiers.contains(Modifier.PUBLIC) && modifiers.contains(Modifier.STATIC)) {
-                return m;
-            }
-        }
-        return null;
-    }
-
     private static boolean signatureMatches(ExecutableElement adapter, List<NativeType> originalParams, NativeType originalReturn) {
         var params = adapter.getParameters();
         if (params.size() != originalParams.size() + 1) {
@@ -332,11 +314,11 @@ public record MethodModel(
             return false;
         }
         for (int i = 0; i < originalParams.size(); i++) {
-            if (ProcessorUtil.classifyType(params.get(i + 1).asType()) != originalParams.get(i)) {
+            if (ModelUtil.classifyType(params.get(i + 1).asType()) != originalParams.get(i)) {
                 return false;
             }
         }
-        return ProcessorUtil.classifyType(adapter.getReturnType()) == originalReturn;
+        return ModelUtil.classifyType(adapter.getReturnType()) == originalReturn;
     }
 
     private static boolean isMethodHandle(TypeMirror mirror) {

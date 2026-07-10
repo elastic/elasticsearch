@@ -56,6 +56,24 @@ import java.lang.annotation.Target;
  *
  * <p>When the current platform matches an entry in {@link #unavailableOn()}, {@link LibraryProvider#lookupLibrary(Class)}
  * returns {@code null} for this library without attempting any native load.
+ *
+ * <p>To customize how native symbols are resolved specify a custom {@link SymbolResolver} via
+ * {@link #symbolResolver()}:
+ *
+ * <pre>{@code
+ * public class PrefixResolver implements SymbolResolver {
+ *     public MemorySegment resolve(String symbolName, SymbolLookup lookup) {
+ *         return lookup.find("mylib_" + symbolName).orElseThrow(
+ *             () -> new UnsatisfiedLinkError(symbolName));
+ *     }
+ * }
+ *
+ * @LibrarySpecification(name = "mylib", symbolResolver = PrefixResolver.class)
+ * public interface MyLib {
+ *     @Function("compress") // Resolves to "mylib_compress"
+ *     int compress(MemorySegment src, int len);
+ * }
+ * }</pre>
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
@@ -70,4 +88,11 @@ public @interface LibrarySpecification {
      * all platforms.
      */
     Platform[] unavailableOn() default {};
+
+    /**
+     * Custom symbol resolver for this library. The resolver maps symbol names from
+     * {@link Function @Function} annotations to native function pointers at class-init time.
+     * Defaults to {@link DefaultSymbolResolver}, which looks up symbols by their exact name.
+     */
+    Class<? extends SymbolResolver> symbolResolver() default DefaultSymbolResolver.class;
 }

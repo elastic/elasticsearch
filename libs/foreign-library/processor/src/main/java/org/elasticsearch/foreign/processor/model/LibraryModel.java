@@ -9,7 +9,9 @@
 
 package org.elasticsearch.foreign.processor.model;
 
+import org.elasticsearch.foreign.DefaultSymbolResolver;
 import org.elasticsearch.foreign.LibrarySpecification;
+import org.elasticsearch.foreign.SymbolResolver;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,8 +27,10 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.element.RecordComponentElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
 
 /**
@@ -42,6 +46,8 @@ import javax.tools.Diagnostic.Kind;
  * @param methods all native methods in declaration order
  * @param unavailableOn enum constant names of platforms where this library is unavailable (empty means available everywhere)
  * @param structs all {@code @StructSpecification} types enclosed in this interface, in declaration order
+ * @param symbolResolverClassName fully-qualified name of the {@link SymbolResolver} implementation
+ *        (defaults to {@code org.elasticsearch.foreign.DefaultSymbolResolver})
  */
 public record LibraryModel(
     String qualifiedName,
@@ -50,7 +56,8 @@ public record LibraryModel(
     String libraryName,
     List<MethodModel> methods,
     List<String> unavailableOn,
-    List<StructModel> structs
+    List<StructModel> structs,
+    String symbolResolverClassName
 ) {
 
     /** All known platform names — used to detect a library that can never be natively loaded. */
@@ -61,6 +68,10 @@ public record LibraryModel(
         "DARWIN_AARCH64",
         "WINDOWS_X64"
     );
+
+    public static final String RESOLVER_INTERFACE_FQN = SymbolResolver.class.getName();
+    public static final String DEFAULT_RESOLVER_FQN = DefaultSymbolResolver.class.getName();
+    public static final String LIBRARY_SPECIFICATION_FQN = LibrarySpecification.class.getName();
 
     /** Fully-qualified name of the {@code $Impl} class generated for this library. */
     public String implQualifiedName() {
@@ -92,7 +103,7 @@ public record LibraryModel(
         String simpleName = element.getSimpleName().toString();
         String packageName = env.getElementUtils().getPackageOf(element).getQualifiedName().toString();
 
-        AnnotationMirror specMirror = ProcessorUtil.findAnnotationMirror(element, "org.elasticsearch.foreign.LibrarySpecification");
+        AnnotationMirror specMirror = ModelUtil.findAnnotationMirror(element, LIBRARY_SPECIFICATION_FQN);
         List<String> unavailableOn = extractUnavailableOn(specMirror);
 
         boolean hasError = false;
@@ -103,6 +114,11 @@ public record LibraryModel(
                 element,
                 specMirror
             );
+            hasError = true;
+        }
+
+        String symbolResolverClassName = resolveAndValidateSymbolResolver(element, messager, env.getTypeUtils());
+        if (symbolResolverClassName == null) {
             hasError = true;
         }
 
@@ -120,7 +136,7 @@ public record LibraryModel(
                 continue;
             }
             TypeElement typeElement = (TypeElement) enclosed;
-            AnnotationMirror structSpecMirror = ProcessorUtil.findAnnotationMirror(
+            AnnotationMirror structSpecMirror = ModelUtil.findAnnotationMirror(
                 typeElement,
                 "org.elasticsearch.foreign.StructSpecification"
             );
@@ -168,7 +184,104 @@ public record LibraryModel(
             }
         }
 
-        return hasError ? null : new LibraryModel(qualifiedName, simpleName, packageName, libraryName, methods, unavailableOn, structs);
+        return hasError
+            ? null
+            : new LibraryModel(
+                qualifiedName,
+                simpleName,
+                packageName,
+                libraryName,
+                methods,
+                unavailableOn,
+                structs,
+                symbolResolverClassName
+            );
+    }
+
+    /**
+     * Resolves and validates the {@code symbolResolver} attribute from {@link LibrarySpecification}.
+     * Returns the default ({@link DefaultSymbolResolver}) when no custom resolver is specified.
+     * The resolver class must implement {@link SymbolResolver} and have a public no-arg constructor.
+     *
+     * @return the resolver's fully-qualified name (never null on success), or {@code null} if validation failed
+     *         (error already emitted).
+     */
+    private static String resolveAndValidateSymbolResolver(TypeElement element, Messager messager, Types types) {
+        AnnotationMirror specMirror = ModelUtil.findAnnotationMirror(element, LIBRARY_SPECIFICATION_FQN);
+        if (specMirror == null) {
+            return DEFAULT_RESOLVER_FQN;
+        }
+
+        TypeMirror resolverTypeMirror = ModelUtil.annotationClassValue(specMirror, "symbolResolver");
+        if (resolverTypeMirror == null) {
+            return DEFAULT_RESOLVER_FQN;
+        }
+
+        TypeElement resolverElement = types.asElement(resolverTypeMirror) instanceof TypeElement te ? te : null;
+        if (resolverElement == null) {
+            messager.printMessage(Kind.ERROR, "symbolResolver must reference a class", element, specMirror);
+            return null;
+        }
+
+        String resolverFqn = resolverElement.getQualifiedName().toString();
+
+        if (resolverFqn.equals(DEFAULT_RESOLVER_FQN)) {
+            return DEFAULT_RESOLVER_FQN;
+        }
+
+        TypeElement resolverInterface = findTypeElement(resolverElement, RESOLVER_INTERFACE_FQN);
+        if (resolverInterface == null) {
+            messager.printMessage(
+                Kind.ERROR,
+                "symbolResolver class [" + resolverFqn + "] must implement [" + RESOLVER_INTERFACE_FQN + "]",
+                element,
+                specMirror
+            );
+            return null;
+        }
+
+        if (hasPublicNoArgConstructor(resolverElement) == false) {
+            messager.printMessage(
+                Kind.ERROR,
+                "symbolResolver class [" + resolverFqn + "] must have a public no-arg constructor",
+                element,
+                specMirror
+            );
+            return null;
+        }
+
+        return resolverFqn;
+    }
+
+    /** Checks whether the given type implements (directly or transitively) the interface with the given FQN. */
+    private static TypeElement findTypeElement(TypeElement type, String interfaceFqn) {
+        for (TypeMirror iface : type.getInterfaces()) {
+            if (iface.getKind() != TypeKind.DECLARED) {
+                continue;
+            }
+            TypeElement ifaceElement = (TypeElement) ((DeclaredType) iface).asElement();
+            if (ifaceElement.getQualifiedName().contentEquals(interfaceFqn)) {
+                return ifaceElement;
+            }
+            TypeElement found = findTypeElement(ifaceElement, interfaceFqn);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private static boolean hasPublicNoArgConstructor(TypeElement type) {
+        for (var enclosed : type.getEnclosedElements()) {
+            if (enclosed.getKind() != ElementKind.CONSTRUCTOR) {
+                continue;
+            }
+            ExecutableElement ctor = (ExecutableElement) enclosed;
+            if (ctor.getParameters().isEmpty() && ctor.getModifiers().contains(Modifier.PUBLIC)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -210,7 +323,7 @@ public record LibraryModel(
         List<StructFieldModel> fields = new ArrayList<>();
         boolean fieldError = false;
         for (RecordComponentElement component : typeElement.getRecordComponents()) {
-            NativeType fieldType = ProcessorUtil.classifyType(component.asType());
+            NativeType fieldType = ModelUtil.classifyType(component.asType());
             if (fieldType == null
                 || fieldType == NativeType.VOID
                 || fieldType == NativeType.STRING
@@ -315,7 +428,7 @@ public record LibraryModel(
         Messager messager
     ) {
         String methodName = method.getSimpleName().toString();
-        AnnotationMirror arrayFieldMirror = ProcessorUtil.findAnnotationMirror(method, "org.elasticsearch.foreign.ArrayField");
+        AnnotationMirror arrayFieldMirror = ModelUtil.findAnnotationMirror(method, "org.elasticsearch.foreign.ArrayField");
 
         if (arrayFieldMirror != null) {
             if (method.getParameters().size() != 1 || method.getParameters().get(0).asType().getKind() != TypeKind.INT) {
@@ -346,7 +459,7 @@ public record LibraryModel(
                 );
                 return null;
             }
-            String lengthField = ProcessorUtil.annotationStringValue(arrayFieldMirror, "lengthField");
+            String lengthField = ModelUtil.annotationStringValue(arrayFieldMirror, "lengthField");
             if (lengthField == null || lengthField.isEmpty()) {
                 messager.printMessage(Kind.ERROR, "@ArrayField on '" + methodName + "' requires lengthField", method, arrayFieldMirror);
                 return null;
@@ -355,7 +468,7 @@ public record LibraryModel(
         }
 
         // Scalar field: return type is the field type
-        NativeType returnType = ProcessorUtil.classifyType(method.getReturnType());
+        NativeType returnType = ModelUtil.classifyType(method.getReturnType());
         if (returnType == null
             || returnType == NativeType.VOID
             || returnType == NativeType.STRING

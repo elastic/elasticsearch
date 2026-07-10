@@ -516,6 +516,8 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             if (fileRanges.blobLocation().equals(fileLocation)) {
                 return fileRanges; // originating CC, preserved in SearchDirectory
             }
+            assert StatelessCompoundCommit.isGenerationalFile(fileName)
+                : "non-generational file '" + fileName + "' has a different blob location in the SearchDirectory vs the CC";
             return new BlobFileRanges(fileLocation, ccTimestamp);
         }));
     }

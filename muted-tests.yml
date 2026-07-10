@@ -751,9 +751,6 @@ tests:
 - class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
   method: testWaitForEmptySubRangeReturnsImmediately
   issue: https://github.com/elastic/elasticsearch/issues/153378
-- class: org.elasticsearch.xpack.inference.integration.SemanticTextFieldMappingLegacyFormatIT
-  method: testLegacyFormatMappingPopulatedAfterFirstDenseDocument
-  issue: https://github.com/elastic/elasticsearch/issues/153384
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/columnar: no prefix_properties when dynamic is only set at root level}"
   issue: https://github.com/elastic/elasticsearch/issues/153390

@@ -475,10 +475,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testExactKnnQueryOnNonIndexedField() {
-        int dims = randomIntBetween(BBQ_MIN_DIMS, 2048);
-        if (dims % 2 != 0) {
-            dims++;
-        }
+        // rounded down to a multiple of Byte.SIZE so it can double as bitDims below
+        int dims = randomIntBetween(BBQ_MIN_DIMS, 2048) & ~(Byte.SIZE - 1);
         // A non-indexed field has no configured similarity, mirroring real mappings (similarity cannot be set
         // when index:false).
         DenseVectorFieldType field = new DenseVectorFieldType(
@@ -514,19 +512,18 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertThat(requiresIndexed.getMessage(), containsString("its mapping must have [index] set to [true]"));
 
         // A non-indexed bit field is scored by Hamming distance from doc values (it defaults to l2_norm).
-        int bitDims = dims - (dims % Byte.SIZE);
         DenseVectorFieldType bitField = new DenseVectorFieldType(
             "f",
             IndexVersion.current(),
             BIT,
-            bitDims,
+            dims,
             false,
             null,
             null,
             Collections.emptyMap(),
             false
         );
-        byte[] bitQuery = new byte[bitDims / Byte.SIZE];
+        byte[] bitQuery = new byte[dims / Byte.SIZE];
         random().nextBytes(bitQuery);
         Query bitQueryResult = bitField.createExactKnnQuery(VectorData.fromBytes(bitQuery), null, null, false);
         assertThat(bitQueryResult, instanceOf(DenseVectorQuery.DocValuesBytes.class));

@@ -766,7 +766,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ) {
             return resolveAndValidate(queryVector, dims, effectiveSimilarity, false, false).createDocValuesExactKnnQuery(
                 field,
-                effectiveSimilarity.vectorSimilarityFunction(null, elementType()),
+                effectiveSimilarity.defaultVectorSimilarityFunction(),
                 elementType(),
                 indexVersion
             );
@@ -1614,6 +1614,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType) {
                 return VectorSimilarityFunction.EUCLIDEAN;
             }
+
+            @Override
+            public VectorSimilarityFunction defaultVectorSimilarityFunction() {
+                return VectorSimilarityFunction.EUCLIDEAN;
+            }
         },
         COSINE {
             @Override
@@ -1627,11 +1632,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             public VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType) {
-                if (indexVersion == null) return VectorSimilarityFunction.COSINE;
-
                 return indexVersion.onOrAfter(NORMALIZE_COSINE) && (elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16)
                     ? VectorSimilarityFunction.DOT_PRODUCT
                     : VectorSimilarityFunction.COSINE;
+            }
+
+            @Override
+            public VectorSimilarityFunction defaultVectorSimilarityFunction() {
+                return VectorSimilarityFunction.COSINE;
             }
         },
         DOT_PRODUCT {
@@ -1648,6 +1656,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType) {
                 return VectorSimilarityFunction.DOT_PRODUCT;
             }
+
+            @Override
+            public VectorSimilarityFunction defaultVectorSimilarityFunction() {
+                return VectorSimilarityFunction.DOT_PRODUCT;
+            }
         },
         MAX_INNER_PRODUCT {
             @Override
@@ -1662,6 +1675,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType) {
                 return VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
             }
+
+            @Override
+            public VectorSimilarityFunction defaultVectorSimilarityFunction() {
+                return VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+            }
         };
 
         @Override
@@ -1671,8 +1689,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         abstract float score(float similarity, ElementType elementType, int dim);
 
-        /** Pass a null {@code indexVersion} for raw scoring, e.g. per-query overrides or non-indexed fields. */
-        public abstract VectorSimilarityFunction vectorSimilarityFunction(@Nullable IndexVersion indexVersion, ElementType elementType);
+        public abstract VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType);
+
+        /** Used for raw scoring where there is no index to consult, e.g. per-query overrides or non-indexed fields. */
+        public abstract VectorSimilarityFunction defaultVectorSimilarityFunction();
     }
 
     public abstract static class DenseVectorIndexOptions extends IndexOptions {
@@ -3291,10 +3311,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ) {
             assert !(useQuantized && isSimilarityOverridden) : "Use quantized cannot be combined with overridden similarity function";
             // if useQuantized is true, function parameter is ignored.
-            final VectorSimilarityFunction function = effectiveSimilarity.vectorSimilarityFunction(
-                isSimilarityOverridden ? null : indexVersionCreated,
-                element.elementType()
-            );
+            final VectorSimilarityFunction function = isSimilarityOverridden
+                ? effectiveSimilarity.defaultVectorSimilarityFunction()
+                : effectiveSimilarity.vectorSimilarityFunction(indexVersionCreated, element.elementType());
             return element.resolveAndValidate(resolvedQueryVector, dims, effectiveSimilarity, isSimilarityOverridden, isNormalized())
                 .createExactKnnQuery(name(), function, useQuantized);
         }

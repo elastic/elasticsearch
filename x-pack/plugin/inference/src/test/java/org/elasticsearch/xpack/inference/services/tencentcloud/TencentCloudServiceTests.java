@@ -21,7 +21,9 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
@@ -38,6 +40,8 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.tencentcloud.completion.TencentCloudChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.tencentcloud.embeddings.TencentCloudEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankModel;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.tencentcloud.rerank.TencentCloudRerankTaskSettings;
@@ -46,6 +50,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,12 +60,12 @@ import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureLi
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TencentCloudServiceTests extends InferenceServiceTestCase {
 
@@ -81,6 +86,7 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_TextEmbedding() throws IOException {
+        var url = "https://bj.aisearch.tencentelasticsearch.com/v1/embeddings";
         parseRequestConfig(TaskType.TEXT_EMBEDDING, format("""
             {
               "service_settings": {
@@ -89,11 +95,11 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
                 "url": "%s"
               }
             }
-            """, getUrl(webServer)), assertNoFailureListener(model -> {
+            """, url), assertNoFailureListener(model -> {
             assertThat(model, isA(TencentCloudEmbeddingsModel.class));
             var m = (TencentCloudEmbeddingsModel) model;
             assertThat(m.getServiceSettings().modelId(), equalTo("bge-m3"));
-            assertThat(m.uri(), equalTo(URI.create(getUrl(webServer))));
+            assertThat(m.uri(), equalTo(URI.create(url)));
             assertThat(m.apiKey().toString(), equalTo("sk-12345"));
         }));
     }
@@ -110,7 +116,7 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
             assertThat(model, isA(TencentCloudChatCompletionModel.class));
             var m = (TencentCloudChatCompletionModel) model;
             assertThat(m.model(), equalTo("deepseek-v3"));
-            assertThat(m.uri().toString(), equalTo("http://bj.aisearch.tencentelasticsearch.com/v1/chat/completions"));
+            assertThat(m.uri().toString(), equalTo("https://bj.aisearch.tencentelasticsearch.com/v1/chat/completions"));
         }));
     }
 
@@ -229,8 +235,10 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
     public void testChunkedInfer_UnsupportedForNonEmbeddingModel() throws IOException {
         try (var service = createService()) {
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
+            var chatModel = mock(TencentCloudChatCompletionModel.class);
+            when(chatModel.getTaskType()).thenReturn(TaskType.CHAT_COMPLETION);
             service.chunkedInfer(
-                mock(TencentCloudChatCompletionModel.class),
+                chatModel,
                 List.of(new ChunkInferenceInput("a")),
                 Map.of(),
                 InputType.UNSPECIFIED,
@@ -264,6 +272,33 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
         try (var service = createService()) {
             assertThat(service.rerankerWindowSize("bge-reranker-v2-m3"), is(350));
         }
+    }
+
+    @Override
+    public EnumSet<TaskType> expectedStreamingTasks() {
+        return EnumSet.of(TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(rerankingInferenceService.rerankerWindowSize("bge-reranker-v2-m3"), is(350));
+    }
+
+    @Override
+    public Model createEmbeddingModel(SimilarityMeasure similarity) {
+        var commonSettings = new TencentCloudCommonServiceSettings(
+            "bge-m3",
+            null,
+            new org.elasticsearch.xpack.inference.services.settings.RateLimitSettings(20)
+        );
+        var serviceSettings = new TencentCloudEmbeddingsServiceSettings(commonSettings, similarity, null, null);
+        return new TencentCloudEmbeddingsModel(
+            "inference-id",
+            serviceSettings,
+            TencentCloudEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            null,
+            new DefaultSecretSettings(new SecureString("sk-12345"))
+        );
     }
 
     private TencentCloudService createService() {

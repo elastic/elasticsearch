@@ -22,7 +22,7 @@ public class TencentCloudChatCompletionModelTests extends ESTestCase {
 
     public void testUri_UsesDefaultWhenNoOverride() {
         var model = createModel(new TencentCloudCommonServiceSettings("deepseek-v3", null, new RateLimitSettings(5)));
-        assertThat(model.uri().toString(), is("http://bj.aisearch.tencentelasticsearch.com/v1/chat/completions"));
+        assertThat(model.uri().toString(), is("https://bj.aisearch.tencentelasticsearch.com/v1/chat/completions"));
     }
 
     public void testUri_UsesOverrideWhenProvided() {

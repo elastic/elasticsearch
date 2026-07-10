@@ -52,8 +52,12 @@ public class TencentCloudCommonServiceSettings extends FilteredXContentObject
 
         var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var uri = extractOptionalUri(map, ServiceFields.URL, validationException);
-        // SSRF guard: when the caller overrides the endpoint, ensure it uses https and points to a Tencent-hosted allow-listed host.
-        TencentCloudEndpointUtils.validateEndpoint(uri, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        // SSRF guard: only enforce the allow-list when the caller creates/updates an endpoint via the REST API (REQUEST context).
+        // Skip validation when hydrating persisted configurations from the system index so that endpoints created with an older
+        // (looser) validation still load after an upgrade.
+        if (context == ConfigurationParseContext.REQUEST) {
+            TencentCloudEndpointUtils.validateEndpoint(uri, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        }
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         if (validationException.validationErrors().size() > initialValidationErrorCount) {

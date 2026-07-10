@@ -24,7 +24,7 @@ public class TencentCloudRerankModelTests extends ESTestCase {
 
     public void testUri_UsesDefaultWhenNoOverride() {
         var model = createModel(new TencentCloudCommonServiceSettings("bge-reranker-v2-m3", null, new RateLimitSettings(20)));
-        assertThat(model.uri().toString(), is("http://bj.aisearch.tencentelasticsearch.com/v1/rerank"));
+        assertThat(model.uri().toString(), is("https://bj.aisearch.tencentelasticsearch.com/v1/rerank"));
     }
 
     public void testUri_UsesOverrideWhenProvided() {

@@ -28,7 +28,7 @@ public class TencentCloudEmbeddingsModelTests extends ESTestCase {
         );
         var model = createModel(settings);
 
-        assertThat(model.uri().toString(), is("http://bj.aisearch.tencentelasticsearch.com/v1/embeddings"));
+        assertThat(model.uri().toString(), is("https://bj.aisearch.tencentelasticsearch.com/v1/embeddings"));
         assertThat(model.getServiceSettings().modelId(), is("bge-m3"));
     }
 

@@ -702,6 +702,7 @@ public class Constants {
         "indices:admin/index/create_from_source",
         "indices:admin/index/copy_lifecycle_index_metadata",
         "internal:admin/repository/verify",
-        "internal:admin/repository/verify/coordinate"
+        "internal:admin/repository/verify/coordinate",
+        "internal:index/shard/recovery/cancel_recoveries"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

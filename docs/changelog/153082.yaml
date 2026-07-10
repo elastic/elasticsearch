@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 104187
+pr: 153082
+summary: Apply search timeout to the query rewrite step
+type: bug

@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
-import java.util.function.IntFunction;
 
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
@@ -83,17 +82,31 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         }
     }
 
-    static IntFunction<float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
-        float[] fa = new float[size];
-        for (int i = 0; i < size; i++) {
-            fa[i] = randomFloat();
-        }
-        return fa;
-    };
-
-    static IntFunction<float[]> FLOAT_ARRAY_MAX_FUNC = size -> {
+    public static float[] maxFloatArray(int size) {
         float[] fa = new float[size];
         Arrays.fill(fa, Float.MAX_VALUE);
         return fa;
-    };
+    }
+
+    // bounds of the range of values that can be seen by int7 scalar quantized vectors
+    public static final byte MIN_INT7_VALUE = 0;
+    public static final byte MAX_INT7_VALUE = 127;
+
+    public static byte[] randomInt7ByteVector(int size) {
+        byte[] ba = new byte[size];
+        randomBytesBetween(ba, MIN_INT7_VALUE, MAX_INT7_VALUE);
+        return ba;
+    }
+
+    public static byte[] maxInt7ByteVector(int size) {
+        byte[] ba = new byte[size];
+        Arrays.fill(ba, MAX_INT7_VALUE);
+        return ba;
+    }
+
+    public static byte[] minInt7ByteVector(int size) {
+        byte[] ba = new byte[size];
+        Arrays.fill(ba, MIN_INT7_VALUE);
+        return ba;
+    }
 }

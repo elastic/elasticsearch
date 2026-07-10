@@ -143,7 +143,7 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
                 )
             )
         );
-        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
@@ -154,7 +154,7 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
                 Map.of("tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
             )
         );
-        assertThat(e.getMessage(), containsString("esql_external_datasources_federated_identity"));
+        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsFederatedWhenEnabled() {

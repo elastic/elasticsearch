@@ -63,6 +63,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -3485,6 +3486,70 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // Exactly one caller claimed the gaps and wrote the data; the other got an empty claim
             assertThat(future1.get(10L, TimeUnit.SECONDS) || future2.get(10L, TimeUnit.SECONDS), is(true));
             assertThat(future1.get(10L, TimeUnit.SECONDS) && future2.get(10L, TimeUnit.SECONDS), is(false));
+            assertThat(bytesWritten.get(), equalTo(regionSize - 1));
+        }
+    }
+
+    public void testPopulateListenerShouldCompleteOnRangeFillFromAnotherThread() throws Exception {
+        final long regionSize = size(1L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var blobLength = size(12L);
+            final var entry = cacheService.get(cacheKey, blobLength, 0);
+            final AtomicLong bytesWritten = new AtomicLong(0L);
+            final RangeMissingHandler writer = (
+                channel,
+                channelPos,
+                streamFactory,
+                relativePos,
+                length,
+                progressUpdater,
+                completionListener) -> completeWith(completionListener, () -> {
+                    bytesWritten.addAndGet(length);
+                    progressUpdater.accept(length);
+                });
+
+            // The first caller's executor captures its task without running it, simulating a busy/blocked executor.
+            final AtomicReference<Runnable> blockedTask = new AtomicReference<>();
+            final Executor blockedExecutor = task -> assertTrue(blockedTask.compareAndSet(null, task));
+
+            final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
+            entry.populate(ByteRange.of(0, regionSize - 1), writer, blockedExecutor, future1);
+            assertThat(blockedTask.get(), notNullValue());
+            assertThat(future1.isDone(), is(false));
+
+            // The second caller uses a free executor and runs immediately, claiming and filling the gap first.
+            final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
+            entry.populate(ByteRange.of(0, regionSize - 1), writer, EsExecutors.DIRECT_EXECUTOR_SERVICE, future2);
+            assertThat(safeGet(future2), is(true));
+            assertThat(bytesWritten.get(), equalTo(regionSize - 1));
+
+            // Range is filled which should complete the first future as well and release the region reference
+            assertThat(future1.isDone(), is(true));
+            assertThat(safeGet(future1), is(false));
+            assertThat(entry.refCount(), equalTo(1));
+
+            // Unblock the first caller's executor so it observes the gap was already claimed and filled, and to
+            // release the region reference it is still holding.
+            blockedTask.get().run();
             assertThat(bytesWritten.get(), equalTo(regionSize - 1));
         }
     }

@@ -69,6 +69,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -1379,27 +1380,26 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             try {
                 incRefEnsureOpen();
                 try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
-                    final var gapsOpt = tracker.waitForRange(
-                        rangeToWrite,
-                        rangeToWrite,
-                        Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
+                    final var claimed = new AtomicBoolean(false);
+                    final ActionListener<Void> rangeListener = ActionListener.notifyOnce(
+                        ActionListener.releaseAfter(listener.map(unused -> {
                             assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
-                        }), refs.acquire()) : refs.acquireListener()
+                            return claimed.get();
+                        }), refs.acquire())
                     );
+
+                    final var gapsOpt = tracker.waitForRange(rangeToWrite, rangeToWrite, rangeListener);
                     if (gapsOpt.isEmpty()) {
-                        listener.onResponse(false);
                         return;
                     }
                     executor.execute(new AbstractRunnable() {
-                        private final Releasable dispatchRef = refs.acquire();
-
                         @Override
                         protected void doRun() {
                             final List<SparseFileTracker.Gap> gaps = gapsOpt.get().claim();
                             if (gaps.isEmpty()) {
-                                listener.onResponse(false);
                                 return;
                             }
+                            claimed.set(true);
                             final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
                             logger.trace(
                                 () -> Strings.format(
@@ -1408,30 +1408,21 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                     streamFactory == null ? "without" : "with"
                                 )
                             );
-                            final ActionListener<Void> gapsDoneListener = streamFactory != null
-                                ? ActionListener.releaseBefore(streamFactory, listener.map(unused -> true))
-                                : listener.map(unused -> true);
-                            try (var gapsListener = new RefCountingListener(gapsDoneListener)) {
+
+                            final Runnable gapsDoneRunnable = () -> {
+                                if (streamFactory != null) Releasables.closeWhileHandlingException(streamFactory);
+                            };
+                            try (var gapsListener = new RefCountingRunnable(gapsDoneRunnable)) {
                                 // Use current thread to fill the gaps in order
                                 for (SparseFileTracker.Gap gap : gaps) {
-                                    fillGapRunnable(
-                                        gap,
-                                        writer,
-                                        streamFactory,
-                                        ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire())
-                                    ).run();
+                                    fillGapRunnable(gap, writer, streamFactory, gapsListener.acquireListener()).run();
                                 }
                             }
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-
-                        @Override
-                        public void onAfter() {
-                            dispatchRef.close();
+                            rangeListener.onFailure(e);
                         }
                     });
                 }

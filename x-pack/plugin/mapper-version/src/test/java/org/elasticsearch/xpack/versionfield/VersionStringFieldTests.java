@@ -329,6 +329,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         ensureGreen(indexName);
 
         prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", "1.0.0-σtart").endObject()).get();
+        prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", "2.0.0-🐔tart").endObject()).get();
         client().admin().indices().prepareRefresh(indexName).get();
 
         // multi-byte pattern char must not corrupt the automaton
@@ -346,6 +347,16 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
 
         // '?' must consume one full char, not one raw byte
         assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "1.0.0-?tart")), 1);
+
+        // astral-plane (4-byte UTF-8, surrogate-pair) pattern char must not corrupt the automaton
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*🐔tart")), 1);
+        assertHitCount(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*🐔tart").caseInsensitive(true)),
+            1
+        );
+
+        // '?' must consume one full astral-plane char (4 UTF-8 bytes), not a single byte of it
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "2.0.0-?tart")), 1);
     }
 
     private void checkWildcardQuery(String indexName, String query, String... expectedResults) {

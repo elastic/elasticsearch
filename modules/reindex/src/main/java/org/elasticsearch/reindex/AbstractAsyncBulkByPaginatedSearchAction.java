@@ -161,7 +161,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     @Nullable
     private final BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics;
     private final BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind;
-    private final boolean remoteBulkByScrollSearch;
+    private final boolean remoteBulkByPaginatedSearch;
 
     /**
      * {@code _shard_doc} for search_after compatibility and performance (see paginate-search-results docs) was added in 7.12
@@ -190,7 +190,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         @Nullable ReindexSslConfig sslConfig,
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind,
-        boolean remoteBulkByScrollSearch,
+        boolean remoteBulkByPaginatedSearch,
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
         CircuitBreaker circuitBreaker,
@@ -212,7 +212,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             null,
             bulkByPaginatedSearchSearchContextMetrics,
             bulkByPaginatedSearchTaskKind,
-            remoteBulkByScrollSearch,
+            remoteBulkByPaginatedSearch,
             maxTaskShutdownGracePeriod,
             reindexSettings,
             circuitBreaker,
@@ -236,7 +236,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         @Nullable Version remoteVersion,
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind,
-        boolean remoteBulkByScrollSearch,
+        boolean remoteBulkByPaginatedSearch,
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
         CircuitBreaker circuitBreaker,
@@ -258,7 +258,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         this.searchContextKeepaliveDeadline = new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis);
         this.bulkByPaginatedSearchSearchContextMetrics = bulkByPaginatedSearchSearchContextMetrics;
         this.bulkByPaginatedSearchTaskKind = bulkByPaginatedSearchTaskKind;
-        this.remoteBulkByScrollSearch = remoteBulkByScrollSearch;
+        this.remoteBulkByPaginatedSearch = remoteBulkByPaginatedSearch;
         this.relocationCooldownNanos = computeRelocationCooldownNanos(maxTaskShutdownGracePeriod);
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
@@ -941,12 +941,12 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
         if (bulkByPaginatedSearchSearchContextMetrics != null
             && searchContextKeepaliveDeadline.shouldRecordKeepaliveExpiry(failure, searchFailures)) {
-            bulkByPaginatedSearchSearchContextMetrics.recordKeepaliveExpiry(bulkByPaginatedSearchTaskKind, remoteBulkByScrollSearch);
+            bulkByPaginatedSearchSearchContextMetrics.recordKeepaliveExpiry(bulkByPaginatedSearchTaskKind, remoteBulkByPaginatedSearch);
             logger.warn(
-                "[{}]: bulk-by-scroll [{}] ({}) likely failed because the {} keep-alive expired",
+                "[{}]: bulk-by-paginated-search [{}] ({}) likely failed because the {} keep-alive expired",
                 task.getId(),
                 bulkByPaginatedSearchTaskKind.attributeValue(),
-                remoteBulkByScrollSearch
+                remoteBulkByPaginatedSearch
                     ? BulkByPaginatedSearchSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_REMOTE
                     : BulkByPaginatedSearchSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL,
                 paginatedHitSource instanceof PitPaginatedHitSource ? "point-in-time" : "scroll"

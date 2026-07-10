@@ -549,10 +549,10 @@ public class SearchCoordinatorPhaseShardBytesMetricsIT extends ESIntegTestCase {
 
             assertThat("query request bytes are fetch-method independent", chunkedQueryRequestBytes, equalTo(nonChunkedQueryRequestBytes));
 
-            // The query result (NodeQueryResponse) includes a per-shard serviceTimeEWMA that is
-            // updated between runs and may shift by 1-2 bytes per shard when VLong encoding width
-            // changes. 16 bytes covers two shards with a 2-byte shift each, with room to spare.
-            long queryResultTolerance = 16L;
+            // The query result (NodeQueryResponse) includes a per-shard serviceTimeEWMA whose VLong
+            // encoding width can shift between runs; empirically this is usually 0 but occasionally a
+            // few bytes per shard. Scale with numShards, plus a flat margin for that jitter.
+            long queryResultTolerance = numShards * 2L + 24L;
             assertThat(
                 "chunked and non-chunked query result bytes are within encoding tolerance",
                 chunkedQueryResultBytes,

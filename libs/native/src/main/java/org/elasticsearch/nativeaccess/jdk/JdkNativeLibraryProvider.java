@@ -11,7 +11,6 @@ package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
-import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
@@ -29,8 +28,6 @@ public class JdkNativeLibraryProvider extends NativeLibraryProvider {
                 JdkJavaLibrary::new,
                 PosixCLibrary.class,
                 JdkPosixCLibrary::new,
-                LinuxCLibrary.class,
-                JdkLinuxCLibrary::new,
                 Kernel32Library.class,
                 JdkKernel32Library::new,
                 VectorLibrary.class,

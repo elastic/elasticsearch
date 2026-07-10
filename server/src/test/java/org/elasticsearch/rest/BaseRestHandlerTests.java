@@ -23,6 +23,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,16 +39,14 @@ public class BaseRestHandlerTests extends ESTestCase {
     private NodeClient mockClient;
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initClient() throws Exception {
         threadPool = new TestThreadPool(this.getClass().getSimpleName() + "ThreadPool");
         mockClient = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void stopThreadPool() throws Exception {
         threadPool.shutdown();
     }
 

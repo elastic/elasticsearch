@@ -161,7 +161,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
 
     public void testHKmeans() throws IOException {
         int nClusters = random().nextInt(1, 10);
-        int nVectors = random().nextInt(nClusters, nClusters * 200);
+        int nVectors = random().nextInt(nClusters * 2, nClusters * 200);
         int dims = random().nextInt(2, 20);
         int sampleSize = random().nextInt(Math.min(nVectors, 100), nVectors + 1);
         int maxIterations = random().nextInt(1, 100);

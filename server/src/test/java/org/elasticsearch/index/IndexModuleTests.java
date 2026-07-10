@@ -92,7 +92,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
@@ -104,6 +103,8 @@ import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -172,9 +173,8 @@ public class IndexModuleTests extends ESTestCase {
     private ClusterService clusterService;
     private IndexNameExpressionResolver indexNameExpressionResolver;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initIndexModuleTestFixtures() throws Exception {
         settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -218,11 +218,16 @@ public class IndexModuleTests extends ESTestCase {
         indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void cleanupIndexModuleTestFixtures() throws Exception {
         IOUtils.close(nodeEnvironment, indicesQueryCache, clusterService);
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        // USE_THREAD_POOL_MERGE_SCHEDULER_SETTING is deprecated and used in setUp to exercise both enabled/disabled paths
+        return List.of(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey());
     }
 
     private IndexService newIndexService(IndexModule module) throws IOException {
@@ -770,12 +775,7 @@ public class IndexModuleTests extends ESTestCase {
             IndexService indexService = newIndexService(module);
             closeables.add(() -> closeIndexService(indexService));
 
-            IndexShard indexShard = indexService.createShard(
-                shardRouting,
-                IndexShardTestCase.NOOP_GCP_SYNCER,
-                RetentionLeaseSyncer.EMPTY,
-                RecoverySchedulingListener.NOOP
-            );
+            IndexShard indexShard = indexService.createShard(shardRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
             closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
             indexShard.markAsRecovering("test", new RecoveryState(shardRouting, DiscoveryNodeUtils.create("_node_id", "_node_id"), null));
 

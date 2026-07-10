@@ -919,7 +919,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE)] function)|(?:\\[:\\] operator)) cannot be used after "
             + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|CHANGE_POINT|DEDUP|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b|"
             + "\\(\\s*FROM\\b).*",
         Pattern.DOTALL | Pattern.CASE_INSENSITIVE

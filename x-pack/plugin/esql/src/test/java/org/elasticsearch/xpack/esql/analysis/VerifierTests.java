@@ -2018,7 +2018,7 @@ public class VerifierTests extends ESTestCase {
         );
         fullText().error(
             "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match_phrase(title, \"data\")",
-            containsString("[MatchPhrase] function cannot be used after FORK")
+            containsString("[MATCH_PHRASE] function cannot be used after FORK")
         );
         fullText().stripErrorPrefix(false)
             .error(
@@ -2353,7 +2353,7 @@ public class VerifierTests extends ESTestCase {
         // match_phrase still requires an index field
         fullText().error(
             "from test | eval name = title | where match_phrase(name, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping")
+            containsString("[MATCH_PHRASE] function cannot operate on [name], which is not a field from an index mapping")
         );
     }
 
@@ -2368,23 +2368,23 @@ public class VerifierTests extends ESTestCase {
         // MATCH_PHRASE still requires an argument that is a field from an index mapping
         fullText().error(
             "from test | eval text = concat(title, body) | rename text as content | where match_phrase(content, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [content], which is not a field from an index mapping")
+            containsString("[MATCH_PHRASE] function cannot operate on [content], which is not a field from an index mapping")
         );
         fullText().error(
             "from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
+            containsString("[MATCH_PHRASE] function cannot operate on [x], which is not a field from an index mapping")
         );
         fullText().error(
             "from test | grok body \"%{WORD:extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
+            containsString("[MATCH_PHRASE] function cannot operate on [x], which is not a field from an index mapping")
         );
         fullText().error(
             "from test | dissect title \"%{extracted}\" | rename extracted as x | where match_phrase(x, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
+            containsString("[MATCH_PHRASE] function cannot operate on [x], which is not a field from an index mapping")
         );
         fullText().error(
             "from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match_phrase(y, \"Meditation\")",
-            containsString("[MatchPhrase] function cannot operate on [y], which is not a field from an index mapping")
+            containsString("[MATCH_PHRASE] function cannot operate on [y], which is not a field from an index mapping")
         );
 
     }

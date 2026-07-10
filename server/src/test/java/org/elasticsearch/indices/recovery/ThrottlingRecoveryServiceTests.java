@@ -57,7 +57,6 @@ import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDIC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -680,42 +679,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
         ensureListenersWereNotified(listener1, listener2);
-    }
-
-    public void testStaleRecordedEntryRemovedOnClusterStateChangeWithLocalNodeNull() {
-        final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            newClusterService(10),
-            RecoverySchedulingListener.NOOP
-        );
-        final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
-        final var allocationId = UUIDs.randomBase64UUID();
-
-        assertTrue(service.cancelRecoveries(Map.of(allocationId, shardId)).isEmpty());
-
-        final var event = mock(ClusterChangedEvent.class);
-        final var state = mock(ClusterState.class);
-        final var routingNodes = mock(RoutingNodes.class);
-        when(event.state()).thenReturn(state);
-        when(state.getRoutingNodes()).thenReturn(routingNodes);
-        when(routingNodes.node(anyString())).thenReturn(null);
-        service.clusterChanged(event);
-
-        final var recoveryState = newRecoveryState(shardId);
-        final var listener = new TestCaptureResultListener(ExpectedRecoveryOutcome.COMPLETED);
-        service.enqueue(
-            ProjectId.DEFAULT,
-            listener,
-            recoveryState,
-            allocationId,
-            stats,
-            l -> l.onRecoveryDone(recoveryState, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
-        );
-        taskQueue.runAllRunnableTasks();
-        assertThat(service.currentQueueSize(), equalTo(0));
-        ensureListenersWereNotified(listener);
     }
 
     public void testStaleRecordedEntryRemovedOnClusterStateChangeWithShardRelocated() {

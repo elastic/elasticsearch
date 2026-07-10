@@ -192,27 +192,21 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         final RoutingNode localNode = event.state().getRoutingNodes().node(clusterService.localNode().getId());
+        assert localNode != null : "this node received the cluster state state update so its RoutingNode entry must be non-null";
         final List<PendingRecovery> staleRecoveries = new ArrayList<>();
         synchronized (this) {
             if (closed) {
                 return;
             }
-            // This node has left the cluster's data nodes entirely (e.g. it's shutting down)
-            if (localNode == null) {
-                cancelledAllocationIds.clear();
-                staleRecoveries.addAll(pendingRecoveries);
-                pendingRecoveries.clear();
-            } else {
-                cancelledAllocationIds.entrySet()
-                    .removeIf((cancellation) -> allocationIdIsOutdated(localNode, cancellation.getValue(), cancellation.getKey()));
-                final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
-                while (it.hasNext()) {
-                    final PendingRecovery pending = it.next();
-                    final RecoveryState recoveryState = pending.recoveryState();
-                    if (allocationIdIsOutdated(localNode, recoveryState.getShardId(), pending.allocationId())) {
-                        it.remove();
-                        staleRecoveries.add(pending);
-                    }
+            cancelledAllocationIds.entrySet()
+                .removeIf((cancellation) -> allocationIdIsOutdated(localNode, cancellation.getValue(), cancellation.getKey()));
+            final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
+            while (it.hasNext()) {
+                final PendingRecovery pending = it.next();
+                final RecoveryState recoveryState = pending.recoveryState();
+                if (allocationIdIsOutdated(localNode, recoveryState.getShardId(), pending.allocationId())) {
+                    it.remove();
+                    staleRecoveries.add(pending);
                 }
             }
         }

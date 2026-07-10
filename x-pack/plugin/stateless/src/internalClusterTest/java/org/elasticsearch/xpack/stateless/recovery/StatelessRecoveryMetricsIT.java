@@ -111,7 +111,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThan(0L));
             assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recovery_type"), equalTo("PEER"));
+            assertThat(metric.attributes().get("es_recovery_type"), equalTo("PEER"));
         });
 
         assertBusy(() -> {
@@ -123,7 +123,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
             assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recovery_type"), equalTo("PEER"));
+            assertThat(metric.attributes().get("es_recovery_type"), equalTo("PEER"));
         });
 
         assertBusy(() -> {
@@ -135,7 +135,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
             assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recovery_type"), equalTo("PEER"));
+            assertThat(metric.attributes().get("es_recovery_type"), equalTo("PEER"));
         });
     }
 
@@ -162,7 +162,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recovery_type"), equalTo("EMPTY_STORE"));
+            assertThat(metric.attributes().get("es_recovery_type"), equalTo("EMPTY_STORE"));
         });
 
         // ensure that index shard is allocated on `indexingNode1` only
@@ -208,7 +208,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThan(0L));
             assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recovery_type"), equalTo("EXISTING_STORE"));
+            assertThat(metric.attributes().get("es_recovery_type"), equalTo("EXISTING_STORE"));
         });
 
         assertBusy(() -> {
@@ -220,7 +220,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
             assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recovery_type"), equalTo("EXISTING_STORE"));
+            assertThat(metric.attributes().get("es_recovery_type"), equalTo("EXISTING_STORE"));
         });
 
         assertBusy(() -> {
@@ -232,7 +232,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
             assertThat(metric.attributes().get("primary"), equalTo(true));
-            assertThat(metric.attributes().get("recovery_type"), equalTo("EXISTING_STORE"));
+            assertThat(metric.attributes().get("es_recovery_type"), equalTo("EXISTING_STORE"));
         });
     }
 
@@ -270,7 +270,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThan(0L));
             assertThat(metric.attributes().get("primary"), equalTo(false));
-            assertThat(metric.attributes().get("recovery_type"), equalTo("PEER"));
+            assertThat(metric.attributes().get("es_recovery_type"), equalTo("PEER"));
         });
     }
 

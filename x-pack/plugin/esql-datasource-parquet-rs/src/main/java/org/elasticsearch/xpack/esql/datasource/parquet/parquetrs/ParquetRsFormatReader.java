@@ -50,15 +50,19 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NullSpliceRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -346,7 +350,9 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         int batchSize = context.batchSize();
         int rowLimit = context.rowLimit();
 
-        String[] columns = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
+        int rowPosSlot = rowPositionSlot(projectedColumns);
+        List<String> nativeProjected = stripRowPosition(projectedColumns, rowPosSlot);
+        String[] columns = nativeProjected != null && nativeProjected.isEmpty() == false ? nativeProjected.toArray(new String[0]) : null;
         long limit = rowLimit == FormatReader.NO_LIMIT ? -1 : rowLimit;
 
         // Native FilterExpr ownership is bounded by this method: build it here, hand it to
@@ -363,6 +369,8 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             // Ownership of readerHandle has transferred to the iterator's close(); zero our copy
             // so the finally below doesn't double-free it.
             readerHandle = 0;
+            // The _rowPosition slot (when projected) is spliced as NULL by the dispatcher via
+            // {@link #rowPositionStrategy()}; the native bridge produces no row-position channel.
             return iterator;
         } finally {
             if (filterHandle != 0) {
@@ -372,6 +380,41 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
                 ParquetRsBridge.closeReader(readerHandle);
             }
         }
+    }
+
+    /**
+     * Returns the index of {@link ColumnExtractor#ROW_POSITION_COLUMN} in {@code projectedColumns},
+     * or {@code -1} when absent. The optimizer injects this synthetic column whenever {@code _id} or
+     * {@code _file.record_ref} is requested, but the native reader has no such column to materialise;
+     * see {@link #stripRowPosition} for the strip; the {@link NullSpliceRowPositionStrategy} returned
+     * by {@link #rowPositionStrategy()} re-introduces the column as a NULL block on the dispatcher side.
+     */
+    private static int rowPositionSlot(List<String> projectedColumns) {
+        return SyntheticColumns.rowPositionIndexInNames(projectedColumns);
+    }
+
+    /**
+     * Returns {@code projectedColumns} with {@link ColumnExtractor#ROW_POSITION_COLUMN} removed if
+     * present, otherwise the original list. The native bridge errors on unknown column names, so we
+     * never pass {@code _rowPosition} through; the dispatcher's {@link NullSpliceRowPositionStrategy}
+     * restores the column at the correct output position.
+     */
+    private static List<String> stripRowPosition(List<String> projectedColumns, int rowPosSlot) {
+        if (rowPosSlot < 0) {
+            return projectedColumns;
+        }
+        List<String> filtered = new ArrayList<>(projectedColumns.size() - 1);
+        for (int i = 0; i < projectedColumns.size(); i++) {
+            if (i != rowPosSlot) {
+                filtered.add(projectedColumns.get(i));
+            }
+        }
+        return filtered;
+    }
+
+    @Override
+    public RowPositionStrategy rowPositionStrategy() {
+        return new NullSpliceRowPositionStrategy(blockFactory, "parquet-rs lacks row-position API; pending Rust bridge");
     }
 
     // --- RangeAwareFormatReader ---
@@ -449,7 +492,9 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         List<String> projectedColumns = context.projectedColumns();
         int batchSize = context.batchSize();
         String path = resolveReadPath(object);
-        String[] columns = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
+        int rowPosSlot = rowPositionSlot(projectedColumns);
+        List<String> nativeProjected = stripRowPosition(projectedColumns, rowPosSlot);
+        String[] columns = nativeProjected != null && nativeProjected.isEmpty() == false ? nativeProjected.toArray(new String[0]) : null;
         long metaHandle = metadataHandleCache.computeIfAbsent(path, p -> ParquetRsBridge.loadArrowMetadata(p, configJson));
         long filterHandle = 0;
         long readerHandle = 0;
@@ -470,6 +515,7 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             );
             ParquetRsBatchIterator iterator = new ParquetRsBatchIterator(readerHandle, blockFactory);
             readerHandle = 0;
+            // _rowPosition splice is owned by the dispatcher via {@link #rowPositionStrategy()}.
             return iterator;
         } finally {
             if (filterHandle != 0) {
@@ -608,7 +654,9 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             offsets[i] = ref.offset();
             lengths[i] = ref.length();
         }
-        String[] cols = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
+        int rowPosSlot = rowPositionSlot(projectedColumns);
+        List<String> nativeProjected = stripRowPosition(projectedColumns, rowPosSlot);
+        String[] cols = nativeProjected != null && nativeProjected.isEmpty() == false ? nativeProjected.toArray(new String[0]) : null;
         long filterHandle = 0;
         long readerHandle = 0;
         try {
@@ -618,6 +666,7 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             readerHandle = ParquetRsBridge.openReaderMulti(paths, offsets, lengths, cols, batchSize, -1, filterHandle, configJson);
             ParquetRsBatchIterator iterator = new ParquetRsBatchIterator(readerHandle, blockFactory);
             readerHandle = 0;
+            // _rowPosition splice is owned by the dispatcher via {@link #rowPositionStrategy()}.
             return iterator;
         } finally {
             if (filterHandle != 0) {
@@ -829,4 +878,5 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             ParquetRsBridge.closeReader(handle);
         }
     }
+
 }

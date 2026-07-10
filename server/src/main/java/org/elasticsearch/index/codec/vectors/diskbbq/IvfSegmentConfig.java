@@ -9,30 +9,40 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-
 /**
- * Per-segment (per-field) IVF configuration persisted in {@code mivf}. It has three
- * parts: {@link #quantEncoding()} for scalar quant used when indexing doc vectors,
- * {@link #usePrecondition()} for whether a preconditioner is written and used on flush/merge and on the
- * reader, and {@link #rescoreOversample()} for kNN rescore candidate expansion,
- * read with query.
+ * Per-segment (per-field) IVF configuration persisted in {@code mivf}. It has four parts:
+ * <ul>
+ *     <li>{@link #centroidIndexFormat()} specifying the centroid indexing format</li>
+ *     <li>{@link #quantEncoding()} for scalar quant used when indexing doc vectors</li>
+ *     <li>{@link #usePrecondition()} for whether a preconditioner is written and used on flush/merge and on the reader</li>
+ *     <li>{@link #rescoreOversample()} for kNN rescore candidate expansion, read with query</li>
+ * </ul>
  * The effective config from flush/merge is written to stay consistent with the quantization and
  * preconditioning data stored for the segment.
  * Search-time scoring for quant and preconditioning continues to follow the on-disk {@code mivf} and
  * reader.
  * When the stored rescore is not finite (e.g. {@code NaN}), query and mapping rescore then apply in the usual order.
  */
-public record IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding, boolean usePrecondition, float rescoreOversample) {
+public record IvfSegmentConfig(
+    CentroidIndexFormat centroidIndexFormat,
+    QuantEncoding quantEncoding,
+    boolean usePrecondition,
+    float rescoreOversample
+) {
 
     public static final IvfSegmentConfig NONE = new IvfSegmentConfig(
-        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+        CentroidIndexFormat.FLAT,
+        QuantEncoding.ONE_BIT_4BIT_QUERY,
         false,
         Float.NaN
     );
 
-    public static IvfSegmentConfig fromCodecDefaults(ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding, boolean doPrecondition) {
-        return new IvfSegmentConfig(quantEncoding, doPrecondition, Float.NaN);
+    public static IvfSegmentConfig fromCodecDefaults(
+        CentroidIndexFormat centroidIndexFormat,
+        QuantEncoding quantEncoding,
+        boolean doPrecondition
+    ) {
+        return new IvfSegmentConfig(centroidIndexFormat, quantEncoding, doPrecondition, Float.NaN);
     }
 
     /**
@@ -53,7 +63,7 @@ public record IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding quantEnc
      */
     public static IvfSegmentConfig withEffectiveRescoreOversample(IvfSegmentConfig raw, Float queryOverride, float mappingDefault) {
         float effective = effectiveRescoreOversample(raw.rescoreOversample(), queryOverride, mappingDefault);
-        return new IvfSegmentConfig(raw.quantEncoding(), raw.usePrecondition(), effective);
+        return new IvfSegmentConfig(raw.centroidIndexFormat(), raw.quantEncoding(), raw.usePrecondition(), effective);
     }
 
     /** Per-leaf IVF collector size (includes 2x factor for overspill duplicates). */

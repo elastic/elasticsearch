@@ -978,7 +978,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     // In columnar mode, unmapped fields with dynamic:false must be dropped entirely rather than
     // stored in _ignored_source (documented data loss, not a bug).
     public void testColumnarDynamicFalseValueDropped() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
         ParsedDocument doc = mapper.parse(source(b -> b.field("unmapped_field", "some_value")));
         assertEquals(0, doc.rootDoc().getFields("unmapped_field").size());
@@ -989,7 +988,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testColumnarDynamicFalseObjectDropped() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
         ParsedDocument doc = mapper.parse(source(b -> b.startObject("unmapped_obj").field("key", "value").endObject()));
         assertEquals(0, doc.rootDoc().getFields("unmapped_obj.key").size());
@@ -1000,7 +998,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testColumnarDynamicFalseArrayDropped() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("unmapped_arr").value(1).value(2).endArray()));
         assertEquals(0, doc.rootDoc().getFields("unmapped_arr").size());
@@ -1046,7 +1043,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testColumnarPerPrefixDynamicFalseDropsLeafDottedNotation() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
             // dotted-notation unmapped field under attributes.* prefix
@@ -1060,7 +1056,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testColumnarPerPrefixDynamicFalseDropsLeafObjectNotation() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
             // object-notation unmapped field under attributes.* prefix
@@ -1074,7 +1069,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testColumnarPerPrefixDynamicFalseDoesNotDropMappedField() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
             // Mapped field under the prefix must still be indexed
@@ -1084,7 +1078,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testColumnarPerPrefixDynamicStrictThrowsDottedNotation() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "resource", "strict", "service", "keyword");
             StrictDynamicMappingException e = expectThrows(
@@ -1096,7 +1089,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testColumnarPerPrefixDynamicStrictThrowsObjectNotation() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "resource", "strict", "service", "keyword");
             StrictDynamicMappingException e = expectThrows(
@@ -1108,7 +1100,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testColumnarPerPrefixDynamicFallbackToRootDynamic() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             // Root dynamic=true, attributes dynamic=false; field under a different prefix should still be created
             DocumentMapper mapper = createColumnarMapperWithPrefixDynamic(indexMode, "attributes", "false", "host", "keyword");
@@ -1122,7 +1113,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testColumnarPerPrefixDynamicLongestPrefixWins() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             // foo dynamic=false, foo.bar dynamic=true — longer prefix wins
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
@@ -1153,6 +1143,78 @@ public class DocumentParserTests extends MapperServiceTestCase {
             // foo.other → prefix foo (false) → dropped
             ParsedDocument doc2 = mapper.parse(columnarSource(b -> b.field("foo.other", "value")));
             assertTrue(doc2.rootDoc().getFields("foo.other").isEmpty());
+        }
+    }
+
+    public void testColumnarEnabledFalseDropsDottedNotation() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("attributes");
+                {
+                    b.field("enabled", false);
+                }
+                b.endObject();
+            })).documentMapper();
+
+            // dotted-notation field under the disabled prefix must be dropped entirely
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("attributes.host", "myhost")));
+            assertTrue(doc.rootDoc().getFields("attributes.host").isEmpty());
+            assertNull(
+                "enabled:false prefix must drop the field (not store to _ignored_source)",
+                doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+            );
+        }
+    }
+
+    public void testColumnarEnabledFalseDropsObjectNotation() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("attributes");
+                {
+                    b.field("enabled", false);
+                }
+                b.endObject();
+            })).documentMapper();
+
+            // object-notation field under the disabled prefix must be dropped entirely
+            ParsedDocument doc = mapper.parse(
+                columnarSource(b -> b.startObject("attributes").field("host", "myhost").field("region", "us-east").endObject())
+            );
+            assertTrue(doc.rootDoc().getFields("attributes.host").isEmpty());
+            assertTrue(doc.rootDoc().getFields("attributes.region").isEmpty());
+            assertNull(
+                "enabled:false prefix must drop the subtree (not store to _ignored_source)",
+                doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+            );
+        }
+    }
+
+    public void testColumnarEnabledFalseDropsAllSubfields() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // Even with a declared host:keyword child, no leaf mapper is created and no field is indexed.
+            DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject("attributes");
+                {
+                    b.field("enabled", false);
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            })).documentMapper();
+
+            // Declared field under enabled:false must also be dropped — the entire subtree is disabled.
+            ParsedDocument doc = mapper.parse(columnarSource(b -> b.field("attributes.host", "myhost")));
+            assertTrue(
+                "all fields under enabled:false must be dropped, even explicitly mapped ones",
+                doc.rootDoc().getFields("attributes.host").isEmpty()
+            );
         }
     }
 

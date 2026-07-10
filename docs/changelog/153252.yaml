@@ -1,0 +1,5 @@
+pr: 153252
+summary: "[ES|QL|DS] Parse CSV file-level `datetime_format` with the ES `DateFormatter`"
+area: ES|QL
+type: bug
+issues: []

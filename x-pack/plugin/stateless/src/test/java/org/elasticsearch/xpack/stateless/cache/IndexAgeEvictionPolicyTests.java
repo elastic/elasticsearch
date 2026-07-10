@@ -26,8 +26,10 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
@@ -63,7 +65,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         ShardId recentShard = new ShardId("recent", randomUUID(), 0);
         var policy = new TestIndexAgeEvictionPolicy(Map.of(oldShard, creationDates[0], recentShard, creationDates[1]));
 
-        assertTrue(policy.canEvict(region(oldShard, "f"), region(recentShard, "g")));
+        assertTrue(canEvict(policy, region(oldShard, "f"), region(recentShard, "g")));
     }
 
     public void testCannotEvictNewerRegionForOlderIncoming() {
@@ -72,7 +74,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         ShardId recentShard = new ShardId("recent", randomUUID(), 0);
         var policy = new TestIndexAgeEvictionPolicy(Map.of(oldShard, creationDates[0], recentShard, creationDates[1]));
 
-        assertFalse(policy.canEvict(region(recentShard, "f"), region(oldShard, "g")));
+        assertFalse(canEvict(policy, region(recentShard, "f"), region(oldShard, "g")));
     }
 
     public void testCanEvictWhenCreationDatesEqual() {
@@ -81,7 +83,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         ShardId shard2 = new ShardId("index2", randomUUID(), 0);
         var policy = new TestIndexAgeEvictionPolicy(Map.of(shard1, creationDate, shard2, creationDate));
 
-        assertTrue(policy.canEvict(region(shard1, "f"), region(shard2, "g")));
+        assertTrue(canEvict(policy, region(shard1, "f"), region(shard2, "g")));
     }
 
     public void testMissingShardTreatedAsOldest() {
@@ -90,8 +92,8 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         ShardId recentShard = new ShardId("recent", randomUUID(), 0);
         var policy = new TestIndexAgeEvictionPolicy(Map.of(recentShard, recentDate));
 
-        assertTrue(policy.canEvict(region(unknownShard, "f"), region(recentShard, "g")));
-        assertFalse(policy.canEvict(region(recentShard, "f"), region(unknownShard, "g")));
+        assertTrue(canEvict(policy, region(unknownShard, "f"), region(recentShard, "g")));
+        assertFalse(canEvict(policy, region(recentShard, "f"), region(unknownShard, "g")));
     }
 
     /**
@@ -148,6 +150,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
 
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(taskQueue.getThreadPool(), ProjectId.DEFAULT);
+        final IndicesService indicesService = TestUtils.mockIndicesService(clusterService);
         ClusterServiceUtils.setState(
             clusterService,
             ClusterState.builder(ClusterName.DEFAULT)
@@ -162,6 +165,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
                 taskQueue.getThreadPool(),
                 BlobCacheMetrics.NOOP,
                 clusterService,
+                indicesService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             )
         ) {
@@ -216,5 +220,9 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
 
     private static long cacheRegionSizeInBytes(long numPages) {
         return numPages * SharedBytes.PAGE_SIZE;
+    }
+
+    private static boolean canEvict(IndexAgeEvictionPolicy policy, CacheRegion<FileCacheKey> region, CacheRegion<FileCacheKey> incoming) {
+        return policy.createPredicate(incoming).test(region);
     }
 }

@@ -135,10 +135,8 @@ public class TransportWriteActionTests extends ESTestCase {
         when(replicationGroup.getReplicationTargets()).thenReturn(Collections.emptyList());
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterService() throws Exception {
         clusterService.close();
     }
 

@@ -272,7 +272,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 sortOrders,
                 IntStream.of(groupKeys).boxed().toList(),
                 maxPageSize,
-                jumboPageBytes
+                jumboPageBytes,
+                GroupedTopNOperator.OutputOrdering.SORTED
             );
         }
         return new TopNOperator.TopNOperatorFactory(
@@ -470,7 +471,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]"
                 + ", groupKeys="
                 + Arrays.toString(groupKeys())
-                + "]";
+                + ", outputOrdering=SORTED]";
             try (Operator operator = topN.get(driverContext())) {
                 assertThat(operator.toString(), equalTo(expectedDescription));
             }
@@ -1288,7 +1289,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 + sorts
                 + "], groupKeys="
                 + Arrays.toString(groupKeys())
-                + "]";
+                + ", outputOrdering=SORTED]";
             assertThat(factory.describe(), equalTo("GroupedTopNOperator[count=10" + tail));
             try (Operator operator = factory.get(driverContext())) {
                 assertThat(operator.toString(), equalTo("GroupedTopNOperator[count=0/0/10" + tail));
@@ -1732,6 +1733,143 @@ public class TopNOperatorTests extends OperatorTestCase {
                 )
             )
             .toList();
+    }
+
+    /**
+     * A single keyword/text sort key feeds its competitive bound to {@link SharedMinCompetitive} so
+     * external format readers can prune row groups. As more competitive (smaller, for ASC) pages are
+     * consumed the published bound must tighten monotonically.
+     */
+    public void testBytesRefMinCompetitiveTightensAsPagesConsumed() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        List<ElementType> elementTypes = List.of(BYTES_REF);
+        List<TopNEncoder> encoders = List.of(UTF8);
+        List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, true, false)); // ASC NULLS LAST
+        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
+            blockFactory.breaker(),
+            keyConfigs(elementTypes, encoders, sortOrders)
+        );
+        try (
+            SharedMinCompetitive channel = supplier.get();
+            TopNOperator operator = new TopNOperator(
+                blockFactory,
+                nonBreakingBigArrays().breakerService().getBreaker("request"),
+                3,
+                elementTypes,
+                encoders,
+                sortOrders,
+                pageSize,
+                Long.MAX_VALUE,
+                InputOrdering.NOT_SORTED,
+                supplier
+            )
+        ) {
+            // Heap not full yet (2 < K=3): nothing published.
+            operator.addInput(bytesRefPage(blockFactory, "d", "e"));
+            assertThat(channel.minCompetitiveValue(), nullValue());
+            // Heap saturates at K=3; the bound is the worst (largest, for ASC) of the kept top-3.
+            operator.addInput(bytesRefPage(blockFactory, "f"));
+            assertThat(channel.minCompetitiveValue(), equalTo(new BytesRef("f")));
+            // A repeated read with no new offer returns an equal-but-independent view (generation cache).
+            BytesRef first = channel.minCompetitiveValue();
+            BytesRef second = channel.minCompetitiveValue();
+            assertThat(second, equalTo(first));
+            assertNotSame(first, second);
+            // Smaller values evict the largest kept row and tighten the bound.
+            operator.addInput(bytesRefPage(blockFactory, "a"));
+            assertThat(channel.minCompetitiveValue(), equalTo(new BytesRef("e")));
+            operator.addInput(bytesRefPage(blockFactory, "b"));
+            assertThat(channel.minCompetitiveValue(), equalTo(new BytesRef("d")));
+            // A non-competitive page leaves the bound unchanged.
+            operator.addInput(bytesRefPage(blockFactory, "z"));
+            assertThat(channel.minCompetitiveValue(), equalTo(new BytesRef("d")));
+            assertFalse(channel.noFurtherCandidates());
+        }
+    }
+
+    /**
+     * Under {@code NULLS FIRST} nulls are the most competitive rows. Once the top-K is saturated with
+     * nulls no later non-null row can compete, so the operator signals readers to stop entirely.
+     */
+    public void testBytesRefNullsFirstMarksNoFurtherCandidates() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        List<ElementType> elementTypes = List.of(BYTES_REF);
+        List<TopNEncoder> encoders = List.of(UTF8);
+        List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, true, true)); // ASC NULLS FIRST
+        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
+            blockFactory.breaker(),
+            keyConfigs(elementTypes, encoders, sortOrders)
+        );
+        try (
+            SharedMinCompetitive channel = supplier.get();
+            TopNOperator operator = new TopNOperator(
+                blockFactory,
+                nonBreakingBigArrays().breakerService().getBreaker("request"),
+                3,
+                elementTypes,
+                encoders,
+                sortOrders,
+                pageSize,
+                Long.MAX_VALUE,
+                InputOrdering.NOT_SORTED,
+                supplier
+            )
+        ) {
+            // Two nulls: heap not yet full of nulls, no early termination.
+            operator.addInput(bytesRefPage(blockFactory, null, null));
+            assertFalse(channel.noFurtherCandidates());
+            // A third null saturates the K=3 heap with nulls; the trailing non-null cannot compete.
+            operator.addInput(bytesRefPage(blockFactory, null, "x"));
+            assertTrue(channel.noFurtherCandidates());
+        }
+    }
+
+    /**
+     * Under {@code NULLS LAST} nulls are the least competitive rows, so a null-saturated or
+     * null-containing input must never trigger early termination: a later non-null row can still win.
+     */
+    public void testBytesRefNullsLastDoesNotMarkNoFurtherCandidates() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        List<ElementType> elementTypes = List.of(BYTES_REF);
+        List<TopNEncoder> encoders = List.of(UTF8);
+        List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, true, false)); // ASC NULLS LAST
+        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
+            blockFactory.breaker(),
+            keyConfigs(elementTypes, encoders, sortOrders)
+        );
+        try (
+            SharedMinCompetitive channel = supplier.get();
+            TopNOperator operator = new TopNOperator(
+                blockFactory,
+                nonBreakingBigArrays().breakerService().getBreaker("request"),
+                3,
+                elementTypes,
+                encoders,
+                sortOrders,
+                pageSize,
+                Long.MAX_VALUE,
+                InputOrdering.NOT_SORTED,
+                supplier
+            )
+        ) {
+            operator.addInput(bytesRefPage(blockFactory, "a", "b", "c"));
+            operator.addInput(bytesRefPage(blockFactory, null, null, null));
+            assertFalse(channel.noFurtherCandidates());
+            assertThat(channel.minCompetitiveValue(), equalTo(new BytesRef("c")));
+        }
+    }
+
+    private static Page bytesRefPage(BlockFactory blockFactory, String... values) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(values.length)) {
+            for (String value : values) {
+                if (value == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(new BytesRef(value));
+                }
+            }
+            return new Page(builder.build());
+        }
     }
 
     public void testIPSortingSingleValue() throws UnknownHostException {

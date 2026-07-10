@@ -1,0 +1,6 @@
+area: Network
+issues:
+ - 152518
+pr: 152757
+summary: Dispatch remote cluster connection failures on response executor
+type: bug

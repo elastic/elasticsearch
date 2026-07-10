@@ -339,7 +339,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         } else {
             approximateCost = esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost();
         }
-        float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
+        float percentFiltered = Math.clamp(approximateCost / numVectors, 0f, 1f);
         int k = knnCollector.k();
         int numCands = k;
         float visitRatio = dynamicVisitRatio;
@@ -353,8 +353,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         if (visitRatio == dynamicVisitRatio) {
             visitRatio = Math.min(computeDynamicVisitRatio(numCands, k), computeSegmentSizeCap(numVectors));
         }
-        // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
-        long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
+        long maxVectorVisited = maxVectorsToVisit(entry, visitRatio, numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
@@ -408,6 +407,16 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         }
     }
 
+    /**
+     * The cap on the number of (posting-member) vectors the search loop may visit. The default accounts for
+     * SOAR overspill, which can place a vector in up to two postings, by allowing 2x the visit-ratio budget.
+     * Subclasses may override to use a different budgeting model (e.g. an experiment-only posting/head-count
+     * budget where the centroid iterator's own bound governs how many postings are drained).
+     */
+    protected long maxVectorsToVisit(E entry, float visitRatio, int numVectors) {
+        return (long) (2.0 * visitRatio * numVectors);
+    }
+
     private static boolean hasNoVectors(FieldInfo fieldInfo, FieldEntry fieldEntry) {
         return fieldInfo.getVectorDimension() == 0
             || fieldEntry == null
@@ -425,7 +434,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     }
 
     private static double logScale(double value, double log1pMax) {
-        return Math.max(0.0, Math.min(1.0, Math.log1p(value) / log1pMax));
+        return Math.clamp(Math.log1p(value) / log1pMax, 0.0, 1.0);
     }
 
     /**
@@ -559,6 +568,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
         public int getBulkSize() {
             return bulkSize;
+        }
+
+        public int numSlices() {
+            return -1;
         }
     }
 

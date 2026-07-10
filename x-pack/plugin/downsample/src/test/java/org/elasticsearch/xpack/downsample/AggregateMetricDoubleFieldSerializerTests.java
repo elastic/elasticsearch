@@ -7,25 +7,48 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
+import org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.DocValuesType;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.downsample.NumericMetricFieldDownsamplerTests.createNumericValuesInstance;
+import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.withDocIdIterator;
+import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.withoutDocIdIterator;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
 
+    private final DocValuesType docValuesType;
+
+    public AggregateMetricDoubleFieldSerializerTests(DocValuesType docValuesType) {
+        this.docValuesType = docValuesType;
+    }
+
+    @ParametersFactory(shuffle = false)
+    public static List<Object[]> iteratorTypes() {
+        return List.of(new Object[] { DocValuesType.WITH_ITERATOR }, new Object[] { DocValuesType.WITHOUT_ITERATOR });
+    }
+
+    private SortedNumericDoubleValues getIterator(IntArrayList docIdsWithValues, double... values) {
+        return switch (docValuesType) {
+            case WITH_ITERATOR -> withDocIdIterator(docIdsWithValues, values);
+            case WITHOUT_ITERATOR -> withoutDocIdIterator(docIdsWithValues, values);
+        };
+    }
+
     public void testAggregatedGaugeFieldSerialization() throws IOException {
         NumericMetricFieldDownsampler producer = new NumericMetricFieldDownsampler.AggregateGauge("my-gauge", null);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
-        var valuesInstance = createNumericValuesInstance(docIdBuffer, 55.0, 12.2, 5.5);
+        var valuesInstance = getIterator(docIdBuffer, 55.0, 12.2, 5.5);
         producer.collect(valuesInstance, docIdBuffer);
         assertThat(producer.isDone(), equalTo(false));
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
@@ -46,7 +69,7 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
     public void testInvalidCounterFieldSerialization() throws IOException {
         NumericMetricFieldDownsampler downsampler = new NumericMetricFieldDownsampler.LastValue("my-counter", null);
         var docIdBuffer = IntArrayList.from(0, 1, 2);
-        var valuesInstance = createNumericValuesInstance(docIdBuffer, 55, 12, 5);
+        var valuesInstance = getIterator(docIdBuffer, 55, 12, 5);
         downsampler.collect(valuesInstance, docIdBuffer);
         AggregateMetricDoubleFieldDownsampler.Serializer gaugeFieldSerializer = new AggregateMetricDoubleFieldDownsampler.Serializer(
             "my-counter",
@@ -65,7 +88,7 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
             null
         );
         var docIdBuffer = IntArrayList.from(0, 1);
-        var valuesInstance = createNumericValuesInstance(docIdBuffer, 10, 5.5);
+        var valuesInstance = getIterator(docIdBuffer, 10, 5.5);
         minProducer.collect(valuesInstance, docIdBuffer);
         AggregateMetricDoubleFieldDownsampler maxProducer = new AggregateMetricDoubleFieldDownsampler.Aggregate(
             "my-gauge",
@@ -73,7 +96,7 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
             null
         );
         docIdBuffer = IntArrayList.from(0, 1);
-        valuesInstance = createNumericValuesInstance(docIdBuffer, 30, 55.0);
+        valuesInstance = getIterator(docIdBuffer, 30, 55.0);
         maxProducer.collect(valuesInstance, docIdBuffer);
         AggregateMetricDoubleFieldDownsampler sumProducer = new AggregateMetricDoubleFieldDownsampler.Aggregate(
             "my-gauge",
@@ -81,7 +104,7 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
             null
         );
         docIdBuffer = IntArrayList.from(0, 1);
-        valuesInstance = createNumericValuesInstance(docIdBuffer, 30, 72.7);
+        valuesInstance = getIterator(docIdBuffer, 30, 72.7);
         sumProducer.collect(valuesInstance, docIdBuffer);
         AggregateMetricDoubleFieldDownsampler countProducer = new AggregateMetricDoubleFieldDownsampler.Aggregate(
             "my-gauge",
@@ -89,7 +112,7 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
             null
         );
         docIdBuffer = IntArrayList.from(0, 1);
-        valuesInstance = createNumericValuesInstance(docIdBuffer, 2, 3);
+        valuesInstance = getIterator(docIdBuffer, 2, 3);
         countProducer.collect(valuesInstance, docIdBuffer);
         AggregateMetricDoubleFieldDownsampler.Serializer gaugeFieldSerializer = new AggregateMetricDoubleFieldDownsampler.Serializer(
             "my-gauge",
@@ -109,28 +132,28 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
             AggregateMetricDoubleFieldMapper.Metric.min
         );
         var docIdBuffer = IntArrayList.from(0, 1);
-        var valuesInstance = createNumericValuesInstance(docIdBuffer, 10D, 5.5);
+        var valuesInstance = getIterator(docIdBuffer, 10D, 5.5);
         minProducer.collect(valuesInstance, docIdBuffer);
         AggregateMetricDoubleFieldDownsampler maxProducer = randomAggregateSubMetricFieldProducer(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.max
         );
         docIdBuffer = IntArrayList.from(0, 1);
-        valuesInstance = createNumericValuesInstance(docIdBuffer, 30D, 55.0);
+        valuesInstance = getIterator(docIdBuffer, 30D, 55.0);
         maxProducer.collect(valuesInstance, docIdBuffer);
         AggregateMetricDoubleFieldDownsampler sumProducer = randomAggregateSubMetricFieldProducer(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.sum
         );
         docIdBuffer = IntArrayList.from(0, 1);
-        valuesInstance = createNumericValuesInstance(docIdBuffer, 30D, 72.7);
+        valuesInstance = getIterator(docIdBuffer, 30D, 72.7);
         sumProducer.collect(valuesInstance, docIdBuffer);
         AggregateMetricDoubleFieldDownsampler countProducer = randomAggregateSubMetricFieldProducer(
             "my-gauge",
             AggregateMetricDoubleFieldMapper.Metric.value_count
         );
         docIdBuffer = IntArrayList.from(0, 1);
-        valuesInstance = createNumericValuesInstance(docIdBuffer, 2, 3);
+        valuesInstance = getIterator(docIdBuffer, 2, 3);
         countProducer.collect(valuesInstance, docIdBuffer);
         AggregateMetricDoubleFieldDownsampler.Serializer gaugeFieldSerializer = new AggregateMetricDoubleFieldDownsampler.Serializer(
             "my-gauge",

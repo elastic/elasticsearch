@@ -43,17 +43,19 @@ public final class StatValueComparator {
         if (a == null || b == null) {
             return INCOMPARABLE;
         }
-        if (a instanceof BytesRef br) {
-            a = br.utf8ToString();
-        }
-        if (b instanceof BytesRef br) {
-            b = br.utf8ToString();
-        }
         if (a instanceof Number na && b instanceof Number nb) {
             if (isIntegral(na) && isIntegral(nb)) {
                 return Long.compare(na.longValue(), nb.longValue());
             }
             return Double.compare(na.doubleValue(), nb.doubleValue());
+        }
+        // Keyword/string extrema (text harvest emits BytesRef, parquet footer emits String) are ordered by the
+        // single shared UTF-8 keyword comparator so a filtered MATCH/MISS classification never diverges from a
+        // scan (see SourceStatisticsSerializer.compareKeywordUtf8 for the UTF-16-vs-UTF-8 rationale).
+        boolean aStr = a instanceof BytesRef || a instanceof String;
+        boolean bStr = b instanceof BytesRef || b instanceof String;
+        if (aStr && bStr) {
+            return SourceStatisticsSerializer.compareKeywordUtf8(a, b);
         }
         if (a instanceof Comparable ca && a.getClass() == b.getClass()) {
             return ca.compareTo(b);

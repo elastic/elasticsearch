@@ -87,6 +87,9 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     /** Script that always returns null regardless of the input value **/
     public static final String NULL_RETURNING_VALUE_SCRIPT = "null_returning_value_script";
 
+    /** Script that returns null for the value "skip", otherwise passes the value through **/
+    public static final String PARTIAL_NULL_RETURNING_VALUE_SCRIPT = "partial_null_returning_value_script";
+
     /** Script to extract the single string value of the 'str_value' field **/
     public static final String STRING_VALUE_SCRIPT = "doc['str_value'].value";
 
@@ -106,6 +109,11 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         scripts.put(VALUE_SCRIPT, vars -> vars.get("_value"));
 
         scripts.put(NULL_RETURNING_VALUE_SCRIPT, vars -> null);
+
+        scripts.put(PARTIAL_NULL_RETURNING_VALUE_SCRIPT, vars -> {
+            final Object value = vars.get("_value");
+            return "skip".equals(value) ? null : value;
+        });
 
         scripts.put(STRING_VALUE_SCRIPT, vars -> {
             final Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
@@ -458,7 +466,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSingleValuedStringValueScriptReturningNull() throws IOException {
-        // Regression test: value script returning null must not cause NPE (github #136639).
+        // Regression test: value script returning null must not cause NPE (GitHub #136639).
         // Null results are skipped regardless of what the field value is.
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, NULL_RETURNING_VALUE_SCRIPT, emptyMap()));
@@ -471,6 +479,51 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, card -> {
             assertEquals(0, card.getValue(), 0); // all null → all skipped
             assertFalse(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
+    public void testMultiValuedStringValueScriptSomeNullValues() throws IOException {
+        // Regression test for GitHub #136639: within a single multi-valued document, the value
+        // script can return null for some values and non-null for others. This exercises the
+        // compaction logic in ValuesSource.Bytes.WithScript.BytesValues#advanceExact, where the
+        // number of retained (non-null) values is smaller than the number of raw doc values.
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_values")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, PARTIAL_NULL_RETURNING_VALUE_SCRIPT, emptyMap()));
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
+
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
+            // Mixed doc: "skip" -> null, "one" and "two" survive (partial compaction, j < i)
+            iw.addDocument(
+                List.of(
+                    new SortedSetDocValuesField("str_values", new BytesRef("one")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("skip")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("two"))
+                )
+            );
+            // Mixed doc: "skip" -> null, "three" survives
+            iw.addDocument(
+                List.of(
+                    new SortedSetDocValuesField("str_values", new BytesRef("skip")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("three"))
+                )
+            );
+            // All null doc: every value maps to null, count becomes 0
+            iw.addDocument(
+                List.of(
+                    new SortedSetDocValuesField("str_values", new BytesRef("skip")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("skip"))
+                )
+            );
+            // No nulls doc: full compaction is a no-op (j == i)
+            iw.addDocument(
+                List.of(
+                    new SortedSetDocValuesField("str_values", new BytesRef("one")),
+                    new SortedSetDocValuesField("str_values", new BytesRef("four"))
+                )
+            );
+        }, card -> {
+            assertEquals(4, card.getValue(), 0); // "one", "two", "three", "four"
+            assertTrue(AggregationInspectionHelper.hasValue(card));
         }, mappedFieldTypes);
     }
 

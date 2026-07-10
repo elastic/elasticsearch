@@ -60,7 +60,7 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
         // We create both only when we're testing LOOKUP mode.
         if (indexExists(remoteClient(), LOOKUP_INDEX_NAME) == false && indexMode() == IndexMode.LOOKUP) {
             createAllTypesIndex(remoteClient(), minVersion(), LOOKUP_INDEX_NAME, null, indexMode());
-            createAllTypesDoc(remoteClient(), minVersion(), LOOKUP_INDEX_NAME);
+            createAllTypesDoc(remoteClient(), minVersion(), LOOKUP_INDEX_NAME, indexMode());
             createEnrichPolicy(remoteClient(), minVersion(), LOOKUP_INDEX_NAME, ENRICH_POLICY_NAME);
         }
     }

@@ -40,9 +40,7 @@ public class InboundAggregatorTests extends ESTestCase {
     private TestCircuitBreaker circuitBreaker;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initAggregator() throws Exception {
         Predicate<String> requestCanTripBreaker = action -> {
             if (unknownAction.equals(action)) {
                 throw new ActionNotFoundTransportException(action);

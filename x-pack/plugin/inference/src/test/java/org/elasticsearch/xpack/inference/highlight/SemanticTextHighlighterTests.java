@@ -35,6 +35,7 @@ public class SemanticTextHighlighterTests extends AbstractSemanticHighlighterTes
     private static final String SEMANTIC_FIELD_ELSER = "field-sparse-vector";
 
     final Map<String, Object> queries;
+
     public SemanticTextHighlighterTests(boolean useLegacyFormat) throws IOException {
         super(
             indexSettings(useLegacyFormat),

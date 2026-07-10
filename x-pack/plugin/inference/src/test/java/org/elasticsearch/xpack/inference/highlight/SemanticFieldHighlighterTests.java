@@ -37,7 +37,8 @@ public class SemanticFieldHighlighterTests extends AbstractSemanticHighlighterTe
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build(),
             Streams.readFully(SemanticFieldHighlighterTests.class.getResourceAsStream("mappings-semantic.json")).utf8ToString(),
             sourceFromFile(SemanticFieldHighlighterTests.class.getResource("sample-doc-semantic.json.gz")),
-            denseVectorQueryData());
+            denseVectorQueryData()
+        );
     }
 
     /**

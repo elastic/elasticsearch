@@ -74,12 +74,8 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
     final Map<String, Object> queryData;
 
     @SuppressWarnings("this-escape")
-    public AbstractSemanticHighlighterTests(
-        Settings settings,
-        String mappings,
-        SourceToParse sourceToParse,
-        Map<String, Object> queryData
-    ) throws IOException {
+    public AbstractSemanticHighlighterTests(Settings settings, String mappings, SourceToParse sourceToParse, Map<String, Object> queryData)
+        throws IOException {
         this.mapperService = createMapperService(IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings), settings, mappings);
         this.sourceToParse = sourceToParse;
         this.queryData = queryData;
@@ -271,7 +267,6 @@ public abstract class AbstractSemanticHighlighterTests extends MapperServiceTest
         merge(mapperService, mappings);
         return mapperService;
     }
-
 
     private static float[] readDenseVector(Object value) {
         if (value instanceof List<?> lst) {

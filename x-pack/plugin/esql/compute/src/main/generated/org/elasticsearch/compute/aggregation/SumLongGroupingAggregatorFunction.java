@@ -91,6 +91,11 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, vBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -109,6 +114,11 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, vVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, vVector);
       }
 
       @Override
@@ -464,6 +474,47 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
           warnings.registerException(e);
           state.setFailed(groupId);
         }
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, LongBlock vBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      if (state.hasFailed(groupId)) {
+        continue;
+      }
+      int vStart = vBlock.getFirstValueIndex(valuesPosition);
+      int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        long vValue = vBlock.getLong(vOffset);
+        try {
+          state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), vValue));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          state.setFailed(groupId);
+        }
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, LongVector vVector) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      if (state.hasFailed(groupId)) {
+        continue;
+      }
+      long vValue = vVector.getLong(valuesPosition);
+      try {
+        state.set(groupId, SumLongAggregator.combine(state.getOrDefault(groupId), vValue));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        state.setFailed(groupId);
       }
     }
   }

@@ -90,6 +90,11 @@ public final class SpatialExtentCartesianPointDocValuesGroupingAggregatorFunctio
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, vBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -108,6 +113,11 @@ public final class SpatialExtentCartesianPointDocValuesGroupingAggregatorFunctio
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, vVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, vVector);
       }
 
       @Override
@@ -434,6 +444,31 @@ public final class SpatialExtentCartesianPointDocValuesGroupingAggregatorFunctio
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialExtentCartesianPointDocValuesAggregator.combineIntermediate(state, groupId, minX.getInt(valuesPosition), maxX.getInt(valuesPosition), maxY.getInt(valuesPosition), minY.getInt(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, LongBlock vBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int vStart = vBlock.getFirstValueIndex(valuesPosition);
+      int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        long vValue = vBlock.getLong(vOffset);
+        SpatialExtentCartesianPointDocValuesAggregator.combine(state, groupId, vValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, LongVector vVector) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      long vValue = vVector.getLong(valuesPosition);
+      SpatialExtentCartesianPointDocValuesAggregator.combine(state, groupId, vValue);
     }
   }
 

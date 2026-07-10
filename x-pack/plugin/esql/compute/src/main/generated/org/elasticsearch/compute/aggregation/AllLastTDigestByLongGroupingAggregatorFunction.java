@@ -98,6 +98,11 @@ public final class AllLastTDigestByLongGroupingAggregatorFunction implements Gro
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, tdigestBlock, sortKeyBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -116,6 +121,11 @@ public final class AllLastTDigestByLongGroupingAggregatorFunction implements Gro
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, tdigestBlock, sortKeyVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, tdigestBlock, sortKeyVector);
       }
 
       @Override
@@ -451,6 +461,48 @@ public final class AllLastTDigestByLongGroupingAggregatorFunction implements Gro
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       AllLastTDigestByLongAggregator.combineIntermediate(state, groupId, sortKeys.getLong(valuesPosition), values, seen.getBoolean(valuesPosition), valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, TDigestBlock tdigestBlock,
+      LongBlock sortKeyBlock) {
+    TDigestHolder tdigestScratch = new TDigestHolder();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (tdigestBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      if (sortKeyBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int tdigestStart = tdigestBlock.getFirstValueIndex(valuesPosition);
+      int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
+      for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
+        TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
+        int sortKeyStart = sortKeyBlock.getFirstValueIndex(valuesPosition);
+        int sortKeyEnd = sortKeyStart + sortKeyBlock.getValueCount(valuesPosition);
+        for (int sortKeyOffset = sortKeyStart; sortKeyOffset < sortKeyEnd; sortKeyOffset++) {
+          long sortKeyValue = sortKeyBlock.getLong(sortKeyOffset);
+          AllLastTDigestByLongAggregator.combine(state, groupId, tdigestValue, sortKeyValue);
+        }
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, TDigestBlock tdigestBlock,
+      LongVector sortKeyVector) {
+    TDigestHolder tdigestScratch = new TDigestHolder();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      long sortKeyValue = sortKeyVector.getLong(valuesPosition);
+      int tdigestStart = tdigestBlock.getFirstValueIndex(valuesPosition);
+      int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
+      for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
+        TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
+        AllLastTDigestByLongAggregator.combine(state, groupId, tdigestValue, sortKeyValue);
+      }
     }
   }
 

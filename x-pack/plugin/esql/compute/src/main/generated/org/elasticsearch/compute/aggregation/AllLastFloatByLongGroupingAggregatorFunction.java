@@ -76,6 +76,11 @@ public final class AllLastFloatByLongGroupingAggregatorFunction implements Group
       }
 
       @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valuesBlock, timestampsBlock);
+      }
+
+      @Override
       public void close() {
       }
     };
@@ -193,6 +198,15 @@ public final class AllLastFloatByLongGroupingAggregatorFunction implements Group
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       AllLastFloatByLongAggregator.combineIntermediate(state, groupId, observed, timestampsPresent, timestamps, values, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, FloatBlock valuesBlock,
+      LongBlock timestampsBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      AllLastFloatByLongAggregator.combine(state, groupId, valuesPosition, valuesBlock, timestampsBlock);
     }
   }
 

@@ -85,6 +85,11 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -103,6 +108,11 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valueVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueVector);
       }
 
       @Override
@@ -352,6 +362,33 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       MinBytesRefAggregator.combineIntermediate(state, groupId, min.getBytesRef(valuesPosition, minScratch), seen.getBoolean(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefBlock valueBlock) {
+    BytesRef valueScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
+        MinBytesRefAggregator.combine(state, groupId, valueValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefVector valueVector) {
+    BytesRef valueScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      MinBytesRefAggregator.combine(state, groupId, valueValue);
     }
   }
 

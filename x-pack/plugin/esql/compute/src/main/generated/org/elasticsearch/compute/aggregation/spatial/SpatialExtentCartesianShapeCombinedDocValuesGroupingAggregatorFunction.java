@@ -87,6 +87,11 @@ public final class SpatialExtentCartesianShapeCombinedDocValuesGroupingAggregato
       }
 
       @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valuesBlock);
+      }
+
+      @Override
       public void close() {
       }
     };
@@ -345,6 +350,14 @@ public final class SpatialExtentCartesianShapeCombinedDocValuesGroupingAggregato
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialExtentCartesianShapeCombinedDocValuesAggregator.combineIntermediate(state, groupId, minX.getInt(valuesPosition), maxX.getInt(valuesPosition), maxY.getInt(valuesPosition), minY.getInt(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleBlock valuesBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      SpatialExtentCartesianShapeCombinedDocValuesAggregator.combine(state, groupId, valuesPosition, valuesBlock);
     }
   }
 

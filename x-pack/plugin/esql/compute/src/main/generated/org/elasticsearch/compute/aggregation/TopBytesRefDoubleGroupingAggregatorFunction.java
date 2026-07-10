@@ -102,6 +102,11 @@ public final class TopBytesRefDoubleGroupingAggregatorFunction implements Groupi
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, vBlock, outputValueBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -126,6 +131,11 @@ public final class TopBytesRefDoubleGroupingAggregatorFunction implements Groupi
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, vBlock, outputValueBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -144,6 +154,11 @@ public final class TopBytesRefDoubleGroupingAggregatorFunction implements Groupi
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, vVector, outputValueVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, vVector, outputValueVector);
       }
 
       @Override
@@ -428,6 +443,44 @@ public final class TopBytesRefDoubleGroupingAggregatorFunction implements Groupi
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       TopBytesRefDoubleAggregator.combineIntermediate(state, groupId, top, output, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefBlock vBlock,
+      DoubleBlock outputValueBlock) {
+    BytesRef vScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      if (outputValueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int vStart = vBlock.getFirstValueIndex(valuesPosition);
+      int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
+        int outputValueStart = outputValueBlock.getFirstValueIndex(valuesPosition);
+        int outputValueEnd = outputValueStart + outputValueBlock.getValueCount(valuesPosition);
+        for (int outputValueOffset = outputValueStart; outputValueOffset < outputValueEnd; outputValueOffset++) {
+          double outputValueValue = outputValueBlock.getDouble(outputValueOffset);
+          TopBytesRefDoubleAggregator.combine(state, groupId, vValue, outputValueValue);
+        }
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefVector vVector,
+      DoubleVector outputValueVector) {
+    BytesRef vScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      double outputValueValue = outputValueVector.getDouble(valuesPosition);
+      TopBytesRefDoubleAggregator.combine(state, groupId, vValue, outputValueValue);
     }
   }
 

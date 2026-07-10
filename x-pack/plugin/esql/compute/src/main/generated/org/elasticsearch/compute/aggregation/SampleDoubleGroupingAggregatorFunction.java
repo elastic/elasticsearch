@@ -87,6 +87,11 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -105,6 +110,11 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valueVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueVector);
       }
 
       @Override
@@ -305,6 +315,31 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SampleDoubleAggregator.combineIntermediate(state, groupId, sample, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleBlock valueBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        double valueValue = valueBlock.getDouble(valueOffset);
+        SampleDoubleAggregator.combine(state, groupId, valueValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleVector valueVector) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      double valueValue = valueVector.getDouble(valuesPosition);
+      SampleDoubleAggregator.combine(state, groupId, valueValue);
     }
   }
 

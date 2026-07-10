@@ -77,6 +77,11 @@ public final class AllFirstBytesRefByLongGroupingAggregatorFunction implements G
       }
 
       @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valuesBlock, timestampsBlock);
+      }
+
+      @Override
       public void close() {
       }
     };
@@ -197,6 +202,15 @@ public final class AllFirstBytesRefByLongGroupingAggregatorFunction implements G
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       AllFirstBytesRefByLongAggregator.combineIntermediate(state, groupId, observed, timestampsPresent, timestamps, values, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefBlock valuesBlock,
+      LongBlock timestampsBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      AllFirstBytesRefByLongAggregator.combine(state, groupId, valuesPosition, valuesBlock, timestampsBlock);
     }
   }
 

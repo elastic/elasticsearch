@@ -85,6 +85,11 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, vBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -103,6 +108,11 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, vVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, vVector);
       }
 
       @Override
@@ -385,6 +395,31 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       LossySumDoubleAggregator.combineIntermediate(state, groupId, value.getDouble(valuesPosition), unusedDeltas.getDouble(valuesPosition), seen.getBoolean(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleBlock vBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int vStart = vBlock.getFirstValueIndex(valuesPosition);
+      int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        double vValue = vBlock.getDouble(vOffset);
+        LossySumDoubleAggregator.combine(state, groupId, vValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleVector vVector) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      double vValue = vVector.getDouble(valuesPosition);
+      LossySumDoubleAggregator.combine(state, groupId, vValue);
     }
   }
 

@@ -87,6 +87,11 @@ public final class SampleLongGroupingAggregatorFunction implements GroupingAggre
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -105,6 +110,11 @@ public final class SampleLongGroupingAggregatorFunction implements GroupingAggre
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valueVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueVector);
       }
 
       @Override
@@ -305,6 +315,31 @@ public final class SampleLongGroupingAggregatorFunction implements GroupingAggre
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SampleLongAggregator.combineIntermediate(state, groupId, sample, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, LongBlock valueBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        long valueValue = valueBlock.getLong(valueOffset);
+        SampleLongAggregator.combine(state, groupId, valueValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, LongVector valueVector) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      long valueValue = valueVector.getLong(valuesPosition);
+      SampleLongAggregator.combine(state, groupId, valueValue);
     }
   }
 

@@ -90,6 +90,11 @@ public final class DeltaOnlyHistogramMergeOverTimeExponentialHistogramGroupingAg
       }
 
       @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueBlock, temporalityBlock);
+      }
+
+      @Override
       public void close() {
       }
     };
@@ -222,6 +227,24 @@ public final class DeltaOnlyHistogramMergeOverTimeExponentialHistogramGroupingAg
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       DeltaOnlyHistogramMergeOverTimeExponentialHistogramAggregator.combineIntermediate(state, groupId, value.getExponentialHistogram(value.getFirstValueIndex(valuesPosition), valueScratch), seen.getBoolean(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions,
+      ExponentialHistogramBlock valueBlock, BytesRefBlock temporalityBlock) {
+    ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
+        DeltaOnlyHistogramMergeOverTimeExponentialHistogramAggregator.combine(state, groupId, valueValue, valuesPosition, temporalityBlock);
+      }
     }
   }
 

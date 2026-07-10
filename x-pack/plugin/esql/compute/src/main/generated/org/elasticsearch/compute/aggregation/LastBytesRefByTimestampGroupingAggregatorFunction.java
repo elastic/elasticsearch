@@ -96,6 +96,11 @@ public final class LastBytesRefByTimestampGroupingAggregatorFunction implements 
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock, timestampBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -120,6 +125,11 @@ public final class LastBytesRefByTimestampGroupingAggregatorFunction implements 
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock, timestampBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -138,6 +148,11 @@ public final class LastBytesRefByTimestampGroupingAggregatorFunction implements 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valueVector, timestampVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueVector, timestampVector);
       }
 
       @Override
@@ -422,6 +437,44 @@ public final class LastBytesRefByTimestampGroupingAggregatorFunction implements 
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       LastBytesRefByTimestampAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefBlock valueBlock,
+      LongBlock timestampBlock) {
+    BytesRef valueScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      if (timestampBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
+        int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
+        int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
+        for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
+          long timestampValue = timestampBlock.getLong(timestampOffset);
+          LastBytesRefByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
+        }
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefVector valueVector,
+      LongVector timestampVector) {
+    BytesRef valueScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastBytesRefByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
     }
   }
 

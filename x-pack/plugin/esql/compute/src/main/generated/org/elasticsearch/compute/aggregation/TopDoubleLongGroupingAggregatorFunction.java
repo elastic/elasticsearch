@@ -101,6 +101,11 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, vBlock, outputValueBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -125,6 +130,11 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, vBlock, outputValueBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -143,6 +153,11 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, vVector, outputValueVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, vVector, outputValueVector);
       }
 
       @Override
@@ -418,6 +433,42 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       TopDoubleLongAggregator.combineIntermediate(state, groupId, top, output, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleBlock vBlock,
+      LongBlock outputValueBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      if (outputValueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int vStart = vBlock.getFirstValueIndex(valuesPosition);
+      int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        double vValue = vBlock.getDouble(vOffset);
+        int outputValueStart = outputValueBlock.getFirstValueIndex(valuesPosition);
+        int outputValueEnd = outputValueStart + outputValueBlock.getValueCount(valuesPosition);
+        for (int outputValueOffset = outputValueStart; outputValueOffset < outputValueEnd; outputValueOffset++) {
+          long outputValueValue = outputValueBlock.getLong(outputValueOffset);
+          TopDoubleLongAggregator.combine(state, groupId, vValue, outputValueValue);
+        }
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleVector vVector,
+      LongVector outputValueVector) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      double vValue = vVector.getDouble(valuesPosition);
+      long outputValueValue = outputValueVector.getLong(valuesPosition);
+      TopDoubleLongAggregator.combine(state, groupId, vValue, outputValueValue);
     }
   }
 

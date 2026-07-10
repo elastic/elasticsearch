@@ -94,6 +94,11 @@ public final class SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFuncti
       }
 
       @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valuesBlock);
+      }
+
+      @Override
       public void close() {
       }
     };
@@ -436,6 +441,14 @@ public final class SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFuncti
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialCentroidShapeCombinedDocValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(valuesPosition), xDel.getDouble(valuesPosition), yVal.getDouble(valuesPosition), yDel.getDouble(valuesPosition), weight.getDouble(valuesPosition), shapeType.getInt(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleBlock valuesBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      SpatialCentroidShapeCombinedDocValuesAggregator.combine(state, groupId, valuesPosition, valuesBlock);
     }
   }
 

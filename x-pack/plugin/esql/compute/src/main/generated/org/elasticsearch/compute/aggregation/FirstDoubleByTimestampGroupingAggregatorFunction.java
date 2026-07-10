@@ -95,6 +95,11 @@ public final class FirstDoubleByTimestampGroupingAggregatorFunction implements G
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock, timestampBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -119,6 +124,11 @@ public final class FirstDoubleByTimestampGroupingAggregatorFunction implements G
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock, timestampBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -137,6 +147,11 @@ public final class FirstDoubleByTimestampGroupingAggregatorFunction implements G
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valueVector, timestampVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueVector, timestampVector);
       }
 
       @Override
@@ -412,6 +427,42 @@ public final class FirstDoubleByTimestampGroupingAggregatorFunction implements G
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       FirstDoubleByTimestampAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleBlock valueBlock,
+      LongBlock timestampBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      if (timestampBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        double valueValue = valueBlock.getDouble(valueOffset);
+        int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
+        int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
+        for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
+          long timestampValue = timestampBlock.getLong(timestampOffset);
+          FirstDoubleByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
+        }
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleVector valueVector,
+      LongVector timestampVector) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      double valueValue = valueVector.getDouble(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstDoubleByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
     }
   }
 

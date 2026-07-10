@@ -99,6 +99,11 @@ public final class SpatialCentroidPointSourceValuesGroupingAggregatorFunction im
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, wkbBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -117,6 +122,11 @@ public final class SpatialCentroidPointSourceValuesGroupingAggregatorFunction im
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, wkbVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, wkbVector);
       }
 
       @Override
@@ -491,6 +501,33 @@ public final class SpatialCentroidPointSourceValuesGroupingAggregatorFunction im
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialCentroidPointSourceValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(valuesPosition), xDel.getDouble(valuesPosition), yVal.getDouble(valuesPosition), yDel.getDouble(valuesPosition), count.getLong(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefBlock wkbBlock) {
+    BytesRef wkbScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (wkbBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int wkbStart = wkbBlock.getFirstValueIndex(valuesPosition);
+      int wkbEnd = wkbStart + wkbBlock.getValueCount(valuesPosition);
+      for (int wkbOffset = wkbStart; wkbOffset < wkbEnd; wkbOffset++) {
+        BytesRef wkbValue = wkbBlock.getBytesRef(wkbOffset, wkbScratch);
+        SpatialCentroidPointSourceValuesAggregator.combine(state, groupId, wkbValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefVector wkbVector) {
+    BytesRef wkbScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
+      SpatialCentroidPointSourceValuesAggregator.combine(state, groupId, wkbValue);
     }
   }
 

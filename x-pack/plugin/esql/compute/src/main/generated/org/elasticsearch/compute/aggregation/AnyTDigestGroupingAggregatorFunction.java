@@ -82,6 +82,11 @@ public final class AnyTDigestGroupingAggregatorFunction implements GroupingAggre
       }
 
       @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueBlock);
+      }
+
+      @Override
       public void close() {
       }
     };
@@ -283,6 +288,23 @@ public final class AnyTDigestGroupingAggregatorFunction implements GroupingAggre
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       AnyTDigestAggregator.combineIntermediate(state, groupId, values.getTDigestHolder(values.getFirstValueIndex(valuesPosition), valuesScratch), seen.getBoolean(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, TDigestBlock valueBlock) {
+    TDigestHolder valueScratch = new TDigestHolder();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        TDigestHolder valueValue = valueBlock.getTDigestHolder(valueOffset, valueScratch);
+        AnyTDigestAggregator.combine(state, groupId, valueValue);
+      }
     }
   }
 

@@ -102,6 +102,11 @@ public final class LegacyIrateLongGroupingAggregatorFunction implements Grouping
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock, timestampBlock, temporalityBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -126,6 +131,11 @@ public final class LegacyIrateLongGroupingAggregatorFunction implements Grouping
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock, timestampBlock, temporalityBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -144,6 +154,11 @@ public final class LegacyIrateLongGroupingAggregatorFunction implements Grouping
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valueVector, timestampVector, temporalityBlock);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueVector, timestampVector, temporalityBlock);
       }
 
       @Override
@@ -347,6 +362,42 @@ public final class LegacyIrateLongGroupingAggregatorFunction implements Grouping
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       LegacyIrateLongAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, LongBlock valueBlock,
+      LongBlock timestampBlock, BytesRefBlock temporalityBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      if (timestampBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        long valueValue = valueBlock.getLong(valueOffset);
+        int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
+        int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
+        for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
+          long timestampValue = timestampBlock.getLong(timestampOffset);
+          LegacyIrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+        }
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, LongVector valueVector,
+      LongVector timestampVector, BytesRefBlock temporalityBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      long valueValue = valueVector.getLong(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LegacyIrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
     }
   }
 

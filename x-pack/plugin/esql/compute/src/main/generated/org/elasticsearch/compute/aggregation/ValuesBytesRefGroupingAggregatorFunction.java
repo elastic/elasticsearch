@@ -82,6 +82,11 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, vBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -101,6 +106,11 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, vVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, vVector);
       }
 
       @Override
@@ -280,6 +290,33 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
     }
     BytesRefBlock values = (BytesRefBlock) valuesUncast;
     ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefBlock vBlock) {
+    BytesRef vScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int vStart = vBlock.getFirstValueIndex(valuesPosition);
+      int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        BytesRef vValue = vBlock.getBytesRef(vOffset, vScratch);
+        ValuesBytesRefAggregator.combine(state, groupId, vValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefVector vVector) {
+    BytesRef vScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      ValuesBytesRefAggregator.combine(state, groupId, vValue);
+    }
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock vBlock) {

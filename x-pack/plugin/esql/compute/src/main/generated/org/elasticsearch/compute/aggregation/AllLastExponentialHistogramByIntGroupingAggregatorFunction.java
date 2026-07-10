@@ -100,6 +100,11 @@ public final class AllLastExponentialHistogramByIntGroupingAggregatorFunction im
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock, sortKeyBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -118,6 +123,11 @@ public final class AllLastExponentialHistogramByIntGroupingAggregatorFunction im
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valueBlock, sortKeyVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueBlock, sortKeyVector);
       }
 
       @Override
@@ -453,6 +463,48 @@ public final class AllLastExponentialHistogramByIntGroupingAggregatorFunction im
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       AllLastExponentialHistogramByIntAggregator.combineIntermediate(state, groupId, sortKeys.getLong(valuesPosition), values, seen.getBoolean(valuesPosition), valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions,
+      ExponentialHistogramBlock valueBlock, IntBlock sortKeyBlock) {
+    ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      if (sortKeyBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
+        int sortKeyStart = sortKeyBlock.getFirstValueIndex(valuesPosition);
+        int sortKeyEnd = sortKeyStart + sortKeyBlock.getValueCount(valuesPosition);
+        for (int sortKeyOffset = sortKeyStart; sortKeyOffset < sortKeyEnd; sortKeyOffset++) {
+          int sortKeyValue = sortKeyBlock.getInt(sortKeyOffset);
+          AllLastExponentialHistogramByIntAggregator.combine(state, groupId, valueValue, sortKeyValue);
+        }
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions,
+      ExponentialHistogramBlock valueBlock, IntVector sortKeyVector) {
+    ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      int sortKeyValue = sortKeyVector.getInt(valuesPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
+        AllLastExponentialHistogramByIntAggregator.combine(state, groupId, valueValue, sortKeyValue);
+      }
     }
   }
 

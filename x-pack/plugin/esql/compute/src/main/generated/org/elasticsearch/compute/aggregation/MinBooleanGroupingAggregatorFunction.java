@@ -82,6 +82,11 @@ public final class MinBooleanGroupingAggregatorFunction implements GroupingAggre
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, vBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -100,6 +105,11 @@ public final class MinBooleanGroupingAggregatorFunction implements GroupingAggre
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, vVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, vVector);
       }
 
       @Override
@@ -345,6 +355,31 @@ public final class MinBooleanGroupingAggregatorFunction implements GroupingAggre
       if (seen.getBoolean(valuesPosition)) {
         state.set(groupId, MinBooleanAggregator.combine(state.getOrDefault(groupId), min.getBoolean(valuesPosition)));
       }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BooleanBlock vBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int vStart = vBlock.getFirstValueIndex(valuesPosition);
+      int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        boolean vValue = vBlock.getBoolean(vOffset);
+        state.set(groupId, MinBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BooleanVector vVector) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      boolean vValue = vVector.getBoolean(valuesPosition);
+      state.set(groupId, MinBooleanAggregator.combine(state.getOrDefault(groupId), vValue));
     }
   }
 

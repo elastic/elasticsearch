@@ -87,6 +87,11 @@ public final class SampleBooleanGroupingAggregatorFunction implements GroupingAg
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -105,6 +110,11 @@ public final class SampleBooleanGroupingAggregatorFunction implements GroupingAg
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valueVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueVector);
       }
 
       @Override
@@ -305,6 +315,31 @@ public final class SampleBooleanGroupingAggregatorFunction implements GroupingAg
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SampleBooleanAggregator.combineIntermediate(state, groupId, sample, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BooleanBlock valueBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        boolean valueValue = valueBlock.getBoolean(valueOffset);
+        SampleBooleanAggregator.combine(state, groupId, valueValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BooleanVector valueVector) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      boolean valueValue = valueVector.getBoolean(valuesPosition);
+      SampleBooleanAggregator.combine(state, groupId, valueValue);
     }
   }
 

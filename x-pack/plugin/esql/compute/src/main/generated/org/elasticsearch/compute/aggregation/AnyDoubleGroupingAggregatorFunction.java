@@ -81,6 +81,11 @@ public final class AnyDoubleGroupingAggregatorFunction implements GroupingAggreg
       }
 
       @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valuesBlock);
+      }
+
+      @Override
       public void close() {
       }
     };
@@ -255,6 +260,14 @@ public final class AnyDoubleGroupingAggregatorFunction implements GroupingAggreg
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       AnyDoubleAggregator.combineIntermediate(state, groupId, observed.getBoolean(valuesPosition), values, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleBlock valuesBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      AnyDoubleAggregator.combine(state, groupId, valuesPosition, valuesBlock);
     }
   }
 

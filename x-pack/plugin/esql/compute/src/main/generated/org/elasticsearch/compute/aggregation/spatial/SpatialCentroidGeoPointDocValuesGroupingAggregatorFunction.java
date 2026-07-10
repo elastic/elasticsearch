@@ -96,6 +96,11 @@ public final class SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction im
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, encodedBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -114,6 +119,11 @@ public final class SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction im
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, encodedVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, encodedVector);
       }
 
       @Override
@@ -482,6 +492,31 @@ public final class SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction im
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialCentroidGeoPointDocValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(valuesPosition), xDel.getDouble(valuesPosition), yVal.getDouble(valuesPosition), yDel.getDouble(valuesPosition), count.getLong(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, LongBlock encodedBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (encodedBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int encodedStart = encodedBlock.getFirstValueIndex(valuesPosition);
+      int encodedEnd = encodedStart + encodedBlock.getValueCount(valuesPosition);
+      for (int encodedOffset = encodedStart; encodedOffset < encodedEnd; encodedOffset++) {
+        long encodedValue = encodedBlock.getLong(encodedOffset);
+        SpatialCentroidGeoPointDocValuesAggregator.combine(state, groupId, encodedValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, LongVector encodedVector) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      long encodedValue = encodedVector.getLong(valuesPosition);
+      SpatialCentroidGeoPointDocValuesAggregator.combine(state, groupId, encodedValue);
     }
   }
 

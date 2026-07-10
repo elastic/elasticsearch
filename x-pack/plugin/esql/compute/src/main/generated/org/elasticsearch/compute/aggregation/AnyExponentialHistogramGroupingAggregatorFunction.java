@@ -84,6 +84,11 @@ public final class AnyExponentialHistogramGroupingAggregatorFunction implements 
       }
 
       @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueBlock);
+      }
+
+      @Override
       public void close() {
       }
     };
@@ -288,6 +293,24 @@ public final class AnyExponentialHistogramGroupingAggregatorFunction implements 
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       AnyExponentialHistogramAggregator.combineIntermediate(state, groupId, values.getExponentialHistogram(values.getFirstValueIndex(valuesPosition), valuesScratch), seen.getBoolean(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions,
+      ExponentialHistogramBlock valueBlock) {
+    ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
+        AnyExponentialHistogramAggregator.combine(state, groupId, valueValue);
+      }
     }
   }
 

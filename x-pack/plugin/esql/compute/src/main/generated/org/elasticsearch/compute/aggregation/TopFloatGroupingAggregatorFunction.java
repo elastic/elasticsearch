@@ -88,6 +88,11 @@ public final class TopFloatGroupingAggregatorFunction implements GroupingAggrega
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, vBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -106,6 +111,11 @@ public final class TopFloatGroupingAggregatorFunction implements GroupingAggrega
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, vVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, vVector);
       }
 
       @Override
@@ -303,6 +313,31 @@ public final class TopFloatGroupingAggregatorFunction implements GroupingAggrega
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       TopFloatAggregator.combineIntermediate(state, groupId, top, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, FloatBlock vBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int vStart = vBlock.getFirstValueIndex(valuesPosition);
+      int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        float vValue = vBlock.getFloat(vOffset);
+        TopFloatAggregator.combine(state, groupId, vValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, FloatVector vVector) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      float vValue = vVector.getFloat(valuesPosition);
+      TopFloatAggregator.combine(state, groupId, vValue);
     }
   }
 

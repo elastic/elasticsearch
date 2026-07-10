@@ -89,6 +89,11 @@ public final class DeltaOnlyHistogramMergeOverTimeTDigestGroupingAggregatorFunct
       }
 
       @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueBlock, temporalityBlock);
+      }
+
+      @Override
       public void close() {
       }
     };
@@ -221,6 +226,24 @@ public final class DeltaOnlyHistogramMergeOverTimeTDigestGroupingAggregatorFunct
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       DeltaOnlyHistogramMergeOverTimeTDigestAggregator.combineIntermediate(state, groupId, value.getTDigestHolder(value.getFirstValueIndex(valuesPosition), valueScratch), seen.getBoolean(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, TDigestBlock valueBlock,
+      BytesRefBlock temporalityBlock) {
+    TDigestHolder valueScratch = new TDigestHolder();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        TDigestHolder valueValue = valueBlock.getTDigestHolder(valueOffset, valueScratch);
+        DeltaOnlyHistogramMergeOverTimeTDigestAggregator.combine(state, groupId, valueValue, valuesPosition, temporalityBlock);
+      }
     }
   }
 

@@ -93,6 +93,11 @@ public final class SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction i
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, bytesBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -111,6 +116,11 @@ public final class SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction i
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, bytesVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, bytesVector);
       }
 
       @Override
@@ -528,6 +538,33 @@ public final class SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction i
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialExtentGeoShapeSourceValuesAggregator.combineIntermediate(state, groupId, top.getInt(valuesPosition), bottom.getInt(valuesPosition), negLeft.getInt(valuesPosition), negRight.getInt(valuesPosition), posLeft.getInt(valuesPosition), posRight.getInt(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefBlock bytesBlock) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (bytesBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int bytesStart = bytesBlock.getFirstValueIndex(valuesPosition);
+      int bytesEnd = bytesStart + bytesBlock.getValueCount(valuesPosition);
+      for (int bytesOffset = bytesStart; bytesOffset < bytesEnd; bytesOffset++) {
+        BytesRef bytesValue = bytesBlock.getBytesRef(bytesOffset, bytesScratch);
+        SpatialExtentGeoShapeSourceValuesAggregator.combine(state, groupId, bytesValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefVector bytesVector) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      BytesRef bytesValue = bytesVector.getBytesRef(valuesPosition, bytesScratch);
+      SpatialExtentGeoShapeSourceValuesAggregator.combine(state, groupId, bytesValue);
     }
   }
 

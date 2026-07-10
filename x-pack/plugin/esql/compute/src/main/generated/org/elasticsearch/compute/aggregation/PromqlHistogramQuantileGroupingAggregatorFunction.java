@@ -102,6 +102,11 @@ public final class PromqlHistogramQuantileGroupingAggregatorFunction implements 
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, countBlock, upperBoundBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -126,6 +131,11 @@ public final class PromqlHistogramQuantileGroupingAggregatorFunction implements 
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, countBlock, upperBoundBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -144,6 +154,11 @@ public final class PromqlHistogramQuantileGroupingAggregatorFunction implements 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, countVector, upperBoundVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, countVector, upperBoundVector);
       }
 
       @Override
@@ -319,6 +334,44 @@ public final class PromqlHistogramQuantileGroupingAggregatorFunction implements 
     Block bucketsUncast = page.getBlock(channels.get(0));
     DoubleBlock buckets = (DoubleBlock) bucketsUncast;
     PromqlHistogramQuantileAggregator.combineIntermediate(state, positionOffset, groups, buckets);
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleBlock countBlock,
+      BytesRefBlock upperBoundBlock) {
+    BytesRef upperBoundScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (countBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      if (upperBoundBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int countStart = countBlock.getFirstValueIndex(valuesPosition);
+      int countEnd = countStart + countBlock.getValueCount(valuesPosition);
+      for (int countOffset = countStart; countOffset < countEnd; countOffset++) {
+        double countValue = countBlock.getDouble(countOffset);
+        int upperBoundStart = upperBoundBlock.getFirstValueIndex(valuesPosition);
+        int upperBoundEnd = upperBoundStart + upperBoundBlock.getValueCount(valuesPosition);
+        for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
+          BytesRef upperBoundValue = upperBoundBlock.getBytesRef(upperBoundOffset, upperBoundScratch);
+          PromqlHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
+        }
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleVector countVector,
+      BytesRefVector upperBoundVector) {
+    BytesRef upperBoundScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      double countValue = countVector.getDouble(valuesPosition);
+      BytesRef upperBoundValue = upperBoundVector.getBytesRef(valuesPosition, upperBoundScratch);
+      PromqlHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
+    }
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock countBlock,

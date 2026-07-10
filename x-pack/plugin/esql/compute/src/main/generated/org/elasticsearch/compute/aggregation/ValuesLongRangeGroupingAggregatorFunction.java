@@ -79,6 +79,11 @@ public final class ValuesLongRangeGroupingAggregatorFunction implements Grouping
       }
 
       @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, vBlock);
+      }
+
+      @Override
       public void close() {
       }
     };
@@ -238,6 +243,23 @@ public final class ValuesLongRangeGroupingAggregatorFunction implements Grouping
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       ValuesLongRangeAggregator.combineIntermediate(state, groupId, values, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, LongRangeBlock vBlock) {
+    LongRangeBlockBuilder.LongRange vScratch = new LongRangeBlockBuilder.LongRange();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int vStart = vBlock.getFirstValueIndex(valuesPosition);
+      int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        LongRangeBlockBuilder.LongRange vValue = vBlock.getLongRange(vOffset, vScratch);
+        ValuesLongRangeAggregator.combine(state, groupId, vValue);
+      }
     }
   }
 

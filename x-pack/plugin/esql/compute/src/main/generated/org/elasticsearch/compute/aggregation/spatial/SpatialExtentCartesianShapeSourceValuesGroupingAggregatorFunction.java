@@ -91,6 +91,11 @@ public final class SpatialExtentCartesianShapeSourceValuesGroupingAggregatorFunc
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, bytesBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -109,6 +114,11 @@ public final class SpatialExtentCartesianShapeSourceValuesGroupingAggregatorFunc
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, bytesVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, bytesVector);
       }
 
       @Override
@@ -442,6 +452,33 @@ public final class SpatialExtentCartesianShapeSourceValuesGroupingAggregatorFunc
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       SpatialExtentCartesianShapeSourceValuesAggregator.combineIntermediate(state, groupId, minX.getInt(valuesPosition), maxX.getInt(valuesPosition), maxY.getInt(valuesPosition), minY.getInt(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefBlock bytesBlock) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (bytesBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int bytesStart = bytesBlock.getFirstValueIndex(valuesPosition);
+      int bytesEnd = bytesStart + bytesBlock.getValueCount(valuesPosition);
+      for (int bytesOffset = bytesStart; bytesOffset < bytesEnd; bytesOffset++) {
+        BytesRef bytesValue = bytesBlock.getBytesRef(bytesOffset, bytesScratch);
+        SpatialExtentCartesianShapeSourceValuesAggregator.combine(state, groupId, bytesValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, BytesRefVector bytesVector) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      BytesRef bytesValue = bytesVector.getBytesRef(valuesPosition, bytesScratch);
+      SpatialExtentCartesianShapeSourceValuesAggregator.combine(state, groupId, bytesValue);
     }
   }
 

@@ -91,6 +91,11 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -109,6 +114,11 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valueVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueVector);
       }
 
       @Override
@@ -393,6 +403,31 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       StdDevFloatAggregator.combineIntermediate(state, groupId, mean.getDouble(valuesPosition), m2.getDouble(valuesPosition), count.getLong(valuesPosition));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, FloatBlock valueBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        float valueValue = valueBlock.getFloat(valueOffset);
+        StdDevFloatAggregator.combine(state, groupId, valueValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, FloatVector valueVector) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      float valueValue = valueVector.getFloat(valuesPosition);
+      StdDevFloatAggregator.combine(state, groupId, valueValue);
     }
   }
 

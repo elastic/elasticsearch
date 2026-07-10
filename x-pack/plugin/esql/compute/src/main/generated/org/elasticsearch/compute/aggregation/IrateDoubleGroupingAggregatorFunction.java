@@ -107,6 +107,11 @@ public final class IrateDoubleGroupingAggregatorFunction implements GroupingAggr
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock, timestampBlock, temporalityBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -131,6 +136,11 @@ public final class IrateDoubleGroupingAggregatorFunction implements GroupingAggr
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, valueBlock, timestampBlock, temporalityBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -149,6 +159,11 @@ public final class IrateDoubleGroupingAggregatorFunction implements GroupingAggr
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valueVector, timestampVector, temporalityBlock);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valueVector, timestampVector, temporalityBlock);
       }
 
       @Override
@@ -412,6 +427,58 @@ public final class IrateDoubleGroupingAggregatorFunction implements GroupingAggr
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       IrateDoubleAggregator.combineIntermediate(state, groupId, timestamps, values, isCumulative.getBoolean(valuesPosition), failed.getBoolean(valuesPosition), valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleBlock valueBlock,
+      LongBlock timestampBlock, BytesRefBlock temporalityBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (valueBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      if (timestampBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      if (state.hasFailed(groupId)) {
+        continue;
+      }
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        double valueValue = valueBlock.getDouble(valueOffset);
+        int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
+        int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
+        for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
+          long timestampValue = timestampBlock.getLong(timestampOffset);
+          try {
+            IrateDoubleAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+          } catch (InvalidTemporalityException e) {
+            warnings.registerException(e);
+            state.setFailed(groupId);
+          }
+        }
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleVector valueVector,
+      LongVector timestampVector, BytesRefBlock temporalityBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      if (state.hasFailed(groupId)) {
+        continue;
+      }
+      double valueValue = valueVector.getDouble(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      try {
+        IrateDoubleAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+      } catch (InvalidTemporalityException e) {
+        warnings.registerException(e);
+        state.setFailed(groupId);
+      }
     }
   }
 

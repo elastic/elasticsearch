@@ -75,6 +75,11 @@ public final class AllLastLongByIntGroupingAggregatorFunction implements Groupin
       }
 
       @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, valuesBlock, timestampsBlock);
+      }
+
+      @Override
       public void close() {
       }
     };
@@ -192,6 +197,15 @@ public final class AllLastLongByIntGroupingAggregatorFunction implements Groupin
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       AllLastLongByIntAggregator.combineIntermediate(state, groupId, observed, timestampsPresent, timestamps, values, valuesPosition);
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, LongBlock valuesBlock,
+      IntBlock timestampsBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      AllLastLongByIntAggregator.combine(state, groupId, valuesPosition, valuesBlock, timestampsBlock);
     }
   }
 

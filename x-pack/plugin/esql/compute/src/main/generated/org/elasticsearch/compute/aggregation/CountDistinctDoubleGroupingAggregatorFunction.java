@@ -88,6 +88,11 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
         }
 
         @Override
+        public void addGather(IntVector groupIds, IntVector positions) {
+          addRawInput(groupIds, positions, vBlock);
+        }
+
+        @Override
         public void close() {
         }
       };
@@ -106,6 +111,11 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, vVector);
+      }
+
+      @Override
+      public void addGather(IntVector groupIds, IntVector positions) {
+        addRawInput(groupIds, positions, vVector);
       }
 
       @Override
@@ -306,6 +316,31 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       CountDistinctDoubleAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleBlock vBlock) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groupIds.getInt(groupPosition);
+      int vStart = vBlock.getFirstValueIndex(valuesPosition);
+      int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        double vValue = vBlock.getDouble(vOffset);
+        CountDistinctDoubleAggregator.combine(state, groupId, vValue);
+      }
+    }
+  }
+
+  private void addRawInput(IntVector groupIds, IntVector positions, DoubleVector vVector) {
+    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+      int valuesPosition = positions.getInt(groupPosition);
+      int groupId = groupIds.getInt(groupPosition);
+      double vValue = vVector.getDouble(valuesPosition);
+      CountDistinctDoubleAggregator.combine(state, groupId, vValue);
     }
   }
 

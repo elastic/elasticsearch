@@ -532,9 +532,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:highlight.highlightFieldWithNoMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152240
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/152259
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDateRangeIT
   method: test {csv-spec:date_range.rangeWithinPointMultiValueSomeMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152267
@@ -643,9 +640,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testMultiTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/150101
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:inlinestats.doubleShadowingWithEval}
-  issue: https://github.com/elastic/elasticsearch/issues/153096
 - class: org.elasticsearch.search.telemetry.SearchCoordinatorPhaseShardBytesMetricsIT
   method: testBatchedQueryPhaseShardErrorRecordsBothRequestAndResultBytes
   issue: https://github.com/elastic/elasticsearch/issues/153109
@@ -751,9 +745,6 @@ tests:
 - class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
   method: testWaitForEmptySubRangeReturnsImmediately
   issue: https://github.com/elastic/elasticsearch/issues/153378
-- class: org.elasticsearch.xpack.inference.integration.SemanticTextFieldMappingLegacyFormatIT
-  method: testLegacyFormatMappingPopulatedAfterFirstDenseDocument
-  issue: https://github.com/elastic/elasticsearch/issues/153384
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/columnar: no prefix_properties when dynamic is only set at root level}"
   issue: https://github.com/elastic/elasticsearch/issues/153390

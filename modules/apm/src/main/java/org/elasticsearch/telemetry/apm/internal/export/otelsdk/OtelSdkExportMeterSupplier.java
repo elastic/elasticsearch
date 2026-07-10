@@ -46,6 +46,9 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     // Internal JVM system property that enables OTel RuntimeTelemetry JVM metrics.
     private static final String OTEL_JVM_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.metrics.otel_jvm.enabled";
 
+    // Per-instrument-stream cardinality limit
+    private static final int METRIC_CARDINALITY_LIMIT = 1000;
+
     private final Settings settings;
     private final Path diskBufferPath;
     private volatile OTelMetricsResources resources;
@@ -112,7 +115,10 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     private SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader) {
-        return SdkMeterProvider.builder().setResource(OtelSdkResource.get(settings)).registerMetricReader(reader).build();
+        return SdkMeterProvider.builder()
+            .setResource(OtelSdkResource.get(settings))
+            .registerMetricReader(reader, instrumentType -> METRIC_CARDINALITY_LIMIT)
+            .build();
     }
 
     private OtlpGrpcMetricExporter createOTLPExporter(Supplier<MeterProvider> meterProviderSupplier) {

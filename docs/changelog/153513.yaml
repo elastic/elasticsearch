@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 95120
+pr: 153513
+summary: Use Lucene's Unicode case folding for case-insensitive queries
+type: bug

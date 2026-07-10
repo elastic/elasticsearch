@@ -532,9 +532,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:highlight.highlightFieldWithNoMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152240
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/152259
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecDateRangeIT
   method: test {csv-spec:date_range.rangeWithinPointMultiValueSomeMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152267
@@ -799,9 +796,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testRegistrationOnBccWithLastHollowCommitAndDifferentPrimaryTerm
   issue: https://github.com/elastic/elasticsearch/issues/153472
-- class: org.elasticsearch.simdvec.internal.vectorization.ES92Int7VectorScorerTests
-  method: testInt7ScoreBulk
-  issue: https://github.com/elastic/elasticsearch/issues/153474
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_bbq_flat/Test knn search}
   issue: https://github.com/elastic/elasticsearch/issues/153476

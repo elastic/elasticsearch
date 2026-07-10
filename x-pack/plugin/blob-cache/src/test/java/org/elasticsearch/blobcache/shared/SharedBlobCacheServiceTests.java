@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -2781,11 +2782,15 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
         final var bulkTaskCount = new AtomicInteger(0);
         final var threadPool = new TestThreadPool("test");
+        final var currentLatch = new AtomicReference<CountDownLatch>();
         final var bulkExecutor = new StoppableExecutorServiceWrapper(threadPool.generic()) {
             @Override
             public void execute(Runnable command) {
-                super.execute(command);
                 bulkTaskCount.incrementAndGet();
+                super.execute(() -> {
+                    command.run();
+                    currentLatch.get().countDown();
+                });
             }
         };
 
@@ -2806,6 +2811,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final long blobLength = size(250); // 3 regions
                 AtomicLong bytesRead = new AtomicLong(0L);
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                currentLatch.set(new CountDownLatch(1));
                 cacheService.fetchRegion(
                     cacheKey,
                     0,
@@ -2824,6 +2830,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 );
 
                 var fetched = future.get(10, TimeUnit.SECONDS);
+                safeAwait(currentLatch.get());
                 assertThat("Region has been fetched", fetched, is(true));
                 assertEquals(regionSize, bytesRead.get());
                 assertEquals(4, cacheService.freeRegionCount());
@@ -2840,6 +2847,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
                 final PlainActionFuture<Collection<Boolean>> future = new PlainActionFuture<>();
                 final var listener = new GroupedActionListener<>(remainingFreeRegions, future);
+                currentLatch.set(new CountDownLatch(remainingFreeRegions));
                 for (int region = 0; region < remainingFreeRegions; region++) {
                     cacheService.fetchRegion(
                         cacheKey,
@@ -2860,6 +2868,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 }
 
                 var results = future.get(10, TimeUnit.SECONDS);
+                safeAwait(currentLatch.get());
                 assertThat(results.stream().allMatch(result -> result), is(true));
                 assertEquals(blobLength, bytesRead.get());
                 assertEquals(0, cacheService.freeRegionCount());
@@ -2896,6 +2905,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 var regionsToFetch = randomIntBetween(1, (int) (cacheSize / regionSize));
                 final var listener = new GroupedActionListener<>(regionsToFetch, future);
                 long blobLength = regionsToFetch * regionSize;
+                currentLatch.set(new CountDownLatch(regionsToFetch));
                 for (int region = 0; region < regionsToFetch; region++) {
                     cacheService.fetchRegion(
                         cacheKey,
@@ -2916,6 +2926,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 }
 
                 var results = future.get(10, TimeUnit.SECONDS);
+                safeAwait(currentLatch.get());
                 assertThat(results.stream().allMatch(result -> result), is(true));
                 assertEquals(blobLength, bytesRead.get());
                 assertEquals(0, cacheService.freeRegionCount());
@@ -2931,6 +2942,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 long blobLength = randomLongBetween(1L, regionSize);
                 AtomicLong bytesRead = new AtomicLong(0L);
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                currentLatch.set(new CountDownLatch(1));
                 cacheService.fetchRegion(
                     cacheKey,
                     0,
@@ -2949,6 +2961,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 );
 
                 var fetched = future.get(10, TimeUnit.SECONDS);
+                safeAwait(currentLatch.get());
                 assertThat("Region has been fetched", fetched, is(true));
                 assertEquals(blobLength, bytesRead.get());
                 assertEquals(0, cacheService.freeRegionCount());

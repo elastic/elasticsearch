@@ -116,7 +116,7 @@ public record ResumeInfo(
     }
 
     /**
-     * Resume information for a scroll-API BulkByPaginatedSearchTask worker.
+     * Resume information for a scroll-based BulkByPaginatedSearchTask worker.
      */
     public record ScrollWorkerResumeInfo(
         String scrollId,

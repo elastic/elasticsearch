@@ -998,6 +998,52 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * Hot-path guard: once the aggregate is memoized under the fingerprint key, a repeat warm resolve
+     * whose prefetch HIT must NOT re-scan paths and re-write it — the set-identity key guarantees the
+     * memoized count is current, and the prefetch's read already kept the entry alive. The differing
+     * merge count here is only a probe to observe whether the (skipped) write-through fired.
+     */
+    public void testDatasetAggregateWriteThroughSkippedWhenPrefetchHit() {
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(Settings.EMPTY)) {
+            ExternalSourceResolver resolver = datasetGateResolver(cacheService);
+            SourceMetadata referenceMeta = new SimpleSourceMetadata(List.of(), "ndjson", "s3://bucket/data/a.ndjson");
+            FileList distinct = GlobExpander.fileListOf(
+                List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
+                "s3://bucket/data/*.ndjson"
+            );
+            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, Map.of());
+
+            // First warm resolve, prefetch missed (null): the successful merge writes through.
+            resolver.applyDatasetAggregate(
+                new ExternalSourceResolver.DatasetAggregatePrefetch(key, null),
+                Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L),
+                distinct,
+                referenceMeta,
+                Map.of()
+            );
+            Map<String, Object> memoized = cacheService.getDatasetAggregate(key);
+            assertNotNull("first merge writes through", memoized);
+            assertEquals(100L, memoized.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+
+            // Second warm resolve, prefetch HIT (non-null): the write-through is skipped, so the probe
+            // count (999) is NOT persisted — the memoized value stays as first written.
+            Map<String, Object> served = resolver.applyDatasetAggregate(
+                new ExternalSourceResolver.DatasetAggregatePrefetch(key, memoized),
+                Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 999L),
+                distinct,
+                referenceMeta,
+                Map.of()
+            );
+            assertEquals("the current merge is still served to this query", 999L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            assertEquals(
+                "prefetch hit => write-through skipped, memoized value unchanged",
+                100L,
+                cacheService.getDatasetAggregate(key).get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
     /** Shared parquet+ndjson module for the dataset-aggregate gate tests; see {@link TextAggregatePushdownSupport}. */
     private ExternalSourceResolver datasetGateResolver(ExternalSourceCacheService cacheService) {
         StubFormatReaderWithStats footerReader = new StubFormatReaderWithStats(Map.of(), Map.of());

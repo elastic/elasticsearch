@@ -104,6 +104,16 @@ public class FileSetFingerprintsTests extends ESTestCase {
         assertNull(FileList.EMPTY.fileSetFingerprint());
     }
 
+    public void testSingleFileListingCarriesNoFingerprint() {
+        // A single-file listing can never key a dataset aggregate (that needs fileCount >= 2), so the
+        // Murmur3 fold is skipped and the accessor returns null — keeping the common single-file resolve
+        // off the hash path. A two-file listing is the positive control.
+        FileList single = GlobExpander.fileListOf(sampleEntries(1), "s3://bucket/data/part-0.ndjson");
+        assertNull(single.fileSetFingerprint());
+        FileList two = GlobExpander.fileListOf(sampleEntries(2), "s3://bucket/data/*.ndjson");
+        assertNotNull(two.fileSetFingerprint());
+    }
+
     private static void assertFingerprintsDiffer(FileList a, FileList b) {
         FileSetFingerprint fingerprintA = a.fileSetFingerprint();
         FileSetFingerprint fingerprintB = b.fileSetFingerprint();

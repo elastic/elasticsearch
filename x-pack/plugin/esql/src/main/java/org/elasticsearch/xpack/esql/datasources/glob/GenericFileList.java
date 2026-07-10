@@ -25,6 +25,7 @@ final class GenericFileList implements FileList {
     private final List<StorageEntry> files;
     private final String originalPattern;
     private final PartitionMetadata partitionMetadata;
+    @Nullable
     private final FileSetFingerprint fileSetFingerprint;
 
     GenericFileList(List<StorageEntry> files, String originalPattern) {
@@ -38,9 +39,12 @@ final class GenericFileList implements FileList {
         this.files = files;
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
-        // Computed eagerly, exactly once per listing build: consumers (the dataset-aggregate cache key)
-        // need it O(1) at resolve time, and construction is the one place the entry walk is already paid.
-        this.fileSetFingerprint = FileSetFingerprints.compute(files);
+        // The fingerprint only ever keys a dataset aggregate, which requires a multi-file listing
+        // (see ExternalSourceResolver#datasetAggregateKey — fileCount >= 2). Skip the Murmur3 fold for
+        // single-file listings so the common single-file resolve does not pay for machinery it cannot use.
+        // Computed eagerly (once per listing build) rather than lazily: consumers need it O(1) at resolve
+        // time, and construction is the one place the entry walk is already paid.
+        this.fileSetFingerprint = files.size() >= 2 ? FileSetFingerprints.compute(files) : null;
     }
 
     List<StorageEntry> files() {
@@ -89,6 +93,7 @@ final class GenericFileList implements FileList {
     }
 
     @Override
+    @Nullable
     public FileSetFingerprint fileSetFingerprint() {
         return fileSetFingerprint;
     }

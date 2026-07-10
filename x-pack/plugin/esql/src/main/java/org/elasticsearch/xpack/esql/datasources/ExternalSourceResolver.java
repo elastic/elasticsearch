@@ -1145,15 +1145,22 @@ public class ExternalSourceResolver {
             return aggregatedStats;
         }
         if (aggregatedStats != null) {
-            Object rowCount = aggregatedStats.get(SourceStatisticsSerializer.STATS_ROW_COUNT);
-            // Duplicate-path guard on the write-through: a comma-separated list can name the same file
-            // twice, and the reconciliation rail's per-file merge folds a per-path MAP (deduplicated)
-            // while the scan reads the listing MULTISET — memoizing that merge under the fingerprint would
-            // persist an undercount beyond eviction. NOTE: the per-file rail SERVING that dedup merge
-            // immediately is a pre-existing main bug tracked separately (GA issue); this guard only
-            // keeps the dataset aggregate from memoizing it.
-            if (rowCount instanceof Number n && listingPathsAreDistinct(listing)) {
-                cacheService.putDatasetAggregate(datasetKey, n.longValue(), referenceMeta.sourceType(), listing.originalPattern());
+            // Write-through only on the FIRST successful merge for this file set — i.e. when the prefetch
+            // missed. Once the aggregate is memoized under the fingerprint key (a set-identity key: same
+            // files => same key => same count), repeat warm resolves needn't re-scan paths or re-put; the
+            // prefetch's getDatasetAggregate already LRU/TTL-revived the entry, so skipping the put here
+            // costs it no liveness. Keeps the common warm-non-evicted path off the O(N) scan + write.
+            if (prefetch.prefetched() == null) {
+                Object rowCount = aggregatedStats.get(SourceStatisticsSerializer.STATS_ROW_COUNT);
+                // Duplicate-path guard on the write-through: a comma-separated list can name the same file
+                // twice, and the reconciliation rail's per-file merge folds a per-path MAP (deduplicated)
+                // while the scan reads the listing MULTISET — memoizing that merge under the fingerprint would
+                // persist an undercount beyond eviction. NOTE: the per-file rail SERVING that dedup merge
+                // immediately is a pre-existing main bug tracked separately (GA issue); this guard only
+                // keeps the dataset aggregate from memoizing it.
+                if (rowCount instanceof Number n && listingPathsAreDistinct(listing)) {
+                    cacheService.putDatasetAggregate(datasetKey, n.longValue(), referenceMeta.sourceType(), listing.originalPattern());
+                }
             }
             return aggregatedStats;
         }

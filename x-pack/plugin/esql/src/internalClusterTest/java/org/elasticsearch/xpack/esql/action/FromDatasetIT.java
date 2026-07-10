@@ -204,14 +204,20 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "logs_bad_date_failfast",
         "logs_csv_bad_date_failfast",
         "logs_ndjson_bad_date_failfast",
-        "logs_ndjson_bad_date_permissive"
+        "logs_ndjson_bad_date_permissive",
+        "employees_divergent_multi",
+        "tsv_declared_type",
+        "tsv_declared_date",
+        "tsv_declared_rename",
+        "mapped_ds_for_view",
+        "mapped_ds_for_subquery"
     );
 
     /**
      * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
      * cluster requires explicit teardown so views don't leak across methods.
      */
-    private static final Set<String> CREATED_VIEWS = Set.of("employees_view", "employees_filtered_view");
+    private static final Set<String> CREATED_VIEWS = Set.of("employees_view", "employees_filtered_view", "mapped_dataset_view");
 
     @After
     public void cleanupViews() throws Exception {
@@ -2331,6 +2337,76 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows.get(0).get(0), equalTo(1L));
             assertThat(rows.get(0).get(1), equalTo("Alice"));
+        }
+    }
+
+    /**
+     * A view whose body targets a dataset carrying a DECLARED mapping: the declared coercion must survive view
+     * inlining (view resolution rewrites the inlined leaf into the external relation, which must keep the mapping —
+     * a dropped mapping here would silently read the file's physical type instead of the declared one).
+     */
+    public void testViewOverMappedDatasetPreservesCoercion() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("d.csv"), "val:integer\n100\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("val", new DatasetFieldMapping("long", null)); // declare integer file column as long
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mapped_ds_for_view",
+                    "local_ds",
+                    root.toUri() + "*.csv",
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("mapped_dataset_view", "FROM mapped_ds_for_view")));
+
+        try (var response = run(syncEsqlQueryRequest("FROM mapped_dataset_view | KEEP val | LIMIT 1"), TIMEOUT)) {
+            assertThat("declared type must survive view inlining", response.columns().get(0).outputType(), equalTo("long"));
+            assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
+        }
+    }
+
+    /**
+     * A dataset carrying a DECLARED mapping used inside a subquery ({@code FROM (FROM mapped)}): the declared
+     * coercion must survive the subquery planning rewrite, not just a top-level {@code FROM}.
+     */
+    public void testSubqueryOverMappedDatasetPreservesCoercion() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("d.csv"), "val:integer\n100\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("val", new DatasetFieldMapping("long", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mapped_ds_for_subquery",
+                    "local_ds",
+                    root.toUri() + "*.csv",
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM mapped_ds_for_subquery) | KEEP val | LIMIT 1"), TIMEOUT)) {
+            assertThat("declared type must survive the subquery rewrite", response.columns().get(0).outputType(), equalTo("long"));
+            assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
         }
     }
 

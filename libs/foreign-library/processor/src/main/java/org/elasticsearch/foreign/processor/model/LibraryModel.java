@@ -223,7 +223,9 @@ public record LibraryModel(
             return null;
         }
 
-        String resolverFqn = resolverElement.getQualifiedName().toString();
+        // Use the JVM binary name (e.g. "pkg.Enclosing$Nested" for nested classes), not the
+        // dot-separated qualified name, since the generator emits this into bytecode.
+        String resolverFqn = binaryName(resolverElement);
 
         if (resolverFqn.equals(DEFAULT_RESOLVER_FQN)) {
             return DEFAULT_RESOLVER_FQN;
@@ -269,6 +271,24 @@ public record LibraryModel(
             }
         }
         return null;
+    }
+
+    /**
+     * Returns the JVM binary name for a type element — e.g. {@code "pkg.Outer$Inner"} for a nested
+     * class. {@link TypeElement#getQualifiedName()} uses a dot between the enclosing type and the
+     * nested type, which is wrong when the name gets baked into bytecode.
+     */
+    private static String binaryName(TypeElement type) {
+        StringBuilder name = new StringBuilder(type.getSimpleName());
+        var enclosing = type.getEnclosingElement();
+        while (enclosing instanceof TypeElement enclosingType) {
+            name.insert(0, enclosingType.getSimpleName() + "$");
+            enclosing = enclosingType.getEnclosingElement();
+        }
+        if (enclosing instanceof javax.lang.model.element.PackageElement pkg && pkg.isUnnamed() == false) {
+            name.insert(0, pkg.getQualifiedName() + ".");
+        }
+        return name.toString();
     }
 
     private static boolean hasPublicNoArgConstructor(TypeElement type) {

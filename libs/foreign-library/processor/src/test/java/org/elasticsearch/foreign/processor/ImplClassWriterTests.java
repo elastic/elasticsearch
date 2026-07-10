@@ -193,39 +193,69 @@ public class ImplClassWriterTests extends ProcessorTestCase {
     /**
      * A {@code @CaptureErrno @Function} method must generate a class WITHOUT a per-class
      * {@code errnoState} field — the shared {@code LinkerHelper.ERRNO_STATE} is used instead.
+     * Also initializes the class to exercise the emitted {@code Linker.Option.captureCallState}
+     * (and {@code firstVariadicArg} in the {@code @Variadic} case) bytecode against the real FFM
+     * API, catching descriptor mismatches that {@code loadClassNoInit} would miss.
+     *
+     * <p>The custom {@link org.elasticsearch.foreign.SymbolResolver} returns a fake non-null
+     * address so {@code linker.downcallHandle} succeeds at class-init time without needing a
+     * real native symbol on the classpath. Any linkage error from the descriptor construction
+     * (e.g. {@code captureCallState} declared as varargs but emitted as a single {@code String})
+     * still surfaces here because it fires before {@code downcallHandle} is even called.
      */
-    public void testCaptureErrnoDoesNotGeneratePerClassField() throws Exception {
+    public void testCaptureErrnoAndVariadicInitializeAgainstFfmApi() throws Exception {
         String source = """
             package test;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Function;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
             import org.elasticsearch.foreign.CaptureErrno;
-            @LibrarySpecification(name = "testlib")
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.SymbolResolver;
+            import org.elasticsearch.foreign.Variadic;
+            @LibrarySpecification(symbolResolver = ErrnoLib.FakeResolver.class)
             public interface ErrnoLib {
                 @CaptureErrno
                 @Function("foo")
                 int foo(int x);
+
+                @CaptureErrno
+                @Variadic(firstArg = 1)
+                @Function("bar")
+                long bar(long a, int b);
+
+                class FakeResolver implements SymbolResolver {
+                    public FakeResolver() {}
+                    public MemorySegment resolve(String name, SymbolLookup lookup) {
+                        // downcallHandle validates the address is non-NULL; any positive value works.
+                        return MemorySegment.ofAddress(1L);
+                    }
+                }
             }
             """;
 
         CompilationResult result = compile("test.ErrnoLib", source);
-
         assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
 
-        Class<?> implClass = result.loadClassNoInit("test.ErrnoLib$Impl");
+        // Loading with init runs the whole downcall-handle build path for both methods:
+        // Linker.nativeLinker().downcallHandle(FakeResolver.resolve(...), descriptor,
+        // [captureCallState("errno"), firstVariadicArg(1)])
+        // A descriptor mismatch (e.g. captureCallState declared as varargs but emitted as
+        // (String)) throws NoSuchMethodError from <clinit>.
+        Class<?> implClass = result.loadClass("test.ErrnoLib$Impl");
         assertNotNull("Generated ErrnoLib$Impl class not found", implClass);
 
-        // Must NOT have a field named errnoState
+        // Must NOT have a per-class errnoState field — the shared LinkerHelper.ERRNO_STATE is used.
         try {
             implClass.getDeclaredField("errnoState");
             fail("ErrnoLib$Impl must not have a per-class errnoState field");
-        } catch (NoSuchFieldException e) {
+        } catch (NoSuchFieldException expected) {
             // expected
         }
 
-        // Must have a $mh field
-        java.lang.reflect.Field mhField = implClass.getDeclaredField("foo$mh");
-        assertEquals("foo$mh must be a MethodHandle", MethodHandle.class, mhField.getType());
+        // Both MethodHandle fields must exist.
+        assertEquals(MethodHandle.class, implClass.getDeclaredField("foo$mh").getType());
+        assertEquals(MethodHandle.class, implClass.getDeclaredField("bar$mh").getType());
     }
 
     /**

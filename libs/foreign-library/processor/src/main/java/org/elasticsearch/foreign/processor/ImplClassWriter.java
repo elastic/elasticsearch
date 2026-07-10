@@ -284,11 +284,24 @@ class ImplClassWriter {
         cb.anewarray(CD_LinkerOption);
         int idx = 0;
         if (captureErrno) {
-            // Linker.Option is an interface, so invokestatic must mark isInterface=true.
+            // Linker.Option.captureCallState is declared as varargs (String...), so its actual
+            // JVM descriptor is ([Ljava/lang/String;)Ljava/lang/foreign/Linker$Option;. Build the
+            // one-element array explicitly. Linker.Option is an interface, so invokestatic must
+            // mark isInterface=true.
             cb.dup();
             cb.loadConstant(idx++);
+            cb.iconst_1();
+            cb.anewarray(CD_String);
+            cb.dup();
+            cb.iconst_0();
             cb.ldc("errno");
-            cb.invokestatic(CD_LinkerOption, "captureCallState", MethodTypeDesc.of(CD_LinkerOption, CD_String), true);
+            cb.aastore();
+            cb.invokestatic(
+                CD_LinkerOption,
+                "captureCallState",
+                MethodTypeDesc.of(CD_LinkerOption, ClassDesc.ofDescriptor("[Ljava/lang/String;")),
+                true
+            );
             cb.aastore();
         }
         if (variadic) {

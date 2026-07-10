@@ -472,9 +472,10 @@ public final class DeclaredTypeCoercions {
             }
         } catch (ArithmeticException e) {
             // BigDecimal.toBigInteger() throws (rather than returning a value we could range-check) when the
-            // decimal exponent is large enough that expanding it would overflow BigInteger's supported range --
-            // e.g. "1e999999999" or "1e-999999999". Such a token is out of [0, 2^64-1] by definition, so it is the
-            // same failure as any other out-of-range value and must reach callers as the same exception type. It is
+            // decimal exponent is large enough that materializing the integer would overflow BigInteger's supported
+            // range -- e.g. "1e999999999", or "1e-999999999" which mathematically truncates to 0 but cannot be
+            // computed to get there. Such a token cannot be materialized and so cannot be range-checked; treat it as
+            // the same failure as any other unrepresentable value and reach callers as the same exception type. It is
             // remapped here, at the one place that parses, rather than in each caller's catch clause: an
             // ArithmeticException escaping this method would bypass every reader's per-cell error policy and hard-
             // fail the whole read, which is exactly the class of failure declared unsigned_long support removes.

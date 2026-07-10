@@ -7991,11 +7991,11 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A token whose decimal exponent is large enough that expanding it would overflow BigInteger --
-     * "1e999999999" -- makes BigDecimal.toBigInteger() throw ArithmeticException, which is not an
-     * IllegalArgumentException. Unhandled it escapes the per-field catch and hard-fails the whole read on every
-     * error_mode, which is precisely the failure declared unsigned_long support exists to remove. It must instead
-     * be an ordinary out-of-range cell.
+     * A token whose decimal exponent is large enough that materializing the integer would overflow BigInteger --
+     * "1e999999999", and "1e-999999999" which truncates toward 0 but cannot be computed to get there -- makes
+     * BigDecimal.toBigInteger() throw ArithmeticException, which is not an IllegalArgumentException. Unhandled it
+     * escapes the per-field catch and hard-fails the whole read on every error_mode, precisely the failure declared
+     * unsigned_long support exists to remove. It must instead be an ordinary per-cell failure.
      */
     public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
         String csv = "v\n1e999999999\n1e-999999999\n5\n";

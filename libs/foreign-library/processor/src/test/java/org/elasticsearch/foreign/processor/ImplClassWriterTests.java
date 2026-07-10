@@ -231,14 +231,15 @@ public class ImplClassWriterTests extends ProcessorTestCase {
     /**
      * A minimal {@code @LibrarySpecification} with a {@code @StructSpecification} record element,
      * a {@code @StructSpecification} interface with an {@code @ArrayField} method, and a
-     * {@code @StructFactory} method must generate a loadable {@code $Impl} class for the library
-     * and for the struct interface, plus a {@code $Pack} class for the record. The struct classes
-     * must also *initialize* — this exercises the bytecode emitted in {@code <clinit>} against the
-     * real FFM API, catching linkage errors like descriptor mismatches on {@code MemoryLayout.paddingLayout}
-     * that {@code loadClassNoInit} cannot see.
+     * {@code @StructFactory} method must generate loadable classes AND, when the factory is
+     * actually invoked from usage code, produce a working {@code Buf} without hitting any
+     * runtime linkage errors. The usage class {@code BufDriver} is compiled alongside the
+     * library and calls {@code BufLib$Impl} directly — that side-steps ServiceLoader for the
+     * test while still exercising the full generated factory body (Arena allocation, per-element
+     * pack, len + pointer writes).
      */
     public void testStructFactoryGeneratesLoadableImplClass() throws Exception {
-        String source = """
+        String libSource = """
             package test;
             import org.elasticsearch.foreign.Addressable;
             import org.elasticsearch.foreign.ArrayField;
@@ -262,30 +263,37 @@ public class ImplClassWriterTests extends ProcessorTestCase {
                 Buf newBuf(Elem[] elems);
             }
             """;
+        String driverSource = """
+            package test;
+            public final class BufDriver {
+                public static BufLib.Buf create(short x) {
+                    BufLib lib = new BufLib$Impl();
+                    return lib.newBuf(new BufLib.Elem[] { new BufLib.Elem(x) });
+                }
+            }
+            """;
 
-        CompilationResult result = compile("test.BufLib", source);
-
+        var sources = new java.util.LinkedHashMap<String, String>();
+        sources.put("test.BufLib", libSource);
+        sources.put("test.BufDriver", driverSource);
+        CompilationResult result = compile(sources);
         assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
 
-        // Library $Impl (cannot initialize — <clinit> would attempt to link native symbols)
-        Class<?> implClass = result.loadClassNoInit("test.BufLib$Impl");
-        assertNotNull("Generated BufLib$Impl class not found", implClass);
+        // Loading BufLib$Buf$Impl triggers <clinit>, which builds the LAYOUT via
+        // MemoryLayout.structLayout(SHORT.withName("len"), paddingLayout(6), ADDRESS.withName("elem"))
+        // and creates the two VarHandles. A descriptor mismatch (e.g. paddingLayout return type)
+        // would surface here.
+        assertNotNull("Generated BufLib$Buf$Impl not found", result.loadClass("test.BufLib$Buf$Impl"));
+        assertNotNull("Generated BufLib$Elem$Pack not found", result.loadClass("test.BufLib$Elem$Pack"));
 
-        // $Pack companion for Elem record — initialize to exercise LAYOUT / offset / VarHandle setup.
-        // If <clinit> throws (e.g. NoSuchMethodError from a bad MethodTypeDesc), loadClass rethrows it.
-        Class<?> packClass = result.loadClass("test.BufLib$Elem$Pack");
-        assertNotNull("Generated BufLib$Elem$Pack class not found", packClass);
-
-        // $Impl for Buf struct — initialize to exercise the full struct layout (short + padding + ADDRESS)
-        // and every VarHandle. This is the assertion that would catch a MemoryLayout.paddingLayout
-        // descriptor mismatch: <clinit> throws before returning and the test fails.
-        Class<?> bufImplClass = result.loadClass("test.BufLib$Buf$Impl");
-        assertNotNull("Generated BufLib$Buf$Impl class not found", bufImplClass);
-
-        // Buf$Impl must declare the expected static VarHandle fields
-        java.lang.reflect.Field lenVh = bufImplClass.getDeclaredField("len$vh");
-        assertEquals("len$vh must be a VarHandle", java.lang.invoke.VarHandle.class, lenVh.getType());
-        java.lang.reflect.Field elemPtrVh = bufImplClass.getDeclaredField("elem$ptr$vh");
-        assertEquals("elem$ptr$vh must be a VarHandle", java.lang.invoke.VarHandle.class, elemPtrVh.getType());
+        // Invoke the driver's create(short) method to exercise the full generated factory body:
+        // Arena.ofAuto() -> ArenaAdapter.allocate(arena, layout, count) -> per-element Pack.pack loop
+        // -> len$vh.set / elem$ptr$vh.set. This is the assertion that would catch, for example, an
+        // Arena.allocate(MemoryLayout, long) direct call (JDK 22+ only) instead of going through
+        // ArenaAdapter, or any similar cross-JDK signature mismatch in the emitted invokestatic/
+        // invokeinterface descriptors.
+        Class<?> driver = result.loadClass("test.BufDriver");
+        Object buf = driver.getMethod("create", short.class).invoke(null, (short) 42);
+        assertNotNull("BufDriver.create must return a non-null Buf", buf);
     }
 }

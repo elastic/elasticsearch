@@ -32,6 +32,7 @@ import javax.lang.model.element.TypeElement;
 
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Addressable;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Arena;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_ArenaAdapter;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayoutArray;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegment;
@@ -42,8 +43,8 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_StructLayou
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_VarHandle;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_ArenaAdapter_allocate;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_Arena_ofAuto;
-import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_allocate_layout_count;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_byteSize;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
@@ -516,13 +517,14 @@ class ImplClassWriter {
             code.invokespecial(structImplDesc, "<init>", MethodTypeDesc.of(CD_void));
             code.astore(2); // slot 2 = result
 
-            // arr = Arena.ofAuto().allocate(ElemPack.LAYOUT, (long) elements.length)
+            // arr = ArenaAdapter.allocate(Arena.ofAuto(), ElemPack.LAYOUT, elements.length)
+            // Route through ArenaAdapter: the (MemoryLayout, long) allocate overload is JDK 22+,
+            // so the adapter uses allocateArray on JDK 21 and allocate on JDK 22+.
             code.invokestatic(CD_Arena, "ofAuto", MTD_Arena_ofAuto, true);
             code.getstatic(packDesc, "LAYOUT", CD_StructLayout);
             code.aload(1);
             code.arraylength();
-            code.i2l();
-            code.invokeinterface(CD_Arena, "allocate", MTD_allocate_layout_count);
+            code.invokestatic(CD_ArenaAdapter, "allocate", MTD_ArenaAdapter_allocate);
             code.astore(3); // slot 3 = arr
 
             // for (int i = 0; i < elements.length; i++) ElemPack.pack(elements[i], arr, LAYOUT.byteSize() * i)

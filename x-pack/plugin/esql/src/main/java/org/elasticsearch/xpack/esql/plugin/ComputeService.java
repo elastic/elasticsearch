@@ -823,7 +823,8 @@ public class ComputeService {
             listener.onFailure(e);
             return;
         } finally {
-            if (execInfo != null) {
+            if (execInfo != null && execInfo.queryProfile().splitsScanned() > 0) {
+                // Record time only if there are any splits scanned
                 execInfo.queryProfile().addSplitDiscoveryNanos(System.nanoTime() - splitDiscoveryStart);
             }
         }

@@ -3814,7 +3814,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 keywordScratch = new BytesRef[columnCount];
                 directElements = new ElementType[columnCount];
                 for (int i = 0; i < columnCount; i++) {
-                    directElements[i] = ElementType.fromJava(javaClassForDataType(projectedTypes[i]));
+                    directElements[i] = DeclaredTypeCoercions.elementTypeFor(projectedTypes[i]);
                 }
                 stageLong = new long[columnCount];
                 stageInt = new int[columnCount];
@@ -3885,7 +3885,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (int i = 0; i < columnCount; i++) {
                     builders[i] = BlockUtils.wrapperFor(
                         blockFactory,
-                        ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
+                        DeclaredTypeCoercions.elementTypeFor(projectedTypes[i]),
                         rows.size(),
                         byteHints[i]
                     );
@@ -4041,7 +4041,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (int i = 0; i < columnCount; i++) {
                     builders[i] = BlockUtils.wrapperFor(
                         blockFactory,
-                        ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
+                        DeclaredTypeCoercions.elementTypeFor(projectedTypes[i]),
                         lines.size()
                     );
                 }
@@ -4296,7 +4296,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                     builders[i] = BlockUtils.wrapperFor(
                         blockFactory,
-                        ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
+                        DeclaredTypeCoercions.elementTypeFor(projectedTypes[i]),
                         batchSize
                     );
                 }
@@ -5955,18 +5955,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     errorPolicy.maxErrorRatio()
                 );
             }
-        }
-
-        private Class<?> javaClassForDataType(DataType dataType) {
-            return switch (dataType) {
-                case INTEGER -> Integer.class;
-                case LONG, DATETIME, DATE_NANOS -> Long.class;
-                case DOUBLE -> Double.class;
-                case KEYWORD, TEXT, IP, VERSION -> BytesRef.class;
-                case BOOLEAN -> Boolean.class;
-                case NULL -> Void.class;
-                default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
-            };
         }
 
         /**

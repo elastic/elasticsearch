@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -254,24 +253,10 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         }
         List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
         try {
-            String literal = queryTextIfLiteral(query);
-            if (literal != null) {
-                HighlightQueryTranslator.translateLiteral(literal, fieldNames, DEFAULT_ANALYZER);
-            } else {
-                HighlightQueryTranslator.translate(query, fieldNames, DEFAULT_ANALYZER);
-            }
+            HighlightQueryTranslator.translate(query, fieldNames, DEFAULT_ANALYZER);
         } catch (RuntimeException e) {
             failures.add(fail(this, "{}", e.getMessage()));
         }
-    }
-
-    /** Folded string query text, or {@code null} when the query is not a string literal. */
-    public static String queryTextIfLiteral(Expression query) {
-        if (query.foldable() == false) {
-            return null;
-        }
-        Object folded = query.fold(FoldContext.small());
-        return folded instanceof BytesRef || folded instanceof String ? BytesRefs.toString(folded) : null;
     }
 
     private void verifyFieldTypes(Failures failures) {

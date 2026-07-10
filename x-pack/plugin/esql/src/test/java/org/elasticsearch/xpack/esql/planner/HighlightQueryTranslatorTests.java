@@ -18,6 +18,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.test.ESTestCase;
@@ -112,6 +113,27 @@ public class HighlightQueryTranslatorTests extends ESTestCase {
         assertThat(query.getMaxEdits(), equalTo(2));
     }
 
+    // Query DSL query_string builds regexp queries case-sensitively (unlike wildcard/prefix, the pattern is not
+    // lowercased through the analyzer), so an uppercase pattern must stay uppercase and not match a lowercased term.
+    public void testLiteralRegexpIsCaseSensitive() {
+        RegexpQuery upper = asInstanceOf(RegexpQuery.class, translateLiteral("/M(ount|t)/"));
+        assertThat(upper.getRegexp(), equalTo(new Term("title", "M(ount|t)")));
+
+        RegexpQuery lower = asInstanceOf(RegexpQuery.class, translateLiteral("/m(ount|t)/"));
+        assertThat(lower.getRegexp(), equalTo(new Term("title", "m(ount|t)")));
+    }
+
+    public void testLiteralRegexpMultiFieldFanOutIsCaseSensitive() {
+        BooleanQuery bq = asInstanceOf(BooleanQuery.class, translate(of("/M(ount|t)/"), TITLE_BODY));
+        assertThat(bq.clauses(), hasSize(2));
+        List<Term> regexps = new ArrayList<>();
+        for (BooleanClause clause : bq.clauses()) {
+            assertThat(clause.occur(), equalTo(BooleanClause.Occur.SHOULD));
+            regexps.add(asInstanceOf(RegexpQuery.class, clause.query()).getRegexp());
+        }
+        assertThat(regexps, containsInAnyOrder(new Term("title", "M(ount|t)"), new Term("body", "M(ount|t)")));
+    }
+
     public void testMatchMultipleTermsDefaultsToShould() {
         BooleanQuery bq = asInstanceOf(BooleanQuery.class, translate(match("title", "quick fox", null), TITLE));
         assertThat(bq.clauses(), hasSize(2));
@@ -127,6 +149,22 @@ public class HighlightQueryTranslatorTests extends ESTestCase {
         for (BooleanClause clause : bq.clauses()) {
             assertThat(clause.occur(), equalTo(BooleanClause.Occur.MUST));
         }
+    }
+
+    public void testMatchOperatorIsCaseInsensitive() {
+        BooleanQuery bq = asInstanceOf(BooleanQuery.class, translate(match("title", "quick fox", options("operator", "and")), TITLE));
+        assertThat(bq.clauses(), hasSize(2));
+        for (BooleanClause clause : bq.clauses()) {
+            assertThat(clause.occur(), equalTo(BooleanClause.Occur.MUST));
+        }
+    }
+
+    public void testMatchRejectsInvalidOperator() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> translate(match("title", "quick fox", options("operator", "xor")), TITLE)
+        );
+        assertThat(e.getMessage(), equalTo("HIGHLIGHT MATCH [operator] must be one of [OR, AND], found [xor]"));
     }
 
     public void testMatchMinimumShouldMatch() {

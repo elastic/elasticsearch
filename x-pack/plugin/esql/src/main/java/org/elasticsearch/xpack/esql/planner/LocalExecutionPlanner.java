@@ -1325,16 +1325,9 @@ public class LocalExecutionPlanner {
         Analyzer analyzer = Highlight.DEFAULT_ANALYZER;
         List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
 
-        String literal = Highlight.queryTextIfLiteral(queryExpr);
-        String queryText;
-        Query query;
-        if (literal != null) {
-            queryText = literal;
-            query = HighlightQueryTranslator.translateLiteral(literal, fieldNames, analyzer);
-        } else {
-            queryText = queryExpr.sourceText();
-            query = HighlightQueryTranslator.translate(queryExpr, fieldNames, analyzer);
-        }
+        String literal = HighlightQueryTranslator.queryTextIfLiteral(queryExpr);
+        String queryText = literal != null ? literal : queryExpr.sourceText();
+        Query query = HighlightQueryTranslator.translate(queryExpr, fieldNames, analyzer);
 
         HighlightConfig config = new HighlightConfig(
             queryText,

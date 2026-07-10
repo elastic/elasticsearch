@@ -18,6 +18,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -26,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -45,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -101,20 +104,36 @@ public final class HighlightQueryTranslator {
 
     /**
      * Translates {@code query} into a single Lucene {@link Query} over the given {@code fields}.
+     * <p>
+     * A query that folds to a string is parsed with {@code query_string} semantics; anything else is translated as an
+     * expression tree.
      *
      * @param query            the resolved HIGHLIGHT query expression (a full-text function, a boolean combination of
-     *                         them, or a string {@link Literal})
+     *                         them, or an expression that folds to a query string)
      * @param fields           the real {@code ON} field names, in order
      * @param defaultAnalyzer  the analyzer used to tokenize the query text
      * @throws IllegalArgumentException when the expression, a function, or an option is not supported by HIGHLIGHT
      */
     public static Query translate(Expression query, List<String> fields, Analyzer defaultAnalyzer) {
+        String literal = queryTextIfLiteral(query);
+        if (literal != null) {
+            return translateLiteral(literal, fields, defaultAnalyzer);
+        }
         return new HighlightQueryTranslator(fields, defaultAnalyzer).doTranslate(query);
     }
 
     /** Parses a literal query string over the {@code ON} fields using query_string semantics. */
     public static Query translateLiteral(String queryText, List<String> fields, Analyzer analyzer) {
         return parseQueryString(queryStringParser(fields, analyzer), queryText);
+    }
+
+    /** Folded string query text, or {@code null} when the query does not fold to a string. */
+    public static String queryTextIfLiteral(Expression query) {
+        if (query.foldable() == false) {
+            return null;
+        }
+        Object folded = query.fold(FoldContext.small());
+        return folded instanceof BytesRef || folded instanceof String ? BytesRefs.toString(folded) : null;
     }
 
     private Query doTranslate(Expression expr) {
@@ -156,7 +175,7 @@ public final class HighlightQueryTranslator {
 
     private Query translateMatch(Match match) {
         Map<String, Object> options = optionMap(match.options(), match.source(), Match.ALLOWED_OPTIONS);
-        rejectOptions(options, MATCH_REJECTED_OPTIONS, "MATCH");
+        rejectBlockedOptions(options, MATCH_REJECTED_OPTIONS, "MATCH");
         String field = fieldName(match.field());
         requireOnField(field);
         String text = queryText(match.query());
@@ -168,7 +187,7 @@ public final class HighlightQueryTranslator {
 
     private Query translateMatchPhrase(MatchPhrase matchPhrase) {
         Map<String, Object> options = optionMap(matchPhrase.options(), matchPhrase.source(), MatchPhrase.ALLOWED_OPTIONS);
-        rejectOptions(options, MATCH_PHRASE_REJECTED_OPTIONS, "MATCH_PHRASE");
+        rejectBlockedOptions(options, MATCH_PHRASE_REJECTED_OPTIONS, "MATCH_PHRASE");
         String field = fieldName(matchPhrase.field());
         requireOnField(field);
         String text = queryText(matchPhrase.query());
@@ -181,7 +200,7 @@ public final class HighlightQueryTranslator {
 
     private Query translateQueryString(QueryString queryString) {
         Map<String, Object> options = optionMap(queryString.options(), queryString.source(), QueryString.ALLOWED_OPTIONS);
-        rejectUnsupportedOptions(options, QUERY_STRING_ALLOWED_OPTIONS, "QSTR");
+        rejectOptionsNotIn(options, QUERY_STRING_ALLOWED_OPTIONS, "QSTR");
         String text = queryText(queryString.query());
         String defaultField = stringOption(options, DEFAULT_FIELD_OPTION);
         if (defaultField != null) {
@@ -196,15 +215,17 @@ public final class HighlightQueryTranslator {
         return boost == null ? query : new BoostQuery(query, boost);
     }
 
-    private static void rejectOptions(Map<String, Object> options, Set<String> rejected, String functionName) {
-        for (String name : rejected) {
+    /** Rejects any option in {@code blocked} that is present (a blocklist). */
+    private static void rejectBlockedOptions(Map<String, Object> options, Set<String> blocked, String functionName) {
+        for (String name : blocked) {
             if (options.containsKey(name)) {
                 throw new IllegalArgumentException("HIGHLIGHT does not support the [" + name + "] option of [" + functionName + "]");
             }
         }
     }
 
-    private static void rejectUnsupportedOptions(Map<String, Object> options, Set<String> supported, String functionName) {
+    /** Rejects any present option that is not in {@code supported} (an allowlist). */
+    private static void rejectOptionsNotIn(Map<String, Object> options, Set<String> supported, String functionName) {
         for (String name : options.keySet()) {
             if (supported.contains(name) == false) {
                 throw new IllegalArgumentException("HIGHLIGHT does not support the [" + name + "] option of [" + functionName + "]");
@@ -265,9 +286,22 @@ public final class HighlightQueryTranslator {
         return query == null ? Queries.newMatchNoDocsQuery(reason) : query;
     }
 
+    /**
+     * Resolves the MATCH {@code operator} option to a boolean occur, matching Query DSL semantics: a missing option
+     * defaults to {@code OR}, {@code and}/{@code or} are accepted case-insensitively, and any other value is rejected.
+     */
     private static BooleanClause.Occur matchOperator(Map<String, Object> options) {
         String operator = stringOption(options, OPERATOR_OPTION);
-        return "AND".equalsIgnoreCase(operator) ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD;
+        if (operator == null) {
+            return BooleanClause.Occur.SHOULD;
+        }
+        try {
+            return Operator.fromString(operator).toBooleanClauseOccur();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                "HIGHLIGHT MATCH [" + OPERATOR_OPTION + "] must be one of [OR, AND], found [" + operator + "]"
+            );
+        }
     }
 
     private static QueryBuilder createMatchQueryBuilder(Map<String, Object> options, Analyzer analyzer) {
@@ -288,8 +322,6 @@ public final class HighlightQueryTranslator {
         if (queryText == null || queryText.isBlank()) {
             return Queries.newMatchNoDocsQuery(EMPTY_QUERY_REASON);
         }
-        parser.setAllowLeadingWildcard(true); // ES query_string default (Lucene defaults to false)
-        parser.setDefaultOperator(QueryParser.Operator.OR);
         try {
             Query query = parser.parse(queryText);
             if (query instanceof BooleanQuery bq && bq.clauses().isEmpty()) {
@@ -301,11 +333,15 @@ public final class HighlightQueryTranslator {
         }
     }
 
+    /** Builds a query_string parser already configured with the ES {@code query_string} defaults. */
     private static QueryParser queryStringParser(List<String> fields, Analyzer analyzer) {
-        return switch (fields.size()) {
+        QueryParser parser = switch (fields.size()) {
             case 1 -> new HighlightSingleFieldParser(fields.getFirst(), analyzer);
             default -> new HighlightMultiFieldParser(fields.toArray(String[]::new), analyzer);
         };
+        parser.setAllowLeadingWildcard(true); // ES query_string default (Lucene defaults to false)
+        parser.setDefaultOperator(QueryParser.Operator.OR);
+        return parser;
     }
 
     /** Matches Query DSL query_string fuzzy-distance semantics ({@link Fuzziness#AUTO} for bare {@code ~}). */
@@ -325,6 +361,19 @@ public final class HighlightQueryTranslator {
         protected float getFuzzyDistance(Token fuzzyToken, String termStr) {
             return queryStringFuzzyDistance(fuzzyToken, termStr);
         }
+
+        /**
+         * Keep regexp parsing case-sensitive to match Query DSL {@code query_string}.
+         * <p>
+         * The classic {@link QueryParser} normalizes regexp text through {@link Analyzer#normalize}, but DSL regexp
+         * queries keep the pattern as-is ({@code StringFieldType#regexpQuery} does not normalize it). Without this
+         * override, an uppercase pattern like {@code /M(ount|t)/} would incorrectly match the lowercased term
+         * {@code mount}.
+         */
+        @Override
+        protected Query getRegexpQuery(String field, String termStr) {
+            return newRegexpQuery(new Term(field, termStr));
+        }
     }
 
     private static final class HighlightMultiFieldParser extends MultiFieldQueryParser {
@@ -335,6 +384,24 @@ public final class HighlightQueryTranslator {
         @Override
         protected float getFuzzyDistance(Token fuzzyToken, String termStr) {
             return queryStringFuzzyDistance(fuzzyToken, termStr);
+        }
+
+        /**
+         * Same case-sensitive regexp behavior as {@link HighlightSingleFieldParser#getRegexpQuery}, while preserving
+         * {@link MultiFieldQueryParser}'s multi-field fan-out.
+         */
+        @Override
+        protected Query getRegexpQuery(String field, String termStr) throws ParseException {
+            // When the query has no explicit field, fan it out across all parser fields.
+            // We do not use per-field boosts here, so applying boosts would be a no-op.
+            if (field == null) {
+                List<Query> clauses = new ArrayList<>(fields.length);
+                for (String f : fields) {
+                    clauses.add(getRegexpQuery(f, termStr));
+                }
+                return getMultiFieldQuery(clauses);
+            }
+            return newRegexpQuery(new Term(field, termStr));
         }
     }
 

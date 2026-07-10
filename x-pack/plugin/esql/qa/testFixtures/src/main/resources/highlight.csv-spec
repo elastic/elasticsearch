@@ -857,6 +857,35 @@ The One Ring was forged by <em>Sauron</em>.
 ;
 
 
+# A regexp is matched case-sensitively against the analyzed (lowercased) term, mirroring Query DSL query_string.
+# The uppercase pattern "/M(ount|t)/" never matches the indexed term "mount", so the row is null.
+highlightRegexUppercaseIsCaseSensitiveNoMatch
+required_capability: highlight_v4
+
+ROW content = "The One Ring was forged by Sauron in the fires of Mount Doom."
+| HIGHLIGHT "/M(ount|t)/" ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+null
+;
+
+
+# The lowercase pattern "/m(ount|t)/" matches the indexed term "mount"; the original casing is kept when wrapped.
+highlightRegexLowercaseMatches
+required_capability: highlight_v4
+
+ROW content = "The One Ring was forged by Sauron in the fires of Mount Doom."
+| HIGHLIGHT "/m(ount|t)/" ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The One Ring was forged by Sauron in the fires of <em>Mount</em> Doom.
+;
+
+
 # A term qualified on a different field parses but never highlights (require_field_match: true), yielding null.
 highlightFieldQualifiedTermYieldsNull
 required_capability: highlight_v4

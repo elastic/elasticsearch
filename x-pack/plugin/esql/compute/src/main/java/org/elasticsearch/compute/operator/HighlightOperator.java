@@ -96,11 +96,8 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         this.analyzer = config.requiredAnalyzer();
         this.query = config.requiredQuery();
         this.fieldNames = config.fieldNames();
-        if (fieldNames.size() != fieldEvaluators.length) {
-            throw new IllegalArgumentException(
-                "HIGHLIGHT ON field count [" + fieldNames.size() + "] does not match ON expression count [" + fieldEvaluators.length + "]"
-            );
-        }
+        assert fieldNames.size() == fieldEvaluators.length
+            : "HIGHLIGHT ON field count [" + fieldNames.size() + "] does not match ON expression count [" + fieldEvaluators.length + "]";
         Encoder encoder = HighlightConfig.HTML_ENCODER.equals(config.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
         this.formatter = new CustomPassageFormatter(config.preTag(), config.postTag(), encoder, config.numberOfFragments());
         // Coordinator-side highlighting has no IndexSettings yet, so the index cap is just the default. Clamping the
@@ -302,6 +299,12 @@ public class HighlightOperator extends AbstractPageMappingOperator {
         return highlighter.highlightField(leaf.reader(), 0, () -> text);
     }
 
+    /**
+     * Appends the highlighter output for one row: {@code null} when there is no snippet (no match and no
+     * {@code no_match_size}), a single value, or a multi-value entry when several fragments are returned. Snippets
+     * arrive in document order; when {@code order} is {@code score} they are re-sorted by descending score first. When
+     * {@code number_of_fragments > 0} they are then capped to that many fragments.
+     */
     private void appendSnippets(BytesRefBlock.Builder builder, Snippet[] snippets) {
         if (snippets == null || snippets.length == 0) {
             builder.appendNull();

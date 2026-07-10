@@ -1053,6 +1053,101 @@ public class SchemaReconciliationTests extends ESTestCase {
         drainWarningMessages();
     }
 
+    public void testUnionByNameTextSourceWidenToKeywordPinsReadTypeInsteadOfCasting() {
+        // A text-format file whose column widens to KEYWORD is pinned to KEYWORD as its read type, so
+        // the reader returns the raw token instead of parsing at the narrower sampled type and then
+        // casting. The mapping therefore carries no cast for that column.
+        for (String sourceType : List.of("csv", "tsv", "ndjson")) {
+            List<Attribute> schema1 = List.of(attr("c", DataType.INTEGER));
+            List<Attribute> schema2 = List.of(attr("c", DataType.KEYWORD));
+
+            StoragePath f1 = path("s3://b/f1." + sourceType);
+            StoragePath f2 = path("s3://b/f2." + sourceType);
+
+            Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, sourceType), f2, meta(schema2, sourceType));
+            SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+
+            assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
+            // The numeric-inferred file is pinned to KEYWORD and carries no cast.
+            assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
+            assertThat(result.perFileInfo().get(f1).mapping().cast(0), nullValue());
+            // The already-keyword file is unchanged and also carries no cast.
+            assertThat(result.perFileInfo().get(f2).fileSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
+            assertThat(result.perFileInfo().get(f2).mapping().cast(0), nullValue());
+
+            drainWarningMessages();
+        }
+    }
+
+    public void testUnionByNameTextSourceWidenIntToLongPinsReadTypeInsteadOfCasting() {
+        // INTEGER widened to LONG: a text reader parses at LONG directly, so an out-of-sample value
+        // above Integer.MAX_VALUE still parses. The file is pinned to LONG with no cast.
+        List<Attribute> schema1 = List.of(attr("c", DataType.INTEGER));
+        List<Attribute> schema2 = List.of(attr("c", DataType.LONG));
+
+        StoragePath f1 = path("s3://b/f1.csv");
+        StoragePath f2 = path("s3://b/f2.csv");
+
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "csv"), f2, meta(schema2, "csv"));
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.LONG));
+        assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.LONG));
+        assertThat(result.perFileInfo().get(f1).mapping().cast(0), nullValue());
+    }
+
+    public void testUnionByNameTextSourceWidenIntToDoublePinsReadTypeInsteadOfCasting() {
+        List<Attribute> schema1 = List.of(attr("c", DataType.INTEGER));
+        List<Attribute> schema2 = List.of(attr("c", DataType.DOUBLE));
+
+        StoragePath f1 = path("s3://b/f1.csv");
+        StoragePath f2 = path("s3://b/f2.csv");
+
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "csv"), f2, meta(schema2, "csv"));
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
+        assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
+        assertThat(result.perFileInfo().get(f1).mapping().cast(0), nullValue());
+    }
+
+    public void testUnionByNameTextSourceWidenDatetimeToDateNanosKeepsCastNotPinned() {
+        // DATE_NANOS is excluded from read-type pinning: a text reader parsing an epoch number at
+        // DATE_NANOS reads it as epoch-nanos, not the epoch-millis a DATETIME column holds, so the
+        // DATETIME file keeps its inferred read type and the post-read cast rescales the unit.
+        List<Attribute> schema1 = List.of(attr("c", DataType.DATETIME));
+        List<Attribute> schema2 = List.of(attr("c", DataType.DATE_NANOS));
+
+        StoragePath f1 = path("s3://b/f1.csv");
+        StoragePath f2 = path("s3://b/f2.csv");
+
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "csv"), f2, meta(schema2, "csv"));
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DATE_NANOS));
+        assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.DATETIME));
+        assertThat(result.perFileInfo().get(f1).mapping().cast(0), equalTo(DataType.DATE_NANOS));
+    }
+
+    public void testUnionByNameColumnarSourceWidenToKeywordKeepsCast() {
+        // Columnar formats read the physically-typed value, so a widened column keeps its inferred
+        // (footer) type as the read type and relies on the post-read KEYWORD cast. Not pinned.
+        List<Attribute> schema1 = List.of(attr("c", DataType.INTEGER));
+        List<Attribute> schema2 = List.of(attr("c", DataType.KEYWORD));
+
+        StoragePath f1 = path("s3://b/f1.parquet");
+        StoragePath f2 = path("s3://b/f2.parquet");
+
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
+        assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.INTEGER));
+        assertThat(result.perFileInfo().get(f1).mapping().cast(0), equalTo(DataType.KEYWORD));
+
+        drainWarningMessages();
+    }
+
     // === Warning-header helpers ===
     //
     // ESTestCase sets up a fresh ThreadContext per test (auto-stashed in {@code @After}); the

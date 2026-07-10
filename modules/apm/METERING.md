@@ -95,9 +95,8 @@ For example, with boundaries `[1, 5, 10]` in seconds: a 4s sample falls in the `
 
 To deal with this:
 
-- Use a `DoubleHistogram` with a larger unit (`s` instead of `ms`, `MiB` instead of bytes). The default
-  boundaries go down to fractions, so a larger unit extends the top of the range while keeping useful
-  resolution at the bottom.
+- Use a `DoubleHistogram` with a larger unit. The default boundaries go down to fractions, so a larger unit (for example `s` instead of `ms`) extends the top of the range while keeping
+ resolution at the bottom. This is a workaround for a current limitation: bucket boundaries are not yet configurable per metric, so a byte-unit histogram cannot cover a realistic range. Once per-metric boundaries are supported, prefer setting explicit boundaries over rescaling the unit.
 
 ## Development
 

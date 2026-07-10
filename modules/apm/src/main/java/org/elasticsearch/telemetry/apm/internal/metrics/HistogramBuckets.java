@@ -16,7 +16,7 @@ import java.util.List;
  * Default histogram bucket boundaries matching the APM Java agent's histogram scale: a base-sqrt(2)
  * ladder from 2^-8 up to 2^17 (131072).
  */
-public final class HistogramBuckets {
+final class HistogramBuckets {
 
     private HistogramBuckets() {}
 
@@ -24,8 +24,8 @@ public final class HistogramBuckets {
     private static final int MIN_EXPONENT_HALVES = -16;
     private static final int MAX_EXPONENT_HALVES = 34;
 
-    public static final List<Double> APM_DEFAULT;
-    public static final List<Long> APM_DEFAULT_LONGS;
+    static final List<Double> APM_DEFAULT;
+    static final List<Long> APM_DEFAULT_LONGS;
 
     static {
         List<Double> doubles = new ArrayList<>(MAX_EXPONENT_HALVES - MIN_EXPONENT_HALVES + 1);

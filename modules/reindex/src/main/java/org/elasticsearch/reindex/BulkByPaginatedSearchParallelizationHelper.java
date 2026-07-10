@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.AUTO_SLICES;
 
 /**
- * Helps parallelize reindex requests using slices. This is search agnostic, working for paginated search (scroll-API or point-in-time)
+ * Helps parallelize reindex requests using slices. This is search agnostic.
  */
 class BulkByPaginatedSearchParallelizationHelper {
 

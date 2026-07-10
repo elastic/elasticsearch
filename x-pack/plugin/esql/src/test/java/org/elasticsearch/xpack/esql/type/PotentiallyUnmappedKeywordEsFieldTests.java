@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
@@ -24,13 +23,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PotentiallyUnmappedKeywordEsFieldTests extends AbstractEsFieldTypeTests<PotentiallyUnmappedKeywordEsField> {
     @Override
     protected PotentiallyUnmappedKeywordEsField createTestInstance() {
-        return randomPotentiallyUnmappedKeywordEsField();
+        return new PotentiallyUnmappedKeywordEsField(randomAlphaOfLength(4), randomProperties(4));
     }
 
     @Override
@@ -42,7 +40,7 @@ public class PotentiallyUnmappedKeywordEsFieldTests extends AbstractEsFieldTypeT
         } else {
             properties = randomValueOtherThan(properties, () -> randomProperties(4));
         }
-        return withProperties(name, properties);
+        return new PotentiallyUnmappedKeywordEsField(name, properties);
     }
 
     /**
@@ -53,37 +51,25 @@ public class PotentiallyUnmappedKeywordEsFieldTests extends AbstractEsFieldTypeT
     public void testSerializesFullPathToOldNodes() throws IOException {
         PotentiallyUnmappedKeywordEsField field = new PotentiallyUnmappedKeywordEsField("name");
 
-        assertThat(copyWithFullName(field, "city.name", TransportVersion.current()).getName(), equalTo("name"));
+        assertThat(copy(field, TransportVersion.current()).getName(), equalTo("name"));
 
         TransportVersion old = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_unmapped_keyword_leaf_name"));
-        assertThat(copyWithFullName(field, "city.name", old).getName(), equalTo("city.name"));
+        assertThat(copy(field, old).getName(), equalTo(FULL_FIELD_NAME));
     }
 
-    private static PotentiallyUnmappedKeywordEsField randomPotentiallyUnmappedKeywordEsField() {
-        return withProperties(randomAlphaOfLength(4), randomProperties(4));
-    }
-
-    private static PotentiallyUnmappedKeywordEsField withProperties(String name, Map<String, EsField> properties) {
-        PotentiallyUnmappedKeywordEsField field = new PotentiallyUnmappedKeywordEsField(name);
-        field.getProperties().putAll(properties);
-        return field;
-    }
-
-    private PotentiallyUnmappedKeywordEsField copyWithFullName(
-        PotentiallyUnmappedKeywordEsField field,
-        String fullName,
-        TransportVersion version
-    ) throws IOException {
+    private PotentiallyUnmappedKeywordEsField copy(PotentiallyUnmappedKeywordEsField field, TransportVersion version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput(); var pso = new PlanStreamOutput(output, EsqlTestUtils.TEST_CFG)) {
             pso.setTransportVersion(version);
-            field.writeTo(pso, fullName);
+            field.writeTo(pso, FULL_FIELD_NAME);
             try (
-                StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), new NamedWriteableRegistry(List.of()));
+                var in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), new NamedWriteableRegistry(List.of()));
                 var psi = new PlanStreamInput(in, in.namedWriteableRegistry(), config(), new SerializationTestUtils.TestNameIdMapper())
             ) {
                 psi.setTransportVersion(version);
-                return (PotentiallyUnmappedKeywordEsField) EsField.readFrom(psi);
+                return EsField.readFrom(psi);
             }
         }
     }
+
+    private static final String FULL_FIELD_NAME = "foo.bar.bazz";
 }

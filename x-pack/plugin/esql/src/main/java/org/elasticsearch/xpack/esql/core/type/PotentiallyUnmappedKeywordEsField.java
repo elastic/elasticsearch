@@ -28,7 +28,8 @@ public class PotentiallyUnmappedKeywordEsField extends KeywordEsField {
         this(name, new HashMap<>());
     }
 
-    private PotentiallyUnmappedKeywordEsField(String name, Map<String, EsField> properties) {
+    // Visible for testing
+    public PotentiallyUnmappedKeywordEsField(String name, Map<String, EsField> properties) {
         super(name, properties, true, Short.MAX_VALUE, false, false, TimeSeriesFieldType.UNKNOWN);
     }
 

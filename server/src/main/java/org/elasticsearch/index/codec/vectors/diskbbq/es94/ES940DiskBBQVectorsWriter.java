@@ -42,7 +42,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.FlatCentroidClusters;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IntSorter;
-import org.elasticsearch.index.codec.vectors.diskbbq.IntToBooleanFunction;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
@@ -60,6 +59,7 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.IntPredicate;
 import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
@@ -985,8 +985,8 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
         private int bitSum;
         private int currOrd = -1;
         private int count;
-        private IntToBooleanFunction isOverspill = null;
-        private IntToIntFunction ordTransformer = null;
+        private IntPredicate isOverspill = null;
+        private IntUnaryOperator ordTransformer = null;
 
         OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, int vectorByteSize) {
             this.quantizedVectorsInput = quantizedVectorsInput;
@@ -994,7 +994,7 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
             this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + Integer.BYTES);
         }
 
-        private void reset(int count, IntToBooleanFunction isOverspill, IntToIntFunction ordTransformer) {
+        private void reset(int count, IntPredicate isOverspill, IntUnaryOperator ordTransformer) {
             this.count = count;
             this.isOverspill = isOverspill;
             this.ordTransformer = ordTransformer;
@@ -1012,8 +1012,8 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
                 throw new IllegalStateException("No more vectors to read, current ord: " + currOrd + ", count: " + count);
             }
             currOrd++;
-            int ord = ordTransformer.apply(currOrd);
-            boolean isOverspill = this.isOverspill.apply(currOrd);
+            int ord = ordTransformer.applyAsInt(currOrd);
+            boolean isOverspill = this.isOverspill.test(currOrd);
             return getVector(ord, isOverspill);
         }
 

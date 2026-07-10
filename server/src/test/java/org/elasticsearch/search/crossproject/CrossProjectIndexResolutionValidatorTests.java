@@ -43,8 +43,7 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
     private boolean useProjectRouting;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initProjectRouting() throws Exception {
         useProjectRouting = randomBoolean();
     }
 

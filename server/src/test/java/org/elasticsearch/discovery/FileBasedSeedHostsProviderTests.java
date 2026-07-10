@@ -47,23 +47,18 @@ public class FileBasedSeedHostsProviderTests extends ESTestCase {
     private MockTransportService transportService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startTransportService() throws Exception {
         threadPool = new TestThreadPool(FileBasedSeedHostsProviderTests.class.getName());
         executorService = Executors.newSingleThreadExecutor();
         createTransportSvc();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void stopTransportService() throws Exception {
         try {
             terminate(executorService);
         } finally {
-            try {
-                terminate(threadPool);
-            } finally {
-                super.tearDown();
-            }
+            terminate(threadPool);
         }
     }
 

@@ -2099,6 +2099,15 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         ) {
             assertThat("the matching row must survive filter pushdown", getValuesList(response).get(0).get(0), equalTo(1L));
         }
+        // The IN path had the same hazard (translateLongIn); the row must survive it too.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM logs_ts_declared_long | WHERE ts IN (1600000000000000000) | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat("the matching row must survive IN pushdown", getValuesList(response).get(0).get(0), equalTo(1L));
+        }
     }
 
     private Path writeParquetRenameFixture() throws IOException {
@@ -2406,11 +2415,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * A view whose body targets a dataset carrying a DECLARED mapping: the declared coercion must survive view
-     * inlining (view resolution rewrites the inlined leaf into the external relation, which must keep the mapping —
-     * a dropped mapping here would silently read the file's physical type instead of the declared one).
-     */
-    /**
      * A multivalue (array) column declared a coerced type coerces element-by-element — every element of the
      * position is converted, not just the first, and the position keeps its multivalue shape.
      */
@@ -2448,6 +2452,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * A view whose body targets a dataset carrying a DECLARED mapping: the declared coercion must survive view
+     * inlining (view resolution rewrites the inlined leaf into the external relation, which must keep the mapping —
+     * a dropped mapping here would silently read the file's physical type instead of the declared one).
+     */
     public void testViewOverMappedDatasetPreservesCoercion() throws Exception {
         Path root = createTempDir();
         Files.writeString(root.resolve("d.csv"), "val:integer\n100\n");

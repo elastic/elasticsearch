@@ -462,6 +462,25 @@ final class ParquetPushedExpressions {
      * predicates are RECHECK, so {@code FilterExec} re-applies the real ESQL semantics — the same
      * reasoning as {@link #buildLongPredicate} and {@link #isPhysicalDouble}.
      */
+    /**
+     * Whether decoding a physical column into an ESQL {@code long} applies a unit transform the raw row-group
+     * statistics do not carry, so a raw {@code long} predicate pushed against those stats mis-prunes:
+     * <ul>
+     *   <li>{@code TIMESTAMP} — MICROS decodes x1000 to epoch-nanos; MILLIS/NANOS are already the decoded unit,
+     *       but we decline all timestamp units uniformly (over-declining is only a lost-pruning cost, never wrong,
+     *       and keeps this one predicate simple);</li>
+     *   <li>{@code DATE} — days decode x86_400_000 to epoch-millis.</li>
+     * </ul>
+     * {@code TIME(MILLIS)} is a plain INT32-&gt;LONG identity widen (millis-of-day, no scaling), so it is <b>not</b>
+     * declined — the raw stat matches the block value and the predicate is pushable (see
+     * {@code testTimeMillisAnalogousInt32WidenToLongIsPushed}). The single authority both LONG push paths
+     * ({@link #buildLongPredicate} and {@link #translateLongIn}) consult before pushing.
+     */
+    private static boolean pushDeclinedForUnitMismatch(LogicalTypeAnnotation annotation) {
+        return annotation instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation
+            || annotation instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation;
+    }
+
     private static boolean physicalPrimitiveIs(MessageType schema, String columnName, PrimitiveType.PrimitiveTypeName expected) {
         PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
         return primitive != null && primitive.getPrimitiveTypeName() == expected;
@@ -497,14 +516,14 @@ final class ParquetPushedExpressions {
         if (ptype == null) {
             return null;
         }
-        // A TIMESTAMP-annotated INT64 only reaches this arm when the column's type was DECLARED as long
-        // (an inferred timestamp routes to the unit-aware buildDatetimePredicate/buildDateNanosPredicate).
-        // The declared read decodes through the temporal path, where TIMESTAMP(MICROS) is scaled to
-        // epoch-nanos, so the block value is NOT the raw physical value the row-group statistics hold.
-        // Pushing the literal against those raw stats prunes row groups that genuinely match, and pruning
-        // is unrecoverable — RECHECK guards against false positives, not against rows we never read.
-        // Decline; FilterExec still applies the real ESQL semantics.
-        if (ptype.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+        // A temporal-annotated column reaching a LONG predicate has a unit transform between the block value and
+        // the raw physical value the row-group statistics hold: TIMESTAMP(MICROS)->epoch-nanos (x1000),
+        // DATE(days)->epoch-millis (x86_400_000), TIME(micros)->x1000. The literal is in the decoded unit, the
+        // stats are in the physical unit, so pushing it prunes row groups that genuinely match. Pruning is
+        // unrecoverable — RECHECK guards against false positives, not against rows we never read — so decline and
+        // let FilterExec apply the real semantics. Reached via a DECLARED long over a temporal column, or an
+        // inferred TIME_* column; inferred datetime/date_nanos go through the unit-aware build*Predicate arms.
+        if (pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
             return null;
         }
         return switch (ptype.getPrimitiveTypeName()) {
@@ -751,6 +770,11 @@ final class ParquetPushedExpressions {
     private static FilterPredicate translateLongIn(String columnName, List<Object> rawValues, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
         if (ptype == null) {
+            return null;
+        }
+        // Same unit-mismatch decline as buildLongPredicate — a temporal physical carries a unit transform the
+        // raw stats do not, so an IN over a declared/inferred LONG temporal column must not push a raw predicate.
+        if (pushDeclinedForUnitMismatch(ptype.getLogicalTypeAnnotation())) {
             return null;
         }
         return switch (ptype.getPrimitiveTypeName()) {

@@ -438,18 +438,19 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
-     * The {@code fusedInDecode} fast path (used by the columnar readers to avoid boxing) must produce the SAME
-     * value as the boxed {@link DeclaredTypeCoercions#castBlock} engine for every pair it claims to fuse — else
-     * a column read on the fast path would silently disagree with the reference engine.
+     * The pairs {@link DeclaredTypeCoercions#fusedInDecode} claims as fusable are exactly the ones the columnar
+     * readers decode without boxing; pin the boxed {@link DeclaredTypeCoercions#castBlock} reference value for
+     * each so the fused fast path (exercised end-to-end in the per-format reader tests) has an authoritative
+     * value to match. This is the SPI-level half; {@code ParquetFormatReaderTests} drives the fused path itself.
      */
-    public void testFusedInDecodeAgreesWithCastBlock() {
+    public void testFusedPairsCastBlockReferenceValues() {
         // integer -> long (lossless widen)
         try (
             Block src = blockFactory.newIntArrayVector(new int[] { 5, -7 }, 2).asBlock();
             Block cast = castStrict(src, DataType.INTEGER, DataType.LONG)
         ) {
             assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.INTEGER, DataType.LONG));
-            assertEquals(5L, ((LongBlock) cast).getLong(0));   // fused decode reads the same widened value
+            assertEquals(5L, ((LongBlock) cast).getLong(0));
             assertEquals(-7L, ((LongBlock) cast).getLong(1));
         }
         // long -> datetime (epoch-millis reinterpret, same bits)

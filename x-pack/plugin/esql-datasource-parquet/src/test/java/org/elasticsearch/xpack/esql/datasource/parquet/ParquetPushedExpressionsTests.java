@@ -140,6 +140,45 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("42"));
     }
 
+    /** The IN path has the same unit hazard as the comparison path: a declared long over TIMESTAMP(MICROS) must decline. */
+    public void testDeclaredLongInOverTimestampMicrosDeclinesPushdown() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+
+        Expression inExpr = new In(Source.EMPTY, attr("ts", DataType.LONG), List.of(lit(1600000000000000000L, DataType.LONG)));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(inExpr));
+
+        assertNull("declared long IN over TIMESTAMP(MICROS) must not push a raw predicate", pushed.toFilterPredicate(schema));
+    }
+
+    /**
+     * A declared {@code long} over a physical {@code DATE} (INT32, days) decodes to epoch-millis (days x 86_400_000)
+     * while the stats are day-valued — same 1000x-class unit mismatch. Comparison and IN must both decline.
+     */
+    public void testDeclaredLongOverDateDeclinesPushdown() {
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        // A sub-2^31 millis literal (~1970-01-01T12:00) DOES narrow to int32, so without the guard it would push
+        // `d == 43200000` against day-valued stats and mis-prune — the value must be small enough to reach the push.
+        Expression cmp = eq("d", DataType.LONG, 43200000L);
+        assertNull("declared long over DATE must not push", new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema));
+
+        Expression inExpr = new In(Source.EMPTY, attr("d", DataType.LONG), List.of(lit(43200000L, DataType.LONG)));
+        assertNull("declared long IN over DATE must not push", new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema));
+    }
+
+    /** A plain INT64 IN still pushes — the decline is scoped to temporal-annotated columns. */
+    public void testPlainInt64InStillPushes() {
+        MessageType schema = Types.buildMessage().required(INT64).named("n").named("test");
+
+        Expression inExpr = new In(Source.EMPTY, attr("n", DataType.LONG), List.of(lit(7L, DataType.LONG), lit(9L, DataType.LONG)));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
+        assertNotNull("a plain INT64 IN must still push", fp);
+    }
+
     // --- TIMESTAMP_NANOS (INT64) ---
 
     public void testToFilterPredicateTimestampNanos() {

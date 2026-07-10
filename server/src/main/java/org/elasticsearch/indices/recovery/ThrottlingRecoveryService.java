@@ -192,10 +192,17 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         final RoutingNode localNode = event.state().getRoutingNodes().node(clusterService.localNode().getId());
-        assert localNode != null : "this node received the cluster state update so its RoutingNode entry must be non-null";
         final List<PendingRecovery> staleRecoveries = new ArrayList<>();
         synchronized (this) {
             if (closed) {
+                return;
+            }
+            if (localNode == null) {
+                assert clusterService.localNode().canContainData() == false
+                    && pendingRecoveries.isEmpty()
+                    && cancelledAllocationIds.isEmpty()
+                    : "this node received the cluster state update so its either a data node and its RoutingNode "
+                        + "entry must be non-null or it's not a data node and it should not have any recoveries";
                 return;
             }
             cancelledAllocationIds.entrySet()

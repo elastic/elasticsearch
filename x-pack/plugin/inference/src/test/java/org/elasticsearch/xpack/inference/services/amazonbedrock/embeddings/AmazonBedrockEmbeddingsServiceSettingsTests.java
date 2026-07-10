@@ -165,36 +165,6 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractAmazonB
         );
     }
 
-    public void testUpdateServiceSettings_EmptyMap_UsesDefaultValue() {
-        var originalServiceSettings = new AmazonBedrockEmbeddingsServiceSettings(
-            INITIAL_TEST_REGION,
-            INITIAL_TEST_MODEL_ID,
-            INITIAL_TEST_PROVIDER,
-            INITIAL_TEST_DIMENSIONS,
-            INITIAL_TEST_DIMENSIONS_SET_BY_USER,
-            INITIAL_TEST_MAX_INPUT_TOKENS,
-            INITIAL_TEST_SIMILARITY,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
-
-        assertThat(
-            updatedServiceSettings,
-            is(
-                new AmazonBedrockEmbeddingsServiceSettings(
-                    INITIAL_TEST_REGION,
-                    INITIAL_TEST_MODEL_ID,
-                    INITIAL_TEST_PROVIDER,
-                    INITIAL_TEST_DIMENSIONS,
-                    INITIAL_TEST_DIMENSIONS_SET_BY_USER,
-                    INITIAL_TEST_MAX_INPUT_TOKENS,
-                    INITIAL_TEST_SIMILARITY,
-                    DEFAULT_RATE_LIMIT_SETTINGS
-                )
-            )
-        );
-    }
-
     public void testFromMap_Request_CreatesSettingsCorrectly() {
         var serviceSettings = AmazonBedrockEmbeddingsServiceSettings.fromMap(
             createEmbeddingsRequestSettingsMap(

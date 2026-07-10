@@ -44,7 +44,6 @@ public class AnalyzerContext {
     private final ExternalSourceResolution externalSourceResolution;
     private final TransportVersion minimumVersion;
     private final ProjectMetadata projectMetadata;
-    private Boolean hasRemoteIndices;
     private final UnmappedResolution unmappedResolution;
     private final Set<String> deferredHeaderWarnings = new LinkedHashSet<>();
     private final TimestampBounds timestampBounds;
@@ -172,14 +171,6 @@ public class AnalyzerContext {
 
     public ProjectMetadata projectMetadata() {
         return projectMetadata;
-    }
-
-    public boolean includesRemoteIndices() {
-        assert indexResolution != null;
-        if (hasRemoteIndices == null) {
-            hasRemoteIndices = indexResolution.values().stream().anyMatch(IndexResolution::includesRemoteIndices);
-        }
-        return hasRemoteIndices;
     }
 
     public UnmappedResolution unmappedResolution() {

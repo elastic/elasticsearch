@@ -1906,7 +1906,7 @@ public class NdJsonPageDecoder implements Closeable {
             if (errorPolicy.isStrict()) {
                 // Mirror CsvFormatReader.onRowErrorImpl's field-error hint so the fail-fast message is actionable.
                 throw new EsqlIllegalArgumentException(
-                    message + "; set error_mode to null_field (or skip_row) in WITH options to null-fill/skip and warn instead of failing"
+                    message + "; set error_mode=null_field (or skip_row) to null-fill/skip and warn instead of failing"
                 );
             }
             if (inArray == false) {

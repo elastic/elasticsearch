@@ -991,14 +991,20 @@ public final class KeywordFieldMapper extends FieldMapper {
                         return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), readInArrayOrder);
                     }
                 }
+                ArrayOrderSource arrayOrderSource = useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE;
                 return switch (cfg.function()) {
-                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(blContext.warnings(), name());
-                    case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(blContext.warnings(), name(), blContext.ordinalsByteSize());
+                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(blContext.warnings(), name(), arrayOrderSource);
+                    case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(
+                        blContext.warnings(),
+                        name(),
+                        blContext.ordinalsByteSize(),
+                        arrayOrderSource
+                    );
                     case MV_MAX -> usesBinaryDocValues
-                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name())
+                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
                         : new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     case MV_MIN -> usesBinaryDocValues
-                        ? new MvMinBytesRefsFromBinaryBlockLoader(name())
+                        ? new MvMinBytesRefsFromBinaryBlockLoader(name(), arrayOrderSource)
                         : new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
@@ -1033,11 +1039,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
-            // The fn/ pushdown readers (MV_MAX/MV_MIN/BYTE_LENGTH/LENGTH) decode the [len] SeparateCount format; they don't yet
-            // understand the in-order [len+1]/inline-null encoding, so disable pushdown and let the values be loaded and computed on.
-            if (useArrayOrderBinaryDocValues) {
-                return false;
-            }
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSourceEnabled())) {
                 return switch (config.function()) {
                     // Only push BYTE_LENGTH to load if using doc values

@@ -352,11 +352,24 @@ public abstract class FullTextFunction extends Function
                 // but for now all checks apply, except for MV_EXPAND which can be used before a runtime search function
                 if ((lp instanceof MvExpand && exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) == false
                     && commandCheck.test(lp) == false) {
+                    if (lp instanceof ExternalRelation externalRelation) {
+                        // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)
+                        // fail here regardless of position. Name the actual limitation instead of the generic positional
+                        // message below, which reads like the function is misplaced rather than unsupported on this source.
+                        failures.add(
+                            fail(
+                                plan,
+                                "{} is not supported on federated data sources [{}]; it requires a Lucene index. Use "
+                                    + "MATCH(TO_TEXT(field), \"term\") for full-text search on non-indexed data.",
+                                typeErrorMsgProvider.apply(exp),
+                                externalRelation.datasetName() != null ? externalRelation.datasetName() : lp.sourceText()
+                            )
+                        );
+                        return;
+                    }
                     String sourceText = lp.sourceText();
                     String errorMessage;
-                    if (lp instanceof ExternalRelation) {
-                        errorMessage = "[" + sourceText + "]";
-                    } else if (lp instanceof UnionAll) {
+                    if (lp instanceof UnionAll) {
                         errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
                             ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
                             : sourceText;
@@ -432,13 +445,18 @@ public abstract class FullTextFunction extends Function
 
             plan.forEachExpression(function.getClass(), m -> {
                 if (function.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
+                    String fieldName = field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText();
+                    String federatedSourceClause = isFieldFromFederatedSource(plan, field)
+                        ? " (the source is a federated data source, not a Lucene-backed index)"
+                        : "";
                     failures.add(
                         fail(
                             field,
-                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
+                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping{}",
                             m.functionName(),
                             m.functionType(),
-                            field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText()
+                            fieldName,
+                            federatedSourceClause
                         )
                     );
                 }
@@ -657,5 +675,30 @@ public abstract class FullTextFunction extends Function
             }
         });
         return hasSubquery.get();
+    }
+
+    /**
+     * Whether {@code field} is (by name) an output of an {@link ExternalRelation} in {@code plan} - i.e. the field is
+     * backed by a federated (non-Lucene) data source rather than a genuinely unmapped/computed expression on a real
+     * index. {@code field} never resolves to a {@link FieldAttribute} in this case (external sources expose plain
+     * {@code ReferenceAttribute}s), so name-based matching is used instead of attribute identity.
+     */
+    private static boolean isFieldFromFederatedSource(LogicalPlan plan, Expression field) {
+        Expression fieldExpression = field;
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+            fieldExpression = convertFunction.field();
+        }
+        if (fieldExpression instanceof Attribute == false) {
+            return false;
+        }
+        String fieldName = ((Attribute) fieldExpression).name();
+        Holder<Boolean> found = new Holder<>(false);
+        plan.forEachDown(p -> {
+            if (p instanceof ExternalRelation externalRelation
+                && externalRelation.output().stream().anyMatch(a -> a.name().equals(fieldName))) {
+                found.set(true);
+            }
+        });
+        return found.get();
     }
 }

@@ -70,6 +70,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -2354,6 +2355,21 @@ public class VerifierTests extends ESTestCase {
         fullText().error(
             "from test | eval name = title | where match_phrase(name, \"Meditation\")",
             containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping")
+        );
+    }
+
+    /**
+     * A computed field on a genuine (Lucene-backed) index isn't from a federated source - the "not a field from an
+     * index mapping" message must not gain the federated-source clause that {@code FullTextFunction.fieldVerifier}
+     * adds for fields sourced from an {@code ExternalRelation}. Regression guard for over-broadening that clause.
+     */
+    public void testFullTextFunctionsRejectEvalColumnsMessageOmitsFederatedClauseOnRealIndex() throws Exception {
+        fullText().error(
+            "from test | eval name = title | where match_phrase(name, \"Meditation\")",
+            allOf(
+                containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping"),
+                not(containsString("federated"))
+            )
         );
     }
 

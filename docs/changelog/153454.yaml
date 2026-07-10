@@ -1,0 +1,7 @@
+pr: 153454
+summary: Clarify the Lucene-index requirement in `KQL`/`QSTR`/`MATCH_PHRASE`/`KNN`
+  errors on federated data sources
+area: ES|QL
+type: bug
+issues:
+ - 153454

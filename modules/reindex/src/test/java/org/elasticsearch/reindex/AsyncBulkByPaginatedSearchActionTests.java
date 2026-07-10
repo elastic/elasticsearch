@@ -1335,8 +1335,8 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
 
     /**
      * Exercises the window where {@link AbstractAsyncBulkByPaginatedSearchAction#prepareBulkRequest} has CAS'd
-     * {@link AbstractAsyncBulkByPaginatedSearchAction#currentPaginatedSearchResponse} to {@code null} but has not yet restored the ref after
-     * {@code maxDocs} consumed a partial batch. A subclass blocks inside {@code consumeHits} until {@code finishHim} runs so
+     * {@link AbstractAsyncBulkByPaginatedSearchAction#currentPaginatedSearchResponse} to {@code null} but has not yet restored the ref
+     * after {@code maxDocs} consumed a partial batch. A subclass blocks inside {@code consumeHits} until {@code finishHim} runs so
      * {@code finishHim}'s {@code getAndSet} sees {@code null} and does not release unconsumed hits; the {@code requestFinishing}
      * checks in {@code prepareBulkRequest} / {@code sendBulkRequest} must release the batch slice and remaining hits when prepare
      * continues.
@@ -1431,8 +1431,8 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
 
     /**
      * Complementary to {@link #testPartialScrollRequestFinishing}: {@link AbstractAsyncBulkByPaginatedSearchAction#finishHim} runs first
-     * and wins {@link AbstractAsyncBulkByPaginatedSearchAction#currentPaginatedSearchResponse}'s {@code getAndSet(null)}, releasing unconsumed hits.
-     * A later {@link AbstractAsyncBulkByPaginatedSearchAction#prepareBulkRequest} for the same
+     * and wins {@link AbstractAsyncBulkByPaginatedSearchAction#currentPaginatedSearchResponse}'s {@code getAndSet(null)}, releasing
+     * unconsumed hits. A later {@link AbstractAsyncBulkByPaginatedSearchAction#prepareBulkRequest} for the same
      * {@link AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse} must lose
      * the {@code compareAndSet(asyncResponse, null)} race and return without consuming or releasing again.
      */

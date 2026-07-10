@@ -126,22 +126,22 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     private final BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> scriptApplier;
     private int lastBatchSize;
     /**
-     * The current scroll response being processed. Set atomically so that either {@link #prepareBulkRequest} or
+     * The current paginated search response being processed. Set atomically so that either {@link #prepareBulkRequest} or
      * {@link #finishHim(Exception, List, List, boolean)} can claim exclusive ownership of the remaining hits and release them exactly once.
      */
     private final AtomicReference<PaginatedSearchConsumableHitsResponse> currentPaginatedSearchResponse = new AtomicReference<>();
     /**
      * Set to {@code true} at the start of {@link #finishHim(Exception, List, List, boolean)} so {@link #prepareBulkRequest} can still
-     * release unconsumed hits when {@link #currentPaginatedSearchResponse} is temporarily {@code null} after prepare's CAS (before the ref is
-     * restored when {@code maxDocs} leaves a partial batch).
+     * release unconsumed hits when {@link #currentPaginatedSearchResponse} is temporarily {@code null} after prepare's CAS
+     * (before the ref is restored when {@code maxDocs} leaves a partial batch).
      */
     private final AtomicBoolean requestFinishing = new AtomicBoolean(false);
     /**
      * Keeps track of the total number of bulk operations performed
-     * from a single scroll response. It is possible that
-     * multiple bulk requests are performed from a single scroll
+     * from a single paginated search response. It is possible that
+     * multiple bulk requests are performed from a single paginated search
      * response, meaning that we have to take into account the total
-     * in order to compute a correct scroll keep alive time.
+     * in order to compute a correct scroll/PIT keep alive time
      */
     private final AtomicInteger totalBatchSizeInSinglePaginatedSearchResponse = new AtomicInteger();
     /**
@@ -1017,8 +1017,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     /**
-     * Seeds {@link #currentPaginatedSearchResponse} for tests that need a specific scroll ref before {@link #prepareBulkRequest} (e.g. partial-batch
-     * / terminal-finish scenarios). Exists entirely for testing.
+     * Seeds {@link #currentPaginatedSearchResponse} for tests that need a specific scroll ref before {@link #prepareBulkRequest}
+     * (e.g. partial-batch / terminal-finish scenarios). Exists entirely for testing.
      */
     void setCurrentPaginatedSearchResponseForTests(PaginatedSearchConsumableHitsResponse response) {
         currentPaginatedSearchResponse.set(response);

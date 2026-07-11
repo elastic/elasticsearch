@@ -448,38 +448,16 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * Whether decoding a physical column into an ESQL {@code long}/{@code integer} applies a scaling transform the
-     * raw row-group statistics do not carry, so a raw integral predicate pushed against those stats mis-prunes. The
-     * stats parquet-mr prunes against are the file's raw footer values (physical unit); the scan applies the decode
-     * transform on top, so any factor between them makes a pushed raw literal drop matching row groups:
-     * <ul>
-     *   <li>{@code TIMESTAMP(MICROS)} — decodes x1000 to epoch-nanos (vs micros stats); {@code TIMESTAMP(MILLIS)}
-     *       and {@code TIMESTAMP(NANOS)} are identity (raw==block, see {@code testTimestampMillisAndNanosDeclaredLongStillPush});</li>
-     *   <li>{@code DATE} — always: days decode x86_400_000 to epoch-millis;</li>
-     *   <li>{@code TIME(MICROS)} — decodes x1000 to nanos-of-day (vs micros stats); {@code TIME(MILLIS)} (INT32) and
-     *       {@code TIME(NANOS)} are identity widens (see {@code testTimeMillisAnalogousInt32WidenToLongIsPushed});</li>
-     *   <li>{@code DECIMAL(scale>0)} — the scan reads {@code unscaled / 10^scale} (a {@code double} rounded into the
-     *       declared integral type) while the stats hold the raw unscaled integer, an implicit ÷10^scale; {@code
-     *       DECIMAL(scale=0)} is identity (raw==block).</li>
-     * </ul>
-     * The unit factors are the ones {@code ParquetColumnDecoding}/{@code PageColumnReader} apply. The single authority
-     * every integral push path ({@link #buildLongPredicate}/{@link #translateLongIn} and the {@code INTEGER} arms of
+     * Whether a raw integral predicate pushed against the file's raw footer statistics would mis-prune because the
+     * scan decodes the column with a scaling transform the stats do not carry (parquet-mr prunes against the raw
+     * physical values; the scan applies the transform on top, so any factor between them drops matching row groups).
+     * The set of scaling annotations is owned by {@link ParquetColumnDecoding#integralDecodeScalesRelativeToRawStats}
+     * — co-located with the decode transforms so the two cannot drift. This is the single authority every integral
+     * push path ({@link #buildLongPredicate}/{@link #translateLongIn} and the {@code INTEGER} arms of
      * {@link #buildPredicate}/{@link #translateIn}) consults before pushing.
      */
     private static boolean pushDeclinedForUnitMismatch(LogicalTypeAnnotation annotation) {
-        if (annotation instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
-            return true;
-        }
-        if (annotation instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-            return ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
-        }
-        if (annotation instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
-            return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
-        }
-        if (annotation instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation dec) {
-            return dec.getScale() != 0;
-        }
-        return false;
+        return ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(annotation);
     }
 
     /**
@@ -542,16 +520,14 @@ final class ParquetPushedExpressions {
         }
         return switch (ptype.getPrimitiveTypeName()) {
             case INT64 -> {
-                if (value != null
-                    && ParquetColumnDecoding.isUnsignedInt64(ptype)
-                    && ((Number) value).longValue() < 0
-                    && op != PredicateOp.EQ
-                    && op != PredicateOp.NOT_EQ) {
-                    // Ordered comparison with a NEGATIVE literal over an UNSIGNED_64 column: the block decodes uint64
-                    // via signed sign-wrap (values >= 2^63 read as negative), so signed-long ordering disagrees with
-                    // parquet-mr's UNSIGNED row-group comparator — gt/lt would prune the non-negative-block row groups
-                    // that genuinely match. eq/notEq are safe (bit patterns align), and a positive literal only
-                    // over-includes (RECHECK removes the extras). Decline; the INT32 sibling declines analogously.
+                if (ParquetColumnDecoding.isUnsignedInt64(ptype) && op != PredicateOp.EQ && op != PredicateOp.NOT_EQ) {
+                    // ORDERED comparison over an UNSIGNED_64 column: the block decodes uint64 via signed sign-wrap
+                    // (raws >= 2^63 read as negative), so signed-block ordering disagrees with parquet-mr's UNSIGNED
+                    // row-group comparator in BOTH directions and for either literal sign: lt/lte drop the negative-
+                    // block groups (large unsigned) that genuinely match, and gt/gte — though merely over-including on
+                    // their own — become UNDER-including once wrapped in NOT, which the schema-blind
+                    // isExactlyTranslatable pushes as if exact. So decline every ordered op; only eq/notEq (and IN)
+                    // are bit-exact and stay pushable. The INT32 sibling declines the analogous unsigned mismatch.
                     yield null;
                 }
                 yield orderedPredicate(FilterApi.longColumn(columnName), value != null ? ((Number) value).longValue() : null, op);

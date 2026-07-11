@@ -277,6 +277,66 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("42"));
     }
 
+    /** A declared {@code integer} over a physical {@code DECIMAL(INT32, scale>0)} column decodes ÷10^scale, so it declines. */
+    public void testDeclaredIntegerOverDecimalInt32ScaledDeclinesPushdown() {
+        MessageType schema = Types.buildMessage().required(INT32).as(decimalType(2, 9)).named("amt").named("test");
+
+        assertNull(
+            "declared integer over DECIMAL(INT32, scale>0) must not push",
+            new ParquetPushedExpressions(List.of(eq("amt", DataType.INTEGER, 12))).toFilterPredicate(schema)
+        );
+    }
+
+    /** {@code IN} over a declared integer routes through translateIntIn: it declines over DATE and pushes over a plain INT32. */
+    public void testDeclaredIntegerInConsultsGuard() {
+        MessageType dateSchema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+        Expression inOverDate = new In(
+            Source.EMPTY,
+            attr("d", DataType.INTEGER),
+            List.of(lit(86_400_000, DataType.INTEGER), lit(172_800_000, DataType.INTEGER))
+        );
+        assertNull(
+            "declared integer IN over DATE must not push",
+            new ParquetPushedExpressions(List.of(inOverDate)).toFilterPredicate(dateSchema)
+        );
+
+        MessageType plainSchema = Types.buildMessage().required(INT32).named("n").named("test");
+        Expression inOverPlain = new In(
+            Source.EMPTY,
+            attr("n", DataType.INTEGER),
+            List.of(lit(7, DataType.INTEGER), lit(9, DataType.INTEGER))
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(inOverPlain)).toFilterPredicate(plainSchema);
+        assertNotNull("declared integer IN over a plain INT32 must still push", fp);
+    }
+
+    /**
+     * Direct pin for the single-home decline inventory {@link ParquetColumnDecoding#integralDecodeScalesRelativeToRawStats}
+     * that {@code pushDeclinedForUnitMismatch} delegates to: it must flag exactly the annotations whose integral decode
+     * scales relative to the raw footer stats, and nothing else.
+     */
+    public void testIntegralDecodeScalesInventory() {
+        assertTrue(ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(dateType()));
+        assertTrue(
+            ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+        );
+        assertTrue(
+            ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(
+                LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS)
+            )
+        );
+        assertTrue(ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(decimalType(2, 9)));
+
+        assertFalse(
+            ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+        );
+        assertFalse(
+            ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+        );
+        assertFalse(ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(decimalType(0, 9)));
+        assertFalse(ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(null));
+    }
+
     // --- TIMESTAMP_NANOS (INT64) ---
 
     public void testToFilterPredicateTimestampNanos() {
@@ -516,35 +576,58 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     // --- Declared LONG over an UNSIGNED_64 column (signed/unsigned comparator mismatch) ---
 
     /**
-     * A {@code uint64} column DECLARED as {@code long} decodes via signed sign-wrap, so a NEGATIVE ordered literal
-     * disagrees with parquet-mr's unsigned row-group comparator: {@code u > -5} would prune the non-negative-block row
-     * groups that genuinely match. Ordered comparisons with a negative literal must decline (the INT32 sibling does).
+     * A {@code uint64} column DECLARED as {@code long} decodes via signed sign-wrap (raws >= 2^63 read as negative),
+     * so signed-block ordering disagrees with parquet-mr's UNSIGNED row-group comparator for EVERY ordered op and
+     * either literal sign. {@code u < 100} would prune the negative-block groups (large unsigned) that genuinely match
+     * (a false negative RECHECK cannot undo); {@code u > 5}, though over-including on its own, mis-prunes once wrapped
+     * in {@code NOT}. So every ordered comparison must decline, whatever the literal sign.
      */
-    public void testDeclaredLongOverUnsignedInt64NegativeOrderedDeclinesPushdown() {
+    public void testDeclaredLongOverUnsignedInt64OrderedDeclinesPushdown() {
         MessageType schema = Types.buildMessage().required(INT64).as(LogicalTypeAnnotation.intType(64, false)).named("u").named("test");
 
-        Expression gt = new GreaterThan(Source.EMPTY, attr("u", DataType.LONG), lit(-5L, DataType.LONG), null);
-        assertNull("u > -5 over uint64 must not push", new ParquetPushedExpressions(List.of(gt)).toFilterPredicate(schema));
+        for (long literal : new long[] { -5L, 100L }) {
+            Expression gt = new GreaterThan(Source.EMPTY, attr("u", DataType.LONG), lit(literal, DataType.LONG), null);
+            assertNull(
+                "u > " + literal + " over uint64 must not push",
+                new ParquetPushedExpressions(List.of(gt)).toFilterPredicate(schema)
+            );
 
-        Expression lt = new LessThan(Source.EMPTY, attr("u", DataType.LONG), lit(-1L, DataType.LONG), null);
-        assertNull("u < -1 over uint64 must not push", new ParquetPushedExpressions(List.of(lt)).toFilterPredicate(schema));
+            Expression lt = new LessThan(Source.EMPTY, attr("u", DataType.LONG), lit(literal, DataType.LONG), null);
+            assertNull(
+                "u < " + literal + " over uint64 must not push",
+                new ParquetPushedExpressions(List.of(lt)).toFilterPredicate(schema)
+            );
+
+            Expression lte = new LessThanOrEqual(Source.EMPTY, attr("u", DataType.LONG), lit(literal, DataType.LONG), null);
+            assertNull(
+                "u <= " + literal + " over uint64 must not push",
+                new ParquetPushedExpressions(List.of(lte)).toFilterPredicate(schema)
+            );
+        }
     }
 
-    /** {@code eq}/{@code notEq} are bit-pattern exact, so a negative equality literal over uint64 still pushes. */
-    public void testDeclaredLongOverUnsignedInt64NegativeEqStillPushes() {
+    /** {@code eq}/{@code notEq} are bit-pattern exact regardless of sign, so an equality literal over uint64 still pushes. */
+    public void testDeclaredLongOverUnsignedInt64EqStillPushes() {
         MessageType schema = Types.buildMessage().required(INT64).as(LogicalTypeAnnotation.intType(64, false)).named("u").named("test");
 
-        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("u", DataType.LONG, -5L))).toFilterPredicate(schema);
-        assertNotNull("u == -5 over uint64 is bit-exact and must still push", fp);
+        assertNotNull(
+            "u == -5 over uint64 is bit-exact and must still push",
+            new ParquetPushedExpressions(List.of(eq("u", DataType.LONG, -5L))).toFilterPredicate(schema)
+        );
+        assertNotNull(
+            "u == 5 over uint64 is bit-exact and must still push",
+            new ParquetPushedExpressions(List.of(eq("u", DataType.LONG, 5L))).toFilterPredicate(schema)
+        );
     }
 
-    /** A POSITIVE ordered literal over uint64 only over-includes (RECHECK removes the extras), so it still pushes. */
-    public void testDeclaredLongOverUnsignedInt64PositiveOrderedStillPushes() {
-        MessageType schema = Types.buildMessage().required(INT64).as(LogicalTypeAnnotation.intType(64, false)).named("u").named("test");
+    /** A plain (signed) INT64 still pushes ordered comparisons — the decline is scoped to the unsigned annotation. */
+    public void testDeclaredLongOverSignedInt64OrderedStillPushes() {
+        MessageType schema = Types.buildMessage().required(INT64).named("n").named("test");
 
-        Expression gt = new GreaterThan(Source.EMPTY, attr("u", DataType.LONG), lit(5L, DataType.LONG), null);
-        FilterPredicate fp = new ParquetPushedExpressions(List.of(gt)).toFilterPredicate(schema);
-        assertNotNull("u > 5 (positive) over uint64 over-includes safely and must still push", fp);
+        Expression lt = new LessThan(Source.EMPTY, attr("n", DataType.LONG), lit(100L, DataType.LONG), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(lt)).toFilterPredicate(schema);
+        assertNotNull("a plain signed INT64 must still push ordered comparisons", fp);
+        assertThat(fp.toString(), containsString("100"));
     }
 
     // --- INT96 (skip pushdown) ---

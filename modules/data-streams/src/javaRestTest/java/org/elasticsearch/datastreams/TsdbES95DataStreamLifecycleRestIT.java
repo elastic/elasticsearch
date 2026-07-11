@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -29,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Tests the {@code ES95} TSDB doc values codec inside data stream lifecycles. Covers
@@ -76,7 +78,7 @@ public class TsdbES95DataStreamLifecycleRestIT extends ESRestTestCase {
         adminClient().performRequest(new Request("DELETE", "/_index_template/*"));
     }
 
-    public void testRolloverFlipsCodecBaselineToES95() throws IOException {
+    public void testRolloverFlipsCodecBaselineToES95() throws Exception {
         final String stream = "tsdb-ds-rollover-baseline-to-es95";
         putTSDBTemplate(stream, false);
         createDataStream(stream);
@@ -100,7 +102,7 @@ public class TsdbES95DataStreamLifecycleRestIT extends ESRestTestCase {
         assertGaugeSumMatches(stream, expectedGaugeSum(total));
     }
 
-    public void testRolloverFlipsCodecES95ToBaseline() throws IOException {
+    public void testRolloverFlipsCodecES95ToBaseline() throws Exception {
         final String stream = "tsdb-ds-rollover-es95-to-baseline";
         putTSDBTemplate(stream, true);
         createDataStream(stream);
@@ -124,7 +126,7 @@ public class TsdbES95DataStreamLifecycleRestIT extends ESRestTestCase {
         assertGaugeSumMatches(stream, expectedGaugeSum(total));
     }
 
-    public void testAlternatingCodecAcrossFourRollovers() throws IOException {
+    public void testAlternatingCodecAcrossFourRollovers() throws Exception {
         final String stream = "tsdb-ds-alternating-codec";
         putTSDBTemplate(stream, false);
         createDataStream(stream);
@@ -161,7 +163,7 @@ public class TsdbES95DataStreamLifecycleRestIT extends ESRestTestCase {
         assertGaugeSumMatches(stream, expectedGaugeSum(total));
     }
 
-    public void testQueryAcrossMixedCodecBackingIndicesViaAlias() throws IOException {
+    public void testQueryAcrossMixedCodecBackingIndicesViaAlias() throws Exception {
         final String stream = "tsdb-ds-mixed-query";
         putTSDBTemplate(stream, false);
         createDataStream(stream);
@@ -185,7 +187,7 @@ public class TsdbES95DataStreamLifecycleRestIT extends ESRestTestCase {
         assertGaugeSumMatches(stream, expectedGaugeSum(total));
     }
 
-    public void testRandomAccessDocValuesAcrossBackingIndices() throws IOException {
+    public void testRandomAccessDocValuesAcrossBackingIndices() throws Exception {
         final String stream = "tsdb-ds-random-access";
         putTSDBTemplate(stream, false);
         createDataStream(stream);
@@ -241,11 +243,23 @@ public class TsdbES95DataStreamLifecycleRestIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("POST", "/" + streamName + "/_rollover")));
     }
 
-    private void bulkIndex(final String streamName, int docCount, int gaugeStart) throws IOException {
+    private void ensureSearchable(final String indexName) throws Exception {
+        // Stateless provisions the search shard asynchronously; a read before it is ready returns 503.
+        assertBusy(() -> {
+            try {
+                client().performRequest(new Request("GET", "/" + indexName + "/_search?size=0"));
+            } catch (final ResponseException e) {
+                if (e.getResponse().getStatusLine().getStatusCode() == 503) {
+                    throw new AssertionError(e);
+                }
+                throw e;
+            }
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    private void bulkIndex(final String streamName, int docCount, int gaugeStart) throws Exception {
         final String writeIdx = writeBackingIndex(streamName);
-        // Stateless loads a new backing index's search shards from the object store asynchronously;
-        // wait for them before the count read below, which runs on the search node.
-        ensureGreen(writeIdx);
+        ensureSearchable(writeIdx);
         final long startMs = readBackingIndexStartTime(writeIdx).toEpochMilli();
         final long existing = documentCount(writeIdx);
         final StringBuilder bulk = new StringBuilder();

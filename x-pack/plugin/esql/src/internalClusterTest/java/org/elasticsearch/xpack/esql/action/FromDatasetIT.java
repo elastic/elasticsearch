@@ -212,7 +212,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "mapped_ds_for_view",
         "mapped_ds_for_subquery",
         "ndjson_mv_coerce",
-        "logs_ts_declared_long"
+        "logs_ts_declared_long",
+        "logs_date_inferred"
     );
 
     /**
@@ -2058,6 +2059,26 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         return baos.toByteArray();
     }
 
+    private byte[] dateFixtureBytes(int... days) throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("message logs { required int32 d (DATE); }");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int day : days) {
+                Group g = factory.newGroup();
+                g.add("d", day);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
     /**
      * End-to-end regression pin for the declared-{@code long}-over-{@code TIMESTAMP(MICROS)} filter-pushdown bug:
      * such a column decodes to epoch-NANOS, but the file's row-group statistics are in MICROS. Before the fix a
@@ -2107,6 +2128,52 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         ) {
             assertThat("the matching row must survive IN pushdown", getValuesList(response).get(0).get(0), equalTo(1L));
+        }
+    }
+
+    /**
+     * End-to-end regression pin for the DATE-column filter-pushdown rounding bug (no declared mapping — a plain
+     * inferred {@code date} column). A DATE stores whole days; the row group holds day 19723 (2024-01-01). Before the
+     * fix the day bound was rounded with {@code floorDiv} for every operator, so {@code d < 2024-01-01T00:00:00.001Z}
+     * pushed {@code day < 19723} and pruned the [19723,19723] row group, and {@code d != 2024-01-01T00:00:00.001Z}
+     * pushed {@code notEq(19723)} and pruned it too — both dropped the row that genuinely matches.
+     */
+    public void testWhereLessThanAndNotEqualsOnDateColumnMatchThroughEngine() throws Exception {
+        Path root = createTempDir();
+        Files.write(root.resolve("dates.parquet"), dateFixtureBytes(19723)); // 2024-01-01, single row group
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_date_inferred",
+                    "local_ds",
+                    root.toUri() + "*.parquet",
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null // inferred: no declared mapping, the column reads back as datetime
+                )
+            )
+        );
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM logs_date_inferred | WHERE d < TO_DATETIME(\"2024-01-01T00:00:00.001Z\") | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat("the matching day must survive < pushdown", getValuesList(response).get(0).get(0), equalTo(1L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM logs_date_inferred | WHERE d != TO_DATETIME(\"2024-01-01T00:00:00.001Z\") | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat("the matching day must survive != pushdown", getValuesList(response).get(0).get(0), equalTo(1L));
         }
     }
 

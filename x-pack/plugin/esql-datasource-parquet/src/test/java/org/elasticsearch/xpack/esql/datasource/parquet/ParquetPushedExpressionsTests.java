@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
@@ -385,55 +386,6 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(repr, containsString(String.valueOf(nanos2 / 1_000)));
     }
 
-    /**
-     * A {@code date_nanos} DECLARED over a physical {@code TIMESTAMP(MILLIS)} column: the scan widens millis→nanos
-     * (×1_000_000) while the raw footer statistics hold milliseconds, so pushing the nanos literal against the millis
-     * stats would prune matching row groups. The bound must be converted to milliseconds (nanos / 1_000_000). Before
-     * the fix this arm treated any non-MICROS unit as identity-NANOS and pushed the raw nanos literal — the assertion
-     * that the full-nanos string is absent is the red-on-parent discriminator (millis is a prefix of nanos).
-     */
-    public void testToFilterPredicateDateNanosOnMillisColumnScalesToMillis() {
-        MessageType schema = Types.buildMessage()
-            .required(INT64)
-            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
-            .named("ts")
-            .named("test");
-
-        long nanos = 1_700_000_000_123_000_000L; // exact multiple of 1_000_000 ns
-        long expectedMillis = nanos / 1_000_000L;
-        Expression expr = eq("ts", DataType.DATE_NANOS, nanos);
-
-        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
-        assertNotNull(fp);
-        String repr = fp.toString();
-        assertThat("bound must be scaled to millis", repr, containsString(String.valueOf(expectedMillis)));
-        assertThat("must not push the raw nanos literal against millis stats", repr, not(containsString(String.valueOf(nanos))));
-    }
-
-    /** IN counterpart: a {@code date_nanos} declared over {@code TIMESTAMP(MILLIS)} scales each element to millis. */
-    public void testToFilterPredicateInListOnDateNanosMillis() {
-        MessageType schema = Types.buildMessage()
-            .required(INT64)
-            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
-            .named("ts")
-            .named("test");
-
-        long nanos1 = 1_000_000L; // 1 milli
-        long nanos2 = 2_000_000L; // 2 millis
-        Expression inExpr = new In(
-            Source.EMPTY,
-            attr("ts", DataType.DATE_NANOS),
-            List.of(lit(nanos1, DataType.DATE_NANOS), lit(nanos2, DataType.DATE_NANOS))
-        );
-
-        FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
-        assertNotNull(fp);
-        String repr = fp.toString();
-        assertThat(repr, containsString(String.valueOf(nanos1 / 1_000_000)));
-        assertThat(repr, containsString(String.valueOf(nanos2 / 1_000_000)));
-        assertThat("must not push the raw nanos literals", repr, not(containsString(String.valueOf(nanos1))));
-    }
-
     // --- DATE (INT32) ---
 
     public void testToFilterPredicateDateInt32() {
@@ -495,6 +447,54 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         FilterPredicate fp = new ParquetPushedExpressions(List.of(lte)).toFilterPredicate(schema);
         assertNotNull(fp);
         assertThat(fp.toString(), containsString(String.valueOf(day))); // floorDiv == day 19723, correct for <=
+    }
+
+    /** {@code d == <non-midnight>} matches no day, so it must decline (only a midnight literal is exactly representable). */
+    public void testDateColumnEqualsNonMidnightDeclinesPushdown() {
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        long nonMidnight = 19723L * ParquetPushedExpressions.MILLIS_PER_DAY + 1;
+        assertNull(
+            "d == <non-midnight> must not push an eq day predicate",
+            new ParquetPushedExpressions(List.of(eq("d", DataType.DATETIME, nonMidnight))).toFilterPredicate(schema)
+        );
+    }
+
+    /** {@code d > <non-midnight>} rounds DOWN (floorDiv) — the correct direction for {@code >} — so it still pushes. */
+    public void testDateColumnGreaterThanNonMidnightStillPushes() {
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        long day = 19723L;
+        long nonMidnight = day * ParquetPushedExpressions.MILLIS_PER_DAY + 1;
+        Expression gt = new GreaterThan(Source.EMPTY, attr("d", DataType.DATETIME), datetimeLit(nonMidnight), null);
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(gt)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(day))); // floorDiv == day 19723, correct for >
+    }
+
+    /** {@code d >= <non-midnight>} rounds UP (ceilDiv), which only over-includes the boundary day — safe, still pushes. */
+    public void testDateColumnGreaterThanOrEqualNonMidnightStillPushes() {
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        long day = 19723L;
+        long nonMidnight = day * ParquetPushedExpressions.MILLIS_PER_DAY + 1;
+        Expression gte = new GreaterThanOrEqual(Source.EMPTY, attr("d", DataType.DATETIME), datetimeLit(nonMidnight), null);
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(gte)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(day + 1))); // ceilDiv == day 19724
+    }
+
+    /** {@code d == <midnight>} is exactly representable and must still push the eq day predicate. */
+    public void testDateColumnEqualsMidnightStillPushes() {
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        long day = 19723L;
+        long midnight = day * ParquetPushedExpressions.MILLIS_PER_DAY;
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("d", DataType.DATETIME, midnight))).toFilterPredicate(schema);
+        assertNotNull("d == <midnight> is exact and must still push", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(day)));
     }
 
     /** {@code d IN (midnight, non-midnight)} keeps only the midnight day; the non-midnight literal can equal no day. */

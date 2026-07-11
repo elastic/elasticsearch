@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
@@ -674,5 +676,41 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                 into.add(detail);
             }
         };
+    }
+
+    /**
+     * BigDecimal.toBigInteger() throws ArithmeticException -- not an IllegalArgumentException -- when the decimal
+     * exponent is large enough that expanding it would overflow BigInteger. Escaping this method, it would bypass
+     * every reader's per-cell error policy and hard-fail the whole read. It is remapped to the ordinary
+     * out-of-range failure at the one place that parses.
+     */
+    public void testCoerceToUnsignedLongExoticExponentIsOutOfRangeNotArithmetic() {
+        for (String token : List.of("1e999999999", "1e-999999999")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> DeclaredTypeCoercions.coerceToUnsignedLong(token)
+            );
+            assertThat(e.getMessage(), containsString("out of range for an unsigned_long"));
+        }
+    }
+
+    /** Every declarable type resolves to the shape PlannerUtils prescribes -- one enumeration, not two. */
+    public void testElementTypeForAgreesWithPlannerUtils() {
+        for (DataType type : DeclaredSchemaValidator.declarableTypes()) {
+            assertThat(DeclaredTypeCoercions.elementTypeFor(type), equalTo(PlannerUtils.toElementType(type)));
+        }
+    }
+
+    /**
+     * PlannerUtils.toElementType signals an unmappable type with EsqlIllegalArgumentException, which is NOT an
+     * IllegalArgumentException. elementTypeFor remaps it, so callers -- including NdJsonPageDecoder.setupBuilders,
+     * which wraps this in a catch(IllegalArgumentException) -- need exactly one catch clause.
+     */
+    public void testElementTypeForThrowsIllegalArgumentForUnmappableType() {
+        // SHORT is in toElementType's throw-set; DOC_DATA_TYPE maps to a shape this SPI cannot write.
+        for (DataType type : List.of(DataType.SHORT, DataType.DOC_DATA_TYPE)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DeclaredTypeCoercions.elementTypeFor(type));
+            assertThat(e.getMessage(), containsString("is not readable as a declared column"));
+        }
     }
 }

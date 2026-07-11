@@ -20,30 +20,14 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
- * Holds serial and concurrent implementations of the SOAR overspill algorithm
+ * Holds serial and concurrent implementations of the
+ * <a href="https://research.google/blog/soar-new-algorithms-for-even-faster-vector-search-with-scann/">SOAR overspill algorithm</a>
  */
 public abstract class Soar<V> {
 
     // the minimum distance that is considered to be "far enough" to a centroid in order to compute the soar distance.
     private static final float SOAR_MIN_DISTANCE = 1e-16f;
     public static final int NO_SOAR_ASSIGNMENT = -1;
-
-    @SuppressWarnings("rawtypes")
-    private static final Soar NONE = new Soar<>(null, 0) {
-        @Override
-        protected OverspillAssignments assignSpilled(
-            ClusteringVectorValues vectors,
-            KMeansResult kmeansResult,
-            NeighborHood[] neighborhoods
-        ) {
-            return OverspillAssignments.NONE;
-        }
-    };
-
-    @SuppressWarnings("unchecked")
-    static <V> Soar<V> none() {
-        return NONE;
-    }
 
     static <V> Soar<V> ofSerial(CentroidOps<V> ops, float soarLambda) {
         return new Serial<>(ops, soarLambda);

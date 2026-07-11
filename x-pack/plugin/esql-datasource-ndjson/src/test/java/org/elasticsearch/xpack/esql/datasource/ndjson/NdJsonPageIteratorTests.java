@@ -1383,6 +1383,44 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
     }
 
+    public void testSkipRowMixedCoercionAndShapeConflictChargesBudgetOnce() throws IOException {
+        // A record that fails BOTH ways — a bad scalar VALUE (coercionFailure) and a declared-scalar column that got
+        // an OBJECT (shapeConflict) — is still one dropped row and must charge the budget once. The first failure sets
+        // rowDroppedBySkipRow; the second hits shapeConflict's already-dropped early-return, which must NOT count again.
+        // With max_errors=1 the record must not trip the budget. This pins shapeConflict's short-circuit branch.
+        String ndjson = """
+            {"a": "1", "user": "alice"}
+            {"a": "bad", "user": {"id": 7}}
+            {"a": "3", "user": "carol"}
+            """;
+        var object = new BytesStorageObject("file:///mixed.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory).withDeclaredTypeColumns(Set.of("a", "user"));
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "user", DataType.KEYWORD)
+        );
+        ErrorPolicy skipRowBudgetOne = new ErrorPolicy(1, true); // max_errors=1, skip_row
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("a", "user"))
+                    .batchSize(100)
+                    .errorPolicy(skipRowBudgetOne)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals("the record failing both ways is one budget unit; both good records remain", 2, page.getPositionCount());
+            LongBlock a = page.getBlock(0);
+            assertEquals(1L, a.getLong(a.getFirstValueIndex(0)));
+            assertEquals(3L, a.getLong(a.getFirstValueIndex(1)));
+        }
+        assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
+    }
+
     public void testInferredCrossKindBooleanStaysSilentNull() throws IOException {
         // An inferred (not declared) long column keeps the pre-existing schema-on-read tolerance: a boolean on a
         // later line is silently null, unchanged. Mirrors testTypeDifferentFromSchema.

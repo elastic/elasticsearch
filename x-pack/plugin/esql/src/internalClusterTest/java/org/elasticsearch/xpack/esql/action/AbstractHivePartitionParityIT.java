@@ -168,13 +168,15 @@ public abstract class AbstractHivePartitionParityIT extends AbstractExternalData
                 externalScanNodeNames(response).size(),
                 greaterThanOrEqualTo(2)
             );
-            List<String> names = response.columns().stream().map(c -> c.name()).toList();
+            // Tag each cell name:type=value so the diff catches a column-TYPE regression (a partition column
+            // surfacing as a different type than the file-resident twin), not just a value regression.
+            List<String> tags = response.columns().stream().map(c -> c.name() + ":" + c.outputType()).toList();
             List<List<Object>> raw = getValuesList(response);
             List<List<Object>> tagged = new ArrayList<>();
             for (List<Object> row : raw) {
                 List<Object> withNames = new ArrayList<>();
-                for (int i = 0; i < names.size(); i++) {
-                    withNames.add(names.get(i) + "=" + row.get(i));
+                for (int i = 0; i < tags.size(); i++) {
+                    withNames.add(tags.get(i) + "=" + row.get(i));
                 }
                 tagged.add(withNames);
             }
@@ -182,7 +184,12 @@ public abstract class AbstractHivePartitionParityIT extends AbstractExternalData
         }
     }
 
-    /** Column-order- and (for non-SORT queries) row-order-insensitive normal form of a tagged result. */
+    /**
+     * Normal form of a tagged result: cells within a row are sorted (column-order-insensitive, since the twins
+     * append partition columns in a different position), but ROW order is preserved. Every op in the sweep ends
+     * in a total SORT, so both twins return rows in the same deterministic order — comparing rows in order means a
+     * SORT-ORDER regression on the partition twin is caught rather than normalised away.
+     */
     private static String normalized(List<List<Object>> taggedRows) {
         List<String> rows = new ArrayList<>();
         for (List<Object> row : taggedRows) {
@@ -193,7 +200,6 @@ public abstract class AbstractHivePartitionParityIT extends AbstractExternalData
             cells.sort(String::compareTo);
             rows.add(cells.toString());
         }
-        rows.sort(String::compareTo);
         return rows.toString();
     }
 

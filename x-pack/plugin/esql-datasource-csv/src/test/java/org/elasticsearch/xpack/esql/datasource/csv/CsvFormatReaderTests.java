@@ -4634,6 +4634,124 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A declared boolean column accepts only {@code true}/{@code false} (case-insensitively) and rejects every
+     * other token loudly: under {@code fail_fast} the read aborts naming the value, under {@code null_field} the
+     * cell nulls and the reader warns. It must never silently become {@code false} the way {@code ::boolean}
+     * would - that deliberate divergence lives in {@code DeclaredTypeCoercions.strictParseBoolean}, which
+     * {@code tryParseBoolean} delegates to. Pinned here through the reader, not just at the SPI level.
+     */
+    public void testDeclaredBooleanRejectsNonBooleanTokenPerPolicy() throws IOException {
+        for (String badToken : List.of("yes", "1")) {
+            String csv = "active:boolean\n" + badToken + "\n";
+
+            // fail_fast: the read aborts, naming the offending token and the target type.
+            StorageObject strictObject = createStorageObject(csv);
+            CsvFormatReader strictReader = new CsvFormatReader(blockFactory);
+            ParsingException e = expectThrows(ParsingException.class, () -> {
+                try (
+                    CloseableIterator<Page> iterator = strictReader.read(
+                        strictObject,
+                        FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                    )
+                ) {
+                    while (iterator.hasNext()) {
+                        iterator.next();
+                    }
+                }
+            });
+            assertTrue("expected the rejected token in the message, got: " + e.getMessage(), e.getMessage().contains("[" + badToken + "]"));
+            assertTrue("expected the target type in the message, got: " + e.getMessage(), e.getMessage().contains("BOOLEAN"));
+            drainWarnings();
+
+            // null_field: the cell nulls - never reads as false - and the rejection is surfaced as a warning.
+            StorageObject nullFieldObject = createStorageObject(csv);
+            CsvFormatReader nullFieldReader = new CsvFormatReader(blockFactory);
+            ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+            try (
+                CloseableIterator<Page> iterator = nullFieldReader.read(
+                    nullFieldObject,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(nullField).build()
+                )
+            ) {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                assertEquals(1, page.getPositionCount());
+                assertTrue("[" + badToken + "] must null the cell, never read as false", page.getBlock(0).isNull(0));
+            }
+            assertFalse("null_field must warn about the rejected token", drainWarnings().isEmpty());
+        }
+    }
+
+    /**
+     * A declared {@code double} column preserves the non-finite IEEE tokens {@code NaN}/{@code Infinity}/{@code -Infinity}
+     * (matching the columnar read and {@code ::double}, a deliberate divergence from the finite-only mapper rule).
+     */
+    public void testDoubleColumnAcceptsNaNAndInfinityTokens() throws IOException {
+        String csv = "d:double\nNaN\nInfinity\n-Infinity\n3.5\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            DoubleBlock d = (DoubleBlock) iterator.next().getBlock(0);
+            assertTrue("NaN token", Double.isNaN(d.getDouble(0)));
+            assertEquals(Double.POSITIVE_INFINITY, d.getDouble(1), 0.0);
+            assertEquals(Double.NEGATIVE_INFINITY, d.getDouble(2), 0.0);
+            assertEquals(3.5, d.getDouble(3), 0.0);
+        }
+    }
+
+    /** A declared {@code long} token above {@code Long.MAX_VALUE} is an overflow routed through the error policy. */
+    public void testStringToLongOverflowHonorsErrorPolicy() throws IOException {
+        String csv = "n:long\n99999999999999999999\n"; // > Long.MAX_VALUE
+
+        StorageObject strict = createStorageObject(csv);
+        expectThrows(ParsingException.class, () -> {
+            try (
+                CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(
+                    strict,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next();
+                }
+            }
+        });
+        drainWarnings();
+
+        StorageObject lenient = createStorageObject(csv);
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+        try (
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(
+                lenient,
+                FormatReadContext.builder().batchSize(10).errorPolicy(nullField).build()
+            )
+        ) {
+            assertTrue("overflow nulls the cell under null_field", it.next().getBlock(0).isNull(0));
+        }
+        assertFalse("overflow warns", drainWarnings().isEmpty());
+    }
+
+    /** The TSV preset shares {@link CsvFormatReader}, so the strict declared-boolean rule must hold there too. */
+    public void testTsvDeclaredBooleanRejectsNonBooleanToken() throws IOException {
+        String tsv = "active:boolean\tname:keyword\nyes\tAlice\n";
+        StorageObject object = createStorageObject(tsv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            }
+        });
+        assertTrue("expected the rejected token in the message, got: " + e.getMessage(), e.getMessage().contains("[yes]"));
+    }
+
     // --- Date-only and zone-less datetime tests (#323) ---
 
     public void testDatetimeDateOnly() throws IOException {

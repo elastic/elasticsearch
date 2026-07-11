@@ -18,10 +18,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -35,7 +37,10 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -55,6 +60,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -7889,5 +7895,200 @@ public class CsvFormatReaderTests extends ESTestCase {
             }
         }
         assertEquals("bracket-aware lenient must drop the oversized row and keep the surrounding rows", 2L, total);
+    }
+
+    // --- declared unsigned_long reads ---
+
+    private static List<Attribute> declared(String name, DataType type) {
+        return List.of(new ReferenceAttribute(Source.EMPTY, null, name, type));
+    }
+
+    private static FormatReadContext declaredCtx(List<Attribute> schema) {
+        return FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(schema).build();
+    }
+
+    /** Reads one declared column and returns its block, or fails if the reader produced no page. */
+    private LongBlock readOneUnsignedLongColumn(FormatReader reader, String csv) throws IOException {
+        try (CloseableIterator<Page> it = reader.read(createStorageObject(csv), declaredCtx(declared("v", DataType.UNSIGNED_LONG)))) {
+            assertTrue("reader produced no page", it.hasNext());
+            return (LongBlock) it.next().getBlock(0);
+        }
+    }
+
+    private static long encoded(String magnitude) {
+        return NumericUtils.asLongUnsigned(new BigInteger(magnitude));
+    }
+
+    /**
+     * The bug this fixes: a declared unsigned_long was accepted by DeclaredSchemaValidator and then threw at
+     * block-builder construction, so every FROM over the column failed regardless of error_mode. Values across
+     * the whole [0, 2^64-1] domain — crucially the (2^63, 2^64) range that overflows a signed long — must now
+     * read back at full magnitude, in the sign-flip encoding every downstream unsigned_long surface decodes.
+     */
+    public void testDeclaredUnsignedLongReadsFullDomain() throws IOException {
+        String csv = "v\n0\n12345\n9223372036854775808\n18446744073709551615\n";
+        FormatReader reader = new CsvFormatReader(blockFactory);
+        LongBlock block = readOneUnsignedLongColumn(reader, csv);
+        assertEquals(4, block.getPositionCount());
+        assertEquals(encoded("0"), block.getLong(0));
+        assertEquals(encoded("12345"), block.getLong(1));
+        assertEquals(encoded("9223372036854775808"), block.getLong(2));   // 2^63, overflows signed long
+        assertEquals(encoded("18446744073709551615"), block.getLong(3));  // 2^64-1
+    }
+
+    /** Fractional and scientific tokens truncate toward zero — matching ::unsigned_long, deliberately unlike long's rounding. */
+    public void testDeclaredUnsignedLongTruncatesTowardZero() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory);
+        LongBlock block = readOneUnsignedLongColumn(reader, "v\n42.9\n1e3\n");
+        assertEquals(encoded("42"), block.getLong(0));
+        assertEquals(encoded("1000"), block.getLong(1));
+    }
+
+    /** An absent/empty cell nulls the cell exactly as it does for a declared long — no special arm. */
+    public void testDeclaredUnsignedLongNullsEmptyCell() throws IOException {
+        // Two columns so the empty trailing cell is unambiguous — a blank line would be a skipped row, not a cell.
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "k", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "v", DataType.UNSIGNED_LONG)
+        );
+        FormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> it = reader.read(createStorageObject("k,v\nrow1,\nrow2,7\n"), declaredCtx(schema))) {
+            assertTrue(it.hasNext());
+            LongBlock block = (LongBlock) it.next().getBlock(1);
+            assertTrue("empty cell must be null", block.isNull(0));
+            assertEquals(encoded("7"), block.getLong(1));
+        }
+    }
+
+    /**
+     * A bad VALUE is a data failure the error policy governs — not a schema failure. Before this change every
+     * mode hard-failed at page setup; now fail_fast aborts and null_field nulls just the offending cell.
+     */
+    public void testDeclaredUnsignedLongBadValueHonorsErrorMode() throws IOException {
+        // negative and out-of-range are both outside [0, 2^64-1]
+        String csv = "v\n-1\n18446744073709551616\nabc\n5\n";
+
+        FormatReader failFast = new CsvFormatReader(blockFactory);
+        expectThrows(Exception.class, () -> readOneUnsignedLongColumn(failFast, csv));
+
+        FormatReader lenient = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field", "max_errors", 100));
+        LongBlock block = readOneUnsignedLongColumn(lenient, csv);
+        assertEquals(4, block.getPositionCount());
+        assertTrue("negative must null the cell", block.isNull(0));
+        assertTrue("2^64 must null the cell", block.isNull(1));
+        assertTrue("garbage must null the cell", block.isNull(2));
+        assertEquals("the good cell still reads", encoded("5"), block.getLong(3));
+    }
+
+    /** Multivalue unsigned_long cells parse element-by-element through the same coercer. */
+    public void testDeclaredUnsignedLongMultivalue() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        LongBlock block = readOneUnsignedLongColumn(reader, "v\n[1,18446744073709551615]\n");
+        assertEquals(2, block.getValueCount(0));
+        int first = block.getFirstValueIndex(0);
+        assertEquals(encoded("1"), block.getLong(first));
+        assertEquals(encoded("18446744073709551615"), block.getLong(first + 1));
+    }
+
+    /**
+     * A token whose decimal exponent is large enough that materializing the integer would overflow BigInteger --
+     * "1e999999999", and "1e-999999999" which truncates toward 0 but cannot be computed to get there -- makes
+     * BigDecimal.toBigInteger() throw ArithmeticException, which is not an IllegalArgumentException. Unhandled it
+     * escapes the per-field catch and hard-fails the whole read on every error_mode, precisely the failure declared
+     * unsigned_long support exists to remove. It must instead be an ordinary per-cell failure.
+     */
+    public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
+        String csv = "v\n1e999999999\n1e-999999999\n5\n";
+
+        FormatReader lenient = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field", "max_errors", 100));
+        LongBlock block = readOneUnsignedLongColumn(lenient, csv);
+        assertTrue("huge positive exponent nulls the cell", block.isNull(0));
+        assertTrue("huge negative exponent nulls the cell", block.isNull(1));
+        assertEquals("the good cell still reads", encoded("5"), block.getLong(2));
+
+        // fail_fast still fails, but as an ordinary bad-value failure, not an escaped ArithmeticException.
+        FormatReader failFast = new CsvFormatReader(blockFactory);
+        Exception e = expectThrows(Exception.class, () -> readOneUnsignedLongColumn(failFast, csv));
+        assertFalse("ArithmeticException must not escape the coercer", e instanceof ArithmeticException);
+    }
+
+    /**
+     * skip_row drops the whole row carrying a bad unsigned_long cell rather than nulling it — completing the
+     * error_mode matrix (fail_fast and null_field are pinned above). The bad value rides the same per-field policy
+     * channel every other declared type uses, so this confirms unsigned_long is wired into it, not special-cased.
+     */
+    public void testDeclaredUnsignedLongBadValueSkipRowDropsTheRow() throws IOException {
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "v", DataType.UNSIGNED_LONG)
+        );
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "skip_row", "max_errors", 100));
+        try (CloseableIterator<Page> it = reader.read(createStorageObject("id,v\n1,5\n2,-1\n3,7\n"), declaredCtx(schema))) {
+            assertTrue(it.hasNext());
+            Page page = it.next();
+            // Row 2 (v=-1, out of range) is dropped; rows 1 and 3 survive.
+            assertEquals(2, page.getPositionCount());
+            LongBlock v = (LongBlock) page.getBlock(1);
+            assertEquals(encoded("5"), v.getLong(0));
+            assertEquals(encoded("7"), v.getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /** TSV rides the same reader; a declared unsigned_long must read identically there. */
+    public void testDeclaredUnsignedLongReadsFromTsv() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", "\t"));
+        LongBlock block = readOneUnsignedLongColumn(reader, "v\n18446744073709551615\n");
+        assertEquals(encoded("18446744073709551615"), block.getLong(0));
+    }
+
+    /** The typed-header intake is the second schema surface; it must know unsigned_long under both spellings. */
+    public void testTypedHeaderAcceptsUnsignedLongAliases() throws IOException {
+        for (String spelling : List.of("unsigned_long", "UNSIGNED_LONG", "ul", "UL")) {
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("typed_header", true));
+            List<Attribute> schema = reader.metadata(createStorageObject("v:" + spelling + "\n18446744073709551615\n")).schema();
+            assertEquals("spelling [" + spelling + "]", DataType.UNSIGNED_LONG, schema.get(0).dataType());
+        }
+    }
+
+    /**
+     * Drift pin. Every type a user may declare must be buildable by this reader with exactly the block shape the
+     * shared authority prescribes. CsvFormatReader used to re-derive that mapping locally and silently omitted
+     * unsigned_long; deriving it from DeclaredTypeCoercions.elementTypeFor is what makes this assertion hold, and
+     * this test is what stops the next declarable type from repeating the bug.
+     */
+    public void testEveryDeclarableTypeBuildsTheAuthorityShape() throws IOException {
+        Map<DataType, String> token = Map.of(
+            DataType.KEYWORD,
+            "abc",
+            DataType.TEXT,
+            "abc",
+            DataType.LONG,
+            "123",
+            DataType.INTEGER,
+            "123",
+            DataType.DOUBLE,
+            "1.5",
+            DataType.BOOLEAN,
+            "true",
+            DataType.DATETIME,
+            "2020-01-01T00:00:00.000Z",
+            DataType.UNSIGNED_LONG,
+            "18446744073709551615",
+            DataType.IP,
+            "192.168.0.1"
+        );
+        for (DataType type : DeclaredSchemaValidator.declarableTypes()) {
+            String cell = token.get(type);
+            assertNotNull("no fixture token for declarable type [" + type + "] — add one", cell);
+            FormatReader reader = new CsvFormatReader(blockFactory);
+            try (CloseableIterator<Page> it = reader.read(createStorageObject("v\n" + cell + "\n"), declaredCtx(declared("v", type)))) {
+                assertTrue("no page for declared [" + type + "]", it.hasNext());
+                Block block = it.next().getBlock(0);
+                ElementType expected = DeclaredTypeCoercions.elementTypeFor(type);
+                assertEquals("shape drift for declared [" + type + "]", expected, block.elementType());
+                assertFalse("declared [" + type + "] produced a null cell — missing tokenization arm?", block.isNull(0));
+            }
+        }
     }
 }

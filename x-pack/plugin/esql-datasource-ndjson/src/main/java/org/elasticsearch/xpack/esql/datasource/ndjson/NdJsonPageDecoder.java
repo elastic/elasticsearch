@@ -1900,13 +1900,21 @@ public class NdJsonPageDecoder implements Closeable {
          * {@link DeclaredTypeCoercions#onCoercionFailure} so a declared-coercion failure produces the SAME
          * observable outcome across every format: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with an
          * actionable message; {@link ErrorPolicy.Mode#NULL_FIELD} nulls this cell only and warns; and
-         * {@link ErrorPolicy.Mode#SKIP_ROW} drops the whole record and warns (both subject to the error budget). That
-         * drop-under-skip_row is the deliberate point of difference from {@link #shapeConflict} (see the body comment),
-         * which null-fills only the conflicting field even under skip_row. This is distinct from
-         * {@link #unexpectedValue}, the policy-blind channel the file-level (undeclared) datetime path and other
-         * per-field type mismatches keep.
+         * {@link ErrorPolicy.Mode#SKIP_ROW} drops the whole record and warns (both subject to the error budget). A
+         * DECLARED column behaves the same whether it is violated by a bad value here or by an object shape in
+         * {@link #shapeConflict} — both drop under skip_row — because no declared type may silently read as null; only
+         * an INFERRED shape conflict null-fills. This is distinct from {@link #unexpectedValue}, the policy-blind
+         * channel the file-level (undeclared) datetime path and other per-field type mismatches keep.
          */
         private void coercionFailure(Block.Builder builder, JsonParser parser, boolean inArray, DataType target) throws IOException {
+            if (rowDroppedBySkipRow) {
+                // This record is already being dropped by an earlier skip_row error. Advance past this value but do
+                // not double-count it: CsvFormatReader charges the error budget once per dropped row (it stops at the
+                // first bad field), not once per bad field. The record's scratch is discarded, so no null-fill is
+                // needed and further coercion failures on the same doomed record must not consume the budget again.
+                parser.skipChildren();
+                return;
+            }
             String value = parser.getValueAsString();
             // Not "the declared type": this path also fires for a supported-pair failure on an INFERRED column
             // (e.g. a bad string in an inferred long), where the target type was not declared.
@@ -1928,10 +1936,9 @@ public class NdJsonPageDecoder implements Closeable {
             }
             // A value coercion failure under skip_row drops the whole record (matching CsvFormatReader and the
             // Mode.SKIP_ROW "drop the entire bad row" contract); null_field keeps the record and nulls this one cell.
-            // Both warn. This deliberately differs from shapeConflict, which keeps the record and null-fills only the
-            // conflicting field even under skip_row — a documented behavior choice pinned by
-            // testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills, not a technical constraint (both run inside
-            // decodePageLenient's per-record scratch, so shapeConflict could drop too).
+            // Both warn. shapeConflict draws the same declared-vs-inferred line (see its javadoc): a DECLARED column
+            // violated by an object shape also drops under skip_row, so the two agree for declared columns; only an
+            // INFERRED shape conflict keeps the null-fill.
             boolean skipRow = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
             String message = base + (skipRow ? " — this record is skipped" : " — this record's [" + name + "] is null");
             if (inArray == false) {
@@ -1952,11 +1959,33 @@ public class NdJsonPageDecoder implements Closeable {
          * object-shaped (structural) node receiving a non-null scalar. Core ES dynamic mapping treats this
          * as a hard document-parsing conflict; here it is routed through {@link ErrorPolicy} instead of the
          * pre-#1028 silent {@code skipChildren()}: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with
-         * an actionable message naming both shapes; other modes null-fill this field only (the row's other
-         * columns already decoded) and surface the same message as a client warning. See
-         * elastic/esql-planning#1028.
+         * an actionable message naming both shapes. Non-strict handling splits on declared-vs-inferred, the
+         * same line {@link #crossKindDrift} draws for a cross-kind scalar value — so the SAME declared column
+         * behaves identically whether it is violated by a bad scalar value or by an object shape:
+         * <ul>
+         *   <li>a DECLARED scalar column ({@code fieldLabel} is in {@link #declaredTypeColumns}) has no third
+         *       state — an object cannot produce the declared type — so under {@link ErrorPolicy.Mode#SKIP_ROW}
+         *       the whole record is dropped (as {@link #coercionFailure} does), and under
+         *       {@link ErrorPolicy.Mode#NULL_FIELD} this field is nulled; both warn;</li>
+         *   <li>an INFERRED column (or a structural-node path, {@code fieldLabel} not declared) null-fills this
+         *       field only — schema-on-read tolerance, the row's other columns already decoded — even under
+         *       skip_row, as pinned by the inferred-schema conflict ITs (NdJsonScalarObjectConflictIT).</li>
+         * </ul>
+         * See elastic/esql-planning#1028.
          */
         private void shapeConflict(JsonParser parser, String fieldLabel, String actualShape, String resolvedShape) throws IOException {
+            if (rowDroppedBySkipRow) {
+                // This record is already being dropped by an earlier skip_row error; skip the conflicting value and do
+                // not double-count it against the error budget (one error per dropped record, matching CsvFormatReader).
+                parser.skipChildren();
+                return;
+            }
+            // A declared scalar column receiving an object is a hard declared-type violation, dropped under
+            // skip_row like a bad scalar value for the same column (crossKindDrift -> coercionFailure). An
+            // inferred column (or a structural-node path with no declared name) keeps the null-fill.
+            boolean skipRow = fieldLabel != null
+                && declaredTypeColumns.contains(fieldLabel)
+                && errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
             // Built via concatenation, not LoggerMessageFormat.format: a String-typed first vararg
             // would resolve to the ambiguous format(String prefix, String pattern, Object... args)
             // overload instead of format(String pattern, Object... args), silently mangling the message.
@@ -1970,14 +1999,17 @@ public class NdJsonPageDecoder implements Closeable {
                 + fieldLabel
                 + "] resolved to "
                 + resolvedShape
-                + " from earlier records — this record's ["
-                + fieldLabel
-                + "] is null. A field that appears as both a scalar and an object across NDJSON "
+                + " from earlier records — "
+                + (skipRow ? "this record is skipped" : "this record's [" + fieldLabel + "] is null")
+                + ". A field that appears as both a scalar and an object across NDJSON "
                 + "records cannot be represented as one type; make the field's shape consistent, or "
                 + "model it as separate fields.";
             parser.skipChildren();
             if (errorPolicy.isStrict()) {
                 throw new EsqlIllegalArgumentException(message);
+            }
+            if (skipRow) {
+                rowDroppedBySkipRow = true;
             }
             errorCount++;
             skipWarnings.add(message);

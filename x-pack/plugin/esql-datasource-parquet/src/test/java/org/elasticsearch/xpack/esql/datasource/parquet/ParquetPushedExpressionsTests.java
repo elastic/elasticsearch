@@ -54,6 +54,7 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT96;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for {@link ParquetPushedExpressions#toFilterPredicate(MessageType)} verifying
@@ -216,6 +217,65 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertNotNull("a plain INT64 IN must still push", fp);
     }
 
+    // --- Declared LONG/INTEGER over a DECIMAL(scale>0) column (scale mismatch) ---
+
+    /**
+     * A declared {@code long} over a physical {@code DECIMAL(scale=2)} INT64 decodes to {@code unscaled / 100} (a
+     * double rounded to long) while the raw footer statistics hold the unscaled integer — an implicit ÷100. Pushing a
+     * raw long literal against those stats mis-prunes, so comparison and IN must both decline.
+     */
+    public void testDeclaredLongOverDecimalScaledDeclinesPushdown() {
+        MessageType schema = Types.buildMessage().required(INT64).as(decimalType(2, 18)).named("amt").named("test");
+
+        Expression cmp = eq("amt", DataType.LONG, 12L);
+        assertNull(
+            "declared long over DECIMAL(scale>0) must not push",
+            new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema)
+        );
+
+        Expression inExpr = new In(Source.EMPTY, attr("amt", DataType.LONG), List.of(lit(12L, DataType.LONG)));
+        assertNull(
+            "declared long IN over DECIMAL(scale>0) must not push",
+            new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema)
+        );
+    }
+
+    /** A {@code DECIMAL(scale=0)} is an integer decode (block == raw), so the guard must NOT decline — pruning stays correct. */
+    public void testDeclaredLongOverDecimalScaleZeroStillPushes() {
+        MessageType schema = Types.buildMessage().required(INT64).as(decimalType(0, 18)).named("amt").named("test");
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("amt", DataType.LONG, 12L))).toFilterPredicate(schema);
+        assertNotNull("declared long over DECIMAL(scale=0) is identity and must still push", fp);
+        assertThat(fp.toString(), containsString("12"));
+    }
+
+    // --- Declared INTEGER over a unit-transformed INT32 column ---
+
+    /**
+     * A declared {@code integer} over a physical {@code DATE}(INT32) column decodes days→millis (×86_400_000) then
+     * narrows to int, while the stats stay day-valued — the same class of mismatch the LONG path guards. The INTEGER
+     * comparison and IN arms must consult the guard and decline. A sub-2^31 millis literal is used so it would
+     * otherwise reach the push.
+     */
+    public void testDeclaredIntegerOverDateInt32DeclinesPushdown() {
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        Expression cmp = eq("d", DataType.INTEGER, 86_400_000); // one day in millis, fits int32
+        assertNull("declared integer over DATE must not push", new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema));
+
+        Expression inExpr = new In(Source.EMPTY, attr("d", DataType.INTEGER), List.of(lit(86_400_000, DataType.INTEGER)));
+        assertNull("declared integer IN over DATE must not push", new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema));
+    }
+
+    /** The INTEGER decline is scoped to unit-transformed columns; a plain INT32 still pushes. */
+    public void testDeclaredIntegerOverPlainInt32StillPushes() {
+        MessageType schema = Types.buildMessage().required(INT32).named("n").named("test");
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("n", DataType.INTEGER, 42))).toFilterPredicate(schema);
+        assertNotNull("declared integer over a plain INT32 must still push", fp);
+        assertThat(fp.toString(), containsString("42"));
+    }
+
     // --- TIMESTAMP_NANOS (INT64) ---
 
     public void testToFilterPredicateTimestampNanos() {
@@ -323,6 +383,55 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         String repr = fp.toString();
         assertThat(repr, containsString(String.valueOf(nanos1 / 1_000)));
         assertThat(repr, containsString(String.valueOf(nanos2 / 1_000)));
+    }
+
+    /**
+     * A {@code date_nanos} DECLARED over a physical {@code TIMESTAMP(MILLIS)} column: the scan widens millis→nanos
+     * (×1_000_000) while the raw footer statistics hold milliseconds, so pushing the nanos literal against the millis
+     * stats would prune matching row groups. The bound must be converted to milliseconds (nanos / 1_000_000). Before
+     * the fix this arm treated any non-MICROS unit as identity-NANOS and pushed the raw nanos literal — the assertion
+     * that the full-nanos string is absent is the red-on-parent discriminator (millis is a prefix of nanos).
+     */
+    public void testToFilterPredicateDateNanosOnMillisColumnScalesToMillis() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts")
+            .named("test");
+
+        long nanos = 1_700_000_000_123_000_000L; // exact multiple of 1_000_000 ns
+        long expectedMillis = nanos / 1_000_000L;
+        Expression expr = eq("ts", DataType.DATE_NANOS, nanos);
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        String repr = fp.toString();
+        assertThat("bound must be scaled to millis", repr, containsString(String.valueOf(expectedMillis)));
+        assertThat("must not push the raw nanos literal against millis stats", repr, not(containsString(String.valueOf(nanos))));
+    }
+
+    /** IN counterpart: a {@code date_nanos} declared over {@code TIMESTAMP(MILLIS)} scales each element to millis. */
+    public void testToFilterPredicateInListOnDateNanosMillis() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts")
+            .named("test");
+
+        long nanos1 = 1_000_000L; // 1 milli
+        long nanos2 = 2_000_000L; // 2 millis
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("ts", DataType.DATE_NANOS),
+            List.of(lit(nanos1, DataType.DATE_NANOS), lit(nanos2, DataType.DATE_NANOS))
+        );
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        String repr = fp.toString();
+        assertThat(repr, containsString(String.valueOf(nanos1 / 1_000_000)));
+        assertThat(repr, containsString(String.valueOf(nanos2 / 1_000_000)));
+        assertThat("must not push the raw nanos literals", repr, not(containsString(String.valueOf(nanos1))));
     }
 
     // --- DATE (INT32) ---

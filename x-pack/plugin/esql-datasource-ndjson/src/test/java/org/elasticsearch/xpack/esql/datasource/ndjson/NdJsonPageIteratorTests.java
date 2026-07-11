@@ -1389,6 +1389,82 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testDeclaredScalarObjectConflictSkipRowDropsRecord() throws IOException {
+        // A DECLARED scalar column receiving an object shape is a hard declared-type violation. Under skip_row the
+        // whole record drops, consistent with a bad scalar VALUE for the same declared column (crossKindDrift). An
+        // INFERRED column keeps the null-fill (the NdJson*ScalarObjectConflictIT pinning ITs / the LENIENT decoder
+        // test). Before the split, shapeConflict null-filled here too, so all three records survived.
+        String ndjson = """
+            {"event": 1, "user": "alice"}
+            {"event": 2, "user": {"id": 7}}
+            {"event": 3, "user": "carol"}
+            """;
+        var object = new BytesStorageObject("file:///decl-shape.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory).withDeclaredTypeColumns(Set.of("user"));
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "event", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "user", DataType.KEYWORD)
+        );
+        ErrorPolicy skipRow = new ErrorPolicy(10, true);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("event", "user"))
+                    .batchSize(100)
+                    .errorPolicy(skipRow)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals("the record whose declared-scalar [user] is an object is dropped whole", 2, page.getPositionCount());
+            LongBlock event = page.getBlock(0);
+            assertEquals(1L, event.getLong(event.getFirstValueIndex(0)));
+            assertEquals(3L, event.getLong(event.getFirstValueIndex(1)));
+        }
+        assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
+    }
+
+    public void testSkipRowChargesErrorBudgetOncePerRecordNotPerField() throws IOException {
+        // Under skip_row a record with several bad DECLARED fields is ONE dropped row, so it charges the error budget
+        // once — matching CsvFormatReader, which stops at the first bad field. With max_errors=1 a two-bad-field
+        // record must NOT trip the budget. Before the fix each bad field counted, so the second field pushed the
+        // running total to 2 and failed the whole query.
+        String ndjson = """
+            {"a": "1", "b": "2"}
+            {"a": "bad", "b": "alsobad"}
+            {"a": "3", "b": "4"}
+            """;
+        var object = new BytesStorageObject("file:///budget.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory).withDeclaredTypeColumns(Set.of("a", "b"));
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "b", DataType.LONG)
+        );
+        ErrorPolicy skipRowBudgetOne = new ErrorPolicy(1, true); // max_errors=1, skip_row
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("a", "b"))
+                    .batchSize(100)
+                    .errorPolicy(skipRowBudgetOne)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals("the two-bad-field record is one budget unit; both good records remain", 2, page.getPositionCount());
+            LongBlock a = page.getBlock(0);
+            assertEquals(1L, a.getLong(a.getFirstValueIndex(0)));
+            assertEquals(3L, a.getLong(a.getFirstValueIndex(1)));
+        }
+        assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
+    }
+
     public void testDeclaredTextColumnReadsString() throws IOException {
         // TEXT is declarable (DeclaredSchemaValidator.DECLARABLE_TYPES) and reads like KEYWORD — a BytesRef block.
         String ndjson = "{\"t\": \"hello\"}\n";

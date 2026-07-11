@@ -1896,12 +1896,15 @@ public class NdJsonPageDecoder implements Closeable {
          * Handles a scalar value that cannot be coerced into a column's declared type — a string that is not a
          * number for a numeric column, a non-{@code true}/{@code false} token for a boolean column, a number that
          * overflows the target, a string the declared date {@code format} cannot parse, or a token whose JSON kind
-         * has no coercion to the target. Routed through {@link ErrorPolicy} exactly like {@link #shapeConflict}
-         * and {@link DeclaredTypeCoercions#onCoercionFailure} so a declared-coercion failure produces the SAME
+         * has no coercion to the target. Routed through {@link ErrorPolicy} and
+         * {@link DeclaredTypeCoercions#onCoercionFailure} so a declared-coercion failure produces the SAME
          * observable outcome across every format: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with an
-         * actionable message; other modes null this cell only and surface the message as a client warning (subject to
-         * the error budget). This is distinct from {@link #unexpectedValue}, the policy-blind channel the file-level
-         * (undeclared) datetime path and other per-field type mismatches keep.
+         * actionable message; {@link ErrorPolicy.Mode#NULL_FIELD} nulls this cell only and warns; and
+         * {@link ErrorPolicy.Mode#SKIP_ROW} drops the whole record and warns (both subject to the error budget). That
+         * drop-under-skip_row is the deliberate point of difference from {@link #shapeConflict} (see the body comment),
+         * which null-fills only the conflicting field even under skip_row. This is distinct from
+         * {@link #unexpectedValue}, the policy-blind channel the file-level (undeclared) datetime path and other
+         * per-field type mismatches keep.
          */
         private void coercionFailure(Block.Builder builder, JsonParser parser, boolean inArray, DataType target) throws IOException {
             String value = parser.getValueAsString();
@@ -1923,14 +1926,12 @@ public class NdJsonPageDecoder implements Closeable {
                     base + "; set error_mode=null_field (or skip_row) to null-fill/skip and warn instead of failing"
                 );
             }
-            // skip_row drops the whole record (ErrorPolicy.Mode.SKIP_ROW: "drop the entire bad row", as
-            // CsvFormatReader does); null_field keeps the record and nulls this one cell. Both warn.
             // A value coercion failure under skip_row drops the whole record (matching CsvFormatReader and the
-            // Mode.SKIP_ROW "drop the entire bad row" contract). This deliberately differs from shapeConflict, which
-            // keeps the record and null-fills only the conflicting field even under skip_row — a documented behavior
-            // choice pinned by testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills, not a technical constraint
-            // (both run inside decodePageLenient's per-record scratch, so shapeConflict could drop too). Unifying the
-            // two is a deferred decision; here the coercion failure honors the drop.
+            // Mode.SKIP_ROW "drop the entire bad row" contract); null_field keeps the record and nulls this one cell.
+            // Both warn. This deliberately differs from shapeConflict, which keeps the record and null-fills only the
+            // conflicting field even under skip_row — a documented behavior choice pinned by
+            // testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills, not a technical constraint (both run inside
+            // decodePageLenient's per-record scratch, so shapeConflict could drop too).
             boolean skipRow = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
             String message = base + (skipRow ? " — this record is skipped" : " — this record's [" + name + "] is null");
             if (inArray == false) {

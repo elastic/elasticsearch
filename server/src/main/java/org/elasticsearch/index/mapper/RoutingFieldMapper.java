@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -412,7 +413,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse() {
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
         // The doc-values (sorted, skip-index) routing storage mode is only used for sliced/strict-
         // columnar index configs; that Lucene column shape is not yet ported here, so those indices
         // fall back for now. The default (stored + indexed) mode is fully supported.

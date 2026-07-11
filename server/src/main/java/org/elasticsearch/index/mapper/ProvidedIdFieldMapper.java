@@ -26,6 +26,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -338,7 +339,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse() {
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
         return true;
     }
 

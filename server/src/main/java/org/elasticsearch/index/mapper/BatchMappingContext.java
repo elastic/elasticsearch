@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.sourcebatch.ColumnBatchProvider;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -114,6 +115,11 @@ public final class BatchMappingContext implements ColumnBatchProvider {
     @Override
     public void setPrimaryTerm(int doc, long value) {
         primaryTermArray()[doc] = value;
+    }
+
+    @Override
+    public void fillPrimaryTerm(long value) {
+        Arrays.fill(primaryTermArray(), value);
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -191,11 +192,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    // No preParse/postParse override — _field_names is populated via addToFieldNames calls from
-    // other mappers, which the columnar path does not yet wire up (see e.g.
-    // RoutingFieldMapper#preColumnarParse). Nothing for this mapper itself to port.
     @Override
-    public boolean supportsColumnarParse() {
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // No preParse/postParse override — _field_names is populated via addToFieldNames calls from
+        // other mappers, which the columnar path does not yet wire up (see e.g.
+        // RoutingFieldMapper#preColumnarParse). Nothing for this mapper itself to port.
         return true;
     }
 }

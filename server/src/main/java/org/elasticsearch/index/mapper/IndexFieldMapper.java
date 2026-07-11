@@ -21,6 +21,7 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -163,9 +164,9 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    // No preParse/postParse override — nothing to port for the columnar path either.
     @Override
-    public boolean supportsColumnarParse() {
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // No preParse/postParse override — nothing to port for the columnar path either.
         return true;
     }
 }

@@ -235,8 +235,8 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse() {
-        return true;
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return false;
     }
 
     @Override

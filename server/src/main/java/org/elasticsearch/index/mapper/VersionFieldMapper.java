@@ -16,6 +16,7 @@ import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -123,7 +124,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse() {
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
         return true;
     }
 

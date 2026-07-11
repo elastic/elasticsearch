@@ -85,7 +85,10 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 "value": { "type": "long" }
               }
             }""";
-        IndexShard shard = newShardWithMapping(mapping, STORED_SOURCE_SETTINGS);
+        // Synthetic source: SourceFieldMapper only supports columnar parsing when stored() ==
+        // false (see SourceFieldMapper#supportsColumnarParse), so a stored-source mapping would
+        // fall back here instead.
+        IndexShard shard = newShardWithMapping(mapping, SYNTHETIC_SOURCE_SETTINGS);
 
         int numDocs = 3;
         BulkItemRequest[] items = new BulkItemRequest[numDocs];
@@ -111,12 +114,42 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             for (Column column : columnBatch.columns()) {
                 columnNames.add(column.name());
             }
-            // Metadata columns emitted for a plain stored-source mapping with no field leaves.
+            // Metadata columns emitted for a synthetic-source mapping with no field leaves. No
+            // _source column: synthetic source is never materialized as a stored column.
             assertTrue("expected an _id column, got " + columnNames, columnNames.contains("_id"));
-            assertTrue("expected a _source column, got " + columnNames, columnNames.contains("_source"));
             assertTrue("expected a _version column, got " + columnNames, columnNames.contains("_version"));
             assertTrue("expected a _seq_no column, got " + columnNames, columnNames.contains("_seq_no"));
             assertTrue("expected a _primary_term column, got " + columnNames, columnNames.contains("_primary_term"));
+        }
+
+        closeShards(shard);
+    }
+
+    public void testColumnarBatchFallsBackForStoredSource() throws Exception {
+        String mapping = """
+            {
+              "properties": {
+                "host":  { "type": "keyword" },
+                "value": { "type": "long" }
+              }
+            }""";
+        // Stored source: SourceFieldMapper#supportsColumnarParse requires stored() == false, so a
+        // plain stored-source mapping must fall back to the sequential path even with no field
+        // leaves.
+        IndexShard shard = newShardWithMapping(mapping, STORED_SOURCE_SETTINGS);
+
+        int numDocs = 2;
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, indexRequest("id-" + i));
+        }
+
+        try (EirfBatch batch = emptyDocBatch(numDocs)) {
+            BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
+            assertNotNull("empty documents have no leaves to resolve", resolution);
+
+            EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(items, batch, shard, 0, numDocs, resolution);
+            assertNull("stored source is not supported by the columnar batch path", engineBatch);
         }
 
         closeShards(shard);

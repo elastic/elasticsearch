@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -46,7 +47,7 @@ import java.util.List;
  * </ol>
  *
  * <p><b>First-pass scope:</b> only metadata mappers support columnar parsing so far (see
- * {@link FieldMapper#supportsColumnarParse()} overrides). Field (non-metadata) mappers do not yet,
+ * {@link FieldMapper#supportsColumnarParse(IndexSettings)} overrides). Field (non-metadata) mappers do not yet,
  * so {@link #mapColumnBatch} only fully engages for chunks whose schema has no leaves at all (every
  * document in the chunk has an empty {@code {}} body) — any chunk with real field data falls back to
  * the sequential path, same as an unsupported mapper or dynamic mapping update.
@@ -162,8 +163,9 @@ public final class ShardBatchMapper {
         int chunkEnd,
         BatchMapperResolution resolution
     ) {
+        final IndexSettings indexSettings = primary.indexSettings();
         for (FieldMapper mapper : resolution.columnMappers()) {
-            if (mapper != null && mapper.supportsColumnarParse() == false) {
+            if (mapper != null && mapper.supportsColumnarParse(indexSettings) == false) {
                 logger.debug("columnar batch mapping disabled: mapper of type [{}] does not support columnar parsing", mapper.typeName());
                 return null;
             }
@@ -172,7 +174,7 @@ public final class ShardBatchMapper {
         final MappingLookup mappingLookup = primary.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
         for (MetadataFieldMapper mapper : metadataMappers) {
-            if (mapper.supportsColumnarParse() == false) {
+            if (mapper.supportsColumnarParse(indexSettings) == false) {
                 logger.debug(
                     "columnar batch mapping disabled: metadata mapper of type [{}] does not support columnar parsing",
                     mapper.typeName()
@@ -186,7 +188,7 @@ public final class ShardBatchMapper {
         for (int d = 0; d < docCount; d++) {
             requests[d] = (IndexRequest) items[chunkStart + d].request();
         }
-        final BatchMappingContext context = new BatchMappingContext(requests, mappingLookup, primary.indexSettings());
+        final BatchMappingContext context = new BatchMappingContext(requests, mappingLookup, indexSettings);
 
         try {
             for (MetadataFieldMapper metadataMapper : metadataMappers) {

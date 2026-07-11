@@ -1588,11 +1588,12 @@ public class InternalEngine extends Engine {
                 && subBatchSize == columnProvider.docCount()
                 && isColumnBatchEligible(plans, allResults, subBatchIdx, subBatchSize);
             if (useColumnBatch) {
+                // All ops in a sub-batch share one primary term (validated above), so fill it once.
+                columnProvider.fillPrimaryTerm(primaryTerm);
                 for (int i = 0; i < subBatchSize; i++) {
                     Index op = subBatchOps[i];
                     IndexingStrategy plan = plans[i];
                     columnProvider.setSeqNo(i, op.seqNo());
-                    columnProvider.setPrimaryTerm(i, op.primaryTerm());
                     columnProvider.setVersion(i, plan.versionForIndexing);
                 }
                 indexWriter.addBatch(columnProvider.columnBatch(0, subBatchSize));

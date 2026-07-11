@@ -35,6 +35,13 @@ public interface ColumnBatchProvider {
     /** Sets the engine-assigned {@code _primary_term} for batch-local document {@code doc}. */
     void setPrimaryTerm(int doc, long primaryTerm);
 
+    /**
+     * Sets the engine-assigned {@code _primary_term} for every document in the batch. Callers use
+     * this instead of looping {@link #setPrimaryTerm} when they've already established the whole
+     * batch shares one primary term.
+     */
+    void fillPrimaryTerm(long primaryTerm);
+
     /** Sets the engine-assigned {@code _version} for batch-local document {@code doc}. */
     void setVersion(int doc, long version);
 

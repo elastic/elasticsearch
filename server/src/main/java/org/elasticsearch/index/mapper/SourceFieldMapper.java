@@ -517,16 +517,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static final IndexableFieldType STORED_BINARY_COLUMN_FIELD_TYPE = buildStoredBinaryColumnFieldType();
     private static final IndexableFieldType RECOVERY_SOURCE_SIZE_COLUMN_FIELD_TYPE = buildNumericDocValuesColumnFieldType();
-    private static final IndexableFieldType RECOVERY_SOURCE_MARKER_COLUMN_FIELD_TYPE = buildNumericDocValuesColumnFieldType();
-
-    private static IndexableFieldType buildStoredBinaryColumnFieldType() {
-        FieldType ft = new FieldType();
-        ft.setStored(true);
-        ft.freeze();
-        return ft;
-    }
 
     private static IndexableFieldType buildNumericDocValuesColumnFieldType() {
         FieldType ft = new FieldType();
@@ -536,110 +527,42 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse() {
-        // COLUMNAR_STORED mode reconstructs the whole-document source from Lucene doc-values
-        // columns via ColumnarSourceWriter in postParse; that reconstruction is not yet wired into
-        // the columnar batch-mapping fast path, so those indices fall back for now.
-        return mode != Mode.COLUMNAR_STORED;
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // Columnar batch mapping only ports the cheap branch of preParse: no stored _source to
+        // materialize, and either recovery source is disabled or only a size estimate is needed
+        // (synthetic recovery). Stored source, COLUMNAR_STORED (stored() == true for that mode
+        // too), and non-synthetic recovery source all require the full row path.
+        final boolean recoverySourceEnabled = indexSettings.isRecoverySourceEnabled();
+        final boolean syntheticRecovery = recoverySourceEnabled && indexSettings.isRecoverySourceSyntheticEnabled();
+        return stored() == false && (recoverySourceEnabled == false || syntheticRecovery);
     }
 
     /**
-     * Columnar counterpart of {@link #preParse}, ported 1:1 minus the {@code COLUMNAR_STORED}
-     * branch (see {@link #supportsColumnarParse}). Builds one column per batch instead of adding a
+     * Columnar counterpart of the cheap branch of {@link #preParse} (see
+     * {@link #supportsColumnarParse}). Builds one column per batch instead of adding a
      * per-document {@link org.apache.lucene.document.Field}.
      */
     @Override
     public void preColumnarParse(BatchMappingContext context) throws IOException {
-        final boolean recoverySourceEnabled = context.indexSettings().isRecoverySourceEnabled();
-        final boolean syntheticRecovery = recoverySourceEnabled && context.indexSettings().isRecoverySourceSyntheticEnabled();
-        final int docCount = context.docCount();
-
-        // Materializing the source bytes is only required when something downstream needs them:
-        // - storing the regular _source field (stored() == true), or
-        // - storing the reduced _recovery_source field (recovery enabled, non-synthetic).
-        // The recovery-disabled case needs nothing at all, and the synthetic-recovery case needs
-        // only a byte-size estimate.
-        if (stored() == false && (recoverySourceEnabled == false || syntheticRecovery)) {
-            if (syntheticRecovery) {
-                final long[] sizes = new long[docCount];
-                for (int d = 0; d < docCount; d++) {
-                    sizes[d] = sourceOf(context, d).estimatedSizeInBytes();
-                }
-                context.addColumn(
-                    LuceneColumns.arrayLongColumn(
-                        sizes,
-                        RECOVERY_SOURCE_SIZE_NAME,
-                        RECOVERY_SOURCE_SIZE_COLUMN_FIELD_TYPE,
-                        LongColumn.NumericKind.LONG
-                    )
-                );
-            }
+        final boolean syntheticRecovery = context.indexSettings().isRecoverySourceEnabled()
+            && context.indexSettings().isRecoverySourceSyntheticEnabled();
+        if (syntheticRecovery == false) {
             return;
         }
 
-        final BytesRef[] sources = stored() ? new BytesRef[docCount] : null;
-        final BytesRef[] recoverySources = new BytesRef[docCount];
-        final long[] recoverySourceSizes = new long[docCount];
-        boolean anyRecoverySource = false;
-        boolean anyRecoverySourceSize = false;
-
+        final int docCount = context.docCount();
+        final long[] sizes = new long[docCount];
         for (int d = 0; d < docCount; d++) {
-            final SourceToParse.Source sourceObject = sourceOf(context, d);
-            final XContentType contentType = sourceObject.xContentType();
-            final BytesReference originalSource = sourceObject.originalBytes();
-
-            final BytesReference storedSource = stored()
-                ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType)
-                : null;
-            final BytesReference adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
-
-            if (adaptedStoredSource != null) {
-                sources[d] = adaptedStoredSource.toBytesRef();
-            }
-
-            if (recoverySourceEnabled == false) {
-                continue;
-            }
-
-            if (syntheticRecovery) {
-                recoverySourceSizes[d] = originalSource.length();
-                anyRecoverySourceSize = true;
-            } else if (stored() == false || adaptedStoredSource != storedSource) {
-                recoverySources[d] = removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType).toBytesRef();
-                anyRecoverySource = true;
-            }
+            sizes[d] = sourceOf(context, d).estimatedSizeInBytes();
         }
-
-        if (sources != null) {
-            context.addColumn(LuceneColumns.arrayBinaryColumn(sources, fieldType().name(), STORED_BINARY_COLUMN_FIELD_TYPE));
-        }
-        if (anyRecoverySourceSize) {
-            context.addColumn(
-                LuceneColumns.arrayLongColumn(
-                    recoverySourceSizes,
-                    RECOVERY_SOURCE_SIZE_NAME,
-                    RECOVERY_SOURCE_SIZE_COLUMN_FIELD_TYPE,
-                    LongColumn.NumericKind.LONG
-                )
-            );
-        }
-        if (anyRecoverySource) {
-            context.addColumn(LuceneColumns.arrayBinaryColumn(recoverySources, RECOVERY_SOURCE_NAME, STORED_BINARY_COLUMN_FIELD_TYPE));
-            // Mirrors the row path's NumericDocValuesField(RECOVERY_SOURCE_NAME, 1) presence marker.
-            // The recoverySource-vs-storedSource branch condition above is mapper-config-derived, not
-            // per-document, so within a batch it is uniform: every doc reaching this branch got a
-            // recovery source, making a fully-dense marker column correct here.
-            final long[] marker = new long[docCount];
-            Arrays.fill(marker, 1L);
-            context.addColumn(
-                LuceneColumns.arrayLongColumn(
-                    marker,
-                    RECOVERY_SOURCE_NAME,
-                    RECOVERY_SOURCE_MARKER_COLUMN_FIELD_TYPE,
-                    LongColumn.NumericKind.LONG
-                )
-            );
-        }
+        context.addColumn(
+            LuceneColumns.arrayLongColumn(
+                sizes,
+                RECOVERY_SOURCE_SIZE_NAME,
+                RECOVERY_SOURCE_SIZE_COLUMN_FIELD_TYPE,
+                LongColumn.NumericKind.LONG
+            )
+        );
     }
 
     private static SourceToParse.Source sourceOf(BatchMappingContext context, int doc) {

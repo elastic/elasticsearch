@@ -246,8 +246,11 @@ public abstract class FieldMapper extends Mapper {
      * than once per document. Defaults to {@code false}; supported mappers override once they
      * implement the columnar mapping entry point. Field (non-metadata) mappers do not yet support
      * columnar parsing — only {@link MetadataFieldMapper} subclasses currently override this.
+     *
+     * @param indexSettings the settings of the index being mapped, for mappers whose columnar
+     *                       support depends on index-level configuration (e.g. recovery source)
      */
-    public boolean supportsColumnarParse() {
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
         return false;
     }
 

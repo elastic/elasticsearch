@@ -16,6 +16,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -144,16 +145,11 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public boolean supportsColumnarParse() {
-        return true;
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return false;
     }
 
     @Override
     public void postColumnarParse(BatchMappingContext context) {
-        // No-op this pass: only field (non-metadata) mappers add ignored-field names
-        // (DocumentParserContext#addIgnoredField), and none support columnar parsing yet, so there
-        // is never anything to emit here. Once a columnar field mapper can record an ignored field
-        // per document, this needs a per-document "ignored field names" column analogous to the
-        // row path's per-doc SortedSetDocValuesField/StringField(NAME, ignoredField) entries.
     }
 }

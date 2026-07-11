@@ -777,10 +777,10 @@ public final class SchemaReconciliation {
     /**
      * The sample-inferring text formats whose readers parse each token at the pinned read type, so a
      * widened column can be pinned to its reconciled type (see {@link #readsColumnsAtReconciledType}).
-     * Kept as a single documented constant rather than an SPI capability method, mirroring the sibling
-     * {@link #supportsShapeConflictResolution} check and {@code ExternalSourceResolver.FILE_TYPED_FORMATS};
-     * see that constant's TODO for the planned consolidation of this columnar-vs-text axis onto the
-     * {@code FormatReader} SPI. A new sample-inferring text reader must be added here to receive the pin.
+     * The columnar-vs-text axis lives here as a single documented constant, mirroring the sibling
+     * {@link #supportsShapeConflictResolution} check and {@code ExternalSourceResolver.FILE_TYPED_FORMATS},
+     * rather than on the {@code FormatReader} SPI. A new sample-inferring text reader must be added here
+     * to receive the pin.
      */
     private static final Set<String> READS_AT_RECONCILED_TYPE_FORMATS = Set.of("csv", "tsv", "ndjson");
 

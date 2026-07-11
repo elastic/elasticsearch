@@ -1071,7 +1071,7 @@ public class SchemaReconciliationTests extends ESTestCase {
             // The numeric-inferred file is pinned to KEYWORD and carries no cast.
             assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
             assertThat(result.perFileInfo().get(f1).mapping().cast(0), nullValue());
-            // The already-keyword file is unchanged and also carries no cast.
+            // The already-keyword file keeps its KEYWORD read type and also carries no cast.
             assertThat(result.perFileInfo().get(f2).fileSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
             assertThat(result.perFileInfo().get(f2).mapping().cast(0), nullValue());
 
@@ -1082,33 +1082,37 @@ public class SchemaReconciliationTests extends ESTestCase {
     public void testUnionByNameTextSourceWidenIntToLongPinsReadTypeInsteadOfCasting() {
         // INTEGER widened to LONG: a text reader parses at LONG directly, so an out-of-sample value
         // above Integer.MAX_VALUE still parses. The file is pinned to LONG with no cast.
-        List<Attribute> schema1 = List.of(attr("c", DataType.INTEGER));
-        List<Attribute> schema2 = List.of(attr("c", DataType.LONG));
+        for (String sourceType : List.of("csv", "tsv", "ndjson")) {
+            List<Attribute> schema1 = List.of(attr("c", DataType.INTEGER));
+            List<Attribute> schema2 = List.of(attr("c", DataType.LONG));
 
-        StoragePath f1 = path("s3://b/f1.csv");
-        StoragePath f2 = path("s3://b/f2.csv");
+            StoragePath f1 = path("s3://b/f1." + sourceType);
+            StoragePath f2 = path("s3://b/f2." + sourceType);
 
-        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "csv"), f2, meta(schema2, "csv"));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+            Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, sourceType), f2, meta(schema2, sourceType));
+            SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
 
-        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.LONG));
-        assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.LONG));
-        assertThat(result.perFileInfo().get(f1).mapping().cast(0), nullValue());
+            assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.LONG));
+            assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.LONG));
+            assertThat(result.perFileInfo().get(f1).mapping().cast(0), nullValue());
+        }
     }
 
     public void testUnionByNameTextSourceWidenIntToDoublePinsReadTypeInsteadOfCasting() {
-        List<Attribute> schema1 = List.of(attr("c", DataType.INTEGER));
-        List<Attribute> schema2 = List.of(attr("c", DataType.DOUBLE));
+        for (String sourceType : List.of("csv", "tsv", "ndjson")) {
+            List<Attribute> schema1 = List.of(attr("c", DataType.INTEGER));
+            List<Attribute> schema2 = List.of(attr("c", DataType.DOUBLE));
 
-        StoragePath f1 = path("s3://b/f1.csv");
-        StoragePath f2 = path("s3://b/f2.csv");
+            StoragePath f1 = path("s3://b/f1." + sourceType);
+            StoragePath f2 = path("s3://b/f2." + sourceType);
 
-        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "csv"), f2, meta(schema2, "csv"));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+            Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, sourceType), f2, meta(schema2, sourceType));
+            SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
 
-        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
-        assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
-        assertThat(result.perFileInfo().get(f1).mapping().cast(0), nullValue());
+            assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
+            assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
+            assertThat(result.perFileInfo().get(f1).mapping().cast(0), nullValue());
+        }
     }
 
     public void testUnionByNameTextSourceWidenDatetimeToDateNanosKeepsCastNotPinned() {

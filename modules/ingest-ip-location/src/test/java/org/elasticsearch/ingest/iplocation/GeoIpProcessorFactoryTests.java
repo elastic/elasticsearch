@@ -270,8 +270,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         DatabaseUnavailableProcessor processor = (DatabaseUnavailableProcessor) factory.create(null, null, null, config, ProjectId.DEFAULT);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getSourceAndMetadata().get("geoip"), nullValue());
-        assertThat(ingestDocument.getSourceAndMetadata().get("tags"), equalTo(List.of("_geoip_database_unavailable_GeoLite2-City.mmdb")));
+        assertThat(ingestDocument.getSource().get("geoip"), nullValue());
+        assertThat(ingestDocument.getSource().get("tags"), equalTo(List.of("_geoip_database_unavailable_GeoLite2-City.mmdb")));
     }
 
     public void testBuildUnsupportedDatabase() throws Exception {

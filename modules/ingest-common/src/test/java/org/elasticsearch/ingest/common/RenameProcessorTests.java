@@ -56,14 +56,14 @@ public class RenameProcessorTests extends ESTestCase {
 
         Processor processor = createRenameProcessor("list.0", "item", false, false);
         processor.execute(ingestDocument);
-        Object actualObject = ingestDocument.getSourceAndMetadata().get("list");
+        Object actualObject = ingestDocument.getSource().get("list");
         assertThat(actualObject, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<String> actualList = (List<String>) actualObject;
         assertThat(actualList.size(), equalTo(2));
         assertThat(actualList.get(0), equalTo("item2"));
         assertThat(actualList.get(1), equalTo("item3"));
-        actualObject = ingestDocument.getSourceAndMetadata().get("item");
+        actualObject = ingestDocument.getSource().get("item");
         assertThat(actualObject, instanceOf(String.class));
         assertThat(actualObject, equalTo("item1"));
 
@@ -155,8 +155,8 @@ public class RenameProcessorTests extends ESTestCase {
                         + "but was [foobar] with type [java.lang.String]"
                 )
             );
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("_index"), equalTo(true));
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("_version_type"), equalTo(false));
+            assertThat(ingestDocument.getMetadata().containsKey("_index"), equalTo(true));
+            assertThat(ingestDocument.getMetadata().containsKey("_version_type"), equalTo(false));
         }
     }
 
@@ -172,8 +172,8 @@ public class RenameProcessorTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             // the remove failed, the old field has not been removed
             assertThat(e.getMessage(), equalTo("_version cannot be removed"));
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("_version"), equalTo(true));
-            assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
+            assertThat(ingestDocument.getMetadata().containsKey("_version"), equalTo(true));
+            assertThat(ingestDocument.getSource().containsKey("new_field"), equalTo(false));
         }
     }
 

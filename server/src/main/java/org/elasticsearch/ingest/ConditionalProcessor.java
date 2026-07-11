@@ -120,7 +120,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         if (factory == null) {
             factory = scriptService.compile(condition, IngestConditionalScript.CONTEXT);
         }
-        return factory.newInstance(condition.getParams(), ingestDocument.getUnmodifiableScriptCtxMap()).execute();
+        return factory.newInstance(condition.getParams(), ingestDocument.getUnmodifiableCtxMap()).execute();
     }
 
     public Processor getInnerProcessor() {

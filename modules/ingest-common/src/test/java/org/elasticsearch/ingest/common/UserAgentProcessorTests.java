@@ -139,7 +139,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         processor.execute(ingestDocument);
-        Map<String, Object> data = ingestDocument.getSourceAndMetadata();
+        Map<String, Object> data = ingestDocument.getSource();
 
         assertThat(data, hasKey("target_field"));
         Map<String, Object> target = (Map<String, Object>) data.get("target_field");
@@ -168,7 +168,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         processor.execute(ingestDocument);
-        Map<String, Object> data = ingestDocument.getSourceAndMetadata();
+        Map<String, Object> data = ingestDocument.getSource();
 
         assertThat(data, hasKey("target_field"));
         Map<String, Object> target = (Map<String, Object>) data.get("target_field");
@@ -198,7 +198,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         processor.execute(ingestDocument);
-        Map<String, Object> data = ingestDocument.getSourceAndMetadata();
+        Map<String, Object> data = ingestDocument.getSource();
 
         assertThat(data, hasKey("target_field"));
         Map<String, Object> target = (Map<String, Object>) data.get("target_field");
@@ -225,7 +225,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         processor.execute(ingestDocument);
-        Map<String, Object> data = ingestDocument.getSourceAndMetadata();
+        Map<String, Object> data = ingestDocument.getSource();
 
         assertThat(data, hasKey("target_field"));
         Map<String, Object> target = (Map<String, Object>) data.get("target_field");
@@ -252,7 +252,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         processor.execute(ingestDocument);
-        Map<String, Object> data = ingestDocument.getSourceAndMetadata();
+        Map<String, Object> data = ingestDocument.getSource();
 
         assertThat(data, hasKey("target_field"));
         Map<String, Object> target = (Map<String, Object>) data.get("target_field");
@@ -280,7 +280,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         processor.execute(ingestDocument);
-        Map<String, Object> data = ingestDocument.getSourceAndMetadata();
+        Map<String, Object> data = ingestDocument.getSource();
 
         assertThat(data, hasKey("target_field"));
         Map<String, Object> target = (Map<String, Object>) data.get("target_field");
@@ -315,7 +315,7 @@ public class UserAgentProcessorTests extends ESTestCase {
             false
         );
         userAgentProcessor.execute(ingestDocument);
-        Map<String, Object> data = ingestDocument.getSourceAndMetadata();
+        Map<String, Object> data = ingestDocument.getSource();
 
         assertThat(data, hasKey("target_field"));
         Map<String, Object> target = (Map<String, Object>) data.get("target_field");
@@ -353,7 +353,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         processor.execute(ingestDocument);
-        Map<String, Object> data = ingestDocument.getSourceAndMetadata();
+        Map<String, Object> data = ingestDocument.getSource();
 
         assertThat(data, hasKey("target_field"));
         Map<String, Object> target = (Map<String, Object>) data.get("target_field");

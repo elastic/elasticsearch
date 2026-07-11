@@ -38,7 +38,7 @@ public class IngestCtxMapTests extends ESTestCase {
         metadata.put("_if_primary_term", 10000);
         metadata.put("_version_type", "internal");
         metadata.put("_dynamic_templates", Map.of("foo", "bar"));
-        map = new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(metadata, null));
+        map = new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(metadata, null), null);
         md = map.getMetadata();
         assertEquals("myIndex", md.getIndex());
         md.setIndex("myIndex2");
@@ -71,7 +71,7 @@ public class IngestCtxMapTests extends ESTestCase {
         metadata.put("_version", Double.MAX_VALUE);
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(metadata, null))
+            () -> new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(metadata, null), null)
         );
         assertThat(err.getMessage(), containsString("_version may only be set to an int or a long but was ["));
         assertThat(err.getMessage(), containsString("] with type [java.lang.Double]"));
@@ -82,7 +82,7 @@ public class IngestCtxMapTests extends ESTestCase {
         source.put("_version", 25);
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestCtxMap(source, new IngestDocMetadata(source, null))
+            () -> new IngestCtxMap(source, new IngestDocMetadata(source, null), null)
         );
         assertEquals("unexpected metadata [_version:25] in source", err.getMessage());
     }
@@ -94,7 +94,7 @@ public class IngestCtxMapTests extends ESTestCase {
         metadata.put("routing", "myRouting");
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(metadata, null))
+            () -> new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(metadata, null), null)
         );
         assertEquals("Unexpected metadata keys [routing:myRouting, version:567]", err.getMessage());
     }
@@ -103,7 +103,7 @@ public class IngestCtxMapTests extends ESTestCase {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("_version", 123);
         Map<String, Object> source = new HashMap<>();
-        map = new IngestCtxMap(source, new IngestDocMetadata(metadata, null));
+        map = new IngestCtxMap(source, new IngestDocMetadata(metadata, null), null);
     }
 
     public void testRemoveSource() {
@@ -111,7 +111,7 @@ public class IngestCtxMapTests extends ESTestCase {
         source.put("abc", 123);
         source.put("def", 456);
         source.put("hij", 789);
-        map = new IngestCtxMap(source, new IngestDocMetadata(new HashMap<>(Map.of("_version", 1L)), null));
+        map = new IngestCtxMap(source, new IngestDocMetadata(new HashMap<>(Map.of("_version", 1L)), null), null);
 
         // Make sure there isn't a ConcurrentModificationException when removing a key from the iterator
         String removedKey = null;
@@ -132,7 +132,7 @@ public class IngestCtxMapTests extends ESTestCase {
     public void testRemove() {
         String cannotRemove = "_version"; // writable, but not *nullable*
         String canRemove = "_id"; // writable, and *nullable*
-        map = new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(new HashMap<>(Map.of(cannotRemove, 1L)), null));
+        map = new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(new HashMap<>(Map.of(cannotRemove, 1L)), null), null);
         String msg = "_version cannot be removed";
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.remove(cannotRemove));
         assertEquals(msg, err.getMessage());
@@ -197,7 +197,7 @@ public class IngestCtxMapTests extends ESTestCase {
         source.put("foo", "bar");
         source.put("baz", "qux");
         source.put("noz", "zon");
-        map = new IngestCtxMap(source, new IngestDocMetadata(metadata, null));
+        map = new IngestCtxMap(source, new IngestDocMetadata(metadata, null), null);
         md = map.getMetadata();
 
         for (Map.Entry<String, Object> entry : map.entrySet()) {
@@ -239,7 +239,7 @@ public class IngestCtxMapTests extends ESTestCase {
     }
 
     public void testContainsValue() {
-        map = new IngestCtxMap(Map.of("myField", "fieldValue"), new IngestDocMetadata(Map.of("_version", 5678), null));
+        map = new IngestCtxMap(Map.of("myField", "fieldValue"), new IngestDocMetadata(Map.of("_version", 5678), null), null);
         assertTrue(map.containsValue(5678));
         assertFalse(map.containsValue(5679));
         assertTrue(map.containsValue("fieldValue"));
@@ -313,7 +313,7 @@ public class IngestCtxMapTests extends ESTestCase {
     public void testHandlesAllVersionTypes() {
         Map<String, Object> mdRawMap = new HashMap<>();
         mdRawMap.put("_version", 1234);
-        map = new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(mdRawMap, null));
+        map = new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(mdRawMap, null), null);
         md = map.getMetadata();
         assertNull(md.getVersionType());
         for (VersionType vt : VersionType.values()) {
@@ -331,7 +331,7 @@ public class IngestCtxMapTests extends ESTestCase {
     }
 
     public void testGetOrDefault() {
-        map = new IngestCtxMap(Map.of("foo", "bar"), new IngestDocMetadata(Map.of("_version", 5L), null));
+        map = new IngestCtxMap(Map.of("foo", "bar"), new IngestDocMetadata(Map.of("_version", 5L), null), null);
 
         // it does the expected thing for fields that are present
         assertThat(map.getOrDefault("_version", -1L), equalTo(5L));
@@ -342,11 +342,48 @@ public class IngestCtxMapTests extends ESTestCase {
         assertThat(map.getOrDefault("baz", "quux"), equalTo("quux"));
     }
 
+    public void testExposesIngestMetadataLookup() {
+        Map<String, Object> source = new HashMap<>(Map.of("_ingest", "source-value"));
+        IngestDocMetadata metadata = new IngestDocMetadata(new HashMap<>(Map.of("_version", 5L)), null);
+        Map<String, Object> ingestMetadata = new HashMap<>();
+        IngestCtxMap ctx = new IngestCtxMap(source, metadata, ingestMetadata);
+
+        assertThat(ctx.getSource().get("_ingest"), equalTo("source-value"));
+
+        assertThat(ctx.get("_ingest"), sameInstance(ingestMetadata));
+        assertThat(ctx.getOrDefault("_ingest", "missing"), sameInstance(ingestMetadata));
+        assertThat(ctx.containsKey("_ingest"), equalTo(true));
+
+        ctx.remove("_ingest");
+        assertThat(ctx.getSource().containsKey("_ingest"), equalTo(false));
+        assertThat(ctx.containsKey("_ingest"), equalTo(true));
+
+        // iteration never yields _ingest (keySet().contains() can't be used here, it delegates to containsKey)
+        assertThat(ctx.keySet().stream().anyMatch("_ingest"::equals), equalTo(false));
+    }
+
+    public void testSourceIngestFieldCanStillBeMutatedThroughSource() {
+        Map<String, Object> source = new HashMap<>();
+        IngestCtxMap ctx = new IngestCtxMap(
+            source,
+            new IngestDocMetadata(new HashMap<>(Map.of("_version", 5L)), null),
+            new HashMap<>(Map.of("_value", "ingest-value"))
+        );
+
+        ctx.put("_ingest", "source-value");
+        assertThat(source.get("_ingest"), equalTo("source-value"));
+        assertThat(((Map<?, ?>) ctx.get("_ingest")).get("_value"), equalTo("ingest-value"));
+
+        source.remove("_ingest");
+        assertThat(source.containsKey("_ingest"), equalTo(false));
+        assertThat(((Map<?, ?>) ctx.get("_ingest")).get("_value"), equalTo("ingest-value"));
+    }
+
     public void testSourceHashMapIsNotCopied() {
         // a ctxMap will, as an optimization, just use the passed-in map reference
         Map<String, Object> source = Map.of("index", "id");
 
-        map = new IngestCtxMap(source, new IngestDocMetadata(Map.of("_version", 5L), null));
+        map = new IngestCtxMap(source, new IngestDocMetadata(Map.of("_version", 5L), null), null);
         assertThat(map.getSource(), sameInstance(source));
 
         map = new IngestCtxMap(null, null, 10L, null, null, null, source);

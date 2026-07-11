@@ -190,7 +190,7 @@ public final class JsonProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument document) throws Exception {
         Object value = apply(document.getFieldValue(field, Object.class), allowDuplicateKeys, strictJsonParsing);
         if (addToRoot) {
-            mergeParsedJson(document.getSourceAndMetadata(), value, addToRootConflictStrategy);
+            mergeParsedJson(document.getCtxMap(), value, addToRootConflictStrategy);
         } else {
             document.setFieldValue(targetField, value);
         }

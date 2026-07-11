@@ -277,7 +277,8 @@ public class InferenceProcessor extends AbstractProcessor {
             request.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
             return request;
         } else {
-            Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
+            Map<String, Object> fields = new HashMap<>(ingestDocument.getSource());
+            fields.putAll(ingestDocument.getMetadata().getMap());
             // Add ingestMetadata as previous processors might have added metadata from which we are predicting (see: foreach processor)
             if (ingestDocument.getIngestMetadata().isEmpty() == false) {
                 fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());

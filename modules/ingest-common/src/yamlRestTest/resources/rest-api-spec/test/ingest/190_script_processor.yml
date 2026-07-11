@@ -658,7 +658,7 @@ teardown:
             "processors": [
               {
                 "script": {
-                  "source": "ctx._ingest.foo = 'ingest-metadata'; ctx._ingest = 'source-value'; field('_ingest_seen_by_field_api').set(field('_ingest').get(null));"
+                  "source": "ctx.ingest_contains_key = ctx.containsKey('_ingest'); ctx._ingest.foo = 'ingest-metadata'; ctx._ingest = 'source-value'; field('_ingest_seen_by_field_api').set(field('_ingest').get(null));"
                 }
               },
               {
@@ -685,3 +685,4 @@ teardown:
   - match: { _source._ingest: "source-value" }
   - match: { _source._ingest_seen_by_field_api: "source-value" }
   - match: { _source.ingest_metadata_foo: "ingest-metadata" }
+  - match: { _source.ingest_contains_key: true }

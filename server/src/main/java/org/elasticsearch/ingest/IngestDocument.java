@@ -54,7 +54,7 @@ public final class IngestDocument {
 
     public static final String INGEST_KEY = "_ingest";
     public static final String SOURCE_KEY = SourceFieldMapper.NAME; // "_source"
-    private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
+    private static final String INGEST_PREFIX = INGEST_KEY + ".";
     private static final String SOURCE_PREFIX = SOURCE_KEY + ".";
 
     private static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
@@ -67,7 +67,6 @@ public final class IngestDocument {
 
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
-    private IngestScriptCtxMap scriptCtxMap;
 
     /**
      * Shallowly read-only, very limited, map-like view of the ctxMap and ingestMetadata,
@@ -104,8 +103,7 @@ public final class IngestDocument {
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
-        this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, ctxMap.getMetadata().getNow());
+        this.ingestMetadata = ctxMap.getIngestMetadata();
         this.templateModel = initializeTemplateModel();
 
         // initialize the index history by putting the current index into it
@@ -125,9 +123,9 @@ public final class IngestDocument {
         this(
             new IngestCtxMap(
                 deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource(), "source document")),
-                other.ctxMap.getMetadata().clone()
-            ),
-            deepCopyMap(ensureNoSelfReferences(other.ingestMetadata, "ingest metadata"))
+                other.ctxMap.getMetadata().clone(),
+                deepCopyMap(ensureNoSelfReferences(other.ingestMetadata, "ingest metadata"))
+            )
         );
         /*
          * The executedPipelines and accessPatternStack fields are clearly execution-centric rather than data centric.
@@ -167,22 +165,26 @@ public final class IngestDocument {
                 }
             }
         }
-        this.ctxMap = new IngestCtxMap(source, new IngestDocMetadata(metadata, IngestCtxMap.getTimestamp(ingestMetadata)));
         this.ingestMetadata = new HashMap<>(ingestMetadata);
+        this.ctxMap = new IngestCtxMap(
+            source,
+            new IngestDocMetadata(metadata, IngestCtxMap.getTimestamp(this.ingestMetadata)),
+            this.ingestMetadata
+        );
         this.templateModel = initializeTemplateModel();
     }
 
     /**
      * Constructor to create an IngestDocument from its constituent maps.
      */
-    IngestDocument(IngestCtxMap ctxMap, Map<String, Object> ingestMetadata) {
+    IngestDocument(IngestCtxMap ctxMap) {
         this.ctxMap = Objects.requireNonNull(ctxMap);
-        this.ingestMetadata = Objects.requireNonNull(ingestMetadata);
+        this.ingestMetadata = Objects.requireNonNull(ctxMap.getIngestMetadata());
         this.templateModel = initializeTemplateModel();
     }
 
     private DelegatingMapView initializeTemplateModel() {
-        return new DelegatingMapView(ctxMap, Map.of(SOURCE_KEY, ctxMap, INGEST_KEY, ingestMetadata));
+        return new DelegatingMapView(ctxMap, Map.of(SOURCE_KEY, ctxMap.getSource()));
     }
 
     /**
@@ -1047,33 +1049,16 @@ public final class IngestDocument {
         return template.newInstance(templateModel).execute();
     }
 
-    /**
-     * Get source and metadata map
-     */
-    public Map<String, Object> getSourceAndMetadata() {
-        return ctxMap;
-    }
-
-    /**
-     * Get the CtxMap view used by ingest script contexts.
-     */
-    public CtxMap<?> getScriptCtxMap() {
-        if (scriptCtxMap == null) {
-            scriptCtxMap = new IngestScriptCtxMap(ctxMap.getSource(), ctxMap.getMetadata(), ingestMetadata);
-        }
-        return scriptCtxMap;
-    }
-
     /*
-     * This returns the same information as getScriptCtxMap(), but in an unmodifiable map that is safe to send into a script that is
+     * This returns the same information as getCtxMap(), but in an unmodifiable map that is safe to send into a script that is
      * not supposed to be modifying the data. If an attempt is made to modify this Map, or a Map, List, or Set nested within it, an
      * UnsupportedOperationException is thrown. If an attempt is made to modify a byte[] within this Map, the attempt succeeds, but the
      * results are not reflected on this IngestDocument. If a user has put any other mutable Object into the IngestDocument, this method
      * makes no attempt to make it immutable. This method just protects users against accidentally modifying the most common types of
      * Objects found in IngestDocuments.
      */
-    public Map<String, Object> getUnmodifiableScriptCtxMap() {
-        return new UnmodifiableIngestData(getScriptCtxMap());
+    public Map<String, Object> getUnmodifiableCtxMap() {
+        return new UnmodifiableIngestData(ctxMap);
     }
 
     /**
@@ -1401,21 +1386,20 @@ public final class IngestDocument {
         }
 
         private final String[] pathElements;
-        private final boolean useIngestContext;
+        private final boolean useSourceContext;
 
         // you shouldn't call this directly, use the FieldPath.of method above instead!
         private FieldPath(String path, IngestPipelineFieldAccessPattern accessPattern) {
             String newPath;
-            if (path.startsWith(INGEST_KEY_PREFIX)) {
-                useIngestContext = true;
-                newPath = path.substring(INGEST_KEY_PREFIX.length());
+            if (path.equals(INGEST_PREFIX)) {
+                throw new IllegalArgumentException("path [" + path + "] is not valid");
+            } else if (path.startsWith(SOURCE_PREFIX)) {
+                useSourceContext = true;
+                newPath = path.substring(SOURCE_PREFIX.length());
             } else {
-                useIngestContext = false;
-                if (path.startsWith(SOURCE_PREFIX)) {
-                    newPath = path.substring(SOURCE_PREFIX.length());
-                } else {
-                    newPath = path;
-                }
+                // The bare _ingest path refers to the source field of that name. Dotted _ingest.foo paths use the ctxMap lookup.
+                useSourceContext = path.equals(INGEST_KEY);
+                newPath = path;
             }
             String[] pathParts = newPath.split("\\.");
             this.pathElements = processPathParts(path, pathParts, accessPattern);
@@ -1461,7 +1445,7 @@ public final class IngestDocument {
         }
 
         public Object initialContext(IngestDocument document) {
-            return useIngestContext ? document.getIngestMetadata() : document.getCtxMap();
+            return useSourceContext ? document.getSource() : document.getCtxMap();
         }
     }
 

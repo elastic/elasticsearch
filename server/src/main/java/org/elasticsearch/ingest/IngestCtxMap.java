@@ -13,6 +13,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.CtxMap;
 
 import java.time.ZonedDateTime;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -29,12 +30,19 @@ import java.util.Map;
  * </ul>
  * <p>
  * The map is expected to be used by processors, server code should the typed getter and setters where possible.
+ * <p>
+ * Ingest metadata is exposed for key lookup only ({@code get}, {@code getOrDefault} and {@code containsKey}), masking any
+ * {@code _ingest} key in the source. All other {@link Map} operations operate on the source (and document metadata) only,
+ * as implemented in {@code CtxMap}.
  */
 final class IngestCtxMap extends CtxMap<IngestDocMetadata> {
+
+    private final Map<String, Object> ingestMetadata;
 
     /**
      * Create an IngestCtxMap with the given metadata, source and default validators
      * <p>
+     * Ingest metadata will be initialized.
      * The passed-in source map is used directly (that is, it's neither shallowly nor deeply copied). mutation-like methods (e.g. setters,
      * put, etc.) may rely on the map being mutable, and will fail if the passed-in map isn't mutable.
      */
@@ -47,17 +55,28 @@ final class IngestCtxMap extends CtxMap<IngestDocMetadata> {
         ZonedDateTime timestamp,
         Map<String, Object> source
     ) {
-        super(source, new IngestDocMetadata(index, id, version, routing, versionType, timestamp));
+        this(source, new IngestDocMetadata(index, id, version, routing, versionType, timestamp), null);
     }
 
     /**
-     * Create IngestCtxMap from a source and metadata
+     * Create IngestCtxMap from a source, metadata and ingest metadata.
      *
      * @param source the source document map
      * @param metadata the metadata map
+     * @param ingestMetadata the ingest metadata map to expose as {@code _ingest}. If {@code null}, it will be initialized.
      */
-    IngestCtxMap(Map<String, Object> source, IngestDocMetadata metadata) {
+    IngestCtxMap(Map<String, Object> source, IngestDocMetadata metadata, Map<String, Object> ingestMetadata) {
         super(source, metadata);
+        if (ingestMetadata != null) {
+            this.ingestMetadata = ingestMetadata;
+        } else {
+            this.ingestMetadata = new HashMap<>();
+            this.ingestMetadata.put(IngestDocument.TIMESTAMP, metadata.getNow());
+        }
+    }
+
+    Map<String, Object> getIngestMetadata() {
+        return ingestMetadata;
     }
 
     /**
@@ -66,6 +85,30 @@ final class IngestCtxMap extends CtxMap<IngestDocMetadata> {
     @Override
     protected boolean directSourceAccess() {
         return true;
+    }
+
+    @Override
+    public boolean containsKey(Object key) {
+        if (IngestDocument.INGEST_KEY.equals(key)) {
+            return true;
+        }
+        return super.containsKey(key);
+    }
+
+    @Override
+    public Object get(Object key) {
+        if (IngestDocument.INGEST_KEY.equals(key)) {
+            return ingestMetadata;
+        }
+        return super.get(key);
+    }
+
+    @Override
+    public Object getOrDefault(Object key, Object defaultValue) {
+        if (IngestDocument.INGEST_KEY.equals(key)) {
+            return ingestMetadata;
+        }
+        return super.getOrDefault(key, defaultValue);
     }
 
     /**

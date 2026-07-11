@@ -135,11 +135,11 @@ public class ScriptProcessorTests extends ESTestCase {
     }
 
     private void assertIngestDocument(IngestDocument ingestDocument) {
-        assertThat(ingestDocument.getSourceAndMetadata(), hasKey("bytes_in"));
-        assertThat(ingestDocument.getSourceAndMetadata(), hasKey("bytes_out"));
-        assertThat(ingestDocument.getSourceAndMetadata(), hasKey("bytes_total"));
+        assertThat(ingestDocument.getSource(), hasKey("bytes_in"));
+        assertThat(ingestDocument.getSource(), hasKey("bytes_out"));
+        assertThat(ingestDocument.getSource(), hasKey("bytes_total"));
         int bytesTotal = ingestDocument.getFieldValue("bytes_in", Integer.class) + ingestDocument.getFieldValue("bytes_out", Integer.class);
-        assertThat(ingestDocument.getSourceAndMetadata().get("bytes_total"), is(bytesTotal));
-        assertThat(ingestDocument.getSourceAndMetadata().get("_dynamic_templates"), equalTo(Map.of("foo", "bar")));
+        assertThat(ingestDocument.getSource().get("bytes_total"), is(bytesTotal));
+        assertThat(ingestDocument.getMetadata().getDynamicTemplates(), equalTo(Map.of("foo", "bar")));
     }
 }

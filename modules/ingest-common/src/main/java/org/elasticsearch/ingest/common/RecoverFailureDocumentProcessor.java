@@ -115,13 +115,11 @@ public final class RecoverFailureDocumentProcessor extends AbstractProcessor {
     }
 
     private static void storePreRecoveryData(IngestDocument document) {
-        Map<String, Object> sourceAndMetadataMap = document.getSourceAndMetadata();
-
         // Create the pre_recovery data structure
         Map<String, Object> preRecoveryData = new HashMap<>();
 
         // Copy everything from the current document
-        sourceAndMetadataMap.forEach((key, value) -> {
+        document.getSource().forEach((key, value) -> {
             if (DOCUMENT_FIELD.equals(key) && value instanceof Map) {
                 // For the document field, copy everything except source
                 @SuppressWarnings("unchecked")
@@ -134,6 +132,7 @@ public final class RecoverFailureDocumentProcessor extends AbstractProcessor {
                 preRecoveryData.put(key, value);
             }
         });
+        preRecoveryData.putAll(document.getMetadata().getMap());
 
         // Store directly in ingest metadata
         document.getIngestMetadata().put(PRE_RECOVERY_FIELD, preRecoveryData);

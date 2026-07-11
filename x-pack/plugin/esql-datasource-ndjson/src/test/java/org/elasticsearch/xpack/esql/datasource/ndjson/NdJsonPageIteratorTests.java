@@ -1250,6 +1250,37 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A coercion failure on a single element of a declared multivalue array under {@code skip_row} drops the WHOLE
+     * record (the {@code rowDroppedBySkipRow} flag is set regardless of {@code inArray}) — matching the scalar case
+     * and the "drop the entire bad row" contract. The surrounding records still decode.
+     */
+    public void testDeclaredArrayElementCoercionFailureSkipRowDropsRecord() throws IOException {
+        String ndjson = """
+            {"vals": ["1", "2"]}
+            {"vals": ["10", "notanumber", "30"]}
+            {"vals": ["7"]}
+            """;
+        var object = new BytesStorageObject("file:///arr.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "vals", DataType.LONG));
+        ErrorPolicy skipRow = new ErrorPolicy(10, true);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("vals")).batchSize(100).errorPolicy(skipRow).readSchema(schema).build()
+            )
+        ) {
+            var page = iterator.next();
+            assertEquals("the record with the uncoercible array element is dropped whole", 2, page.getPositionCount());
+            LongBlock v = page.getBlock(0);
+            assertEquals(2, v.getValueCount(0)); // {"vals":["1","2"]}
+            assertEquals(1, v.getValueCount(1)); // {"vals":["7"]} — the bad record between them is gone
+            assertEquals(7L, v.getLong(v.getFirstValueIndex(1)));
+        }
+        assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
+    }
+
     public void testDeclaredDatetimeFormatOverridesNumericEpochShortcut() throws IOException {
         // A column declared {datetime, format:"yyyyMMdd"} must read the numeric token 20260101 as
         // 2026-01-01 (the declared format is authoritative), NOT as epoch millis — matching CSV and the

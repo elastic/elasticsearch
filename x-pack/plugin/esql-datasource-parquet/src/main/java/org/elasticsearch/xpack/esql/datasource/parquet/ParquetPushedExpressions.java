@@ -451,24 +451,30 @@ final class ParquetPushedExpressions {
 
     /**
      * Whether decoding a physical column into an ESQL {@code long} applies a unit transform the raw row-group
-     * statistics do not carry, so a raw {@code long} predicate pushed against those stats mis-prunes:
+     * statistics do not carry, so a raw {@code long} predicate pushed against those stats mis-prunes. Only the
+     * {@code MICROS} temporal units decode with a scaling factor; {@code MILLIS}/{@code NANOS} are already the
+     * decoded unit (identity) and stay pushable:
      * <ul>
-     *   <li>{@code TIMESTAMP} — MICROS decodes x1000 to epoch-nanos; MILLIS/NANOS are already the decoded unit,
-     *       but we decline all timestamp units uniformly (over-declining is only a lost-pruning cost, never wrong,
-     *       and keeps this one predicate simple);</li>
-     *   <li>{@code DATE} — days decode x86_400_000 to epoch-millis.</li>
+     *   <li>{@code TIMESTAMP(MICROS)} — decodes x1000 to epoch-nanos (vs micros stats); {@code TIMESTAMP(MILLIS)}
+     *       and {@code TIMESTAMP(NANOS)} are identity (raw==block, see {@code testTimestampMillisAndNanosDeclaredLongStillPush});</li>
+     *   <li>{@code DATE} — always: days decode x86_400_000 to epoch-millis;</li>
+     *   <li>{@code TIME(MICROS)} — decodes x1000 to nanos-of-day (vs micros stats); {@code TIME(MILLIS)} (INT32) and
+     *       {@code TIME(NANOS)} are identity widens (see {@code testTimeMillisAnalogousInt32WidenToLongIsPushed}).</li>
      * </ul>
-     * {@code TIME}: only {@code MICROS} scales (x1000 to nanos-of-day, mismatching the micros stat — see
-     * {@code ParquetColumnDecoding}) and is declined; {@code TIME(MILLIS)} (INT32) and {@code TIME(NANOS)} are
-     * identity widens whose raw stat matches the block value, so they stay pushable (see
-     * {@code testTimeMillisAnalogousInt32WidenToLongIsPushed}). The single authority both LONG push paths
+     * The unit factors are the ones {@code ParquetColumnDecoding} applies. The single authority both LONG push paths
      * ({@link #buildLongPredicate} and {@link #translateLongIn}) consult before pushing.
      */
     private static boolean pushDeclinedForUnitMismatch(LogicalTypeAnnotation annotation) {
-        return annotation instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation
-            || annotation instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation
-            || (annotation instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time
-                && time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS);
+        if (annotation instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+            return true;
+        }
+        if (annotation instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            return ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
+        }
+        if (annotation instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+            return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
+        }
+        return false;
     }
 
     /**

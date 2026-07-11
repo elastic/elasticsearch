@@ -189,6 +189,24 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertNull("long IN over TIME(MICROS) must not push", new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema));
     }
 
+    /**
+     * Only the scaling {@code MICROS} unit needs the decline: a declared {@code long} over {@code TIMESTAMP(MILLIS)}
+     * or {@code TIMESTAMP(NANOS)} is an identity read (block value == raw stat), so those still push — declining them
+     * would be a needless lost-pruning cost (reviewer note on the guard's over-declining).
+     */
+    public void testTimestampMillisAndNanosDeclaredLongStillPush() {
+        for (LogicalTypeAnnotation.TimeUnit unit : new LogicalTypeAnnotation.TimeUnit[] {
+            LogicalTypeAnnotation.TimeUnit.MILLIS,
+            LogicalTypeAnnotation.TimeUnit.NANOS }) {
+            MessageType schema = Types.buildMessage().required(INT64).as(timestampType(true, unit)).named("t").named("test");
+            FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("t", DataType.LONG, 1_600_000_000_000L))).toFilterPredicate(
+                schema
+            );
+            assertNotNull("declared long over TIMESTAMP(" + unit + ") is identity and must still push", fp);
+            assertThat(fp.toString(), containsString("1600000000000"));
+        }
+    }
+
     /** A plain INT64 IN still pushes — the decline is scoped to temporal-annotated columns. */
     public void testPlainInt64InStillPushes() {
         MessageType schema = Types.buildMessage().required(INT64).named("n").named("test");

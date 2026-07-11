@@ -1,0 +1,5 @@
+HikariCP
+Copyright (C) 2013 Brett Wooldridge
+
+This product includes software developed as part of the HikariCP project
+(https://github.com/brettwooldridge/HikariCP), licensed under the Apache License, Version 2.0.

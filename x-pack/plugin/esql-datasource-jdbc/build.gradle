@@ -1,0 +1,208 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.esql-release'
+
+subprojects {
+  apply plugin: 'elasticsearch.esql-release'
+}
+
+versions << [
+  // Matches x-pack/plugin/esql: the end-to-end ITs extend AbstractExternalDataSourceIT, whose parquet fixture writers
+  // are backed by these hadoop artifacts, so the internalClusterTest classpath needs the same hadoop line.
+  'hadoop': '3.4.3',
+]
+
+esplugin {
+  name = 'esql-datasource-jdbc'
+  description = 'JDBC connector for ESQL external data sources'
+  classname = 'org.elasticsearch.xpack.esql.datasource.jdbc.JdbcDataSourcePlugin'
+  extendedPlugins = ['x-pack-esql']
+}
+
+base {
+  archivesName = 'esql-datasource-jdbc'
+}
+
+dependencies {
+  // SPI interfaces from ESQL core; the connector ships no third-party JDBC drivers (user-supplied via drivers/ subdir).
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+  compileOnly project(xpackModule('esql:compute'))
+
+  // Connection pooling. SHIPPED with the plugin (Apache 2.0). HikariCP obtains its physical connections through our
+  // DriverRegistry-backed javax.sql.DataSource, so the pool routes through the plugin's isolated driver classloader
+  // rather than DriverManager. HikariCP logs via slf4j-api, which is declared compileOnly here so thirdPartyAudit
+  // resolves org.slf4j.* without bundling a second slf4j into the plugin distribution.
+  implementation 'com.zaxxer:HikariCP:5.1.0'
+  compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('esql'))
+  testImplementation project(xpackModule('esql-core'))
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
+  // DataSourceModule/DataSourceCredentials (used by the wiring assertions) need the EncryptionService SPI type
+  // on the test classpath; esql declares it compileOnly, so it does not leak transitively.
+  testImplementation project(':x-pack:plugin:encryption:spi')
+  // HikariCP resolves its logger via slf4j at runtime; supply the API on the unit-test classpath.
+  testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
+
+  // H2 is the JDBC driver the unit tests exercise. Its license is dual-EPL/MPL; the user-supplied driver model
+  // means we never bundle it in the plugin distribution, so it is test-scoped only.
+  testImplementation 'com.h2database:h2:2.2.224'
+
+  // Amazon Redshift JDBC driver -- TEST-SCOPED, dispatch-verification ONLY (RedshiftDriverDispatchTests asserts
+  // Driver.acceptsURL("jdbc:redshift://...") == true; NO connection is opened). Test-only: the plugin distribution
+  // ships no third-party JDBC driver (user-supplied via the drivers/ subdir, consistent with JdbcDriverRegistry).
+  testImplementation 'com.amazon.redshift:redshift-jdbc42:2.1.0.30'
+
+  // ---- internalClusterTest: end-to-end FROM <dataset> ITs against real databases ------------------------------
+  // The ITs boot an in-JVM ES cluster with JdbcDataSourcePlugin and drive FROM <dataset> against H2 (no Docker) or a
+  // testcontainer (Postgres). They extend main's AbstractExternalDataSourceIT, so this classpath consumes
+  // esql's TEST + internalClusterTest artifacts (which carry AbstractEsqlIntegTestCase / AbstractExternalDataSourceIT /
+  // the pass-through TestDataSourcePlugin) rather than re-implementing them.
+  internalClusterTestImplementation project(xpackModule('esql'))
+  internalClusterTestImplementation project(xpackModule('esql-core'))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('esql'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('esql')), 'internalClusterTest'))
+  internalClusterTestImplementation project(xpackModule('esql:qa:testFixtures'))
+
+  // AbstractExternalDataSourceIT always installs HttpDataSourcePlugin as a node plugin and exposes parquet-backed
+  // fixture writers on its API, so the base class only resolves (compile + class-load) with the http data source and
+  // parquet/hadoop on this classpath -- mirrors esql's own internalClusterTest deps. esql-datasource-orc is
+  // deliberately omitted: its shaded org.apache.commons.lang3 stub collides with parquet/hadoop's real commons-lang3
+  // on this flat classpath and trips the test JVM's JarHell check.
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-http'))
+  internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  internalClusterTestImplementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
+  internalClusterTestImplementation("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") { transitive = false }
+
+  // In-process H2 backs the Docker-less baseline (H2JdbcIT), the REST-contract IT, JdbcDatasetIT and the
+  // schema-cache-bypass regression IT. Test-only (user-supplied driver model); dual-EPL/MPL so never bundled.
+  internalClusterTestImplementation 'com.h2database:h2:2.2.224'
+
+  // DockerAvailability.assumeDockerIsAvailable() turns "no Docker" into a clean JUnit skip for the testcontainer-backed
+  // suites (AbstractJdbcDatabaseIT#requiresDocker()). transitive=false ON PURPOSE: testcontainer-utils api-exports
+  // org.testcontainers:testcontainers at ${versions.testcontainer} (2.0.2), which would otherwise resolve OVER the
+  // 1.20.4 line these fixtures pin. DockerAvailability only calls org.testcontainers.DockerClientFactory, which is
+  // binary-compatible on 1.20.4, so no transitive dependency is needed.
+  internalClusterTestImplementation(project(':test:fixtures:testcontainer-utils')) {
+    transitive = false
+  }
+
+  // Postgres end-to-end coverage. testcontainers boots a real container in the test JVM and the in-JVM
+  // cluster node opens a jdbc:postgresql:// socket to the forwarded localhost port. Version-pinned to 1.20.4 (the last
+  // 1.x line; the repo-wide ${versions.testcontainer} = 2.0.2 is a major bump with a reorganized module/API surface).
+  // Postgres JDBC driver 42.7.3 supplies both the testcontainers JDBC probe and the driver the in-JVM connector
+  // discovers via ServiceLoader. ALL test-only: the plugin distribution ships no third-party JDBC driver.
+  internalClusterTestImplementation 'org.testcontainers:testcontainers:1.20.4'
+  internalClusterTestImplementation 'org.testcontainers:jdbc:1.20.4'
+  internalClusterTestImplementation 'org.testcontainers:postgresql:1.20.4'
+  internalClusterTestImplementation 'org.postgresql:postgresql:42.7.3'
+}
+
+tasks.named('internalClusterTestTestingConventions').configure {
+  // JdbcTestQuerySetTests is a plain ESTestCase that lives in this source set (it must see JdbcTestQuerySet, which is
+  // also here); mirror esql and allow ESTestCase as an IT base so the conventions check accepts it.
+  baseClass 'org.elasticsearch.test.ESTestCase'
+}
+
+tasks.named('internalClusterTest').configure {
+  // The FROM <dataset> external-source path is only wired when the local-filesystem feature flag is on; the JDBC ITs
+  // (via AbstractExternalDataSourceIT#requireFeatureFlag) assumeTrue on it, so without this the whole suite silently
+  // skips. Pair it with the project encryption key feature flag (EsqlPlugin fails fast if data sources is on but that
+  // feature is off), mirroring esql's own internalClusterTest task.
+  systemProperty 'es.esql_external_datasources_local_feature_flag_enabled', 'true'
+  systemProperty 'es.project_encryption_key_feature_flag_enabled', 'true'
+
+  // The JDBC connector is gated behind its own feature flag (snapshot-on, release-off). Enable it explicitly here so
+  // the end-to-end ITs keep exercising the live connector even in release builds (where the flag defaults to off).
+  systemProperty 'es.esql_external_datasources_jdbc_feature_flag_enabled', 'true'
+
+  // Modern Docker Engines enforce a minimum Engine API of 1.44, but docker-java (via testcontainers 1.20.4) otherwise
+  // negotiates down to 1.32 and the daemon rejects it. docker-java only reads the client API version from this system
+  // property, so pin it to the daemon minimum. Inert for the Docker-less H2 suites, which never talk to the daemon.
+  systemProperty 'api.version', '1.44'
+
+  // prevent empty stacktraces on JDK 25 for intrinsic Math.*Exact invocations (matches esql's internalClusterTest).
+  jvmArgs '-XX:-OmitStackTraceInFastThrow'
+
+  // PostgresPerformanceIT is long-running (100K-row load + 1000 point queries + a 50-way concurrency burst) and only
+  // LOGS metrics (never asserts), so it must be OPT-IN: excluded from a normal run and included ONLY when the run
+  // explicitly targets it via --tests '*PostgresPerformanceIT'. Evaluated in doFirst so the --tests options are applied.
+  doFirst {
+    boolean perfTargeted = filter.commandLineIncludePatterns.any { it.contains('PostgresPerformanceIT') }
+    if (perfTargeted == false) {
+      filter.excludeTestsMatching '*PostgresPerformanceIT'
+    }
+  }
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // HikariCP ships optional integrations that are only wired if the corresponding library is on the
+    // classpath. We ship none of them (the connector only uses the core pool), so their imports are dead
+    // references at runtime. Each block below is a genuinely-optional HikariCP feature, not a core dependency.
+
+    // Optional metrics trackers (Dropwizard metrics-core / metrics-healthchecks) — provided+optional in HikariCP's pom.
+    'com.codahale.metrics.Histogram',
+    'com.codahale.metrics.Meter',
+    'com.codahale.metrics.Metric',
+    'com.codahale.metrics.MetricRegistry',
+    'com.codahale.metrics.Snapshot',
+    'com.codahale.metrics.Timer',
+    'com.codahale.metrics.health.HealthCheck',
+    'com.codahale.metrics.health.HealthCheck$Result',
+    'com.codahale.metrics.health.HealthCheckRegistry',
+
+    // Optional Micrometer metrics tracker — optional in HikariCP's pom.
+    'io.micrometer.core.instrument.Counter',
+    'io.micrometer.core.instrument.Counter$Builder',
+    'io.micrometer.core.instrument.Gauge',
+    'io.micrometer.core.instrument.Gauge$Builder',
+    'io.micrometer.core.instrument.MeterRegistry',
+    'io.micrometer.core.instrument.Timer',
+    'io.micrometer.core.instrument.Timer$Builder',
+
+    // Optional Prometheus metrics tracker — provided+optional in HikariCP's pom.
+    'io.prometheus.client.Collector',
+    'io.prometheus.client.Collector$MetricFamilySamples',
+    'io.prometheus.client.CollectorRegistry',
+    'io.prometheus.client.Counter',
+    'io.prometheus.client.Counter$Builder',
+    'io.prometheus.client.Counter$Child',
+    'io.prometheus.client.GaugeMetricFamily',
+    'io.prometheus.client.Histogram',
+    'io.prometheus.client.Histogram$Builder',
+    'io.prometheus.client.Histogram$Child',
+    'io.prometheus.client.Summary',
+    'io.prometheus.client.Summary$Builder',
+    'io.prometheus.client.Summary$Child',
+
+    // Optional Hibernate ORM ConnectionProvider — provided+optional in HikariCP's pom.
+    'org.hibernate.Version',
+    'org.hibernate.engine.jdbc.connections.spi.ConnectionProvider',
+    'org.hibernate.service.spi.Configurable',
+    'org.hibernate.service.spi.Stoppable',
+
+    // javassist is a build-time-only dependency of HikariCP: JavassistProxyFactory generates the JDBC proxy
+    // classes that are pre-compiled INTO the shipped jar, so javassist is never needed at runtime. Optional in the pom.
+    'javassist.ClassPool',
+    'javassist.CtClass',
+    'javassist.CtMethod',
+    'javassist.CtNewMethod',
+    'javassist.Modifier',
+    'javassist.bytecode.ClassFile'
+  )
+}

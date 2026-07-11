@@ -585,6 +585,7 @@ tasks.register("checkBuildLogic").configure {
     ':x-pack:plugin:esql-datasource-gzip',
     ':x-pack:plugin:esql-datasource-http',
     ':x-pack:plugin:esql-datasource-iceberg',
+    ':x-pack:plugin:esql-datasource-jdbc',
     ':x-pack:plugin:esql-datasource-lz4',
     ':x-pack:plugin:esql-datasource-ndjson',
     ':x-pack:plugin:esql-datasource-netty-commons',

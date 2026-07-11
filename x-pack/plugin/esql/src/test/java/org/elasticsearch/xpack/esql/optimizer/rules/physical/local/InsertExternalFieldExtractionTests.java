@@ -306,7 +306,7 @@ public class InsertExternalFieldExtractionTests extends ESTestCase {
     }
 
     public void testPartitionColumnsPinnedEagerNotDeferred() {
-        // The regression cell (elastic/esql-planning#1162): hive-style partition columns are plain
+        // The regression cell (#153503): hive-style partition columns are plain
         // ReferenceAttributes carrying no VirtualAttribute marker, but they are NOT file-resident —
         // deferring them to the positional ColumnExtractor read throws "column [X] is missing" at
         // runtime. Their names are stamped in sourceMetadata under PARTITION_COLUMNS_KEY. Sort on a

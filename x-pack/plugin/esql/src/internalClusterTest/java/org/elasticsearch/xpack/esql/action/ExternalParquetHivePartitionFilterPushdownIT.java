@@ -105,4 +105,20 @@ public class ExternalParquetHivePartitionFilterPushdownIT extends AbstractExtern
         // p=a holds ids 0,1,2; id >= 1 keeps 1,2 → 2 rows.
         assertThat("mixed partition-LIKE + data filter must apply both", rows.size(), equalTo(2));
     }
+
+    /** Prune-all boundary: a partition predicate matching nothing must return zero rows, not all of them. */
+    public void testWherePartitionPrunesAll() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        String dataset = twoPartitionDataset("hive_where_prune_all");
+        List<List<Object>> rows = runDistributed("FROM " + dataset + " | WHERE p == \"zz\"");
+        assertThat("a partition filter matching no partition must return no rows", rows.size(), equalTo(0));
+    }
+
+    /** Ordered comparison directly on the partition column (a RECHECK op): p > "a" keeps only p=b. */
+    public void testWhereRangeOnPartitionColumn() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        String dataset = twoPartitionDataset("hive_where_range");
+        List<List<Object>> rows = runDistributed("FROM " + dataset + " | WHERE p > \"a\"");
+        assertThat("p > a must keep only the two p=b rows", rows.size(), equalTo(2));
+    }
 }

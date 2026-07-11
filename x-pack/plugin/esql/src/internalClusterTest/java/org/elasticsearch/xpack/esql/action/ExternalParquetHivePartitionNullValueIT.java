@@ -59,68 +59,69 @@ public class ExternalParquetHivePartitionNullValueIT extends AbstractExternalDat
 
     public void testSortMaterializesNullPartitionValue() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        String ds = dataset("hive_null_sort");
-        try (var response = runDistributed("FROM " + ds + " | SORT id")) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat("all five rows return", rows.size(), equalTo(5));
-            int region = columnIndex(response, "region");
-            int id = columnIndex(response, "id");
-            for (List<Object> row : rows) {
-                long rid = ((Number) row.get(id)).longValue();
-                if (rid <= 2) {
-                    assertThat("non-sentinel partition materialises its value", row.get(region), equalTo("east"));
-                } else {
-                    assertThat("sentinel partition materialises a null under SORT", row.get(region), nullValue());
-                }
+        QueryResult result = runDistributed("FROM " + dataset("hive_null_sort") + " | SORT id");
+        assertThat("all five rows return", result.rows().size(), equalTo(5));
+        int region = result.index("region");
+        int id = result.index("id");
+        for (List<Object> row : result.rows()) {
+            long rid = ((Number) row.get(id)).longValue();
+            if (rid <= 2) {
+                assertThat("non-sentinel partition materialises its value", row.get(region), equalTo("east"));
+            } else {
+                assertThat("sentinel partition materialises a null under SORT", row.get(region), nullValue());
             }
         }
     }
 
     public void testWhereRegionIsNull() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        String ds = dataset("hive_null_isnull");
-        try (var response = runDistributed("FROM " + ds + " | WHERE region IS NULL | SORT id")) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat("only the two sentinel-partition rows match IS NULL", rows.size(), equalTo(2));
-            int region = columnIndex(response, "region");
-            for (List<Object> row : rows) {
-                assertThat(row.get(region), nullValue());
-            }
+        QueryResult result = runDistributed("FROM " + dataset("hive_null_isnull") + " | WHERE region IS NULL | SORT id");
+        assertThat("only the two sentinel-partition rows match IS NULL", result.rows().size(), equalTo(2));
+        int region = result.index("region");
+        for (List<Object> row : result.rows()) {
+            assertThat(row.get(region), nullValue());
         }
     }
 
     public void testWhereRegionIsNotNull() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        String ds = dataset("hive_null_isnotnull");
-        try (var response = runDistributed("FROM " + ds + " | WHERE region IS NOT NULL | SORT id")) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat("only the three region=east rows match IS NOT NULL", rows.size(), equalTo(3));
-            int region = columnIndex(response, "region");
-            for (List<Object> row : rows) {
-                assertThat(row.get(region), equalTo("east"));
-            }
+        QueryResult result = runDistributed("FROM " + dataset("hive_null_isnotnull") + " | WHERE region IS NOT NULL | SORT id");
+        assertThat("only the three region=east rows match IS NOT NULL", result.rows().size(), equalTo(3));
+        int region = result.index("region");
+        for (List<Object> row : result.rows()) {
+            assertThat(row.get(region), equalTo("east"));
         }
     }
 
-    private org.elasticsearch.xpack.esql.action.EsqlQueryResponse runDistributed(String query) {
+    /**
+     * Runs {@code query} forced-distributed and extracts rows + column names INSIDE the try-with-resources, so the
+     * refcounted response is closed on every path — including if the distribution assertion throws (a leaked response
+     * would fire a misleading second failure in cluster teardown).
+     */
+    private QueryResult runDistributed(String query) {
         QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build());
         var request = syncEsqlQueryRequest(query);
         request.pragmas(pragmas);
         request.acceptedPragmaRisks(true); // pragmas are rejected on non-snapshot builds without this
         request.profile(true);
-        var response = run(request);
-        assertThat("external scan must distribute across >= 2 data nodes", externalScanNodeNames(response).size(), greaterThanOrEqualTo(2));
-        return response;
+        try (var response = run(request)) {
+            assertThat(
+                "external scan must distribute across >= 2 data nodes",
+                externalScanNodeNames(response).size(),
+                greaterThanOrEqualTo(2)
+            );
+            return new QueryResult(getValuesList(response), response.columns().stream().map(c -> c.name()).toList());
+        }
     }
 
-    private static int columnIndex(EsqlQueryResponse response, String name) {
-        var columns = response.columns();
-        for (int i = 0; i < columns.size(); i++) {
-            if (columns.get(i).name().equals(name)) {
-                return i;
+    private record QueryResult(List<List<Object>> rows, List<String> columns) {
+        int index(String name) {
+            int i = columns.indexOf(name);
+            if (i < 0) {
+                throw new AssertionError("column [" + name + "] not found in " + columns);
             }
+            return i;
         }
-        throw new AssertionError("column [" + name + "] not found in " + columns);
     }
 
     private static Path writeFiveColParquet(Path dir, List<Integer> ids) throws IOException {

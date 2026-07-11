@@ -77,6 +77,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     private Path csvFixture;
     private Path csvFixtureAlt;
+    private Path csvUnsignedLongFixture;
+    private Path ndjsonUnsignedLongFixture;
     private Path ndjsonFixture;
     private Path csvDateFixture;
     private Path ndjsonDateFixture;
@@ -106,6 +108,18 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Files.writeString(csvFixture, String.join("\n", "emp_no:integer,first_name:keyword", "1,Alice", "2,Bob", "3,Carol") + "\n");
         csvFixtureAlt = createTempFile("dataset-fixture-alt-", ".csv");
         Files.writeString(csvFixtureAlt, String.join("\n", "emp_no:integer,first_name:keyword", "10,Diana", "11,Eve") + "\n");
+        // unsigned_long fixtures: the interesting values live in (2^63, 2^64) — they overflow a signed long, so a
+        // reader that quietly routes them through the long path corrupts them rather than failing.
+        csvUnsignedLongFixture = createTempFile("dataset-ul-fixture-", ".csv");
+        Files.writeString(
+            csvUnsignedLongFixture,
+            String.join("\n", "id,v", "1,0", "2,9223372036854775808", "3,18446744073709551615") + "\n"
+        );
+        ndjsonUnsignedLongFixture = createTempFile("dataset-ul-fixture-", ".ndjson");
+        Files.writeString(
+            ndjsonUnsignedLongFixture,
+            String.join("\n", "{\"id\":1,\"v\":0}", "{\"id\":2,\"v\":9223372036854775808}", "{\"id\":3,\"v\":18446744073709551615}") + "\n"
+        );
         // NDJSON fixture with the SAME physical field names (emp_no/first_name) as the CSV fixture, so rename tests can
         // exercise the by-name (JSON key) read path: a declared `source` maps the logical column to its JSON field.
         ndjsonFixture = createTempFile("dataset-fixture-", ".ndjson");
@@ -3275,5 +3289,69 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
         return new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
+    }
+
+    /**
+     * A declared {@code unsigned_long} was accepted by PUT dataset and then failed every
+     * {@code FROM} over it on the text formats — the readers re-derived the type→block-shape mapping locally and
+     * omitted the type, so they threw at page setup, before {@code error_mode} could apply. End-to-end, the full
+     * {@code [0, 2^64-1]} domain must now come back at full magnitude, identically from CSV and NDJSON, and equal
+     * to what an explicit {@code ::unsigned_long} cast of the same token produces.
+     */
+    private void assertDeclaredUnsignedLongReadsFullMagnitude(String datasetName, Path fixture, String format) throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", null));
+        properties.put("v", new DatasetFieldMapping("unsigned_long", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    datasetName,
+                    "local_ds",
+                    fixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", format)),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + datasetName + " | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            // Column type must survive as unsigned_long, not silently widen.
+            assertThat(response.columns().get(1).type().typeName(), equalTo("unsigned_long"));
+            assertThat(rows.get(0).get(1).toString(), equalTo("0"));
+            assertThat(rows.get(1).get(1).toString(), equalTo("9223372036854775808"));   // 2^63
+            assertThat(rows.get(2).get(1).toString(), equalTo("18446744073709551615"));  // 2^64-1
+        }
+
+        // Cast parity: the declared read agrees with an explicit ::unsigned_long over the same magnitudes.
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM " + datasetName + " | SORT id | EVAL same = (v == \"18446744073709551615\"::unsigned_long) | LIMIT 10"
+                ),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(2).get(rows.get(2).size() - 1), equalTo(true));
+            assertThat(rows.get(0).get(rows.get(0).size() - 1), equalTo(false));
+        }
+    }
+
+    public void testDeclaredUnsignedLongReadsFromCsv() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertDeclaredUnsignedLongReadsFullMagnitude("ul_csv", csvUnsignedLongFixture, "csv");
+    }
+
+    public void testDeclaredUnsignedLongReadsFromNdjson() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertDeclaredUnsignedLongReadsFullMagnitude("ul_ndjson", ndjsonUnsignedLongFixture, "ndjson");
     }
 }

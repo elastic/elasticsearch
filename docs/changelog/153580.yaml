@@ -1,0 +1,5 @@
+pr: 153580
+summary: "ES|QL: reconcile external-dataset `error_mode` so `skip_row` drops the row on NDJSON like CSV/TSV"
+area: ES|QL
+type: bug
+issues: []

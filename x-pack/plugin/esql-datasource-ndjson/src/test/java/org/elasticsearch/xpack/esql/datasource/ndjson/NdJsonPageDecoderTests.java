@@ -660,9 +660,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * A bad VALUE is a per-cell data failure the error policy governs — never the blanket
      * unsupportedTypeForNdjson throw that used to fire before any cell was even looked at.
      */
-    public void testDeclaredUnsignedLongBadValueIsPerCellUnderLenient() throws IOException {
+    public void testDeclaredUnsignedLongBadValueIsPerCellUnderNullField() throws IOException {
         String ndjson = "{\"v\":-1}\n{\"v\":18446744073709551616}\n{\"v\":\"abc\"}\n{\"v\":5}\n";
-        try (Page page = decodeOneColumn(ndjson, DataType.UNSIGNED_LONG, ErrorPolicy.LENIENT)) {
+        try (Page page = decodeOneColumn(ndjson, DataType.UNSIGNED_LONG, ErrorPolicy.PERMISSIVE)) {
             LongBlock block = page.getBlock(0);
             assertEquals(4, block.getPositionCount());
             assertTrue("negative nulls the cell", block.isNull(0));
@@ -679,7 +679,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      */
     public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
         String ndjson = "{\"v\":\"1e999999999\"}\n{\"v\":1e999999999}\n{\"v\":5}\n";
-        try (Page page = decodeOneColumn(ndjson, DataType.UNSIGNED_LONG, ErrorPolicy.LENIENT)) {
+        try (Page page = decodeOneColumn(ndjson, DataType.UNSIGNED_LONG, ErrorPolicy.PERMISSIVE)) {
             LongBlock block = page.getBlock(0);
             assertTrue("string exotic exponent nulls the cell", block.isNull(0));
             assertTrue("numeric exotic exponent nulls the cell", block.isNull(1));

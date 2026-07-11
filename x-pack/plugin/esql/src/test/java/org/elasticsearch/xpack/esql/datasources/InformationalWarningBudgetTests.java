@@ -19,6 +19,12 @@ import java.util.concurrent.CyclicBarrier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+/**
+ * Pins the contract {@link InformationalWarningBudget} exists to enforce: across all callers sharing one
+ * budget it admits at most {@code cap} distinct payloads plus a single overflow marker, deduplicates by
+ * value, spends no cap slot on a relayed per-collector overflow marker, and stays within that ceiling
+ * under concurrent access from many threads (the multi-driver, multi-segment fan-out it guards).
+ */
 public class InformationalWarningBudgetTests extends ESTestCase {
 
     public void testAdmitsUpToCapDistinctThenOneOverflowMarker() {

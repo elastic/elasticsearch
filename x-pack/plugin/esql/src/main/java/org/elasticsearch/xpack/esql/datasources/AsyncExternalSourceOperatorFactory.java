@@ -2689,7 +2689,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         statsStripeSize,
                         statsColumnScope,
                         splitIsFileFinal,
-                        externalSourceMetrics
+                        externalSourceMetrics,
+                        warningSink
                     );
                 }
                 // Bracket multi-value CSV cannot prove a record start at a mid-file offset (bracket depth is

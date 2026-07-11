@@ -54,8 +54,10 @@ public class SkipWarnings {
      * match on "further warnings suppressed" keep working regardless of which layer capped.
      */
     public static String overflowMessage() {
-        return "... further warnings suppressed (more than " + MAX_ADDED_WARNINGS + " recorded)";
+        return OVERFLOW_MESSAGE;
     }
+
+    private static final String OVERFLOW_MESSAGE = "... further warnings suppressed (more than " + MAX_ADDED_WARNINGS + " recorded)";
 
     /**
      * Shared sink used when the current {@link ErrorPolicy} never triggers skip/null-fill behavior

@@ -910,6 +910,45 @@ error on rename timestamp:
   - match: { error.reason: '/(verification_exception:\ )?Found\ 1\ problem\nline\ 3:13:\ \[rate\(k8s.pod.network.tx\)\]\ requires\ the\ \[@timestamp\]\ field,\ which\ was\ either\ not\ present\ in\ the\ source\ index,\ or\ has\ been\ dropped\ or\ renamed/' }
 
 ---
+first/last with null sort and dropped timestamp fails cleanly:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_command_v0, fn_first_fix_null_sort_dropped_timestamp, fn_last_fix_null_sort_dropped_timestamp ]
+      reason: "TS specific check"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            TS test
+            | KEEP k8s.pod.ip, k8s.pod.name
+            | STATS x = first(k8s.pod.ip, null) BY k8s.pod.name
+
+  - match: { error.type: "verification_exception" }
+  - match: { error.reason: '/requires\ the\ \[@timestamp\]\ field,\ which\ was\ either\ not\ present\ in\ the\ source\ index,\ or\ has\ been\ dropped\ or\ renamed/' }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            TS test
+            | KEEP k8s.pod.ip, k8s.pod.name
+            | STATS x = last(k8s.pod.ip, null) BY k8s.pod.name
+
+  - match: { error.type: "verification_exception" }
+  - match: { error.reason: '/requires\ the\ \[@timestamp\]\ field,\ which\ was\ either\ not\ present\ in\ the\ source\ index,\ or\ has\ been\ dropped\ or\ renamed/' }
+
+---
 Stats with partial submetrics for aggregate metric double with average as default:
   - requires:
       test_runner_features: [capabilities]

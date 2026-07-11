@@ -13,7 +13,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -71,6 +74,28 @@ public final class SourceStatisticsSerializer {
     static final String MAX_UNSERVABLE_SUFFIX = ".max_unservable";
 
     private SourceStatisticsSerializer() {}
+
+    /**
+     * The names of the Hive-partition (path-derived) columns for a source, read from the serialized
+     * {@link #PARTITION_COLUMNS_KEY} stamp in {@code sourceMetadata}. This is the ONE node-safe channel for
+     * partition identity: the {@code FileList} that carries {@code PartitionMetadata} is coordinator-only and
+     * deserializes to {@code UNRESOLVED} on a data node, so any consumer that reads partition names off the
+     * fileList sees an empty set there. Every node-agnostic consumer reads partition identity through this
+     * method (usually via the {@code partitionColumnNames()} accessor on {@code ExternalSourceExec} /
+     * {@code ExternalRelation}), never off the fileList. Returns an empty set when the source is not
+     * partitioned. The returned set preserves the stamped order.
+     */
+    @SuppressWarnings("unchecked")
+    public static Set<String> partitionColumnNames(Map<String, Object> sourceMetadata) {
+        if (sourceMetadata == null) {
+            return Set.of();
+        }
+        Object names = sourceMetadata.get(PARTITION_COLUMNS_KEY);
+        if (names instanceof Collection<?> collection && collection.isEmpty() == false) {
+            return Collections.unmodifiableSet(new LinkedHashSet<>((Collection<String>) collection));
+        }
+        return Set.of();
+    }
 
     /**
      * Merges statistics entries into a new map that includes both the original sourceMetadata

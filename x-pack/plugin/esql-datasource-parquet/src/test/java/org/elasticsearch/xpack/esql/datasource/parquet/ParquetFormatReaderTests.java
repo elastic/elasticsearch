@@ -1123,6 +1123,37 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testReadNanosIncludesIteratorConsumption() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("count").named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 500; i++) {
+                Group group = factory.newGroup();
+                group.add("count", i);
+                groups.add(group);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 50)) {
+            long readNanosAfterOpen = reader.statusSnapshot().readNanos();
+            int pages = 0;
+            while (iterator.hasNext()) {
+                try (Page page = iterator.next()) {
+                    pages++;
+                }
+            }
+            assertThat(pages, greaterThan(0));
+            // read_nanos must grow as the iterator is consumed (row-group transitions + per-batch
+            // decode), not just cover the read()/readRange() setup phase measured before the loop.
+            assertThat(reader.statusSnapshot().readNanos(), greaterThan(readNanosAfterOpen));
+        }
+    }
+
     public void testReadFloatColumn() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.FLOAT).named("temperature").named("test_schema");
 

@@ -1926,8 +1926,11 @@ public class NdJsonPageDecoder implements Closeable {
             // skip_row drops the whole record (ErrorPolicy.Mode.SKIP_ROW: "drop the entire bad row", as
             // CsvFormatReader does); null_field keeps the record and nulls this one cell. Both warn.
             // A value coercion failure under skip_row drops the whole record (matching CsvFormatReader and the
-            // Mode.SKIP_ROW "drop the entire bad row" contract); null_field keeps the record and nulls this cell.
-            // shapeConflict handles the two modes the same way, so the reader is consistent across failure classes.
+            // Mode.SKIP_ROW "drop the entire bad row" contract). This deliberately differs from shapeConflict, which
+            // keeps the record and null-fills only the conflicting field even under skip_row — a documented behavior
+            // choice pinned by testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills, not a technical constraint
+            // (both run inside decodePageLenient's per-record scratch, so shapeConflict could drop too). Unifying the
+            // two is a deferred decision; here the coercion failure honors the drop.
             boolean skipRow = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
             String message = base + (skipRow ? " — this record is skipped" : " — this record's [" + name + "] is null");
             if (inArray == false) {
@@ -1956,11 +1959,6 @@ public class NdJsonPageDecoder implements Closeable {
             // Built via concatenation, not LoggerMessageFormat.format: a String-typed first vararg
             // would resolve to the ambiguous format(String prefix, String pattern, Object... args)
             // overload instead of format(String pattern, Object... args), silently mangling the message.
-            // skip_row drops the whole record (the row's shape is bad), consistent with a value coercion failure and
-            // the Mode.SKIP_ROW "drop the entire bad row" contract; null_field keeps the record and nulls this field
-            // only (the unset block is null-filled at page assembly). See #1028 for the field-level shape-conflict
-            // semantics; the drop under skip_row is the same rowDroppedBySkipRow mechanism coercionFailure uses.
-            boolean skipRow = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
             String message = "field ["
                 + fieldLabel
                 + "] at line ["
@@ -1971,17 +1969,14 @@ public class NdJsonPageDecoder implements Closeable {
                 + fieldLabel
                 + "] resolved to "
                 + resolvedShape
-                + " from earlier records — this record is "
-                + (skipRow ? "skipped" : "kept with [" + fieldLabel + "] null")
-                + ". A field that appears as both a scalar and an object across NDJSON "
+                + " from earlier records — this record's ["
+                + fieldLabel
+                + "] is null. A field that appears as both a scalar and an object across NDJSON "
                 + "records cannot be represented as one type; make the field's shape consistent, or "
                 + "model it as separate fields.";
             parser.skipChildren();
             if (errorPolicy.isStrict()) {
                 throw new EsqlIllegalArgumentException(message);
-            }
-            if (skipRow) {
-                rowDroppedBySkipRow = true;
             }
             errorCount++;
             skipWarnings.add(message);

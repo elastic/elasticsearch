@@ -314,10 +314,10 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     /**
      * Same conflict as {@link #testScalarWhereNestedObjectExpectedStrictFails}, but under a non-strict policy: the
      * conflicting field is null-filled and a client warning is surfaced, while the row's other columns (and other
-     * rows) still decode normally — the {@code null_field} per-field null-fill (elastic/esql-planning#1028). Under
-     * {@code skip_row} the record is dropped instead (see {@link #testScalarWhereNestedObjectExpectedSkipRowDropsRecord}).
+     * rows) still decode normally. This is a per-field null-fill, not a whole-row skip — elastic/esql-planning#1028
+     * notes the conflict path already decodes the rest of the record, so there is no need to drop it wholesale.
      */
-    public void testScalarWhereNestedObjectExpectedNullFieldWarnsAndNullFills() throws IOException {
+    public void testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills() throws IOException {
         String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}, \"id\": 1}\n"
             + "{\"address\": \"unstructured\", \"id\": 2}\n"
             + "{\"address\": {\"city\": \"London\", \"zip\": \"SW1A\"}, \"id\": 3}\n";
@@ -330,7 +330,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                     attribute("address.zip", DataType.KEYWORD),
                     attribute("id", DataType.INTEGER)
                 ),
-                ErrorPolicy.PERMISSIVE
+                ErrorPolicy.LENIENT
             )
         ) {
             assertNotNull(page);
@@ -354,38 +354,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * Under {@code skip_row}, a shape conflict on a projected field drops the WHOLE record — consistent with a value
-     * coercion failure and the "drop the entire bad row" contract, unlike {@code null_field} which keeps the record.
-     */
-    public void testScalarWhereNestedObjectExpectedSkipRowDropsRecord() throws IOException {
-        String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}, \"id\": 1}\n"
-            + "{\"address\": \"unstructured\", \"id\": 2}\n"
-            + "{\"address\": {\"city\": \"London\", \"zip\": \"SW1A\"}, \"id\": 3}\n";
-
-        try (
-            Page page = decodePage(
-                ndjson,
-                List.of(
-                    attribute("address.city", DataType.KEYWORD),
-                    attribute("address.zip", DataType.KEYWORD),
-                    attribute("id", DataType.INTEGER)
-                ),
-                ErrorPolicy.LENIENT
-            )
-        ) {
-            assertNotNull(page);
-            assertEquals("the shape-conflict record is dropped whole under skip_row", 2, page.getPositionCount());
-            IntBlock id = page.getBlock(2);
-            assertEquals(1, id.getInt(id.getFirstValueIndex(0)));
-            assertEquals(3, id.getInt(id.getFirstValueIndex(1))); // row 2 (id=2) gone, not null-filled
-        }
-
-        List<String> warnings = drainWarnings();
-        assertFalse("expected a client warning for the dropped shape-conflict record", warnings.isEmpty());
-    }
-
-    /**
-     * Same shape conflict as {@link #testScalarWhereNestedObjectExpectedNullFieldWarnsAndNullFills}, but with a
+     * Same shape conflict as {@link #testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills}, but with a
      * {@code warningSink} supplied: the decoder must route every emitted message through the sink instead of
      * {@link HeaderWarning}, since {@link NdJsonPageDecoder}'s decode loop can run on a background reader thread
      * whose thread-local response headers never reach the client (see {@link SkipWarnings}).

@@ -1695,11 +1695,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Under a non-strict policy, the conflicting record's [user] column is null-filled and a client warning is
-     * surfaced, while [event] (and the other records) decode normally -- a per-field null-fill, not a
-     * whole-row skip (elastic/esql-planning#1028).
+     * Under {@code null_field}, the conflicting record's [user] column is null-filled and a client warning is
+     * surfaced, while [event] (and the other records) decode normally -- a per-field null-fill (elastic/esql-planning#1028).
+     * Under {@code skip_row} the record is dropped instead (covered in {@code NdJsonPageDecoderTests}).
      */
-    public void testScalarThenObjectConflictLenientNullFillsAndWarns() throws IOException {
+    public void testScalarThenObjectConflictNullFieldNullFillsAndWarns() throws IOException {
         String ndjson = """
             {"event":1,"user":"alice"}
             {"event":2,"user":{"id":"bob","tier":"gold"}}
@@ -1708,7 +1708,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var object = new BytesStorageObject("memory://scalar-then-object.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         var schema = reader.metadata(object).schema();
-        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build();
+        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.PERMISSIVE).build();
         try (var iterator = reader.read(object, ctx)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
@@ -1728,8 +1728,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertTrue("warning should name the conflicting field, got: " + warnings, warnings.stream().anyMatch(w -> w.contains("user")));
     }
 
-    /** Mirror of {@link #testScalarThenObjectConflictLenientNullFillsAndWarns}: object shape observed first. */
-    public void testObjectThenScalarConflictLenientNullFillsAndWarns() throws IOException {
+    /** Mirror of {@link #testScalarThenObjectConflictNullFieldNullFillsAndWarns}: object shape observed first. */
+    public void testObjectThenScalarConflictNullFieldNullFillsAndWarns() throws IOException {
         String ndjson = """
             {"event":1,"user":{"id":"bob","tier":"gold"}}
             {"event":2,"user":"alice"}
@@ -1738,7 +1738,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var object = new BytesStorageObject("memory://object-then-scalar.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         var schema = reader.metadata(object).schema();
-        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build();
+        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.PERMISSIVE).build();
         try (var iterator = reader.read(object, ctx)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
@@ -1759,13 +1759,13 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Same fixture as {@link #testScalarThenObjectConflictLenientNullFillsAndWarns}, but with
+     * Same fixture as {@link #testScalarThenObjectConflictNullFieldNullFillsAndWarns}, but with
      * {@link FormatReadContext#informationalWarningSink()} supplied: the shape-conflict warning must route
      * through the sink instead of {@link org.elasticsearch.common.logging.HeaderWarning}, since
      * {@code read} can be invoked from a background reader thread whose thread-local response
      * headers never reach the client (see {@code SkipWarnings}).
      */
-    public void testScalarThenObjectConflictLenientRoutesThroughWarningSinkWhenSupplied() throws IOException {
+    public void testScalarThenObjectConflictNullFieldRoutesThroughWarningSinkWhenSupplied() throws IOException {
         String ndjson = """
             {"event":1,"user":"alice"}
             {"event":2,"user":{"id":"bob","tier":"gold"}}
@@ -1774,7 +1774,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var object = new BytesStorageObject("memory://scalar-then-object-sink.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         List<String> sunk = new ArrayList<>();
-        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).informationalWarningSink(sunk::add).build();
+        var ctx = FormatReadContext.builder()
+            .batchSize(100)
+            .errorPolicy(ErrorPolicy.PERMISSIVE)
+            .informationalWarningSink(sunk::add)
+            .build();
         try (var iterator = reader.read(object, ctx)) {
             assertTrue(iterator.hasNext());
             iterator.next();

@@ -83,6 +83,7 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.security.transport.ssl.enabled", "false")
         .setting("xpack.security.authc.api_key.enabled", "true")
+        .setting("xpack.security.audit.enabled", "true")
         .setting("xpack.security.http.ssl.enabled", "true")
         .setting("xpack.security.http.ssl.certificate", "http.crt")
         .setting("xpack.security.http.ssl.key", "http.key")

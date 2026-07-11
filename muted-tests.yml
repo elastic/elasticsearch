@@ -811,12 +811,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.RemoteFetchServiceTests
   method: testExchangeSetupRequestRoundTripsPushdownPlanWithFieldAttributes
   issue: https://github.com/elastic/elasticsearch/issues/153567
-- class: org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormatTests
-  method: testOneRepeatedVector
-  issue: https://github.com/elastic/elasticsearch/issues/153568
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
-  method: testOneRepeatedVector
-  issue: https://github.com/elastic/elasticsearch/issues/153569
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:lookup-join.intJoinByte}
   issue: https://github.com/elastic/elasticsearch/issues/153571

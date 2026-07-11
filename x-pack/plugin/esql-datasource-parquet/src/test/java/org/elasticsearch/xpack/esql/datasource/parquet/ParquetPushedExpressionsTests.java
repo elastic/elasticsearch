@@ -449,6 +449,104 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString(String.valueOf(expectedDays)));
     }
 
+    /**
+     * A DATE column stores whole days; {@code d < <non-midnight millis>} must round the day bound UP (ceilDiv), not
+     * down. With floorDiv the predicate becomes {@code day < floor(millis)} and prunes the row group holding the very
+     * day the literal falls in — silent data loss. Reachable with a plain inferred date column, no declared schema.
+     */
+    public void testDateColumnLessThanNonMidnightRoundsBoundUp() {
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        long day = 19723L;
+        long nonMidnight = day * ParquetPushedExpressions.MILLIS_PER_DAY + 1; // 1ms past midnight of day 19723
+        Expression lt = new LessThan(Source.EMPTY, attr("d", DataType.DATETIME), datetimeLit(nonMidnight), null);
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(lt)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        // ceilDiv(nonMidnight) == day + 1, so lt keeps day 19723; floorDiv would push lt(day 19723) and prune it.
+        assertThat(fp.toString(), containsString(String.valueOf(day + 1)));
+    }
+
+    /**
+     * {@code d != <non-midnight millis>} is true for every day (no day equals a non-midnight instant), so pushing a
+     * {@code notEq(day)} — which parquet-mr uses to prune an all-that-day row group — would drop matching rows. A
+     * non-midnight {@code !=} must decline pushdown (only a midnight literal is exactly representable).
+     */
+    public void testDateColumnNotEqualsNonMidnightDeclinesPushdown() {
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        long nonMidnight = 19723L * ParquetPushedExpressions.MILLIS_PER_DAY + 1;
+        Expression ne = new NotEquals(Source.EMPTY, attr("d", DataType.DATETIME), datetimeLit(nonMidnight), null);
+
+        assertNull(
+            "d != <non-midnight> must not push a notEq day predicate",
+            new ParquetPushedExpressions(List.of(ne)).toFilterPredicate(schema)
+        );
+    }
+
+    /** {@code d <= <non-midnight>} rounds DOWN (floorDiv) — that direction is correct, so it must still push. */
+    public void testDateColumnLessThanOrEqualNonMidnightStillPushes() {
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        long day = 19723L;
+        long nonMidnight = day * ParquetPushedExpressions.MILLIS_PER_DAY + 1;
+        Expression lte = new LessThanOrEqual(Source.EMPTY, attr("d", DataType.DATETIME), datetimeLit(nonMidnight), null);
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(lte)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(day))); // floorDiv == day 19723, correct for <=
+    }
+
+    /** {@code d IN (midnight, non-midnight)} keeps only the midnight day; the non-midnight literal can equal no day. */
+    public void testDateColumnInDropsNonMidnightElement() {
+        MessageType schema = Types.buildMessage().required(INT32).as(dateType()).named("d").named("test");
+
+        long midnightDay = 19723L;
+        long midnight = midnightDay * ParquetPushedExpressions.MILLIS_PER_DAY;
+        long nonMidnight = 20000L * ParquetPushedExpressions.MILLIS_PER_DAY + 5;
+        Expression in = new In(Source.EMPTY, attr("d", DataType.DATETIME), List.of(datetimeLit(midnight), datetimeLit(nonMidnight)));
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(in)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        String repr = fp.toString();
+        assertThat("the midnight day is pushed", repr, containsString(String.valueOf(midnightDay)));
+        assertThat("the non-midnight day must be dropped, not floorDiv'd in", repr, not(containsString(String.valueOf(20000L))));
+    }
+
+    // --- Declared LONG over an UNSIGNED_64 column (signed/unsigned comparator mismatch) ---
+
+    /**
+     * A {@code uint64} column DECLARED as {@code long} decodes via signed sign-wrap, so a NEGATIVE ordered literal
+     * disagrees with parquet-mr's unsigned row-group comparator: {@code u > -5} would prune the non-negative-block row
+     * groups that genuinely match. Ordered comparisons with a negative literal must decline (the INT32 sibling does).
+     */
+    public void testDeclaredLongOverUnsignedInt64NegativeOrderedDeclinesPushdown() {
+        MessageType schema = Types.buildMessage().required(INT64).as(LogicalTypeAnnotation.intType(64, false)).named("u").named("test");
+
+        Expression gt = new GreaterThan(Source.EMPTY, attr("u", DataType.LONG), lit(-5L, DataType.LONG), null);
+        assertNull("u > -5 over uint64 must not push", new ParquetPushedExpressions(List.of(gt)).toFilterPredicate(schema));
+
+        Expression lt = new LessThan(Source.EMPTY, attr("u", DataType.LONG), lit(-1L, DataType.LONG), null);
+        assertNull("u < -1 over uint64 must not push", new ParquetPushedExpressions(List.of(lt)).toFilterPredicate(schema));
+    }
+
+    /** {@code eq}/{@code notEq} are bit-pattern exact, so a negative equality literal over uint64 still pushes. */
+    public void testDeclaredLongOverUnsignedInt64NegativeEqStillPushes() {
+        MessageType schema = Types.buildMessage().required(INT64).as(LogicalTypeAnnotation.intType(64, false)).named("u").named("test");
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("u", DataType.LONG, -5L))).toFilterPredicate(schema);
+        assertNotNull("u == -5 over uint64 is bit-exact and must still push", fp);
+    }
+
+    /** A POSITIVE ordered literal over uint64 only over-includes (RECHECK removes the extras), so it still pushes. */
+    public void testDeclaredLongOverUnsignedInt64PositiveOrderedStillPushes() {
+        MessageType schema = Types.buildMessage().required(INT64).as(LogicalTypeAnnotation.intType(64, false)).named("u").named("test");
+
+        Expression gt = new GreaterThan(Source.EMPTY, attr("u", DataType.LONG), lit(5L, DataType.LONG), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(gt)).toFilterPredicate(schema);
+        assertNotNull("u > 5 (positive) over uint64 over-includes safely and must still push", fp);
+    }
+
     // --- INT96 (skip pushdown) ---
 
     public void testToFilterPredicateInt96SkipsPushdown() {

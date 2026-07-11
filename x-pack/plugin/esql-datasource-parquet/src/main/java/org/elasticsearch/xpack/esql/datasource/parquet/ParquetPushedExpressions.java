@@ -541,7 +541,21 @@ final class ParquetPushedExpressions {
             return null;
         }
         return switch (ptype.getPrimitiveTypeName()) {
-            case INT64 -> orderedPredicate(FilterApi.longColumn(columnName), value != null ? ((Number) value).longValue() : null, op);
+            case INT64 -> {
+                if (value != null
+                    && ParquetColumnDecoding.isUnsignedInt64(ptype)
+                    && ((Number) value).longValue() < 0
+                    && op != PredicateOp.EQ
+                    && op != PredicateOp.NOT_EQ) {
+                    // Ordered comparison with a NEGATIVE literal over an UNSIGNED_64 column: the block decodes uint64
+                    // via signed sign-wrap (values >= 2^63 read as negative), so signed-long ordering disagrees with
+                    // parquet-mr's UNSIGNED row-group comparator — gt/lt would prune the non-negative-block row groups
+                    // that genuinely match. eq/notEq are safe (bit patterns align), and a positive literal only
+                    // over-includes (RECHECK removes the extras). Decline; the INT32 sibling declines analogously.
+                    yield null;
+                }
+                yield orderedPredicate(FilterApi.longColumn(columnName), value != null ? ((Number) value).longValue() : null, op);
+            }
             case INT32 -> {
                 if (value == null) {
                     yield orderedPredicate(FilterApi.intColumn(columnName), null, op);
@@ -668,8 +682,13 @@ final class ParquetPushedExpressions {
         return switch (ptype.getPrimitiveTypeName()) {
             case INT32 -> {
                 if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
-                    int days = (int) Math.floorDiv(millis, MILLIS_PER_DAY);
-                    yield orderedPredicate(FilterApi.intColumn(columnName), days, op);
+                    // A DATE column stores whole days; the literal is epoch-millis. The bound must be rounded to a
+                    // day boundary OUTWARD per operator (floorDiv for every op silently prunes matching days on `<`
+                    // and `!=` — a non-midnight literal makes `< X` exclude the day it falls in, and `!= X` drop the
+                    // all-day-D row group that genuinely matches). boundToPhysicalUnit handles the direction and
+                    // declines EQ/NOT_EQ on a non-midnight literal.
+                    Long dayBound = boundToPhysicalUnit(millis, op, MILLIS_PER_DAY);
+                    yield dayBound == null ? null : orderedPredicate(FilterApi.intColumn(columnName), (int) (long) dayBound, op);
                 }
                 yield null;
             }
@@ -708,7 +727,7 @@ final class ParquetPushedExpressions {
      * {@code TIMESTAMP(MILLIS)} column stores milliseconds — the latter reachable when a {@code date_nanos} is DECLARED
      * over a millis column ({@code TIMESTAMP(MILLIS)} infers to {@code datetime}, and the scan widens ×1_000_000 via
      * {@code DateUtils.toNanoSeconds}) — so the nanosecond bound is converted to that physical unit rounded outward
-     * ({@link #nanosBoundToPhysical}) so the pushed predicate is never stricter than the true nanosecond predicate.
+     * ({@link #boundToPhysicalUnit}) so the pushed predicate is never stricter than the true nanosecond predicate.
      * Safe because temporal pushdown is always RECHECK (see {@link ParquetFilterPushdownSupport#isFullyEvaluable}), so
      * {@code FilterExec} re-applies the exact semantics regardless.
      */
@@ -721,7 +740,7 @@ final class ParquetPushedExpressions {
             return orderedPredicate(FilterApi.longColumn(columnName), null, op);
         }
         long nanos = ((Number) value).longValue();
-        Long bound = nanosBoundToPhysical(nanos, op, dateNanosPhysicalDivisor(ptype.getLogicalTypeAnnotation()));
+        Long bound = boundToPhysicalUnit(nanos, op, dateNanosPhysicalDivisor(ptype.getLogicalTypeAnnotation()));
         return bound == null ? null : orderedPredicate(FilterApi.longColumn(columnName), bound, op);
     }
 
@@ -742,19 +761,21 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * Converts an epoch-nanosecond bound to the physical-unit bound to push against a column stored in that unit
-     * ({@code divisor} nanoseconds per stored tick: 1 for nanos, 1_000 for micros, 1_000_000 for millis), rounding
-     * each comparison outward so the pushed predicate never excludes a matching row (a stored tick {@code t}
-     * represents the instant {@code t × divisor} ns). Equality/inequality are only representable when the bound is an
-     * exact multiple of {@code divisor}; otherwise {@code null} is returned and no predicate is pushed (the scan plus
-     * {@code FilterExec} recheck still yields the correct result, only without pruning). {@code divisor == 1} is the
-     * identity case (nanos-over-nanos), where floor/ceil/mod all leave the bound unchanged.
+     * Converts a bound expressed in a fine unit to the coarse physical-unit bound to push against a column stored in
+     * that coarse unit ({@code divisor} fine units per stored tick — e.g. nanos→micros is 1_000, nanos→millis is
+     * 1_000_000, epoch-millis→epoch-days is {@link #MILLIS_PER_DAY}), rounding each comparison OUTWARD so the pushed
+     * predicate never excludes a matching row (a stored tick {@code t} represents the fine value {@code t × divisor}):
+     * {@code >}/{@code <=} round down, {@code >=}/{@code <} round up, and {@code ==}/{@code !=} are only representable
+     * when the bound lands exactly on a tick — otherwise {@code null} is returned and no predicate is pushed (the scan
+     * plus {@code FilterExec} recheck still yields the correct result, only without pruning). Getting the direction
+     * wrong (e.g. floor for {@code <}) is a silent false-negative: it prunes a row group the query genuinely matches.
+     * {@code divisor == 1} is the identity case, where floor/ceil/mod all leave the bound unchanged.
      */
-    private static Long nanosBoundToPhysical(long nanos, PredicateOp op, long divisor) {
+    private static Long boundToPhysicalUnit(long value, PredicateOp op, long divisor) {
         return switch (op) {
-            case GT, LTE -> Math.floorDiv(nanos, divisor);
-            case GTE, LT -> Math.ceilDiv(nanos, divisor);
-            case EQ, NOT_EQ -> nanos % divisor == 0 ? nanos / divisor : null;
+            case GT, LTE -> Math.floorDiv(value, divisor);
+            case GTE, LT -> Math.ceilDiv(value, divisor);
+            case EQ, NOT_EQ -> value % divisor == 0 ? value / divisor : null;
         };
     }
 
@@ -865,11 +886,17 @@ final class ParquetPushedExpressions {
             return switch (ptype.getPrimitiveTypeName()) {
                 case INT32 -> {
                     if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
-                        yield inPredicate(
-                            FilterApi.intColumn(columnName),
-                            rawValues,
-                            v -> (int) Math.floorDiv(((Number) v).longValue(), MILLIS_PER_DAY)
-                        );
+                        // Only a midnight literal can equal a stored day; a non-midnight literal matches no day, so
+                        // drop it from the pushed set (a correct subset). Unlike a floorDiv'd day that over-includes,
+                        // an exact set stays correct when this IN is wrapped in NOT. Empty set => push nothing.
+                        List<Object> days = new ArrayList<>();
+                        for (Object v : rawValues) {
+                            long m = ((Number) v).longValue();
+                            if (m % MILLIS_PER_DAY == 0) {
+                                days.add((int) (m / MILLIS_PER_DAY));
+                            }
+                        }
+                        yield days.isEmpty() ? null : inPredicate(FilterApi.intColumn(columnName), days, v -> (Integer) v);
                     }
                     yield null;
                 }

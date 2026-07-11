@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -359,8 +360,8 @@ public abstract class FullTextFunction extends Function
                         failures.add(
                             fail(
                                 plan,
-                                "{} is not supported on federated data sources [{}]; it requires a Lucene index. Use "
-                                    + "MATCH(TO_TEXT(field), \"term\") for full-text search on non-indexed data.",
+                                "{} is not supported on federated data sources [{}]; it requires an index. Use "
+                                    + "MATCH(field, \"term\") for full-text search on non-indexed data.",
                                 typeErrorMsgProvider.apply(exp),
                                 externalRelation.datasetName() != null ? externalRelation.datasetName() : lp.sourceText()
                             )
@@ -447,7 +448,7 @@ public abstract class FullTextFunction extends Function
                 if (function.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
                     String fieldName = field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText();
                     String federatedSourceClause = isFieldFromFederatedSource(plan, field)
-                        ? " (the source is a federated data source, not a Lucene-backed index)"
+                        ? " (the source is a federated data source, not an index)"
                         : "";
                     failures.add(
                         fail(
@@ -678,10 +679,16 @@ public abstract class FullTextFunction extends Function
     }
 
     /**
-     * Whether {@code field} is (by name) an output of an {@link ExternalRelation} in {@code plan} - i.e. the field is
+     * Whether {@code field} originates - possibly through one or more {@code RENAME}/{@code Project} aliases or a
+     * {@code MV_EXPAND} - from an output attribute of an {@link ExternalRelation} in {@code plan}, i.e. the field is
      * backed by a federated (non-Lucene) data source rather than a genuinely unmapped/computed expression on a real
-     * index. {@code field} never resolves to a {@link FieldAttribute} in this case (external sources expose plain
-     * {@code ReferenceAttribute}s), so name-based matching is used instead of attribute identity.
+     * index. Matches by attribute identity ({@code NameId}), mirroring the alias-chasing {@link #resolveToFieldAttribute}
+     * does for real index fields, so a rename to an unrelated name is still tracked back to its origin. The chain
+     * stops (returning {@code false}) as soon as it passes through a genuinely computed expression (e.g. an EVAL),
+     * since that's no longer a direct reference to the federated field - consistent with such fields never resolving
+     * to a {@link FieldAttribute} either. {@code FORK} branches aren't tracked here (their own output only exposes
+     * attributes matchable by name, see {@link #resolveToFieldAttribute}), so a field reached through FORK is
+     * conservatively reported as not federated rather than risking a false positive.
      */
     private static boolean isFieldFromFederatedSource(LogicalPlan plan, Expression field) {
         Expression fieldExpression = field;
@@ -691,14 +698,21 @@ public abstract class FullTextFunction extends Function
         if (fieldExpression instanceof Attribute == false) {
             return false;
         }
-        String fieldName = ((Attribute) fieldExpression).name();
-        Holder<Boolean> found = new Holder<>(false);
+
+        AttributeMap.Builder<Attribute> aliases = AttributeMap.builder();
+        List<ExternalRelation> externalRelations = new ArrayList<>();
         plan.forEachDown(p -> {
-            if (p instanceof ExternalRelation externalRelation
-                && externalRelation.output().stream().anyMatch(a -> a.name().equals(fieldName))) {
-                found.set(true);
+            if (p instanceof ExternalRelation externalRelation) {
+                externalRelations.add(externalRelation);
+            } else if (p instanceof Project project) {
+                for (NamedExpression ne : project.projections()) {
+                    // Projections are just aliases for attributes, so casting is safe.
+                    aliases.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
+                }
             }
         });
-        return found.get();
+
+        Attribute resolved = aliases.build().resolve(fieldExpression, (Attribute) fieldExpression);
+        return externalRelations.stream().anyMatch(er -> er.output().stream().anyMatch(a -> a.id().equals(resolved.id())));
     }
 }

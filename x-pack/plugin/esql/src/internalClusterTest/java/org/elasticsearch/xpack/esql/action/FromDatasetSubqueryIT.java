@@ -927,7 +927,7 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         assertCauseMessageContains(
             ex,
             "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping "
-                + "(the source is a federated data source, not a Lucene-backed index)"
+                + "(the source is a federated data source, not an index)"
         );
     }
 
@@ -940,8 +940,8 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         );
         assertCauseMessageContains(
             ex,
-            "[KQL] function is not supported on federated data sources [employees]; it requires a Lucene index. "
-                + "Use MATCH(TO_TEXT(field), \"term\") for full-text search on non-indexed data."
+            "[KQL] function is not supported on federated data sources [employees]; it requires an index. "
+                + "Use MATCH(field, \"term\") for full-text search on non-indexed data."
         );
     }
 
@@ -954,8 +954,8 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         );
         assertCauseMessageContains(
             ex,
-            "[QSTR] function is not supported on federated data sources [employees]; it requires a Lucene index. "
-                + "Use MATCH(TO_TEXT(field), \"term\") for full-text search on non-indexed data."
+            "[QSTR] function is not supported on federated data sources [employees]; it requires an index. "
+                + "Use MATCH(field, \"term\") for full-text search on non-indexed data."
         );
     }
 
@@ -969,7 +969,7 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         assertCauseMessageContains(
             ex,
             "[MatchPhrase] function cannot operate on [first_name], which is not a field from an index mapping "
-                + "(the source is a federated data source, not a Lucene-backed index)"
+                + "(the source is a federated data source, not an index)"
         );
     }
 

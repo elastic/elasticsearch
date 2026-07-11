@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * a keyword whether it comes from the path or the payload), so a value divergence means a real bug rather
  * than a text-vs-path type-inference artefact. Subclasses supply the per-format file writers.
  *
- * <p>This suite would have caught both bugs fixed alongside it: the parquet {@code SORT} cell (the #1162
+ * <p>This suite would have caught both bugs fixed alongside it: the parquet {@code SORT} cell (the #153503
  * TopN crash) and the parquet {@code WHERE region LIKE …} cell (the silent filter-pushdown wrong answer).
  */
 public abstract class AbstractHivePartitionParityIT extends AbstractExternalDataSourceIT {

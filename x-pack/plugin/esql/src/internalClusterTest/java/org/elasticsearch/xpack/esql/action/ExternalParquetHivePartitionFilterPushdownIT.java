@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * End-to-end guard for the partition-filter wrong-answer (part of elastic/esql-planning#1162):
+ * End-to-end guard for the partition-filter wrong-answer, fixed alongside the #153503 hive partition-identity work:
  * {@code FROM <hive-partitioned parquet> | WHERE <partition col> LIKE …} must return only the matching
  * partitions, on a distributed read.
  *

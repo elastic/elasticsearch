@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * End-to-end guard for elastic/esql-planning#1162: {@code FROM <hive-partitioned parquet> | SORT …}
+ * End-to-end guard for #153503: {@code FROM <hive-partitioned parquet> | SORT …}
  * must return rows with the path-derived partition columns materialised, not crash.
  *
  * <p>Partition columns live in the directory path, not the file payload. The eager scan path

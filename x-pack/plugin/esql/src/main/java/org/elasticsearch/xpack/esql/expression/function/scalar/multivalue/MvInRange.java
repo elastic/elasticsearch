@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -70,7 +69,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *       {@code false}, so {@code NOT} of it is {@code true}.</li>
  * </ul>
  */
-public class MvInRange extends EsqlScalarFunction implements EvaluatorMapper, TranslationAware {
+public class MvInRange extends EsqlScalarFunction implements TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvInRange",

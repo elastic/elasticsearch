@@ -643,7 +643,9 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      * comparison, so the predicate stays entirely in the FilterExec and nothing is lowered to the source query.
      */
     public void testMvInRangeTextNotPushed() {
-        var plan = plannerOptimizer.plan("from test | where mv_in_range(gender, \"a\", \"z\")");
+        // job is a text field WITH a .raw keyword subfield, so it is otherwise pushable — only the text gate stops it.
+        // (A text range would push over analyzed tokens, not the whole value, which is unsound under NOT.)
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(job, \"a\", \"z\")");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
         assertThat(mvInRangeQuery(plan), nullValue());
     }
@@ -656,6 +658,18 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var plan = plannerOptimizer.plan("from test | where mv_in_range(salary, [25000, 26000], 30000)");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
         assertThat(mvInRangeQuery(plan), nullValue());
+    }
+
+    /**
+     * A date field pushes down too — this pins the date path through Range's per-type bound formatting, which the
+     * integer plan tests above do not exercise.
+     */
+    public void testMvInRangeDatePushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(hire_date, \"2020-01-01\"::datetime, \"2021-01-01\"::datetime)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        var pushed = mvInRangeQuery(plan).toString();
+        assertThat(pushed, containsString("range"));
+        assertThat(pushed, containsString("hire_date"));
     }
 
     private static QueryBuilder mvInRangeQuery(PhysicalPlan plan) {

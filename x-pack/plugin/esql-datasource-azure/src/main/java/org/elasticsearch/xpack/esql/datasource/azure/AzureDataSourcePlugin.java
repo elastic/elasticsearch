@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.env.Environment;
@@ -40,8 +39,7 @@ import java.util.concurrent.ExecutorService;
  * Without it the workload-identity chain is {@code ManagedIdentity}-only.
  * <p>
  * Azure is not in the released ship set yet (S3 is the released cloud provider), so registration is
- * gated on the umbrella {@link DatasetMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG} and the
- * component {@link #ESQL_EXTERNAL_AZURE_FEATURE_FLAG}: available in snapshot/development builds, disabled
+ * gated on {@link #ESQL_EXTERNAL_AZURE_FEATURE_FLAG}: available in snapshot/development builds, disabled
  * in release. When the gate is off the {@code wasbs}/{@code wasb} schemes are not registered, so an
  * Azure source resolves to the generic "Unsupported storage scheme" rejection.
  */
@@ -54,7 +52,7 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
     public static final FeatureFlag ESQL_EXTERNAL_AZURE_FEATURE_FLAG = new FeatureFlag("esql_external_azure");
 
     private static boolean enabled() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() && ESQL_EXTERNAL_AZURE_FEATURE_FLAG.isEnabled();
+        return ESQL_EXTERNAL_AZURE_FEATURE_FLAG.isEnabled();
     }
 
     @Override

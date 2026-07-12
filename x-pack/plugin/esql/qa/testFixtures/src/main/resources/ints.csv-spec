@@ -1607,13 +1607,16 @@ values:integer | in_range:boolean
 
 mvInRangeElementWise
 required_capability: fn_mv_in_range
-// an existential over the values, not an envelope overlap: neither 0 nor 100 is inside [40, 60]
+// tag::mv_in_range_element_wise[]
 ROW values = [0, 100]
 | EVAL in_range = mv_in_range(values, 40, 60)
+// end::mv_in_range_element_wise[]
 ;
 
+// tag::mv_in_range_element_wise-result[]
 values:integer | in_range:boolean
 [0, 100]       | false
+// end::mv_in_range_element_wise-result[]
 ;
 
 mvInRangeNullFieldIsFalse
@@ -1639,10 +1642,14 @@ values:integer | in_range:boolean
 
 mvInRangeKeyword
 required_capability: fn_mv_in_range
+// tag::mv_in_range_keyword[]
 ROW words = ["apple", "cherry"]
 | EVAL in_range = mv_in_range(words, "banana", "date")
+// end::mv_in_range_keyword[]
 ;
 
+// tag::mv_in_range_keyword-result[]
 words:keyword       | in_range:boolean
 [apple, cherry]     | true
+// end::mv_in_range_keyword-result[]
 ;

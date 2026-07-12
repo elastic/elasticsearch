@@ -390,7 +390,9 @@
     }
   ],
   "examples" : [
-    "ROW values = [1, 5, 10]\n| EVAL in_range = mv_in_range(values, 4, 6)"
+    "ROW values = [1, 5, 10]\n| EVAL in_range = mv_in_range(values, 4, 6)",
+    "ROW values = [0, 100]\n| EVAL in_range = mv_in_range(values, 40, 60)",
+    "ROW words = [\"apple\", \"cherry\"]\n| EVAL in_range = mv_in_range(words, \"banana\", \"date\")"
   ],
   "preview" : false,
   "snapshot_only" : false

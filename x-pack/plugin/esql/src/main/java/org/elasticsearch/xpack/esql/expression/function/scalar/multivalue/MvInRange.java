@@ -92,7 +92,14 @@ public class MvInRange extends EsqlScalarFunction implements EvaluatorMapper, Tr
         description = "Returns `true` if at least one value of `field` is within the inclusive range `[lower, upper]`, "
             + "using the natural order of the type. A null or empty field returns `false`, as does a null bound. "
             + "Works on any ordered type: numbers, dates, IPs, versions, and strings (compared by their UTF-8 bytes).",
-        examples = { @Example(file = "ints", tag = "mv_in_range") },
+        examples = {
+            @Example(file = "ints", tag = "mv_in_range"),
+            @Example(
+                description = "Neither `0` nor `100` is within `[40, 60]`, so the result is `false`.",
+                file = "ints",
+                tag = "mv_in_range_element_wise"
+            ),
+            @Example(description = "Strings are compared by their UTF-8 bytes:", file = "ints", tag = "mv_in_range_keyword") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.6.0") }
     )
     public MvInRange(

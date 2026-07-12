@@ -392,7 +392,9 @@ public class TestAnalyzer {
     }
 
     /**
-     * Add an error resolving enrich indices.
+     * Add an error resolving enrich indices. If {@code policyName}/{@code mode} already has a pending registration (from an
+     * earlier {@link #addEnrichPolicy}/{@link #addEnrichError} call), this one is matched to the next occurrence of that
+     * policy name/mode in the query instead of the first - see {@link #resolveEnrichResolution}.
      */
     public TestAnalyzer addEnrichError(String policyName, Enrich.Mode mode, String reason) {
         pendingEnrichResolutions.add(new PendingEnrich(policyName, mode, null, reason));
@@ -450,7 +452,10 @@ public class TestAnalyzer {
     }
 
     /**
-     * Adds an enrich policy resolution with a specific mode by loading the mapping from a resource file.
+     * Adds an enrich policy resolution with a specific mode by loading the mapping from a resource file. If
+     * {@code policy}/{@code mode} already has a pending registration (from an earlier {@link #addEnrichPolicy}/
+     * {@link #addEnrichError} call), this one is matched to the next occurrence of that policy name/mode in the query
+     * instead of the first - see {@link #resolveEnrichResolution}.
      */
     public TestAnalyzer addEnrichPolicy(Enrich.Mode mode, String policyType, String policy, String field, String index, String mapping) {
         IndexResolution indexResolution = loadMapping(mapping, index, IndexMode.STANDARD);
@@ -464,7 +469,11 @@ public class TestAnalyzer {
     }
 
     /**
-     * Adds an enrich policy resolution with a specific mode by loading the mapping from a resource file.
+     * Adds an enrich policy resolution with a specific mode. If {@code policy}/{@code mode} already has a pending
+     * registration (from an earlier {@link #addEnrichPolicy}/{@link #addEnrichError} call), this one is matched to the next
+     * occurrence of that policy name/mode in the query instead of the first - see {@link #resolveEnrichResolution}. This
+     * lets a test give two occurrences of the same policy name/mode (e.g. one per subquery branch) different resolutions,
+     * simply by calling {@link #addEnrichPolicy}/{@link #addEnrichError} more than once for that policy name/mode.
      */
     public TestAnalyzer addEnrichPolicy(Enrich.Mode mode, String policy, ResolvedEnrichPolicy resolved) {
         pendingEnrichResolutions.add(new PendingEnrich(policy, mode, resolved, null));
@@ -475,22 +484,37 @@ public class TestAnalyzer {
      * Matches pending {@link #addEnrichPolicy}/{@link #addEnrichError} registrations (queued by policy name + mode before the
      * query was known) against the actual {@link Enrich} occurrences in the now-parsed plan, and registers each match into the
      * real {@link #enrichResolution} keyed by that occurrence's {@code Source} - mirroring how {@code EnrichPolicyResolver}
-     * keys production resolutions. If several occurrences share the same policy name and mode, every one of them is
-     * registered with the same resolution.
+     * keys production resolutions.
+     * <p>
+     * Registrations for the same policy name/mode are consumed in registration order, matched 1:1 against occurrences of
+     * that policy name/mode in the order {@link Enrich} nodes are visited by {@link LogicalPlan#forEachUp} over the parsed
+     * plan (for a top-to-bottom or left-to-right query this matches the order the occurrences appear in the query text): the
+     * first registration goes to the first occurrence, the second to the second, and so on. If there are more occurrences
+     * than registrations, the extra occurrences reuse the last registration - which is also why a single registration for a
+     * given policy name/mode applies to every occurrence of it, as it always has before this per-occurrence matching
+     * existed.
      */
     private void resolveEnrichResolution(LogicalPlan plan) {
+        Map<PolicyKey, List<PendingEnrich>> byKey = pendingEnrichResolutions.stream()
+            .collect(groupingBy(p -> new PolicyKey(p.policyName(), p.mode()), LinkedHashMap::new, Collectors.toList()));
+        Map<PolicyKey, Integer> occurrencesSeen = new HashMap<>();
         plan.forEachUp(Enrich.class, enrich -> {
-            for (PendingEnrich pending : pendingEnrichResolutions) {
-                if (pending.policyName().equals(enrich.resolvedPolicyName()) && pending.mode() == enrich.mode()) {
-                    if (pending.resolved() != null) {
-                        enrichResolution.addResolvedPolicy(enrich.source(), pending.resolved());
-                    } else {
-                        enrichResolution.addError(enrich.source(), pending.error());
-                    }
-                }
+            PolicyKey key = new PolicyKey(enrich.resolvedPolicyName(), enrich.mode());
+            List<PendingEnrich> candidates = byKey.get(key);
+            if (candidates == null) {
+                return;
+            }
+            int occurrence = occurrencesSeen.merge(key, 1, Integer::sum) - 1;
+            PendingEnrich matched = candidates.get(Math.min(occurrence, candidates.size() - 1));
+            if (matched.resolved() != null) {
+                enrichResolution.addResolvedPolicy(enrich.source(), matched.resolved());
+            } else {
+                enrichResolution.addError(enrich.source(), matched.error());
             }
         });
     }
+
+    private record PolicyKey(String policyName, Enrich.Mode mode) {}
 
     /**
      * Set external source resolution.

@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
@@ -57,6 +58,7 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class EsqlSessionTests extends ESTestCase {
@@ -566,6 +568,34 @@ public class EsqlSessionTests extends ESTestCase {
             var resolution = createIndexResolution("remote-0:main", "remote-1:a", "remote-2:b");
             assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution), equalTo(Set.of("remote-2")));
         }
+    }
+
+    /**
+     * Two distinct {@link Enrich} occurrences can share the exact same {@link Source} today: a view containing an ENRICH is
+     * re-parsed independently every time it's referenced, so referencing it from two differently-scoped subquery branches
+     * produces two structurally-identical (and therefore {@code Source.equals()}) {@link Enrich} nodes. Parsing the same
+     * literal query text twice below reproduces that same-Source collision without needing an actual view.
+     * <p>
+     * {@link EsqlSession#computeEnrichScopes} unions the two occurrences' scopes rather than letting the second overwrite the
+     * first. This also exercises the case where {@link EsqlCCSUtils#onlyRunning} hands back an immutable {@code Set.of(...)}
+     * (no cluster tracked yet) for the first occurrence - that value must not be mutated in place once the second,
+     * same-Source occurrence is merged into it.
+     */
+    public void testComputeEnrichScopesUnionsDuplicateSource() {
+        var plan1 = TEST_PARSER.parseQuery("ROW key = 1 | ENRICH policy ON key");
+        var plan2 = TEST_PARSER.parseQuery("ROW key = 1 | ENRICH policy ON key");
+        Enrich enrich1 = enrichNamed(plan1, "policy");
+        Enrich enrich2 = enrichNamed(plan2, "policy");
+        assertThat(enrich1, not(sameInstance(enrich2)));
+        assertThat(enrich1.source(), equalTo(enrich2.source()));
+
+        var resolution = createIndexResolution();
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(alias -> false, EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+
+        Map<Source, Set<String>> scopes = EsqlSession.computeEnrichScopes(List.of(enrich1, enrich2), resolution, executionInfo);
+
+        assertThat(scopes.keySet(), hasSize(1));
+        assertThat(scopes.get(enrich1.source()), equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)));
     }
 
     /**

@@ -2079,6 +2079,52 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(Expressions.names(limit.output()), contains("language_name", "language_code"));
     }
 
+    /**
+     * Two occurrences of the same policy name and mode - registered with different resolutions via two separate
+     * {@code addEnrichPolicy} calls - resolve independently rather than both getting whichever resolution was registered
+     * first: {@code TestAnalyzer} matches registrations to occurrences of the same policy name/mode in registration order
+     * (first call -> first occurrence, second call -> second occurrence, etc). This exercises
+     * {@code Analyzer.ResolveEnrich}'s per-{@code Source} dispatch: {@code EnrichResolution} is keyed by the originating
+     * {@code Enrich} node's {@code Source}, not by policy name/mode, precisely so that occurrences like these two - which
+     * share a policy name and mode but can be resolved differently (e.g. because they live in differently-scoped subquery
+     * branches in production) - don't collide.
+     */
+    public void testEnrichPolicyDifferentResolutionPerOccurrence() {
+        IndexResolution languageIndex = loadMapping("mapping-languages.json", "languages");
+        LogicalPlan plan = basic().addEnrichPolicy(
+            Enrich.Mode.ANY,
+            "languages",
+            new ResolvedEnrichPolicy(
+                "language_code",
+                EnrichPolicy.MATCH_TYPE,
+                List.of("language_name"),
+                Map.of("", "languages"),
+                languageIndex.get().mapping()
+            )
+        )
+            .addEnrichPolicy(
+                Enrich.Mode.ANY,
+                "languages",
+                new ResolvedEnrichPolicy(
+                    "language_code",
+                    EnrichPolicy.MATCH_TYPE,
+                    List.of("language_code"),
+                    Map.of("", "languages"),
+                    languageIndex.get().mapping()
+                )
+            )
+            .query("""
+                FROM test
+                | EVAL x = to_string(languages)
+                | ENRICH languages ON x
+                | EVAL y = to_string(languages)
+                | ENRICH languages ON y
+                | KEEP language_name, language_code
+                """);
+        var limit = as(plan, Limit.class);
+        assertThat(Expressions.names(limit.output()), contains("language_name", "language_code"));
+    }
+
     public void testChainedEvalFieldsUse() {
         var query = "from test | eval x0 = pow(salary, 1), x1 = pow(x0, 2), x2 = pow(x1, 3)";
         int additionalEvals = randomIntBetween(0, 5);

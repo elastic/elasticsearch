@@ -1514,14 +1514,17 @@ public class EsqlSession {
      * that failed to connect during main index resolution (skipped, e.g. behind {@code skip_unavailable=true}) can still show
      * up in a wildcard pattern's {@code originalIndices()}, but the policy should not be required there.
      */
-    private static Map<Source, Set<String>> computeEnrichScopes(
+    // package-private static so EsqlSessionTests can drive it directly, e.g. to exercise the same-Source union above
+    static Map<Source, Set<String>> computeEnrichScopes(
         List<Enrich> enriches,
         Map<IndexPattern, IndexResolution> indexResolution,
         EsqlExecutionInfo executionInfo
     ) {
         Map<Source, Set<String>> enrichScopes = new HashMap<>();
         for (Enrich enrich : enriches) {
-            Set<String> scope = EsqlCCSUtils.onlyRunning(executionInfo, computeEnrichScope(enrich, indexResolution));
+            Set<String> scope = new HashSet<>(EsqlCCSUtils.onlyRunning(executionInfo, computeEnrichScope(enrich, indexResolution)));
+            // onlyRunning can return an immutable Set (e.g. Set.of(...) when no cluster is tracked yet), so copy it into a
+            // mutable one before it's potentially unioned in place by a later same-Source occurrence, below.
             enrichScopes.merge(enrich.source(), scope, (existing, additional) -> {
                 existing.addAll(additional);
                 return existing;

@@ -1145,11 +1145,12 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
     }
 
     /**
-     * REMOTE mode ENRICH used in the inner subquery with different remote clusters: the policy has to exist in both remote clusters
+     * REMOTE mode ENRICH used in the inner subquery with different remote clusters and policy: each policy has to exist in the
+     * corresponding cluster it's used with
      */
     public void testEnrichWithRemoteModePolicyMixedScopesSucceeds() {
-        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
-        setupEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich_a", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich_b", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
         try {
@@ -1158,17 +1159,117 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
                 | WHERE v IN (
                     FROM cluster-a:logs-*
                     | WHERE v > 1 AND v < 7
-                    | ENRICH _remote:values_enrich ON v WITH enrich_name
+                    | ENRICH _remote:values_enrich_a ON v WITH enrich_name
                     | KEEP v
                   )
-                | ENRICH _remote:values_enrich ON v WITH enrich_name
+                | ENRICH _remote:values_enrich_b ON v WITH enrich_name
                 | KEEP v
                 """, false)) {
                 assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
             }
         } finally {
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich_a");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich_b");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * Two occurrences of the same ENRICH command - same policy name, same mode - sharing the exact same {@code Source}
+     */
+    public void testEnrichWithViewReferencedTwiceSharesSource() {
+        assumeTrue("Requires FROM-subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        createViewOnCluster(
+            LOCAL_CLUSTER,
+            "enrich_view",
+            "FROM logs-* | WHERE v > 1 AND v < 7 | ENRICH values_enrich ON v WITH enrich_name | KEEP v"
+        );
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM (FROM enrich_view), (FROM cluster-a:logs-*)
+                | WHERE v IN (FROM enrich_view)
+                | KEEP v
+                | SORT v
+                """, false)) {
+                assertThat(
+                    getValuesList(resp),
+                    equalTo(List.of(List.of(2L), List.of(3L), List.of(4L), List.of(4L), List.of(5L), List.of(6L)))
+                );
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * The same policy name used with three different modes (ANY, COORDINATOR, REMOTE) in one query: each occurrence has
+     * its own mode-specific target-cluster requirement (see {@code EnrichPolicyResolver#calculateTargetClusters}), so all
+     * three must resolve independently even though they share a policy name - the REMOTE occurrence only needs
+     * {@code cluster-a} (its own scope), the ANY occurrence needs both remotes the outer {@code *:logs-*} touches (that
+     * pattern spans {@code cluster-a} and {@code remote-b}, not the local cluster) plus {@code _local} (ANY always
+     * requires it), and the COORDINATOR occurrence only ever needs {@code _local}.
+     */
+    public void testEnrichSamePolicyDifferentModesAllSucceed() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM *:logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | ENRICH values_enrich ON v WITH enrich_name
+                | ENRICH _coordinator:values_enrich ON v WITH enrich_name
+                | KEEP v
+                | SORT v
+                """, false)) {
+                // *:logs-* spans cluster-a and remote-b only; each contributes a single v=4 row (i=2 -> 2^2=4).
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L), List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
             deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
             deleteEnrichPolicy(client(REMOTE_CLUSTER_2), "values_enrich");
+            clearSkipUnavailable(3);
+        }
+    }
+
+    /**
+     * The same policy name used with two different modes where only one occurrence's requirement is satisfied: REMOTE
+     * mode (scoped to {@code cluster-a} only) fails because the policy is missing there, while COORDINATOR mode
+     * (scoped to {@code _local} only, elsewhere in the same query) would succeed on its own since the policy exists
+     * locally. The failure must report exactly the REMOTE occurrence's own missing cluster ({@code cluster-a}), proving
+     * the two occurrences are resolved independently rather than one's requirement leaking into the other's error.
+     */
+    public void testEnrichSamePolicyDifferentModesFailureIsolatedPerOccurrence() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        try {
+            VerificationException ex = expectThrows(VerificationException.class, () -> runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | ENRICH _coordinator:values_enrich ON v WITH enrich_name
+                | KEEP v
+                """, false));
+            assertThat(ex.getMessage(), containsString("cannot find enrich policy [values_enrich] on clusters [cluster-a]"));
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
             clearSkipUnavailable(3);
         }
     }

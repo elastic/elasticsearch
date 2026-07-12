@@ -24,6 +24,9 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -315,6 +318,159 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
+     * A physical DOUBLE column declared {@code long}/{@code integer} rounds like {@code ::long}/{@code ::integer}
+     * (not truncates) — the "declared read is value-identical to the cast engine" claim, exercised for a numeric
+     * (non-string) source. {@code testDeclaredNumericReadMatchesCastEngineRounding} only proves it for strings.
+     */
+    public void testCastDoubleToLongAndIntegerRounds() {
+        try (
+            Block src = blockFactory.newDoubleArrayVector(new double[] { 2.5, -1.9, 1000.0 }, 3).asBlock();
+            Block cast = castStrict(src, DataType.DOUBLE, DataType.LONG)
+        ) {
+            LongBlock l = (LongBlock) cast;
+            assertEquals(3L, l.getLong(0));   // 2.5 rounds to 3, not truncates to 2
+            assertEquals(-2L, l.getLong(1));  // -1.9 rounds to -2
+            assertEquals(1000L, l.getLong(2));
+        }
+        try (
+            Block src = blockFactory.newDoubleArrayVector(new double[] { 2.5, -2.6 }, 2).asBlock();
+            Block cast = castStrict(src, DataType.DOUBLE, DataType.INTEGER)
+        ) {
+            org.elasticsearch.compute.data.IntBlock i = (org.elasticsearch.compute.data.IntBlock) cast;
+            assertEquals(3, i.getInt(0));
+            assertEquals(-3, i.getInt(1));
+        }
+    }
+
+    /**
+     * Whole-number sources (integer/long, and the temporal epochs that surface as longs) coerce into
+     * {@code unsigned_long} — value-preserving, sign-flip-encoded. Only the string→unsigned_long arm was
+     * exercised before ({@code testCastStringToUnsignedLongSignFlipEncodes}).
+     */
+    public void testCastWholeNumberSourcesToUnsignedLong() {
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { 42L }, 1).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.UNSIGNED_LONG)
+        ) {
+            assertThat(NumericUtils.unsignedLongAsNumber(((LongBlock) cast).getLong(0)).longValue(), equalTo(42L));
+        }
+        try (
+            Block src = blockFactory.newIntArrayVector(new int[] { 7 }, 1).asBlock();
+            Block cast = castStrict(src, DataType.INTEGER, DataType.UNSIGNED_LONG)
+        ) {
+            assertThat(NumericUtils.unsignedLongAsNumber(((LongBlock) cast).getLong(0)).longValue(), equalTo(7L));
+        }
+        // A negative whole number has no unsigned representation: lenient nulls + warns, never a wrap-around value.
+        List<String> warnings = new ArrayList<>();
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { -1L }, 1).asBlock();
+            Block cast = DeclaredTypeCoercions.castBlock(
+                src,
+                DataType.LONG,
+                DataType.UNSIGNED_LONG,
+                null,
+                blockFactory,
+                "col",
+                capturing(warnings)
+            )
+        ) {
+            assertTrue("negative -> unsigned_long nulls the cell", cast.isNull(0));
+            assertThat(warnings, hasSize(1));
+        }
+    }
+
+    /**
+     * An {@code unsigned_long} source (values held sign-flip-encoded in a LongBlock, including magnitudes above
+     * {@code 2^63}) coerces to double and to keyword, rendering the true unsigned magnitude. This drives the
+     * {@code converterFor(UNSIGNED_LONG, …)} arms on the BigInteger the decode produces.
+     */
+    public void testCastUnsignedLongSourcesToDoubleAndKeyword() {
+        long big = NumericUtils.asLongUnsigned(new BigInteger("18446744073709551610")); // 2^64 - 6, above 2^63
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { big }, 1).asBlock();
+            Block cast = castStrict(src, DataType.UNSIGNED_LONG, DataType.KEYWORD)
+        ) {
+            assertThat(((BytesRefBlock) cast).getBytesRef(0, new BytesRef()).utf8ToString(), equalTo("18446744073709551610"));
+        }
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { big }, 1).asBlock();
+            Block cast = castStrict(src, DataType.UNSIGNED_LONG, DataType.DOUBLE)
+        ) {
+            assertThat(((DoubleBlock) cast).getDouble(0), equalTo(new BigInteger("18446744073709551610").doubleValue()));
+        }
+    }
+
+    /**
+     * A whole-number source declared {@code datetime} is reinterpreted as epoch-millis (the non-string DATETIME
+     * arm), value-identical to a {@code long} read of the same token. Only the string→datetime arm was covered.
+     */
+    public void testCastIntegerAndLongToDatetimeUsesEpochMillis() {
+        try (
+            Block src = blockFactory.newIntArrayVector(new int[] { 42 }, 1).asBlock();
+            Block cast = castStrict(src, DataType.INTEGER, DataType.DATETIME)
+        ) {
+            assertEquals(42L, ((LongBlock) cast).getLong(0)); // epoch millis
+        }
+        long epochMillis = 1704067200000L;
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { epochMillis }, 1).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATETIME)
+        ) {
+            assertEquals(epochMillis, ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    /**
+     * Temporal sources declared {@code double} yield the epoch value as a double — the untested temporal→double arm.
+     */
+    public void testCastTemporalToDouble() {
+        long epochMillis = 1704067200000L;
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { epochMillis }, 1).asBlock();
+            Block cast = castStrict(src, DataType.DATETIME, DataType.DOUBLE)
+        ) {
+            assertThat(((DoubleBlock) cast).getDouble(0), equalTo((double) epochMillis));
+        }
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { epochMillis }, 1).asBlock();
+            Block cast = castStrict(src, DataType.DATE_NANOS, DataType.DOUBLE)
+        ) {
+            assertThat(((DoubleBlock) cast).getDouble(0), equalTo((double) epochMillis));
+        }
+    }
+
+    /**
+     * The pairs {@link DeclaredTypeCoercions#fusedInDecode} claims as fusable are exactly the ones the columnar
+     * readers decode without boxing; pin the boxed {@link DeclaredTypeCoercions#castBlock} reference value for
+     * each so the fused fast path (exercised end-to-end in the per-format reader tests) has an authoritative
+     * value to match. This is the SPI-level half; {@code ParquetFormatReaderTests} drives the fused path itself.
+     */
+    public void testFusedPairsCastBlockReferenceValues() {
+        // integer -> long (lossless widen)
+        try (
+            Block src = blockFactory.newIntArrayVector(new int[] { 5, -7 }, 2).asBlock();
+            Block cast = castStrict(src, DataType.INTEGER, DataType.LONG)
+        ) {
+            assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.INTEGER, DataType.LONG));
+            assertEquals(5L, ((LongBlock) cast).getLong(0));
+            assertEquals(-7L, ((LongBlock) cast).getLong(1));
+        }
+        // long -> datetime (epoch-millis reinterpret, same bits)
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { 1704067200000L }, 1).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATETIME)
+        ) {
+            assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.LONG, DataType.DATETIME));
+            assertEquals(1704067200000L, ((LongBlock) cast).getLong(0));
+        }
+        // keyword <-> text (same bytes relabel)
+        try (Block src = bytesBlock("hello"); Block cast = castStrict(src, DataType.KEYWORD, DataType.TEXT)) {
+            assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.KEYWORD, DataType.TEXT));
+            assertThat(((BytesRefBlock) cast).getBytesRef(0, new BytesRef()).utf8ToString(), equalTo("hello"));
+        }
+    }
+
+    /**
      * The declared {@code boolean} read is STRICT and case-insensitive ({@code true}/{@code false} in
      * any case; every other token fails). This deliberately diverges from {@code ::boolean}, which maps
      * a non-{@code true} token silently to {@code false} — the read rejects the token loudly instead
@@ -501,6 +657,52 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
+    /**
+     * The date_nanos arm of {@link DeclaredTypeCoercions#scalarCoercer} must honor the declared format exactly as the
+     * datetime arm above it does. It used to call the no-format overload, so a declared format on a date_nanos column
+     * was silently ignored on every columnar reader (Parquet, ORC) and the cell fell back to ISO-8601 and failed.
+     */
+    public void testCastStringToDateNanosHonorsDeclaredFormat() {
+        DateFormatter fmt = DateFormatter.forPattern("dd/MMM/yyyy:HH:mm:ss Z");
+        try (Block source = bytesBlock("10/Oct/2000:13:55:36 -0700")) {
+            try (
+                Block cast = DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.DATE_NANOS, fmt, blockFactory, null, null)
+            ) {
+                assertThat(((LongBlock) cast).getLong(0), equalTo(EsqlDataTypeConverter.dateNanosToLong("2000-10-10T20:55:36Z")));
+            }
+        }
+    }
+
+    /**
+     * Sub-millisecond digits survive the declared-format date_nanos parse — the whole point of the type. A millisecond
+     * conversion would silently truncate here.
+     */
+    public void testCastStringToDateNanosDeclaredFormatKeepsNanoPrecision() {
+        DateFormatter fmt = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
+        try (Block source = bytesBlock("2024-01-15 12:34:56.123456789")) {
+            try (
+                Block cast = DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.DATE_NANOS, fmt, blockFactory, null, null)
+            ) {
+                assertThat(((LongBlock) cast).getLong(0), equalTo(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z")));
+            }
+        }
+    }
+
+    /**
+     * A null declared format means ISO-8601, not a NullPointerException. {@code dateNanosToLong(String, DateFormatter)}
+     * dereferenced the formatter unguarded while its {@code dateTimeToLong} sibling defaulted; the two converters have
+     * to agree on the null contract, because this call site threads an optional format into both.
+     */
+    public void testCastStringToDateNanosWithoutDeclaredFormatUsesIso() {
+        try (Block source = bytesBlock("2024-01-15T12:34:56.123456789Z")) {
+            try (
+                Block cast = DeclaredTypeCoercions.castBlock(source, DataType.KEYWORD, DataType.DATE_NANOS, null, blockFactory, null, null)
+            ) {
+                assertThat(((LongBlock) cast).getLong(0), equalTo(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z")));
+            }
+        }
+    }
+
     // ---- per-cell bulk leniency ----
 
     public void testLenientCoercionNullsCellAndWarns() {
@@ -627,5 +829,41 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                 into.add(detail);
             }
         };
+    }
+
+    /**
+     * BigDecimal.toBigInteger() throws ArithmeticException -- not an IllegalArgumentException -- when the decimal
+     * exponent is large enough that expanding it would overflow BigInteger. Escaping this method, it would bypass
+     * every reader's per-cell error policy and hard-fail the whole read. It is remapped to the ordinary
+     * out-of-range failure at the one place that parses.
+     */
+    public void testCoerceToUnsignedLongExoticExponentIsOutOfRangeNotArithmetic() {
+        for (String token : List.of("1e999999999", "1e-999999999")) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> DeclaredTypeCoercions.coerceToUnsignedLong(token)
+            );
+            assertThat(e.getMessage(), containsString("out of range for an unsigned_long"));
+        }
+    }
+
+    /** Every declarable type resolves to the shape PlannerUtils prescribes -- one enumeration, not two. */
+    public void testElementTypeForAgreesWithPlannerUtils() {
+        for (DataType type : DeclaredSchemaValidator.declarableTypes()) {
+            assertThat(DeclaredTypeCoercions.elementTypeFor(type), equalTo(PlannerUtils.toElementType(type)));
+        }
+    }
+
+    /**
+     * PlannerUtils.toElementType signals an unmappable type with EsqlIllegalArgumentException, which is NOT an
+     * IllegalArgumentException. elementTypeFor remaps it, so callers -- including NdJsonPageDecoder.setupBuilders,
+     * which wraps this in a catch(IllegalArgumentException) -- need exactly one catch clause.
+     */
+    public void testElementTypeForThrowsIllegalArgumentForUnmappableType() {
+        // SHORT is in toElementType's throw-set; DOC_DATA_TYPE maps to a shape this SPI cannot write.
+        for (DataType type : List.of(DataType.SHORT, DataType.DOC_DATA_TYPE)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DeclaredTypeCoercions.elementTypeFor(type));
+            assertThat(e.getMessage(), containsString("is not readable as a declared column"));
+        }
     }
 }

@@ -16,13 +16,13 @@
           "name" : "lower",
           "type" : "date",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "date",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -40,13 +40,13 @@
           "name" : "lower",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -64,13 +64,13 @@
           "name" : "lower",
           "type" : "double",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "double",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -88,13 +88,13 @@
           "name" : "lower",
           "type" : "integer",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "integer",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -112,13 +112,13 @@
           "name" : "lower",
           "type" : "ip",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "ip",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -136,13 +136,13 @@
           "name" : "lower",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -160,13 +160,13 @@
           "name" : "lower",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "text",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -184,13 +184,13 @@
           "name" : "lower",
           "type" : "text",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -208,13 +208,13 @@
           "name" : "lower",
           "type" : "text",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "text",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -232,13 +232,13 @@
           "name" : "lower",
           "type" : "long",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "long",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -256,13 +256,13 @@
           "name" : "lower",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -280,13 +280,13 @@
           "name" : "lower",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "text",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -304,13 +304,13 @@
           "name" : "lower",
           "type" : "text",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -328,13 +328,13 @@
           "name" : "lower",
           "type" : "text",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "text",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -352,13 +352,13 @@
           "name" : "lower",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,
@@ -376,13 +376,13 @@
           "name" : "lower",
           "type" : "version",
           "optional" : false,
-          "description" : "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         },
         {
           "name" : "upper",
           "type" : "version",
           "optional" : false,
-          "description" : "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+          "description" : "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         }
       ],
       "variadic" : false,

@@ -6,8 +6,8 @@
 :   Multivalue expression to test. If null or empty, the function returns `false`.
 
 `lower`
-:   Inclusive lower bound, of the same type as `field`. If null, the function returns `false`.
+:   Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`.
 
 `upper`
-:   Inclusive upper bound, of the same type as `field`. If null, the function returns `false`.
+:   Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`.
 

@@ -615,6 +615,59 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
+     * mv_in_range over an indexed numeric field pushes a bare (any-value) range query to Lucene and keeps a FilterExec
+     * for the row-level recheck (RECHECK semantics).
+     */
+    public void testMvInRangePushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(salary, 25000, 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        var expected = boolQuery().filter(unscore(rangeQuery("salary").from(25000, true).to(30000, true)));
+        assertThat(mvInRangeQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * NOT mv_in_range pushes must_not(range) and keeps the FilterExec — sound because the pushed range is exact for a
+     * pushable non-text field.
+     */
+    public void testMvInRangeNotPushdown() {
+        var plan = plannerOptimizer.plan("from test | where not mv_in_range(salary, 25000, 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        // PushFiltersToSource runs at fixed-point, so the pushed must_not(range) also appears once wrapped in a filter.
+        var range = unscore(rangeQuery("salary").from(25000, true).to(30000, true));
+        var expected = boolQuery().filter(unscore(boolQuery().mustNot(range))).mustNot(range);
+        assertThat(mvInRangeQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * A text field is never pushed: a Lucene range over analyzed tokens is not a superset of the whole-string
+     * comparison, so the predicate stays entirely in the FilterExec and nothing is lowered to the source query.
+     */
+    public void testMvInRangeTextNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(gender, \"a\", \"z\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(mvInRangeQuery(plan), nullValue());
+    }
+
+    /**
+     * A multivalued (or null) literal bound is never pushed: it has no well-defined range, so the predicate stays in
+     * the FilterExec rather than pushing a degenerate range that RECHECK could not correct under negation.
+     */
+    public void testMvInRangeMultivaluedBoundNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(salary, [25000, 26000], 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(mvInRangeQuery(plan), nullValue());
+    }
+
+    private static QueryBuilder mvInRangeQuery(PhysicalPlan plan) {
+        var esQueryExec = (EsQueryExec) plan.collectLeaves()
+            .stream()
+            .filter(EsQueryExec.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
+        return esQueryExec.query();
+    }
+
+    /**
      * Expects
      * LimitExec[1000[INTEGER]]
      * \_ExchangeExec[[],false]

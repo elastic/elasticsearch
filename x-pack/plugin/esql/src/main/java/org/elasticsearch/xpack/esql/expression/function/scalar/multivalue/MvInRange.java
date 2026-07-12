@@ -23,6 +23,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -102,12 +104,12 @@ public class MvInRange extends EsqlScalarFunction implements EvaluatorMapper, Tr
         @Param(
             name = "lower",
             type = { "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
-            description = "Inclusive lower bound, of the same type as `field`. If null, the function returns `false`."
+            description = "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         ) Expression lower,
         @Param(
             name = "upper",
             type = { "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
-            description = "Inclusive upper bound, of the same type as `field`. If null, the function returns `false`."
+            description = "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         ) Expression upper
     ) {
         super(source, List.of(field, lower, upper));
@@ -320,15 +322,25 @@ public class MvInRange extends EsqlScalarFunction implements EvaluatorMapper, Tr
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        // We push the range to Lucene as an approximation and keep this exact evaluator as the authority (RECHECK).
-        // The pushed RangeQuery is a superset of (in practice exact for) the true matches over a pushable field, so it
-        // only pre-filters; the engine re-decides every surviving row. RECHECK is chosen over YES so correctness never
-        // hinges on Lucene's range being bit-identical to this evaluator at the type boundaries. It also stays sound
-        // under negation (RECHECK.negate() == RECHECK): NOT mv_in_range pushes must_not(range) and rechecks the rest.
-        if (pushdownPredicates.isPushableFieldAttribute(field) && lower.foldable() && upper.foldable()) {
+        // We push the range to Lucene as a pre-filter and keep this evaluator as the authority (RECHECK). For that to be
+        // sound — including under negation, where NOT pushes must_not(range) and rechecks the survivors — the pushed
+        // query must never drop a true match, so we only push when the range is a faithful stand-in for the evaluator:
+        // - text is excluded: its range query matches the analyzed tokens, not the whole string, so it is not even a
+        // superset of what this evaluator compares;
+        // - the bounds must be single-valued, non-null literals: a null bound would push an unbounded range (the
+        // evaluator treats it as matching nothing) and a multivalued bound is unsupported — the same gate Equals and
+        // the binary comparisons apply.
+        if (field.dataType() == DataType.TEXT) {
+            return Translatable.NO;
+        }
+        if (pushdownPredicates.isPushableFieldAttribute(field) && isPushableBound(lower) && isPushableBound(upper)) {
             return Translatable.RECHECK;
         }
         return Translatable.NO;
+    }
+
+    private static boolean isPushableBound(Expression bound) {
+        return bound instanceof Literal literal && literal.value() != null && literal.value() instanceof Collection<?> == false;
     }
 
     @Override

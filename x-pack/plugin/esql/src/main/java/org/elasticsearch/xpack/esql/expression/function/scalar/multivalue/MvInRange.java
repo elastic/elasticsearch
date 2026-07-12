@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -305,116 +304,6 @@ public class MvInRange extends EsqlScalarFunction implements EvaluatorMapper, Tr
             }
         }
         return false;
-    }
-
-    // ---------------------------------------------------------------------------------------------------------------
-    // Folded-bounds variants (benchmark harness, currently unrouted).
-    //
-    // The block-based evaluators above read all three arguments as blocks, one Block fetch per row for each bound. When
-    // the bounds are constant (foldable, single-valued literals) — the common case for a range filter — those fetches
-    // are redundant: the same two values every row. These variants bake the bounds into the evaluator instead:
-    // - Constant*: bounds as plain @Fixed constructor params (baked once, no per-row block read);
-    // - Folded*: bounds JIT-folded via @Fixed(jitConstant = true), carried as a composite record because at most
-    // one jitConstant param is allowed per @Evaluator method and a range has two bounds.
-    // Only LONG and BYTES_REF are provided: INT/DOUBLE share the long comparison regime, so they add no new signal to
-    // the folding question these variants exist to answer. See MvInRangeBenchmark for the strategy comparison; routing
-    // (whether toEvaluator adopts a variant) is decided from that multi-architecture sweep, not from this code alone.
-
-    /** Both bounds of a long range, carried as a single value so a single @Fixed(jitConstant = true) param covers them. */
-    record LongBounds(long lower, long upper) {}
-
-    /** Both bounds of a bytes range, carried as a single value so a single @Fixed(jitConstant = true) param covers them. */
-    record BytesRefBounds(BytesRef lower, BytesRef upper) {}
-
-    @Evaluator(extraName = "ConstantLong", allNullsIsNull = false)
-    static boolean processConstantLong(@Position int position, LongBlock field, @Fixed long lower, @Fixed long upper) {
-        int count = field.getValueCount(position);
-        int start = field.getFirstValueIndex(position);
-        for (int i = start; i < start + count; i++) {
-            long v = field.getLong(i);
-            if (v >= lower && v <= upper) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Evaluator(extraName = "FoldedLong", allNullsIsNull = false)
-    static boolean processFoldedLong(@Position int position, LongBlock field, @Fixed(jitConstant = true) LongBounds bounds) {
-        int count = field.getValueCount(position);
-        int start = field.getFirstValueIndex(position);
-        for (int i = start; i < start + count; i++) {
-            long v = field.getLong(i);
-            if (v >= bounds.lower() && v <= bounds.upper()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Evaluator(extraName = "ConstantBytesRef", allNullsIsNull = false)
-    static boolean processConstantBytesRef(@Position int position, BytesRefBlock field, @Fixed BytesRef lower, @Fixed BytesRef upper) {
-        int count = field.getValueCount(position);
-        int start = field.getFirstValueIndex(position);
-        BytesRef scratch = new BytesRef();
-        for (int i = start; i < start + count; i++) {
-            BytesRef v = field.getBytesRef(i, scratch);
-            if (v.compareTo(lower) >= 0 && v.compareTo(upper) <= 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Evaluator(extraName = "FoldedBytesRef", allNullsIsNull = false)
-    static boolean processFoldedBytesRef(@Position int position, BytesRefBlock field, @Fixed(jitConstant = true) BytesRefBounds bounds) {
-        int count = field.getValueCount(position);
-        int start = field.getFirstValueIndex(position);
-        BytesRef scratch = new BytesRef();
-        for (int i = start; i < start + count; i++) {
-            BytesRef v = field.getBytesRef(i, scratch);
-            if (v.compareTo(bounds.lower()) >= 0 && v.compareTo(bounds.upper()) <= 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // Construction shims for the folded-bounds variants. The generated {@code ...Evaluator.Factory} classes are
-    // package-private, so the benchmark harness (a different package) reaches them through these. They are not part of
-    // production routing — toEvaluator does not call them — and exist only so MvInRangeBenchmark can compare the folded
-    // strategies against the shipped block path without a split package. Remove them if a variant is ever routed and the
-    // benchmark switches to the public EvalMapper path (as MOD/STARTS_WITH do for their constant forms).
-
-    public static ExpressionEvaluator.Factory constantLongFactory(
-        Source source,
-        ExpressionEvaluator.Factory field,
-        long lower,
-        long upper
-    ) {
-        return new MvInRangeConstantLongEvaluator.Factory(source, field, lower, upper);
-    }
-
-    public static ExpressionEvaluator.Factory foldedLongFactory(Source source, ExpressionEvaluator.Factory field, long lower, long upper) {
-        return new MvInRangeFoldedLongEvaluator.Factory(source, field, new LongBounds(lower, upper));
-    }
-
-    public static ExpressionEvaluator.Factory constantBytesRefFactory(
-        Source source,
-        ExpressionEvaluator.Factory field,
-        BytesRef lower,
-        BytesRef upper
-    ) {
-        return new MvInRangeConstantBytesRefEvaluator.Factory(source, field, lower, upper);
-    }
-
-    public static ExpressionEvaluator.Factory foldedBytesRefFactory(
-        Source source,
-        ExpressionEvaluator.Factory field,
-        BytesRef lower,
-        BytesRef upper
-    ) {
-        return new MvInRangeFoldedBytesRefEvaluator.Factory(source, field, new BytesRefBounds(lower, upper));
     }
 
     @Override

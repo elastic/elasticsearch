@@ -11,7 +11,9 @@ package org.elasticsearch.eirf;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.SourceSchema;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -73,9 +75,9 @@ public class EirfRowBuilderTests extends ESTestCase {
 
             EirfBatch batch = builder.build();
             EirfRowReader row0 = batch.getRowReader(0);
-            assertEquals(EirfType.INT, row0.getTypeByte(0));
+            assertEquals(SourceValueType.INT, row0.getTypeByte(0));
             assertEquals(42, row0.getIntValue(0));
-            assertEquals(EirfType.LONG, row0.getTypeByte(1));
+            assertEquals(SourceValueType.LONG, row0.getTypeByte(1));
             assertEquals(Long.MAX_VALUE, row0.getLongValue(1));
 
             batch.close();
@@ -91,9 +93,9 @@ public class EirfRowBuilderTests extends ESTestCase {
 
             EirfBatch batch = builder.build();
             EirfRowReader row0 = batch.getRowReader(0);
-            assertEquals(EirfType.FLOAT, row0.getTypeByte(0));
+            assertEquals(SourceValueType.FLOAT, row0.getTypeByte(0));
             assertEquals(1.5f, row0.getFloatValue(0), 0.0f);
-            assertEquals(EirfType.DOUBLE, row0.getTypeByte(1));
+            assertEquals(SourceValueType.DOUBLE, row0.getTypeByte(1));
             assertEquals(1.23456789012345, row0.getDoubleValue(1), 0.0);
 
             batch.close();
@@ -138,7 +140,7 @@ public class EirfRowBuilderTests extends ESTestCase {
                 0,
                 0,  // key_length = 1 (i32 LE)
                 'x',         // key bytes
-                EirfType.INT,
+                SourceValueType.INT,
                 42,
                 0,
                 0,
@@ -150,11 +152,11 @@ public class EirfRowBuilderTests extends ESTestCase {
 
             EirfBatch batch = builder.build();
             EirfRowReader row0 = batch.getRowReader(0);
-            assertEquals(EirfType.KEY_VALUE, row0.getTypeByte(0));
-            EirfKeyValueReader kv = row0.getKeyValue(0);
+            assertEquals(SourceValueType.KEY_VALUE, row0.getTypeByte(0));
+            KeyValueReader kv = row0.getKeyValue(0);
             assertTrue(kv.next());
             assertEquals("x", kv.key());
-            assertEquals(EirfType.INT, kv.type());
+            assertEquals(SourceValueType.INT, kv.type());
             assertEquals(42, kv.intValue());
             assertFalse(kv.next());
 

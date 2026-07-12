@@ -66,6 +66,8 @@ Also see the [official Elasticsearch Java client](elasticsearch-java://reference
 
 See the [official Elasticsearch JavaScript client](elasticsearch-js://reference/index.md).
 
+* [typed-es](https://github.com/Vahor/typed-es): Extension for the official Elasticsearch JavaScript client, adding automatic TypeScript response type inference, directly from the query you pass in.
+
 ## Julia [julia]
 
 * [ElasticsearchClient.jl](https://github.com/OpenSesame/ElasticsearchClient.jl): Elasticsearch client inspired by the [official Elasticsearch Ruby client](elasticsearch-ruby://reference/index.md).

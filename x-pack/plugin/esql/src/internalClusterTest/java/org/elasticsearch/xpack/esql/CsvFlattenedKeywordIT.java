@@ -1326,7 +1326,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "GREATER_THAN_OR_EQUAL:rhs is missing",
         "GREATEST:first is missing",
         "GREATEST:rest is missing",
-        "HASH:algorithm is missing",
         "IN:field is missing",
         "JSON_EXTRACT:string is missing",
         "KNN:field is missing",

@@ -70,6 +70,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.pipelineIdsForResource;
+import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.common.SemanticTextInfoExtractor.extractIndexesReferencingInferenceEndpoints;
 
 public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRegionPolicyAction.Request, RegionPolicyResponse> {
@@ -88,6 +89,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
     private final InferencePreferencesCache inferencePreferencesCache;
     private final ElasticInferenceServiceAuthorizationRequestHandler authorizationHandler;
     private final Sender sender;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportPutRegionPolicyAction(
@@ -118,6 +120,7 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
         this.inferencePreferencesCache = inferencePreferencesCache;
         this.authorizationHandler = authorizationHandler;
         this.sender = sender;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -141,12 +144,16 @@ public class TransportPutRegionPolicyAction extends HandledTransportAction<PutRe
 
         var preferences = new InferencePreferences(request.regionPolicy());
         authorizationHandler.getAuthorizationWithPreferences(listener.delegateFailureAndWrap((l, authModel) -> {
-            var deniedInUseEndpoints = findDeniedInUseEndpoints(authModel);
-            if (deniedInUseEndpoints.isEmpty()) {
-                l.onResponse(null);
-            } else {
-                l.onFailure(buildDeniedInUseEndpointsException(deniedInUseEndpoints));
-            }
+            // Execute in another thread because finding denied in-use endpoints requires
+            // non-trivial iteration over cluster state metadata
+            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> {
+                var deniedInUseEndpoints = findDeniedInUseEndpoints(authModel);
+                if (deniedInUseEndpoints.isEmpty()) {
+                    l.onResponse(null);
+                } else {
+                    l.onFailure(buildDeniedInUseEndpointsException(deniedInUseEndpoints));
+                }
+            });
         }), sender, preferences);
     }
 

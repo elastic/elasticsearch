@@ -27,8 +27,7 @@ public class ProjectSecretsTests extends AbstractNamedWriteableTestCase<ProjectS
     private SecureClusterStateSettings secureClusterStateSettings;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initSecureSettings() throws Exception {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         // SecureSettings in cluster state are handled as file settings (get the byte array) both can be fetched as
         // string or file

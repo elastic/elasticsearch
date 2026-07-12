@@ -40,6 +40,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
@@ -134,6 +135,11 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             @Override
             public MeterRegistry getMeterRegistry() {
                 return meterRegistry;
+            }
+
+            @Override
+            public HttpServerInstrumentation getHttpServerInstrumentation() {
+                return HttpServerInstrumentation.NOOP;
             }
 
             @Override

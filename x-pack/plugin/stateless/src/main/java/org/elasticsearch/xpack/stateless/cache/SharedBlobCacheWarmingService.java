@@ -1200,7 +1200,7 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
-            warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "header/footer"));
+            warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "headerFooter"));
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "header/footer warming {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} skipped tasks, {} bytes)",
@@ -1535,7 +1535,7 @@ public class SharedBlobCacheWarmingService {
 
         @Override
         protected void onWarmingSuccess(long duration) {
-            warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "region 0 pre-warm"));
+            warmingDurationMetric.record(duration / 1000.0, Map.of(WARMING_TYPE_ATTRIBUTE_KEY, "region0PreWarm"));
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
                 "{} {} pre-warming region 0 of {} blobs completed in {} ms ({} bytes copied to cache)",

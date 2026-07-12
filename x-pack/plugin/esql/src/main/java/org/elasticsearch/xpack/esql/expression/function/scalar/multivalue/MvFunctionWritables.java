@@ -18,6 +18,7 @@ public class MvFunctionWritables {
             MvAvg.ENTRY,
             MvConcat.ENTRY,
             MvContains.ENTRY,
+            MvInRange.ENTRY,
             MvCount.ENTRY,
             MvDifference.ENTRY,
             MvDedupe.ENTRY,

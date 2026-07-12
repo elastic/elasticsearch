@@ -384,6 +384,11 @@ public class EsqlCapabilities {
         FN_MV_CONTAINS_V1,
 
         /**
+         * Support for the MV_IN_RANGE function.
+         */
+        FN_MV_IN_RANGE,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,

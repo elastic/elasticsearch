@@ -174,6 +174,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
@@ -595,6 +596,7 @@ public class EsqlFunctionRegistry {
                 MvAvg.DEFINITION,
                 MvConcat.DEFINITION,
                 MvContains.DEFINITION,
+                MvInRange.DEFINITION,
                 MvCount.DEFINITION,
                 MvDedupe.DEFINITION,
                 MvDifference.DEFINITION,

@@ -1590,3 +1590,17 @@ MV_MAX(VALUES(languages.byte)):integer | first_letter:keyword
 2                                      | S
 4                                      | T
 ;
+
+mvInRange
+required_capability: fn_mv_in_range
+// tag::mv_in_range[]
+ROW values = [1, 5, 10]
+| EVAL in_range = mv_in_range(values, 4, 6)
+// end::mv_in_range[]
+;
+
+// tag::mv_in_range-result[]
+values:integer | in_range:boolean
+[1, 5, 10]     | true
+// end::mv_in_range-result[]
+;

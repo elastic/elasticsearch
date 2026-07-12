@@ -115,6 +115,7 @@ total:long | distinct_emp:long
 heavyAggregatesGroupedMergedAcrossSubquery
 required_capability: external_command
 required_capability: subquery_in_from_command
+required_capability: external_csv_empty_string_not_null
 dataset: emp_a: "{{employees_no_mv}}"
 dataset: emp_b: "{{employees_no_mv}}"
 
@@ -123,9 +124,9 @@ FROM emp_a, (FROM emp_b | WHERE gender == "M")
 | SORT gender;
 
 c:long | gender:keyword
+10     |
 33     | "F"
 114    | "M"
-10     | null
 ;
 
 // Subquery shape with an interior pipeline breaker (SORT + LIMIT). The breaker disqualifies the pushdown, so the

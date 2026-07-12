@@ -435,7 +435,7 @@ public class SharedBlobCacheWarmingService {
             .registerLongCounter(BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC, "Total bytes warmed in cache", "bytes");
         this.idLookupPrewarmReqsTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(BLOB_CACHE_WARMING_ID_LOOKUP_PREWARM_REQS_TOTAL_METRIC, "Total id lookup prewarm requests", "unit");
-        // this uses a "double" histogram with the "second" time unit (rather than a "long" histogram with a "millisecond" time unit),
+        // these use a "double" histogram with the "second" time unit (rather than a "long" histogram with a "millisecond" time unit),
         // because the default bucket limits set by the APM agent for histograms are very low (max is 131072)
         this.searchRecoveryWarmDurationMetric = telemetryProvider.getMeterRegistry()
             .registerDoubleHistogram(

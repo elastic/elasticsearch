@@ -939,7 +939,6 @@ public class SharedBlobCacheWarmingService {
     ) {
         assert timeout.millis() > 0;
         final SubscribableListener<Void> race = new SubscribableListener<>();
-        final AtomicBoolean timedOut = new AtomicBoolean(false);
         final var cancellable = threadPool.schedule(() -> {
             logger.warn(
                 "Search shard recovery cache warming timed out after [{}] ({}) for {}",
@@ -947,7 +946,6 @@ public class SharedBlobCacheWarmingService {
                 timeoutContext.isEmpty() ? "default" : timeoutContext,
                 indexShard.shardId()
             );
-            timedOut.set(true);
             race.onResponse(null);
         }, timeout, threadPool.generic());
         race.addListener(ActionListener.runBefore(new ThreadedActionListener<>(threadPool.generic(), resumeRecoveryListener), () -> {
@@ -956,7 +954,7 @@ public class SharedBlobCacheWarmingService {
                 (threadPool.rawRelativeTimeInMillis() - startedMillis) / 1000.0,
                 Map.of(
                     SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY,
-                    (timedOut.get() ? SearchRecoveryWaitOutcome.TIMEOUT : SearchRecoveryWaitOutcome.WARMING_COMPLETE).name()
+                    (cancellable.isCancelled() ? SearchRecoveryWaitOutcome.WARMING_COMPLETE : SearchRecoveryWaitOutcome.TIMEOUT).name()
                 )
             );
         }));

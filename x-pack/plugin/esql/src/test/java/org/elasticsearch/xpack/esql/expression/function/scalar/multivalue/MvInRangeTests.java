@@ -39,6 +39,8 @@ public class MvInRangeTests extends AbstractScalarFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
+    private static final String CHANNELS = "[field=Attribute[channel=0], lower=Attribute[channel=1], upper=Attribute[channel=2]]";
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
@@ -136,7 +138,7 @@ public class MvInRangeTests extends AbstractScalarFunctionTestCase {
                                         new TestCaseSupplier.TypedData(a, lowerType, "lower"),
                                         new TestCaseSupplier.TypedData(b, upperType, "upper")
                                     ),
-                                    "MvInRangeBytesRefEvaluator[field=Attribute[channel=0], lower=Attribute[channel=1], upper=Attribute[channel=2]]",
+                                    "MvInRangeBytesRefEvaluator" + CHANNELS,
                                     DataType.BOOLEAN,
                                     equalTo(expected)
                                 );
@@ -184,7 +186,7 @@ public class MvInRangeTests extends AbstractScalarFunctionTestCase {
                 new TestCaseSupplier.TypedData(lower, type, "lower"),
                 new TestCaseSupplier.TypedData(upper, type, "upper")
             ),
-            "MvInRange" + evaluator + "Evaluator[field=Attribute[channel=0], lower=Attribute[channel=1], upper=Attribute[channel=2]]",
+            "MvInRange" + evaluator + "Evaluator" + CHANNELS,
             DataType.BOOLEAN,
             equalTo(expected)
         );

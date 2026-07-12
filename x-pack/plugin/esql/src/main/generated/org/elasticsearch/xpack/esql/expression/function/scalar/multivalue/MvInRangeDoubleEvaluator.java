@@ -69,9 +69,7 @@ public final class MvInRangeDoubleEvaluator implements ExpressionEvaluator {
       DoubleBlock upperBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        double lower = lowerBlock.getDouble(lowerBlock.getFirstValueIndex(p));
-        double upper = upperBlock.getDouble(upperBlock.getFirstValueIndex(p));
-        result.appendBoolean(MvInRange.process(p, fieldBlock, lower, upper));
+        result.appendBoolean(MvInRange.process(p, fieldBlock, lowerBlock, upperBlock));
       }
       return result.build();
     }

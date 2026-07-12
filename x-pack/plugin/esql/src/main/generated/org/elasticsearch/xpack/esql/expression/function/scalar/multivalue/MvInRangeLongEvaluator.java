@@ -69,9 +69,7 @@ public final class MvInRangeLongEvaluator implements ExpressionEvaluator {
       LongBlock upperBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        long lower = lowerBlock.getLong(lowerBlock.getFirstValueIndex(p));
-        long upper = upperBlock.getLong(upperBlock.getFirstValueIndex(p));
-        result.appendBoolean(MvInRange.process(p, fieldBlock, lower, upper));
+        result.appendBoolean(MvInRange.process(p, fieldBlock, lowerBlock, upperBlock));
       }
       return result.build();
     }

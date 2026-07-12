@@ -9,7 +9,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link MvInRange}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvInRangeIntEvaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvInRangeIntEvaluator.class);
+public final class MvInRangeBytesRefEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvInRangeBytesRefEvaluator.class);
 
   private final Source source;
 
@@ -36,8 +36,8 @@ public final class MvInRangeIntEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public MvInRangeIntEvaluator(Source source, ExpressionEvaluator field, ExpressionEvaluator lower,
-      ExpressionEvaluator upper, DriverContext driverContext) {
+  public MvInRangeBytesRefEvaluator(Source source, ExpressionEvaluator field,
+      ExpressionEvaluator lower, ExpressionEvaluator upper, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.lower = lower;
@@ -47,9 +47,9 @@ public final class MvInRangeIntEvaluator implements ExpressionEvaluator {
 
   @Override
   public Block eval(Page page) {
-    try (IntBlock fieldBlock = (IntBlock) field.eval(page)) {
-      try (IntBlock lowerBlock = (IntBlock) lower.eval(page)) {
-        try (IntBlock upperBlock = (IntBlock) upper.eval(page)) {
+    try (BytesRefBlock fieldBlock = (BytesRefBlock) field.eval(page)) {
+      try (BytesRefBlock lowerBlock = (BytesRefBlock) lower.eval(page)) {
+        try (BytesRefBlock upperBlock = (BytesRefBlock) upper.eval(page)) {
           return eval(page.getPositionCount(), fieldBlock, lowerBlock, upperBlock);
         }
       }
@@ -65,8 +65,8 @@ public final class MvInRangeIntEvaluator implements ExpressionEvaluator {
     return baseRamBytesUsed;
   }
 
-  public BooleanBlock eval(int positionCount, IntBlock fieldBlock, IntBlock lowerBlock,
-      IntBlock upperBlock) {
+  public BooleanBlock eval(int positionCount, BytesRefBlock fieldBlock, BytesRefBlock lowerBlock,
+      BytesRefBlock upperBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(MvInRange.process(p, fieldBlock, lowerBlock, upperBlock));
@@ -77,7 +77,7 @@ public final class MvInRangeIntEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "MvInRangeIntEvaluator[" + "field=" + field + ", lower=" + lower + ", upper=" + upper + "]";
+    return "MvInRangeBytesRefEvaluator[" + "field=" + field + ", lower=" + lower + ", upper=" + upper + "]";
   }
 
   @Override
@@ -110,13 +110,13 @@ public final class MvInRangeIntEvaluator implements ExpressionEvaluator {
     }
 
     @Override
-    public MvInRangeIntEvaluator get(DriverContext context) {
-      return new MvInRangeIntEvaluator(source, field.get(context), lower.get(context), upper.get(context), context);
+    public MvInRangeBytesRefEvaluator get(DriverContext context) {
+      return new MvInRangeBytesRefEvaluator(source, field.get(context), lower.get(context), upper.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "MvInRangeIntEvaluator[" + "field=" + field + ", lower=" + lower + ", upper=" + upper + "]";
+      return "MvInRangeBytesRefEvaluator[" + "field=" + field + ", lower=" + lower + ", upper=" + upper + "]";
     }
   }
 }

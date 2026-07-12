@@ -4,7 +4,20 @@
 
 | field | lower | upper | result |
 | --- | --- | --- | --- |
+| date | date | date | boolean |
+| date_nanos | date_nanos | date_nanos | boolean |
 | double | double | double | boolean |
 | integer | integer | integer | boolean |
+| ip | ip | ip | boolean |
+| keyword | keyword | keyword | boolean |
+| keyword | keyword | text | boolean |
+| keyword | text | keyword | boolean |
+| keyword | text | text | boolean |
 | long | long | long | boolean |
+| text | keyword | keyword | boolean |
+| text | keyword | text | boolean |
+| text | text | keyword | boolean |
+| text | text | text | boolean |
+| unsigned_long | unsigned_long | unsigned_long | boolean |
+| version | version | version | boolean |
 

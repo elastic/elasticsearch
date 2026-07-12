@@ -1604,3 +1604,45 @@ values:integer | in_range:boolean
 [1, 5, 10]     | true
 // end::mv_in_range-result[]
 ;
+
+mvInRangeElementWise
+required_capability: fn_mv_in_range
+// an existential over the values, not an envelope overlap: neither 0 nor 100 is inside [40, 60]
+ROW values = [0, 100]
+| EVAL in_range = mv_in_range(values, 40, 60)
+;
+
+values:integer | in_range:boolean
+[0, 100]       | false
+;
+
+mvInRangeNullFieldIsFalse
+required_capability: fn_mv_in_range
+// two-valued: a null field is out of range (false), so NOT of it is true
+ROW x = 1
+| EVAL in_range = mv_in_range(null, 1, 2), negated = NOT mv_in_range(null, 1, 2)
+;
+
+x:integer | in_range:boolean | negated:boolean
+1         | false            | true
+;
+
+mvInRangeNullBoundIsFalse
+required_capability: fn_mv_in_range
+ROW values = [1, 2, 3]
+| EVAL in_range = mv_in_range(values, null, 2)
+;
+
+values:integer | in_range:boolean
+[1, 2, 3]      | false
+;
+
+mvInRangeKeyword
+required_capability: fn_mv_in_range
+ROW words = ["apple", "cherry"]
+| EVAL in_range = mv_in_range(words, "banana", "date")
+;
+
+words:keyword       | in_range:boolean
+[apple, cherry]     | true
+;

@@ -2,5 +2,5 @@
 
 ## Description
 
-Returns `true` if at least one value of `field` is within the inclusive range `[lower, upper]`. Null or empty fields return `false`.
+Returns `true` if at least one value of `field` is within the inclusive range `[lower, upper]`, using the natural order of the type. A null or empty field returns `false`, as does a null bound. Works on any ordered type: numbers, dates, IPs, versions, and strings (compared by their UTF-8 bytes).
 

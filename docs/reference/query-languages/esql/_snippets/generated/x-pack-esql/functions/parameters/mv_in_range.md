@@ -3,11 +3,11 @@
 ## Parameters
 
 `field`
-:   Multivalue expression to test.
+:   Multivalue expression to test. If null or empty, the function returns `false`.
 
 `lower`
-:   Inclusive lower bound.
+:   Inclusive lower bound, of the same type as `field`. If null, the function returns `false`.
 
 `upper`
-:   Inclusive upper bound.
+:   Inclusive upper bound, of the same type as `field`. If null, the function returns `false`.
 

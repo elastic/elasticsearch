@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EstimatedHeapUsage;
+import org.elasticsearch.cluster.NodeHeapEstimate;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -744,8 +745,14 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         final long indexHeapUsage = 10;
 
         final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
-        estimatedHeapUsages.put(harness.nodeId1, new EstimatedHeapUsage(harness.nodeId1, totalBytes, estimatedBytesUsed));
-        estimatedHeapUsages.put(harness.nodeId2, new EstimatedHeapUsage(harness.nodeId2, totalBytes, estimatedBytesUsed));
+        estimatedHeapUsages.put(
+            harness.nodeId1,
+            new EstimatedHeapUsage(harness.nodeId1, totalBytes, new NodeHeapEstimate(estimatedBytesUsed, randomNonNegativeLong()))
+        );
+        estimatedHeapUsages.put(
+            harness.nodeId2,
+            new EstimatedHeapUsage(harness.nodeId2, totalBytes, new NodeHeapEstimate(estimatedBytesUsed, randomNonNegativeLong()))
+        );
         final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages = new HashMap<>();
         estimatedShardHeapUsages.put(shardRouting1.shardId(), new ShardAndIndexHeapUsage(shardHeapUsage, indexHeapUsage));
         estimatedShardHeapUsages.put(shardRouting2.shardId(), new ShardAndIndexHeapUsage(shardHeapUsage, indexHeapUsage));
@@ -767,8 +774,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         /** Initially, the estimated heap usage should be what was initialized in the ClusterInfo above. */
 
         var nodeHeapUsages = simulator.getEstimatedHeapUsages();
-        assertThat(nodeHeapUsages.get(harness.nodeId1).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
-        assertThat(nodeHeapUsages.get(harness.nodeId2).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
+        assertThat(nodeHeapUsages.get(harness.nodeId1).estimatedUsageBytes().totalHeapUsage(), equalTo(estimatedBytesUsed));
+        assertThat(nodeHeapUsages.get(harness.nodeId2).estimatedUsageBytes().totalHeapUsage(), equalTo(estimatedBytesUsed));
 
         var sourceNodeId = shardRouting1.currentNodeId();
         var targetNodeId = sourceNodeId == harness.nodeId1 ? harness.nodeId2 : harness.nodeId1;
@@ -832,8 +839,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     + ", and though not by its index heap usage, "
                     + indexHeapUsage
                     + "; new node heap usage: "
-                    + nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes(),
-                nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes(),
+                    + nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes().totalHeapUsage(),
+                nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes().totalHeapUsage(),
                 equalTo(estimatedBytesUsed - shardHeapUsage)
             );
             assertThat(
@@ -846,16 +853,16 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     + ", and its index heap usage, "
                     + indexHeapUsage
                     + "; new node heap usage: "
-                    + nodeHeapUsages.get(targetNodeId).estimatedUsageBytes(),
-                nodeHeapUsages.get(targetNodeId).estimatedUsageBytes(),
+                    + nodeHeapUsages.get(targetNodeId).estimatedUsageBytes().totalHeapUsage(),
+                nodeHeapUsages.get(targetNodeId).estimatedUsageBytes().totalHeapUsage(),
                 equalTo(estimatedBytesUsed + shardHeapUsage + indexHeapUsage)
             );
         }
 
         /** Relocate the second index shard from the source node. This should remove the index heap usage from the source node. */
         {
-            var sourceNodeHeapBeforeRelocation = nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes();
-            var targetNodeHeapBeforeRelocation = nodeHeapUsages.get(targetNodeId).estimatedUsageBytes();
+            var sourceNodeHeapBeforeRelocation = nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes().totalHeapUsage();
+            var targetNodeHeapBeforeRelocation = nodeHeapUsages.get(targetNodeId).estimatedUsageBytes().totalHeapUsage();
 
             var relocationShards = allocation.routingNodes()
                 .relocateShard(
@@ -908,7 +915,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     + indexHeapUsage
                     + "; new node heap usage: "
                     + nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes(),
-                nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes(),
+                nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes().totalHeapUsage(),
                 equalTo(sourceNodeHeapBeforeRelocation - shardHeapUsage - indexHeapUsage)
             );
             assertThat(
@@ -922,7 +929,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     + indexHeapUsage
                     + "; new node heap usage: "
                     + nodeHeapUsages.get(targetNodeId).estimatedUsageBytes(),
-                nodeHeapUsages.get(targetNodeId).estimatedUsageBytes(),
+                nodeHeapUsages.get(targetNodeId).estimatedUsageBytes().totalHeapUsage(),
                 equalTo(targetNodeHeapBeforeRelocation + shardHeapUsage)
             );
         }
@@ -931,7 +938,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         {
             assertThat("Shards should all be on the 'target' node", shardRouting1.currentNodeId(), equalTo(targetNodeId));
             var newTargetNodeId = sourceNodeId; // So we'll move the shard back to the 'source' node, making it the new target node.
-            var targetNodeHeapBeforeAssignment = nodeHeapUsages.get(newTargetNodeId).estimatedUsageBytes();
+            var targetNodeHeapBeforeAssignment = nodeHeapUsages.get(newTargetNodeId).estimatedUsageBytes().totalHeapUsage();
 
             // Unassign the shard - note, this leaves the heap usage incorrect for the node that owned the shard, since the node
             // unrealistically didn't leave the cluster, and there is no shard removal simulation.
@@ -973,7 +980,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     + shardHeapUsage
                     + ", and its index heap usage, "
                     + indexHeapUsage,
-                nodeHeapUsages.get(newTargetNodeId).estimatedUsageBytes(),
+                nodeHeapUsages.get(newTargetNodeId).estimatedUsageBytes().totalHeapUsage(),
                 equalTo(targetNodeHeapBeforeAssignment + shardHeapUsage + indexHeapUsage)
             );
         }
@@ -1055,8 +1062,14 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         final long estimatedBytesUsed = 250;
 
         final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
-        estimatedHeapUsages.put(harness.nodeId1, new EstimatedHeapUsage(harness.nodeId1, totalBytes, estimatedBytesUsed));
-        estimatedHeapUsages.put(harness.nodeId2, new EstimatedHeapUsage(harness.nodeId2, totalBytes, estimatedBytesUsed));
+        estimatedHeapUsages.put(
+            harness.nodeId1,
+            new EstimatedHeapUsage(harness.nodeId1, totalBytes, new NodeHeapEstimate(estimatedBytesUsed, randomNonNegativeLong()))
+        );
+        estimatedHeapUsages.put(
+            harness.nodeId2,
+            new EstimatedHeapUsage(harness.nodeId2, totalBytes, new NodeHeapEstimate(estimatedBytesUsed, randomNonNegativeLong()))
+        );
 
         ClusterInfo clusterInfo = ClusterInfo.builder().estimatedHeapUsages(estimatedHeapUsages).build();
 
@@ -1072,8 +1085,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         /** The estimated heap usage should be as initialized in the ClusterInfo above. */
 
         var nodeHeapUsages = simulator.getEstimatedHeapUsages();
-        assertThat(nodeHeapUsages.get(harness.nodeId1).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
-        assertThat(nodeHeapUsages.get(harness.nodeId2).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
+        assertThat(nodeHeapUsages.get(harness.nodeId1).estimatedUsageBytes().totalHeapUsage(), equalTo(estimatedBytesUsed));
+        assertThat(nodeHeapUsages.get(harness.nodeId2).estimatedUsageBytes().totalHeapUsage(), equalTo(estimatedBytesUsed));
 
         var sourceNodeId = shardRouting1.currentNodeId();
         var targetNodeId = sourceNodeId == harness.nodeId1 ? harness.nodeId2 : harness.nodeId1;
@@ -1091,8 +1104,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
             simulator.simulateShardStarted(relocationShards.v2());
 
-            assertThat(nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
-            assertThat(nodeHeapUsages.get(targetNodeId).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
+            assertThat(nodeHeapUsages.get(sourceNodeId).estimatedUsageBytes().totalHeapUsage(), equalTo(estimatedBytesUsed));
+            assertThat(nodeHeapUsages.get(targetNodeId).estimatedUsageBytes().totalHeapUsage(), equalTo(estimatedBytesUsed));
 
             // Want to continue testing with this shard later, so start it.
             shardRouting1 = allocation.routingNodes().startShard(relocationShards.v2(), allocation.changes(), 0);
@@ -1115,7 +1128,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 .initializeShard(unassignedShardRouting, newTargetNodeId, null, 0, allocation.changes());
             simulator.simulateShardStarted(shardRouting1);
 
-            assertThat(nodeHeapUsages.get(newTargetNodeId).estimatedUsageBytes(), equalTo(estimatedBytesUsed));
+            assertThat(nodeHeapUsages.get(newTargetNodeId).estimatedUsageBytes().totalHeapUsage(), equalTo(estimatedBytesUsed));
         }
     }
 
@@ -1153,7 +1166,10 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             ).build();
 
             final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
-            estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapBytes, baselineBytes));
+            estimatedHeapUsages.put(
+                nodeId,
+                new EstimatedHeapUsage(nodeId, maxHeapBytes, new NodeHeapEstimate(baselineBytes, randomNonNegativeLong()))
+            );
 
             final ClusterInfo clusterInfoForNewShard = ClusterInfo.builder()
                 .estimatedHeapUsages(estimatedHeapUsages)
@@ -1173,7 +1189,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             simulatorForNewShard.simulateShardStarted(newPrimary);
 
             assertThat(
-                simulatorForNewShard.getEstimatedHeapUsages().get(nodeId).estimatedUsageBytes(),
+                simulatorForNewShard.getEstimatedHeapUsages().get(nodeId).estimatedUsageBytes().totalHeapUsage(),
                 equalTo(baselineBytes + deltaBytes)
             );
         }
@@ -1196,8 +1212,14 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 .getId();
 
             final Map<String, EstimatedHeapUsage> twoNodeHeaps = new HashMap<>();
-            twoNodeHeaps.put(sourceNodeId, new EstimatedHeapUsage(sourceNodeId, maxHeapBytes, baselineBytes));
-            twoNodeHeaps.put(targetNodeId, new EstimatedHeapUsage(targetNodeId, maxHeapBytes, baselineBytes));
+            twoNodeHeaps.put(
+                sourceNodeId,
+                new EstimatedHeapUsage(sourceNodeId, maxHeapBytes, new NodeHeapEstimate(baselineBytes, randomNonNegativeLong()))
+            );
+            twoNodeHeaps.put(
+                targetNodeId,
+                new EstimatedHeapUsage(targetNodeId, maxHeapBytes, new NodeHeapEstimate(baselineBytes, randomNonNegativeLong()))
+            );
 
             final ClusterInfo clusterInfoForRelocation = ClusterInfo.builder()
                 .estimatedHeapUsages(twoNodeHeaps)
@@ -1223,11 +1245,11 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             simulatorForRelocation.simulateShardStarted(relocationShards.v2());
 
             assertThat(
-                simulatorForRelocation.getEstimatedHeapUsages().get(sourceNodeId).estimatedUsageBytes(),
+                simulatorForRelocation.getEstimatedHeapUsages().get(sourceNodeId).estimatedUsageBytes().totalHeapUsage(),
                 equalTo(baselineBytes - deltaBytes)
             );
             assertThat(
-                simulatorForRelocation.getEstimatedHeapUsages().get(targetNodeId).estimatedUsageBytes(),
+                simulatorForRelocation.getEstimatedHeapUsages().get(targetNodeId).estimatedUsageBytes().totalHeapUsage(),
                 equalTo(baselineBytes + deltaBytes)
             );
         }

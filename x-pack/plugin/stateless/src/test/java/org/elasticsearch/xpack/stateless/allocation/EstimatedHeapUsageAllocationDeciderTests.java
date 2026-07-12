@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeHeapEstimate;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -629,7 +630,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT
             )
         );
-        return new EstimatedHeapUsageAllocationDecider(clusterSettings);
+        return new EstimatedHeapUsageAllocationDecider(clusterSettings, new ExistingEstimatedHeapUsageAllocationDeciderNodeThingo());
     }
 
     private static ShardRouting createShardRouting() {
@@ -781,7 +782,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
     private EstimatedHeapUsage createNodeHeapUsage(String nodeId, long usagePercent, ByteSizeValue totalHeapSize) {
         final var totalInBytes = totalHeapSize.getBytes();
         final var usedInBytes = (long) Math.floor(totalInBytes * usagePercent / 100.0d);
-        return new EstimatedHeapUsage(nodeId, totalInBytes, usedInBytes);
+        return new EstimatedHeapUsage(nodeId, totalInBytes, new NodeHeapEstimate(usedInBytes, randomNonNegativeLong()));
     }
 
     private Map<ShardId, ShardAndIndexHeapUsage> createShardAndIndexHeapUsageMap(ShardId shardId, long additionalBytes) {

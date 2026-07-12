@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeHeapEstimate;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Strings;
@@ -103,7 +104,11 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
         randNodeIds(between(1, 3)).forEach(
             nodeId -> estimatedHeapUsages.put(
                 nodeId,
-                new EstimatedHeapUsage(nodeId, totalBytesPerNode, totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100)
+                new EstimatedHeapUsage(
+                    nodeId,
+                    totalBytesPerNode,
+                    new NodeHeapEstimate(totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100, randomNonNegativeLong())
+                )
             )
         );
         monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(estimatedHeapUsages).build());
@@ -140,7 +145,11 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             nodeIds.forEach(
                 nodeId -> initialUsages.put(
                     nodeId,
-                    new EstimatedHeapUsage(nodeId, totalBytesPerNode, totalBytesPerNode * between(0, highWatermarkPercentage) / 100)
+                    new EstimatedHeapUsage(
+                        nodeId,
+                        totalBytesPerNode,
+                        new NodeHeapEstimate(totalBytesPerNode * between(0, highWatermarkPercentage) / 100, randomNonNegativeLong())
+                    )
                 )
             );
             monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(initialUsages).build());
@@ -153,7 +162,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                 new EstimatedHeapUsage(
                     nodeIds.get(0),
                     totalBytesPerNode,
-                    totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100
+                    new NodeHeapEstimate(totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100, randomNonNegativeLong())
                 )
             );
             expectation.setExpectSeen();
@@ -178,7 +187,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                 new EstimatedHeapUsage(
                     nodeIds.get(1),
                     totalBytesPerNode,
-                    totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100
+                    new NodeHeapEstimate(totalBytesPerNode * between(highWatermarkPercentage + 1, 100) / 100, randomNonNegativeLong())
                 )
             );
             monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(moreUsages).build());
@@ -196,7 +205,11 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             final Map<String, EstimatedHeapUsage> reducedUsages = new HashMap<>(moreUsages);
             reducedUsages.put(
                 nodeIds.get(0),
-                new EstimatedHeapUsage(nodeIds.get(0), totalBytesPerNode, totalBytesPerNode * between(0, highWatermarkPercentage) / 100)
+                new EstimatedHeapUsage(
+                    nodeIds.get(0),
+                    totalBytesPerNode,
+                    new NodeHeapEstimate(totalBytesPerNode * between(0, highWatermarkPercentage) / 100, randomNonNegativeLong())
+                )
             );
             monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(reducedUsages).build());
             mockLog.assertAllExpectationsMatched();
@@ -238,7 +251,10 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
                                 return new EstimatedHeapUsage(
                                     estimatedHeapUsage.nodeId(),
                                     estimatedHeapUsage.totalBytes(),
-                                    estimatedHeapUsage.totalBytes() * between(0, lowWatermarkPercentage) / 100
+                                    new NodeHeapEstimate(
+                                        estimatedHeapUsage.totalBytes() * between(0, lowWatermarkPercentage) / 100,
+                                        randomNonNegativeLong()
+                                    )
                                 );
                             } else {
                                 return estimatedHeapUsage;
@@ -297,7 +313,11 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
         nodeIdsAboveLowWatermark.forEach(nodeId -> {
             estimatedHeapUsages.put(
                 nodeId,
-                new EstimatedHeapUsage(nodeId, totalBytesPerNode, totalBytesPerNode * between(lowWatermarkPercentage + 1, 100) / 100)
+                new EstimatedHeapUsage(
+                    nodeId,
+                    totalBytesPerNode,
+                    new NodeHeapEstimate(totalBytesPerNode * between(lowWatermarkPercentage + 1, 100) / 100, randomNonNegativeLong())
+                )
             );
         });
 
@@ -305,7 +325,11 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             randOtherNodeIds(between(1, 3)).forEach(nodeId -> {
                 estimatedHeapUsages.put(
                     nodeId,
-                    new EstimatedHeapUsage(nodeId, totalBytesPerNode, totalBytesPerNode * between(0, lowWatermarkPercentage) / 100)
+                    new EstimatedHeapUsage(
+                        nodeId,
+                        totalBytesPerNode,
+                        new NodeHeapEstimate(totalBytesPerNode * between(0, lowWatermarkPercentage) / 100, randomNonNegativeLong())
+                    )
                 );
             });
         }

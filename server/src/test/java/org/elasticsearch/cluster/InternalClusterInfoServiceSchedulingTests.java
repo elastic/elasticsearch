@@ -227,7 +227,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
     private static class StubEstimatedEstimatedHeapUsageCollector implements EstimatedHeapUsageCollector {
 
         @Override
-        public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
+        public void collectClusterHeapUsage(ActionListener<Map<String, NodeHeapEstimate>> listener) {
             listener.onResponse(Map.of());
         }
 

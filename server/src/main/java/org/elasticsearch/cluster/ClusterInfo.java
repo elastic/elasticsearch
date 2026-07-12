@@ -204,7 +204,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         this.dataPath = in.readImmutableMap(NodeAndShard::new, StreamInput::readString);
         this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
         if (in.getTransportVersion().supports(HEAP_USAGE_IN_CLUSTER_INFO)) {
-            this.estimatedHeapUsages = in.readImmutableMap(EstimatedHeapUsage::new);
+            this.estimatedHeapUsages = in.readImmutableMap(EstimatedHeapUsage::readFrom);
         } else {
             this.estimatedHeapUsages = Map.of();
         }

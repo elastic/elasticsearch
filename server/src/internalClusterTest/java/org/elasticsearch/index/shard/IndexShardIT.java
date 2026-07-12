@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeHeapEstimate;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.ShardHeapUsageEstimates;
@@ -1007,14 +1008,19 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
+        public void collectClusterHeapUsage(ActionListener<Map<String, NodeHeapEstimate>> listener) {
             ActionListener.completeWith(
                 listener,
                 () -> plugin.getClusterService()
                     .state()
                     .nodes()
                     .stream()
-                    .collect(Collectors.toUnmodifiableMap(DiscoveryNode::getId, node -> randomNonNegativeLong()))
+                    .collect(
+                        Collectors.toUnmodifiableMap(
+                            DiscoveryNode::getId,
+                            node -> new NodeHeapEstimate(randomNonNegativeLong(), randomNonNegativeLong())
+                        )
+                    )
             );
         }
 

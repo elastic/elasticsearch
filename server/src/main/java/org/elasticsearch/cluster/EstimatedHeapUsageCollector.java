@@ -27,7 +27,7 @@ public interface EstimatedHeapUsageCollector {
      */
     EstimatedHeapUsageCollector EMPTY = new EstimatedHeapUsageCollector() {
         @Override
-        public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
+        public void collectClusterHeapUsage(ActionListener<Map<String, NodeHeapEstimate>> listener) {
             listener.onResponse(Map.of());
         }
 
@@ -42,7 +42,7 @@ public interface EstimatedHeapUsageCollector {
      *
      * @param listener The listener which will receive the results
      */
-    void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener);
+    void collectClusterHeapUsage(ActionListener<Map<String, NodeHeapEstimate>> listener);
 
     /**
      * Collects the estimated heap usage for every shard in the cluster.

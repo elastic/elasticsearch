@@ -19,7 +19,11 @@ public class EstimatedHeapUsageTests extends ESTestCase {
     public void testEstimatedUsageAsPercentage() {
         final long totalBytes = randomNonNegativeLong();
         final long estimatedUsageBytes = randomLongBetween(0, totalBytes);
-        final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(randomUUID(), totalBytes, estimatedUsageBytes);
+        final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(
+            randomUUID(),
+            totalBytes,
+            new NodeHeapEstimate(estimatedUsageBytes, randomNonNegativeLong())
+        );
         assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
         assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
         assertEquals(estimatedHeapUsage.estimatedUsageAsPercentage(), 100.0 * estimatedUsageBytes / totalBytes, 0.0001);
@@ -29,7 +33,11 @@ public class EstimatedHeapUsageTests extends ESTestCase {
         final long totalBytes = randomNonNegativeLong();
         final long estimatedUsageBytes = randomLongBetween(0, totalBytes);
         final long estimatedFreeBytes = totalBytes - estimatedUsageBytes;
-        final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(randomUUID(), totalBytes, estimatedUsageBytes);
+        final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(
+            randomUUID(),
+            totalBytes,
+            new NodeHeapEstimate(estimatedUsageBytes, randomNonNegativeLong())
+        );
         assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), greaterThanOrEqualTo(0.0));
         assertThat(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), lessThanOrEqualTo(100.0));
         assertEquals(estimatedHeapUsage.estimatedFreeBytesAsPercentage(), 100.0 * estimatedFreeBytes / totalBytes, 0.0001);

@@ -137,6 +137,7 @@ import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAc
 import org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor;
+import org.elasticsearch.xpack.stateless.allocation.ExistingEstimatedHeapUsageAllocationDeciderNodeThingo;
 import org.elasticsearch.xpack.stateless.allocation.StatelessAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessBalancingWeightsFactory;
 import org.elasticsearch.xpack.stateless.allocation.StatelessExistingShardsAllocator;
@@ -1945,7 +1946,7 @@ public class StatelessPlugin extends Plugin
         return List.of(
             new DisableSimulationRebalancingDecider(clusterSettings),
             new StatelessAllocationDecider(),
-            new EstimatedHeapUsageAllocationDecider(clusterSettings),
+            new EstimatedHeapUsageAllocationDecider(clusterSettings, new ExistingEstimatedHeapUsageAllocationDeciderNodeThingo()),
             new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)
         );
     }

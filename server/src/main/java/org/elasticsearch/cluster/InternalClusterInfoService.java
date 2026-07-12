@@ -215,7 +215,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<String, DiskUsage> leastAvailableSpaceUsages;
         private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
         private volatile Map<String, ByteSizeValue> maxHeapPerNode;
-        private volatile Map<String, Long> estimatedHeapUsagePerNode;
+        private volatile Map<String, NodeHeapEstimate> estimatedHeapUsagePerNode;
         private volatile ShardHeapUsageEstimates estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
         private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
         private volatile IndicesStatsSummary indicesStatsSummary;
@@ -298,7 +298,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void fetchEstimatedHeapUsage() {
             estimatedHeapUsageCollector.collectClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
-                public void onResponse(Map<String, Long> currentEstimatedHeapUsages) {
+                public void onResponse(Map<String, NodeHeapEstimate> currentEstimatedHeapUsages) {
                     estimatedHeapUsagePerNode = currentEstimatedHeapUsages;
                 }
 
@@ -495,7 +495,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private ClusterInfo updateAndGetCurrentClusterInfo() {
             final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>(maxHeapPerNode.size());
             maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
-                final Long estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
+                final NodeHeapEstimate estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
                 if (estimatedHeapUsage != null) {
                     estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
                 }

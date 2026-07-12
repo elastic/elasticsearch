@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 149478
+pr: 152154
+summary: Extend LAST and LATEST to support the same field types as FIRST and EARLIEST
+type: enhancement

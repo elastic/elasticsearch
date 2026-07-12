@@ -1444,6 +1444,7 @@ required_capability: approximation_v7
 required_capability: approximation_fork
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_put_serverless_scope
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -1481,6 +1482,7 @@ required_capability: approximation_fork
 required_capability: subquery_in_from_command
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_put_serverless_scope
 request_stored: skip
 
 SET approximation={"rows":10000}\;

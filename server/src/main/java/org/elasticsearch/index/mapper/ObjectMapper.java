@@ -176,26 +176,43 @@ public class ObjectMapper extends Mapper {
          * @param context        the DocumentParserContext in which the mapper has been built
          */
         public final void addDynamic(String name, String prefix, Mapper.Builder mapperBuilder, DocumentParserContext context) {
-            // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
-            // we just add it as it is for sure a leaf mapper
-            if (name.contains(".") == false || subobjects.value() == Subobjects.DISABLED) {
+            // A name with no dots is for sure a leaf mapper of the current object.
+            int firstDotIndex = name.indexOf('.');
+            if (firstDotIndex < 0) {
                 add(mapperBuilder);
-            } else {
-                // We strip off the first object path of the mapper name, load or create
-                // the relevant object mapper, and then recurse down into it, passing the remainder
-                // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
-                // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
-                int firstDotIndex = name.indexOf('.');
-                String immediateChild = name.substring(0, firstDotIndex);
-                String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
-                Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
-                if (parentBuilder != null) {
-                    parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapperBuilder, context);
-                    add(parentBuilder);
-                } else {
-                    // Expected to find a matching parent object but got null.
-                    throw new IllegalStateException("Missing intermediate object " + immediateChildFullName);
+                return;
+            }
+            if (subobjects.value() == Subobjects.DISABLED) {
+                // With subobjects:false a dotted name is flattened into a leaf of the current object - except when it lives inside a
+                // nested object. A nested field is a real document boundary, so a dynamic field inside it must be added inside the
+                // nested mapper (e.g. 'obj.n.ndyn' must be added inside the nested 'obj.n'), not flattened to a leaf at this level.
+                // We look for the shortest dotted prefix that is a nested object and recurse into it; if none is nested the field is
+                // a plain flattened leaf. Adding it at the wrong level would propose the field at the wrong path, so re-parsing keeps
+                // proposing the same dynamic update and the mapping never converges.
+                for (int dot = firstDotIndex; dot >= 0; dot = name.indexOf('.', dot + 1)) {
+                    String childFullName = prefix == null ? name.substring(0, dot) : prefix + "." + name.substring(0, dot);
+                    if (context.mappingLookup().objectMappers().get(childFullName) instanceof NestedObjectMapper) {
+                        Builder nestedBuilder = findObjectBuilder(childFullName, context);
+                        nestedBuilder.addDynamic(name.substring(dot + 1), childFullName, mapperBuilder, context);
+                        add(nestedBuilder);
+                        return;
+                    }
                 }
+                add(mapperBuilder);
+                return;
+            }
+            // We strip off the first object path of the mapper name, load or create the relevant object mapper, and then recurse
+            // down into it, passing the remainder of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then call
+            // addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
+            String immediateChild = name.substring(0, firstDotIndex);
+            String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
+            Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
+            if (parentBuilder != null) {
+                parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapperBuilder, context);
+                add(parentBuilder);
+            } else {
+                // Expected to find a matching parent object but got null.
+                throw new IllegalStateException("Missing intermediate object " + immediateChildFullName);
             }
         }
 
@@ -356,7 +373,12 @@ public class ObjectMapper extends Mapper {
             MapperMergeContext dedupContext = MapperMergeContext.from(builderContext, Long.MAX_VALUE);
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
-                if (subobjects.value() == Subobjects.DISABLED && builder instanceof ObjectMapper.Builder objectMapperBuilder) {
+                // Nested builders are a genuine document boundary and must survive subobjects:false rather than
+                // being flattened into dotted leaves. Plain object builders have no internal existence and are
+                // flattened away. NestedObjectMapper.Builder extends ObjectMapper.Builder, hence the explicit guard.
+                if (subobjects.value() == Subobjects.DISABLED
+                    && builder instanceof ObjectMapper.Builder objectMapperBuilder
+                    && builder instanceof NestedObjectMapper.Builder == false) {
                     objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath(), this.prefixProperties);
                 } else {
                     Mapper.Builder existing = map.get(builder.leafName());
@@ -406,7 +428,13 @@ public class ObjectMapper extends Mapper {
             }
             path.add(leafName());
             for (Mapper.Builder childBuilder : mappersBuilders) {
-                if (childBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
+                if (childBuilder instanceof NestedObjectMapper.Builder nestedBuilder) {
+                    // A nested field is a document boundary, not a flattenable object: keep it as a child mapper,
+                    // renaming it with the accumulated dotted prefix so it builds under its full path (e.g.
+                    // a nested 'comments' inside object 'meta' becomes the nested field 'meta.comments').
+                    nestedBuilder.setLeafName(path.pathAsText(nestedBuilder.leafName()));
+                    result.put(nestedBuilder.leafName(), nestedBuilder);
+                } else if (childBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
                     objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path, collector);
                 } else if (childBuilder instanceof FieldMapper.Builder fieldMapperBuilder) {
                     fieldMapperBuilder.setLeafName(path.pathAsText(fieldMapperBuilder.leafName()));
@@ -441,6 +469,15 @@ public class ObjectMapper extends Mapper {
                 throwAutoFlatteningException(
                     fullName,
                     "the value of [enabled] is [false]; no fields with the prefix [" + fullName + "] are allowed"
+                );
+            }
+            // A pass-through object records its priority in prefixProperties only at the columnar root; it cannot be
+            // captured when auto-flattened elsewhere (a non-columnar subobjects:false root, or inside a nested scope), so
+            // reject it there rather than silently dropping the pass-through behaviour.
+            if (this instanceof PassThroughObjectMapper.Builder && context.isStrictColumnar() == false) {
+                throwAutoFlatteningException(
+                    fullName,
+                    "the value of [type] is [passthrough], which is only supported at the root in columnar index modes"
                 );
             }
             if (subobjects.explicit() && subobjects.value() == Subobjects.ENABLED) {
@@ -684,15 +721,9 @@ public class ObjectMapper extends Mapper {
                         }
                     }
 
-                    if (objBuilder.subobjects.value() == Subobjects.DISABLED && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
-                        throw new MapperParsingException(
-                            "Tried to add nested object ["
-                                + fieldName
-                                + "] to object ["
-                                + objBuilder.leafName()
-                                + "] which does not support subobjects"
-                        );
-                    }
+                    // A nested field is accepted under subobjects:false: unlike a plain object (whose leaves index flat
+                    // under dotted names and whose node is auto-flattened away), nested introduces a genuine
+                    // child-document boundary, so it is kept as a hierarchical mapping rather than flattened.
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     if (typeParser == null) {
                         throw new MapperParsingException(
@@ -794,13 +825,33 @@ public class ObjectMapper extends Mapper {
                         dot = fieldName.indexOf('.', dot + 1);
                     }
                 }
+                // A nested field's sub-fields must live in its own [properties], not as flat dotted siblings: a flat
+                // [foo.bar] next to a nested [foo] is ambiguous (a child of the nested document, or a standalone
+                // field?), so reject it. Plain objects never hit this - they are flattened away entirely.
+                for (Map.Entry<String, Mapper> entry : mappers.entrySet()) {
+                    if (entry.getValue() instanceof ObjectMapper nestedChild && prefixes.contains(entry.getKey())) {
+                        String prefix = entry.getKey() + ".";
+                        String conflict = mappers.keySet().stream().filter(k -> k.startsWith(prefix)).findFirst().orElse(prefix + "*");
+                        // The conflicting sibling shares the nested field's key as a dotted prefix; reconstruct its full
+                        // path from the nested field's full path so the error is correct regardless of the root name.
+                        String conflictFullName = nestedChild.fullPath() + conflict.substring(entry.getKey().length());
+                        throw new MapperParsingException(
+                            "Field ["
+                                + conflictFullName
+                                + "] cannot be added because ["
+                                + nestedChild.fullPath()
+                                + "] is a nested field; its sub-fields must be declared within its [properties]"
+                        );
+                    }
+                }
                 this.mappedPrefixes = prefixes.isEmpty() ? Set.of() : Set.copyOf(prefixes);
             } else {
                 this.mappedPrefixes = Set.of();
             }
         }
-        assert subobjects.value() != Subobjects.DISABLED || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper)
-            : "When subobjects is false, mappers must not contain an ObjectMapper";
+        assert subobjects.value() != Subobjects.DISABLED
+            || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper && m instanceof NestedObjectMapper == false)
+            : "When subobjects is false, mappers must not contain a non-nested ObjectMapper";
     }
 
     /**

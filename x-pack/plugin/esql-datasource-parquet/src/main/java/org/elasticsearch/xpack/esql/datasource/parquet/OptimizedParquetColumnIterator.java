@@ -35,6 +35,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -44,7 +45,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -106,6 +109,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final BlockFactory blockFactory;
     private final String createdBy;
     private final String fileLocation;
+    /** See {@link #coercionWarnings()}. */
+    private SkipWarnings coercionWarnings;
+    /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
+    private final ErrorPolicy errorPolicy;
     private final ColumnInfo[] columnInfos;
     private final PreloadedRowGroupMetadata preloadedMetadata;
     private final StorageObject storageObject;
@@ -320,8 +327,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         ParquetMetadata fullFooter,
         DynamicThreshold dynamicThreshold,
         ColumnDescriptor sortColumnDescriptor,
-        ParquetReaderCounters counters
+        ParquetReaderCounters counters,
+        ErrorPolicy errorPolicy
     ) {
+        this.errorPolicy = errorPolicy;
         this.reader = reader;
         this.projectedSchema = projectedSchema;
         this.attributes = attributes;
@@ -828,11 +837,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (exhausted) {
             return false;
         }
-        if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
-            exhausted = true;
-            cancelPendingPrefetch();
-            return false;
-        }
         if (rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0) {
             exhausted = true;
             return false;
@@ -845,8 +849,22 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 rowsRemainingInGroup = 0;
             }
         }
+        // Serve rows already materialized for the current row group before consulting the
+        // early-termination side channel. dynamicThreshold.noFurtherCandidates() is a volatile flag
+        // that a concurrent TopN worker can flip at any moment (e.g. once a NULLS FIRST top-K
+        // saturates with nulls). Checking it first would let a flip land between a caller's hasNext()
+        // and its next() and turn an already-available batch into a NoSuchElementException — the race
+        // behind the intermittent "Unexpected failure reading external source" surfaced from next().
+        // Early termination still takes effect below, where it stops us from advancing to (and
+        // prefetching) any further row groups; the only extra work is draining the already-decoded,
+        // in-memory current group, which the TopN simply discards.
         if (rowsRemainingInGroup > 0) {
             return true;
+        }
+        if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
+            exhausted = true;
+            cancelPendingPrefetch();
+            return false;
         }
         try {
             return advanceRowGroup();
@@ -1489,7 +1507,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 && columnInfos[i].maxRepLevel() == 0) {
                 ColumnDescriptor desc = columnInfos[i].descriptor();
                 PageReader pr = rowGroup.getPageReader(desc);
-                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], null);
+                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], null, coercionWarnings());
             }
         }
     }
@@ -1510,7 +1528,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 && columnInfos[i].maxRepLevel() == 0) {
                 ColumnDescriptor desc = columnInfos[i].descriptor();
                 PageReader pr = rowGroup.getPageReader(desc);
-                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], survivorRowRanges);
+                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], survivorRowRanges, coercionWarnings());
             }
         }
     }
@@ -1527,7 +1545,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && columnInfos[i].maxRepLevel() == 0) {
                 ColumnDescriptor desc = columnInfos[i].descriptor();
                 PageReader pr = rowGroup.getPageReader(desc);
-                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], currentRowRanges);
+                pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], currentRowRanges, coercionWarnings());
             }
         }
         boolean hasListColumns = false;
@@ -2230,10 +2248,40 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return blockFactory.newConstantNullBlock(rowsToRead);
         }
         if (info.maxRepLevel() > 0) {
-            return ParquetColumnDecoding.readListColumn(cr, info, rowsToRead, blockFactory);
+            return ParquetColumnDecoding.readListColumn(
+                cr,
+                info,
+                rowsToRead,
+                blockFactory,
+                attributes.get(colIndex).name(),
+                coercionWarnings()
+            );
         }
         ParquetColumnDecoding.skipValues(cr, rowsToRead);
         return blockFactory.newConstantNullBlock(rowsToRead);
+    }
+
+    /**
+     * Lazily-created sink for per-value declared-coercion failures (capped response Warning
+     * headers + nulled cells); shared by every column and row group of this iterator so the cap
+     * is per read, not per column chunk. Returns {@code null} under {@code fail_fast} — the
+     * strict contract of {@code DeclaredTypeCoercions}, where a {@code null} sink means the
+     * failure propagates and the read fails instead of warn+null.
+     */
+    @Nullable
+    private SkipWarnings coercionWarnings() {
+        if (errorPolicy.isStrict()) {
+            return null;
+        }
+        if (coercionWarnings == null) {
+            coercionWarnings = new SkipWarnings(
+                "Parquet file ["
+                    + fileLocation
+                    + "] has values that could not be coerced to the declared column type; "
+                    + "they are returned as null"
+            );
+        }
+        return coercionWarnings;
     }
 
     @Override
@@ -2247,7 +2295,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // regardless of whether this iterator was opened on the full file or on a range. That's
         // the whole point of file-global addressing: any iterator that emits identities and any
         // extractor over the same file agree without coordination.
-        return new ParquetColumnExtractor(storageObject, formatReader, fullFooter);
+        return new ParquetColumnExtractor(storageObject, formatReader, fullFooter, errorPolicy);
     }
 
     @Override

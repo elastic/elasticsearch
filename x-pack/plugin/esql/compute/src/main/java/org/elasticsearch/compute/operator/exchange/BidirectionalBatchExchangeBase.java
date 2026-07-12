@@ -7,8 +7,12 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
@@ -22,7 +26,7 @@ import java.util.concurrent.Executor;
  * Contains common fields and exchange ID construction logic shared by
  * {@link BidirectionalBatchExchangeServer} and {@link BidirectionalBatchExchangeClient}.
  */
-abstract class BidirectionalBatchExchangeBase implements Releasable {
+public abstract class BidirectionalBatchExchangeBase implements Releasable {
 
     protected final String sessionId;
     protected final ExchangeService exchangeService;
@@ -31,6 +35,28 @@ abstract class BidirectionalBatchExchangeBase implements Releasable {
     protected final TransportService transportService;
     protected final Task task;
     protected final Settings settings;
+
+    /**
+     * Logs an exchange failure at {@code nonCancellationLevel}, unless it is a cancellation. Cancellations are
+     * expected teardown (for example the query reached its LIMIT and the exchange was closed early via a
+     * synthesized "client stopped" error, or the task was cancelled), so they are logged at DEBUG to keep
+     * genuine failures visible. Shared by the client, the server, and the operator driving them, so the caller
+     * supplies its own logger.
+     *
+     * @param logger               the logger to log to (the caller's own logger)
+     * @param nonCancellationLevel the level to log at when the failure is not a cancellation
+     * @param failure              the failure that decides the log level (cancellations are logged at DEBUG)
+     * @param message              a parameterized log message template
+     * @param params               the parameters for the message template; a trailing {@link Throwable} is logged with its stack trace
+     */
+    @SuppressLoggerChecks(reason = "safely delegates to logger with a caller-supplied message and params")
+    public static void logExchangeFailure(Logger logger, Level nonCancellationLevel, Exception failure, String message, Object... params) {
+        if (failure != null && ExceptionsHelper.isTaskCancelledException(failure)) {
+            logger.debug(message, params);
+        } else {
+            logger.log(nonCancellationLevel, message, params);
+        }
+    }
 
     /**
      * Constructs the client-to-server exchange ID from the session ID.

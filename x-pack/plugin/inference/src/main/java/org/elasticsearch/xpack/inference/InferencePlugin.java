@@ -64,17 +64,21 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
+import org.elasticsearch.xpack.core.inference.action.DeleteRegionPolicyAction;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.GetCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
+import org.elasticsearch.xpack.core.inference.action.GetRegionPolicyAction;
 import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.PutRegionPolicyAction;
+import org.elasticsearch.xpack.core.inference.action.RefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
@@ -82,23 +86,29 @@ import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.action.TransportDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
+import org.elasticsearch.xpack.inference.action.TransportDeleteRegionPolicyAction;
 import org.elasticsearch.xpack.inference.action.TransportEmbeddingAction;
 import org.elasticsearch.xpack.inference.action.TransportGetCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceServicesAction;
+import org.elasticsearch.xpack.inference.action.TransportGetRegionPolicyAction;
 import org.elasticsearch.xpack.inference.action.TransportGetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceActionProxy;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.TransportPutRegionPolicyAction;
+import org.elasticsearch.xpack.inference.action.TransportRefreshAuthorizedEndpointsAction;
 import org.elasticsearch.xpack.inference.action.TransportRerankAction;
 import org.elasticsearch.xpack.inference.action.TransportStoreEndpointsAction;
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
+import org.elasticsearch.xpack.inference.common.ClearInferencePreferencesCacheAction;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.oauth2.ClearOAuth2TokenCacheAction;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
@@ -135,13 +145,16 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryClusterStateMetadata;
 import org.elasticsearch.xpack.inference.rest.RestDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
+import org.elasticsearch.xpack.inference.rest.RestDeleteRegionPolicyAction;
 import org.elasticsearch.xpack.inference.rest.RestGetCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceServicesAction;
+import org.elasticsearch.xpack.inference.rest.RestGetRegionPolicyAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.rest.RestPutRegionPolicyAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -207,6 +220,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE;
 
 public class InferencePlugin extends Plugin
     implements
@@ -311,10 +325,15 @@ public class InferencePlugin extends Plugin
             new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
             new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
             new ActionHandler(ClearOAuth2TokenCacheAction.INSTANCE, ClearOAuth2TokenCacheAction.class),
+            new ActionHandler(ClearInferencePreferencesCacheAction.INSTANCE, ClearInferencePreferencesCacheAction.class),
             new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
             new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
             new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
-            new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class)
+            new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class),
+            new ActionHandler(RefreshAuthorizedEndpointsAction.INSTANCE, TransportRefreshAuthorizedEndpointsAction.class),
+            new ActionHandler(GetRegionPolicyAction.INSTANCE, TransportGetRegionPolicyAction.class),
+            new ActionHandler(PutRegionPolicyAction.INSTANCE, TransportPutRegionPolicyAction.class),
+            new ActionHandler(DeleteRegionPolicyAction.INSTANCE, TransportDeleteRegionPolicyAction.class)
         );
     }
 
@@ -335,7 +354,10 @@ public class InferencePlugin extends Plugin
             new RestGetInferenceServicesAction(),
             new RestGetCCMConfigurationAction(ccmFeature.get()),
             new RestPutCCMConfigurationAction(ccmFeature.get()),
-            new RestDeleteCCMConfigurationAction(ccmFeature.get())
+            new RestDeleteCCMConfigurationAction(ccmFeature.get()),
+            new RestGetRegionPolicyAction(),
+            new RestPutRegionPolicyAction(),
+            new RestDeleteRegionPolicyAction()
         );
     }
 
@@ -359,7 +381,7 @@ public class InferencePlugin extends Plugin
         var amazonBedrockRequestSenderFactory = new AmazonBedrockRequestSender.Factory(serviceComponents.get(), services.clusterService());
         amazonBedrockFactory.set(amazonBedrockRequestSenderFactory);
 
-        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client()));
+        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client(), services.featureService()));
         services.clusterService().addListener(modelRegistry.get());
 
         if (inferenceServiceExtensions == null) {
@@ -375,26 +397,37 @@ public class InferencePlugin extends Plugin
         var elasticInferenceServiceHttpClientManager = eisRequestSenderFactoryComponents.httpClientManager();
         elasticInferenceServiceFactory.set(eisRequestSenderFactoryComponents.factory());
 
+        var inferencePreferencesCache = new InferencePreferencesCache(
+            services.projectResolver(),
+            services.client(),
+            services.clusterService(),
+            services.featureService()
+        );
+
         var sageMakerSchemas = new SageMakerSchemas();
         var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
 
+        var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
         var ccmRelatedComponents = createCCMDependentComponents(
             services,
             inferenceServiceSettings,
             serviceComponents.get(),
             elasticInferenceServiceFactory.get().createSender(),
             modelRegistry.get(),
-            ccmFeature.get()
+            ccmFeature.get(),
+            inferenceFeatureService,
+            inferencePreferencesCache
         );
         components.addAll(ccmRelatedComponents.components());
 
         inferenceServices.add(() -> List.of(context -> {
-            var eisService = new ElasticInferenceService(
+            var eisService = ElasticInferenceService.create(
                 elasticInferenceServiceFactory.get(),
                 serviceComponents.get(),
                 inferenceServiceSettings,
                 context,
-                ccmRelatedComponents.ccmAuthApplierFactory()
+                ccmRelatedComponents.ccmAuthApplierFactory(),
+                inferencePreferencesCache
             );
             eisService.init();
             return eisService;
@@ -422,7 +455,8 @@ public class InferencePlugin extends Plugin
             services.threadPool(),
             services.clusterService(),
             settings,
-            inferenceStats
+            inferenceStats,
+            services.featureService()
         );
 
         // Both oauth2TokenCache and projectResolver must be set before InferenceServiceRegistry is
@@ -477,6 +511,7 @@ public class InferencePlugin extends Plugin
         );
 
         components.add(oAuth2TokenCache);
+        components.add(inferencePreferencesCache);
 
         components.add(new PluginComponentBinding<>(ElasticInferenceServiceSettings.class, inferenceServiceSettings));
 
@@ -491,7 +526,9 @@ public class InferencePlugin extends Plugin
         ServiceComponents serviceComponents,
         Sender sender,
         ModelRegistry modelRegistry,
-        CCMFeature ccmFeature
+        CCMFeature ccmFeature,
+        InferenceFeatureService inferenceFeatureService,
+        InferencePreferencesCache inferencePreferencesCache
     ) {
         var ccmEnablementService = new CCMEnablementService(services.clusterService(), services.featureService(), ccmFeature);
         var ccmPersistentStorageService = new CCMPersistentStorageService(services.client());
@@ -517,32 +554,32 @@ public class InferencePlugin extends Plugin
             services.threadPool(),
             ccmAuthApplierFactory,
             ccmFeature,
-            ccmService
+            ccmService,
+            services.clusterService(),
+            services.featureService(),
+            inferencePreferencesCache
         );
 
-        var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
         var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
             services.featureService(),
             ccmEnablementService,
             ccmFeature,
-            new AuthorizationPoller.Parameters(
-                serviceComponents,
-                authorizationHandler,
-                sender,
-                inferenceServiceSettings,
-                modelRegistry,
-                services.client(),
-                ccmFeature,
-                ccmService,
-                inferenceFeatureService
-            )
+            new AuthorizationPoller.Parameters(serviceComponents, inferenceServiceSettings, services.client(), ccmFeature, ccmService)
         );
         authorizationTaskExecutorRef.set(authTaskExecutor);
         authTaskExecutor.startAndLazilyCreateTask();
 
         return new CCMRelatedComponents(
-            List.of(authorizationHandler, authTaskExecutor, ccmService, ccmPersistentStorageService, ccmCache, ccmEnablementService),
+            List.of(
+                authorizationHandler,
+                authTaskExecutor,
+                ccmService,
+                ccmPersistentStorageService,
+                ccmCache,
+                ccmEnablementService,
+                inferenceFeatureService
+            ),
             ccmAuthApplierFactory
         );
     }
@@ -686,61 +723,50 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        var inferenceIndexV1Descriptor = SystemIndexDescriptor.builder()
+        return List.of(createInferenceIndexDescriptor(), createInferenceSecretsIndexDescriptor(), createCCMIndexDescriptor());
+    }
+
+    private SystemIndexDescriptor createInferenceIndexDescriptor() {
+        SystemIndexDescriptor.Builder builder = SystemIndexDescriptor.builder()
             .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
             .setIndexPattern(InferenceIndex.INDEX_PATTERN)
             .setAliasName(InferenceIndex.INDEX_ALIAS)
             .setPrimaryIndex(InferenceIndex.INDEX_NAME)
             .setDescription(INFERENCE_INDEX_DESCRIPTION)
-            .setMappings(InferenceIndex.mappingsV1())
-            .setSettings(InferenceIndex.settings())
-            .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-            .build();
+            .setSettings(getIndexSettings())
+            .setOrigin(ClientHelper.INFERENCE_ORIGIN);
 
-        var inferenceIndexV2Descriptor = SystemIndexDescriptor.builder()
+        SystemIndexDescriptor v1 = builder.setMappings(InferenceIndex.mappingsV1()).build();
+        SystemIndexDescriptor v2 = builder.setMappings(InferenceIndex.mappingsV2()).build();
+
+        SystemIndexDescriptor v3 = builder.setMappings(InferenceIndex.mappingsV3()).build();
+        return builder.setMappings(InferenceIndex.mappingsV4()).setPriorSystemIndexDescriptors(List.of(v1, v2, v3)).build();
+    }
+
+    private SystemIndexDescriptor createInferenceSecretsIndexDescriptor() {
+        return SystemIndexDescriptor.builder()
             .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-            .setIndexPattern(InferenceIndex.INDEX_PATTERN)
-            .setAliasName(InferenceIndex.INDEX_ALIAS)
-            .setPrimaryIndex(InferenceIndex.INDEX_NAME)
-            .setDescription(INFERENCE_INDEX_DESCRIPTION)
-            .setMappings(InferenceIndex.mappingsV2())
-            .setSettings(InferenceIndex.settings())
+            .setIndexPattern(InferenceSecretsIndex.INDEX_PATTERN)
+            .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
+            .setDescription("Contains inference service secrets")
+            .setMappings(InferenceSecretsIndex.mappings())
+            .setSettings(getSecretsIndexSettings())
             .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+            .setNetNew()
             .build();
+    }
 
-        return List.of(
-            SystemIndexDescriptor.builder()
-                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-                .setIndexPattern(InferenceIndex.INDEX_PATTERN)
-                .setAliasName(InferenceIndex.INDEX_ALIAS)
-                .setPrimaryIndex(InferenceIndex.INDEX_NAME)
-                .setDescription(INFERENCE_INDEX_DESCRIPTION)
-                .setMappings(InferenceIndex.currentMappings())
-                .setSettings(getIndexSettings())
-                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor, inferenceIndexV2Descriptor))
-                .build(),
-            SystemIndexDescriptor.builder()
-                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-                .setIndexPattern(InferenceSecretsIndex.INDEX_PATTERN)
-                .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
-                .setDescription("Contains inference service secrets")
-                .setMappings(InferenceSecretsIndex.mappings())
-                .setSettings(getSecretsIndexSettings())
-                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                .setNetNew()
-                .build(),
-            SystemIndexDescriptor.builder()
-                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-                .setIndexPattern(CCMIndex.INDEX_PATTERN)
-                .setPrimaryIndex(CCMIndex.INDEX_NAME)
-                .setDescription("Contains Elastic Inference Service Cloud Connected Mode settings")
-                .setMappings(CCMIndex.mappings())
-                .setSettings(CCMIndex.settings())
-                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                .setNetNew()
-                .build()
-        );
+    private static SystemIndexDescriptor createCCMIndexDescriptor() {
+        return SystemIndexDescriptor.builder()
+            .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+            .setIndexPattern(CCMIndex.INDEX_PATTERN)
+            .setPrimaryIndex(CCMIndex.INDEX_NAME)
+            .setDescription("Contains Elastic Inference Service Cloud Connected Mode settings")
+            .setMappings(CCMIndex.mappings())
+            .setSettings(CCMIndex.settings())
+            .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+            .setNetNew()
+            .build();
     }
 
     // Overridable for tests
@@ -797,6 +823,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
+        settings.add(INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE);
         settings.add(INFERENCE_QUERY_TIMEOUT);
         settings.addAll(InferenceEndpointRegistry.getSettingsDefinitions());
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
@@ -840,9 +867,7 @@ public class InferencePlugin extends Plugin
         Map<String, Mapper.TypeParser> mappers = new HashMap<>();
         mappers.put(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.parser(getModelRegistry()));
         mappers.put(OffsetSourceFieldMapper.CONTENT_TYPE, OffsetSourceFieldMapper.PARSER);
-        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
-            mappers.put(SemanticFieldMapper.CONTENT_TYPE, SemanticFieldMapper.parser(getModelRegistry()));
-        }
+        mappers.put(SemanticFieldMapper.CONTENT_TYPE, SemanticFieldMapper.parser(getModelRegistry()));
         return Collections.unmodifiableMap(mappers);
     }
 

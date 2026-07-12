@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
@@ -84,7 +82,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         // Also retain fields from lookup indices and external sources because we do not have stats for these.
         Predicate<FieldAttribute> shouldBeRetained = f -> f instanceof TimeSeriesMetadataAttribute
             // We should still attempt to load potentially unmapped fields if they're unmapped; that's the whole point!
-            || isPotentiallyUnmapped(f)
+            || f.isPotentiallyUnmapped()
             // The source (or doc) field is added to the relation output as a hack to enable late materialization in the reduce driver.
             || EsQueryExec.isDocAttribute(f)
             // MissingEsField means the coordinator explicitly nullified this field (unmapped_fields="nullify").
@@ -95,11 +93,6 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             || externalFields.contains(f);
 
         return plan.transformUp(p -> replaceWithNullOrConstant(p, shouldBeRetained, attrToConstant));
-    }
-
-    private static boolean isPotentiallyUnmapped(FieldAttribute f) {
-        return f.field() instanceof PotentiallyUnmappedKeywordEsField
-            || (f.field() instanceof UnionTypeEsField utf && utf.getUnmappedConversionExpression() != null);
     }
 
     private LogicalPlan replaceWithNullOrConstant(

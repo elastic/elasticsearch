@@ -126,7 +126,7 @@ public class SharedBlobCacheWarmingService {
         "es.blob_cache_warming.search_recovery.wait_for_resume_duration.histogram";
     public static final String SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY = "es_search_recovery_wait_outcome";
     public static final String BLOB_CACHE_WARMING_DURATION_METRIC = "es.blob_cache_warming.duration.histogram";
-    public static final String WARMING_TYPE_ATTRIBUTE_KEY = "warming_type";
+    public static final String WARMING_TYPE_ATTRIBUTE_KEY = "es_warming_type";
 
     /**
      * Why {@link #warmCacheForSearchShardRecovery} stopped waiting and resumed recovery, recorded as an attribute on

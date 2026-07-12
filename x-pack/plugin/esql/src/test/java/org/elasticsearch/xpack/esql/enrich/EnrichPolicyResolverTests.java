@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
@@ -479,6 +480,64 @@ public class EnrichPolicyResolverTests extends ESTestCase {
                 equalTo("cannot find enrich policy [addrezz] on clusters [_local, cluster_a]")
             );
         }
+    }
+
+    /**
+     * Regression test for a REMOTE-mode ENRICH whose own scope is a single remote cluster that turns out to be unavailable (fails to
+     * connect). The correct outcome is the same as if every remote in scope were unavailable: the policy cannot be resolved at all.
+     */
+    public void testRemoteModeFailsWhenSoleScopedRemoteIsUnavailable() {
+        Map<String, EnrichPolicy> policies = new HashMap<>();
+        Map<String, String> aliases = new HashMap<>();
+        Map<String, Map<String, String>> mappings = new HashMap<>();
+        policies.put("custom_policy", new EnrichPolicy("match", null, List.of(), "ip", List.of("region", "cost")));
+        aliases.put(".enrich-custom_policy", ".enrich-custom_policy-1");
+        mappings.put(".enrich-custom_policy-1", Map.of("ip", "ip", "region", "keyword", "cost", "long"));
+
+        // EnrichPolicyResolver#<init> registers a request handler on its transport service, so this resolver needs its
+        // own transport rather than reusing transports.get(LOCAL_CLUSTER_GROUP_KEY) (already claimed by `localCluster`).
+        // It's registered under transports so the existing @After hook stops it along with the rest.
+        var localTransport = MockTransportService.createNewService(
+            Settings.EMPTY,
+            VersionInformation.CURRENT,
+            TransportVersion.current(),
+            threadPool
+        );
+        localTransport.acceptIncomingRequests();
+        localTransport.start();
+        transports.put("flaky_local", localTransport);
+
+        // A resolver whose local policies are real (custom_policy exists locally), but whose connection to cluster_a
+        // always fails - simulating cluster_a being unavailable regardless of the real (connected) test transport.
+        TestEnrichPolicyResolver flakyResolver = new TestEnrichPolicyResolver(
+            randomProjectIdOrDefault(),
+            "flaky_local",
+            policies,
+            aliases,
+            mappings
+        ) {
+            @Override
+            protected void getRemoteConnection(
+                String remoteCluster,
+                boolean ensureConnected,
+                ActionListener<Transport.Connection> listener
+            ) {
+                listener.onFailure(new ConnectTransportException(transports.get(remoteCluster).getLocalNode(), "simulated disconnect"));
+            }
+        };
+
+        var mode = Enrich.Mode.REMOTE;
+        // custom_policy's own scope is cluster_a only; LOCAL_CLUSTER_GROUP_KEY is included in the outer `clusters` just
+        // to force a real local lookup (so a silently-successful resolution against _local would be observable).
+        var resolution = flakyResolver.resolvePolicies(
+            Set.of("cluster_a", LOCAL_CLUSTER_GROUP_KEY),
+            List.of(new EnrichPolicyResolver.UnresolvedPolicy("custom_policy", mode, sourceFor("custom_policy", mode), Set.of("cluster_a")))
+        );
+        assertNull(resolution.getResolvedPolicy(sourceFor("custom_policy", mode)));
+        assertThat(
+            resolution.getError(sourceFor("custom_policy", mode)),
+            equalTo("enrich policy [custom_policy] cannot be resolved since remote clusters are unavailable")
+        );
     }
 
     TestEnrichPolicyResolver newEnrichPolicyResolver(ProjectId projectId, String cluster) {

@@ -217,7 +217,7 @@ public class EnrichPolicyResolver {
      */
     private Collection<String> calculateTargetClusters(Enrich.Mode mode, Set<String> scope) {
         Set<String> remoteClusters = new HashSet<>(scope);
-        boolean includeLocal = remoteClusters.isEmpty() || remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        boolean includeLocal = remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         return switch (mode) {
             case ANY -> CollectionUtils.appendToCopy(remoteClusters, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             case COORDINATOR -> List.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);

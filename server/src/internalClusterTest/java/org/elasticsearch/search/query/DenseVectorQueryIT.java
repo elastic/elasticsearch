@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
@@ -370,19 +371,21 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(prepareSearch(index).setQuery(scriptScoreQueryBuilder).setSize(docCount), exactResponse -> {
             assertHitCount(exactResponse, docCount);
 
-            int i = 0;
-            SearchHit[] exactHits = exactResponse.getHits().getHits();
+            // Build a map from doc ID to exact score. An ordered scan would break when two scoring paths
+            // produce very slightly different float scores for the same doc (e.g. the DenseVectorQuery
+            // doc-values COSINE path uses a pre-stored magnitude while the script baseline recomputes it),
+            // causing docs with near-identical scores to sort differently between the two result sets.
+            Map<String, Float> exactScoreById = new HashMap<>(exactResponse.getHits().getHits().length);
+            for (SearchHit hit : exactResponse.getHits().getHits()) {
+                exactScoreById.put(hit.getId(), hit.getScore());
+            }
             for (SearchHit denseHit : denseResponse.getHits().getHits()) {
-                while (i < exactHits.length && exactHits[i].getId().equals(denseHit.getId()) == false) {
-                    i++;
-                }
-                if (i >= exactHits.length) {
-                    fail("dense_vector hit not found in exact search");
-                }
+                Float exactScore = exactScoreById.get(denseHit.getId());
+                assertNotNull("dense_vector hit " + denseHit.getId() + " not found in exact search", exactScore);
                 assertThat(
                     "dense_vector score for doc " + denseHit.getId() + " is not within tolerance of script-score ground truth",
                     (double) denseHit.getScore(),
-                    closeTo(exactHits[i].getScore(), tolerance)
+                    closeTo(exactScore, tolerance)
                 );
             }
         });

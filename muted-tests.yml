@@ -829,9 +829,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:approximation.Lookup join after stats by}
   issue: https://github.com/elastic/elasticsearch/issues/153593
-- class: org.elasticsearch.search.query.DenseVectorQueryIT
-  method: testCosineOnNonIndexedField
-  issue: https://github.com/elastic/elasticsearch/issues/153599
 - class: org.elasticsearch.geometry.utils.CircleUtilsTests
   method: testCreateRegularGeoShapePolygon
   issue: https://github.com/elastic/elasticsearch/issues/153600

@@ -41,9 +41,10 @@ import java.util.function.LongFunction;
 
 /**
  * Coordinator-only, in-memory cache service for external source metadata.
- * Maintains two independent caches:
+ * Maintains three independent caches:
  * <ul>
  *   <li>Schema cache (20% of budget, 5m TTL) — shared across users</li>
+ *   <li>File-metadata cache (count-bounded, schema TTL) — {@code {length, mtime}} per path, shared across users</li>
  *   <li>Listing cache (80% of budget, 30s TTL) — isolated by credential hash</li>
  * </ul>
  * Uses hard TTL via {@code setExpireAfterWrite} for the initial implementation.
@@ -54,9 +55,34 @@ public class ExternalSourceCacheService implements Closeable {
     private static final Logger logger = LogManager.getLogger(ExternalSourceCacheService.class);
 
     private final Cache<SchemaCacheKey, SchemaCacheEntry> schemaCache;
+    private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
     private final Cache<ListingCacheKey, FileList> listingCache;
     private final long maxTotalBytes;
     private volatile boolean enabled;
+
+    /**
+     * A single object's cheap physical metadata: byte {@code length} and last-modified epoch millis.
+     * mtime is stored purely as the version token that rebuilds the {@link SchemaCacheKey} and populates
+     * the resolved {@code StorageEntry}; staleness is bounded by the file-metadata cache's hard TTL alone,
+     * never by mtime acting as a second freshness clock. {@code length} is cached alongside because the
+     * warm single-file resolve rebuilds its singleton file list from both, so caching mtime without length
+     * would still force the per-query object probe.
+     */
+    public record FileMetadata(long length, long mtimeMillis) {}
+
+    /**
+     * Key for a cached {@link FileMetadata}. Deliberately credential-INDEPENDENT (endpoint + region only,
+     * no access key / token) so the entry is shared across users exactly like the schema cache — the same
+     * canonical path on the same endpoint/region resolves to the same object regardless of who asks. The
+     * same canonical path on a different endpoint resolves to a different object, so endpoint and region
+     * are part of the identity.
+     */
+    public record FileMetadataCacheKey(String canonicalPath, String endpoint, String region) {
+        public static FileMetadataCacheKey build(String canonicalPath, Map<String, Object> config) {
+            EndpointRegion location = EndpointRegion.of(config);
+            return new FileMetadataCacheKey(canonicalPath, location.endpoint(), location.region());
+        }
+    }
 
     /**
      * Per-file-path lock serializing the read-modify-write of a schema-cache entry's stripe metadata,
@@ -114,6 +140,14 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private static final long PENDING_DATASET_AGGREGATE_TTL_NANOS = TimeUnit.HOURS.toNanos(1);
 
+    /**
+     * Entry-count cap for the file-metadata cache. Unlike the schema and listing caches (byte-weighted,
+     * variable-size values), a {@link FileMetadata} is two {@code long}s behind a small path key, so it is
+     * bounded by count rather than bytes — no per-entry byte weigher. {@value} tiny entries is a few tens of
+     * MB worst case, and, being hard-TTL-bounded by the schema TTL, the live set is normally far smaller.
+     */
+    private static final int FILE_METADATA_CACHE_MAX_ENTRIES = 100_000;
+
     private final LongAdder datasetAggregateHits = new LongAdder();
     private final LongAdder datasetAggregateMisses = new LongAdder();
     private final LongAdder statsAggregateIncomplete = new LongAdder();
@@ -135,6 +169,14 @@ public class ExternalSourceCacheService implements Closeable {
             .weigher((key, value) -> value.estimatedBytes())
             .build();
 
+        // Shares the schema TTL: the metadata entry is the version token that rebuilds the schema key, so
+        // its freshness horizon must match the schema entry it gates. No byte weigher — entries are tiny and
+        // fixed-size, so the cache is bounded by a generous entry count instead of the byte budget.
+        this.fileMetadataCache = CacheBuilder.<FileMetadataCacheKey, FileMetadata>builder()
+            .setMaximumWeight(FILE_METADATA_CACHE_MAX_ENTRIES)
+            .setExpireAfterWrite(schemaTtl)
+            .build();
+
         this.listingCache = CacheBuilder.<ListingCacheKey, FileList>builder()
             .setMaximumWeight(listingBudget)
             .setExpireAfterWrite(listingTtl)
@@ -142,10 +184,12 @@ public class ExternalSourceCacheService implements Closeable {
             .build();
 
         logger.info(
-            "External source cache initialized: total=[{}], schema=[{}], listing=[{}], schemaTTL=[{}], listingTTL=[{}]",
+            "External source cache initialized: total=[{}], schema=[{}], listing=[{}], fileMetadataMaxEntries=[{}], "
+                + "schemaTTL=[{}], listingTTL=[{}]",
             totalBudget,
             ByteSizeValue.ofBytes(schemaBudget),
             ByteSizeValue.ofBytes(listingBudget),
+            FILE_METADATA_CACHE_MAX_ENTRIES,
             schemaTtl,
             listingTtl
         );
@@ -160,6 +204,21 @@ public class ExternalSourceCacheService implements Closeable {
             return loader.load(key);
         }
         return schemaCache.computeIfAbsent(key, loader);
+    }
+
+    /**
+     * Returns cached {@link FileMetadata} or computes it via the loader. The loader — a single object
+     * probe (mtime + length), on S3 one {@code bytes=-1} GET — is only invoked on a miss. When the cache
+     * is disabled, the loader is called directly (bypassing the cache), so the probe still happens every
+     * query. Mirrors {@link #getOrComputeSchema}: this is the amortization lever that removes the
+     * per-query warm-path metadata probe for single-file sources.
+     */
+    public FileMetadata getOrComputeFileMetadata(FileMetadataCacheKey key, CacheLoader<FileMetadataCacheKey, FileMetadata> loader)
+        throws Exception {
+        if (enabled == false) {
+            return loader.load(key);
+        }
+        return fileMetadataCache.computeIfAbsent(key, loader);
     }
 
     /**
@@ -1315,6 +1374,7 @@ public class ExternalSourceCacheService implements Closeable {
 
     public void clearAll() {
         schemaCache.invalidateAll();
+        fileMetadataCache.invalidateAll();
         listingCache.invalidateAll();
         synchronized (pendingDatasetAggregates) {
             pendingDatasetAggregates.clear();
@@ -1330,6 +1390,11 @@ public class ExternalSourceCacheService implements Closeable {
         stats.put("schema_cache.hits", schemaCache.stats().getHits());
         stats.put("schema_cache.misses", schemaCache.stats().getMisses());
         stats.put("schema_cache.evictions", schemaCache.stats().getEvictions());
+
+        stats.put("file_metadata_cache.count", fileMetadataCache.count());
+        stats.put("file_metadata_cache.hits", fileMetadataCache.stats().getHits());
+        stats.put("file_metadata_cache.misses", fileMetadataCache.stats().getMisses());
+        stats.put("file_metadata_cache.evictions", fileMetadataCache.stats().getEvictions());
 
         stats.put("listing_cache.count", listingCache.count());
         stats.put("listing_cache.hits", listingCache.stats().getHits());
@@ -1354,6 +1419,11 @@ public class ExternalSourceCacheService implements Closeable {
     // Visible for testing
     Cache<SchemaCacheKey, SchemaCacheEntry> schemaCache() {
         return schemaCache;
+    }
+
+    // Visible for testing
+    Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache() {
+        return fileMetadataCache;
     }
 
     // Visible for testing

@@ -2118,7 +2118,6 @@ fork2         | 42              | 43
 
 loadUnmappedFieldDropInOneForkBranchWildcardKeepMatchesMaterializedUnmapped
 // #152843: DROP-mention materializes unmapped_message, so the wildcard KEEP *message matches it.
-required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: optional_fields_load_fork_drop_materializes_sibling
 required_capability: fork_v9
 

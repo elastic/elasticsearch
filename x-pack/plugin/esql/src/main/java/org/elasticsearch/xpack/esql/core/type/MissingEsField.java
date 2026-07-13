@@ -51,4 +51,9 @@ public class MissingEsField extends EsField {
         // so for BWC we just fall back to EsField, which is the closest thing to MissingEsField that older nodes will understand.
         return "EsField";
     }
+
+    @Override
+    public String getNodeStringName() {
+        return "MissingEsField";
+    }
 }

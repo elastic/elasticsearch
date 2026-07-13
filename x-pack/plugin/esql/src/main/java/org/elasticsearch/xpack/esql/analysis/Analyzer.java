@@ -1729,7 +1729,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // branch then null-fills it). Skip it when no branch can surface it, else it would be null in every branch and isn't a real
             // column.
             if (loadAlignAcrossBranches && fork.children().stream().anyMatch(ResolveRefs::branchCanSurfaceLoadedField)) {
-                addDroppedUnmappedKeywordsMissingFromUnion(outputUnion, unmappedKeywordsDroppedByProjection(fork));
+                addDroppedUnmappedFieldsMissingFromUnion(outputUnion, unmappedFieldsDroppedByProjection(fork));
             }
             List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
             Set<String> forkLoadableUnmappedKeywordNames = loadAlignAcrossBranches ? loadableUnmappedKeywordNames(fork) : Set.of();
@@ -1875,11 +1875,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Unmapped keywords a {@link Project} in a FORK branch drops outright — in the projection input but neither surfaced nor referenced
-         * (a plain DROP, not a RENAME). Keyed by name, first occurrence wins. A field consumed by an {@link Aggregate}
-         * (e.g., {@code STATS ... BY f}) is excluded: it was never a branch output column, so it must not become a FORK column.
+         * Unmapped fields a {@link Project} in a FORK branch drops outright, in the projection input but neither surfaced nor referenced
+         * (a plain {@code DROP}, not a {@code RENAME}). Keyed by name, first occurrence wins. A field consumed by an {@link Aggregate}
+         * (e.g., {@code STATS ... BY f}) is excluded: it was never a branch output column, so it must not become a {@code FORK} column.
          */
-        private static Map<String, FieldAttribute> unmappedKeywordsDroppedByProjection(Fork fork) {
+        private static Map<String, FieldAttribute> unmappedFieldsDroppedByProjection(Fork fork) {
             Map<String, FieldAttribute> byName = new LinkedHashMap<>();
             for (LogicalPlan branch : fork.children()) {
                 branch.forEachDown(Project.class, project -> {
@@ -1899,19 +1899,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Mutates {@code outputUnion} in place, inserting a loader for each dropped unmapped keyword missing from it right before the
-         * {@code _fork} discriminator, so a DROP-mentioned field lands where a WHERE/KEEP-mentioned one would and {@code _fork} stays last.
+         * Mutates {@code outputUnion} in place, inserting a loader for each dropped unmapped fields missing from it right before the
+         * {@code _fork} discriminator, so a {@code DROP}-mentioned field lands where a {@code WHERE}/{@code KEEP}-mentioned one would and
+         * {@code _fork} stays last.
          */
-        private static void addDroppedUnmappedKeywordsMissingFromUnion(
+        private static void addDroppedUnmappedFieldsMissingFromUnion(
             List<Attribute> outputUnion,
-            Map<String, FieldAttribute> droppedUnmappedKeywords
+            Map<String, FieldAttribute> droppedUnmappedFields
         ) {
-            if (droppedUnmappedKeywords.isEmpty()) {
+            if (droppedUnmappedFields.isEmpty()) {
                 return;
             }
             Set<String> unionNames = new HashSet<>(Expressions.names(outputUnion));
             List<Attribute> loaders = new ArrayList<>();
-            for (Map.Entry<String, FieldAttribute> entry : droppedUnmappedKeywords.entrySet()) {
+            for (Map.Entry<String, FieldAttribute> entry : droppedUnmappedFields.entrySet()) {
                 if (unionNames.contains(entry.getKey()) == false) {
                     loaders.add(insistKeyword(entry.getValue()));
                 }

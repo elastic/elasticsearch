@@ -630,7 +630,7 @@ public class EstimatedHeapUsageAllocationDeciderTests extends ESAllocationTestCa
                 EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT
             )
         );
-        return new EstimatedHeapUsageAllocationDecider(clusterSettings, new ExistingEstimatedHeapUsageAllocationDeciderNodeThingo());
+        return new EstimatedHeapUsageAllocationDecider(clusterSettings);
     }
 
     private static ShardRouting createShardRouting() {

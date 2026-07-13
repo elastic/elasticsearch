@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.allocation;
 import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -35,7 +36,7 @@ import org.elasticsearch.logging.Logger;
 public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(EstimatedHeapUsageAllocationDecider.class);
-    public static final String NAME = "estimated_heap";
+    private static final String NAME = "estimated_heap";
 
     /**
      * Below the specified heap size the decider will not intervene
@@ -83,19 +84,21 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
         "estimated heap allocation decider is disabled"
     );
 
+    private static final Decision YES_ESTIMATED_HEAP_USAGE_FOR_INDEX_NODE_ONLY = Decision.single(
+        Decision.Type.YES,
+        NAME,
+        "estimated heap allocation decider is applicable only to index nodes"
+    );
+
     private final FrequencyCappedAction logCanRemainMessage;
     private final FrequencyCappedAction logCanAllocateMessage;
-    private final EstimatedHeapUsageAllocationDeciderNodeThingo estimatedHeapUsageAllocationDeciderNodeThingo;
     private volatile boolean enabled;
     private volatile boolean highWatermarkEnabled;
     private volatile RatioValue estimatedHeapLowWatermark;
     private volatile RatioValue estimatedHeapHighWatermark;
     private volatile ByteSizeValue minimumHeapSizeForEnabled;
 
-    public EstimatedHeapUsageAllocationDecider(
-        ClusterSettings clusterSettings,
-        EstimatedHeapUsageAllocationDeciderNodeThingo estimatedHeapUsageAllocationDeciderNodeThingo
-    ) {
+    public EstimatedHeapUsageAllocationDecider(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(
             InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
             this::setEnabled
@@ -106,7 +109,6 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
         );
         logCanRemainMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
         logCanAllocateMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
-        this.estimatedHeapUsageAllocationDeciderNodeThingo = estimatedHeapUsageAllocationDeciderNodeThingo;
         clusterSettings.initializeAndWatch(MINIMUM_LOGGING_INTERVAL, timeValue -> {
             logCanRemainMessage.setMinInterval(timeValue);
             logCanAllocateMessage.setMinInterval(timeValue);
@@ -137,7 +139,7 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
         if (heapUsageDisabledForNodeDecision != null) {
             return heapUsageDisabledForNodeDecision;
         }
-        final var nodeHeapUsageForNode = estimatedHeapUsageAllocationDeciderNodeThingo.heapUsageForNode(allocation, node);
+        final var nodeHeapUsageForNode = allocation.clusterInfo().getEstimatedHeapUsages().get(node.nodeId());
         assert nodeHeapUsageForNode != null : "expected to have a valid heap usage estimate for the node";
 
         final double heapUsedPercentageForNode = nodeHeapUsageForNode.estimatedUsageAsPercentage();
@@ -270,12 +272,11 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
             return YES_ESTIMATED_HEAP_USAGE_DECIDER_DISABLED;
         }
 
-        final var decisionForNode = estimatedHeapUsageAllocationDeciderNodeThingo.decisionForNode(node);
-        if (decisionForNode != null) {
-            return decisionForNode;
+        if (node.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
+            return YES_ESTIMATED_HEAP_USAGE_FOR_INDEX_NODE_ONLY;
         }
 
-        final EstimatedHeapUsage estimatedHeapUsage = estimatedHeapUsageAllocationDeciderNodeThingo.heapUsageForNode(allocation, node);
+        final EstimatedHeapUsage estimatedHeapUsage = allocation.clusterInfo().getEstimatedHeapUsages().get(node.nodeId());
         if (estimatedHeapUsage == null) {
             return allocation.decision(
                 Decision.YES,

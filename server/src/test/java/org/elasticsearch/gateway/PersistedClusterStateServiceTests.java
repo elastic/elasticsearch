@@ -1452,7 +1452,11 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
                 final int indexCount = between(2, usually() ? 20 : 1000);
 
-                final int maxSegmentCount = (indexCount / 100) + 100; // only expect to have two tiers, each with max 100 segments
+                // Only expect to have two tiers, each with max 100 segments, since the amount of data is so small. 200 segments is
+                // technically the max for 2 tiers, but we're using an educated guess on a lower number. If this heuristic fails again, we
+                // should consider replacing with 200.
+                // Provide a little extra buffer space of ceil(indexCount/100), guessing a merge occurs every 100 writes.
+                final int maxSegmentCount = (int) Math.ceil(indexCount / 100.0) + 100;
                 final int filesPerSegment = 3; // .cfe, .cfs, .si
                 final int extraFiles = 2; // segments_*, write.lock
                 final int maxFileCount = (maxSegmentCount * filesPerSegment) + extraFiles;

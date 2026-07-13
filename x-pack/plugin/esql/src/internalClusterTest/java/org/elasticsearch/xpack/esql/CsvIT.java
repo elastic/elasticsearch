@@ -46,6 +46,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -133,6 +134,10 @@ import static org.hamcrest.Matchers.hasSize;
  * Test data is loaded lazily in order to facilitate faster startup when running/debugging individual test cases.
  */
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
+@TestLogging(
+    value = "org.elasticsearch.compute.EsqlRefCountingListener:TRACE",
+    reason = "capture ref-counting completion timing to diagnose the silent hang in #153394"
+)
 public class CsvIT extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(CsvIT.class);

@@ -2929,6 +2929,23 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testMvInRangeInvalidOptions() {
+        defaultAnalyzer().query("FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": false })");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lowr\": false })",
+            containsString("Invalid option [include_lowr]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": \"banana\" })",
+            containsString("Invalid option [include_lower]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": null })",
+            containsString("Invalid option [include_lower]")
+        );
+        defaultAnalyzer().error("FROM test | WHERE mv_in_range(salary, 1, 2, 5)", containsString("must be a map expression"));
+    }
+
     public void testCategorizeOptionOutputFormat() {
         assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
 

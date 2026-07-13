@@ -517,19 +517,22 @@ public class ComputeService {
             return;
         }
         plan.forEachDown(FragmentExec.class, fragment -> {
-            fragment.fragment().forEachDown(ExternalRelation.class, external -> {
-                ExternalSourceExec tempExec = external.toPhysicalExec();
+            // Each relation is discovered with the Filter conjuncts that guard it inside the fragment. Lowering a
+            // relation to a standalone ExternalSourceExec drops the surrounding plan, so those conjuncts have to be
+            // recovered before the lowering or partition pruning never sees the predicate at all.
+            for (SplitDiscoveryPhase.GuardedRelation guarded : SplitDiscoveryPhase.guardedRelations(fragment.fragment())) {
                 SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
-                    tempExec,
+                    guarded.relation().toPhysicalExec(),
                     operatorFactoryRegistry.sourceFactories(),
                     maxRecordBytes,
-                    isCancelled
+                    isCancelled,
+                    guarded.filters()
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
                 }
                 recordExternalScanStats(execInfo, result);
-            });
+            }
         });
     }
 

@@ -22,6 +22,12 @@ import java.io.IOException;
  * @param hostedShardsHeapUsage The estimated heap usage attributable to hosted shards only
  */
 public record NodeHeapEstimate(long totalHeapUsage, long hostedShardsHeapUsage) implements Writeable {
+
+    public NodeHeapEstimate {
+        assert totalHeapUsage >= 0;
+        assert hostedShardsHeapUsage >= 0;
+    }
+
     public NodeHeapEstimate(StreamInput in) throws IOException {
         this(in.readVLong(), in.readVLong());
     }

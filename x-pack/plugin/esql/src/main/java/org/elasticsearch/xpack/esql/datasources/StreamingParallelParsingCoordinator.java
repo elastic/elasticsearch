@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -252,7 +254,8 @@ public final class StreamingParallelParsingCoordinator {
             statsStripeSize,
             statsColumnScope,
             warningSinks,
-            StreamingSegmentatorAdmission.unbounded()
+            StreamingSegmentatorAdmission.unbounded(),
+            new NoopCircuitBreaker("streaming-parse-test")
         );
     }
 
@@ -279,7 +282,8 @@ public final class StreamingParallelParsingCoordinator {
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
         WarningSinks warningSinks,
-        StreamingSegmentatorAdmission admission
+        StreamingSegmentatorAdmission admission,
+        CircuitBreaker breaker
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -327,7 +331,8 @@ public final class StreamingParallelParsingCoordinator {
             statsStripeSize,
             statsColumnScope,
             warningSinks,
-            admission
+            admission,
+            breaker
         );
     }
 
@@ -386,6 +391,8 @@ public final class StreamingParallelParsingCoordinator {
         private final StreamingSegmentatorAdmission admission;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
+        private final AtomicInteger buffersAllocated;
+        private final CircuitBreaker breaker;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
         /** Capacity of {@link #bufferPool} (one pooled buffer per possible in-flight chunk-sized slice). */
         private final int bufferPoolSize;
@@ -496,7 +503,8 @@ public final class StreamingParallelParsingCoordinator {
                 statsStripeSize,
                 statsColumnScope,
                 warningSinks,
-                StreamingSegmentatorAdmission.unbounded()
+                StreamingSegmentatorAdmission.unbounded(),
+                new NoopCircuitBreaker("streaming-parse-test")
             );
         }
 
@@ -516,9 +524,11 @@ public final class StreamingParallelParsingCoordinator {
             long statsStripeSize,
             StripeColumnScope statsColumnScope,
             WarningSinks warningSinks,
-            StreamingSegmentatorAdmission admission
+            StreamingSegmentatorAdmission admission,
+            CircuitBreaker breaker
         ) {
             this.admission = admission;
+            this.breaker = breaker;
             this.reader = reader;
             this.storageObject = storageObject;
             this.projectedColumns = projectedColumns;
@@ -537,9 +547,7 @@ public final class StreamingParallelParsingCoordinator {
             this.chunkSize = Math.toIntExact(reader.minimumSegmentSize());
 
             this.bufferPool = new ArrayBlockingQueue<>(bufferPoolSize);
-            for (int i = 0; i < bufferPoolSize; i++) {
-                bufferPool.add(new byte[chunkSize]);
-            }
+            this.buffersAllocated = new AtomicInteger(0);
 
             this.chunkQueue = new ArrayBlockingQueue<>(parallelism);
             this.dispatchPermits = new Semaphore(pageQueueRingSize);
@@ -674,7 +682,7 @@ public final class StreamingParallelParsingCoordinator {
                 while (closed == false && firstError.get() == null) {
                     byte[] buf;
                     try {
-                        buf = bufferPool.take();
+                        buf = takeOrAllocateBuffer();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         break;
@@ -977,6 +985,19 @@ public final class StreamingParallelParsingCoordinator {
                     signalReady();
                 }
             }
+        }
+
+        private byte[] takeOrAllocateBuffer() throws InterruptedException {
+            byte[] buf = bufferPool.poll();
+            if (buf != null) {
+                return buf;
+            }
+            if (buffersAllocated.incrementAndGet() <= bufferPoolSize) {
+                breaker.addEstimateBytesAndMaybeBreak(chunkSize, "streaming-parse-chunk-buffer");
+                return new byte[chunkSize];
+            }
+            buffersAllocated.decrementAndGet();
+            return bufferPool.take();
         }
 
         private void recycleBuffer(byte[] buf) {
@@ -1440,6 +1461,10 @@ public final class StreamingParallelParsingCoordinator {
             boolean cleanCompletion = firstError.get() == null && truncated == false && currentChunk >= chunksDispatched.get();
             if (cleanCompletion == false && captureSink != null && storageObject != null) {
                 poisonCapturedStats(storageObject.path().toString());
+            }
+            long trackedBytes = (long) buffersAllocated.get() * chunkSize;
+            if (trackedBytes > 0) {
+                breaker.addWithoutBreaking(-trackedBytes);
             }
         }
 

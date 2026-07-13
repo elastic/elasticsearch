@@ -77,7 +77,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.FIVE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.FOUR;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.SIX;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -319,8 +318,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             completion.targetField(),
             randomLiteral(DataType.TEXT),
             mock(Expression.class),
-            mock(QueryBuilder.class),
-            TEST_CFG
+            mock(QueryBuilder.class)
         );
         Filter filterB = new Filter(EMPTY, completion, new And(EMPTY, conditionB, conditionCompletion));
 

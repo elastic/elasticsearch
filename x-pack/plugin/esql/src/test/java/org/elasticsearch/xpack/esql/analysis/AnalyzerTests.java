@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
@@ -2794,6 +2795,26 @@ public class AnalyzerTests extends ESTestCase {
 
         var limit = as(plan, Limit.class);
         assertThat(limit.child(), not(instanceOf(OrderBy.class)));
+    }
+
+    public void testFirstWithNullSortAndDroppedTimestampFailsGracefully() {
+        // Dropping @timestamp before the STATS command makes the implicit timestamp sort parameter of first()/last()
+        // unresolvable; this must surface as a normal resolution failure rather than an internal exception (#153487).
+        tsdb().error(
+            "TS test | KEEP network.connections, host | STATS x = first(network.connections, null) by host",
+            containsString(UnresolvedTimestamp.UNRESOLVED_SUFFIX)
+        );
+    }
+
+    public void testFirstWithNullSortAndTimestampPresent() {
+        // When @timestamp is still resolvable, first()/last() with a null sort should resolve without error.
+        var plan = tsdb().query("TS test | STATS x = first(network.connections, null) by host");
+        assertTrue(plan.resolved());
+    }
+
+    public void testNonTimeSeriesFirstWithNullSort() {
+        var plan = basic().query("FROM test | STATS x = first(last_name, null) by first_name");
+        assertTrue(plan.resolved());
     }
 
     public void testNoImplicitTimestampSortForNotTsQuery() {

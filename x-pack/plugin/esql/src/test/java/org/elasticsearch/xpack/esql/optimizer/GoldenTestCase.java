@@ -533,16 +533,13 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         /**
-         * The version to actually run at. When the test did not pin a version and this run (over)writes expected files —
-         * {@code -Dgolden.overwrite}, or a fresh test with no expected files yet — the run uses {@code TransportVersion.current()}:
-         * committed golden files must not depend on the version {@code randomMinimumVersion()} happened to draw, or regenerating
-         * twice can produce different bytes. Tests that pin a version keep it; they own their version choice.
+         * Committed references must not encode the random draw, so runs that write expected files use a deterministic
+         * version; checking runs keep the draw — randomness is what probes old-version planning. Pinned versions are
+         * the test's subject and are never overridden.
          */
         private TransportVersion effectiveTransportVersion(Path outputDir) throws IOException {
-            if (explicitTransportVersion == false && (overwriteMode() || hasExpectedFiles(outputDir) == false)) {
-                return TransportVersion.current();
-            }
-            return transportVersion;
+            boolean writesReference = overwriteMode() || hasExpectedFiles(outputDir) == false;
+            return explicitTransportVersion == false && writesReference ? TransportVersion.current() : transportVersion;
         }
 
         private static boolean overwriteMode() {

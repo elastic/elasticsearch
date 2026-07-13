@@ -229,7 +229,7 @@ setup:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | WHERE concat(content, " foo"):"fox" | KEEP id | SORT id'
+          query: 'FROM test | WHERE to_text(concat(content, " foo")):"fox" | KEEP id | SORT id'
 
   - match: { columns.0.name: "id" }
   - match: { columns.0.type: "integer" }

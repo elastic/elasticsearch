@@ -332,7 +332,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             }
         }
 
-      private void shutdownProducer() {
+        private void shutdownProducer() {
             synchronized (ioLock) {
                 shutdown = true;
                 if (savedIoControl != null) {

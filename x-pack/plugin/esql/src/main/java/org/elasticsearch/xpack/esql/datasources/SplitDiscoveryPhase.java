@@ -9,17 +9,28 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Streaming;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.util.ArrayList;
@@ -36,15 +47,114 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.split
  * <p>Filter expressions from {@link FilterExec} ancestors are collected per-source so that
  * each {@link ExternalSourceExec} only receives filters from its own ancestor chain, not
  * from unrelated branches of the plan tree.
+ *
+ * <p><b>Two trees, one rule.</b> Which filters guard a given {@link ExternalSourceExec} is decided here for both shapes
+ * the relation can arrive in: the physical plan (walked by {@code resolveRecursive}, collecting {@link FilterExec}) and
+ * a fragment's logical plan (walked by {@link #guardedRelations}, collecting {@link Filter}). Both exist because a
+ * {@code FROM <dataset>} lowers through a {@code FragmentExec} whose body is still a {@link LogicalPlan}; they are kept
+ * adjacent so the rule cannot drift apart between them, which is exactly how partition pruning silently died in
+ * #143696 — the fragment path was added without the filter ever being re-threaded.
+ *
+ * <p>This decides which files are <em>read</em>. It is not the only place a partition filter is consulted:
+ * {@code PartitionFilterHintExtractor} extracts hints far earlier, pre-resolution, for {@code GlobExpander} to skip
+ * <em>listing</em> whole folders. That layer has its own copy of this problem and does not share these guards — see its
+ * javadoc. Nothing here can compensate for a file that was never listed.
  */
 public final class SplitDiscoveryPhase {
 
     private SplitDiscoveryPhase() {}
 
     /**
-     * Post-prune "scanned" accounting collected while resolving splits, surfaced at the root of the
-     * query profile. The counts reflect what survived coordinator-side pruning and is handed to the
-     * runtime, before any later split coalescing.
+     * An {@link ExternalRelation} found inside a fragment, paired with the conjuncts of the {@link Filter} ancestors
+     * that guard it — the seed for its partition pruning. Empty {@code filters} means the relation is unfiltered and
+     * every file must be read.
+     */
+    public record GuardedRelation(ExternalRelation relation, List<Expression> filters) {
+        public GuardedRelation {
+            filters = List.copyOf(filters);
+        }
+    }
+
+    /**
+     * Pairs every {@link ExternalRelation} in a fragment's logical plan with the AND-split conjuncts of the
+     * {@link Filter} ancestors above it.
+     *
+     * <p>Split discovery lowers each relation to a standalone {@link ExternalSourceExec} via
+     * {@code ExternalRelation.toPhysicalExec()}, which drops the surrounding plan — and with it the {@code Filter} that
+     * was sitting above the relation. Recovering the conjuncts here, before that lowering, is what lets partition
+     * pruning see the predicate at all; without it {@code FileSplitProvider.matchesPartitionFilters} runs on an empty
+     * filter set and every partition folder is read (elastic/elasticsearch#153618).
+     *
+     * <p>The conjuncts are <em>candidates</em>, not commands: {@link #resolveExternalSource} binds each one to the
+     * relation's own output by {@code NameId} before it may prune, so a filter over a downstream-generated column that
+     * merely shares a partition column's name cannot mis-prune.
+     */
+    public static List<GuardedRelation> guardedRelations(LogicalPlan fragment) {
+        List<GuardedRelation> guarded = new ArrayList<>();
+        collectGuardedRelations(fragment, List.of(), guarded);
+        return guarded;
+    }
+
+    private static void collectGuardedRelations(LogicalPlan plan, List<Expression> ancestorFilters, List<GuardedRelation> guarded) {
+        if (plan instanceof ExternalRelation external) {
+            guarded.add(new GuardedRelation(external, ancestorFilters));
+            return;
+        }
+
+        List<Expression> filtersForChildren = rowPreserving(plan) ? ancestorFilters : List.of();
+        if (plan instanceof Filter filter) {
+            List<Expression> extended = new ArrayList<>(filtersForChildren);
+            extended.addAll(splitAnd(filter.condition()));
+            filtersForChildren = List.copyOf(extended);
+        }
+
+        for (LogicalPlan child : plan.children()) {
+            collectGuardedRelations(child, filtersForChildren, guarded);
+        }
+    }
+
+    /**
+     * Whether a filter sitting <em>above</em> {@code plan} may still be used to prune the source files beneath it.
+     *
+     * <p>The reasoning that licenses pruning is: if no row of a file can satisfy the filter, the file cannot
+     * contribute to the result, so skipping it changes nothing. That holds only while every node between the filter
+     * and the source leaves the row count alone. The moment a node <em>selects</em> rows by cardinality, it breaks:
+     * {@code FROM ds | SORT id | LIMIT 4 | WHERE year == 2025} must take four rows and filter them <em>afterwards</em>
+     * — pruning the non-2025 files first would refill the {@code LIMIT} window from the surviving files and return
+     * rows the query never asked for. The same goes for {@code SAMPLE}, {@code STATS}, {@code MV_EXPAND} and joins.
+     *
+     * <p>{@link Streaming} already means exactly "does not add or remove rows", so it carries the rule for us and keeps
+     * carrying it as commands are added. Two nodes qualify without being {@code Streaming}: {@link Filter}, which only
+     * ever removes rows (pruning yet more of them below is still sound), and {@link OrderBy}, which reorders but never
+     * drops. Everything else — anything that could change how many rows reach the top — fails closed to "do not prune":
+     * a full scan, never an invented answer. Value provenance is a separate concern, enforced independently by the
+     * {@code NameId} binding in {@link #resolveExternalSource}.
+     *
+     * <p>Today no unsafe shape actually reaches this walk, so the guard is defence in depth rather than a live fix.
+     * That is not because of anything this class controls: it holds only because the optimizer never pushes a filter
+     * below a limit, nor a limit below a filter, so the two never end up stacked inside one fragment. The guard is here
+     * because that is an invariant of code far away, and #143696 is precisely the story of such an invariant quietly
+     * changing underneath partition pruning.
+     *
+     * @see #rowPreserving(PhysicalPlan) the same rule over the physical tree — the two must agree
+     */
+    private static boolean rowPreserving(LogicalPlan plan) {
+        return plan instanceof Streaming || plan instanceof Filter || plan instanceof OrderBy;
+    }
+
+    /**
+     * The physical-tree twin of {@link #rowPreserving(LogicalPlan)}; see there for why this is an allowlist. Note the
+     * absence of an order-by node: ES|QL lowers a sort to {@link TopNExec}, which carries a limit and therefore
+     * <em>is</em> cardinality-sensitive.
+     */
+    private static boolean rowPreserving(PhysicalPlan plan) {
+        return plan instanceof FilterExec || plan instanceof EvalExec || plan instanceof ProjectExec || plan instanceof RegexExtractExec;
+    }
+
+    /**
+     * Scan accounting collected while resolving splits, surfaced at the root of the query profile. The
+     * counts reflect what survived coordinator-side pruning and is handed to the runtime, before any later
+     * split coalescing.
      *
      * @param plan          the split-enriched physical plan
      * @param filesScanned  distinct files contributing splits (file-based sources only; {@code 0} otherwise)
@@ -99,8 +209,33 @@ public final class SplitDiscoveryPhase {
         int maxRecordBytes,
         BooleanSupplier isCancelled
     ) {
+        return resolveExternalSplitsWithStats(plan, sourceFactories, maxRecordBytes, isCancelled, List.of());
+    }
+
+    /**
+     * Like {@link #resolveExternalSplitsWithStats(PhysicalPlan, Map, int, BooleanSupplier)}, but seeds the recursive
+     * walk with {@code seedFilters} — conjuncts that guard this sub-plan from <em>above</em> and so cannot be recovered
+     * from the tree itself, as produced by {@link #guardedRelations}.
+     *
+     * <p>Needed because since #143696 every {@code FROM <dataset>} is wrapped in a {@code FragmentExec}: the coordinator
+     * physical-plan walk never reaches a top-level {@link ExternalSourceExec}, discovery runs on the fragment path, and
+     * the relation arrives there stripped of its {@code Filter} ancestor. Without the seed, partition pruning was dead
+     * on <em>every</em> production query — single-node included, not only distributed ones
+     * (elastic/elasticsearch#153618).
+     *
+     * <p>The seed is not blindly trusted: {@link #resolveExternalSource} binds each conjunct to the relation's output by
+     * {@link NameId} before it may prune, so a filter over a downstream-generated column that merely shares a partition
+     * column's name cannot mis-prune.
+     */
+    public static Result resolveExternalSplitsWithStats(
+        PhysicalPlan plan,
+        Map<String, ExternalSourceFactory> sourceFactories,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled,
+        List<Expression> seedFilters
+    ) {
         ScanStats stats = new ScanStats();
-        PhysicalPlan resolved = resolveRecursive(plan, List.of(), sourceFactories, maxRecordBytes, stats, isCancelled);
+        PhysicalPlan resolved = resolveRecursive(plan, seedFilters, sourceFactories, maxRecordBytes, stats, isCancelled);
         return new Result(resolved, stats.filesScanned, stats.splitsScanned, stats.bytesScanned);
     }
 
@@ -116,9 +251,9 @@ public final class SplitDiscoveryPhase {
             return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes, stats, isCancelled);
         }
 
-        List<Expression> filtersForChildren = ancestorFilters;
+        List<Expression> filtersForChildren = rowPreserving(plan) ? ancestorFilters : List.of();
         if (plan instanceof FilterExec filterExec) {
-            List<Expression> extended = new ArrayList<>(ancestorFilters);
+            List<Expression> extended = new ArrayList<>(filtersForChildren);
             for (Expression conjunction : splitAnd(filterExec.condition())) {
                 extended.add(conjunction);
             }
@@ -172,13 +307,21 @@ public final class SplitDiscoveryPhase {
         }
         ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
 
+        // Bind filter hints to the relation's output by NameId, not by name. A downstream EVAL/DISSECT/GROK/ENRICH can
+        // introduce an attribute that SHARES A NAME with a partition column (e.g. `EVAL year = ...`) whose filter
+        // `PushDownAndCombineFilters` may leave above the generating node and thus in ancestorFilters. Pruning by the
+        // path partition value for such a row-derived column produces silently wrong answers. Keeping only conjuncts
+        // whose every attribute reference resolves by id into exec.output() drops those shadowing filters; the split
+        // provider's per-file matcher then sees only genuine partition/data-column predicates. See #153618.
+        List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
+
         SplitDiscoveryContext context = new SplitDiscoveryContext(
             null,
             fileList != null ? fileList : FileList.UNRESOLVED,
             exec.schemaMap(),
             exec.config(),
             partitionInfo,
-            ancestorFilters,
+            boundFilters,
             querySchema,
             exec.unifiedSchema(),
             maxRecordBytes,
@@ -212,5 +355,26 @@ public final class SplitDiscoveryPhase {
             }
         }
         return exec.withSplits(splits);
+    }
+
+    /**
+     * Retains only those conjuncts whose every referenced attribute resolves by {@link NameId} into {@code output}.
+     * {@link AttributeSet} keys on the attribute id (semantic equality), so a conjunct referencing an attribute that
+     * merely shares a name with an output column — but was produced by a downstream {@code EVAL}/{@code DISSECT}/etc.
+     * with a distinct id — is dropped. A conjunct that references an attribute genuinely in the relation's output
+     * (a partition column or a data column) is kept.
+     */
+    private static List<Expression> filtersBoundToOutput(List<Expression> filters, List<Attribute> output) {
+        if (filters.isEmpty()) {
+            return filters;
+        }
+        AttributeSet outputSet = AttributeSet.of(output);
+        List<Expression> bound = new ArrayList<>(filters.size());
+        for (Expression filter : filters) {
+            if (outputSet.containsAll(filter.references())) {
+                bound.add(filter);
+            }
+        }
+        return bound;
     }
 }

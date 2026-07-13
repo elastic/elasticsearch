@@ -279,6 +279,7 @@ public class ComputeService {
      * Adds the post-prune external scan accounting to the query profile. The counts are captured
      * before split coalescing, so {@code splits_scanned} reflects the pre-coalesce discovered split
      * count rather than the smaller post-coalesce count.
+     *
      */
     private static void recordExternalScanStats(EsqlExecutionInfo execInfo, SplitDiscoveryPhase.Result result) {
         if (execInfo != null && result.splitsScanned() > 0) {
@@ -517,19 +518,22 @@ public class ComputeService {
             return;
         }
         plan.forEachDown(FragmentExec.class, fragment -> {
-            fragment.fragment().forEachDown(ExternalRelation.class, external -> {
-                ExternalSourceExec tempExec = external.toPhysicalExec();
+            // Each relation is discovered with the Filter conjuncts that guard it inside the fragment. Lowering a
+            // relation to a standalone ExternalSourceExec drops the surrounding plan, so those conjuncts have to be
+            // recovered before the lowering or partition pruning never sees the predicate at all (#153618).
+            for (SplitDiscoveryPhase.GuardedRelation guarded : SplitDiscoveryPhase.guardedRelations(fragment.fragment())) {
                 SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
-                    tempExec,
+                    guarded.relation().toPhysicalExec(),
                     operatorFactoryRegistry.sourceFactories(),
                     maxRecordBytes,
-                    isCancelled
+                    isCancelled,
+                    guarded.filters()
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
                 }
                 recordExternalScanStats(execInfo, result);
-            });
+            }
         });
     }
 

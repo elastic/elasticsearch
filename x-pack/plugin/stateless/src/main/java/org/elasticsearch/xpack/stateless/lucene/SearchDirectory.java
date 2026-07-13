@@ -98,6 +98,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         objectStoreUploadTracker.updateLatestCommitInfo(ccTermAndGen, nodeId);
     }
 
+    public boolean isBccUploaded(PrimaryTermAndGeneration bccTermAndGen) {
+        return objectStoreUploadTracker.getLatestUploadInfo(bccTermAndGen).isUploaded();
+    }
+
     private Releasable acquireGenerationalFileTermAndGeneration(PrimaryTermAndGeneration termAndGen, String name) {
         synchronized (generationalFilesTermAndGens) {
             var refCounted = generationalFilesTermAndGens.get(termAndGen);

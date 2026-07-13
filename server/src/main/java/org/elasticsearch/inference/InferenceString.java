@@ -48,6 +48,7 @@ public class InferenceString implements Writeable, ToXContentObject {
     public static final String TYPE_FIELD = "type";
     public static final String FORMAT_FIELD = "format";
     public static final String VALUE_FIELD = "value";
+    public static final String REFERENCE_VALUE_FIELD = "reference_value";
 
     private final DataType dataType;
     private final DataFormat dataFormat;
@@ -55,7 +56,28 @@ public class InferenceString implements Writeable, ToXContentObject {
 
     public static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         InferenceString.class.getSimpleName(),
-        args -> new InferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2])
+        args -> {
+            DataType dataType = (DataType) args[0];
+            DataFormat dataFormat = (DataFormat) args[1];
+            String value = (String) args[2];
+            String referenceValue = (String) args[3];
+
+            boolean hasValue = value != null;
+            boolean hasReferenceValue = referenceValue != null;
+            boolean isReferenceFormat = dataFormat == DataFormat.REFERENCE;
+
+            if (hasValue == hasReferenceValue) {
+                throw new IllegalArgumentException("Must set exactly one of [value] and [reference_value]");
+            }
+            if (hasReferenceValue != isReferenceFormat) {
+                throw new IllegalArgumentException(
+                    isReferenceFormat
+                        ? "Must set [reference_value] when using [format: reference]"
+                        : "Must set [format: reference] to specify [reference_value]"
+                );
+            }
+            return new InferenceString(dataType, dataFormat, hasReferenceValue ? referenceValue : value);
+        }
     );
     static {
         declareCommonFields(PARSER);
@@ -68,7 +90,8 @@ public class InferenceString implements Writeable, ToXContentObject {
     protected static void declareCommonFields(ConstructingObjectParser<? extends InferenceString, Void> parser) {
         parser.declareString(constructorArg(), DataType::fromString, new ParseField(TYPE_FIELD));
         parser.declareString(optionalConstructorArg(), DataFormat::fromString, new ParseField(FORMAT_FIELD));
-        parser.declareString(constructorArg(), new ParseField(VALUE_FIELD));
+        parser.declareString(optionalConstructorArg(), new ParseField(VALUE_FIELD));
+        parser.declareString(optionalConstructorArg(), new ParseField(REFERENCE_VALUE_FIELD));
     }
 
     /**
@@ -242,7 +265,11 @@ public class InferenceString implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field(TYPE_FIELD, dataType);
         builder.field(FORMAT_FIELD, dataFormat);
-        builder.field(VALUE_FIELD, value);
+        if (dataFormat == DataFormat.REFERENCE) {
+            builder.field(REFERENCE_VALUE_FIELD, value);
+        } else {
+            builder.field(VALUE_FIELD, value);
+        }
         doToXContent(builder, params);
         builder.endObject();
         return builder;

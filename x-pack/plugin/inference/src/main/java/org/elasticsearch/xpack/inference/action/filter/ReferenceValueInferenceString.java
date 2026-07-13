@@ -13,17 +13,12 @@ import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
 class ReferenceValueInferenceString extends InferenceString {
-    private static final String REFERENCE_VALUE_FIELD = "reference_value";
-
     static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         ReferenceValueInferenceString.class.getSimpleName(),
         args -> {
@@ -40,7 +35,6 @@ class ReferenceValueInferenceString extends InferenceString {
     );
     static {
         InferenceString.declareCommonFields(PARSER);
-        PARSER.declareString(optionalConstructorArg(), new ParseField(REFERENCE_VALUE_FIELD));
     }
 
     private final String referenceValue;

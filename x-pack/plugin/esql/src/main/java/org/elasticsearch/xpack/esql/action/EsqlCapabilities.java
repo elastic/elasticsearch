@@ -3128,6 +3128,12 @@ public class EsqlCapabilities {
         MATCH_RUNTIME_SEARCH,
 
         /**
+         * Support for expressions (function calls, inline casts) on the LHS of the match operator (:).
+         * Requires the grammar change introduced in the same release.
+         */
+        MATCH_OPERATOR_LHS_EXPRESSION(Build.current().isSnapshot()),
+
+        /**
          * Fix for column pruning when FORK branches return no columns.
          */
         FORK_PROJECT_AWAY_COLUMNS_FIX,

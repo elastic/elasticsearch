@@ -12,16 +12,15 @@ import org.elasticsearch.action.ActionType;
 /**
  * Transport action type for the cursor-aware autocomplete endpoint {@code POST /_esql/suggestions}.
  *
- * <p>This is an {@code indices:data/read/*} action, not a {@code cluster:} one: since the suggestions API
- * spec's Step 12, {@link TransportEsqlSuggestionsAction} genuinely performs index resolution (parse, view
- * resolution, dataset resolution, analyze, optimize) on every request that doesn't fall back to the
- * remote-qualified/coordinator-only path, so it is unambiguously index-scoped from security's point of
- * view. {@link EsqlSuggestionsRequest} implements {@link org.elasticsearch.action.IndicesRequest},
- * surfacing the {@code FROM} target(s) parsed from {@code query()}, so RBAC has a declared index set to
- * check privileges against independent of the query body. The action name matches the
- * {@code indices:data/read/*} wildcard pattern already covered by {@code IndexPrivilege}'s
- * {@code READ_AUTOMATON}/{@code READ_FAILURE_STORE_AUTOMATON}, so no new privilege-automaton entry is
- * needed.
+ * <p>This is an {@code indices:data/read/*} action, not a {@code cluster:} one: {@link
+ * TransportEsqlSuggestionsAction} performs index resolution (parse, view resolution, dataset resolution,
+ * analyze, optimize) on every request that doesn't fall back to the remote-qualified/coordinator-only
+ * path, so it is index-scoped from security's point of view. {@link EsqlSuggestionsRequest} implements
+ * {@link org.elasticsearch.action.IndicesRequest}, surfacing the {@code FROM} target(s) parsed from
+ * {@code query()}, so RBAC has a declared index set to check privileges against independent of the query
+ * body. The action name matches the {@code indices:data/read/*} wildcard pattern already covered by
+ * {@code IndexPrivilege}'s {@code READ_AUTOMATON}/{@code READ_FAILURE_STORE_AUTOMATON}, so no new
+ * privilege-automaton entry is needed.
  */
 public class EsqlSuggestionsAction extends ActionType<EsqlSuggestionsResponse> {
 

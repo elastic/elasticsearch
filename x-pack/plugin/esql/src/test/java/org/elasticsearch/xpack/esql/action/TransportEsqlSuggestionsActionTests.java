@@ -54,7 +54,7 @@ public class TransportEsqlSuggestionsActionTests extends ESTestCase {
         assertThat(TransportEsqlSuggestionsAction.hasRemoteTarget(plan), equalTo(false));
     }
 
-    // Step 19: warnings wiring for the hot-tier value-sampling path.
+    // Warnings wiring for the hot-tier value-sampling path.
 
     public void testWarningsForSampleResultOnlyHotOnlyWhenComplete() {
         HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), false, false);
@@ -90,8 +90,8 @@ public class TransportEsqlSuggestionsActionTests extends ESTestCase {
     }
 
     public void testNoHotNodesShortCircuitCarriesOnlyHotOnly() {
-        // Step 18's no-fan-out short-circuit: SampleResult.NO_HOT_NODES itself carries neither
-        // shards_skipped nor dls_active signals, so only hot_only attaches.
+        // The no-fan-out short-circuit: SampleResult.NO_HOT_NODES itself carries neither shards_skipped
+        // nor dls_active signals, so only hot_only attaches.
         assertThat(
             TransportEsqlSuggestionsAction.warningsForSampleResult(HotTierValueSampler.SampleResult.NO_HOT_NODES),
             contains(EsqlSuggestionsResponse.Warning.HOT_ONLY)

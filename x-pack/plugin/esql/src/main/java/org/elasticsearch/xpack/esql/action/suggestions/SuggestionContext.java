@@ -67,8 +67,8 @@ public record SuggestionContext(Kind kind, @Nullable LogicalPlan command, @Nulla
      *
      * <p>{@link Limit} nodes are skipped entirely, regardless of their own source range. Two
      * independent sources put a stale or duplicated {@link Source} on a {@code Limit}: the analyzer's
-     * default-limit insertion, and — once the logical optimizer runs (Step 12 wires it into production)
-     * — limit push-down rules that relocate a {@code Limit} deeper into the tree while leaving it
+     * default-limit insertion, and the logical optimizer's limit push-down rules, which relocate a
+     * {@code Limit} deeper into the tree while leaving it
      * carrying the very same source text as the command it was combined with. A plain "last (i.e.
      * deepest) match wins" walk would then let that relocated, unrelated {@code Limit} steal the match
      * away from the real user-authored command (e.g. {@code KEEP}) sitting above it, corrupting

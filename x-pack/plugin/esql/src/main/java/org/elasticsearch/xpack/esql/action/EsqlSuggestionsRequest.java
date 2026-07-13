@@ -133,8 +133,8 @@ public class EsqlSuggestionsRequest extends ActionRequest implements IndicesRequ
 
     /**
      * The {@code FROM} target(s) parsed from {@link #query()}, so RBAC has a declared index set to check
-     * privileges against independent of the query body (see the suggestions API spec, Step 15). Parsing
-     * happens once and is cached; a malformed query yields an empty index set here rather than throwing,
+     * privileges against independent of the query body. Parsing happens once and is cached; a malformed
+     * query yields an empty index set here rather than throwing,
      * deferring the actual parse error to {@code TransportEsqlSuggestionsAction} so an authenticated-but-
      * unprivileged user sees the same validation error an unauthenticated request would get post-auth,
      * not a different failure shape leaking whether parsing itself succeeded.
@@ -174,8 +174,8 @@ public class EsqlSuggestionsRequest extends ActionRequest implements IndicesRequ
     }
 
     /**
-     * This request can reach real data nodes (Step 18's hot-tier {@code TermsEnum} sampling), so it needs
-     * a cancellable task the same way {@code EsqlQueryRequest} does, or {@code RestCancellableNodeClient}
+     * This request can reach real data nodes (the hot-tier {@code TermsEnum} value-sampling path), so it
+     * needs a cancellable task the same way {@code EsqlQueryRequest} does, or {@code RestCancellableNodeClient}
      * refuses to dispatch it at all.
      */
     @Override

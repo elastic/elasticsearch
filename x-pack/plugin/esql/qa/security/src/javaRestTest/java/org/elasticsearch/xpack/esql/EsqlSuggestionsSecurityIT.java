@@ -35,19 +35,17 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Security coverage for {@code POST /_esql/suggestions} (see the suggestions API spec, Step 15).
+ * Security coverage for {@code POST /_esql/suggestions} (see the suggestions API spec).
  *
- * <p>As of Step 12, the transport action genuinely performs index resolution (field-caps, which is
- * FLS-enforced) on every request that isn't a remote-qualified fallback, so this is unambiguously
- * index-scoped from security's point of view. Reuses the {@code roles.yml} fixtures already defined
- * for {@link EsqlSecurityIT} ({@code user1}/{@code user2}, {@code fls_user}, {@code dls_user}) rather
- * than inventing new roles.
+ * <p>The transport action performs index resolution (field-caps, which is FLS-enforced) on every
+ * request that isn't a remote-qualified fallback, so this is index-scoped from security's point of
+ * view. Reuses the {@code roles.yml} fixtures already defined for {@link EsqlSecurityIT}
+ * ({@code user1}/{@code user2}, {@code fls_user}, {@code dls_user}) rather than inventing new roles.
  *
  * <p>Suggestions never reads document rows in its baseline (non-{@code includeSampleValues}) path —
- * analysis only resolves mappings, not rows — so DLS has no bearing on that path's output; this is
- * asserted explicitly below as correct behavior, not an oversight (see the suggestions API spec's
- * Step 15 notes; the hot-tier value-sampling path added in Step 18 is the first one DLS/FLS interact
- * with at the document level, covered separately).
+ * analysis only resolves mappings, not rows — so DLS has no bearing on that path's output; the
+ * hot-tier value-sampling path is the first one DLS/FLS interact with at the document level, covered
+ * separately below.
  */
 public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
 
@@ -194,8 +192,8 @@ public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * Step 20: the hot-tier value-sampling path is the first one that reads documents at all, and reading
-     * a raw {@code TermsEnum} bypasses normal per-document security filtering entirely — it needs its own
+     * The hot-tier value-sampling path is the first one that reads documents at all, and reading a raw
+     * {@code TermsEnum} bypasses normal per-document security filtering entirely — it needs its own
      * explicit FLS gate. {@code org} is FLS-denied for {@code fls_user} on {@code index} (see {@code
      * roles.yml}'s {@code grant: [value, partial]}), so a {@code WHERE org == "..."} equality context must
      * degrade safely: no {@code values}, no error.
@@ -223,7 +221,7 @@ public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * Step 20: {@code dls_user}'s role has a non-match-all DLS query on {@code lookup-user2} ({@code org ==
+     * {@code dls_user}'s role has a non-match-all DLS query on {@code lookup-user2} ({@code org ==
      * marketing}). Unlike a real search, a raw {@code TermsEnum} read can't be filtered per document, so the
      * gate refuses the read outright rather than serving DLS-inconsistent {@code docFreq} numbers —
      * {@code dls_active} attaches and no {@code values} come back for the field.

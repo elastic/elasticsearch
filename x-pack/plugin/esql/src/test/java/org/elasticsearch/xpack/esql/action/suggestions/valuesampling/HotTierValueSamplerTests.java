@@ -33,8 +33,8 @@ import static org.hamcrest.Matchers.hasKey;
 
 /**
  * Unit tests for the pure, cluster-state-driven pieces of {@link HotTierValueSampler} (see the
- * suggestions API spec, Step 18) that don't need a live cluster: mapping-type resolution and hot-tier
- * node bundling. The fan-out/merge/security logic needs a running node and is covered by
+ * suggestions API spec) that don't need a live cluster: mapping-type resolution and hot-tier node
+ * bundling. The fan-out/merge/security logic needs a running node and is covered by
  * {@code EsqlSuggestionsActionIT}-style integration coverage instead.
  */
 public class HotTierValueSamplerTests extends ESTestCase {
@@ -110,7 +110,7 @@ public class HotTierValueSamplerTests extends ESTestCase {
 
     public void testHotTierNodeBundlesTreatsGenericDataRoleAsHot() {
         // A single-tier (non-tiered) deployment's plain "data" role node counts as hot too — see
-        // DataTier#isHotNode and Step 21's single-node-cluster acceptance case.
+        // DataTier#isHotNode and the single-node-cluster YAML acceptance case.
         DiscoveryNode genericDataNode = discoveryNode("data-node", Set.of(DiscoveryNodeRole.DATA_ROLE));
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(genericDataNode).localNodeId("data-node").build();
 

@@ -13,9 +13,9 @@ import static org.hamcrest.Matchers.hasKey;
 
 /**
  * Exercises {@link TransportEsqlSuggestionsAction} through the real transport action against a real index
- * mapping, proving Step 12's analysis wiring: field-name completion resolves the index's actual mapped
- * fields/types rather than a stub schema (see {@code TransportEsqlSuggestionsActionTests} for the
- * coordinator-only, unanalyzed fallback path).
+ * mapping: field-name completion resolves the index's actual mapped fields/types rather than a stub
+ * schema (see {@code TransportEsqlSuggestionsActionTests} for the coordinator-only, unanalyzed fallback
+ * path).
  */
 public class EsqlSuggestionsActionIT extends AbstractEsqlIntegTestCase {
 

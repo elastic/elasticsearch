@@ -22,8 +22,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 
 /**
- * Exercises Step 14's other end-to-end acceptance case: {@code IP_LOCATION} field-name completion
- * through the real {@link TransportEsqlSuggestionsAction}. Unlike {@link IpLocationEsqlConsumerLifecycleIT},
+ * Exercises {@code IP_LOCATION} field-name completion end to end through the real
+ * {@link TransportEsqlSuggestionsAction}. Unlike {@link IpLocationEsqlConsumerLifecycleIT},
  * this doesn't need the download/sentinel lifecycle at all (suggestions only resolves schema, never reads
  * document data on this path) — the databases are placed directly on {@code ingest.geoip.database_path}
  * with the downloader disabled, exactly the "config databases, no download" shape

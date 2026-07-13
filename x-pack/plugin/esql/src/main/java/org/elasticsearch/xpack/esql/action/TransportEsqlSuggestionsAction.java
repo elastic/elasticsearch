@@ -79,7 +79,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * (field names statically resolvable from the plan, e.g. an explicit {@code KEEP}/{@code EVAL} list) rather than
  * partially resolving local targets and silently dropping remote ones.
  *
- * <p><b>Hot-tier value sampling (Steps 18–20):</b> when {@code includeSampleValues} is set and the cursor
+ * <p><b>Hot-tier value sampling:</b> when {@code includeSampleValues} is set and the cursor
  * sits in a {@code STRING_LITERAL_EQUALITY} context on a plain {@code keyword} field, this action fans out a
  * direct, node-grouped {@code TermsEnum} read to the hot-tier shard copies of the resolved index/indices (see
  * {@link org.elasticsearch.xpack.esql.action.suggestions.valuesampling.HotTierValueSampler}) and populates that
@@ -274,8 +274,7 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
                 plainKeywordIndices.add(index);
             }
             // TODO: constant_keyword/wildcard (and anything else DataType.KEYWORD collapses onto) are not
-            // yet supported here — skip rather than guess at a workaround (see the suggestions API spec,
-            // Step 18).
+            // yet supported here — skip rather than guess at a workaround (see the suggestions API spec).
         }
         if (plainKeywordIndices.isEmpty()) {
             listener.onResponse(base);
@@ -284,8 +283,8 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
 
         Map<String, Set<ShardId>> hotNodeBundles = valueSampler.hotTierNodeBundles(metadata, Set.copyOf(plainKeywordIndices));
         if (hotNodeBundles.isEmpty()) {
-            // No hot-tier nodes at all for this index: skip the fan-out entirely (Step 18), but the
-            // result only ever reflects hot-tier data by construction, so hot_only still applies (Step 19).
+            // No hot-tier nodes at all for this index: skip the fan-out entirely, but the result only
+            // ever reflects hot-tier data by construction, so hot_only still applies.
             listener.onResponse(withWarnings(base, List.of(EsqlSuggestionsResponse.Warning.HOT_ONLY)));
             return;
         }
@@ -297,8 +296,8 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
             TimeValue.timeValueSeconds(5).millis(),
             listener.delegateFailureAndWrap((l, result) -> {
                 Map<String, FieldSuggestion> fields = new LinkedHashMap<>(base.fields());
-                // An empty sample (e.g. Step 20's DLS gate refusing every contributing shard) is reported
-                // the same way as "statistics not populated": no `values` key at all, not an empty list.
+                // An empty sample (e.g. the DLS gate refusing every contributing shard) is reported the
+                // same way as "statistics not populated": no `values` key at all, not an empty list.
                 List<FieldSuggestion.ValueSuggestion> values = result.values().isEmpty() ? null : result.values();
                 fields.put(field, new FieldSuggestion(SuggestionBuilder.wireType(fieldType), values, null));
                 l.onResponse(new EsqlSuggestionsResponse(fields, warningsForSampleResult(result)));
@@ -311,10 +310,10 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
     }
 
     /**
-     * The warnings that attach to a hot-tier value-sampling result (Step 19): {@code hot_only} always,
-     * since this path only ever reflects hot-tier data; {@code shards_skipped} when any contributing
-     * node returned a partial result or an error; {@code dls_active} when the requesting user's DLS
-     * role query is not effectively {@code match_all} for the resolved index (Step 20).
+     * The warnings that attach to a hot-tier value-sampling result: {@code hot_only} always, since this
+     * path only ever reflects hot-tier data; {@code shards_skipped} when any contributing node returned a
+     * partial result or an error; {@code dls_active} when the requesting user's DLS role query is not
+     * effectively {@code match_all} for the resolved index.
      */
     static List<EsqlSuggestionsResponse.Warning> warningsForSampleResult(HotTierValueSampler.SampleResult result) {
         List<EsqlSuggestionsResponse.Warning> warnings = new ArrayList<>();

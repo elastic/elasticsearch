@@ -67,31 +67,30 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Direct, node-grouped {@code TermsEnum} value sampling for the {@code STRING_LITERAL_EQUALITY}
- * completion context (see the suggestions API spec, Steps 18–20). Modeled on
+ * completion context (see the suggestions API spec). Modeled on
  * {@code TransportTermsEnumAction}/{@code NodeTermsEnumRequest}/{@code MultiShardTermsEnum} — raw
  * term-dictionary reads off each shard's {@link Engine.Searcher}, not a terms aggregation — but not a
  * dependency on it: that action's wire shape has no doc-frequency counts, which this feature needs.
  *
- * <p><b>Ranking choice (Step 18):</b> the first {@code size} terms encountered per shard (term order,
- * which Lucene's term dictionary already guarantees is sorted, but not ranked by global frequency) are
- * kept, not the {@code size} most-frequent terms cluster-wide — true frequency ranking would require
- * scanning the entire term dictionary per shard, defeating the point of using a raw {@code TermsEnum}
- * instead of an aggregation. A genuinely common value that sorts late in a shard whose term count
- * exceeds {@code size} may not surface. This is a real, deliberate trade-off.
+ * <p><b>Ranking choice:</b> the first {@code size} terms encountered per shard (term order, which
+ * Lucene's term dictionary already guarantees is sorted, but not ranked by global frequency) are kept,
+ * not the {@code size} most-frequent terms cluster-wide — true frequency ranking would require scanning
+ * the entire term dictionary per shard, defeating the point of using a raw {@code TermsEnum} instead of
+ * an aggregation. A common value that sorts late in a shard whose term count exceeds {@code size} may
+ * not surface. This is a real, deliberate trade-off.
  *
- * <p><b>{@code docFreq} denominator (Step 18):</b> a value's {@code docFreq} is
- * {@code sum(TermsEnum#docFreq())} across the shards that contributed a sample of it, divided by
- * {@code sum(IndexReader#numDocs())} across those same shards — not a search hit count, since no
- * search ever runs on this path.
+ * <p><b>{@code docFreq} denominator:</b> a value's {@code docFreq} is {@code sum(TermsEnum#docFreq())}
+ * across the shards that contributed a sample of it, divided by {@code sum(IndexReader#numDocs())}
+ * across those same shards — not a search hit count, since no search ever runs on this path.
  *
- * <p><b>Security (Step 20):</b> reading a raw {@code TermsEnum} bypasses normal per-document query-time
- * security filtering entirely (there is no query for a search-authorization interceptor to attach a
- * filter to), so this class applies its own explicit gates, modeled on
- * {@code TransportTermsEnumAction#canAccess} — FLS: skip a shard outright if the field is not
- * permitted; DLS: refuse the raw read for a shard unless the requesting user's DLS role query(ies) all
- * rewrite to {@code match_all}. This is stricter than a real search's per-document DLS filtering: it is
- * "no raw term-dictionary access at all" rather than "filtered results," and is the reason
- * {@code dls_active} and "no values for this field" go together on this path (see Step 20).
+ * <p><b>Security:</b> reading a raw {@code TermsEnum} bypasses normal per-document query-time security
+ * filtering entirely (there is no query for a search-authorization interceptor to attach a filter to),
+ * so this class applies its own explicit gates, modeled on {@code TransportTermsEnumAction#canAccess} —
+ * FLS: skip a shard outright if the field is not permitted; DLS: refuse the raw read for a shard unless
+ * the requesting user's DLS role query(ies) all rewrite to {@code match_all}. This is stricter than a
+ * real search's per-document DLS filtering: it is "no raw term-dictionary access at all" rather than
+ * "filtered results," and is the reason {@code dls_active} and "no values for this field" go together on
+ * this path.
  */
 public class HotTierValueSampler {
 
@@ -141,7 +140,7 @@ public class HotTierValueSampler {
     /**
      * {@code true} if the concrete mapping type of {@code field} in {@code index} is plain
      * {@code keyword} — not {@code constant_keyword}, {@code wildcard}, or anything else that ESQL's
-     * {@code DataType.KEYWORD} also collapses onto. See Step 18's mapping-type gate.
+     * {@code DataType.KEYWORD} also collapses onto.
      */
     public static boolean isPlainKeywordMapping(ProjectMetadata metadata, String index, String field) {
         return "keyword".equals(concreteMappingType(metadata, index, field));
@@ -174,8 +173,8 @@ public class HotTierValueSampler {
 
     /**
      * Nodes carrying a hot-tier copy of any shard of {@code concreteIndices}, grouped by node id.
-     * Empty when no hot-tier node holds a copy of any target shard at all (Step 18's no-fan-out
-     * short-circuit).
+     * Empty when no hot-tier node holds a copy of any target shard at all, in which case the caller
+     * skips the fan-out entirely.
      */
     public Map<String, Set<ShardId>> hotTierNodeBundles(ProjectMetadata metadata, Set<String> concreteIndices) {
         return hotTierNodeBundles(clusterService.state().routingTable(metadata.id()), clusterService.state().nodes(), concreteIndices);
@@ -309,7 +308,7 @@ public class HotTierValueSampler {
 
     /**
      * The per-node shard read (the {@code dataNodeOperation}-equivalent). Applies the FLS/DLS gates
-     * (Step 20) before reading, then iterates each permitted shard's term dictionary directly, honoring
+     * below before reading, then iterates each permitted shard's term dictionary directly, honoring
      * the wall-clock timeout budget.
      */
     private NodeSuggestValuesResponse dataNodeOperation(NodeSuggestValuesRequest request, ThreadContext threadContext) {
@@ -334,7 +333,7 @@ public class HotTierValueSampler {
                 }
                 if (dlsGate.refuseRead()) {
                     // DLS: the requesting user's role query is not match_all — refuse the raw read entirely
-                    // for this shard rather than serving DLS-inconsistent docFreq numbers (Step 20).
+                    // for this shard rather than serving DLS-inconsistent docFreq numbers.
                     continue;
                 }
 
@@ -430,8 +429,8 @@ public class HotTierValueSampler {
             .getListOfQueries()
             .stream()
             .allMatch(queries -> hasMatchAllEquivalent(queries, securityContext, searchExecutionContext));
-        // dls_active (Step 19/20) fires exactly when the raw read is refused: a non-match-all DLS role
-        // query, unlike a real search, doesn't narrow this path's results — it disables them outright.
+        // dls_active fires exactly when the raw read is refused: a non-match-all DLS role query, unlike
+        // a real search, doesn't narrow this path's results — it disables them outright.
         return new DlsGateResult(allMatchAll == false, allMatchAll == false);
     }
 

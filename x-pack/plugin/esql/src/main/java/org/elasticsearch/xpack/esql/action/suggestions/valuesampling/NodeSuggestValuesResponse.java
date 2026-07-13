@@ -16,14 +16,14 @@ import java.util.Map;
 
 /**
  * Per-node result of a {@link NodeSuggestValuesRequest}: up to {@code size} first-encountered terms
- * per contributing shard on this node (see the suggestions API spec, Step 18's ranking-choice note),
- * each with its raw {@code docFreq} count, plus this node's total live-doc count across the shards it
- * actually read from (the denominator for turning those counts into a fraction).
+ * per contributing shard on this node (see the suggestions API spec's ranking-choice note), each with
+ * its raw {@code docFreq} count, plus this node's total live-doc count across the shards it actually
+ * read from (the denominator for turning those counts into a fraction).
  *
  * <p>{@code complete} is {@code false} when this node's timeout budget ran out before finishing (a
  * partial result, still returned rather than failing) or a shard read failed (see {@link #error()}).
  * {@code dlsActive} is {@code true} when this node refused to read one or more requested shards
- * because the requesting user's DLS role query does not rewrite to {@code match_all} — see Step 20.
+ * because the requesting user's DLS role query does not rewrite to {@code match_all}.
  */
 public class NodeSuggestValuesResponse extends TransportResponse {
 
@@ -97,7 +97,7 @@ public class NodeSuggestValuesResponse extends TransportResponse {
         return error;
     }
 
-    /** {@code true} if this node's result should count as a partial/skipped-shard signal (Step 19's {@code shards_skipped}). */
+    /** {@code true} if this node's result should count as a partial/skipped-shard signal ({@code shards_skipped}). */
     public boolean partialOrErrored() {
         return complete == false || error != null;
     }

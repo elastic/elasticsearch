@@ -22,8 +22,8 @@ import java.util.Set;
 
 /**
  * A node-grouped request to raw-read a keyword field's term dictionary off a set of hot-tier shard
- * copies on one node, modeled on {@code NodeTermsEnumRequest} — see the suggestions API spec, Step 18.
- * Unlike that request, the response this drives carries per-term doc frequency, not a bare term list.
+ * copies on one node, modeled on {@code NodeTermsEnumRequest} — see the suggestions API spec. Unlike
+ * that request, the response this drives carries per-term doc frequency, not a bare term list.
  *
  * <p>Implements {@link IndicesRequest}, deriving its declared indices from {@link #shardIds()}, so RBAC
  * authorizes this internal node-to-node action per index (FLS/DLS metadata included) exactly like a

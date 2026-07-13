@@ -268,7 +268,7 @@ public class AllocationService {
                 if (cancelledByMaster) {
                     logger.debug(() -> "recovery cancelled for shard [" + failedShardEntry + "]");
                 } else {
-                    logger.warn(() -> "failing shard [" + failedShardEntry + "]", failedShardEntry.failure());
+                    logger.warn(() -> "failing shard [" + failedShardEntry + "]", cause);
                 }
                 allocation.routingNodes().failShard(failedShard, updatedUnassignedInfo, allocation.changes());
             } else {

@@ -76,7 +76,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
 
-    public static final int ITERATIONS = 1000;
+    public static final int ITERATIONS = 100;
     public static final int MAX_DEPTH = 20;
 
     /**

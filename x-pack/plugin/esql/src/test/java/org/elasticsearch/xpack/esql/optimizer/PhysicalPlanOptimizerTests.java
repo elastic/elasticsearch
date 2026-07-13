@@ -9292,10 +9292,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         String from = "row a = 1 | eval b = ";
 
+        // Each repeat of prefix+suffix now costs 3 depth units instead of 2: crossing a function
+        // argument (functionParam) now costs its own depth unit, in addition to the pre-existing
+        // operatorExpression -> primaryExpression step and the "+ 12" arithmeticBinary step.
         StringBuilder queryBuilder = new StringBuilder();
-        queryBuilder.append(prefix.repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+        queryBuilder.append(prefix.repeat(MAX_EXPRESSION_DEPTH / 3 - 1));
         queryBuilder.append("a");
-        queryBuilder.append(suffix.repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+        queryBuilder.append(suffix.repeat(MAX_EXPRESSION_DEPTH / 3 - 1));
         var expression = queryBuilder.toString();
 
         physicalPlan(from + expression);
@@ -9318,18 +9321,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testMaxExpressionDepth_nestedAbs_maxAllowed() {
-        // Last depth that succeeds: each abs() adds 1 to the expression depth counter, plus a base
-        // overhead of 2 from the ROW field context (visitField -> expression() then
-        // visitOperatorExpressionDefault -> expression()). So for N calls: depth = N + 2.
-        // At N=MAX_EXPRESSION_DEPTH-2: depth = MAX_EXPRESSION_DEPTH, check is >, so false -> passes.
-        int depth = MAX_EXPRESSION_DEPTH - 2;
+        // Last depth that succeeds: each abs() now adds 2 to the expression depth counter
+        // (crossing a function argument via functionParam, plus the pre-existing
+        // operatorExpression -> primaryExpression step), plus a base overhead of 2 from the ROW
+        // field context (visitField -> expression() then visitOperatorExpressionDefault ->
+        // expression()). So for N calls: depth = 2N + 2.
+        // At N=MAX_EXPRESSION_DEPTH/2-1: depth = MAX_EXPRESSION_DEPTH, check is >, so false -> passes.
+        int depth = MAX_EXPRESSION_DEPTH / 2 - 1;
         String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
         physicalPlan(query); // must not throw
     }
 
     public void testMaxExpressionDepth_nestedAbs_minOverflow() {
-        // First depth at which the visitor rejects: at N=MAX_EXPRESSION_DEPTH-1, depth = MAX_EXPRESSION_DEPTH+1.
-        int depth = MAX_EXPRESSION_DEPTH - 1;
+        // First depth at which the visitor rejects: at N=MAX_EXPRESSION_DEPTH/2, depth = MAX_EXPRESSION_DEPTH+2.
+        int depth = MAX_EXPRESSION_DEPTH / 2;
         String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query));
         assertThat(

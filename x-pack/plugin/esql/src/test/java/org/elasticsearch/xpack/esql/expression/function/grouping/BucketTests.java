@@ -243,8 +243,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         for (DataType fromType : DATE_BOUNDS_TYPE) {
             for (DataType toType : DATE_BOUNDS_TYPE) {
                 for (DataType bucketsType : BUCKETS_TYPE) {
-                    suppliers.add(new TestCaseSupplier(
-                        name, List.of(DataType.DATETIME, bucketsType, fromType, toType), () -> {
+                    suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, bucketsType, fromType, toType), () -> {
                         List<TestCaseSupplier.TypedData> args = new ArrayList<>();
                         args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "field"));
                         // TODO more "from" and "to" and "buckets"
@@ -258,11 +257,9 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             DataType.DATETIME,
                             resultsMatcher(args)
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
-                    }
-                    ));
+                    }));
                     // same as above, but a low bucket count and datetime bounds that match it (at hour span)
-                    suppliers.add(new TestCaseSupplier(
-                        name, List.of(DataType.DATETIME, bucketsType, fromType, toType), () -> {
+                    suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, bucketsType, fromType, toType), () -> {
                         List<TestCaseSupplier.TypedData> args = new ArrayList<>();
                         args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "field"));
                         args.add(new TestCaseSupplier.TypedData(4, bucketsType, "buckets").forceLiteral());
@@ -274,8 +271,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             DataType.DATETIME,
                             equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
-                    }
-                    ));
+                    }));
                 }
             }
         }
@@ -553,8 +549,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         for (DataType fromType : DATE_BOUNDS_TYPE) {
             for (DataType toType : DATE_BOUNDS_TYPE) {
                 for (DataType bucketsType : BUCKETS_TYPE) {
-                    suppliers.add(new TestCaseSupplier(
-                        name, List.of(DataType.DATE_NANOS, bucketsType, fromType, toType), () -> {
+                    suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, bucketsType, fromType, toType), () -> {
                         List<TestCaseSupplier.TypedData> args = new ArrayList<>();
                         args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "field"));
                         // TODO more "from" and "to" and "buckets"
@@ -568,11 +563,9 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             DataType.DATE_NANOS,
                             resultsMatcher(args)
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
-                    }
-                    ));
+                    }));
                     // same as above, but a low bucket count and datetime bounds that match it (at hour span)
-                    suppliers.add(new TestCaseSupplier(
-                        name, List.of(DataType.DATE_NANOS, bucketsType, fromType, toType), () -> {
+                    suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, bucketsType, fromType, toType), () -> {
                         List<TestCaseSupplier.TypedData> args = new ArrayList<>();
                         args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATE_NANOS, "field"));
                         args.add(new TestCaseSupplier.TypedData(4, bucketsType, "buckets").forceLiteral());
@@ -584,8 +577,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             DataType.DATE_NANOS,
                             equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
                         ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
-                    }
-                    ));
+                    }));
                 }
             }
         }

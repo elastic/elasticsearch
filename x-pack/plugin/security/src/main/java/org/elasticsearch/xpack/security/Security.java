@@ -71,6 +71,7 @@ import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.ClusterStateLicenseService;
@@ -195,6 +196,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
+import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -768,7 +770,8 @@ public class Security extends Plugin
                 services.linkedProjectConfigService(),
                 services.projectResolver(),
                 services.crossProjectModeDecider(),
-                services.projectRoutingResolver()
+                services.projectRoutingResolver(),
+                services.systemIndices()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -792,7 +795,8 @@ public class Security extends Plugin
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver projectRoutingResolver
+        ProjectRoutingResolver projectRoutingResolver,
+        SystemIndices coreSystemIndices
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -828,13 +832,6 @@ public class Security extends Plugin
         components.add(securityContext.get());
 
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
-
-        // audit trail service construction
-        final AuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, threadPool);
-
-        final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState(), clusterService);
-        components.add(auditTrailService);
-        this.auditTrailService.set(auditTrailService);
 
         final TokenService tokenService = new TokenService(
             settings,
@@ -989,6 +986,15 @@ public class Security extends Plugin
         if (samlAuthenticateResponseHandlerFactory.get() == null) {
             samlAuthenticateResponseHandlerFactory.set(new SamlAuthenticateResponseHandler.DefaultFactory());
         }
+        final AuditLogCustomizer customAuditLogCustomizer = findValueFromExtensions(
+            "audit log customizer",
+            extension -> extension.getAuditLogCustomizer(extensionComponents, coreSystemIndices)
+        );
+        final AuditLogCustomizer auditLogCustomizer = customAuditLogCustomizer == null ? AuditLogCustomizer.NOOP : customAuditLogCustomizer;
+        final AuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, threadPool, auditLogCustomizer);
+        final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState(), clusterService);
+        components.add(auditTrailService);
+        this.auditTrailService.set(auditTrailService);
         components.add(
             new PluginComponentBinding<>(
                 SamlAuthenticateResponseHandler.class,

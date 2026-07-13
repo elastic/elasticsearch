@@ -669,22 +669,19 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     private static BlobFileRanges reconcileBlobFileRanges(String fileName, BlobFileRanges existingRanges, BlobFileRanges incomingRanges) {
-        if (incomingRanges.hasReplicatedRanges()) {
-            // incomingRanges came from the override path with replicated ranges - use it directly
+        if (existingRanges == null) {
             return incomingRanges;
         }
-        if (existingRanges != null && existingRanges.blobLocation().equals(incomingRanges.blobLocation())) {
-            // File already tracked at the same location - preserve its existing entry so the timestamp originally
-            // stamped from the file's originating CC is retained.
-            return existingRanges;
+        if (existingRanges.blobLocation().equals(incomingRanges.blobLocation()) == false) {
+            assert isGenerationalFile(fileName)
+                : "A non-generational file ["
+                    + fileName
+                    + "] has unexpectedly changed blob location from "
+                    + existingRanges.blobLocation()
+                    + " to "
+                    + incomingRanges.blobLocation();
+            return incomingRanges;
         }
-        assert existingRanges == null || isGenerationalFile(fileName)
-            : "A non-generational file ["
-                + fileName
-                + "] has unexpectedly changed blob location from "
-                + existingRanges.blobLocation()
-                + " to "
-                + incomingRanges.blobLocation();
-        return incomingRanges;
+        return existingRanges.reconcileWith(incomingRanges);
     }
 }

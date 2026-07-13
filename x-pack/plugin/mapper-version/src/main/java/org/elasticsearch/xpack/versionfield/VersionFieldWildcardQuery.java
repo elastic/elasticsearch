@@ -14,7 +14,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.lucene.search.AutomatonQueries;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -105,7 +104,7 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                     if (caseInsensitive == false) {
                         automata.add(Automata.makeChar(c));
                     } else {
-                        automata.add(AutomatonQueries.toCaseInsensitiveChar(c));
+                        automata.add(Automata.makeCaseInsensitiveChar(c));
                     }
             }
             i += length;

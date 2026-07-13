@@ -158,7 +158,20 @@ public final class ZeroBucket {
 
     public long index() {
         if (index == Long.MAX_VALUE) {
-            index = computeIndex(zeroThreshold(), scale()) + 1;
+            double threshold = zeroThreshold();
+            long candidate = computeIndex(threshold, scale()) + 1;
+            // computeIndex() is logarithm-based and can be off by one due to floating point rounding
+            // in the log/exp round trip, in particular when the threshold is exactly a bucket boundary
+            // (e.g. because it was derived from an index/scale pair originally). Correct any such drift
+            // by comparing the candidate index directly against the threshold, without going through
+            // logarithms again.
+            while (exponentiallyScaledToDoubleValue(candidate - 1, scale()) >= threshold) {
+                candidate--;
+            }
+            while (exponentiallyScaledToDoubleValue(candidate, scale()) < threshold) {
+                candidate++;
+            }
+            index = candidate;
         }
         return index;
     }

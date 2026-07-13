@@ -69,13 +69,13 @@ public record EstimatedHeapUsage(String nodeId, long totalBytes, NodeHeapEstimat
         return nodeHeapEstimate.totalHeapUsage() / (double) totalBytes;
     }
 
-    public EstimatedHeapUsage updateEstimatedUsage(long indexUsageDelta, long shardUsageDelta) {
+    public EstimatedHeapUsage updateEstimatedUsage(long indexMetadataUsageDelta, long hostedShardsUsageDelta) {
         return new EstimatedHeapUsage(
             nodeId,
             totalBytes,
             new NodeHeapEstimate(
-                nodeHeapEstimate.totalHeapUsage() + indexUsageDelta + shardUsageDelta,
-                nodeHeapEstimate.hostedShardsHeapUsage() + shardUsageDelta
+                nodeHeapEstimate.totalHeapUsage() + indexMetadataUsageDelta + hostedShardsUsageDelta,
+                nodeHeapEstimate.hostedShardsHeapUsage() + hostedShardsUsageDelta
             )
         );
     }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -516,10 +517,8 @@ public class DatafeedRunnerTests extends ESTestCase {
         }).when(task).updatePersistentTaskState(any(), any());
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
-        datafeedRunner.createUpdateDatafeedStateRetryableAction(
-            task,
-            ActionListener.wrap(r -> succeeded.set(true), e -> fail(e.toString()))
-        ).run();
+        datafeedRunner.createUpdateDatafeedStateRetryableAction(task, ActionTestUtils.assertNoFailureListener(r -> succeeded.set(true)))
+            .run();
 
         assertTrue(succeeded.get());
         assertEquals(2, attempts.get());
@@ -535,8 +534,7 @@ public class DatafeedRunnerTests extends ESTestCase {
         }).when(task).updatePersistentTaskState(any(), any());
 
         AtomicReference<Exception> failure = new AtomicReference<>();
-        datafeedRunner.createUpdateDatafeedStateRetryableAction(task, ActionListener.wrap(r -> fail("unexpected success"), failure::set))
-            .run();
+        datafeedRunner.createUpdateDatafeedStateRetryableAction(task, ActionTestUtils.assertNoSuccessListener(failure::set)).run();
 
         assertTrue(failure.get() instanceof IllegalArgumentException);
         verify(task, times(1)).updatePersistentTaskState(eq(DatafeedState.STARTED), any());

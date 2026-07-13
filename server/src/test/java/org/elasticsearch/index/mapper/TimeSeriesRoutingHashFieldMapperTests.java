@@ -9,10 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.column.Column;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -150,68 +147,5 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
             e.getCause().getMessage(),
             containsString("Field [_ts_routing_hash] is a metadata field and cannot be added inside a document")
         );
-    }
-
-    /**
-     * Modern (post-{@link org.elasticsearch.index.IndexVersions#TIME_SERIES_ROUTING_HASH_IN_ID})
-     * scenario: the coordinating node already computed the routing hash and set it as
-     * {@link IndexRequest#routing()} (see {@code IndexRouting.ExtractFromSource#postProcess}), so
-     * {@code preColumnarParse} should reuse it directly.
-     */
-    public void testColumnarBatchReusesCoordinatingNodeRoutingHash() throws Exception {
-        MapperService mapperService = createMapperService(
-            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing path is required")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
-                .build(),
-            mapping(b -> b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject())
-        );
-        TimeSeriesRoutingHashFieldMapper mapper = mapperService.documentMapper().metadataMapper(TimeSeriesRoutingHashFieldMapper.class);
-        assertNotNull(mapper);
-        assertTrue(
-            "supportsColumnarParse must be true once the routing hash is coordinator-computed",
-            mapper.supportsColumnarParse(mapperService.getIndexSettings())
-        );
-
-        String encodedHash = TimeSeriesRoutingHashFieldMapper.encode(randomInt());
-        IndexRequest[] requests = new IndexRequest[] {
-            new IndexRequest("index").id("1").routing(encodedHash),
-            new IndexRequest("index").id("2").routing(encodedHash) };
-        BatchMappingContext context = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
-
-        mapper.preColumnarParse(context);
-
-        Column hashColumn = null;
-        for (Column column : context.columnBatch(0, requests.length).columns()) {
-            if (column.name().equals(TimeSeriesRoutingHashFieldMapper.NAME)) {
-                hashColumn = column;
-            }
-        }
-        assertNotNull("expected a _ts_routing_hash column", hashColumn);
-        assertEquals(DocValuesType.SORTED, hashColumn.fieldType().docValuesType());
-    }
-
-    /**
-     * When the routing hash was not set by the coordinating node, the columnar path must throw
-     * rather than silently omit the column — {@code ShardBatchMapper} treats any exception from
-     * {@code preColumnarParse} as a fallback signal to the row-major path.
-     */
-    public void testColumnarBatchThrowsWhenRoutingHashMissing() throws Exception {
-        MapperService mapperService = createMapperService(
-            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing path is required")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
-                .build(),
-            mapping(b -> b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject())
-        );
-        TimeSeriesRoutingHashFieldMapper mapper = mapperService.documentMapper().metadataMapper(TimeSeriesRoutingHashFieldMapper.class);
-        assertNotNull(mapper);
-
-        IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("1") };
-        BatchMappingContext context = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
-
-        expectThrows(IllegalStateException.class, () -> mapper.preColumnarParse(context));
     }
 }

@@ -14,7 +14,6 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.RoutingHashBuilder;
@@ -234,45 +233,14 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         return context.indexSettings().getIndexVersionCreated();
     }
 
-    private static final IndexableFieldType TSID_DV_FIELD_TYPE = SortedDocValuesField.TYPE;
-    private static final IndexableFieldType TSID_DV_SKIPPER_FIELD_TYPE = SortedDocValuesField.indexedField(NAME, new BytesRef())
-        .fieldType();
-
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // Only the "already computed" scenario: on/after TIME_SERIES_ID_HASHING, the coordinating
-        // node's IndexRouting.ForIndexDimensions already computed _tsid and attached it to the
-        // IndexRequest (see IndexRequest#tsid()). Older indices need per-document dimension-field
-        // parsing (RoutingPathFields), which no field (non-metadata) mapper supports columnar
-        // parsing for yet.
-        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ID_HASHING);
-    }
-
-    @Override
-    public void preColumnarParse(BatchMappingContext context) {
-        final int docCount = context.docCount();
-        final BytesRef[] tsids = new BytesRef[docCount];
-        for (int d = 0; d < docCount; d++) {
-            final BytesRef tsid = context.request(d).tsid();
-            if (tsid == null) {
-                // Rare edge case (e.g. translog replay with no coordinating-node routing) where the
-                // row path falls back to rebuilding the tsid from dimension fields. Throwing here —
-                // same pattern as ProvidedIdFieldMapper's "_id should have been set" check —
-                // triggers the existing fallback to the row path for this chunk.
-                throw new IllegalStateException("_tsid should have been set on the coordinating node");
-            }
-            tsids[d] = tsid;
-        }
-        final IndexableFieldType fieldType = useDocValuesSkipper ? TSID_DV_SKIPPER_FIELD_TYPE : TSID_DV_FIELD_TYPE;
-        context.addColumn(LuceneColumns.arrayBinaryColumn(tsids, fieldType().name(), fieldType));
-
-        // TODO(columnar): postParse also copies _tsid (+ @timestamp, _ts_routing_hash, synthetic
-        // _id) onto every nested/child LuceneDocument so deleting the parent deletes them too (see
-        // addSyntheticIdFieldsToNestedDocs). The columnar path has no nested-document concept at
-        // all yet (BatchMappingContext holds no LuceneDocument) — currently harmless only because
-        // nested mappings already force a fallback to the row path today (no field mapper supports
-        // columnar parsing yet), not because of anything enforced here. Revisit once nested docs
-        // are supported.
+        // TODO(columnar-tsdb): implement preColumnarParse for _tsid. Modern indices (on/after
+        // TIME_SERIES_ID_HASHING) have _tsid already computed on the coordinating node and
+        // available via IndexRequest#tsid(), so no per-document dimension-field parsing is needed.
+        // Also note: postParse copies _tsid into nested documents (addSyntheticIdFieldsToNestedDocs)
+        // which requires columnar nested-doc support before it can be ported.
+        return false;
     }
 
     @Override

@@ -9,10 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.column.Column;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
@@ -892,70 +889,5 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         assertThat(displayValue, equalTo(encodedValue));
         assertThat(displayValue.getClass(), is(String.class));
         assertThat(fieldType.valueForDisplay(null), nullValue());
-    }
-
-    /**
-     * Modern (post-{@link IndexVersions#TIME_SERIES_ID_HASHING}) scenario: the coordinating node
-     * already computed {@code _tsid} and attached it to the {@link IndexRequest} (see
-     * {@code IndexRouting.ForIndexDimensions}), so {@code preColumnarParse} should reuse it
-     * directly rather than needing per-document dimension-field parsing.
-     */
-    public void testColumnarBatchReusesCoordinatingNodeTsid() throws Exception {
-        MapperService mapperService = createMapperService(
-            IndexVersion.current(),
-            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "a")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
-                .build(),
-            mapping(b -> b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject())
-        );
-        TimeSeriesIdFieldMapper mapper = mapperService.documentMapper().metadataMapper(TimeSeriesIdFieldMapper.class);
-        assertNotNull(mapper);
-        assertTrue(
-            "supportsColumnarParse must be true once _tsid is coordinator-computed",
-            mapper.supportsColumnarParse(mapperService.getIndexSettings())
-        );
-
-        BytesRef tsid = new BytesRef("some-precomputed-tsid");
-        IndexRequest[] requests = new IndexRequest[] {
-            new IndexRequest("index").id("1").tsid(tsid),
-            new IndexRequest("index").id("2").tsid(tsid) };
-        BatchMappingContext context = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
-
-        mapper.preColumnarParse(context);
-
-        Column tsidColumn = null;
-        for (Column column : context.columnBatch(0, requests.length).columns()) {
-            if (column.name().equals(TimeSeriesIdFieldMapper.NAME)) {
-                tsidColumn = column;
-            }
-        }
-        assertNotNull("expected a _tsid column", tsidColumn);
-        assertEquals(DocValuesType.SORTED, tsidColumn.fieldType().docValuesType());
-    }
-
-    /**
-     * When {@code _tsid} was not set by the coordinating node (e.g. translog replay), the columnar
-     * path must throw rather than silently omit the column — {@code ShardBatchMapper} treats any
-     * exception from {@code preColumnarParse} as a fallback signal to the row-major path.
-     */
-    public void testColumnarBatchThrowsWhenTsidMissing() throws Exception {
-        MapperService mapperService = createMapperService(
-            IndexVersion.current(),
-            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "a")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
-                .build(),
-            mapping(b -> b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject())
-        );
-        TimeSeriesIdFieldMapper mapper = mapperService.documentMapper().metadataMapper(TimeSeriesIdFieldMapper.class);
-        assertNotNull(mapper);
-
-        IndexRequest[] requests = new IndexRequest[] { new IndexRequest("index").id("1") };
-        BatchMappingContext context = new BatchMappingContext(requests, mapperService.mappingLookup(), mapperService.getIndexSettings());
-
-        expectThrows(IllegalStateException.class, () -> mapper.preColumnarParse(context));
     }
 }

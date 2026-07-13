@@ -295,7 +295,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * e.g. {@code address.city}/{@code address.zip}, but a row's {@code address} is a plain string) is a genuine
      * scalar/object schema conflict: core ES dynamic mapping treats the same ambiguity as a hard document-parsing
      * conflict, so under {@link ErrorPolicy#STRICT} it must fail the query with an actionable message naming the
-     * field and both shapes rather than silently null-filling (elastic/esql-planning#1028). Before that fix, this
+     * field and both shapes rather than silently null-filling. Before that fix, this
      * mismatch was silently null-filled even under {@code STRICT} (see the pre-#1028 revision of
      * {@code testNullOrScalarWhereNestedObjectExpected}).
      */
@@ -319,7 +319,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * Same conflict as {@link #testScalarWhereNestedObjectExpectedStrictFails}, but under skip_row: the conflicting
      * record is dropped whole and a client warning is surfaced, while the other records still decode. error_mode
      * governs the outcome the same for a bound/declared or an inferred schema; null_field keeps the record and nulls
-     * the conflicting field instead (see the NdJsonPageIteratorTests null_field pin). See elastic/esql-planning#1028.
+     * the conflicting field instead (see the NdJsonPageIteratorTests null_field pin).
      */
     public void testScalarWhereNestedObjectExpectedSkipRowDropsRecordAndWarns() throws IOException {
         String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}, \"id\": 1}\n"
@@ -473,7 +473,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * Mirror of {@link #testArrayOfObjectsWithScalarElements}: an array of scalars on a leaf column whose
      * elements are occasionally objects (e.g. {@code ["a", {"x":1}, "b"]}). A stray object among array
      * scalars is a distinct, supported shape — not the record-level scalar/object conflict
-     * elastic/esql-planning#1028 targets — so it must be silently omitted from the multi-value entry under
+     * the record-level shape-conflict path targets — so it must be silently omitted from the multi-value entry under
      * every {@link ErrorPolicy}, including {@code STRICT}; only a genuine top-level (non-array) conflict
      * (see {@link #testScalarWhereNestedObjectExpectedStrictFails}) fails the query. Covers leading-object,
      * mid-object, and all-object arrays against a scalar {@code id} column that pins the expected row count.

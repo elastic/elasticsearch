@@ -49,7 +49,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * End-to-end reproduction of elastic/esql-planning#1050, the cross-file completion of #1028: a
+ * End-to-end reproduction of the cross-file scalar/object shape-conflict handling: a
  * field that is a scalar leaf in one file's schema and a nested object (dotted-prefix parent) in
  * another's must reconcile to a single shape under the default {@code UNION_BY_NAME} schema
  * resolution, with the losing file's records routed through the same {@code ErrorPolicy}
@@ -121,7 +121,7 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
     }
 
     /**
-     * The exact repro shape from esql-planning#1050: {@code a.ndjson}'s {@code user} is a plain
+     * The exact cross-file repro shape: {@code a.ndjson}'s {@code user} is a plain
      * string, {@code b.ndjson}'s is a nested object. Lexicographic glob ordering (see
      * {@code GlobExpander}) makes {@code a.ndjson} the first file, so first-shape-wins schema
      * reconciliation resolves {@code user} to {@code KEYWORD} and {@code b.ndjson} is the one that
@@ -187,7 +187,7 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
      * silently return {@code with_user=1} rather than failing — the correctness bug this fix
      * closes. With the fix, the family collapses to {@code a.ndjson}'s scalar shape, so
      * {@code b.ndjson}'s now-pinned scalar {@code user} attribute hits its real object value and
-     * fails per elastic/esql-planning#1028's decode-time shape-conflict handling — mirroring
+     * fails per the decode-time shape-conflict handling — mirroring
      * {@link NdJsonScalarObjectConflictIT#testStrictPolicyFailsOnScalarObjectConflict}.
      */
     public void testDefaultSettingsFailsOnCrossFileScalarObjectConflict() {

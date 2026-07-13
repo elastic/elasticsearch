@@ -1803,7 +1803,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Reproduces the exact repro from elastic/esql-planning#1028: an NDJSON field ("user") that is a scalar in
+     * Reproduces the scalar/object shape-conflict repro: an NDJSON field ("user") that is a scalar in
      * some sampled records and a JSON object in others must resolve to exactly one shape in the inferred schema
      * -- never both a scalar "user" attribute and its nested "user.id"/"user.tier" children.
      */
@@ -1882,7 +1882,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     /**
      * Under skip_row, the object-valued record is dropped whole and a client warning is surfaced, while the two
      * scalar records decode normally. error_mode governs the outcome the same for a declared or an inferred column;
-     * null_field keeps the record and nulls the [user] cell instead (elastic/esql-planning#1028).
+     * null_field keeps the record and nulls the [user] cell instead.
      */
     public void testScalarThenObjectConflictSkipRowDropsRecordAndWarns() throws IOException {
         String ndjson = """
@@ -3298,7 +3298,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Regression for https://github.com/elastic/esql-planning/issues/894 and the issue 965 follow-up: on
+     * Regression for the byte-array max-record-size cap fix and its follow-up: on
      * the byte-array fast path the cap is now enforced per-record inside {@link NdJsonPageDecoder} (on the
      * pass Jackson already makes — no separate buffer sweep), instead of by a pre-read cap stream. Under
      * {@link ErrorPolicy#STRICT} an oversized record must still surface a {@code max_record_size [N]} error

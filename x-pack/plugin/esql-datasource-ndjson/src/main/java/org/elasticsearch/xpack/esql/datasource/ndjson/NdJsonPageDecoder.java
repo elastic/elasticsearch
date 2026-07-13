@@ -1511,7 +1511,7 @@ public class NdJsonPageDecoder implements Closeable {
          * that is a scalar in some records and an object in others ({@link #shapeConflict}) — all route through
          * {@link ErrorPolicy}: {@code FAIL_FAST} fails the query, {@code SKIP_ROW} drops the whole record,
          * {@code NULL_FIELD} nulls the cell and warns. Core ES dynamic mapping treats the shape ambiguity as a hard
-         * document-parsing conflict. See elastic/esql-planning#1028.
+         * document-parsing conflict.
          */
         private void decodeValue(JsonParser parser, boolean inArray) throws IOException {
             JsonToken token = parser.currentToken();
@@ -1601,7 +1601,7 @@ public class NdJsonPageDecoder implements Closeable {
                         return;
                     }
                     // Scalar leaf receiving an object value outside an array: a genuine scalar/object schema
-                    // conflict (elastic/esql-planning#1028), not routine schema-on-read flattening. With
+                    // conflict, not routine schema-on-read flattening. With
                     // single-shape schema inference (see NdJsonSchemaInferrer) this can only happen when
                     // the actual data diverges from the shape observed during sampling, so — unlike the
                     // routine mismatches above — it is routed through ErrorPolicy instead of silently
@@ -1634,7 +1634,7 @@ public class NdJsonPageDecoder implements Closeable {
                             );
                         }
                     } else {
-                        // Genuine scalar/object schema conflict (elastic/esql-planning#1028): route
+                        // Genuine scalar/object schema conflict: route
                         // through ErrorPolicy instead of silently null-filling. Structural nodes never
                         // receive setAttribute(), so `name` is null here; derive the JSON path (e.g.
                         // /userIdentity/sessionContext) from the parser context to identify the field.
@@ -1951,7 +1951,7 @@ public class NdJsonPageDecoder implements Closeable {
          * {@link ErrorPolicy.Mode#NULL_FIELD} nulls this field only (schema-on-read tolerance, the row's other columns
          * already decoded — this is the mode that means "keep the record"). Both non-strict modes warn and budget. A
          * structural-node path with no attributable field name ({@code fieldLabel == null}) cannot drop a row, so it
-         * null-fills regardless of mode. See elastic/esql-planning#1028.
+         * null-fills regardless of mode.
          */
         private void shapeConflict(JsonParser parser, String fieldLabel, String actualShape, String resolvedShape) throws IOException {
             if (rowDroppedBySkipRow) {

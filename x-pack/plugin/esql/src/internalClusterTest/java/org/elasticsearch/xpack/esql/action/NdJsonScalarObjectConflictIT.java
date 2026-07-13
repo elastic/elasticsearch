@@ -49,7 +49,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * End-to-end reproduction of elastic/esql-planning#1028, run through a real {@code FROM <dataset>}
+ * End-to-end reproduction of the NDJSON scalar/object shape-conflict handling, run through a real {@code FROM <dataset>}
  * query (planner + execution + client response), not just the reader-level unit tests in
  * {@code NdJsonPageIteratorTests}/{@code NdJsonPageDecoderTests}. A field ("user") that is a scalar in
  * some sampled NDJSON records and a JSON object in others must, per {@link ErrorPolicy}: fail the query
@@ -124,7 +124,7 @@ public class NdJsonScalarObjectConflictIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * The exact repro shape from elastic/esql-planning#1028: {@code user} is a plain string in most
+     * The exact repro shape: {@code user} is a plain string in most
      * records but a nested object in one of them. Scalar-first-wins schema inference resolves {@code user}
      * to {@code KEYWORD}, so the object-valued record is the one that hits the shape conflict at decode
      * time. Registers a data source and two datasets over the same fixture — {@code strict_ds} with the
@@ -196,8 +196,7 @@ public class NdJsonScalarObjectConflictIT extends AbstractEsqlIntegTestCase {
      * dropped whole and every other row still returns — {@code skip_row} means "skip the row", and error_mode
      * governs the outcome the same for an inferred or a declared schema ({@code null_field} keeps the record and
      * nulls just the cell instead). The query runs through a chosen coordinator and we read that node's accumulated
-     * response {@code Warning} headers, proving the warning recorded by the reader propagates to the client. See
-     * elastic/esql-planning#1028.
+     * response {@code Warning} headers, proving the warning recorded by the reader propagates to the client.
      */
     public void testSkipRowPolicyDropsRecordAndWarnsClient() throws Exception {
         EsqlQueryRequest request = syncEsqlQueryRequest("FROM lenient_ds | KEEP event, user | SORT event");

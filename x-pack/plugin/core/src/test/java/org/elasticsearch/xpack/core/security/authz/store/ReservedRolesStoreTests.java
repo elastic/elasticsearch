@@ -620,7 +620,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".kibana",
             ".kibana-devnull",
             ".reporting-" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            ".contextengine-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             ".apm-agent-configuration",
             ".apm-custom-link",
             ".apm-source-map",
@@ -643,6 +642,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8 + randomAlphaOfLength(randomIntBetween(0, 13)),
             ".slo-observability." + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
+
+        assertReadWriteAndManage(kibanaRole, ".contextengine-" + randomAlphaOfLength(randomIntBetween(0, 13)));
 
         // Alerting V2 views prefix: Kibana system user has create_view only
         Arrays.asList(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS).forEach(index -> {

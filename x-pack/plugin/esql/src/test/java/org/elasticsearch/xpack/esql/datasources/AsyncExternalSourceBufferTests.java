@@ -18,7 +18,11 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -225,7 +229,7 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
      * {@code onFailure} deliberately leaves already-queued pages in place so the driver can drain them
      * via {@code getOutput()}/{@link AsyncExternalSourceBuffer#pollPage()} before the failure surfaces.
      * But {@link AsyncExternalSourceOperator#close()} always calls {@code finish(true)}, and the prior
-     * implementation gated {@link AsyncExternalSourceBuffer#discardPages} behind the {@code noMoreInputs}
+     * implementation gated {@code AsyncExternalSourceBuffer#discardPages} behind the {@code noMoreInputs}
      * CAS transition — which {@code onFailure} had already performed, so {@code finish(true)} always lost
      * the race and skipped the discard. A close that arrives without the driver ever draining the queue
      * (e.g. cross-driver task cancellation cutting this operator's poll loop before it runs) leaked the
@@ -325,5 +329,79 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         buffer.incSplitsProcessed();
         assertEquals(2, buffer.currentSplit());
         assertEquals(2, buffer.splitsProcessed());
+    }
+
+    public void testRecordInformationalWarningDoesNotFlipPartial() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        buffer.recordInformationalWarning("null-filled row 3");
+        assertFalse("an informational reader warning is not a partial-result signal", buffer.isPartial());
+        assertEquals("null-filled row 3", buffer.pollWarning());
+        assertNull(buffer.pollWarning());
+    }
+
+    public void testRecordInformationalWarningSharesQueueWithPartialResultsWarnings() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        buffer.recordWarning("truncated at max_record_size");
+        buffer.recordInformationalWarning("null-filled row 3");
+        assertTrue(buffer.isPartial());
+        assertEquals("truncated at max_record_size", buffer.pollWarning());
+        assertEquals("null-filled row 3", buffer.pollWarning());
+        assertNull(buffer.pollWarning());
+    }
+
+    /**
+     * The whole point of the central cap: many independent per-segment/per-chunk {@link SkipWarnings}
+     * instances feeding the same buffer must not multiply the header count by the segment/chunk count.
+     * <p>
+     * Uses the same real-thread-contention pattern as {@link #testNoLostWakeupUnderConcurrentAddAndPoll}
+     * rather than a sequential loop, so the cap is exercised under genuine concurrent access to the
+     * shared counter — matching how independent parse-worker threads actually drive
+     * {@link AsyncExternalSourceBuffer#recordInformationalWarning} for one chunk/segment each. Regression
+     * coverage for the streaming per-chunk flood.
+     */
+    public void testRecordInformationalWarningAppliesOneGlobalCapAcrossManyCallers() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        // One thread per chunk, as 50 independent SkipWarnings instances would drive this method
+        // concurrently on the streaming-parallel path.
+        int chunks = 50;
+        CyclicBarrier barrier = new CyclicBarrier(chunks);
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        Thread[] threads = new Thread[chunks];
+        for (int c = 0; c < chunks; c++) {
+            int chunk = c;
+            threads[c] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    buffer.recordInformationalWarning("chunk " + chunk + " summary");
+                    buffer.recordInformationalWarning("chunk " + chunk + " detail");
+                } catch (Throwable t) {
+                    error.set(t);
+                }
+            }, "informational-warning-chunk-" + chunk);
+            threads[c].setDaemon(true);
+        }
+        for (Thread t : threads) {
+            t.start();
+        }
+        for (Thread t : threads) {
+            t.join(TimeUnit.SECONDS.toMillis(10));
+            assertFalse("chunk thread should have exited", t.isAlive());
+        }
+        assertNull("chunk thread threw", error.get());
+
+        List<String> drained = new ArrayList<>();
+        String w;
+        while ((w = buffer.pollWarning()) != null) {
+            drained.add(w);
+        }
+
+        int maxInformationalWarnings = SkipWarnings.MAX_ADDED_WARNINGS + 2;
+        assertEquals(
+            "total lines must be bounded regardless of how many chunk threads raced to contribute",
+            maxInformationalWarnings,
+            drained.size()
+        );
+        assertTrue("the last line must note suppression", drained.get(drained.size() - 1).contains("further reader warnings suppressed"));
+        assertFalse(buffer.isPartial());
     }
 }

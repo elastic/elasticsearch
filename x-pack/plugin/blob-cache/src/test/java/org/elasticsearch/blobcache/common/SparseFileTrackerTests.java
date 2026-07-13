@@ -129,7 +129,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         final long length = fileContents.length;
         final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", length);
 
-        if (randomBoolean()) {
+        if (length > 0 && randomBoolean()) {
             final long rangeStart = randomLongBetween(0, length - 1);
             final long rangeEnd = randomLongBetween(rangeStart + 1, length);
             final var range = ByteRange.of(rangeStart, rangeEnd);

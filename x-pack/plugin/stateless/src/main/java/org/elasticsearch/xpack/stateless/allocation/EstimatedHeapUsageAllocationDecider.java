@@ -177,8 +177,8 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
         }
 
         final var newNodeHeapUsageForNode = nodeHeapUsageForNode.updateEstimatedUsage(
-            shardAndIndexHeapUsage.shardHeapUsageBytes(),
-            node.hasIndex(shardRouting.index()) ? 0 : shardAndIndexHeapUsage.indexHeapUsageBytes()
+            node.hasIndex(shardRouting.index()) ? 0 : shardAndIndexHeapUsage.indexHeapUsageBytes(),
+            shardAndIndexHeapUsage.shardHeapUsageBytes()
         );
         if (newNodeHeapUsageForNode.estimatedUsageAsPercentage() > lowWaterMarkAsPercentage) {
             if (logger.isDebugEnabled() || allocation.debugDecision()) {

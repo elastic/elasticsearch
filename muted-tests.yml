@@ -571,9 +571,6 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.DISIAccumulatorTests
   method: testRandom
   issue: https://github.com/elastic/elasticsearch/issues/152677
-- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
-  method: testUnreferencedCommitsAreReleasedAfterRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/152730
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testCloseWhileShardsAreHollowed
   issue: https://github.com/elastic/elasticsearch/issues/151861

@@ -175,7 +175,7 @@ public final class OrdinalBytesRefVector extends AbstractBlockRefCounter impleme
 
     @Override
     public long ramBytesUsed() {
-        return ordinals.ramBytesUsed() + bytes.ramBytesUsed();
+        return AbstractBlockRefCounter.REF_COUNT_BYTES_USED + ordinals.ramBytesUsed() + bytes.ramBytesUsed();
     }
 
     @Override

@@ -280,7 +280,7 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounter implemen
 
     @Override
     public long ramBytesUsed() {
-        return ordinals.ramBytesUsed() + bytes.ramBytesUsed();
+        return AbstractBlockRefCounter.REF_COUNT_BYTES_USED + ordinals.ramBytesUsed() + bytes.ramBytesUsed();
     }
 
     @Override

@@ -50,7 +50,9 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
 
     private static final int ROWS = 40;
     private static final String INDEX = "conf_idx";
-    private static final Instant BASE = Instant.parse("2020-01-01T00:00:00Z");
+    // Non-midnight so a coarse day-precision bound actually exercises rounding: lte "2020-01-20" must round UP to the
+    // end of the day to include a 12:34:56 row — a naive midnight parse would drop it, diverging from the index.
+    private static final Instant BASE = Instant.parse("2020-01-01T12:34:56Z");
 
     private String dataset;
 
@@ -224,6 +226,25 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     /** A term on a field neither source has matches nothing on both — unmapped index field and missing dataset field agree. */
     public void testMissingFieldUnderConjunctionMatchesNothing() {
         assertSelectsSameRows(QueryBuilders.termQuery("nope", "x"));
+    }
+
+    /**
+     * An EXCLUSIVE range over a field neither source has matches nothing on both. The dataset used to degrade the whole
+     * filter to unfiltered here (returning every row) where the index's unmapped-field range matches none.
+     */
+    public void testMissingFieldExclusiveRangeMatchesNothing() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("nope").gte(0).lt(10));
+    }
+
+    /**
+     * One bad clause must not sink the whole filter. A present term AND an exclusive range over a missing field: the
+     * missing leg folds to false, so both select nothing. Before the fix the range threw and degraded the entire
+     * filter, so the dataset returned every row while the index returned none.
+     */
+    public void testConjunctionWithMissingExclusiveRangeSelectsNothing() {
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 300)).must(QueryBuilders.rangeQuery("nope").gte(0).lt(10))
+        );
     }
 
     /** A negated term on a field neither source has matches everything on both — the leniency the translation reproduces. */

@@ -256,7 +256,10 @@ public final class QueryDslTranslator {
             // inclusive one, which is only exact on whole-number types (there is no predecessor for a double).
             Object lower = coerce(field, range.from(), formatter);
             Object upper = coerce(field, range.to(), formatter);
-            if (range.includeLower() == false || range.includeUpper() == false) {
+            // The exclusive→inclusive normalization only matters for a PRESENT field. A missing field is null-bound and
+            // the leaf folds to false regardless of the bounds, so skip it — otherwise an exclusive bound over a missing
+            // field would wrongly degrade (unfiltered) where the index path's unmapped-field range matches nothing.
+            if (isPresent(field) && (range.includeLower() == false || range.includeUpper() == false)) {
                 if (isWholeNumbered(type) == false) {
                     throw new TranslationUnsupportedException("range[exclusive bound on " + type.typeName() + "]");
                 }
@@ -360,24 +363,27 @@ public final class QueryDslTranslator {
     }
 
     /**
-     * Parse one date bound to the field type's internal long. A numeric value is an explicit epoch and is exact — no
-     * date math or unit rounding applies. A string goes through a {@link org.elasticsearch.common.time.DateMathParser}
-     * anchored at the query's {@code now}, with {@code roundUp} choosing the edge of the value's rounding unit.
+     * Parse one date bound to the field type's internal long. A numeric value is epoch <em>millis</em> on both date
+     * types — matching the index field's {@code epoch_millis} parse — so it is converted to the type's resolution
+     * (identity for {@code date}, ×10⁶ for {@code date_nanos}), never read as a raw nanos count. A string goes through a
+     * {@link org.elasticsearch.common.time.DateMathParser} anchored at the query's {@code now}, with {@code roundUp}
+     * choosing the edge of the value's rounding unit. The default formatters mirror the index field defaults (they
+     * include {@code epoch_millis}), so a string epoch-millis bound resolves the same way a numeric one does.
      */
     private long dateBound(DataType type, Object value, DateFormatter formatter, boolean roundUp) {
+        DateFieldMapper.Resolution resolution = type == DataType.DATE_NANOS
+            ? DateFieldMapper.Resolution.NANOSECONDS
+            : DateFieldMapper.Resolution.MILLISECONDS;
         if (value instanceof Number n) {
-            return n.longValue();
+            return resolution.convert(Instant.ofEpochMilli(n.longValue()));
         }
         DateFormatter effective = formatter != null
             ? formatter
             : (type == DataType.DATE_NANOS
-                ? EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER
-                : EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER);
+                ? DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER
+                : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
         try {
             Instant instant = effective.toDateMathParser().parse(String.valueOf(value), () -> nowInMillis, roundUp, null);
-            DateFieldMapper.Resolution resolution = type == DataType.DATE_NANOS
-                ? DateFieldMapper.Resolution.NANOSECONDS
-                : DateFieldMapper.Resolution.MILLISECONDS;
             return resolution.convert(instant);
         } catch (RuntimeException e) {
             // An unparseable bound or a date-math expression we cannot resolve cannot be translated faithfully.
@@ -411,8 +417,18 @@ public final class QueryDslTranslator {
      * folds it to {@code false}, so it is left untouched: that is leniency, not a type error.
      */
     private static Expression checkedLeaf(Expression field, Expression leaf) {
-        if (DataType.isNull(field.dataType()) == false && leaf.resolved() == false) {
-            throw new TranslationUnsupportedException(leaf.nodeName() + "[on " + field.dataType().typeName() + "]");
+        DataType type = field.dataType();
+        if (DataType.isNull(type) == false) {
+            // An analyzed text field matches on ANALYZED TOKENS in the index (term "quick" hits "the quick fox"); a
+            // structural equality/range leaf here compares the whole raw string and would silently under-match. We
+            // cannot reproduce the analyzer, so degrade rather than answer a narrower question. (exists is analysis-
+            // independent and does not pass through here, so IS NOT NULL over a text field stays valid.)
+            if (type == DataType.TEXT) {
+                throw new TranslationUnsupportedException(leaf.nodeName() + "[on analyzed " + type.typeName() + "]");
+            }
+            if (leaf.resolved() == false) {
+                throw new TranslationUnsupportedException(leaf.nodeName() + "[on " + type.typeName() + "]");
+            }
         }
         return leaf;
     }

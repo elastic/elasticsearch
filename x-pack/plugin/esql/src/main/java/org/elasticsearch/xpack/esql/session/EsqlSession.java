@@ -457,12 +457,16 @@ public class EsqlSession {
                         EsqlPlugin.externalBlobStorePool()
                     );
 
+                    TransportVersion minimumVersion = analyzedPlan.minimumVersion();
+
                     // Graft the out-of-band request filter onto external-source (dataset) leaves, translated
-                    // against each source's schema. Index leaves keep their existing filter path.
+                    // against each source's schema. Index leaves keep their existing filter path. Version-gated:
+                    // the translated predicate can contain mv_in_range, which older nodes cannot deserialize.
                     LogicalPlan plan = RequestFilterGraft.graft(
                         analyzedPlan.inner(),
                         request.filter(),
-                        finalConfiguration.absoluteStartedTimeInMillis()
+                        finalConfiguration.absoluteStartedTimeInMillis(),
+                        minimumVersion
                     );
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
@@ -472,7 +476,6 @@ public class EsqlSession {
                     if (plan.anyMatch(ExternalRelation.class::isInstance)) {
                         planTelemetry.externalSource(true);
                     }
-                    TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
                     var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
                         new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion)

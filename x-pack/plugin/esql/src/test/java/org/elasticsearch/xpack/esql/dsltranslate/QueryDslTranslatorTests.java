@@ -47,7 +47,9 @@ public class QueryDslTranslatorTests extends ESTestCase {
         case "bytes" -> new ReferenceAttribute(Source.EMPTY, "bytes", DataType.LONG);
         case "score" -> new ReferenceAttribute(Source.EMPTY, "score", DataType.DOUBLE);
         case "@timestamp" -> new ReferenceAttribute(Source.EMPTY, "@timestamp", DataType.DATETIME);
+        case "ts_nanos" -> new ReferenceAttribute(Source.EMPTY, "ts_nanos", DataType.DATE_NANOS);
         case "active" -> new ReferenceAttribute(Source.EMPTY, "active", DataType.BOOLEAN);
+        case "body" -> new ReferenceAttribute(Source.EMPTY, "body", DataType.TEXT);
         default -> Literal.NULL;
     };
 
@@ -404,5 +406,41 @@ public class QueryDslTranslatorTests extends ESTestCase {
     /** When rounding pushes the lower bound past the upper (an exclusive one-day date range), it matches nothing. */
     public void testDateRangeCollapsedByRoundingMatchesNothing() {
         assertEquals(Literal.FALSE, translate(QueryBuilders.rangeQuery("@timestamp").gt("2020-06-15").lt("2020-06-15")));
+    }
+
+    /**
+     * A range with an EXCLUSIVE bound over a MISSING field must still fold to false (leniency) — the index path's
+     * unmapped-field range matches nothing. It used to degrade the whole filter (unfiltered) instead: the exclusive
+     * bound tripped the whole-number check on the NULL type before leniency could apply.
+     */
+    public void testExclusiveBoundOnMissingFieldFoldsToFalseNotDegrade() {
+        // The MvInRange is over a NULL-bound field and folds to false, exactly like the inclusive case — no throw.
+        Expression e = translate(QueryBuilders.rangeQuery("missing_field").gte(0).lt(10));
+        assertThat(e, instanceOf(MvInRange.class));
+        assertEquals(Literal.NULL, ((MvInRange) e).children().get(0));
+    }
+
+    /** An analyzed text field matches on tokens in the index; a structural leaf would under-match, so term/terms/range degrade. */
+    public void testTermOnAnalyzedTextDegrades() {
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termQuery("body", "quick")));
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termsQuery("body", List.of("quick", "brown"))));
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("body").gte("a").lt("z")));
+    }
+
+    /** exists over an analyzed text field is fine — it is analysis-independent and does not go through the leaf chokepoint. */
+    public void testExistsOnAnalyzedTextIsSupported() {
+        assertThat(translate(QueryBuilders.existsQuery("body")), instanceOf(IsNotNull.class));
+    }
+
+    /**
+     * A numeric date bound is epoch MILLIS on both date types (the index parses it via epoch_millis). On date_nanos the
+     * internal unit is nanos, so it must be scaled up — not read as a raw nanos count (which would land in 1970).
+     */
+    public void testNumericBoundOnDateNanosIsMillisScaledToNanos() {
+        long millis = millis("2020-06-15T00:00:00.000Z");
+        Expression e = translate(QueryBuilders.rangeQuery("ts_nanos").gte(millis));
+        Expression cmp = ((Coalesce) e).children().get(0);
+        Literal bound = (Literal) ((GreaterThanOrEqual) cmp).right();
+        assertEquals(millis * 1_000_000L, bound.value());
     }
 }

@@ -497,7 +497,7 @@ public class ComputeService {
         // Feed the same partition-column set the fold uses (read from serialized sourceMetadata, so it matches the
         // data-node fold): COUNT(partition_col) must safe-miss on both paths, or the gate skips discovery for a
         // fold that then bails -> the zero-split crash above.
-        Set<String> pathDerivedColumns = ExternalSourceAggregatePushdown.partitionColumnNames(meta);
+        Set<String> pathDerivedColumns = SourceStatisticsSerializer.partitionColumnNames(meta);
         return ExternalSourceAggregatePushdown.canServeAllFromStats(
             agg.aggregates(),
             stats,

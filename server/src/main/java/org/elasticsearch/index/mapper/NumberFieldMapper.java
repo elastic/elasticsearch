@@ -299,6 +299,12 @@ public class NumberFieldMapper extends FieldMapper {
                     if (indexed.getValue() == false) {
                         throw new IllegalArgumentException("[index_terms] requires that [index] is true");
                     }
+                    if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
+                        // Legacy/archive indices fall back to IndexType.archivedPoints() regardless of
+                        // index_terms, and their Lucene segments predate this feature and are never
+                        // reindexed, so they can never actually contain the sortable-bytes terms field.
+                        throw new IllegalArgumentException("[index_terms] is not supported on legacy indices");
+                    }
                 }
             });
 

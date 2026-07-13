@@ -18,6 +18,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -147,6 +148,14 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
             b.field("index", false);
         })));
         assertThat(e.getMessage(), containsString("[index_terms] requires that [index] is true"));
+    }
+
+    public void testIndexTermsRejectedOnLegacyIndex() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(IndexVersion.fromId(5000099), fieldMapping(b -> {
+            b.field("type", "integer");
+            b.field("index_terms", true);
+        })));
+        assertThat(e.getMessage(), containsString("[index_terms] is not supported on legacy indices"));
     }
 
     public void testIndexTermsRangeQueryWithoutDocValues() throws IOException {

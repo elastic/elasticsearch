@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.io.api.Converter;
 import org.apache.parquet.io.api.GroupConverter;
 import org.apache.parquet.io.api.PrimitiveConverter;
@@ -30,6 +31,8 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.DateTimeException;
@@ -85,6 +88,35 @@ final class ParquetColumnDecoding {
     static boolean isMicrosTimestamp(LogicalTypeAnnotation logicalType) {
         return logicalType instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts
             && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
+    }
+
+    /**
+     * Whether decoding a physical column with logical annotation {@code annotation} into an ESQL integral value
+     * ({@code long}/{@code integer}) applies a scaling factor that the raw parquet footer statistics do NOT carry, so
+     * a raw integral predicate pushed against those stats would mis-prune. This is the ground truth for the pushdown
+     * decline guard ({@code ParquetPushedExpressions.pushDeclinedForUnitMismatch}); it lives here, next to the decode
+     * transforms it summarizes, so the two cannot drift when a logical type is added:
+     * <ul>
+     *   <li>{@code DATE} — {@link #dateDaysToMillis} scales days ×86_400_000 to epoch-millis;</li>
+     *   <li>{@code TIMESTAMP(MICROS)} / {@code TIME(MICROS)} — {@link #convertTimestampToNanos} / the time nanos
+     *       multiplier scale ×1_000 to nanos ({@code MILLIS}/{@code NANOS} are identity);</li>
+     *   <li>{@code DECIMAL(scale>0)} — the value reader divides the unscaled integer by 10^scale.</li>
+     * </ul>
+     */
+    static boolean integralDecodeScalesRelativeToRawStats(LogicalTypeAnnotation annotation) {
+        if (annotation instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+            return true;
+        }
+        if (annotation instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            return ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
+        }
+        if (annotation instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+            return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
+        }
+        if (annotation instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation dec) {
+            return dec.getScale() != 0;
+        }
+        return false;
     }
 
     /** Whether scaling a {@code TIMESTAMP(MICROS)} value to epoch-nanoseconds would overflow a {@code long}. */
@@ -309,6 +341,42 @@ final class ParquetColumnDecoding {
         return primitiveType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical
             && intLogical.isSigned() == false
             && intLogical.getBitWidth() == bitWidth;
+    }
+
+    /**
+     * Decodes a FLOAT16 or DECIMAL footer stat value into the same {@code double} the scan path
+     * produces (mirrors {@code readFloat16Column} / {@code readDecimalAsDoubleColumn}), so
+     * pushed-down MIN/MAX match a scan. FLOAT16 is always Binary-backed (physical
+     * {@code FIXED_LEN_BYTE_ARRAY(2)}), so its footer stat is a Parquet {@link Binary}. DECIMAL can
+     * be backed by INT32, INT64, BINARY, or FIXED_LEN_BYTE_ARRAY — its stat arrives as an
+     * {@link Integer}/{@link Long} unscaled value for the former two, and as {@link Binary} bytes
+     * (big-endian two's complement) for the latter two.
+     *
+     * <p>Returns {@code null} when the type is not FLOAT16/DECIMAL, or the value's runtime type
+     * doesn't match what the physical type implies (caller falls through to other normalization).
+     */
+    static Double decodeBinaryNumericStat(Object value, PrimitiveType type) {
+        LogicalTypeAnnotation logical = type.getLogicalTypeAnnotation();
+        if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
+            if (value instanceof Binary binary) {
+                byte[] bytes = binary.getBytes();
+                short float16Bits = (short) ((bytes[1] & 0xFF) << 8 | (bytes[0] & 0xFF));
+                return (double) Float.float16ToFloat(float16Bits);
+            }
+            return null;
+        }
+        if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal) {
+            BigInteger unscaled;
+            if (value instanceof Binary binary) {
+                unscaled = new BigInteger(binary.getBytes());
+            } else if (value instanceof Number number) {
+                unscaled = BigInteger.valueOf(number.longValue());
+            } else {
+                return null;
+            }
+            return new BigDecimal(unscaled, decimal.getScale()).doubleValue();
+        }
+        return null;
     }
 
     // ---- Unsigned long encoding ----

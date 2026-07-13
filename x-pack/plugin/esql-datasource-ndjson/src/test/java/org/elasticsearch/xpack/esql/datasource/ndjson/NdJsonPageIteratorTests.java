@@ -1149,6 +1149,74 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 }
             });
             assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [long]"));
+            // The recovery hint must name the dataset setting, not a query clause: FROM <dataset> has no
+            // WITH options clause, so a user who followed a "in WITH options" hint would get a parse error.
+            assertThat(
+                e.getMessage(),
+                Matchers.containsString("set error_mode=null_field (or skip_row) to null-fill/skip and warn instead of failing")
+            );
+            assertThat(e.getMessage(), Matchers.not(Matchers.containsString("WITH options")));
+        }
+    }
+
+    /**
+     * {@code testDeclaredNumericBadStringFailsUnderStrict} advertises {@code error_mode=null_field} as the recovery.
+     * Honour that advice: the offending cell nulls, its neighbours decode, and the failure surfaces as a warning
+     * rather than vanishing silently.
+     */
+    public void testDeclaredCoercionFailureNullFieldWarnsAndNulls() throws IOException {
+        String ndjson = """
+            {"n": "1"}
+            {"n": "notanumber"}
+            {"n": "3"}
+            """;
+        var object = new BytesStorageObject("file:///bad.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG));
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(nullField).readSchema(schema).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock n = page.getBlock(0);
+            assertEquals(1L, n.getLong(n.getFirstValueIndex(0)));
+            assertTrue("the uncoercible token must null its cell", n.isNull(1));
+            assertEquals(3L, n.getLong(n.getFirstValueIndex(2)));
+        }
+        assertFalse("null_field must warn about the coercion failure", drainWarnings().isEmpty());
+    }
+
+    /** A declared {@code double} preserves the non-finite string tokens NaN/Infinity/-Infinity (IEEE passthrough). */
+    public void testDeclaredDoubleNaNInfinityStringTokens() throws IOException {
+        String ndjson = """
+            {"d": "NaN"}
+            {"d": "Infinity"}
+            {"d": "-Infinity"}
+            """;
+        var object = new BytesStorageObject("file:///nf.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "d", DataType.DOUBLE));
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("d"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            var page = iterator.next();
+            DoubleBlock d = page.getBlock(0);
+            assertTrue(Double.isNaN(d.getDouble(0)));
+            assertEquals(Double.POSITIVE_INFINITY, d.getDouble(1), 0.0);
+            assertEquals(Double.NEGATIVE_INFINITY, d.getDouble(2), 0.0);
         }
     }
 
@@ -1627,6 +1695,32 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         List<String> warnings = drainWarnings();
         assertFalse("expected a warning for the shape conflict", warnings.isEmpty());
         assertTrue("warning should name the conflicting field, got: " + warnings, warnings.stream().anyMatch(w -> w.contains("user")));
+    }
+
+    /**
+     * Same fixture as {@link #testScalarThenObjectConflictLenientNullFillsAndWarns}, but with
+     * {@link FormatReadContext#informationalWarningSink()} supplied: the shape-conflict warning must route
+     * through the sink instead of {@link org.elasticsearch.common.logging.HeaderWarning}, since
+     * {@code read} can be invoked from a background reader thread whose thread-local response
+     * headers never reach the client (see {@code SkipWarnings}).
+     */
+    public void testScalarThenObjectConflictLenientRoutesThroughWarningSinkWhenSupplied() throws IOException {
+        String ndjson = """
+            {"event":1,"user":"alice"}
+            {"event":2,"user":{"id":"bob","tier":"gold"}}
+            {"event":3,"user":"carol"}
+            """;
+        var object = new BytesStorageObject("memory://scalar-then-object-sink.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<String> sunk = new ArrayList<>();
+        var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).informationalWarningSink(sunk::add).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            iterator.next();
+        }
+        assertFalse("expected a warning for the shape conflict routed through the sink", sunk.isEmpty());
+        assertTrue("warning should name the conflicting field, got: " + sunk, sunk.stream().anyMatch(w -> w.contains("user")));
+        assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
     }
 
     private static int indexOf(List<Attribute> schema, String name) {
@@ -2425,6 +2519,33 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertEquals(1, tsBlock.getPositionCount());
             long expected = Instant.parse("2023-12-25T10:30:00Z").toEpochMilli();
             assertEquals(expected, tsBlock.getLong(0));
+        }
+    }
+
+    /**
+     * The zone-offset and date-only cases of {@code datetime_format}, pinned here against the identical pattern and
+     * bytes used by {@code CsvDirectBlockParityTests}. Both readers compile the option to an ES {@code DateFormatter},
+     * so the two formats must agree on the instant exactly; these two tests and their CSV twins are that contract.
+     */
+    public void testDatetimeFormatHonorsZoneOffset() throws IOException {
+        assertDatetimeFormatDecodesTo("yyyy-MM-dd HH:mm:ssXXX", "2024-01-01 10:00:00+05:00", "2024-01-01T05:00:00Z");
+    }
+
+    public void testDatetimeFormatDateOnly() throws IOException {
+        assertDatetimeFormatDecodesTo("yyyy-MM-dd", "2024-01-01", "2024-01-01T00:00:00Z");
+    }
+
+    private void assertDatetimeFormatDecodesTo(String pattern, String value, String expectedInstant) throws IOException {
+        String ndjson = "{\"ts\":\"" + value + "\"}\n";
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", pattern)
+        );
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            Page page = iterator.next();
+            LongBlock tsBlock = page.getBlock(0);
+            assertEquals(Instant.parse(expectedInstant).toEpochMilli(), tsBlock.getLong(0));
         }
     }
 

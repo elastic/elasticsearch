@@ -26,23 +26,15 @@ public enum FeatureFlag {
     ),
 
     RANDOM_SAMPLING("es.random_sampling_feature_flag_enabled=true", Version.fromString("9.2.0"), null),
-    ESQL_EXTERNAL_DATASOURCES("es.esql_external_datasources_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
     TSDB_NO_SEQNO("es.tsdb_no_tsbd_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
     PROMETHEUS_FEATURE_FLAG("es.prometheus_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
-    ES95_CODEC_FEATURE_FLAG("es.es95_codec_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     SLICE_INDEXING("es.slice_indexing_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
-    INFERENCE_REGION_POLICY("es.inference_region_policy_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     ESQL_EXTERNAL_DATASOURCES_LOCAL("es.esql_external_datasources_local_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     ESQL_EXTERNAL_DATASOURCES_HTTP("es.esql_external_datasources_http_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     ESQL_EXTERNAL_ORC("es.esql_external_orc_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     ESQL_EXTERNAL_GCS("es.esql_external_gcs_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     ESQL_EXTERNAL_AZURE("es.esql_external_azure_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
-    ESQL_EXTERNAL_PARQUET_RS("es.esql_external_parquet_rs_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
-    ESQL_EXTERNAL_DATASOURCES_FEDERATED_IDENTITY(
-        "es.esql_external_datasources_federated_identity_feature_flag_enabled=true",
-        Version.fromString("9.5.0"),
-        null
-    );
+    ESQL_EXTERNAL_PARQUET_RS("es.esql_external_parquet_rs_feature_flag_enabled=true", Version.fromString("9.5.0"), null);
 
     public final String systemProperty;
     public final Version from;

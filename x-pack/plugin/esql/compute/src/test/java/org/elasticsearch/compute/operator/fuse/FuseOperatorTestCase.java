@@ -222,7 +222,13 @@ public abstract class FuseOperatorTestCase extends OperatorTestCase {
         DriverContext ctx = driverContext();
 
         // The first row's group is multivalued; the rest are ordinary. size >= 3 so rows 1 and 2 exist.
-        List<Page> input = CannedSourceOperator.collectPages(simpleInputWithMultivaluedGroup(ctx.blockFactory(), between(3, 100)));
+        // AbstractBlockSourceOperator splits its output at random page boundaries, so merge the chunks
+        // into one page, the assertions below assume a single output page
+        List<Page> input = List.of(
+            CannedSourceOperator.mergePages(
+                CannedSourceOperator.collectPages(simpleInputWithMultivaluedGroup(ctx.blockFactory(), between(3, 100)))
+            )
+        );
         List<Page> output = fuseOutput(simple().get(ctx), input);
 
         try {

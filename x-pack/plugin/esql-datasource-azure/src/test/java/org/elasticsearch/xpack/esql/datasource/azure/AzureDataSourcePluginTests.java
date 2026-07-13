@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
@@ -21,16 +20,15 @@ import java.util.Map;
  * Unit tests for AzureDataSourcePlugin.
  * Tests that the plugin correctly registers storage provider factories for wasbs:// and wasb:// schemes.
  * <p>
- * Azure registration is gated on the external-datasources umbrella and the {@code esql_external_azure}
- * sub-flag (snapshot-on, release-off). The provider-shape tests below assume the gate is on; a
- * dedicated test asserts nothing is registered when it is off. Across the snapshot and
- * {@code elasticsearch.esql-release} build variants both branches get exercised.
+ * Azure registration is gated on the {@code esql_external_azure} sub-flag (snapshot-on, release-off).
+ * The provider-shape tests below assume the gate is on; a dedicated test asserts nothing is
+ * registered when it is off. Across the snapshot and {@code elasticsearch.esql-release} build
+ * variants both branches get exercised.
  */
 public class AzureDataSourcePluginTests extends ESTestCase {
 
     private static boolean azureEnabled() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
-            && AzureDataSourcePlugin.ESQL_EXTERNAL_AZURE_FEATURE_FLAG.isEnabled();
+        return AzureDataSourcePlugin.ESQL_EXTERNAL_AZURE_FEATURE_FLAG.isEnabled();
     }
 
     public void testStorageProvidersRegistersWasbsAndWasbSchemes() {

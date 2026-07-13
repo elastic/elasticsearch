@@ -13,6 +13,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.QuantizedByteVectorValuesAccess;
 
 import java.io.IOException;
@@ -20,6 +23,10 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
 public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorScorerSupplier, QuantizedByteVectorValuesAccess {
+
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
 
     final int dims;
     final int maxOrd;
@@ -153,7 +160,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
         @Override
         protected float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset) {
-            int squareDistance = Similarities.squareDistanceI7u(a, b, dims);
+            int squareDistance = DISTANCE_FUNCS.squareDistanceI7u(a, b, dims);
             float adjustedDistance = squareDistance * scoreCorrectionConstant;
             return 1 / (1f + adjustedDistance);
         }
@@ -166,7 +173,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             MemorySegment scores,
             int numNodes
         ) {
-            Similarities.squareDistanceI7uBulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.squareDistanceI7uBulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
@@ -193,7 +200,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
         @Override
         protected float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset) {
-            int dotProduct = Similarities.dotProductI7u(a, b, dims);
+            int dotProduct = DISTANCE_FUNCS.dotProductI7u(a, b, dims);
             assert dotProduct >= 0;
             float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
             return Math.max((1 + adjustedDistance) / 2, 0f);
@@ -207,7 +214,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             MemorySegment scores,
             int numNodes
         ) {
-            Similarities.dotProductI7uBulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.dotProductI7uBulkSparse(addresses, query, dims, numNodes, scores);
 
             // Java-side adjustment
             float max = Float.NEGATIVE_INFINITY;
@@ -237,7 +244,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
         @Override
         protected float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset) {
-            int dotProduct = Similarities.dotProductI7u(a, b, dims);
+            int dotProduct = DISTANCE_FUNCS.dotProductI7u(a, b, dims);
             assert dotProduct >= 0;
             float adjustedDistance = dotProduct * scoreCorrectionConstant + aOffset + bOffset;
             if (adjustedDistance < 0) {
@@ -254,7 +261,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
             MemorySegment scores,
             int numNodes
         ) {
-            Similarities.dotProductI7uBulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.dotProductI7uBulkSparse(addresses, query, dims, numNodes, scores);
 
             // Java-side adjustment
             float max = Float.NEGATIVE_INFINITY;

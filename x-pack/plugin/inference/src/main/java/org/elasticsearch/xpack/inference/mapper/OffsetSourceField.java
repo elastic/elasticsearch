@@ -130,11 +130,6 @@ public final class OffsetSourceField extends Field {
             clearAttributes();
             termAttribute.append(term);
             if (inputIndex != null) {
-                // Temporary logic to ensure input index is not used in release builds
-                if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled() == false) {
-                    throw new UnsupportedOperationException("Input index is not supported yet");
-                }
-
                 // Leave offsets at the default (0, 0) sentinel; encode inputIndex as the absolute
                 // position. PositionIncrementAttribute is cumulative and Lucene's initial position
                 // is -1, so increment = inputIndex + 1 yields an absolute position of inputIndex.
@@ -188,11 +183,6 @@ public final class OffsetSourceField extends Field {
                     int endOffset = postings.endOffset();
 
                     if (indexVersion.onOrAfter(SEMANTIC_FIELD_TYPE) && startOffset == 0 && endOffset == 0) {
-                        // Temporary logic to ensure input index is not used in release builds
-                        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled() == false) {
-                            throw new UnsupportedOperationException("Input index is not supported yet");
-                        }
-
                         // Sentinel for inputIndex form; the absolute position carries the value.
                         // Gate sentinel usage on the index version because there was a time period where empty chunks (which could
                         // legitimately have start and end offset == 0) could be in the chunk map. This was fixed in

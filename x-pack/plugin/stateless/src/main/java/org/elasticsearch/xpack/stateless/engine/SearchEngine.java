@@ -1521,7 +1521,7 @@ public class SearchEngine extends Engine {
                 currentReaderRef = () -> readerManager.release(currentReader);
 
                 // merging metadata is necessary to allow opening an old commit from SearchDirectory
-                // TODO: transfer replicated headers/footers and pre-warm to speed up recoveries
+                // TODO: pre-warm to speed up recoveries
                 searchDirectory.mergePITReaderMetadata(metadata);
                 // The current reader directory has a reference to the store directory (directory variable)
                 // and it does a reference comparison to see if the directory is the same. Therefore we have

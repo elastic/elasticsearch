@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link Block#lookup Looks up} values from a provided {@link Block} and
@@ -65,6 +66,11 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
         return appendBlocks(page, values.block.lookup(page.getBlock(positionsOrd), TARGET_BLOCK_SIZE));
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(values.block, super::close);
     }
 
     @Override

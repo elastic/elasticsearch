@@ -16,8 +16,10 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -29,12 +31,16 @@ import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -416,6 +422,7 @@ public class EsqlSessionTests extends ESTestCase {
                 List<String> paths,
                 Map<String, Map<String, Object>> pathConfigs,
                 Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+                Map<String, org.elasticsearch.cluster.metadata.DatasetMapping> declaredMappings,
                 Set<String> pathsRequiringStats,
                 ActionListener<ExternalSourceResolution> listener
             ) {
@@ -450,5 +457,14 @@ public class EsqlSessionTests extends ESTestCase {
             Set.of(indexName),
             Map.of()
         );
+    }
+
+    public void testSuppliedSettingNamesCountsBothSurfaces() {
+        // A setting supplied via the request body and a different one via in-query SET are both counted.
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest(null);
+        request.set(QuerySettings.TIME_ZONE, ZoneOffset.UTC);
+        QuerySetting projectRouting = new QuerySetting(EMPTY, new Alias(EMPTY, "project_routing", Literal.keyword(EMPTY, "p")));
+        EsqlStatement statement = new EsqlStatement(null, List.of(projectRouting));
+        assertThat(EsqlSession.suppliedSettingNames(request, statement), equalTo(Set.of("time_zone", "project_routing")));
     }
 }

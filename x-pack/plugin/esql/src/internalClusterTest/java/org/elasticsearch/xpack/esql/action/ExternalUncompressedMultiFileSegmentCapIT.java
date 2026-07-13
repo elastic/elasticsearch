@@ -9,24 +9,20 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Before;
 
 import java.io.BufferedWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
@@ -34,26 +30,30 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * End-to-end regression test for ES|QL EXTERNAL aggregations over an uncompressed multi-file CSV/NDJSON
- * glob. Such reads route through {@code SEGMENTABLE_UNCOMPRESSED} → {@code ParallelParsingCoordinator} →
- * {@code AsReadyParallelIterator}, which dispatches byte-range segments in a sliding window bounded by the
- * {@code max_concurrent_open_segments} pragma and emits their pages as they complete.
+ * End-to-end regression test for ES|QL EXTERNAL aggregations over an uncompressed multi-file CSV/TSV/NDJSON
+ * glob. TSV (default {@code mode=plain}) and NDJSON route through {@code SEGMENTABLE_UNCOMPRESSED} →
+ * {@code ParallelParsingCoordinator} → {@code AsReadyParallelIterator}, which dispatches byte-range segments
+ * in a sliding window bounded by the {@code max_concurrent_open_segments} pragma and emits their pages as
+ * they complete. CSV (default {@code mode=quoted}) cannot be probed at arbitrary offsets because a quoted
+ * field may embed newlines, so it stays a single whole-file split and is read sequentially through the
+ * {@code StreamingParallelParsingCoordinator} (parsed in parallel from one read pass); this arm therefore
+ * covers that path rather than the windowed cap.
  * <p>
- * To actually exercise that path (rather than the single-threaded fallback), each file must be split into
- * several intra-file segments: {@code ParallelParsingCoordinator.parallelRead} only segments when the read
- * length is at least {@code 2 × minimumSegmentSize}. CSV's floor is a fixed 1 MiB, so its files are sized a
- * few MiB; NDJSON exposes a per-query {@code segment_size}, so small files plus a small {@code segment_size}
- * suffice. We also keep {@code target_split_size} large so each file is one macro-split fed whole to
- * {@code parallelRead} (a small {@code target_split_size} would chop files below the segmenting floor and
- * silently route everything through the fallback). With {@code max_concurrent_open_segments} set below the
- * per-file segment count, the window genuinely binds.
+ * To actually exercise the windowed path (rather than the single-threaded fallback), each file must be split
+ * into several intra-file segments: {@code ParallelParsingCoordinator.parallelRead} only segments when the
+ * read length is at least {@code 2 × minimumSegmentSize}. CSV/TSV's floor is a fixed 1 MiB, so those files are
+ * sized a few MiB; NDJSON exposes a per-query {@code segment_size}, so small files plus a small
+ * {@code segment_size} suffice. We also keep {@code target_split_size} large so each file is one macro-split
+ * (a small {@code target_split_size} would chop files below the segmenting floor and silently route through
+ * the fallback). With {@code max_concurrent_open_segments} set below the per-file segment count, the window
+ * genuinely binds for the TSV and NDJSON arms.
  * <p>
  * Column {@code a} is globally unique per row, so {@code COUNT/MIN/MAX} together prove the windowed dispatch
  * dropped no segment, double-counted none, and preserved row accounting across segment boundaries — the
  * end-to-end counterpart to the unit-level bound in
  * {@code ParallelParsingCoordinatorTests#testCapBoundsConcurrentOpenSegments}.
  */
-public class ExternalUncompressedMultiFileSegmentCapIT extends AbstractEsqlIntegTestCase {
+public class ExternalUncompressedMultiFileSegmentCapIT extends AbstractExternalDataSourceIT {
 
     private static final int FILE_COUNT = 3;
     // CSV cannot lower its 1 MiB segment floor, so files must clear 2 MiB and carry several segments.
@@ -61,79 +61,63 @@ public class ExternalUncompressedMultiFileSegmentCapIT extends AbstractEsqlInteg
     // NDJSON sets segment_size=64kb below, so small files already split into many segments.
     private static final int NDJSON_FILE_BYTES = 512_000;
 
-    /**
-     * Re-enables datasource extension loading that {@link EsqlPluginWithEnterpriseOrTrialLicense} suppresses.
-     */
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
-
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
-        plugins.add(HttpDataSourcePlugin.class);
-        plugins.add(CsvDataSourcePlugin.class);
-        plugins.add(NdJsonDataSourcePlugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
-            .build();
-    }
-
-    @Before
-    public void requireLocalFilesEnabled() {
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class, NdJsonDataSourcePlugin.class);
     }
 
     @Override
     protected QueryPragmas getPragmas() {
-        // parsing_parallelism > 1 selects the SEGMENTABLE_UNCOMPRESSED parallel-parse path; the cap of 2,
-        // below the per-file segment count, makes the sliding window actually bind.
+        // parsing_parallelism > 1 selects the parallel-parse paths; the cap of 2, below the per-file segment
+        // count, makes the sliding window bind for the TSV (plain) and NDJSON arms. Default-quoted CSV reads
+        // sequentially through the streaming coordinator, which does not use this cap.
         return new QueryPragmas(Settings.builder().put("parsing_parallelism", 8).put("max_concurrent_open_segments", 2).build());
     }
 
     public void testCsvMultiFileGlobAggregatesAllRows() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path dir = createTempDir();
         long total = 0;
         for (int f = 0; f < FILE_COUNT; f++) {
             total += writeCsvFile(dir.resolve("part-" + f + ".csv"), total);
         }
-        // target_split_size large => one macro-split per file, so parallelRead segments the whole file.
-        assertGlobAggregates(globUri(dir, "*.csv"), "\"target_split_size\":\"256mb\"", total);
+        // Default-quoted CSV is not macro-split; the whole file is read sequentially and parsed in parallel by
+        // the streaming coordinator. This asserts that path still counts every row exactly once.
+        assertGlobAggregates(globUri(dir, "*.csv"), Map.of("target_split_size", "256mb"), total);
     }
 
     public void testTsvMultiFileGlobAggregatesAllRows() throws Exception {
         // Same reader as CSV, but CSV/TSV have a history of failing differently (e.g. the TSV record-boundary
         // scanner), so exercise it as its own arm rather than assuming CSV coverage carries over.
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path dir = createTempDir();
         long total = 0;
         for (int f = 0; f < FILE_COUNT; f++) {
             total += writeTsvFile(dir.resolve("part-" + f + ".tsv"), total);
         }
-        assertGlobAggregates(globUri(dir, "*.tsv"), "\"target_split_size\":\"256mb\"", total);
+        assertGlobAggregates(globUri(dir, "*.tsv"), Map.of("target_split_size", "256mb"), total);
+    }
+
+    public void testQuotedMultilineCsvCountsAllRowsAcrossSegmentBoundaries() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+        Path dir = createTempDir();
+        // A single CSV larger than the 1 MiB segmenting floor whose quoted fields embed newlines. A
+        // quote-unaware byte-range split would land inside a quoted field and either mis-count rows or fail
+        // in strict mode; the whole-file sequential read must count every row exactly once.
+        long rows = writeQuotedMultilineCsvFile(dir.resolve("quoted-multiline.csv"));
+        // Strict (default) proves no spurious parse errors: any mis-split would throw rather than return.
+        assertGlobAggregates(globUri(dir, "*.csv"), Map.of("target_split_size", "256mb"), rows);
+        // null_field is the mode where a quote-blind mis-split miscounts silently (HTTP 200, wrong COUNT)
+        // instead of erroring. Assert the exact row count still holds under it.
+        assertGlobAggregates(globUri(dir, "*.csv"), Map.of("target_split_size", "256mb", "error_mode", "null_field"), rows);
     }
 
     public void testNdjsonMultiFileGlobAggregatesAllRows() throws Exception {
-        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
         Path dir = createTempDir();
         long total = 0;
         for (int f = 0; f < FILE_COUNT; f++) {
             total += writeNdjsonFile(dir.resolve("part-" + f + ".ndjson"), total);
         }
         // segment_size small => each small file still splits into many segments; target_split_size large.
-        assertGlobAggregates(globUri(dir, "*.ndjson"), "\"segment_size\":\"64kb\",\"target_split_size\":\"256mb\"", total);
+        assertGlobAggregates(globUri(dir, "*.ndjson"), Map.of("segment_size", "64kb", "target_split_size", "256mb"), total);
     }
 
     /**
@@ -141,8 +125,9 @@ public class ExternalUncompressedMultiFileSegmentCapIT extends AbstractEsqlInteg
      * once (column {@code a} runs 0..total-1 globally), then confirms the async source operator emitted them
      * all — i.e. the windowed dispatch lost nothing.
      */
-    private void assertGlobAggregates(String globUri, String withOptions, long total) throws Exception {
-        String query = "EXTERNAL \"" + globUri + "\" WITH {" + withOptions + "} | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
+    private void assertGlobAggregates(String globUri, Map<String, Object> settings, long total) throws Exception {
+        String dataset = registerDataset("segment_cap", globUri, settings);
+        String query = "FROM " + dataset + " | STATS c = COUNT(*), mn = MIN(a), mx = MAX(a)";
 
         var request = syncEsqlQueryRequest(query);
         request.profile(true);
@@ -205,6 +190,28 @@ public class ExternalUncompressedMultiFileSegmentCapIT extends AbstractEsqlInteg
             while (written < CSV_FILE_BYTES) {
                 long a = base + rows;
                 String line = a + Character.toString(delimiter) + (a * 10) + "\n";
+                w.write(line);
+                written += line.length();
+                rows++;
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * Writes a single CSV of at least {@link #CSV_FILE_BYTES} where column {@code b} is a quoted field with
+     * embedded newlines (so record boundaries cannot be found by scanning for raw newlines). Column {@code a}
+     * runs {@code 0..rows-1}; returns the row count.
+     */
+    private static long writeQuotedMultilineCsvFile(Path file) throws Exception {
+        long rows = 0;
+        try (BufferedWriter w = Files.newBufferedWriter(file)) {
+            String header = "a,b\n";
+            w.write(header);
+            int written = header.length();
+            while (written < CSV_FILE_BYTES) {
+                long a = rows;
+                String line = a + ",\"line-" + a + "\nembedded-" + a + "\ntail-" + a + "\"\n";
                 w.write(line);
                 written += line.length();
                 rows++;

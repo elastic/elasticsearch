@@ -140,7 +140,7 @@ public final class KMeansByteVectorValues extends ClusteringByteVectorValues {
     private sealed interface DocSupplier permits OnHeapDocSupplier, OffHeapDocSupplier {
         int ordToDoc(int ord);
 
-        DocSupplier copy();
+        DocSupplier copy() throws IOException;
     }
 
     private record OnHeapDocSupplier(int[] docs) implements DocSupplier {
@@ -174,12 +174,8 @@ public final class KMeansByteVectorValues extends ClusteringByteVectorValues {
         }
 
         @Override
-        public DocSupplier copy() {
-            try {
-                return new OffHeapDocSupplier(docs.clone());
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+        public DocSupplier copy() throws IOException {
+            return new OffHeapDocSupplier(docs.clone());
         }
     }
 }

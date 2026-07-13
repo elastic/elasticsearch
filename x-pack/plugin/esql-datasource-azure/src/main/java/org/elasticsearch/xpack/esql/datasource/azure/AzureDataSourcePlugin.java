@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.env.Environment;
@@ -40,8 +39,7 @@ import java.util.concurrent.ExecutorService;
  * Without it the workload-identity chain is {@code ManagedIdentity}-only.
  * <p>
  * Azure is not in the released ship set yet (S3 is the released cloud provider), so registration is
- * gated on the umbrella {@link DatasetMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG} and the
- * component {@link #ESQL_EXTERNAL_AZURE_FEATURE_FLAG}: available in snapshot/development builds, disabled
+ * gated on {@link #ESQL_EXTERNAL_AZURE_FEATURE_FLAG}: available in snapshot/development builds, disabled
  * in release. When the gate is off the {@code wasbs}/{@code wasb} schemes are not registered, so an
  * Azure source resolves to the generic "Unsupported storage scheme" rejection.
  */
@@ -54,7 +52,7 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
     public static final FeatureFlag ESQL_EXTERNAL_AZURE_FEATURE_FLAG = new FeatureFlag("esql_external_azure");
 
     private static boolean enabled() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() && ESQL_EXTERNAL_AZURE_FEATURE_FLAG.isEnabled();
+        return ESQL_EXTERNAL_AZURE_FEATURE_FLAG.isEnabled();
     }
 
     @Override
@@ -72,9 +70,10 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
         }
         Environment environment = services.environment();
         ExecutorService executor = services.executor();
-        // Size the connection pool from the single node setting. services.settings() is the node Settings threaded
-        // through the SPI — the construction path that reaches the client-build site.
-        int maxConnections = ExternalSourceSettings.MAX_CONNECTIONS.get(services.settings());
+        // Size the connection pool from the single external-read concurrency knob
+        // (esql.external.max_concurrent_requests), so the SDK pool matches the per-scheme permit ceiling.
+        // services.settings() is the node Settings threaded through the SPI — the path that reaches the client build.
+        int maxConnections = ExternalSourceSettings.blobStoreConcurrency(services.settings());
         StorageProviderFactory azureFactory = StorageProviderFactory.of(
             () -> new AzureStorageProvider(null, environment, executor, maxConnections),
             AzureConfiguration::fromQueryConfig,

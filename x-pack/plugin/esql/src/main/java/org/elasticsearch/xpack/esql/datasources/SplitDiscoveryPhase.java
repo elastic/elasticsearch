@@ -91,8 +91,7 @@ public final class SplitDiscoveryPhase {
 
     /**
      * Like {@link #resolveExternalSplitsWithStats(PhysicalPlan, Map, int)}, but threads a cancellation
-     * signal into each {@link SplitDiscoveryContext} so a long-running discovery (thousands of footer
-     * reads) aborts promptly when the originating query is cancelled.
+     * signal into each {@link SplitDiscoveryContext} so a long-running discovery aborts promptly on cancel.
      */
     public static Result resolveExternalSplitsWithStats(
         PhysicalPlan plan,
@@ -183,7 +182,8 @@ public final class SplitDiscoveryPhase {
             querySchema,
             exec.unifiedSchema(),
             maxRecordBytes,
-            isCancelled
+            isCancelled,
+            exec.declaredReadSpec()
         );
 
         SplitDiscoveryResult result;

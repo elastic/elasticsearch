@@ -161,10 +161,8 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         THREAD_POOL = new TestThreadPool(TransportInstanceSingleOperationActionTests.class.getSimpleName());
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         projectId = randomProjectIdOrDefault();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
@@ -188,10 +186,8 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         );
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeServices() throws Exception {
         clusterService.close();
         transportService.close();
     }

@@ -1292,7 +1292,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var rightRelation = EsqlTestUtils.relation(IndexMode.LOOKUP).withAttributes(List.of(keyRight, fieldRight1, fieldRight2));
 
         JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(keyLeft), List.of(keyRight), null);
-        var join = new Join(EMPTY, leftRelation, rightRelation, joinConfig);
+        var join = new Join(Source.EMPTY, leftRelation, rightRelation, joinConfig, false);
         var project = new Project(EMPTY, join, List.of(keyLeft, intFieldLeft, fieldRight1, fieldRight2));
 
         var testStats = statsForMissingField("key");

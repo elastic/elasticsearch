@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152837
+summary: Normalize local `StorageObject` path for stats reconcile
+type: bug

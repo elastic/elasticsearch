@@ -73,6 +73,13 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     @Override
+    protected boolean randomizeColumnarIdMode() {
+        // Columnar id mode is not supported for source only snapshots, because doc values get stripped away
+        // TODO: add validation that avoids columnar id mode and source only snapshots
+        return false;
+    }
+
+    @Override
     protected boolean addMockInternalEngine() {
         return false;
     }

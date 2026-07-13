@@ -13,6 +13,12 @@ applies_to:
 $$$inference-settings-description$$$
 You do not need to configure any settings to use the {{infer}} APIs. Each setting has a default.
 
+## {{infer-cap}} API query timeout [xpack-inference-query-timeout]
+
+When the {{infer}} API is invoked without an explicit timeout, a default timeout is applied. For requests with an `input_type` of `search`, or for internal search requests, this setting controls the default timeout. For other input types, such as `ingest`, the default timeout depends on the inference task type.
+
+`xpack.inference.query_timeout` {applies_to}`stack: ga 9.2+`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies the default timeout for {{infer}} requests used in search contexts when the caller does not provide a timeout. Defaults to 10 seconds (`10s`).
 
 ## {{infer-cap}} logging settings [xpack-inference-logging]
 

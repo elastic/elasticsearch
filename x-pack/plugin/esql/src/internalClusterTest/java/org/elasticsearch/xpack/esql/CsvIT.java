@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -17,6 +19,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -29,6 +32,8 @@ import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.ingest.geoip.GeoIpTestUtils;
+import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -62,10 +67,12 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
@@ -103,7 +110,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
@@ -123,6 +129,7 @@ import static org.hamcrest.Matchers.hasSize;
  * InternalTestCluster` reuses current jvm. This enables debugging all scenarios from IDE.
  * Test data is loaded lazily in order to facilitate faster startup when running/debugging individual test cases.
  */
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class CsvIT extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
@@ -172,13 +179,20 @@ public class CsvIT extends ESTestCase {
          * query is not relevant for the variant &mdash; for example, when no field that this variant rewrites
          * appears in the query and so re-running the spec would only re-test the unmodified behavior.
          */
-        String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase);
+        TransformedQuery transformQuery(String testId, CsvSpecReader.CsvTestCase testCase);
+
+        record TransformedQuery(String query, Settings extraPragmas) {}
 
         /**
          * Transforms the expected results loaded from the csv-spec entry before they are compared
          * against the actual query output.
          */
         ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected);
+
+        /**
+         * Called once after the index for {@code dataset} has been fully populated.
+         */
+        default void afterIndexLoaded(CsvTestsDataLoader.TestDataset dataset, Client client) throws IOException {}
     }
 
     public static final IndexLoadStrategy IDENTITY_INDEX_LOAD_STRATEGY = new IndexLoadStrategy() {
@@ -198,8 +212,8 @@ public class CsvIT extends ESTestCase {
         }
 
         @Override
-        public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
-            return testCase.query;
+        public TransformedQuery transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
+            return new TransformedQuery(testCase.query, Settings.EMPTY);
         }
 
         @Override
@@ -245,7 +259,7 @@ public class CsvIT extends ESTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
-        return SpecReader.readScriptSpec(urls, specParser());
+        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
     }
 
     @BeforeClass
@@ -256,6 +270,7 @@ public class CsvIT extends ESTestCase {
         var nodeDirectory = createTempDir();
         var configDirectory = nodeDirectory.resolve("config");
         createCustomRegexConfig(configDirectory);
+        createGeoIpConfig(configDirectory);
         cluster = new InternalTestCluster(
             randomLong(),
             nodeDirectory,
@@ -270,6 +285,8 @@ public class CsvIT extends ESTestCase {
                     return Settings.builder()
                         .put("xpack.security.enabled", false)
                         .put("xpack.license.self_generated.type", "trial")
+                        .put("ingest.geoip.downloader.enabled", false)
+                        .put(PlannerSettings.PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getKey(), 0)
                         .build();
                 }
 
@@ -282,9 +299,9 @@ public class CsvIT extends ESTestCase {
             "node_",
             List.of(
                 getTestTransportPlugin(),
-                EsqlTestPlugin.class,
                 // EncryptionService binding for the always-registered data-source CRUD actions.
                 TestEncryptionServicePlugin.class,
+                EsqlTestPlugin.class,
                 AggregateMetricMapperPlugin.class,
                 AnalyticsPlugin.class,
                 CommonAnalysisPlugin.class,
@@ -296,6 +313,7 @@ public class CsvIT extends ESTestCase {
                 SpatialPlugin.class,
                 UnsignedLongMapperPlugin.class,
                 UserAgentPlugin.class,
+                IngestGeoIpPlugin.class,
                 VersionFieldPlugin.class,
                 Wildcard.class
             ),
@@ -323,12 +341,17 @@ public class CsvIT extends ESTestCase {
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
+        assumeFalseLogging(
+            "CSV tests cannot handle dataset-backed FROM <dataset> sources (requires QA integration tests)",
+            testCase.datasetSources.isEmpty() == false
+        );
         assumeTrueLogging(
             "CSV tests don't support remote cluster capability requirements",
             testCase.missingCapabilitiesRemoteCluster.isEmpty()
         );
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
+        CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesLocalCluster);
         CsvTestUtils.checkPragma(testCase.pragmas);
 
         currentGroupName = groupName;
@@ -338,8 +361,8 @@ public class CsvIT extends ESTestCase {
         inference.ensureNoFailures();
         views.ensureNoFailures();
 
-        String queryToRun = indexLoadStrategy.transformQuery(groupName + "." + testName, testCase);
-        var request = syncEsqlQueryRequest(queryToRun);
+        IndexLoadStrategy.TransformedQuery transformed = indexLoadStrategy.transformQuery(groupName + "." + testName, testCase);
+        EsqlQueryRequest request = syncEsqlQueryRequest(transformed.query());
         if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
             request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
         }
@@ -348,6 +371,7 @@ public class CsvIT extends ESTestCase {
         if (randomBoolean()) {
             pragmaSettings.put("max_concurrent_shards_per_node", randomBoolean() ? 1 : between(2, 10));
         }
+        pragmaSettings.put(transformed.extraPragmas());
         testCase.pragmas.forEach(pragmaSettings::put);
         if (pragmaSettings.build().isEmpty() == false) {
             request.acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmaSettings.build()));
@@ -481,7 +505,7 @@ public class CsvIT extends ESTestCase {
 
     private static void loadViews() {
         // TODO We should instead load views once and never unload them
-        if ("views".equals(currentGroupName) || "approximation".equals(currentGroupName)) {
+        if ("views".equals(currentGroupName) || "approximation".equals(currentGroupName) || "unmapped-load".equals(currentGroupName)) {
             CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> {
                 if (view.requiredCapabilities().stream().allMatch(EsqlCapabilities.Cap::isEnabled)) {
                     views.maybeLoad(name, view);
@@ -552,9 +576,19 @@ public class CsvIT extends ESTestCase {
             assertAcked(cluster.client().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings));
             if (dataset.dataFileName() != null) {
                 var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
                 for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
                     String source = indexLoadStrategy.transformDocument(dataset, document.json().toString());
-                    bulk.add(cluster.client().prepareIndex(dataset.indexName()).setId(document.id()).setSource(source, XContentType.JSON));
+                    var indexRequestBuilder = cluster.client()
+                        .prepareIndex(dataset.indexName())
+                        .setId(document.id())
+                        .setSource(source, XContentType.JSON);
+                    if (document.slice() != null) {
+                        indexRequestBuilder.setRouting(document.slice());
+                        indexRequestBuilder.setRoutingFromSlice(true);
+                    }
+
+                    bulk.add(indexRequestBuilder);
                     if (bulk.numberOfActions() >= BULK_INDEX_BATCH_SIZE) {
                         var result = bulk.get();
                         assertFalse(
@@ -572,6 +606,7 @@ public class CsvIT extends ESTestCase {
                     );
                 }
             }
+            indexLoadStrategy.afterIndexLoaded(dataset, cluster.client());
         }
     };
 
@@ -691,6 +726,12 @@ public class CsvIT extends ESTestCase {
             assert is != null : "custom-regexes.yml not found on classpath";
             Files.copy(is, userAgentDir.resolve("custom-regexes.yml"));
         }
+    }
+
+    private static void createGeoIpConfig(Path configDir) throws IOException {
+        Path geoIpDir = configDir.resolve("ingest-geoip");
+        Files.createDirectories(geoIpDir);
+        GeoIpTestUtils.copyDefaultDatabases(geoIpDir);
     }
 
     private static class ResponseListener extends PlainActionFuture<EsqlQueryResponse> {

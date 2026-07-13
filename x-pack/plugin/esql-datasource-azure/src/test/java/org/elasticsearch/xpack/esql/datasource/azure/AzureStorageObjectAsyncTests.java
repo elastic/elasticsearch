@@ -138,7 +138,7 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
             null,
             "http://127.0.0.1:10000/devstoreaccount1"
         );
-        AzureStorageProvider provider = new AzureStorageProvider(azureConfig, null);
+        AzureStorageProvider provider = new AzureStorageProvider(azureConfig, null, null);
         provider.close();
     }
 
@@ -150,7 +150,7 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
             null,
             "http://127.0.0.1:10000/devstoreaccount1"
         );
-        try (AzureStorageProvider provider = new AzureStorageProvider(azureConfig, null)) {
+        try (AzureStorageProvider provider = new AzureStorageProvider(azureConfig, null, null)) {
             var obj = provider.newObject(PATH);
             assertTrue("Provider-created objects should support native async", obj.supportsNativeAsync());
         }

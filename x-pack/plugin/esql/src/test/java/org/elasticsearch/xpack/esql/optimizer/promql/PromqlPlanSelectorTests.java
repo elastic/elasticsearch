@@ -84,26 +84,19 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
                 + "(http_request_duration_seconds_bucket)))"
         );
 
+        // `le` is dropped and `cluster` retained: the output carries cluster, not le. (The histogram regroup packs its
+        // carried dimensions for multi-value safety, so the grouping keys are packed aliases - assert on the output.)
         assertThat(outputColumns(plan), equalTo(List.of("result", "step", "cluster")));
         assertThat(collectHistogramQuantiles(plan), hasSize(1));
-
-        Aggregate histogramAggregate = plan.collect(Aggregate.class)
-            .stream()
-            .filter(aggregate -> aggregate instanceof TimeSeriesAggregate == false)
-            .findFirst()
-            .orElseThrow();
-        assertThat(groupingKeyNames(histogramAggregate), hasItem("cluster"));
-        assertThat(groupingKeyNames(histogramAggregate), not(hasItem("le")));
     }
 
-    public void testHistogramQuantileRateDoesNotResolveImplicitLe() {
+    public void testHistogramQuantileRateResolvesImplicitLe() {
         var plan = planPromqlClassicHistogram(
             "PROMQL index=histograms step=1m result=(histogram_quantile(0.5, rate(http_request_duration_seconds_bucket[5m])))"
         );
-        assertWarnings("histogram_quantile: input vector has no le label; no buckets to evaluate");
 
         assertThat(outputColumns(plan), equalTo(List.of("result", "step", "_timeseries")));
-        assertThat(collectHistogramQuantiles(plan), empty());
+        assertThat(collectHistogramQuantiles(plan), hasSize(1));
     }
 
     public void testRangeSelector() {

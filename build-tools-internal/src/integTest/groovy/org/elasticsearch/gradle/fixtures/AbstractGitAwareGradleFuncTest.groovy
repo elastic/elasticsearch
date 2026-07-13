@@ -15,7 +15,7 @@ import spock.lang.TempDir
 import org.apache.commons.io.FileUtils
 import org.gradle.testkit.runner.GradleRunner
 
-abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleFuncTest {
+abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     /**
      * Shared temporary directory for the prepared git remote. Using {@code @Shared @TempDir}
@@ -29,9 +29,26 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleFuncTest {
     @Shared
     File preparedRemoteGitDir
 
+    @TempDir
+    File gradleUserHome
+
     File remoteGitRepo
 
+    @Override
+    protected File customGradleUserHome() {
+        return gradleUserHome
+    }
+
     def setup() {
+        // Pre-populate the TestKit Gradle user home with the locally cached Gradle wrapper
+        // distribution. TestKit sets GRADLE_USER_HOME=<gradleUserHome> in every forked process,
+        // including the ./gradlew subprocesses spawned by BWC build tasks. Without this copy
+        // those subprocesses would download the Gradle distribution on every test run.
+        File localWrapperDir = new File(System.getProperty("user.home"), ".gradle/wrapper")
+        if (localWrapperDir.exists()) {
+            FileUtils.copyDirectory(localWrapperDir, new File(gradleUserHome, "wrapper"))
+        }
+
         if (preparedRemoteGitDir == null) {
             preparedRemoteGitDir = setupGitRemote()
         }

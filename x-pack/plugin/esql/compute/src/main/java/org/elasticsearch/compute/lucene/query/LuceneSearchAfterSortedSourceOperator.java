@@ -73,7 +73,8 @@ public final class LuceneSearchAfterSortedSourceOperator extends LuceneOperator 
                 limit,
                 false,
                 shardContext -> COMPLETE_NO_SCORES,
-                directoryBytesRead
+                directoryBytesRead,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE
             );
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;
@@ -204,7 +205,7 @@ public final class LuceneSearchAfterSortedSourceOperator extends LuceneOperator 
 
         // Integer.MAX_VALUE as totalHitsThreshold disables exact total-hit counting (not needed here).
         TopFieldCollectorManager manager = new TopFieldCollectorManager(currentSort, batchSize, lastFieldDoc, Integer.MAX_VALUE);
-        TopFieldDocs results = (TopFieldDocs) currentShardContext.searcher().search(shardScorer.weight().getQuery(), manager);
+        TopFieldDocs results = currentShardContext.searcher().search(shardScorer.weight().getQuery(), manager);
 
         if (results.scoreDocs.length == 0) {
             advanceToNextShard();

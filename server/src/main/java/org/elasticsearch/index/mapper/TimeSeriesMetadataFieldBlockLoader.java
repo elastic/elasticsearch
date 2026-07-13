@@ -12,10 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.IOFunction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
@@ -29,18 +27,49 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
- * Load {@code _timeseries} into blocks.
+ * Loads {@code _timeseries} metadata into blocks.
  */
 public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     private final Set<String> metadataFields;
 
     public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
-        this.metadataFields = timeSeriesMetadata(context, loadMetrics);
+        this.metadataFields = lookupTimeSeriesMetadataFieldNames(context, loadMetrics);
+    }
+
+    private static Set<String> lookupTimeSeriesMetadataFieldNames(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
+        assert context.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
+
+        if (context.indexSettings().getMode().isTsdb() == false) {
+            throw new IllegalStateException("TimeSeriesMetadataFieldBlockLoader requires index mode: [ " + IndexMode.TIME_SERIES + " ]");
+        }
+
+        var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) context.blockLoaderFunctionConfig();
+        MappingLookup mappingLookup = context.mappingLookup();
+
+        var dimensionMappers = mappingLookup.dimensionFieldMappers();
+        var result = new LinkedHashSet<String>(dimensionMappers.size());
+        for (var m : dimensionMappers.values()) {
+            result.add(m.fieldType().name());
+        }
+
+        for (var skip : config.skipFieldNames()) {
+            // Resolve field name (e.g. `cpu`) to canonical form (e.g. `attributes.cpu`)
+            var f = mappingLookup.getFieldType(skip);
+            result.remove(f != null ? f.name() : skip);
+        }
+
+        if (loadMetrics) {
+            // Metrics are disjoint from dimensions by TSDB mapping validation and are never excluded.
+            for (var m : mappingLookup.metricFieldMappers().values()) {
+                result.add(m.fieldType().name());
+            }
+        }
+
+        return result;
     }
 
     @Override
@@ -55,7 +84,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new TimeSeries(breaker);
+        return new TimeSeriesReader(breaker);
     }
 
     @Override
@@ -73,37 +102,40 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     @Override
     public SortedSetDocValues ordinals(LeafReaderContext context) {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("_timeseries metadata does not support ordinals");
     }
 
-    private static class TimeSeries extends BlockStoredFieldsReader {
-        protected TimeSeries(CircuitBreaker breaker) {
+    @Override
+    public String toString() {
+        return "TimeSeriesMetadata";
+    }
+
+    private static final class TimeSeriesReader extends BlockStoredFieldsReader {
+        private TimeSeriesReader(CircuitBreaker breaker) {
             super(breaker);
         }
 
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            // TODO support appending BytesReference
-            ((BytesRefBuilder) builder).appendBytesRef(toJson(storedFields.source()).toBytesRef());
-        }
-
         /**
-         * The {@code _timeseries} keyword column is documented to contain a JSON-encoded object with the dimension
-         * key/value pairs identifying each group. {@link Source#internalSourceRef()} returns bytes in whatever XContent
-         * type the underlying {@code _source} happens to use: synthetic source always reconstructs as JSON, but stored
-         * source preserves the original encoding (e.g. CBOR for documents written via the Prometheus remote-write
-         * endpoint, which builds {@link org.elasticsearch.xcontent.XContentFactory#cborBuilder} requests). Normalize
-         * to JSON so the value is a valid keyword regardless of how {@code _source} is stored. When the underlying
-         * encoding is already JSON we return the bytes unchanged to avoid a parser/builder round-trip.
+         * Returns source bytes normalized to JSON.
+         *
+         * The {@code _timeseries} keyword column is documented as a JSON-encoded object containing
+         * the dimension key/value pairs that identify a time series. Synthetic source already
+         * reconstructs as JSON, but stored source preserves the original content type. For example,
+         * documents written through the Prometheus remote-write endpoint may be stored as CBOR.
+         *
+         * If the source is already JSON, this method returns the original bytes to avoid an
+         * unnecessary parser/builder round trip.
          */
         private static BytesReference toJson(Source source) throws IOException {
             BytesReference bytes = source.internalSourceRef();
-            XContentType type = source.sourceContentType();
-            if (type == XContentType.JSON) {
+            XContentType contentType = source.sourceContentType();
+
+            if (contentType == XContentType.JSON) {
                 return bytes;
             }
+
             try (
-                XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, type);
+                XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, bytes, contentType);
                 XContentBuilder json = XContentFactory.jsonBuilder()
             ) {
                 parser.nextToken();
@@ -113,55 +145,14 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         }
 
         @Override
+        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            // TODO: support appending BytesReference directly.
+            ((BytesRefBuilder) builder).appendBytesRef(toJson(storedFields.source()).toBytesRef());
+        }
+
+        @Override
         public String toString() {
             return "BlockStoredFieldsReader.TimeSeries";
         }
-    }
-
-    private Set<String> timeSeriesMetadata(MappedFieldType.BlockLoaderContext ctx, boolean loadMetrics) {
-        if (ctx.indexSettings().getMode() != IndexMode.TIME_SERIES) {
-            throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
-        }
-
-        assert ctx.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
-        var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) ctx.blockLoaderFunctionConfig();
-
-        if (loadMetrics == false) {
-            IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
-            List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
-            // The settings shortcut lists dimensions by name and excludes WITHOUT fields via an exact-name removal.
-            // It cannot honor exclusions when an entry is a wildcard (e.g. a passthrough dimension recorded as
-            // "labels.*"), because a concrete field name like "labels.le" never matches the literal "labels.*".
-            // In that case fall through to the mapping-based enumeration below, which resolves the wildcard to
-            // concrete dimension fields and can drop the excluded ones by name.
-            if (dimensionFieldsFromSettings != null
-                && dimensionFieldsFromSettings.isEmpty() == false
-                && (config.withoutFields().isEmpty() || dimensionFieldsFromSettings.stream().noneMatch(Regex::isSimpleMatchPattern))) {
-                Set<String> result = new LinkedHashSet<>(dimensionFieldsFromSettings);
-                result.removeAll(config.withoutFields());
-                return result;
-            }
-        }
-
-        Set<String> result = new LinkedHashSet<>();
-        MappingLookup mappingLookup = ctx.mappingLookup();
-        for (Mapper mapper : mappingLookup.fieldMappers()) {
-            if (mapper instanceof FieldMapper fieldMapper) {
-                MappedFieldType fieldType = fieldMapper.fieldType();
-                if (fieldType.isDimension() && config.withoutFields().contains(fieldType.name()) == false) {
-                    result.add(fieldType.name());
-                }
-                if (loadMetrics && fieldType.getMetricType() != null) {
-                    result.add(fieldType.name());
-                }
-            }
-        }
-
-        return result;
-    }
-
-    @Override
-    public String toString() {
-        return "TimeSeriesMetadata";
     }
 }

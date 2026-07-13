@@ -1,13 +1,13 @@
 ```yaml {applies_to}
-serverless: preview
-stack: preview 9.4
+serverless: ga
+stack: preview 9.4, ga 9.5
 ```
 
 The `PROMQL` source command queries [time series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) using [**Prometheus Query Language (PromQL)**](https://prometheus.io/docs/prometheus/latest/querying/basics/).
 Like [`TS`](/reference/query-languages/esql/commands/ts.md), it enables time series aggregation functions, but accepts PromQL syntax instead of ES|QL.
 
 ::::{note}
-In 9.4, `PROMQL` command is available as a preview feature. Current limitations include:
+Current limitations include:
 
 - Group modifiers such as `on(chip) group_left(chip_name)` are not supported.
 - Set operators such as `or`, `and`, and `unless` are not supported.

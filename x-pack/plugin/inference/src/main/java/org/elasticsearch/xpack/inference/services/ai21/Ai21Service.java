@@ -182,6 +182,11 @@ public class Ai21Service extends SenderService<Ai21Model> {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }
 
+    @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
+    }
+
     /**
      * Configuration class for the AI21 inference service.
      * It provides the settings and configurations required for the service.

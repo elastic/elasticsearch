@@ -33,7 +33,13 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
     public record Factory(Values values, int positionsOrd) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ColumnLoadOperator(new Values(values.name, values.block.deepCopy(driverContext.blockFactory())), positionsOrd);
+            Block block = values.block;
+            Block copy;
+            try (Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount(), driverContext.blockFactory())) {
+                builder.copyFrom(block, 0, block.getPositionCount());
+                copy = builder.build();
+            }
+            return new ColumnLoadOperator(new Values(values.name, copy), positionsOrd);
         }
 
         @Override

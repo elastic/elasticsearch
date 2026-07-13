@@ -133,7 +133,11 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         Block[] blocks = new Block[keys.length];
         for (int k = 0; k < keys.length; k++) {
             this.keys.add(keys[k].name);
-            blocks[k] = keys[k].block.deepCopy(blockFactory);
+            Block origBlock = keys[k].block;
+            try (Block.Builder builder = origBlock.elementType().newBlockBuilder(origBlock.getPositionCount(), blockFactory)) {
+                builder.copyFrom(origBlock, 0, origBlock.getPositionCount());
+                blocks[k] = builder.build();
+            }
         }
         try {
             this.lookup = RowInTableLookup.build(blockFactory, blocks);

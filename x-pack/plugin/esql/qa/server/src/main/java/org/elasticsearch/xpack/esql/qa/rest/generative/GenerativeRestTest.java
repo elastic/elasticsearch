@@ -126,7 +126,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
         // Full-text functions and `:` operator are not allowed after FORK
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
         "sub-plan execution results too large",  // INLINE STATS limitations
         // this comes from mapping-all-types.json and it gets occasionally picked up by full text functions
         "Inference endpoint not found \\[foo_inference_id\\]",
@@ -158,9 +158,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
-        // https://github.com/elastic/elasticsearch/issues/145570
-        "function cannot operate on \\[.*\\], which is not a field from an index mapping",
-        "\\[:\\] operator cannot operate on \\[.*\\], which is not a field from an index mapping",
+
+        // https://github.com/elastic/elasticsearch/issues/153622
+        "ImmutableCollections\\$ListN cannot be cast to class org.apache.lucene.util.BytesRef",
+
+        // repeat() returns validation error when the Number parameter is a negative foldable
+        "Number parameter cannot be negative, found \\[",
+
+        // need to refine the MATCH function generation
+        "query value .* does not match the type .* of non-index-mapped field",
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561

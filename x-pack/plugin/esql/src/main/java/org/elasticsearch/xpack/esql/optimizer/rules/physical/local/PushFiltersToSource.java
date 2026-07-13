@@ -21,9 +21,7 @@ import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
-import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
-import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
@@ -267,11 +265,15 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
         // Conjuncts that reference partition columns are evaluated against the constant blocks
         // injected by VirtualColumnIterator (and used as L1 pruning hints in FileSplitProvider).
-        // Pushing them into the format reader would translate them against file column data,
-        // but partition columns are not present in the file payload -- the reader would then
-        // either drop all rows (parquet) or behave format-specifically. Keep these conjuncts in
-        // the FilterExec so the post-injection evaluator handles them.
-        Set<String> partitionColumnNames = partitionColumnNames(externalExec);
+        // They must NOT be minted into the format-reader predicate: partition columns are path-derived
+        // and absent from the file payload. A RECHECK conjunct (==, IN, range) would be re-corrected by
+        // the retained FilterExec, but a YES-pushed conjunct (the LIKE family — see
+        // ParquetFilterPushdownSupport) is dropped from the FilterExec entirely and never re-checked, so
+        // every row survives and the query silently returns rows from every partition. Hold these
+        // conjuncts in the FilterExec on every node. The names come from the serialized stamp via the
+        // node-safe accessor — never the coordinator-only fileList, which is UNRESOLVED on a data node
+        // (reading it there returned an empty set and pushed the partition conjunct: the bug this fixes).
+        Set<String> partitionColumnNames = externalExec.partitionColumnNames();
         List<Expression> partitionConjuncts = new ArrayList<>();
         List<Expression> pushableCandidates = new ArrayList<>();
         if (partitionColumnNames.isEmpty()) {
@@ -329,18 +331,6 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
         // No pushable filters - return original plan
         return filterExec;
-    }
-
-    private static Set<String> partitionColumnNames(ExternalSourceExec externalExec) {
-        FileList fileList = externalExec.fileList();
-        if (fileList == null) {
-            return Set.of();
-        }
-        PartitionMetadata partitionMetadata = fileList.partitionMetadata();
-        if (partitionMetadata == null || partitionMetadata.isEmpty()) {
-            return Set.of();
-        }
-        return partitionMetadata.partitionColumns().keySet();
     }
 
     static boolean referencesAnyColumn(Expression expr, Set<String> columnNames) {

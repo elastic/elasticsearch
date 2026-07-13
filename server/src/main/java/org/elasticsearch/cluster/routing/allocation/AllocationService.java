@@ -233,26 +233,29 @@ public class AllocationService {
                         failedShard
                     );
                 }
-                int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().failedAllocations() : 0;
-                final Exception failure = failedShardEntry.failure();
-                final boolean cancelledByMaster = ExceptionsHelper.unwrap(failure, RecoveryCancelledException.class) != null;
+                final UnassignedInfo currentUnassignedInfo = failedShard.unassignedInfo();
+                final int failedAllocations = currentUnassignedInfo != null ? currentUnassignedInfo.failedAllocations() : 0;
+                final boolean cancelledByMaster = ExceptionsHelper.unwrap(
+                    failedShardEntry.failure(),
+                    RecoveryCancelledException.class
+                ) != null;
                 final Set<String> failedNodeIds;
-                if (failedShard.unassignedInfo() != null) {
+                if (currentUnassignedInfo != null) {
                     if (cancelledByMaster == false) {
-                        failedNodeIds = Sets.newHashSetWithExpectedSize(failedShard.unassignedInfo().failedNodeIds().size() + 1);
-                        failedNodeIds.addAll(failedShard.unassignedInfo().failedNodeIds());
+                        failedNodeIds = Sets.newHashSetWithExpectedSize(currentUnassignedInfo.failedNodeIds().size() + 1);
+                        failedNodeIds.addAll(currentUnassignedInfo.failedNodeIds());
                         failedNodeIds.add(failedShard.currentNodeId());
                     } else {
-                        failedNodeIds = failedShard.unassignedInfo().failedNodeIds();
+                        failedNodeIds = currentUnassignedInfo.failedNodeIds();
                     }
                 } else {
                     failedNodeIds = Collections.emptySet();
                 }
                 String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.message();
-                UnassignedInfo unassignedInfo = new UnassignedInfo(
+                final UnassignedInfo updatedUnassignedInfo = new UnassignedInfo(
                     cancelledByMaster ? UnassignedInfo.Reason.RECOVERY_CANCELLED : UnassignedInfo.Reason.ALLOCATION_FAILED,
                     message,
-                    failure,
+                    failedShardEntry.failure(),
                     cancelledByMaster ? failedAllocations : failedAllocations + 1,
                     currentNanoTime,
                     System.currentTimeMillis(),
@@ -267,9 +270,9 @@ public class AllocationService {
                 if (cancelledByMaster) {
                     logger.debug(() -> "recovery cancelled for shard [" + failedShardEntry + "]");
                 } else {
-                    logger.warn(() -> "failing shard [" + failedShardEntry + "]", failure);
+                    logger.warn(() -> "failing shard [" + failedShardEntry + "]", failedShardEntry.failure());
                 }
-                allocation.routingNodes().failShard(failedShard, unassignedInfo, allocation.changes());
+                allocation.routingNodes().failShard(failedShard, updatedUnassignedInfo, allocation.changes());
             } else {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);
             }

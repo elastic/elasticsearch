@@ -937,6 +937,59 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                 )
             );
         }
+
+        // lookup join after STATS (a pipeline breaker) on coordinator
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | STATS c = COUNT(*) BY key
+            | LOOKUP JOIN lookup ON key
+            | KEEP key, c, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, 1L, "coordinator"),
+                        List.of(2L, 1L, "coordinator")
+                    )
+                )
+            );
+        }
+
+        // lookup join after limit .. by .. on coordinator
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LIMIT 1 BY key
+            | LOOKUP JOIN lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator")
+                    )
+                )
+            );
+        }
+
+        // lookup join after simple limit is unsupported for now
+        expectThrows(
+            VerificationException.class,
+            containsString("LOOKUP JOIN with remote indices can't be executed after [LIMIT 5]"),
+            () -> runQuery("""
+                FROM *:data
+                | LIMIT 5
+                | LOOKUP JOIN lookup ON key
+                | KEEP key, cluster, mode
+                | SORT key
+                """, randomBoolean()).close()
+        );
     }
 
     @SafeVarargs

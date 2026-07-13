@@ -2058,3 +2058,13 @@ FROM date_extract_fields
 days:long
 31
 ;
+
+mvInRangeDate
+required_capability: fn_mv_in_range
+ROW d = ["2024-03-01T00:00:00.000Z", "2024-09-01T00:00:00.000Z"]::datetime
+| EVAL in_range = mv_in_range(d, "2024-06-01T00:00:00.000Z"::datetime, "2024-12-01T00:00:00.000Z"::datetime)
+;
+
+d:datetime | in_range:boolean
+[2024-03-01T00:00:00.000Z, 2024-09-01T00:00:00.000Z] | true
+;

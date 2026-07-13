@@ -9,13 +9,18 @@ package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.stateless.TestUtils.getCommitWithInternalFilesReplicatedRanges;
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomCompoundCommit;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomCompoundCommitWithReplicatedRanges;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomShardId;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomTimestampFieldValueRange;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -161,7 +166,18 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
     }
 
     private static BlobFileRanges randomBlobFileRangesWithReplicatedRanges() {
-        final var cc = randomCompoundCommitWithReplicatedRanges();
+        final long primaryTerm = randomNonZeroPositiveLong();
+        final long generation = randomNonZeroPositiveLong();
+        final var cc = getCommitWithInternalFilesReplicatedRanges(
+            randomShardId(),
+            new BlobFile(
+                StatelessCompoundCommit.PREFIX + generation,
+                new PrimaryTermAndGeneration(primaryTerm, generation)
+            ),
+            "_na_",
+            0,
+            ByteSizeValue.ofKb(4).getBytes()
+        );
         final var blobFileRangesMap = BlobFileRanges.computeBlobFileRanges(true, cc, 0L, cc.internalFiles());
         return randomFrom(blobFileRangesMap.values());
     }

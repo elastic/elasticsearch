@@ -261,6 +261,39 @@ public class XContentParserTests extends ESTestCase {
         }
     }
 
+    public void testMapOnNonObjectInputFails() throws IOException {
+        for (String source : List.of("123", "12.5", "\"utter nonsense\"", "true", "null", "[\"an\", \"array\"]")) {
+            try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, source))) {
+                XContentParseException e = expectThrows(XContentParseException.class, parser::map);
+                assertThat(e.getMessage(), containsString("Failed to parse object: expecting START_OBJECT but got"));
+            }
+            try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, source))) {
+                expectThrows(XContentParseException.class, parser::mapOrdered);
+            }
+            try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, source))) {
+                expectThrows(XContentParseException.class, parser::mapStrings);
+            }
+        }
+    }
+
+    public void testMapOnEmptyOrObjectInput() throws IOException {
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, ""))) {
+            assertThat(parser.map(), equalTo(emptyMap()));
+        }
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, "{}"))) {
+            assertThat(parser.map(), equalTo(emptyMap()));
+        }
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, "{\"a\": 1}"))) {
+            assertThat(parser.map(), equalTo(Map.of("a", 1)));
+        }
+        // a parser positioned on a field name reads the remaining fields of the current object
+        try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, "{\"a\": 1, \"b\": 2}"))) {
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.map(), equalTo(Map.of("a", 1, "b", 2)));
+        }
+    }
+
     private Map<String, String> readMapStrings(String source) throws IOException {
         try (XContentParser parser = decorateParser(super.createParser(JsonXContent.jsonXContent, source))) {
             XContentParser.Token token = parser.nextToken();

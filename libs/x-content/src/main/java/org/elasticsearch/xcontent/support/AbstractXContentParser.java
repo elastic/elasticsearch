@@ -379,7 +379,9 @@ public abstract class AbstractXContentParser implements XContentParser {
      * Skips to the next token if the parser does not yet have a current token (i.e. {@link #currentToken()} returns {@code null}) and then
      * checks it.
      *
-     * @return the first key in the map if a non-empty map start is found
+     * @return the first key in the map if a non-empty map start is found, or {@code null} if the map is empty or the whole document is
+     *         empty
+     * @throws XContentParseException if the current token is anything other than the start of an object
      */
     @Nullable
     private static String findNonEmptyMapStart(XContentParser parser) throws IOException {
@@ -390,7 +392,17 @@ public abstract class AbstractXContentParser implements XContentParser {
         if (token == XContentParser.Token.START_OBJECT) {
             return parser.nextFieldName();
         }
-        return token == Token.FIELD_NAME ? parser.currentName() : null;
+        if (token == Token.FIELD_NAME) {
+            return parser.currentName();
+        }
+        if (token == null) {
+            // the document is entirely empty, treat it as an empty map like the empty object {}
+            return null;
+        }
+        throw new XContentParseException(
+            parser.getTokenLocation(),
+            "Failed to parse object: expecting " + XContentParser.Token.START_OBJECT + " but got " + token
+        );
     }
 
     // Skips the current parser to the next array start. Assumes that the parser is either positioned before an array field's name token or

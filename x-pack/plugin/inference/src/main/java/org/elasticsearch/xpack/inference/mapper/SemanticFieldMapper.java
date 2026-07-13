@@ -693,7 +693,14 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         ChunkingSettings fieldTypeChunkingSettings = fieldType().getChunkingSettings();
         Map<String, Object> asMap = fieldTypeChunkingSettings != null ? fieldTypeChunkingSettings.asMap() : null;
 
-        return new InferenceFieldMetadata(fullPath(), fieldType().getInferenceId(), fieldType().getSearchInferenceId(), copyFields, asMap);
+        return new InferenceFieldMetadata(
+            fullPath(),
+            fieldType().getInferenceId(),
+            fieldType().getSearchInferenceId(),
+            copyFields,
+            asMap,
+            false  // TODO: Get value from mapping param
+        );
     }
 
     @Override

@@ -114,7 +114,8 @@ public class GetInferenceFieldsInternalActionResponseTests extends AbstractBWCWi
             randomIdentifier(),
             randomIdentifier(),
             randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new),
-            generateRandomChunkingSettings()
+            generateRandomChunkingSettings(),
+            randomBoolean()
         );
     }
 

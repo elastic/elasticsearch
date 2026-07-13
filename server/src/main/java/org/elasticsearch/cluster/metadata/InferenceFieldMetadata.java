@@ -38,17 +38,22 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     private static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     private static final String SOURCE_FIELDS_FIELD = "source_fields";
     static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
+    private static final String REFERENCE_VALUES_REQUIRED_FIELD = "reference_values_required";
 
     private static final TransportVersion SEMANTIC_TEXT_CHUNKING_CONFIG = TransportVersion.fromName("semantic_text_chunking_config");
+    private static final TransportVersion SEMANTIC_REFERENCE_VALUES_REQUIRED = TransportVersion.fromName(
+        "semantic_reference_values_required"
+    );
 
     private final String name;
     private final String inferenceId;
     private final String searchInferenceId;
     private final String[] sourceFields;
     private final Map<String, Object> chunkingSettings;
+    private final boolean referenceValuesRequired;
 
     public InferenceFieldMetadata(String name, String inferenceId, String[] sourceFields, Map<String, Object> chunkingSettings) {
-        this(name, inferenceId, inferenceId, sourceFields, chunkingSettings);
+        this(name, inferenceId, inferenceId, sourceFields, chunkingSettings, false);
     }
 
     public InferenceFieldMetadata(
@@ -56,13 +61,15 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         String inferenceId,
         String searchInferenceId,
         String[] sourceFields,
-        Map<String, Object> chunkingSettings
+        Map<String, Object> chunkingSettings,
+        boolean referenceValuesRequired
     ) {
         this.name = Objects.requireNonNull(name);
         this.inferenceId = Objects.requireNonNull(inferenceId);
         this.searchInferenceId = Objects.requireNonNull(searchInferenceId);
         this.sourceFields = Objects.requireNonNull(sourceFields);
         this.chunkingSettings = chunkingSettings != null ? Map.copyOf(chunkingSettings) : null;
+        this.referenceValuesRequired = referenceValuesRequired;
     }
 
     public InferenceFieldMetadata(StreamInput input) throws IOException {
@@ -75,6 +82,11 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         } else {
             this.chunkingSettings = null;
         }
+        if (input.getTransportVersion().supports(SEMANTIC_REFERENCE_VALUES_REQUIRED)) {
+            this.referenceValuesRequired = input.readBoolean();
+        } else {
+            this.referenceValuesRequired = false;
+        }
     }
 
     @Override
@@ -85,6 +97,9 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         out.writeStringArray(sourceFields);
         if (out.getTransportVersion().supports(SEMANTIC_TEXT_CHUNKING_CONFIG)) {
             out.writeGenericMap(chunkingSettings);
+        }
+        if (out.getTransportVersion().supports(SEMANTIC_REFERENCE_VALUES_REQUIRED)) {
+            out.writeBoolean(referenceValuesRequired);
         }
     }
 
@@ -97,12 +112,13 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             && Objects.equals(inferenceId, that.inferenceId)
             && Objects.equals(searchInferenceId, that.searchInferenceId)
             && Arrays.equals(sourceFields, that.sourceFields)
-            && Objects.equals(chunkingSettings, that.chunkingSettings);
+            && Objects.equals(chunkingSettings, that.chunkingSettings)
+            && referenceValuesRequired == that.referenceValuesRequired;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, inferenceId, searchInferenceId, chunkingSettings);
+        int result = Objects.hash(name, inferenceId, searchInferenceId, chunkingSettings, referenceValuesRequired);
         result = 31 * result + Arrays.hashCode(sourceFields);
         return result;
     }
@@ -132,6 +148,10 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         return chunkingSettings;
     }
 
+    public boolean isReferenceValuesRequired() {
+        return referenceValuesRequired;
+    }
+
     public static Diff<InferenceFieldMetadata> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(InferenceFieldMetadata::new, in);
     }
@@ -149,6 +169,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             builder.mapContents(chunkingSettings);
             builder.endObject();
         }
+        builder.field(REFERENCE_VALUES_REQUIRED_FIELD, referenceValuesRequired);
         return builder.endObject();
     }
 
@@ -162,6 +183,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         String inferenceId = null;
         String searchInferenceId = null;
         Map<String, Object> chunkingSettings = null;
+        boolean referenceValuesRequired = false;
         List<String> inputFields = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -171,6 +193,10 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
                     inferenceId = parser.text();
                 } else if (SEARCH_INFERENCE_ID_FIELD.equals(currentFieldName)) {
                     searchInferenceId = parser.text();
+                }
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                if (REFERENCE_VALUES_REQUIRED_FIELD.equals(currentFieldName)) {
+                    referenceValuesRequired = parser.booleanValue();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (SOURCE_FIELDS_FIELD.equals(currentFieldName)) {
@@ -193,7 +219,8 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             inferenceId,
             searchInferenceId == null ? inferenceId : searchInferenceId,
             inputFields.toArray(String[]::new),
-            chunkingSettings
+            chunkingSettings,
+            referenceValuesRequired
         );
     }
 }

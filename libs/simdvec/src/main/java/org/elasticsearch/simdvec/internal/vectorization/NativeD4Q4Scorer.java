@@ -12,10 +12,6 @@ import org.apache.lucene.store.IndexInput;
 
 import java.lang.foreign.MemorySegment;
 
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductD4Q4;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductD4Q4Bulk;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductD4Q4BulkWithOffsets;
-
 /** Native scorer for 4-bit symmetric quantization. */
 final class NativeD4Q4Scorer extends NativeMemorySegmentScorer {
 
@@ -25,12 +21,12 @@ final class NativeD4Q4Scorer extends NativeMemorySegmentScorer {
 
     @Override
     long dotProduct(MemorySegment dataset, MemorySegment query, int length) {
-        return dotProductD4Q4(dataset, query, length);
+        return DISTANCE_FUNCS.dotProductD4Q4(dataset, query, length);
     }
 
     @Override
     void dotProductBulk(MemorySegment dataset, MemorySegment query, int length, int count, MemorySegment scores) {
-        dotProductD4Q4Bulk(dataset, query, length, count, scores);
+        DISTANCE_FUNCS.dotProductD4Q4Bulk(dataset, query, length, count, scores);
     }
 
     @Override
@@ -43,7 +39,7 @@ final class NativeD4Q4Scorer extends NativeMemorySegmentScorer {
         int offsetsCount,
         MemorySegment scores
     ) {
-        dotProductD4Q4BulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
+        DISTANCE_FUNCS.dotProductD4Q4BulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
     }
 
     @Override

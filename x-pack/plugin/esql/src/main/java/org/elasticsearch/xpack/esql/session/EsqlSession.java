@@ -458,7 +458,11 @@ public class EsqlSession {
 
                     // Graft the out-of-band request filter onto external-source (dataset) leaves, translated
                     // against each source's schema. Index leaves keep their existing filter path.
-                    LogicalPlan plan = RequestFilterGraft.graft(analyzedPlan.inner(), request.filter());
+                    LogicalPlan plan = RequestFilterGraft.graft(
+                        analyzedPlan.inner(),
+                        request.filter(),
+                        finalConfiguration.absoluteStartedTimeInMillis()
+                    );
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
                     planSnapshot = planSnapshot.withAnalyzed(plan);

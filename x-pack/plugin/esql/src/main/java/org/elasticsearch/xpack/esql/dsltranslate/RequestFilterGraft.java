@@ -34,7 +34,11 @@ public final class RequestFilterGraft {
 
     private RequestFilterGraft() {}
 
-    public static LogicalPlan graft(LogicalPlan analyzed, QueryBuilder requestFilter) {
+    /**
+     * @param nowInMillis the query's start time, epoch millis — anchors {@code now} date math so a request filter over
+     *                    an external source resolves {@code "now-15m"} to the same instant the index path would.
+     */
+    public static LogicalPlan graft(LogicalPlan analyzed, QueryBuilder requestFilter, long nowInMillis) {
         if (requestFilter == null) {
             return analyzed;
         }
@@ -46,7 +50,7 @@ public final class RequestFilterGraft {
             QueryDslTranslator translator = new QueryDslTranslator(name -> {
                 Attribute a = byName.get(name);
                 return a != null ? a : Literal.NULL;
-            });
+            }, nowInMillis);
             try {
                 Expression condition = translator.translate(requestFilter);
                 return new Filter(relation.source(), relation, condition);

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.function.Function;
 
@@ -46,11 +47,15 @@ public class QueryDslTranslatorTests extends ESTestCase {
         case "bytes" -> new ReferenceAttribute(Source.EMPTY, "bytes", DataType.LONG);
         case "score" -> new ReferenceAttribute(Source.EMPTY, "score", DataType.DOUBLE);
         case "@timestamp" -> new ReferenceAttribute(Source.EMPTY, "@timestamp", DataType.DATETIME);
+        case "active" -> new ReferenceAttribute(Source.EMPTY, "active", DataType.BOOLEAN);
         default -> Literal.NULL;
     };
 
+    // A fixed query "now" so date-math bounds ("now-1d") resolve deterministically in tests.
+    private static final long NOW = Instant.parse("2020-06-15T12:00:00Z").toEpochMilli();
+
     private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb) {
-        return new QueryDslTranslator(BINDER).translate(qb);
+        return new QueryDslTranslator(BINDER, NOW).translate(qb);
     }
 
     public void testTermBecomesAnyValueContains() {
@@ -241,7 +246,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertThat(withMust, instanceOf(And.class));
     }
 
-    /** msm:0 makes the should clauses optional, so in a filter context they drop out entirely. */
+    /** msm:0 makes the should clauses optional, so alongside a must/filter they drop out entirely. */
     public void testMinimumShouldMatchOfZeroDropsShould() {
         Expression e = translate(
             QueryBuilders.boolQuery()
@@ -250,6 +255,49 @@ public class QueryDslTranslatorTests extends ESTestCase {
                 .minimumShouldMatch(0)
         );
         assertThat(e, instanceOf(IsNotNull.class));
+    }
+
+    /**
+     * But msm:0 on a should-ONLY bool does NOT match everything: Lucene still requires one optional clause when there
+     * is no required (must/filter) clause. So the should group stays required — a plain OR, not {@code Literal.TRUE}.
+     */
+    public void testMinimumShouldMatchOfZeroOnShouldOnlyStillRequiresOne() {
+        Expression e = translate(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.termQuery("status", 1))
+                .should(QueryBuilders.termQuery("status", 2))
+                .minimumShouldMatch(0)
+        );
+        assertThat(e, instanceOf(Or.class));
+    }
+
+    /**
+     * A numeric term the field's integral type can never equal — a decimal, or a value outside the type's range —
+     * matches nothing, exactly as the index path's term query returns match-no-docs (never a truncated/wrapped match).
+     */
+    public void testUnmatchableIntegralTermMatchesNothing() {
+        assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("status", 2.5))); // decimal vs integer
+        assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("status", 4294967298L))); // outside int range
+        assertEquals(Literal.FALSE, translate(QueryBuilders.termQuery("bytes", 3.5))); // decimal vs long
+        // a whole-number value in range is a normal contains
+        assertThat(translate(QueryBuilders.termQuery("status", 200)), instanceOf(MvContains.class));
+    }
+
+    /** terms drops the values no value of an integral field can equal; an emptied set matches nothing. */
+    public void testTermsDropsUnmatchableIntegralValues() {
+        Expression e = translate(QueryBuilders.termsQuery("status", List.of(200, 2.5, 404)));
+        assertThat(e, instanceOf(MvIntersects.class));
+        assertEquals(List.of(200, 404), ((Literal) ((MvIntersects) e).children().get(1)).value());
+        assertEquals(Literal.FALSE, translate(QueryBuilders.termsQuery("status", List.of(2.5, 7.5))));
+    }
+
+    /**
+     * A construct the emitted function cannot type — a range over a boolean column, which mv_in_range does not support —
+     * degrades rather than sailing past the post-analysis graft (which skips the Verifier) into a compute-engine error.
+     */
+    public void testRangeOverUnsupportedFieldTypeDegrades() {
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("active").gte(false).lte(true)));
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("active").gt(false)));
     }
 
     /**
@@ -268,5 +316,78 @@ public class QueryDslTranslatorTests extends ESTestCase {
         And and = (And) e;
         assertThat(and.left(), instanceOf(Not.class));
         assertThat(and.right(), instanceOf(Or.class));
+    }
+
+    private static long millis(String iso) {
+        return Instant.parse(iso).toEpochMilli();
+    }
+
+    /**
+     * A coarse upper bound rounds UP to the last millis of its unit, exactly as the index path does — {@code lte
+     * "2020-06-15"} means through the end of that day, not its start. Proves B3's round-up on the one-sided upper path.
+     */
+    public void testDateRangeCoarseUpperBoundRoundsUp() {
+        Expression e = translate(QueryBuilders.rangeQuery("@timestamp").lte("2020-06-15"));
+        assertThat(e, instanceOf(Coalesce.class));
+        Expression cmp = ((Coalesce) e).children().get(0);
+        assertThat(cmp, instanceOf(LessThanOrEqual.class));
+        Literal bound = (Literal) ((LessThanOrEqual) cmp).right();
+        assertEquals(millis("2020-06-15T23:59:59.999Z"), bound.value());
+    }
+
+    /** A coarse lower bound rounds DOWN to the first millis of its unit — {@code gte "2020-06-15"} starts at midnight. */
+    public void testDateRangeCoarseLowerBoundRoundsDown() {
+        Expression e = translate(QueryBuilders.rangeQuery("@timestamp").gte("2020-06-15"));
+        assertThat(e, instanceOf(Coalesce.class));
+        Expression cmp = ((Coalesce) e).children().get(0);
+        assertThat(cmp, instanceOf(GreaterThanOrEqual.class));
+        Literal bound = (Literal) ((GreaterThanOrEqual) cmp).right();
+        assertEquals(millis("2020-06-15T00:00:00.000Z"), bound.value());
+    }
+
+    /**
+     * A {@code now} date-math bound resolves against the query's start time, not wall-clock — the single most common
+     * Kibana time filter shape. With a fixed test {@code now} of 2020-06-15T12:00Z, {@code gte "now-1d"} is
+     * 2020-06-14T12:00Z. Used to degrade (the plain parser could not read date math) — B3.
+     */
+    public void testDateRangeNowMathResolvesAgainstQueryNow() {
+        Expression e = translate(QueryBuilders.rangeQuery("@timestamp").gte("now-1d"));
+        assertThat(e, instanceOf(Coalesce.class));
+        Expression cmp = ((Coalesce) e).children().get(0);
+        Literal bound = (Literal) ((GreaterThanOrEqual) cmp).right();
+        assertEquals(millis("2020-06-14T12:00:00.000Z"), bound.value());
+    }
+
+    /**
+     * A two-bound date range with exclusive ends folds to a closed inclusive {@code mv_in_range}: the rounding and the
+     * one-unit nudge are baked into the bounds, so {@code gt}/{@code lt} on a date never needs the whole-number gate.
+     */
+    public void testDateTwoBoundExclusiveRangeIsClosedMvInRange() {
+        Expression e = translate(QueryBuilders.rangeQuery("@timestamp").gt("2020-06-15T00:00:00.000Z").lt("2020-06-15T00:00:00.010Z"));
+        assertThat(e, instanceOf(MvInRange.class));
+        MvInRange r = (MvInRange) e;
+        assertEquals(millis("2020-06-15T00:00:00.001Z"), ((Literal) r.lower()).value());
+        assertEquals(millis("2020-06-15T00:00:00.009Z"), ((Literal) r.upper()).value());
+    }
+
+    /**
+     * A {@code term} on a date field is the closed range spanning the value's rounding unit, not a point — {@code
+     * term "2020-06-15"} matches any instant that whole day, mirroring the index path's term-as-range on dates.
+     */
+    public void testDateTermIsUnitRange() {
+        Expression e = translate(QueryBuilders.termQuery("@timestamp", "2020-06-15"));
+        assertThat(e, instanceOf(MvInRange.class));
+        MvInRange r = (MvInRange) e;
+        assertEquals(millis("2020-06-15T00:00:00.000Z"), ((Literal) r.lower()).value());
+        assertEquals(millis("2020-06-15T23:59:59.999Z"), ((Literal) r.upper()).value());
+    }
+
+    /** {@code terms} on a date field is the union of its per-value unit ranges. */
+    public void testDateTermsIsUnionOfUnitRanges() {
+        Expression e = translate(QueryBuilders.termsQuery("@timestamp", List.of("2020-06-15", "2020-06-16")));
+        assertThat(e, instanceOf(Or.class));
+        Or or = (Or) e;
+        assertThat(or.left(), instanceOf(MvInRange.class));
+        assertThat(or.right(), instanceOf(MvInRange.class));
     }
 }

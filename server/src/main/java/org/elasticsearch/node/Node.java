@@ -317,6 +317,7 @@ public class Node implements Closeable {
         assert localNodeFactory.getNode() != null;
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
+        injector.getInstance(ThrottlingRecoveryService.class).start();
         injector.getInstance(PeerRecoverySourceService.class).start();
 
         // Load (and maybe upgrade) the metadata stored on disk

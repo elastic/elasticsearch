@@ -82,6 +82,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy;
@@ -260,7 +261,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory blobStoreCacheDirectory,
-            @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {

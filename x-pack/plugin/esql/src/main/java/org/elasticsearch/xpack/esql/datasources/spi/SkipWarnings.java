@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.core.Nullable;
+
+import java.util.function.Consumer;
 
 /**
  * Collects response {@code Warning} headers for datasource read paths that skip a malformed input
@@ -18,14 +21,21 @@ import org.elasticsearch.common.logging.HeaderWarning;
  * details. Per-event details are capped at {@link #MAX_ADDED_WARNINGS}; on overflow a single
  * "further warnings suppressed" entry is emitted so clients know more were dropped.
  * <p>
- * Writes go through {@link HeaderWarning#addWarning(String, Object...)} which attaches them to the
- * current thread's response headers; if no thread context is bound (e.g. in unit tests that don't
- * care), the call is a no-op. Instances are stateful and not thread-safe: create one per reader
- * iterator or decoder.
+ * By default, writes go through {@link HeaderWarning#addWarning(String, Object...)} which attaches
+ * them to the current thread's response headers; if no thread context is bound (e.g. in unit tests
+ * that don't care), the call is a no-op. This is only correct when {@link #add(String)} is called on
+ * a thread whose {@code ThreadContext} response headers actually feed the client response (e.g. the
+ * originating request thread). Readers whose decode loop can run on a different thread (e.g. a
+ * background reader thread wrapped by {@code AsyncExternalSourceOperatorFactory}) must instead supply
+ * a {@code sink} — typically {@code AsyncExternalSourceBuffer::recordInformationalWarning} — via
+ * {@link #SkipWarnings(String, Consumer)} / {@link #of(ErrorPolicy, String, Consumer)} so the message
+ * is relayed and re-emitted on the correct thread instead of being silently dropped. Instances are
+ * stateful and not thread-safe: create one per reader iterator or decoder.
  * <p>
- * Callers working against an {@link ErrorPolicy} should use {@link #of(ErrorPolicy, String)} to
- * obtain either a live collector or the shared {@link #NOOP} sink, so that call sites never have
- * to null-guard subsequent {@link #add(String)} invocations.
+ * Callers working against an {@link ErrorPolicy} should use {@link #of(ErrorPolicy, String)} (or the
+ * sink-aware {@link #of(ErrorPolicy, String, Consumer)}) to obtain either a live collector or the
+ * shared {@link #NOOP} sink, so that call sites never have to null-guard subsequent {@link #add(String)}
+ * invocations.
  * <p>
  * This utility lives alongside {@link ErrorPolicy} in the {@code spi} package because datasource
  * plugins may need to emit the same shape of warnings from outside this module; it is a concrete
@@ -46,13 +56,30 @@ public class SkipWarnings {
     };
 
     private final String summary;
+    /**
+     * Where emitted messages go. {@code null} (the default) preserves the original direct-to-
+     * {@link HeaderWarning} behavior, which is only safe on a thread whose response headers are
+     * actually collected into the client response.
+     */
+    @Nullable
+    private final Consumer<String> sink;
     // Mutable state: not thread-safe, one instance per reader iterator/decoder.
     private int added;
     private boolean summaryEmitted;
     private boolean overflowEmitted;
 
     public SkipWarnings(String summary) {
+        this(summary, null);
+    }
+
+    /**
+     * @param sink when non-{@code null}, every emitted message is handed to this consumer instead of
+     *             {@link HeaderWarning#addWarning(String, Object...)}. Use this on any code path whose
+     *             {@link #add(String)} calls may run off the request/driver thread.
+     */
+    public SkipWarnings(String summary, @Nullable Consumer<String> sink) {
         this.summary = summary;
+        this.sink = sink;
     }
 
     /**
@@ -60,7 +87,15 @@ public class SkipWarnings {
      * to emit a warning), or a fresh live collector seeded with {@code summary} otherwise.
      */
     public static SkipWarnings of(ErrorPolicy policy, String summary) {
-        return policy.isStrict() ? NOOP : new SkipWarnings(summary);
+        return of(policy, summary, null);
+    }
+
+    /**
+     * Like {@link #of(ErrorPolicy, String)}, but routes emitted messages through {@code sink} instead
+     * of directly through {@link HeaderWarning}. See {@link #SkipWarnings(String, Consumer)}.
+     */
+    public static SkipWarnings of(ErrorPolicy policy, String summary, @Nullable Consumer<String> sink) {
+        return policy.isStrict() ? NOOP : new SkipWarnings(summary, sink);
     }
 
     /**
@@ -73,15 +108,23 @@ public class SkipWarnings {
             // Use the no-varargs overload so HeaderWarning treats both summary and detail as plain
             // strings (LoggerMessageFormat#format early-returns when argArray is empty); this keeps
             // user data containing '{' or '}' from being reinterpreted as a placeholder pattern.
-            HeaderWarning.addWarning(summary);
+            emit(summary);
             summaryEmitted = true;
         }
         if (added < MAX_ADDED_WARNINGS) {
-            HeaderWarning.addWarning(detail);
+            emit(detail);
             added++;
         } else if (overflowEmitted == false) {
-            HeaderWarning.addWarning("... further warnings suppressed (more than " + MAX_ADDED_WARNINGS + " recorded)");
+            emit("... further warnings suppressed (more than " + MAX_ADDED_WARNINGS + " recorded)");
             overflowEmitted = true;
+        }
+    }
+
+    private void emit(String message) {
+        if (sink != null) {
+            sink.accept(message);
+        } else {
+            HeaderWarning.addWarning(message);
         }
     }
 }

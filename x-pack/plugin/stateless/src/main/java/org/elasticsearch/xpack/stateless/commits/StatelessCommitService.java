@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -109,7 +110,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
@@ -890,7 +890,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     private void recordBccTimestampRangeMetric(VirtualBatchedCompoundCommit virtualBcc) {
         final OptionalDouble spanMinutes = bccTimestampSpanMinutes(
-            virtualBcc.getPendingCompoundCommits().stream().map(pc -> pc.getStatelessCompoundCommit().getTimestampFieldValueRange())
+            Iterators.map(
+                virtualBcc.getPendingCompoundCommits().iterator(),
+                pc -> pc.getStatelessCompoundCommit().getTimestampFieldValueRange()
+            )
         );
         if (spanMinutes.isEmpty()) {
             bccMissingTimestampCounter.increment();
@@ -3498,12 +3501,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     // visible for testing
-    static OptionalDouble bccTimestampSpanMinutes(final Stream<TimestampFieldValueRange> ranges) {
+    static OptionalDouble bccTimestampSpanMinutes(final Iterator<TimestampFieldValueRange> ranges) {
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;
         boolean any = false;
-        for (final Iterator<TimestampFieldValueRange> it = ranges.iterator(); it.hasNext();) {
-            final TimestampFieldValueRange range = it.next();
+        while (ranges.hasNext()) {
+            final TimestampFieldValueRange range = ranges.next();
             if (range == null) {
                 continue;
             }

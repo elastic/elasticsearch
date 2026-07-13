@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -65,13 +66,16 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -163,6 +167,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
@@ -327,7 +332,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public LogicalPlan analyze(LogicalPlan plan) {
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
         LogicalPlan analyzed = execute(plan);
-        return verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
+        LogicalPlan verified = verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
+        // verify throws on failure, so we only reach here once the plan is valid: flush the warnings deferred during analysis.
+        context().deferredHeaderWarnings().forEach(HeaderWarning::addWarning);
+        return verified;
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
@@ -481,12 +489,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (t != null) {
                 name = parentName == null ? name : parentName + "." + name;
                 var fieldProperties = t.getProperties();
-                var type = t.getDataType().widenSmallNumeric();
-                // due to a bug also copy the field since the Attribute hierarchy extracts the data type
-                // directly even if the data type is passed explicitly
-                if (type != t.getDataType()) {
-                    t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias(), t.getTimeSeriesFieldType());
-                }
+                t = t.withWidenedSmallNumeric();
+                var type = t.getDataType();
 
                 FieldAttribute attribute;
                 if (t instanceof UnsupportedEsField uef) {
@@ -683,8 +687,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             var metadata = resolvedSource.metadata();
-            MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema());
-            return new ExternalRelation(
+            // Partition columns are path-derived and appear in the schema as plain ReferenceAttributes (indistinguishable
+            // from data columns by type), so pass their names explicitly: _id.path pointing at a partition column must be
+            // rejected loudly (the reader stamps _id per row from a data column, not from a path-derived constant).
+            PartitionMetadata partitionMetadata = resolvedSource.fileList() != null ? resolvedSource.fileList().partitionMetadata() : null;
+            Set<String> partitionColumnNames = partitionMetadata != null && partitionMetadata.isEmpty() == false
+                ? partitionMetadata.partitionColumns().keySet()
+                : Set.of();
+            MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema(), partitionColumnNames);
+            ExternalRelation relation = new ExternalRelation(
                 plan.source(),
                 tablePath,
                 metadata,
@@ -692,15 +703,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 resolvedSource.fileList(),
                 resolvedSource.schemaMap(),
                 plan.datasetName(),
-                bindResult.unresolvedMetadata()
+                bindResult.unresolvedMetadata(),
+                resolvedSource.declaredReadSpec()
             );
+            return relation;
         }
 
         /**
          * Result of {@link #bindMetadataFields}: the enriched schema (resolved standard /
-         * {@code _file.*} names appended to the base schema) and the list of metadata expressions
-         * the bind could not resolve. The unresolved list is threaded through to
-         * {@link ExternalRelation#metadataFields()} so the verifier's
+         * {@code _file.*} names appended to the base schema) and the list of metadata expressions the
+         * bind could not resolve. The unresolved list is threaded
+         * through to {@link ExternalRelation#metadataFields()} so the verifier's
          * {@code checkUnresolvedAttributes} walk fires the indexed-equivalent
          * {@code "Unresolved metadata pattern [...]"} error.
          */
@@ -718,7 +731,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * present in the source's natural schema are skipped (the source's own column takes
          * precedence).
          */
-        private static MetadataBindResult bindMetadataFields(UnresolvedExternalRelation plan, List<Attribute> baseSchema) {
+        private static MetadataBindResult bindMetadataFields(
+            UnresolvedExternalRelation plan,
+            List<Attribute> baseSchema,
+            Set<String> partitionColumnNames
+        ) {
             if (plan.metadataFields().isEmpty()) {
                 return new MetadataBindResult(baseSchema, List.of());
             }
@@ -735,6 +752,43 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 String name = requested instanceof UnresolvedMetadataAttributeExpression unr ? unr.pattern() : requested.name();
                 if (existing.contains(name)) {
                     continue;
+                }
+                // _id.path names the column the reader stamps _id from. If the dataset declares one but the resolved
+                // schema has no such DATA column — a typo, the files lost it, or it is a partition/virtual column the
+                // reader never materializes per row — reject the _id request loudly rather than returning silently-null
+                // ids. Fires only when _id is actually asked for — a bad _id.path on a query that never reads _id is
+                // moot, like any other unread column.
+                if (ExternalMetadataColumns.ID.equals(name)) {
+                    String idPath = declaredIdPath(plan);
+                    if (idPath != null) {
+                        Attribute idSource = null;
+                        for (Attribute a : baseSchema) {
+                            if (a.name().equals(idPath)) {
+                                idSource = a;
+                                break;
+                            }
+                        }
+                        if (idSource == null) {
+                            throw new IllegalArgumentException(
+                                "[_id] is declared to come from column ["
+                                    + idPath
+                                    + "] (mappings._id.path), but no such column exists in the dataset's schema"
+                            );
+                        }
+                        // A partition column is a path-derived constant surfaced as a plain ReferenceAttribute (not a
+                        // Virtual/ExternalMetadata attribute), so it slips the type checks above; the reader classifies
+                        // it in the partition branch and never stamps _id from it (silent null id). Reject it here.
+                        if (idSource instanceof VirtualAttribute
+                            || idSource instanceof ExternalMetadataAttribute
+                            || partitionColumnNames.contains(idPath)) {
+                            throw new IllegalArgumentException(
+                                "[_id] is declared to come from ["
+                                    + idPath
+                                    + "] (mappings._id.path), which is not a data column of the files; _id must come from a "
+                                    + "column the reader materializes per row"
+                            );
+                        }
+                    }
                 }
                 DataType type = MetadataAttribute.dataType(name);
                 if (type == null) {
@@ -758,6 +812,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> resolvedSchema = enriched == null ? baseSchema : List.copyOf(enriched);
             List<? extends NamedExpression> unresolvedList = unresolved == null ? List.of() : List.copyOf(unresolved);
             return new MetadataBindResult(resolvedSchema, unresolvedList);
+        }
+
+        /** The declared {@code mappings._id.path}, or {@code null} when the dataset does not set {@code _id} from a column. */
+        private static String declaredIdPath(UnresolvedExternalRelation plan) {
+            var mapping = plan.mapping();
+            return mapping != null && mapping.mappings() != null ? mapping.mappings().idPath() : null;
         }
 
         private String extractTablePath(Expression tablePath) {
@@ -1050,7 +1110,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Drop d -> resolveDrop(d, context.unmappedResolution());
                 case Rename r -> resolveRename(r, context.unmappedResolution());
                 case Keep k -> resolveKeep(k, context.unmappedResolution());
-                case Fork f -> resolveFork(f);
+                case Fork f -> resolveFork(f, context.unmappedResolution());
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
@@ -1418,14 +1478,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
-
-                // A lookup join is remote only when its left side actually streams data from indices that may live on remote clusters.
-                // {@code includesRemoteIndices()} is query-wide, so on its own it would also mark a join whose left side is purely local
-                // (e.g. {@code ROW ... | LOOKUP JOIN} in a subquery branch) as remote. Such a join has no data-node source to attach to,
-                // so flagging it remote would cause {@code CrossClusterSubqueryIT.testSubqueryWithRowAndLookupJoin} error out in
-                // ComputeService.
-                boolean isRemote = join.isRemote() || (context.includesRemoteIndices() && leftSideReadsFromIndices(join.left()));
-                return new LookupJoin(join.source(), join.left(), join.right(), config, isRemote);
+                boolean isRemote = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
+                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote() || isRemote);
             } else {
                 // everything else is unsupported for now
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
@@ -1434,16 +1488,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        /**
-         * Whether {@code plan} reads from a non-lookup index, as opposed to a purely local source such as {@code ROW} /
-         * {@link LocalRelation}.
-         * <p>
-         * Only {@link EsRelation} needs to be considered: this runs from {@link #resolveLookupJoin} inside
-         * {@link ResolveRefs}, which is guarded by {@code childrenResolved()}, so by the time we get here the left
-         * subtree is fully resolved and cannot contain an {@link UnresolvedRelation}.
-         */
-        private static boolean leftSideReadsFromIndices(LogicalPlan plan) {
-            return plan.anyMatch(p -> p instanceof EsRelation relation && relation.indexMode() != IndexMode.LOOKUP);
+        private static boolean hasRemoteIndices(EsRelation relation) {
+            return switch (relation.concreteIndices().size()) {
+                case 0 -> false;// row
+                case 1 -> relation.concreteIndices().containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false;
+                default -> true;
+            };
         }
 
         /**
@@ -1572,12 +1622,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return translatable(expression, LucenePushdownPredicates.DEFAULT) != TranslationAware.Translatable.NO;
         }
 
-        private LogicalPlan resolveFork(Fork fork) {
+        private LogicalPlan resolveFork(Fork fork, UnmappedResolution unmappedResolution) {
             // we align the outputs of the sub plans such that they have the same columns
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             List<Attribute> outputUnion = Fork.outputUnion(fork.children());
             List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
+            // FORK branches share one source index, so load-align across them; subqueries/views (UnionAll) read independent
+            // sources and are handled in ResolveUnmapped. See #142033.
+            boolean loadAlignAcrossBranches = unmappedResolution == UnmappedResolution.LOAD && fork instanceof UnionAll == false;
+            Set<String> forkLoadableUnmappedKeywordNames = loadAlignAcrossBranches ? loadableUnmappedKeywordNames(fork) : Set.of();
 
             for (LogicalPlan logicalPlan : fork.children()) {
                 Source source = logicalPlan.source();
@@ -1591,16 +1645,49 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
 
-                List<Alias> aliases = missing.stream().map(attr -> {
+                List<Alias> aliases = new ArrayList<>(missing.size());
+                List<FieldAttribute> toLoad = new ArrayList<>();
+                for (Attribute attr : missing) {
+                    // A keyword loaded from _source in a sibling branch is loaded here too (not null-filled), unless this branch
+                    // can't surface it. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...) doesn't hide it. #142033
+                    if (loadAlignAcrossBranches
+                        && forkLoadableUnmappedKeywordNames.contains(attr.name())
+                        && branchCanSurfaceLoadedField(logicalPlan)) {
+                        toLoad.add(insistKeyword(attr));
+                        continue;
+                    }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
                     // supported. This way we can add this missing column containing only null values to the fork branch output.
-                    var attrType = attr.dataType() == UNSUPPORTED ? KEYWORD : attr.dataType();
+                    var attrType = alignmentDataType(attr);
+                    attrType = attrType == UNSUPPORTED ? KEYWORD : attrType;
                     if (attrType.isCounter()) {
                         attrType = attrType.noCounter();
                     }
                     // use the current fork branch's source as the source of the alias, instead of the original FieldAttribute's source.
-                    return new Alias(source, attr.name(), new Literal(source, null, attrType));
-                }).toList();
+                    aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType)));
+                }
+
+                // load the unmapped keyword fields from this branch's own source relation so they surface in its output
+                if (toLoad.isEmpty() == false) {
+                    LogicalPlan withLoaded = logicalPlan.transformUp(EsRelation.class, esr -> {
+                        if (esr.indexMode() == IndexMode.LOOKUP) {
+                            return esr;
+                        }
+                        Set<String> existingNames = esr.outputSet().names();
+                        List<Attribute> newFields = new ArrayList<>(toLoad.size());
+                        for (FieldAttribute field : toLoad) {
+                            if (existingNames.contains(field.name()) == false) {
+                                newFields.add(field);
+                            }
+                        }
+                        return esr.withAdditionalAttributes(newFields);
+                    });
+                    // mark changed only if the relation gained fields, else the fixed-point iteration never terminates
+                    if (withLoaded != logicalPlan) {
+                        logicalPlan = withLoaded;
+                        changed = true;
+                    }
+                }
 
                 // add the missing columns
                 if (aliases.size() > 0) {
@@ -1663,6 +1750,47 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> outputColumns
         ) {
             return unionAll instanceof UnionAll && outputColumns.isEmpty() && subquery.output().equals(NO_FIELDS);
+        }
+
+        /**
+         * Names loaded as unmapped keywords ({@link PotentiallyUnmappedKeywordEsField}) by any FORK branch's {@link EsRelation}.
+         * Scans the relations, not branch outputs, so a referencing generating command (EVAL/MV_EXPAND/...) can't hide the origin.
+         */
+        private static Set<String> loadableUnmappedKeywordNames(Fork fork) {
+            Set<String> names = new HashSet<>();
+            for (LogicalPlan branch : fork.children()) {
+                branch.forEachDown(EsRelation.class, esr -> {
+                    if (esr.indexMode() == IndexMode.LOOKUP) {
+                        return;
+                    }
+                    for (Attribute attr : esr.output()) {
+                        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+                            names.add(fa.name());
+                        }
+                    }
+                });
+            }
+            return names;
+        }
+
+        /**
+         * Whether a keyword loaded at this branch's source would reach the branch output: true only if walking column-preserving
+         * unary plans from the root reaches a non-LOOKUP {@link EsRelation} (a Project/Aggregate in the way drops it).
+         */
+        private static boolean branchCanSurfaceLoadedField(LogicalPlan plan) {
+            if (plan instanceof EsRelation esRelation) {
+                return esRelation.indexMode() != IndexMode.LOOKUP;
+            }
+            if (plan instanceof Project || plan instanceof Aggregate) {
+                return false;
+            }
+            if (plan instanceof Join join && join.config().type() == JoinTypes.LEFT) {
+                return branchCanSurfaceLoadedField(join.left());
+            } else if (plan instanceof UnaryPlan unaryPlan) {
+                return branchCanSurfaceLoadedField(unaryPlan.child());
+            } else {
+                return false;
+            }
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput, AnalyzerContext context) {
@@ -2036,12 +2164,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static LogicalPlan resolveDrop(Drop drop, UnmappedResolution unmappedResolution) {
-            return unmappedResolution == UnmappedResolution.DEFAULT
-                ? new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output()))
-                : new ResolvingProject(drop.source(), drop.child(), inputAttributes -> dropResolver(drop.removals(), inputAttributes));
+            return unmappedResolution != UnmappedResolution.DEFAULT
+                ? new ResolvingProject(drop.source(), drop.child(), inputAttributes -> dropResolver(drop.removals(), inputAttributes, true))
+                : new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output(), false));
         }
 
-        private static List<NamedExpression> dropResolver(List<NamedExpression> removals, List<Attribute> childOutput) {
+        private static List<NamedExpression> dropResolver(
+            List<NamedExpression> removals,
+            List<Attribute> childOutput,
+            boolean ignoreUnmatchedPatterns
+        ) {
             // DROP must operate over the full childOutput — including any external metadata
             // (`_file.*`, partition columns) the user already pulled in via KEEP — so it can
             // remove a data column without silently stripping previously-kept virtual columns.
@@ -2054,6 +2186,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 if (ne instanceof UnresolvedNamePattern np) {
                     resolved = resolveAgainstList(np, childOutput);
+                    // A wildcard that matches no field resolves to a single unresolved UnresolvedPattern.
+                    if (ignoreUnmatchedPatterns && resolved.size() == 1 && resolved.getFirst() instanceof UnresolvedAttribute) {
+                        continue;
+                    }
                 } else if (ne instanceof UnresolvedAttribute ua) {
                     resolved = resolveAgainstList(ua, childOutput);
                 } else {
@@ -2459,7 +2595,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return limit;
             }
 
-            boolean hasTimeSeries = child.collect(EsRelation.class, r -> r.indexMode() == IndexMode.TIME_SERIES).isEmpty() == false;
+            boolean hasTimeSeries = child.collect(EsRelation.class, r -> r.indexMode().isTsdb()).isEmpty() == false;
             if (hasTimeSeries == false) {
                 return limit;
             }
@@ -2468,7 +2604,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return limit.transformDown(Limit.class, l -> {
                 if (l.child().collect(Limit.class).isEmpty()) {
                     var localChild = l.child();
-                    var localTimestampAttr = localChild.collect(EsRelation.class, r -> r.indexMode() == IndexMode.TIME_SERIES)
+                    var localTimestampAttr = localChild.collect(EsRelation.class, r -> r.indexMode().isTsdb())
                         .stream()
                         .findFirst()
                         .flatMap(r -> r.output().stream().filter(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())).findFirst())
@@ -2815,41 +2951,60 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            List<Attribute.IdIgnoringWrapper> unionFieldAttributes = new ArrayList<>();
-            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p, unionFieldAttributes, context));
+            UnionTypeResolutionState state = new UnionTypeResolutionState();
+            return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p, state, context));
         }
 
-        private static LogicalPlan doRule(
-            LogicalPlan plan,
-            List<Attribute.IdIgnoringWrapper> unionFieldAttributes,
-            AnalyzerContext context
-        ) {
-            Holder<Integer> alreadyAddedUnionFieldAttributes = new Holder<>(unionFieldAttributes.size());
+        private static class UnionTypeResolutionState {
+            private final List<Attribute.IdIgnoringWrapper> unionFieldAttributes = new ArrayList<>();
+            private boolean isAfterAggregate = false;
+        }
+
+        private static LogicalPlan doRule(LogicalPlan plan, UnionTypeResolutionState state, AnalyzerContext context) {
             // Collect field attributes from previous runs
             if (plan instanceof EsRelation rel) {
-                unionFieldAttributes.clear();
+                state.unionFieldAttributes.clear();
+                // A new source relation may belong to a sibling FORK/UnionAll branch; Aggregate context is branch-local.
+                state.isAfterAggregate = false;
                 for (Attribute attr : rel.output()) {
                     if (attr instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField && fa.synthetic()) {
-                        unionFieldAttributes.add(fa.ignoreId());
+                        state.unionFieldAttributes.add(fa.ignoreId());
                     }
                 }
             }
 
+            if (state.isAfterAggregate) {
+                return plan;
+            }
+
+            int alreadyAddedUnionFieldAttributes = state.unionFieldAttributes.size();
             // See if the eval function has an unresolved UnionTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(e -> {
                 if (e instanceof ConvertFunction convert) {
-                    return resolveConvertFunction(convert, unionFieldAttributes, context);
+                    return resolveConvertFunction(convert, state.unionFieldAttributes, context);
                 }
                 return e;
             });
 
-            // If no union fields were generated, return the plan as is
-            if (unionFieldAttributes.size() == alreadyAddedUnionFieldAttributes.get()) {
+            boolean generatedUnionFields = state.unionFieldAttributes.size() > alreadyAddedUnionFieldAttributes;
+            if (generatedUnionFields == false && plan instanceof Aggregate == false) {
                 return plan;
             }
 
-            return addGeneratedFieldsToEsRelations(plan, unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList());
+            if (generatedUnionFields) {
+                plan = addGeneratedFieldsToEsRelations(
+                    plan,
+                    state.unionFieldAttributes.stream().map(attr -> (FieldAttribute) attr.inner()).toList()
+                );
+            }
+
+            if (plan instanceof Aggregate) {
+                // Parent plans see aggregate output, not source fields, even when a grouping key preserves the same name and id.
+                state.unionFieldAttributes.clear();
+                state.isAfterAggregate = true;
+            }
+            return plan;
         }
 
         /**
@@ -2956,7 +3111,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
 
                     Set<DataType> supportedTypes = convert.supportedTypes();
-                    if (canConvertOriginalTypes(unionTypeEsField, supportedTypes)) {
+                    if (areMappedTypesSupported(unionTypeEsField, supportedTypes)) {
                         Expression unmappedExpr = unionTypeEsField.getUnmappedConversionExpression();
                         // Resolve surrogates immediately, since expressions stored in UnionTypeEsField are serialized
                         // to data nodes, and SurrogateExpressions cannot be serialized.
@@ -2964,9 +3119,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         UnionTypeEsField rewrapped = unionTypeEsField.rewrapWithCast(resolvedConvertExpression);
 
                         if (unmappedExpr instanceof AbstractConvertFunction existingConvert) {
-                            Expression keywordField = existingConvert.field();
-                            Expression rewrappedUnmapped = resolvedConvertExpression.replaceChildren(singletonList(keywordField));
-                            rewrapped = rewrapped.withPotentiallyUnmappedExpression(rewrappedUnmapped);
+                            if (supportedTypes.contains(KEYWORD)) {
+                                Expression keywordField = existingConvert.field();
+                                Expression rewrappedUnmapped = resolvedConvertExpression.replaceChildren(singletonList(keywordField));
+                                rewrapped = rewrapped.withPotentiallyUnmappedExpression(rewrappedUnmapped);
+                            } else {
+                                // At the moment this path is exercised by TO_DEGREES/TO_RADIANS for single-type PUNKs under LOAD.
+                                // Function cannot consume keyword, so keep mapped branches and nullify unmapped ones. See #150378.
+                                rewrapped = rewrapped.withPotentiallyUnmappedExpression(null);
+                            }
                         } else if (unmappedExpr != null) {
                             throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
                         }
@@ -3057,17 +3218,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Check if all the original types in the {@code UnionTypeEsField} are supported by the convert function. If the field is partially
-         * unmapped, we additionally check if the convert function accept KEYWORD.
-         *
-         * @param unionTypeEsField
-         * @param supportedTypes The types supported by the convert function
-         * @return True if we can convert.
+         * Check if all the original mapped types in the {@code UnionTypeEsField} are supported by the convert function.
+         * If the field is partially unmapped and the function cannot consume {@code KEYWORD}, the unmapped branches are nullified
+         * outside this function.
          */
-        private static boolean canConvertOriginalTypes(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
-            if (unionTypeEsField.getUnmappedConversionExpression() != null && supportedTypes.contains(KEYWORD) == false) {
-                return false;
-            }
+        private static boolean areMappedTypesSupported(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
             return unionTypeEsField.getConversionExpressions()
                 .stream()
                 .allMatch(
@@ -3077,14 +3232,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, TypeConflictedField tcf) {
-            EsField field = new EsField(tcf.getName(), type, tcf.getProperties(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
                 originalFieldAttr.parentName(),
                 originalFieldAttr.qualifier(),
                 originalFieldAttr.name(),
-                field,
+                typedEsField(type, tcf),
                 originalFieldAttr.nullable(),
                 originalFieldAttr.id(),
                 true
@@ -3102,6 +3256,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    // visible for testing
+    static String nonLoadablePunkWarning(String fieldName, String mappedTypeName) {
+        return Strings.format(
+            "Field [%s] of type [%s] is unmapped in some indices and has no implicit "
+                + "conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices",
+            fieldName,
+            mappedTypeName
+        );
+    }
+
     /**
      * {@link ResolveUnionTypes} creates new, synthetic attributes for union types:
      * If there was no {@code AbstractConvertFunction} that resolved multi-type fields in the {@link ResolveUnionTypes} rule,
@@ -3112,49 +3276,46 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * using {@code EVAL x = to_ip(client_ip)} will create a single attribute @{code $$client_ip$converted_to$ip}.
      * This should not spill into the query output, so we drop such attributes at the end.
      */
-    private static class UnionTypesCleanup extends Rule<LogicalPlan, LogicalPlan> {
-        public LogicalPlan apply(LogicalPlan plan) {
+    private static class UnionTypesCleanup extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
 
             // We start by dropping synthetic attributes if the plan is resolved
             LogicalPlan cleanPlan = plan.resolved() ? planWithoutSyntheticAttributes(plan) : plan;
+
+            if (context.unmappedResolution() == UnmappedResolution.LOAD && cleanPlan.resolved()) {
+                // A single-type PUNK that survives to here has neither an implicit nor an explicit KEYWORD conversion (those turn it into a
+                // UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once for each such field whose value the user
+                // can actually observe (it reaches the final output or is consumed by some, non-conversion expression).
+                warnObservedNonLoadablePunks(cleanPlan, context);
+            }
 
             // If not, we apply checkUnresolved to the field attributes of the original plan, resulting in unsupported attributes
             // This removes attributes such as converted types if they are aliased, but retains them otherwise, while also guaranteeing that
             // unsupported / unresolved fields can be explicitly retained
             return cleanPlan.transformUp(
                 LogicalPlan.class,
-                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::cleanTypeConflicts)
+                p -> p.transformExpressionsOnly(
+                    FieldAttribute.class,
+                    fa -> fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk
+                        ? fallbackToMappedType(fa, punk)
+                        : fa.flagTypeConflicts()
+                )
             );
         }
 
-        /**
-         * Return an {@link UnsupportedAttribute} so the verifier can flag illegal use of fields with type conflicts.
-         * <p>
-         * If the field is mapped to a single type in some indices but unmapped in others: Instead return a regular field attribute with a
-         * single type so that values are loaded from the indices where it is mapped (and null is returned from unmapped indices).
-         * This is a temporary solution until https://github.com/elastic/elasticsearch/issues/141995 is implemented.
-         */
-        private static Attribute cleanTypeConflicts(FieldAttribute fa) {
-            EsField field = fa.field();
-            if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
-                // IndexResolver records the field's actual mapped type (e.g., SHORT); widen it here so the implicit path surfaces the
-                // ESQL type (e.g., INTEGER), matching what an explicit cast would produce.
-                DataType type = tcf.types().iterator().next().widenSmallNumeric();
-                var restoredField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
-                // TODO: add test where not passing on the parent name fails the test
-                // TODO: add TS tests and tests with different time series field types
-                return new FieldAttribute(
-                    fa.source(),
-                    fa.parentName(),
-                    fa.qualifier(),
-                    fa.name(),
-                    restoredField,
-                    fa.nullable(),
-                    fa.id(),
-                    fa.synthetic()
-                );
-            }
-            return fa.flagTypeConflicts();
+        private static void warnObservedNonLoadablePunks(LogicalPlan plan, AnalyzerContext context) {
+            AttributeSet.Builder observed = AttributeSet.builder();
+            plan.output().forEach(observed::add);
+            plan.forEachDown(p -> observed.addAll(p.references()));
+            AttributeSet observedFields = observed.build();
+
+            Set<NameId> warned = new HashSet<>();
+            plan.forEachExpressionDown(FieldAttribute.class, fa -> {
+                if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk && observedFields.contains(fa) && warned.add(fa.id())) {
+                    DataType mappedType = punk.mappedField().getDataType();
+                    context.deferredHeaderWarnings().add(nonLoadablePunkWarning(fa.name(), mappedType.typeName()));
+                }
+            });
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
@@ -3289,8 +3450,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <ol>
      *     <li>Field is a PUNK (partially unmapped non-KEYWORD)</li>
      *     <li>Field's type is consistent where mapped. It can't be mapped as two different non-KEYWORD types.</li>
-     *     <li>There exists a converter function to cast KEYWORD to the mapped type</li>
+     *     <li>There exists a converter function to cast {@code KEYWORD} to the mapped type</li>
      * </ol>
+     * PUNKs that fail the last criterion (no implicit {@code KEYWORD} converter, e.g., {@code TEXT}) are left untouched here and resolved
+     * later: {@code ResolveUnionTypes} loads the unmapped leg when an explicit cast is applied directly to the field, and otherwise
+     * {@code UnionTypesCleanup} replaces them with their mapped type ({@code null} where unmapped).
      */
     private static class ResolveTwoLeggedPunksInEsRelation extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
@@ -3306,39 +3470,42 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 return esRelation.transformExpressionsOnly(FieldAttribute.class, fa -> {
                     // We're looking for partially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
-                    if (fa.field() instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
-                        DataType mappedType = tcf.types().iterator().next();
+                    if (fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk) {
+                        DataType mappedType = punk.mappedField().getDataType();
 
-                        if (mappedType == DENSE_VECTOR) {
-                            // The KEYWORD->DENSE_VECTOR converter reads hexadecimal strings, but an unmapped dense_vector loads from
-                            // _source as an array of numbers, so implicitly casting it would produce garbage (#152184).
+                        // DENSE_VECTOR has a KEYWORD converter, but it reads hexadecimal strings whereas an unmapped DENSE_VECTOR loads
+                        // from _source as an array of numbers (#152184). Implicitly casting a partially unmapped DENSE_VECTOR from KEYWORD
+                        // would therefore produce garbage, so we exclude it from auto-casting.
+                        if (mappedType != DataType.DENSE_VECTOR == false) {
                             return fa;
                         }
 
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
-                        if (convertFactory == null) {
-                            // Skip implicit casting: no such converter function exists
-                            return fa;
-                        }
-                        ConvertFunction convert = convertFactory.apply(fa.source(), fa, context.configuration());
-                        if (convert.supportedTypes().contains(KEYWORD) == false) {
-                            // Skip implicit casting: converter doesn't support KEYWORD input
+                        ConvertFunction convert = convertFactory == null
+                            ? null
+                            : convertFactory.apply(fa.source(), fa, context.configuration());
+                        // We can only load an unmapped field from _source as KEYWORD, so without a converter accepting KEYWORD input we
+                        // can't auto-cast. Leave the PUNK in place: a cast applied directly to the field is resolved by ResolveUnionTypes
+                        // (which loads the unmapped leg from _source), while every other use falls back to the mapped type in
+                        // UnionTypesCleanup (null where unmapped). The PUNK reports its mapped type rather than UNSUPPORTED, so renames and
+                        // groupings carry the real type.
+                        if (convert == null || convert.supportedTypes().contains(KEYWORD) == false) {
                             return fa;
                         }
 
                         Map<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
-                        typeResolutions(convert, mappedType, fa, tcf, typeResolutions);
+                        typeResolutions(convert, mappedType, fa, punk, typeResolutions);
 
                         Expression potentiallyUnmappedConversion = ResolveUnionTypes.typeSpecificConvert(
                             convert,
                             fa.source(),
                             KEYWORD,
-                            tcf
+                            punk
                         );
 
                         EsField resolvedField = ResolveUnionTypes.resolvedUnionTypeFields(
                             fa,
-                            tcf,
+                            punk,
                             typeResolutions,
                             potentiallyUnmappedConversion,
                             context
@@ -3361,6 +3528,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    /**
+     * The effective data type of a branch/output attribute when aligning the branches of a {@link Fork} / {@link UnionAll}.
+     */
+    private static DataType alignmentDataType(Attribute attr) {
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf && tcf.isSingleTypePotentiallyUnmapped()) {
+            return tcf.singleMappedTypeWidened();
+        }
+        return attr.dataType();
+    }
+
     private static void typeResolutions(
         ConvertFunction convert,
         DataType type,
@@ -3371,6 +3548,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fa.name(), type);
         var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, tcf);
         typeResolutions.put(key, concreteConvert);
+    }
+
+    private static FieldAttribute fallbackToMappedType(FieldAttribute fieldAttribute, PotentiallyUnmappedSingleTypeEsField punk) {
+        return fieldAttribute.withField(punk.mappedField().withWidenedSmallNumeric());
     }
 
     /**
@@ -3386,7 +3567,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
             plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
-            isTimeSeries = indexMode.get() == IndexMode.TIME_SERIES;
+            isTimeSeries = indexMode.get().isTsdb();
             return plan.transformUp(LogicalPlan.class, p -> doRule(p, context));
         }
 
@@ -3428,7 +3609,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<String, FieldAttribute> unionFields,
             AnalyzerContext context
         ) {
-            if (original instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf && canBeCasted(tcf)) {
+            if (original instanceof FieldAttribute fa
+                && fa.field() instanceof TypeConflictedField tcf
+                && tcf instanceof PotentiallyUnmappedSingleTypeEsField == false
+                && canBeCast(tcf)) {
                 Map<String, Expression> typeConverters = new HashMap<>();
                 for (DataType type : tcf.types()) {
                     ConvertFunction convert = type == AGGREGATE_METRIC_DOUBLE
@@ -3456,7 +3640,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return original;
         }
 
-        private static boolean canBeCasted(TypeConflictedField tcf) {
+        private static boolean canBeCast(TypeConflictedField tcf) {
             return tcf.types().contains(AGGREGATE_METRIC_DOUBLE)
                 && tcf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric());
         }
@@ -3469,7 +3653,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             AnalyzerContext context
         ) {
             if (field instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
-                if (canBeCasted(tcf) == false) {
+                // A bare PUNK is a single mapped type, not a multi-type conflict: leave it so UnionTypesCleanup replaces it with the plain
+                // mapped field and native aggregation applies. (Count's AMD surrogate COALESCEs an empty group to 0, unlike the bare
+                // Sum(metric.count) this rule would build, which yields null.)
+                if (tcf instanceof PotentiallyUnmappedSingleTypeEsField) {
+                    return aggFunc;
+                }
+                if (canBeCast(tcf) == false) {
                     aborted.set(Boolean.TRUE);
                     return aggFunc;
                 }
@@ -3540,14 +3730,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private Expression countConvert(UnaryScalarFunction convert, Source source, DataType type, TypeConflictedField tcf) {
-            EsField field = new EsField(tcf.getName(), type, tcf.getProperties(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
                 originalFieldAttr.parentName(),
                 originalFieldAttr.qualifier(),
                 originalFieldAttr.name(),
-                field,
+                typedEsField(type, tcf),
                 originalFieldAttr.nullable(),
                 originalFieldAttr.id(),
                 true
@@ -3589,6 +3778,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
+     * Create an EsField from a TypeConflictedField instance, casted to a specific type, but ignoring its sub-fields which are irrelevant
+     * here and are resolved independently as their own attributes. Carrying them would serialize the field's subfield properties to
+     * data nodes, which fails when a subfield is itself an un-transportable conflict field (e.g. CompactInvalidMappedField from a
+     * multi-index partially-unmapped multi-field).
+     */
+    private static EsField typedEsField(DataType type, TypeConflictedField tcf) {
+        return new EsField(tcf.getName(), type, Map.of(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
+    }
+
+    /**
      * Takes aggregation functions that don't natively support AggregateMetricDouble (i.e. aggregations other than
      * min, max, sum, count, avg) that receive an AggregateMetricDouble as input, and inserts a call to
      * FROM_AGGREGATE_METRIC_DOUBLE to fetch the DEFAULT metric.
@@ -3624,7 +3823,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan doRule(Aggregate plan) {
             Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
             plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
-            final boolean isTimeSeries = indexMode.get() == IndexMode.TIME_SERIES;
+            final boolean isTimeSeries = indexMode.get().isTsdb();
             return plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
                 if (ImplicitCastAggregateMetricDoubles.hasNativeSupport(aggFunc, isTimeSeries)) {
                     return aggFunc;
@@ -3670,7 +3869,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             LogicalPlan planWithConvertFunctionsPushedDown = plan.transformUp(
                 UnionAll.class,
                 unionAll -> unionAll.childrenResolved()
-                    ? maybePushDownConvertFunctions(unionAll, plan, convertFunctionsToAttributes)
+                    ? maybePushDownConvertFunctions(unionAll, plan, convertFunctionsToAttributes, context)
                     : unionAll
             );
 
@@ -3710,7 +3909,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static LogicalPlan maybePushDownConvertFunctions(
             UnionAll unionAll,
             LogicalPlan plan,
-            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes
+            Map<AbstractConvertFunction, Attribute> convertFunctionsToAttributes,
+            AnalyzerContext context
         ) {
             // Collect all conversion functions that convert the UnionAll outputs to a different type
             Map<String, Set<AbstractConvertFunction>> oldOutputToConvertFunctions = collectConvertFunctions(unionAll, plan);
@@ -3726,30 +3926,51 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (LogicalPlan child : unionAll.children()) {
                 List<Attribute> childOutput = child.output();
                 List<Alias> newAliases = new ArrayList<>();
+                List<FieldAttribute> resolvedUnionFields = new ArrayList<>();
+                List<Attribute.IdIgnoringWrapper> branchUnionFieldAttributes = new ArrayList<>();
                 List<Attribute> newChildOutput = new ArrayList<>(childOutput.size());
+
                 for (Attribute oldAttr : childOutput) {
                     newChildOutput.add(oldAttr);
                     Set<AbstractConvertFunction> converts = oldOutputToConvertFunctions.get(oldAttr.name());
                     if (converts != null) {
-                        // create a new alias for each conversion function and add it to the new aliases list
                         for (AbstractConvertFunction convert : converts) {
-                            // create a new alias for the conversion function
-                            String newAliasName = Attribute.rawTemporaryName(oldAttr.name(), "converted_to", convert.dataType().typeName());
-                            Alias newAlias = new Alias(
-                                oldAttr.source(),
-                                newAliasName, // oldAttrName$$converted_to$$targetType
-                                convert.replaceChildren(Collections.singletonList(oldAttr)),
-                                null, // generate a new id
-                                true // this'll be used to Project the synthetic attributes out when finishing analysis
+                            Expression pushedDownConvert = convert.replaceChildren(Collections.singletonList(oldAttr));
+                            // If this branch's input to the convert is itself a multi-typed field, ResolveUnionTypes would resolve the
+                            // pushed-down convert into a synthetic field named exactly like the alias we would create here. Having both
+                            // in the same branch scope makes the alignment Project's by-name reference ambiguous and it never resolves.
+                            // Resolve it once, up front, and expose that field directly so there is no double conversion / name clash.
+                            Expression resolved = ResolveUnionTypes.resolveConvertFunction(
+                                (ConvertFunction) pushedDownConvert,
+                                branchUnionFieldAttributes,
+                                context
                             );
-                            newAliases.add(newAlias);
-                            newChildOutput.add(newAlias.toAttribute());
+                            if (resolved instanceof FieldAttribute resolvedField && resolvedField.synthetic()) {
+                                newChildOutput.add(resolvedField);
+                                resolvedUnionFields.add(resolvedField);
+                                newOutputToConvertFunctions.putIfAbsent(resolvedField.name(), convert);
+                            } else {
+                                String newAliasName = Attribute.rawTemporaryName(
+                                    oldAttr.name(),
+                                    "converted_to",
+                                    convert.dataType().typeName()
+                                );
+                                Alias newAlias = new Alias(
+                                    oldAttr.source(),
+                                    newAliasName, // oldAttrName$$converted_to$$targetType
+                                    pushedDownConvert,
+                                    null, // generate a new id
+                                    true // this'll be used to Project the synthetic attributes out when finishing analysis
+                                );
+                                newAliases.add(newAlias);
+                                newChildOutput.add(newAlias.toAttribute());
+                                newOutputToConvertFunctions.putIfAbsent(newAliasName, convert);
+                            }
                             outputChanged = true;
-                            newOutputToConvertFunctions.putIfAbsent(newAliasName, convert);
                         }
                     }
                 }
-                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
+                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, resolvedUnionFields, newChildOutput));
             }
 
             // Populate convertFunctionsToAttributes. The values of convertFunctionsToAttributes are the new ReferenceAttributes
@@ -3779,15 +4000,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Push down the conversion functions into the child plan by adding an Eval with the new aliases on top of the child plan.
+         * Push down the conversion functions into the child plan. Single-type inputs are converted by adding an Eval with the new
+         * aliases on top of the child plan; multi-typed inputs were already resolved to synthetic union-type fields (see
+         * {@link #maybePushDownConvertFunctions}) which are instead injected into the branch's {@link EsRelation}.
          */
-        private static LogicalPlan maybePushDownConvertFunctionsToChild(LogicalPlan child, List<Alias> aliases, List<Attribute> output) {
+        private static LogicalPlan maybePushDownConvertFunctionsToChild(
+            LogicalPlan child,
+            List<Alias> aliases,
+            List<FieldAttribute> resolvedUnionFields,
+            List<Attribute> output
+        ) {
             // Fork/UnionAll adds a projection on top of each child plan during resolveFork, check this pattern before pushing down
             // If the pattern doesn't match, something unexpected happened, just return the child as is
-            if (aliases.isEmpty() == false && child instanceof Project project) {
+            if ((aliases.isEmpty() == false || resolvedUnionFields.isEmpty() == false) && child instanceof Project project) {
                 LogicalPlan childOfProject = project.child();
-                Eval eval = new Eval(childOfProject.source(), childOfProject, aliases);
-                return new Project(project.source(), eval, output);
+                if (aliases.isEmpty() == false) {
+                    childOfProject = new Eval(childOfProject.source(), childOfProject, aliases);
+                }
+                if (resolvedUnionFields.isEmpty() == false) {
+                    childOfProject = ResolveUnionTypes.addGeneratedFieldsToEsRelations(childOfProject, resolvedUnionFields);
+                }
+                return new Project(project.source(), childOfProject, output);
             }
             return child;
         }
@@ -3933,7 +4166,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
                 // create a new eval for the casting expressions, and push it down under the projection
-                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, newChildOutput));
+                newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, List.of(), newChildOutput));
             }
 
             // Update common types: any column with unsupported attributes gets UNSUPPORTED
@@ -3966,9 +4199,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             int columnCount = outputs.get(0).size();
             List<DataType> commonTypes = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
-                DataType type = outputs.get(0).get(i).dataType();
+                DataType type = alignmentDataType(outputs.get(0).get(i));
                 for (List<Attribute> out : outputs) {
-                    type = commonType(type, out.get(i).dataType());
+                    type = commonType(type, alignmentDataType(out.get(i)));
                 }
                 commonTypes.add(type);
             }
@@ -4009,6 +4242,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ) {
             if (targetType == null) {
                 return createUnsupportedOrNull(oldAttr, columnIndex, outputs, unionAll, outputToPlans, newAliases, unsupportedAttributes);
+            }
+
+            if (alignmentDataType(oldAttr) != oldAttr.dataType()) {
+                return oldAttr;
             }
 
             if (targetType != NULL && oldAttr.dataType() != targetType) {
@@ -4139,8 +4376,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * <p>
          * Before the expression walk, scan the plan for {@link Alias} nodes whose immediate child is an attribute already in the update
          * map and add a {@code {alias.id → alias.withNewType}} entry. Because the traversal is bottom-up, chained renames such as
-         * {@code x AS y, y AS z} are picked up in order. We register the alias output unconditionally (i.e. without comparing the alias'
-         * current child type against the map entry), because the alias may have been re-resolved with the updated child type
+         * {@code x AS y, y AS z} are picked up in order. We register the alias output whenever it is resolved (i.e. without comparing the
+         * alias' current child type against the map entry), because the alias may have been re-resolved with the updated child type
          * (e.g. inside a {@code ResolvingProject}) while other places in the plan (e.g. an outer {@code OrderBy}) still hold a cached
          * attribute reference, produced by {@link Alias#toAttribute()}, with the stale (pre-update) type. The subsequent
          * {@code transformExpressionsUp} then repairs every consumer of the alias output in one pass.
@@ -4158,14 +4395,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     Attribute updatedChild = idToUpdatedAttr.get(childAttr.id());
                     if (updatedChild != null) {
                         Attribute aliasOutput = alias.toAttribute();
-                        idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(updatedChild.dataType()));
+                        // An unresolved alias (e.g. a RENAME over a cross-branch-conflicting UnionAll column) yields an
+                        // UnresolvedAttribute whose dataType() throws; skip it — there is no type to cascade and the verifier rejects it.
+                        if (aliasOutput.resolved()) {
+                            idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(updatedChild.dataType()));
+                        }
                     }
                 }
             });
 
             return plan.transformExpressionsUp(Attribute.class, expr -> {
                 Attribute updated = idToUpdatedAttr.get(expr.id());
-                return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;
+                return (updated != null && expr.resolved() && expr.dataType() != updated.dataType()) ? updated : expr;
             });
         }
     }

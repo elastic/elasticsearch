@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -21,6 +20,8 @@ import java.util.List;
 
 import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.Cardinality.HIGH;
 import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.Cardinality.LOW;
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.OnFailure.FAIL;
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
@@ -55,20 +56,19 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             return FieldMapper.DocValuesParameter.Values.DISABLED;
         }
 
-        // text field doc_values support is behind a feature flag
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            return FieldMapper.DocValuesParameter.Values.DISABLED;
-        }
+        // multi_value=false is only valid in strict-columnar index modes.
+        boolean multiValue = isColumnar == false || randomBoolean();
+        FieldMapper.DocValuesParameter.Values.OnFailure onFailure = randomFrom(FAIL, IGNORE);
 
         // Columnar mode always enables text doc values (see TextFieldMapper.defaultDocValuesParameters) so DISABLED is not valid option
+        // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
         if (isColumnar) {
-            return new FieldMapper.DocValuesParameter.Values(true, randomFrom(LOW, HIGH), randomBoolean());
+            return new FieldMapper.DocValuesParameter.Values(true, randomFrom(LOW, HIGH), multiValue, true, onFailure);
         }
 
-        // multi_value: false enforces single-value semantics and is only meaningful when doc_values is enabled.
         return switch (randomInt(2)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(true, LOW, randomBoolean());
-            case 1 -> new FieldMapper.DocValuesParameter.Values(true, HIGH, randomBoolean());
+            case 0 -> new FieldMapper.DocValuesParameter.Values(true, LOW, multiValue, true, onFailure);
+            case 1 -> new FieldMapper.DocValuesParameter.Values(true, HIGH, multiValue, true, onFailure);
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };
@@ -111,7 +111,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 isColumnar == false && randomBoolean(),
                 null,
                 false,
-                KeywordFieldSyntheticSourceSupport.randomDocValuesParams(false),
+                KeywordFieldSyntheticSourceSupport.randomDocValuesParams(false, isColumnar),
                 isColumnar
             );
             this.docValues = docValuesParams(supportsDocValues, isColumnar);
@@ -196,7 +196,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         private MapperTestCase.SyntheticSourceExample docValuesFieldExample(int maxValues) {
             CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
                 b.field("type", fieldType);
-                if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && docValues.multiValue() == false) {
+                if (docValues.multiValue() == false) {
                     b.startObject("doc_values");
                     b.field("multi_value", false);
                     b.endObject();

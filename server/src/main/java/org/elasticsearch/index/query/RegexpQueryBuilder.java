@@ -276,7 +276,7 @@ public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> imp
         }
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
-        int matchFlagsValue = caseInsensitive ? RegExp.ASCII_CASE_INSENSITIVE : 0;
+        int matchFlagsValue = caseInsensitive ? RegExp.CASE_INSENSITIVE : 0;
         // For BWC we mask irrelevant bits (RegExp changed ALL from 0xffff to 0xff)
         // We need to preserve the DEPRECATED_COMPLEMENT for now though
         int deprecatedComplementFlag = syntaxFlagsValue & RegExp.DEPRECATED_COMPLEMENT;

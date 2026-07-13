@@ -108,7 +108,7 @@ class DLMFrozenTransitionExecutor {
             throw new RejectedExecutionException("DLM frozen executor is stopped");
         }
         TransitionTracker tracker = new TransitionTracker();
-        FutureTask<?> futureTask = new FutureTask<>(new WrappedDlmFrozenTransitionRunnable(task, submittedTransitions), null);
+        FutureTask<?> futureTask = new FutureTask<>(new WrappedDlmFrozenTransitionRunnable(task, submittedTransitions, tracker), null);
         tracker.future = futureTask;
         TransitionTracker previousValue = submittedTransitions.put(key, tracker);
         assert Objects.isNull(previousValue) : "expected the previous value be null, but it was " + previousValue;
@@ -175,6 +175,10 @@ class DLMFrozenTransitionExecutor {
      * that the wrapper's cleanup removes the entry from the map the task was registered in. {@link #stop()}
      * replaces the field with a fresh map; if the wrapper re-read the field at completion time it could otherwise
      * remove an entry belonging to a different task submitted after a {@code stop()}/{@code start()} cycle.
+     * <p>
+     * The tracker must be passed in explicitly rather than looked up from the map: the wrapper is constructed
+     * in {@link #submit} before the tracker has been put into {@code submittedTransitions}, so a lookup at
+     * construction time would find nothing.
      */
     class WrappedDlmFrozenTransitionRunnable implements Runnable {
         private final DLMFrozenTransitionRunnable task;
@@ -182,11 +186,15 @@ class DLMFrozenTransitionExecutor {
         private final TransitionTracker tracker;
         private final TransitionKey key;
 
-        private WrappedDlmFrozenTransitionRunnable(DLMFrozenTransitionRunnable task, Map<TransitionKey, TransitionTracker> transitionsMap) {
+        private WrappedDlmFrozenTransitionRunnable(
+            DLMFrozenTransitionRunnable task,
+            Map<TransitionKey, TransitionTracker> transitionsMap,
+            TransitionTracker tracker
+        ) {
             this.task = task;
             this.transitionsMap = transitionsMap;
+            this.tracker = tracker;
             this.key = new TransitionKey(task.getProjectId(), task.getIndexName());
-            this.tracker = transitionsMap.get(key);
         }
 
         @Override

@@ -92,11 +92,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestClass().getName());
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initAction() throws Exception {
         projectId = randomProjectIdOrDefault();
         indexShard = mock(IndexShard.class);
         when(indexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
@@ -146,10 +143,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         );
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterService() throws Exception {
         clusterService.close();
     }
 

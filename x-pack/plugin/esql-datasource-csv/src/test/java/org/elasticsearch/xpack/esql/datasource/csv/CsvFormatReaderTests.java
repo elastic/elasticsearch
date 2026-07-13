@@ -13,14 +13,17 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -34,7 +37,10 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -54,9 +60,9 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -2606,7 +2612,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testCustomDatetimeFormat() throws IOException {
         String csv = "id:long,ts:datetime\n1,2021-01-15 14:30:00\n2,2022-06-20 09:00:00\n";
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
+        DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss");
         CsvFormatOptions options = new CsvFormatOptions(
             ',',
             CsvFormatOptions.DEFAULT.quoteChar(),
@@ -2630,6 +2636,22 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(Instant.parse("2021-01-15T14:30:00Z").toEpochMilli(), ((LongBlock) page.getBlock(1)).getLong(0));
             assertEquals(Instant.parse("2022-06-20T09:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(1)).getLong(1));
         }
+    }
+
+    /**
+     * Config-time acceptance of {@code datetime_format} is the ES {@link DateFormatter} grammar, the same one the
+     * NDJSON reader accepts: custom java-time patterns, ES named formats and {@code a||b} composites all compile;
+     * garbage is still rejected loudly at config time rather than nulling every cell at read time.
+     */
+    public void testDatetimeFormatConfigAcceptance() {
+        for (String pattern : List.of("yyyy-MM-dd HH:mm:ssXXX", "yyyy-MM-dd", "epoch_second", "basic_date", "yyyy-MM-dd||epoch_millis")) {
+            new CsvFormatReader(blockFactory).withConfig(Map.of("datetime_format", pattern));
+        }
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CsvFormatReader(blockFactory).withConfig(Map.of("datetime_format", "not-a-valid-!!format!!"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("Invalid datetime format [not-a-valid-!!format!!]"));
     }
 
     // --- withConfig() Integration Tests ---
@@ -4519,6 +4541,43 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Same shape as {@link #testWarningsIncludeRowNumber}, but with {@link FormatReadContext#informationalWarningSink()}
+     * supplied: every emitted message must route through the sink instead of {@link HeaderWarning}, since
+     * {@link CsvFormatReader#read} can be invoked from a background reader thread whose thread-local response
+     * headers never reach the client (see {@code SkipWarnings}).
+     */
+    public void testWarningsRouteThroughWarningSinkWhenSupplied() throws IOException {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            bad_id,Bob
+            3,Charlie
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(100, true);
+        List<String> sunk = new ArrayList<>();
+
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(lenient).informationalWarningSink(sunk::add).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                iterator.next();
+            }
+        }
+
+        // 1 summary + 1 detail
+        assertEquals(2, sunk.size());
+        assertTrue("Summary should mention skip_row, got: " + sunk.get(0), sunk.get(0).contains("policy: skip_row"));
+        assertTrue("Detail should include row number, got: " + sunk.get(1), sunk.get(1).contains("Row [2]"));
+        assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
+    }
+
+    /**
      * Reads the response-header warnings emitted on the test thread and clears them so the
      * {@link ESTestCase#after()} no-warnings post-check passes. Returns the unwrapped warning
      * messages (without the "299 Elasticsearch-... " prefix and surrounding quotes).
@@ -4573,6 +4632,124 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue(((BooleanBlock) page.getBlock(0)).getBoolean(2));
             assertFalse(((BooleanBlock) page.getBlock(0)).getBoolean(3));
         }
+    }
+
+    /**
+     * A declared boolean column accepts only {@code true}/{@code false} (case-insensitively) and rejects every
+     * other token loudly: under {@code fail_fast} the read aborts naming the value, under {@code null_field} the
+     * cell nulls and the reader warns. It must never silently become {@code false} the way {@code ::boolean}
+     * would - that deliberate divergence lives in {@code DeclaredTypeCoercions.strictParseBoolean}, which
+     * {@code tryParseBoolean} delegates to. Pinned here through the reader, not just at the SPI level.
+     */
+    public void testDeclaredBooleanRejectsNonBooleanTokenPerPolicy() throws IOException {
+        for (String badToken : List.of("yes", "1")) {
+            String csv = "active:boolean\n" + badToken + "\n";
+
+            // fail_fast: the read aborts, naming the offending token and the target type.
+            StorageObject strictObject = createStorageObject(csv);
+            CsvFormatReader strictReader = new CsvFormatReader(blockFactory);
+            ParsingException e = expectThrows(ParsingException.class, () -> {
+                try (
+                    CloseableIterator<Page> iterator = strictReader.read(
+                        strictObject,
+                        FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                    )
+                ) {
+                    while (iterator.hasNext()) {
+                        iterator.next();
+                    }
+                }
+            });
+            assertTrue("expected the rejected token in the message, got: " + e.getMessage(), e.getMessage().contains("[" + badToken + "]"));
+            assertTrue("expected the target type in the message, got: " + e.getMessage(), e.getMessage().contains("BOOLEAN"));
+            drainWarnings();
+
+            // null_field: the cell nulls - never reads as false - and the rejection is surfaced as a warning.
+            StorageObject nullFieldObject = createStorageObject(csv);
+            CsvFormatReader nullFieldReader = new CsvFormatReader(blockFactory);
+            ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+            try (
+                CloseableIterator<Page> iterator = nullFieldReader.read(
+                    nullFieldObject,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(nullField).build()
+                )
+            ) {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                assertEquals(1, page.getPositionCount());
+                assertTrue("[" + badToken + "] must null the cell, never read as false", page.getBlock(0).isNull(0));
+            }
+            assertFalse("null_field must warn about the rejected token", drainWarnings().isEmpty());
+        }
+    }
+
+    /**
+     * A declared {@code double} column preserves the non-finite IEEE tokens {@code NaN}/{@code Infinity}/{@code -Infinity}
+     * (matching the columnar read and {@code ::double}, a deliberate divergence from the finite-only mapper rule).
+     */
+    public void testDoubleColumnAcceptsNaNAndInfinityTokens() throws IOException {
+        String csv = "d:double\nNaN\nInfinity\n-Infinity\n3.5\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            DoubleBlock d = (DoubleBlock) iterator.next().getBlock(0);
+            assertTrue("NaN token", Double.isNaN(d.getDouble(0)));
+            assertEquals(Double.POSITIVE_INFINITY, d.getDouble(1), 0.0);
+            assertEquals(Double.NEGATIVE_INFINITY, d.getDouble(2), 0.0);
+            assertEquals(3.5, d.getDouble(3), 0.0);
+        }
+    }
+
+    /** A declared {@code long} token above {@code Long.MAX_VALUE} is an overflow routed through the error policy. */
+    public void testStringToLongOverflowHonorsErrorPolicy() throws IOException {
+        String csv = "n:long\n99999999999999999999\n"; // > Long.MAX_VALUE
+
+        StorageObject strict = createStorageObject(csv);
+        expectThrows(ParsingException.class, () -> {
+            try (
+                CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(
+                    strict,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next();
+                }
+            }
+        });
+        drainWarnings();
+
+        StorageObject lenient = createStorageObject(csv);
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+        try (
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(
+                lenient,
+                FormatReadContext.builder().batchSize(10).errorPolicy(nullField).build()
+            )
+        ) {
+            assertTrue("overflow nulls the cell under null_field", it.next().getBlock(0).isNull(0));
+        }
+        assertFalse("overflow warns", drainWarnings().isEmpty());
+    }
+
+    /** The TSV preset shares {@link CsvFormatReader}, so the strict declared-boolean rule must hold there too. */
+    public void testTsvDeclaredBooleanRejectsNonBooleanToken() throws IOException {
+        String tsv = "active:boolean\tname:keyword\nyes\tAlice\n";
+        StorageObject object = createStorageObject(tsv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            }
+        });
+        assertTrue("expected the rejected token in the message, got: " + e.getMessage(), e.getMessage().contains("[yes]"));
     }
 
     // --- Date-only and zone-less datetime tests (#323) ---
@@ -7836,5 +8013,200 @@ public class CsvFormatReaderTests extends ESTestCase {
             }
         }
         assertEquals("bracket-aware lenient must drop the oversized row and keep the surrounding rows", 2L, total);
+    }
+
+    // --- declared unsigned_long reads ---
+
+    private static List<Attribute> declared(String name, DataType type) {
+        return List.of(new ReferenceAttribute(Source.EMPTY, null, name, type));
+    }
+
+    private static FormatReadContext declaredCtx(List<Attribute> schema) {
+        return FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(schema).build();
+    }
+
+    /** Reads one declared column and returns its block, or fails if the reader produced no page. */
+    private LongBlock readOneUnsignedLongColumn(FormatReader reader, String csv) throws IOException {
+        try (CloseableIterator<Page> it = reader.read(createStorageObject(csv), declaredCtx(declared("v", DataType.UNSIGNED_LONG)))) {
+            assertTrue("reader produced no page", it.hasNext());
+            return (LongBlock) it.next().getBlock(0);
+        }
+    }
+
+    private static long encoded(String magnitude) {
+        return NumericUtils.asLongUnsigned(new BigInteger(magnitude));
+    }
+
+    /**
+     * The bug this fixes: a declared unsigned_long was accepted by DeclaredSchemaValidator and then threw at
+     * block-builder construction, so every FROM over the column failed regardless of error_mode. Values across
+     * the whole [0, 2^64-1] domain — crucially the (2^63, 2^64) range that overflows a signed long — must now
+     * read back at full magnitude, in the sign-flip encoding every downstream unsigned_long surface decodes.
+     */
+    public void testDeclaredUnsignedLongReadsFullDomain() throws IOException {
+        String csv = "v\n0\n12345\n9223372036854775808\n18446744073709551615\n";
+        FormatReader reader = new CsvFormatReader(blockFactory);
+        LongBlock block = readOneUnsignedLongColumn(reader, csv);
+        assertEquals(4, block.getPositionCount());
+        assertEquals(encoded("0"), block.getLong(0));
+        assertEquals(encoded("12345"), block.getLong(1));
+        assertEquals(encoded("9223372036854775808"), block.getLong(2));   // 2^63, overflows signed long
+        assertEquals(encoded("18446744073709551615"), block.getLong(3));  // 2^64-1
+    }
+
+    /** Fractional and scientific tokens truncate toward zero — matching ::unsigned_long, deliberately unlike long's rounding. */
+    public void testDeclaredUnsignedLongTruncatesTowardZero() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory);
+        LongBlock block = readOneUnsignedLongColumn(reader, "v\n42.9\n1e3\n");
+        assertEquals(encoded("42"), block.getLong(0));
+        assertEquals(encoded("1000"), block.getLong(1));
+    }
+
+    /** An absent/empty cell nulls the cell exactly as it does for a declared long — no special arm. */
+    public void testDeclaredUnsignedLongNullsEmptyCell() throws IOException {
+        // Two columns so the empty trailing cell is unambiguous — a blank line would be a skipped row, not a cell.
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "k", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "v", DataType.UNSIGNED_LONG)
+        );
+        FormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> it = reader.read(createStorageObject("k,v\nrow1,\nrow2,7\n"), declaredCtx(schema))) {
+            assertTrue(it.hasNext());
+            LongBlock block = (LongBlock) it.next().getBlock(1);
+            assertTrue("empty cell must be null", block.isNull(0));
+            assertEquals(encoded("7"), block.getLong(1));
+        }
+    }
+
+    /**
+     * A bad VALUE is a data failure the error policy governs — not a schema failure. Before this change every
+     * mode hard-failed at page setup; now fail_fast aborts and null_field nulls just the offending cell.
+     */
+    public void testDeclaredUnsignedLongBadValueHonorsErrorMode() throws IOException {
+        // negative and out-of-range are both outside [0, 2^64-1]
+        String csv = "v\n-1\n18446744073709551616\nabc\n5\n";
+
+        FormatReader failFast = new CsvFormatReader(blockFactory);
+        expectThrows(Exception.class, () -> readOneUnsignedLongColumn(failFast, csv));
+
+        FormatReader lenient = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field", "max_errors", 100));
+        LongBlock block = readOneUnsignedLongColumn(lenient, csv);
+        assertEquals(4, block.getPositionCount());
+        assertTrue("negative must null the cell", block.isNull(0));
+        assertTrue("2^64 must null the cell", block.isNull(1));
+        assertTrue("garbage must null the cell", block.isNull(2));
+        assertEquals("the good cell still reads", encoded("5"), block.getLong(3));
+    }
+
+    /** Multivalue unsigned_long cells parse element-by-element through the same coercer. */
+    public void testDeclaredUnsignedLongMultivalue() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        LongBlock block = readOneUnsignedLongColumn(reader, "v\n[1,18446744073709551615]\n");
+        assertEquals(2, block.getValueCount(0));
+        int first = block.getFirstValueIndex(0);
+        assertEquals(encoded("1"), block.getLong(first));
+        assertEquals(encoded("18446744073709551615"), block.getLong(first + 1));
+    }
+
+    /**
+     * A token whose decimal exponent is large enough that materializing the integer would overflow BigInteger --
+     * "1e999999999", and "1e-999999999" which truncates toward 0 but cannot be computed to get there -- makes
+     * BigDecimal.toBigInteger() throw ArithmeticException, which is not an IllegalArgumentException. Unhandled it
+     * escapes the per-field catch and hard-fails the whole read on every error_mode, precisely the failure declared
+     * unsigned_long support exists to remove. It must instead be an ordinary per-cell failure.
+     */
+    public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
+        String csv = "v\n1e999999999\n1e-999999999\n5\n";
+
+        FormatReader lenient = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field", "max_errors", 100));
+        LongBlock block = readOneUnsignedLongColumn(lenient, csv);
+        assertTrue("huge positive exponent nulls the cell", block.isNull(0));
+        assertTrue("huge negative exponent nulls the cell", block.isNull(1));
+        assertEquals("the good cell still reads", encoded("5"), block.getLong(2));
+
+        // fail_fast still fails, but as an ordinary bad-value failure, not an escaped ArithmeticException.
+        FormatReader failFast = new CsvFormatReader(blockFactory);
+        Exception e = expectThrows(Exception.class, () -> readOneUnsignedLongColumn(failFast, csv));
+        assertFalse("ArithmeticException must not escape the coercer", e instanceof ArithmeticException);
+    }
+
+    /**
+     * skip_row drops the whole row carrying a bad unsigned_long cell rather than nulling it — completing the
+     * error_mode matrix (fail_fast and null_field are pinned above). The bad value rides the same per-field policy
+     * channel every other declared type uses, so this confirms unsigned_long is wired into it, not special-cased.
+     */
+    public void testDeclaredUnsignedLongBadValueSkipRowDropsTheRow() throws IOException {
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "v", DataType.UNSIGNED_LONG)
+        );
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "skip_row", "max_errors", 100));
+        try (CloseableIterator<Page> it = reader.read(createStorageObject("id,v\n1,5\n2,-1\n3,7\n"), declaredCtx(schema))) {
+            assertTrue(it.hasNext());
+            Page page = it.next();
+            // Row 2 (v=-1, out of range) is dropped; rows 1 and 3 survive.
+            assertEquals(2, page.getPositionCount());
+            LongBlock v = (LongBlock) page.getBlock(1);
+            assertEquals(encoded("5"), v.getLong(0));
+            assertEquals(encoded("7"), v.getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /** TSV rides the same reader; a declared unsigned_long must read identically there. */
+    public void testDeclaredUnsignedLongReadsFromTsv() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", "\t"));
+        LongBlock block = readOneUnsignedLongColumn(reader, "v\n18446744073709551615\n");
+        assertEquals(encoded("18446744073709551615"), block.getLong(0));
+    }
+
+    /** The typed-header intake is the second schema surface; it must know unsigned_long under both spellings. */
+    public void testTypedHeaderAcceptsUnsignedLongAliases() throws IOException {
+        for (String spelling : List.of("unsigned_long", "UNSIGNED_LONG", "ul", "UL")) {
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("typed_header", true));
+            List<Attribute> schema = reader.metadata(createStorageObject("v:" + spelling + "\n18446744073709551615\n")).schema();
+            assertEquals("spelling [" + spelling + "]", DataType.UNSIGNED_LONG, schema.get(0).dataType());
+        }
+    }
+
+    /**
+     * Drift pin. Every type a user may declare must be buildable by this reader with exactly the block shape the
+     * shared authority prescribes. CsvFormatReader used to re-derive that mapping locally and silently omitted
+     * unsigned_long; deriving it from DeclaredTypeCoercions.elementTypeFor is what makes this assertion hold, and
+     * this test is what stops the next declarable type from repeating the bug.
+     */
+    public void testEveryDeclarableTypeBuildsTheAuthorityShape() throws IOException {
+        Map<DataType, String> token = Map.of(
+            DataType.KEYWORD,
+            "abc",
+            DataType.TEXT,
+            "abc",
+            DataType.LONG,
+            "123",
+            DataType.INTEGER,
+            "123",
+            DataType.DOUBLE,
+            "1.5",
+            DataType.BOOLEAN,
+            "true",
+            DataType.DATETIME,
+            "2020-01-01T00:00:00.000Z",
+            DataType.UNSIGNED_LONG,
+            "18446744073709551615",
+            DataType.IP,
+            "192.168.0.1"
+        );
+        for (DataType type : DeclaredSchemaValidator.declarableTypes()) {
+            String cell = token.get(type);
+            assertNotNull("no fixture token for declarable type [" + type + "] — add one", cell);
+            FormatReader reader = new CsvFormatReader(blockFactory);
+            try (CloseableIterator<Page> it = reader.read(createStorageObject("v\n" + cell + "\n"), declaredCtx(declared("v", type)))) {
+                assertTrue("no page for declared [" + type + "]", it.hasNext());
+                Block block = it.next().getBlock(0);
+                ElementType expected = DeclaredTypeCoercions.elementTypeFor(type);
+                assertEquals("shape drift for declared [" + type + "]", expected, block.elementType());
+                assertFalse("declared [" + type + "] produced a null cell — missing tokenization arm?", block.isNull(0));
+            }
+        }
     }
 }

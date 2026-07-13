@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.AfterClass;
 import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
@@ -847,20 +846,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                     }
                 }
             }
-            // A MATCH(...) whose keyword field argument was wrapped in field_extract(...) is pushed
-            // to Lucene as a synthetic field attribute, which only the runtime lexical search path
-            // can score. That path is gated on the MATCH_RUNTIME_SEARCH capability, which is
-            // snapshot-only (see EsqlCapabilities). In a release build the RUNTIME_LEXICAL_SEARCH
-            // pragma has no effect, so the analyzer rejects the wrapped field with "cannot operate
-            // on [field_extract(...)]". Skip the variant there rather than launch a query that is
-            // guaranteed to fail for a build-flavor reason unrelated to field_extract coverage.
-            if (result.wrappedMatchFunctionArg() && org.elasticsearch.Build.current().isSnapshot() == false) {
-                SILENCED_COUNTS_BY_REASON.computeIfAbsent("match_runtime_search_snapshot_only", k -> new AtomicInteger()).incrementAndGet();
-                logger.info("keyword→flattened: skipping; MATCH runtime search is snapshot-only [{}]", testId);
-                throw new StacklessAssumptionViolatedException(
-                    "skipping: MATCH(field_extract(...)) requires the snapshot-only MATCH_RUNTIME_SEARCH capability"
-                );
-            }
             // The short "launched" marker is emitted unconditionally so that every launched test has a single,
             // grep-able log line tying the test method (from the JUnit thread context) to the set of fields
             // the rewriter actually wrapped. The multi-line rewritten query itself is gated on
@@ -879,9 +864,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             }
 
             Settings extraPragmas = Settings.EMPTY;
-            if (result.wrappedMatchFunctionArg()) {
-                extraPragmas = Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build();
-            }
             return new IndexLoadStrategy.TransformedQuery(result.rewrittenQuery(), extraPragmas);
         }
 
@@ -1325,8 +1307,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
     public static final java.util.List<String> EXPECTED_ERRORS = java.util.List.of(
         "ABSENT_OVER_TIME:field is missing",
-        "BUCKET:from is missing",
-        "BUCKET:to is missing",
         "CIDR_MATCH:blockX is missing",
         "CLAMP:field is missing",
         "CLAMP:max is missing",
@@ -1338,16 +1318,12 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "COUNT_DISTINCT_OVER_TIME:field is missing",
         "COUNT_OVER_TIME:field is missing",
         "DATE_DIFF:unit is missing",
-        "DECAY:scale is missing",
         "EMBEDDING:value is missing",
         "FIELD_EXTRACT:path is missing",
         "FIRST_OVER_TIME:field is missing",
         "FROM_BASE64:string is missing",
-        "GREATER_THAN:rhs is missing",
-        "GREATER_THAN_OR_EQUAL:rhs is missing",
         "GREATEST:first is missing",
         "GREATEST:rest is missing",
-        "HASH:algorithm is missing",
         "IN:field is missing",
         "JSON_EXTRACT:string is missing",
         "KNN:field is missing",
@@ -1355,29 +1331,16 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "LAST_OVER_TIME:field is missing",
         "LEAST:first is missing",
         "LEAST:rest is missing",
-        "LESS_THAN:rhs is missing",
-        "LESS_THAN_OR_EQUAL:rhs is missing",
         "LIKE:pattern is missing",
         "MATCH:query is missing",
         "MATCH_OPERATOR:field is missing",
         "MATCH_OPERATOR:query is missing",
-        "MATCH_PHRASE:query is missing",
         "MAX_OVER_TIME:field is missing",
         "MIN_OVER_TIME:field is missing",
-        "MV_CONTAINS:subset is missing",
-        "MV_DEDUPE:field is missing",
-        "MV_DIFFERENCE:field2 is missing",
-        "MV_INTERSECTION:field1 is missing",
-        "MV_INTERSECTION:field2 is missing",
-        "MV_INTERSECTS:field2 is missing",
-        "MV_LAST:field is missing",
-        "MV_SLICE:field is missing",
-        "MV_SORT:order is missing",
-        "MV_UNION:field1 is missing",
-        "MV_UNION:field2 is missing",
+        // MV_SORT's order argument is now marked as a CONSTANT hint in the function's docs
+        // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
+        // check below) and never appears here as missing.
         "NETWORK_DIRECTION:internal_networks is missing",
-        "NOT_EQUALS:lhs is missing",
-        "NOT_EQUALS:rhs is missing",
         "NOT_IN:field is missing",
         "NOT_IN:inlist is missing",
         "NOT_LIKE:pattern is missing",
@@ -1389,14 +1352,9 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "RLIKE:pattern is missing",
         "SPARKLINE:from is missing",
         "SPARKLINE:to is missing",
-        "TBUCKET:from is missing", // THESE are constant and https://github.com/elastic/elasticsearch/pull/151930 should let us skip it
-        "TBUCKET:to is missing",
         "TEXT_EMBEDDING:text is missing",
-        "TOP:order is missing",
-        "TOP_SNIPPETS:query is missing",
         "TO_CARTESIANPOINT:field is missing",
         "TO_CARTESIANSHAPE:field is missing",
-        "TO_DATEPERIOD:field is missing",
         "TO_DATETIME:field is missing",
         "TO_DATE_NANOS:field is missing",
         "TO_DATE_RANGE:field is missing",
@@ -1406,13 +1364,8 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "TO_GEOHEX:field is missing",
         "TO_GEOSHAPE:field is missing",
         "TO_GEOTILE:field is missing",
-        "TO_TIMEDURATION:field is missing",
         "TO_UNSIGNED_LONG:field is missing",
         "TO_VERSION:field is missing",
-        "TRANGE:end_time is missing",
-        "TRANGE:start_time_or_offset is missing",
-        "TSTEP:from is missing",
-        "TSTEP:to is missing",
         "WITHOUT:dimension is missing"
     );
 
@@ -1456,6 +1409,13 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         String name = (String) map.get("name");
                         if (name == null) return;
                         name = name.toUpperCase(Locale.ROOT);
+                        // NOT_EQUALS can never be exercised by this variant: ExpressionBuilder#buildComparison desugars
+                        // "!=" to Not(Equals(lhs, rhs)) at parse time (see EsqlBaseParser.NEQ), so the pre-analysis AST
+                        // this variant walks never contains a NotEquals node - only Not wrapping Equals. A keyword field
+                        // reference on either side of "!=" is therefore tracked and wrapped as an EQUALS:lhs/EQUALS:rhs
+                        // argument, never NOT_EQUALS:lhs/NOT_EQUALS:rhs, so the whole operator is excluded from
+                        // candidates here rather than left as a permanent EXPECTED_ERRORS entry.
+                        if ("NOT_EQUALS".equals(name)) return;
 
                         List<Map<String, Object>> signatures = (List<Map<String, Object>>) map.get("signatures");
                         if (signatures == null) return;
@@ -1472,7 +1432,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                                     Map<String, Object> hint = (Map<String, Object>) params.get(i).get("hint");
                                     if (hint != null) {
                                         Object kind = hint.get("kind");
-                                        if ("entity".equals(kind) || "aggregation".equals(kind)) {
+                                        if ("entity".equals(kind) || "aggregation".equals(kind) || "constant".equals(kind)) {
                                             continue;
                                         }
                                     }

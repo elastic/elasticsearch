@@ -50,14 +50,12 @@ public class ClusterStateSecretsTests extends AbstractNamedWriteableTestCase<Clu
     private SecureClusterStateSettings secureClusterStateSettings;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initSecureSettings() throws Exception {
         secureClusterStateSettings = parseSecrets(SECRETS);
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeSecureSettings() throws Exception {
         secureClusterStateSettings.close();
     }
 

@@ -1,0 +1,6 @@
+area: Snapshot/Restore
+issues:
+ - 152053
+pr: 153219
+summary: Fix snapshot creation on CIFS shares in case of access denied exception
+type: bug

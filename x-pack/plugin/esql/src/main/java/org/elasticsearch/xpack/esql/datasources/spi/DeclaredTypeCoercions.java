@@ -15,16 +15,19 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigDecimal;
@@ -36,8 +39,10 @@ import java.util.function.IntFunction;
 /**
  * The single source of truth for declared-type coercion on external datasets: which
  * (physical file type &rarr; declared type) pairs an external reader coerces at read time, how a
- * decoded physical block becomes a declared-type block ({@link #castBlock}), and the one scalar
- * conversion the string &rarr; date pair uses everywhere ({@link #parseDatetimeMillis}).
+ * decoded physical block becomes a declared-type block ({@link #castBlock}), the block shape a
+ * declared type reads into ({@link #elementTypeFor}/{@link #builderFor}, which every text and
+ * columnar reader consults instead of re-deriving it), and the one scalar conversion the
+ * string &rarr; date pair uses everywhere ({@link #parseDatetimeMillis}).
  *
  * <h2>The one concept: reading a file IS ingesting it</h2>
  * A dataset mapping may declare a column type that differs from the type physically in the file
@@ -359,7 +364,9 @@ public final class DeclaredTypeCoercions {
                 : v -> NumberFieldMapper.NumberType.LONG.parse(v, true).longValue();
             case DATE_NANOS -> {
                 if (fromString) {
-                    yield v -> EsqlDataTypeConverter.dateNanosToLong((String) v);
+                    // Mirrors the DATETIME arm above: the declared format, when the column has one, is the parse
+                    // dialect. Without it dateNanosToLong falls back to ISO-8601.
+                    yield v -> EsqlDataTypeConverter.dateNanosToLong((String) v, declaredFormat);
                 }
                 if (from == DataType.DATETIME) {
                     // millis -> nanos widen; DateUtils.toNanoSeconds throws IllegalArgumentException
@@ -447,19 +454,36 @@ public final class DeclaredTypeCoercions {
      * NumberType.parse} with {@code coerce=true}: numeric strings parse, decimals truncate toward
      * zero, out-of-[0, 2^64-1]-range throws. Returns the sign-flip block encoding
      * ({@link NumericUtils#asLongUnsigned(BigInteger)}), matching the index path.
+     * <p>
+     * Public for the same reason as {@link #strictParseBoolean} and {@link #parseDatetimeMillis}: the text
+     * readers (CSV/TSV, NDJSON) decode a token to a {@link String} or {@link Number} themselves and then
+     * delegate the declared-type conversion here, so a declared {@code unsigned_long} produces the identical
+     * block encoding regardless of file format.
      */
-    private static long coerceToUnsignedLong(Object value) {
+    public static long coerceToUnsignedLong(Object value) {
         BigInteger big;
-        if (value instanceof BigInteger bigInteger) {
-            big = bigInteger;
-        } else if (value instanceof Double || value instanceof Float) {
-            big = BigDecimal.valueOf(((Number) value).doubleValue()).toBigInteger();
-        } else if (value instanceof Number number) {
-            big = BigInteger.valueOf(number.longValue());
-        } else {
-            big = new BigDecimal(value.toString()).toBigInteger();
+        try {
+            if (value instanceof BigInteger bigInteger) {
+                big = bigInteger;
+            } else if (value instanceof Double || value instanceof Float) {
+                big = BigDecimal.valueOf(((Number) value).doubleValue()).toBigInteger();
+            } else if (value instanceof Number number) {
+                big = BigInteger.valueOf(number.longValue());
+            } else {
+                big = new BigDecimal(value.toString()).toBigInteger();
+            }
+        } catch (ArithmeticException e) {
+            // BigDecimal.toBigInteger() throws (rather than returning a value we could range-check) when the
+            // decimal exponent is large enough that materializing the integer would overflow BigInteger's supported
+            // range -- e.g. "1e999999999", or "1e-999999999" which mathematically truncates to 0 but cannot be
+            // computed to get there. Such a token cannot be materialized and so cannot be range-checked; treat it as
+            // the same failure as any other unrepresentable value and reach callers as the same exception type. It is
+            // remapped here, at the one place that parses, rather than in each caller's catch clause: an
+            // ArithmeticException escaping this method would bypass every reader's per-cell error policy and hard-
+            // fail the whole read, which is exactly the class of failure declared unsigned_long support removes.
+            throw new IllegalArgumentException("Value [" + value + "] is out of range for an unsigned_long", e);
         }
-        if (big.signum() < 0 || NumericUtils.isUnsignedLong(big) == false) {
+        if (NumericUtils.isUnsignedLong(big) == false) {  // isUnsignedLong already rejects negatives (signum >= 0)
             throw new IllegalArgumentException("Value [" + value + "] is out of range for an unsigned_long");
         }
         return NumericUtils.asLongUnsigned(big);
@@ -491,15 +515,45 @@ public final class DeclaredTypeCoercions {
         };
     }
 
-    private static Block.Builder builderFor(DataType to, BlockFactory blockFactory, int positions) {
-        return switch (to) {
-            case INTEGER -> blockFactory.newIntBlockBuilder(positions);
-            case LONG, UNSIGNED_LONG, DATETIME, DATE_NANOS -> blockFactory.newLongBlockBuilder(positions);
-            case DOUBLE -> blockFactory.newDoubleBlockBuilder(positions);
-            case BOOLEAN -> blockFactory.newBooleanBlockBuilder(positions);
-            case KEYWORD, TEXT, IP -> blockFactory.newBytesRefBlockBuilder(positions);
-            default -> throw new IllegalArgumentException("cannot coerce into [" + to.typeName() + "] blocks");
+    /**
+     * The {@link DataType} &rarr; {@link ElementType} authority for the declared-read path: every format reader that
+     * materializes a declared or projected column into a block resolves its shape here. The <em>enumeration</em> is
+     * not repeated: it is delegated to {@link PlannerUtils#toElementType}, the engine-wide mapping, so the
+     * declared-read path holds no second {@code DataType} switch over block shape. What this method adds is the
+     * declared-read <em>guard</em>, expressed on the {@link ElementType} axis rather than as a second {@code DataType}
+     * enumeration: the scalar shapes this SPI's {@link #valueWriter} knows how to append, plus {@link ElementType#NULL}.
+     * <p>
+     * Expressing the guard on the shape axis is what keeps the readers honest. A future declarable type inherits its
+     * block shape automatically, while a {@code DOC}/{@code COMPOSITE}/{@code AGGREGATE_METRIC_DOUBLE}-shaped type
+     * still fails loudly at page setup instead of silently building the wrong block. Format readers must call this
+     * rather than re-deriving the mapping locally — the reader-local copies are exactly how {@code unsigned_long}
+     * came to be accepted at dataset-create time and then unreadable at query time.
+     *
+     * @throws IllegalArgumentException if the type has no block shape this SPI can write. This is the only exception
+     *         this method throws: {@link PlannerUtils#toElementType} signals its own unmappable types with an
+     *         {@code EsqlIllegalArgumentException}, which is <em>not</em> an {@code IllegalArgumentException}, so it
+     *         is remapped here. Callers therefore need one catch clause, and the contract matches the per-reader
+     *         mappings this method replaced.
+     */
+    public static ElementType elementTypeFor(DataType type) {
+        final ElementType elementType;
+        try {
+            elementType = PlannerUtils.toElementType(type);
+        } catch (EsqlIllegalArgumentException e) {
+            throw new IllegalArgumentException("type [" + type.typeName() + "] is not readable as a declared column", e);
+        }
+        return switch (elementType) {
+            case BOOLEAN, INT, LONG, DOUBLE, BYTES_REF, NULL -> elementType;
+            default -> throw new IllegalArgumentException("type [" + type.typeName() + "] is not readable as a declared column");
         };
+    }
+
+    /**
+     * The block builder for a declared column's target type, derived from {@link #elementTypeFor} so the builder and
+     * the {@link ElementType} a reader projects can never disagree.
+     */
+    public static Block.Builder builderFor(DataType to, BlockFactory blockFactory, int positions) {
+        return elementTypeFor(to).newBlockBuilder(positions, blockFactory);
     }
 
     private interface ValueWriter {
@@ -531,7 +585,10 @@ public final class DeclaredTypeCoercions {
      * string&rarr;datetime coercion (Parquet, ORC) all route here, so identical input bytes with
      * an identical declared format produce the identical epoch instant regardless of file format.
      * <p>
-     * With a declared format the parse is strict and zone-aware ({@link DateFormatter#parseMillis}
+     * The format may be a column's declared {@code format} or a reader's file-level {@code datetime_format} — this is
+     * the shared string&rarr;datetime conversion, not a declared-only one.
+     * <p>
+     * With a format the parse is strict and zone-aware ({@link DateFormatter#parseMillis}
      * defaults a missing zone to UTC) — the same parse the date field mapper runs against its
      * mapping's {@code format} at ingest; without one it falls back to
      * {@link EsqlDataTypeConverter#dateTimeToLong(String)} — ISO
@@ -540,7 +597,7 @@ public final class DeclaredTypeCoercions {
      * nulled cell with a response Warning ({@link #castBlock} with a warnings sink), or a hard
      * failure.
      */
-    public static long parseDatetimeMillis(String value, @Nullable DateFormatter declaredFormat) {
-        return EsqlDataTypeConverter.dateTimeToLong(value, declaredFormat);
+    public static long parseDatetimeMillis(String value, @Nullable DateFormatter format) {
+        return EsqlDataTypeConverter.dateTimeToLong(value, format);
     }
 }

@@ -11,7 +11,9 @@ package org.elasticsearch.datastreams.lifecycle;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
@@ -22,6 +24,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -43,8 +46,11 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -1250,7 +1256,8 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
             errorStore,
             mock(AllocationService.class),
             new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, getTransportRequestsRecordingClient(), clusterService, errorStore),
-            globalRetentionSettings
+            globalRetentionSettings,
+            ignored -> Set.of()
         );
         assertThat(service.getLastRunDuration(), is(nullValue()));
         assertThat(service.getTimeBetweenStarts(), is(nullValue()));
@@ -1399,6 +1406,156 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         assertThat(indicesToBeRemoved, contains(project.index(firstGenIndexName).getIndex()));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testMaybeExecuteRetentionDeletesBackingSnapshotForDlmFrozenIndex() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String repositoryName = "frozen-repo";
+        String snapshotName = "dlm-frozen-" + dataStreamName;
+        FrozenIndexFixture fixture = setupDataStreamWithFrozenBackingIndex(dataStreamName, repositoryName, snapshotName, true);
+
+        clientDelegate = (action, request, listener) -> {
+            if (action.name().equals(TransportDeleteIndexAction.TYPE.name())) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+        };
+
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
+            fixture.project(),
+            fixture.dataStream(),
+            fixture.dataRetention(),
+            null,
+            Set.of()
+        );
+        assertThat(indicesToBeRemoved, contains(fixture.project().index(fixture.frozenIndexName()).getIndex()));
+
+        List<DeleteSnapshotRequest> deleteSnapshotRequests = clientSeenRequests.stream()
+            .filter(request -> request instanceof DeleteSnapshotRequest)
+            .map(request -> (DeleteSnapshotRequest) request)
+            .toList();
+        assertThat(deleteSnapshotRequests, hasSize(1));
+        assertThat(deleteSnapshotRequests.getFirst().repository(), is(repositoryName));
+        assertThat(deleteSnapshotRequests.getFirst().snapshots(), arrayContaining(snapshotName));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMaybeExecuteRetentionDeletesBackingSnapshotWhenIndexAlreadyDeleted() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String repositoryName = "frozen-repo";
+        String snapshotName = "dlm-frozen-" + dataStreamName;
+        FrozenIndexFixture fixture = setupDataStreamWithFrozenBackingIndex(dataStreamName, repositoryName, snapshotName, true);
+
+        clientDelegate = (action, request, listener) -> {
+            if (action.name().equals(TransportDeleteIndexAction.TYPE.name())) {
+                listener.onFailure(new IndexNotFoundException(fixture.frozenIndexName()));
+            }
+        };
+
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
+            fixture.project(),
+            fixture.dataStream(),
+            fixture.dataRetention(),
+            null,
+            Set.of()
+        );
+        assertThat(indicesToBeRemoved, contains(fixture.project().index(fixture.frozenIndexName()).getIndex()));
+
+        List<DeleteSnapshotRequest> deleteSnapshotRequests = clientSeenRequests.stream()
+            .filter(request -> request instanceof DeleteSnapshotRequest)
+            .map(request -> (DeleteSnapshotRequest) request)
+            .toList();
+        assertThat(deleteSnapshotRequests, hasSize(1));
+        assertThat(deleteSnapshotRequests.getFirst().repository(), is(repositoryName));
+        assertThat(deleteSnapshotRequests.getFirst().snapshots(), arrayContaining(snapshotName));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMaybeExecuteRetentionDoesNotDeleteSnapshotForNonDlmCreatedSearchableSnapshot() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String repositoryName = "frozen-repo";
+        String snapshotName = "some-other-snapshot-" + dataStreamName;
+        // the index is a mounted searchable snapshot, but not one created by the DLM frozen transition
+        FrozenIndexFixture fixture = setupDataStreamWithFrozenBackingIndex(dataStreamName, repositoryName, snapshotName, false);
+
+        clientDelegate = (action, request, listener) -> {
+            if (action.name().equals(TransportDeleteIndexAction.TYPE.name())) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+        };
+
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(
+            fixture.project(),
+            fixture.dataStream(),
+            fixture.dataRetention(),
+            null,
+            Set.of()
+        );
+        assertThat(indicesToBeRemoved, contains(fixture.project().index(fixture.frozenIndexName()).getIndex()));
+
+        assertThat(clientSeenRequests.stream().anyMatch(request -> request instanceof DeleteSnapshotRequest), is(false));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMaybeExecuteRetentionDoesNotDeleteSnapshotWhenIndexDeleteNotAcknowledged() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String repositoryName = "frozen-repo";
+        String snapshotName = "dlm-frozen-" + dataStreamName;
+        FrozenIndexFixture fixture = setupDataStreamWithFrozenBackingIndex(dataStreamName, repositoryName, snapshotName, true);
+
+        clientDelegate = (action, request, listener) -> {
+            if (action.name().equals(TransportDeleteIndexAction.TYPE.name())) {
+                listener.onResponse(AcknowledgedResponse.FALSE);
+            }
+        };
+
+        dataStreamLifecycleService.maybeExecuteRetention(fixture.project(), fixture.dataStream(), fixture.dataRetention(), null, Set.of());
+
+        assertThat(clientSeenRequests.stream().anyMatch(request -> request instanceof DeleteSnapshotRequest), is(false));
+    }
+
+    private record FrozenIndexFixture(ProjectMetadata project, DataStream dataStream, String frozenIndexName, TimeValue dataRetention) {}
+
+    /**
+     * Builds a two-generation data stream whose first-generation backing index is a mounted searchable snapshot. When
+     * {@code dlmCreated} is {@code true} the index also carries the marker the data stream lifecycle's frozen transition sets on
+     * indices it mounts ({@link DataStreamLifecycleService#DLM_CREATED_SETTING}), so that retention should also delete the backing
+     * snapshot.
+     */
+    private FrozenIndexFixture setupDataStreamWithFrozenBackingIndex(
+        String dataStreamName,
+        String repositoryName,
+        String snapshotName,
+        boolean dlmCreated
+    ) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStreamLifecycle zeroRetentionDataLifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            2,
+            settings(IndexVersion.current()),
+            zeroRetentionDataLifecycle,
+            now
+        );
+        builder.put(dataStream);
+
+        String frozenIndexName = dataStream.getIndices().getFirst().getName();
+        IndexMetadata original = builder.get(frozenIndexName);
+        Settings.Builder frozenSettings = Settings.builder()
+            .put(original.getSettings())
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+            .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY, repositoryName)
+            .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY, snapshotName);
+        if (dlmCreated) {
+            frozenSettings.put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true);
+        }
+        var imdBuilder = new IndexMetadata.Builder(original);
+        imdBuilder.settings(frozenSettings.build());
+        builder.put(imdBuilder);
+
+        ProjectMetadata project = builder.build();
+        return new FrozenIndexFixture(project, project.dataStreams().get(dataStreamName), frozenIndexName, TimeValue.ZERO);
+    }
+
     private static ForceMergeRequestWrapper copyForceMergeRequestWrapperRequest(ForceMergeRequestWrapper original) {
         return new ForceMergeRequestWrapper(original);
     }
@@ -1486,6 +1643,155 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         assertFalse(DataStreamLifecycleService.indexMarkedForFrozen(plainIndex));
         assertFalse(DataStreamLifecycleService.indexMarkedForFrozen(indexWithOtherCustom));
         assertTrue(DataStreamLifecycleService.indexMarkedForFrozen(indexWithFrozenCustom));
+    }
+
+    public void testNonWriteIndexWithLifecycleSkipIsNotDeleted() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            3,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build(),
+            now
+        );
+        builder.put(dataStream);
+        final var project = builder.build();
+
+        ProjectMetadata.Builder newBuilder = ProjectMetadata.builder(project);
+        Index firstBackingIndex = dataStream.getIndices().getFirst();
+        IndexMetadata indexMetadata = project.index(firstBackingIndex);
+        newBuilder.put(
+            IndexMetadata.builder(indexMetadata)
+                .settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_SKIP_SETTING.getKey(), true))
+        );
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(newBuilder).build();
+
+        dataStreamLifecycleService.run(state);
+
+        // Rollover the write index; only backing index 2 is deleted — the skip-flagged backing index 1 is left alone.
+        assertThat(clientSeenRequests.size(), is(2));
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        assertThat(clientSeenRequests.get(1), instanceOf(DeleteIndexRequest.class));
+        assertThat(
+            ((DeleteIndexRequest) clientSeenRequests.get(1)).indices()[0],
+            DataStreamTestHelper.backingIndexEqualTo(dataStreamName, 2)
+        );
+    }
+
+    public void testWriteIndexWithLifecycleSkipIsNotRolledOver() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            3,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).build(),
+            now
+        );
+        builder.put(dataStream);
+        final var project = builder.build();
+
+        ProjectMetadata.Builder newBuilder = ProjectMetadata.builder(project);
+        Index writeIndex = dataStream.getWriteIndex();
+        IndexMetadata indexMetadata = project.index(writeIndex);
+        newBuilder.put(
+            IndexMetadata.builder(indexMetadata)
+                .settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_SKIP_SETTING.getKey(), true))
+        );
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(newBuilder).build();
+
+        dataStreamLifecycleService.run(state);
+
+        // Both non-write backing indices are deleted; the skip-flagged write index is not rolled over.
+        assertThat(clientSeenRequests.size(), is(2));
+        assertThat(clientSeenRequests.get(0), instanceOf(DeleteIndexRequest.class));
+        assertThat(clientSeenRequests.get(1), instanceOf(DeleteIndexRequest.class));
+    }
+
+    public void testFailureStoreIndexWithLifecycleSkipIsNotDeleted() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStreamLifecycle zeroRetentionFailuresLifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
+            .dataRetention(TimeValue.ZERO)
+            .build();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            1,
+            2,
+            settings(IndexVersion.current()),
+            null,
+            zeroRetentionFailuresLifecycle,
+            now
+        );
+        builder.put(dataStream);
+        final var project = builder.build();
+
+        ProjectMetadata.Builder newBuilder = ProjectMetadata.builder(project);
+        Index skippedFailureIndex = dataStream.getFailureIndices().get(0);
+        IndexMetadata failureIndexMetadata = project.index(skippedFailureIndex);
+        newBuilder.put(
+            IndexMetadata.builder(failureIndexMetadata)
+                .settings(
+                    Settings.builder().put(failureIndexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_SKIP_SETTING.getKey(), true)
+                )
+        );
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(newBuilder).build();
+
+        dataStreamLifecycleService.run(state);
+
+        // The failure write index is rolled over; the skip-flagged non-write failure index is not deleted.
+        assertThat(clientSeenRequests.size(), is(1));
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLifecycleSkipPreventsForceMerge() throws Exception {
+        clientDelegate = (action, request, listener) -> {
+            if (action.name().equals("indices:admin/forcemerge")) {
+                listener.onResponse(new BroadcastResponse(5, 5, 0, List.of()));
+            }
+        };
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            3,
+            settings(IndexVersion.current()).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
+            now
+        );
+        builder.put(dataStream);
+        final var project = builder.build();
+
+        ProjectMetadata.Builder newBuilder = ProjectMetadata.builder(project);
+        Index skippedIndex = dataStream.getIndices().get(0);
+        IndexMetadata skippedIndexMetadata = project.index(skippedIndex);
+        newBuilder.put(
+            IndexMetadata.builder(skippedIndexMetadata)
+                .settings(
+                    Settings.builder().put(skippedIndexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_SKIP_SETTING.getKey(), true)
+                )
+        );
+
+        String nodeId = "localNode";
+        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
+        nodesBuilder.masterNodeId(nodeId);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(newBuilder).nodes(nodesBuilder).build();
+        setState(clusterService, state);
+        dataStreamLifecycleService.run(clusterService.state());
+
+        // Only the non-skipped non-write index (generation 2) is force-merged; the skip-flagged index (generation 1) is not.
+        Index expectedForceMergedIndex = dataStream.getIndices().get(1);
+        assertBusy(() -> assertThat(clientSeenRequests.size(), is(2)), 30, TimeUnit.SECONDS);
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        ForceMergeRequest forceMergeRequest = (ForceMergeRequest) clientSeenRequests.get(1);
+        assertThat(forceMergeRequest.indices()[0], is(expectedForceMergedIndex.getName()));
     }
 
     public void testGatheringCandidatesForFrozen() {

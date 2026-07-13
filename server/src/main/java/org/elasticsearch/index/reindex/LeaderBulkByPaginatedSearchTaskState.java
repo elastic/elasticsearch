@@ -59,6 +59,7 @@ public class LeaderBulkByPaginatedSearchTaskState {
     private volatile float relocationRequestsPerSecond;
     private boolean capturedRpsForRelocation = false;
 
+    @SuppressWarnings("this-escape")
     public LeaderBulkByPaginatedSearchTaskState(BulkByPaginatedSearchTask task, int slices, float requestsPerSecond) {
         this.task = task;
         this.slices = slices;
@@ -69,7 +70,7 @@ public class LeaderBulkByPaginatedSearchTaskState {
     }
 
     /**
-     * Returns the number of slices this BulkByScrollRequest will use
+     * Returns the number of slices this BulkByPaginatedSearchRequest will use
      */
     public int getSlices() {
         return slices;

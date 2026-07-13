@@ -193,6 +193,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -421,7 +422,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
         this.storeMetricHolder = builder.storeMetricsHolder;
         this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
-        this.throttlingRecoveryService = new ThrottlingRecoveryService(threadPool.generic(), clusterService);
+        this.throttlingRecoveryService = builder.throttlingRecoveryService;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -644,6 +645,16 @@ public class IndicesService extends AbstractLifecycleComponent
         assert indexService.indexUUID().equals(index.getUUID())
             : "uuid mismatch local: " + indexService.indexUUID() + " incoming: " + index.getUUID();
         return indexService;
+    }
+
+    /**
+     * Returns a predicate that is {@code true} for shards open on this node.
+     */
+    public Predicate<ShardId> hasShardPredicate() {
+        return shardId -> {
+            final IndexService indexService = indexService(shardId.getIndex());
+            return indexService != null && indexService.hasShard(shardId.id());
+        };
     }
 
     /**
@@ -995,31 +1006,31 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         throttlingRecoveryService.enqueue(
+            projectId,
             recoveryListener,
             recoveryState,
-            listener -> projectResolver.executeOnProject(
-                projectId,
-                () -> indexShard.startRecovery(
-                    recoveryState,
-                    recoveryTargetService,
-                    postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
-                    repositoriesService,
-                    (mapping, l) -> {
-                        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                            : "mapping update consumer only required by local shards recovery";
-                        AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
-                            // concrete index - no name clash, it uses uuid
-                            .setConcreteIndex(shardRouting.index())
-                            .source(mapping.source().string(), XContentType.JSON);
-                        client.execute(
-                            TransportAutoPutMappingAction.TYPE,
-                            putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                            new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
-                        );
-                    },
-                    this,
-                    clusterStateVersion
-                )
+            shardRouting.allocationId().getId(),
+            indexShard.recoveryStats(),
+            listener -> indexShard.startRecovery(
+                recoveryState,
+                recoveryTargetService,
+                postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
+                repositoriesService,
+                (mapping, l) -> {
+                    assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                        : "mapping update consumer only required by local shards recovery";
+                    AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                        // concrete index - no name clash, it uses uuid
+                        .setConcreteIndex(shardRouting.index())
+                        .source(mapping.source().string(), XContentType.JSON);
+                    client.execute(
+                        TransportAutoPutMappingAction.TYPE,
+                        putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                        new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
+                    );
+                },
+                this,
+                clusterStateVersion
             )
         );
     }

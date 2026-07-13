@@ -63,7 +63,6 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -155,12 +154,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected void shardOperationOnPrimary(
-        Task task,
         BulkShardRequest request,
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
-        primary.ensureMutable(listener.delegateFailure((l, ignored) -> super.shardOperationOnPrimary(task, request, primary, l)), true);
+        primary.ensureMutable(listener.delegateFailure((l, ignored) -> {
+            try {
+                doExecuteShardOperationOnPrimary(request, primary, l);
+            } catch (Exception e) {
+                l.onFailure(e);
+            }
+        }), true, executor(primary));
     }
 
     @Override
@@ -177,12 +181,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return ShardBulkSplitHelper.combineResponses(originalRequest, splitRequests, responses);
     }
 
-    @Override
-    protected void dispatchedShardOperationOnPrimary(
+    private void doExecuteShardOperationOnPrimary(
         BulkShardRequest request,
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> outerListener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.WRITE,
+            ThreadPool.Names.SYSTEM_WRITE,
+            ThreadPool.Names.SYSTEM_CRITICAL_WRITE
+        );
         var pressureExpansionTracker = indexingPressure.trackPrimaryOperationExpansion(
             primaryOperationCount(request),
             getMaxOperationMemoryOverhead(request),
@@ -194,7 +202,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
             ShardBatchIndexer.performBatchIndexOnPrimary(
                 request.items(),
-                request.getBulkShardBatch().getEirfBatch(),
+                request.getBulkShardBatch().getBatch(),
                 context,
                 listener.delegateFailure((delegate, ctx) -> {
                     if (context.hasMoreOperationsToExecute() == false) {
@@ -745,11 +753,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected void dispatchedShardOperationOnReplica(
-        BulkShardRequest request,
-        IndexShard replica,
-        ActionListener<ReplicaResult> outerListener
-    ) {
+    protected void shardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> outerListener) {
         var listener = ActionListener.releaseBefore(
             indexingPressure.trackReplicaOperationExpansion(getMaxOperationMemoryOverhead(request), force(request)),
             outerListener
@@ -760,7 +764,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
                 ShardBatchIndexer.ReplicaBatchResult batchResult = ShardBatchIndexer.performBatchIndexOnReplica(
                     request.items(),
-                    request.getBulkShardBatch().getEirfBatch(),
+                    request.getBulkShardBatch().getBatch(),
                     replica
                 );
                 if (batchResult.processedItems() < request.items().length) {

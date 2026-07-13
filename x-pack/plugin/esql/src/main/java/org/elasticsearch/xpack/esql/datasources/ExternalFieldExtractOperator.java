@@ -20,6 +20,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,7 +34,7 @@ import java.util.function.Function;
  * <p>
  * Reads the {@code _rowPosition} channel from each incoming page — these are encoded row
  * references (extractor id packed with file-local position) written by the source factory. Calls
- * {@link SourceExtractors#materialize(long[], int, List, BlockFactory)} to materialize the
+ * {@link SourceExtractors#materialize(long[], int, List, List, BlockFactory)} to materialize the
  * deferred columns, then assembles an output page that:
  * <ul>
  *     <li>Keeps every input block <em>except</em> the {@code _rowPosition} channel.</li>
@@ -62,6 +63,7 @@ public class ExternalFieldExtractOperator implements Operator {
         private final int rowPositionChannel;
         private final List<Integer> passThroughChannels;
         private final List<String> deferredColumnNames;
+        private final List<DataType> deferredColumnTypes;
         private final Function<DriverContext, SourceExtractors> sourceExtractorsLookup;
 
         /**
@@ -69,6 +71,10 @@ public class ExternalFieldExtractOperator implements Operator {
          * @param passThroughChannels      channel indices of the input page that should be copied
          *                                 to the output (in the order they appear in the output)
          * @param deferredColumnNames      names of the deferred columns to load, in output order
+         * @param deferredColumnTypes      planner/declared type per deferred column, aligned with
+         *                                 {@code deferredColumnNames}; extraction coerces the file's
+         *                                 value to this type exactly like the eager decode paths
+         *                                 ({@code DeclaredTypeCoercions})
          * @param sourceExtractorsLookup   per-driver registry resolver; must never return
          *                                 {@code null}
          */
@@ -76,6 +82,7 @@ public class ExternalFieldExtractOperator implements Operator {
             int rowPositionChannel,
             List<Integer> passThroughChannels,
             List<String> deferredColumnNames,
+            List<DataType> deferredColumnTypes,
             Function<DriverContext, SourceExtractors> sourceExtractorsLookup
         ) {
             if (rowPositionChannel < 0) {
@@ -87,12 +94,22 @@ public class ExternalFieldExtractOperator implements Operator {
             if (deferredColumnNames == null) {
                 throw new IllegalArgumentException("deferredColumnNames must not be null");
             }
+            if (deferredColumnTypes == null || deferredColumnTypes.size() != deferredColumnNames.size()) {
+                throw new IllegalArgumentException(
+                    "deferredColumnTypes must align with deferredColumnNames, got ["
+                        + (deferredColumnTypes == null ? "null" : deferredColumnTypes.size())
+                        + "] for ["
+                        + deferredColumnNames.size()
+                        + "] names"
+                );
+            }
             if (sourceExtractorsLookup == null) {
                 throw new IllegalArgumentException("sourceExtractorsLookup must not be null");
             }
             this.rowPositionChannel = rowPositionChannel;
             this.passThroughChannels = List.copyOf(passThroughChannels);
             this.deferredColumnNames = List.copyOf(deferredColumnNames);
+            this.deferredColumnTypes = List.copyOf(deferredColumnTypes);
             this.sourceExtractorsLookup = sourceExtractorsLookup;
         }
 
@@ -108,6 +125,7 @@ public class ExternalFieldExtractOperator implements Operator {
                 rowPositionChannel,
                 passThroughChannels,
                 deferredColumnNames,
+                deferredColumnTypes,
                 registry,
                 driverContext.blockFactory()
             );
@@ -128,6 +146,7 @@ public class ExternalFieldExtractOperator implements Operator {
     private final int rowPositionChannel;
     private final List<Integer> passThroughChannels;
     private final List<String> deferredColumnNames;
+    private final List<DataType> deferredColumnTypes;
     private final SourceExtractors registry;
     private final BlockFactory blockFactory;
     private final LongAdder pagesProcessed = new LongAdder();
@@ -141,12 +160,14 @@ public class ExternalFieldExtractOperator implements Operator {
         int rowPositionChannel,
         List<Integer> passThroughChannels,
         List<String> deferredColumnNames,
+        List<DataType> deferredColumnTypes,
         SourceExtractors registry,
         BlockFactory blockFactory
     ) {
         this.rowPositionChannel = rowPositionChannel;
         this.passThroughChannels = passThroughChannels;
         this.deferredColumnNames = deferredColumnNames;
+        this.deferredColumnTypes = deferredColumnTypes;
         this.registry = registry;
         this.blockFactory = blockFactory;
     }
@@ -269,7 +290,7 @@ public class ExternalFieldExtractOperator implements Operator {
             }
         }
 
-        Block[] deferredBlocks = registry.materialize(refs, positions, deferredColumnNames, blockFactory);
+        Block[] deferredBlocks = registry.materialize(refs, positions, deferredColumnNames, deferredColumnTypes, blockFactory);
         try {
             Block[] outBlocks = new Block[passThroughChannels.size() + deferredBlocks.length];
             int idx = 0;

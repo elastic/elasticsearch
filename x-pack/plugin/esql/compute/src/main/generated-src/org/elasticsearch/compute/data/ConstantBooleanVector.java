@@ -21,7 +21,7 @@ import java.util.Arrays;
  * Vector implementation that stores a constant boolean value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
+public final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
 

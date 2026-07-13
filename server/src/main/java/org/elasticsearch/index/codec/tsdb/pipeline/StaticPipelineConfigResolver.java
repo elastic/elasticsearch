@@ -150,6 +150,6 @@ public final class StaticPipelineConfigResolver implements PipelineConfigResolve
     }
 
     private static int splitDeltaKMax(final int blockSize) {
-        return Math.clamp((long) blockSize / 32, 4, 64);
+        return Math.clamp((long) blockSize / 32, 4, StageSpec.SplitDeltaStage.MAX_K_MAX);
     }
 }

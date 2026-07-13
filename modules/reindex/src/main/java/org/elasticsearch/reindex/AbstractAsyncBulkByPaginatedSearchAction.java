@@ -159,9 +159,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     protected final SearchContextKeepaliveDeadline searchContextKeepaliveDeadline;
 
     @Nullable
-    private final BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics;
-    private final BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind;
-    private final boolean remoteBulkByScrollSearch;
+    private final BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics;
+    private final BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind;
+    private final boolean remoteBulkByPaginatedSearch;
 
     /**
      * {@code _shard_doc} for search_after compatibility and performance (see paginate-search-results docs) was added in 7.12
@@ -188,9 +188,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         ActionListener<BulkByPaginatedSearchResponse> listener,
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
-        BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
-        boolean remoteBulkByScrollSearch,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
+        BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind,
+        boolean remoteBulkByPaginatedSearch,
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
         CircuitBreaker circuitBreaker,
@@ -210,9 +210,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             scriptService,
             sslConfig,
             null,
-            bulkByScrollSearchContextMetrics,
-            bulkByScrollTaskKind,
-            remoteBulkByScrollSearch,
+            bulkByPaginatedSearchSearchContextMetrics,
+            bulkByPaginatedSearchTaskKind,
+            remoteBulkByPaginatedSearch,
             maxTaskShutdownGracePeriod,
             reindexSettings,
             circuitBreaker,
@@ -234,9 +234,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
         @Nullable Version remoteVersion,
-        @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
-        BulkByScrollSearchContextMetrics.TaskKind bulkByScrollTaskKind,
-        boolean remoteBulkByScrollSearch,
+        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
+        BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind,
+        boolean remoteBulkByPaginatedSearch,
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
         CircuitBreaker circuitBreaker,
@@ -256,9 +256,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         this.threadPool = threadPool;
         this.mainRequest = mainRequest;
         this.searchContextKeepaliveDeadline = new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis);
-        this.bulkByScrollSearchContextMetrics = bulkByScrollSearchContextMetrics;
-        this.bulkByScrollTaskKind = bulkByScrollTaskKind;
-        this.remoteBulkByScrollSearch = remoteBulkByScrollSearch;
+        this.bulkByPaginatedSearchSearchContextMetrics = bulkByPaginatedSearchSearchContextMetrics;
+        this.bulkByPaginatedSearchTaskKind = bulkByPaginatedSearchTaskKind;
+        this.remoteBulkByPaginatedSearch = remoteBulkByPaginatedSearch;
         this.relocationCooldownNanos = computeRelocationCooldownNanos(maxTaskShutdownGracePeriod);
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
@@ -267,7 +267,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
         this.breakerLabel = Objects.requireNonNull(breakerLabel);
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
-        paginatedHitSource = buildScrollableResultSource(
+        paginatedHitSource = buildPaginatedSearchResultSource(
             backoffPolicy,
             prepareSearchRequest(
                 mainRequest,
@@ -441,7 +441,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         return bulkRequest;
     }
 
-    protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+    protected PaginatedHitSource buildPaginatedSearchResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
         // If we're using point-in-time search, then return a ClientPitPaginatedHitSource
         if (searchRequest.source() != null && searchRequest.source().pointInTimeBuilder() != null) {
             return new ClientPitPaginatedHitSource(
@@ -449,7 +449,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                 backoffPolicy,
                 threadPool,
                 worker::countSearchRetry,
-                this::onScrollResponse,
+                this::onPaginatedSearchResponse,
                 this::finishHim,
                 searchClient,
                 searchRequest,
@@ -462,7 +462,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             backoffPolicy,
             threadPool,
             worker::countSearchRetry,
-            this::onScrollResponse,
+            this::onPaginatedSearchResponse,
             this::finishHim,
             searchClient,
             searchRequest,
@@ -511,27 +511,27 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
     }
 
-    void onScrollResponse(PaginatedHitSource.AsyncResponse asyncResponse) {
-        onScrollResponse(new ScrollConsumableHitsResponse(asyncResponse));
+    void onPaginatedSearchResponse(PaginatedHitSource.AsyncResponse asyncResponse) {
+        onPaginatedSearchResponse(new ScrollConsumableHitsResponse(asyncResponse));
     }
 
-    void onScrollResponse(ScrollConsumableHitsResponse asyncResponse) {
+    void onPaginatedSearchResponse(ScrollConsumableHitsResponse asyncResponse) {
         // TODO - https://github.com/elastic/elasticsearch/issues/150875
         // lastBatchStartTime is essentially unused (see WorkerBulkByPaginatedSearchTaskState.throttleWaitTime).
         // Leaving it for now, since it seems like a bug?
-        onScrollResponse(System.nanoTime(), this.lastBatchSize, asyncResponse);
+        onPaginatedSearchResponse(System.nanoTime(), this.lastBatchSize, asyncResponse);
     }
 
     /**
-     * Process a scroll response.
+     * Process a paginated search response.
      * @param lastBatchStartTimeNS the time when the last batch started. Used to calculate the throttling delay.
      * @param lastBatchSizeToUse the size of the last batch. Used to calculate the throttling delay.
      * @param asyncResponse the response to process from {@link PaginatedHitSource}
      */
-    void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
+    void onPaginatedSearchResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
         currentScrollResponse.set(asyncResponse);
         PaginatedHitSource.Response response = asyncResponse.response();
-        logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), asyncResponse.remainingHits());
+        logger.debug("[{}]: got paginated search response with [{}] hits", task.getId(), asyncResponse.remainingHits());
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             tryReleaseCurrentResponse(asyncResponse);
@@ -764,7 +764,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
         if (asyncResponse.hasRemainingHits()) {
             // NB this means the next bulk task will be traced as a child of the current one, but it should really be a sibling
-            onScrollResponse(asyncResponse);
+            onPaginatedSearchResponse(asyncResponse);
             return;
         }
         if (task.isRelocationRequested()) {
@@ -939,16 +939,16 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         boolean timedOut
     ) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
-        if (bulkByScrollSearchContextMetrics != null
+        if (bulkByPaginatedSearchSearchContextMetrics != null
             && searchContextKeepaliveDeadline.shouldRecordKeepaliveExpiry(failure, searchFailures)) {
-            bulkByScrollSearchContextMetrics.recordKeepaliveExpiry(bulkByScrollTaskKind, remoteBulkByScrollSearch);
+            bulkByPaginatedSearchSearchContextMetrics.recordKeepaliveExpiry(bulkByPaginatedSearchTaskKind, remoteBulkByPaginatedSearch);
             logger.warn(
-                "[{}]: bulk-by-scroll [{}] ({}) likely failed because the {} keep-alive expired",
+                "[{}]: bulk-by-paginated-search [{}] ({}) likely failed because the {} keep-alive expired",
                 task.getId(),
-                bulkByScrollTaskKind.attributeValue(),
-                remoteBulkByScrollSearch
-                    ? BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_REMOTE
-                    : BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL,
+                bulkByPaginatedSearchTaskKind.attributeValue(),
+                remoteBulkByPaginatedSearch
+                    ? BulkByPaginatedSearchSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_REMOTE
+                    : BulkByPaginatedSearchSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL,
                 paginatedHitSource instanceof PitPaginatedHitSource ? "point-in-time" : "scroll"
             );
         }
@@ -1071,6 +1071,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
         String getRouting();
 
+        boolean isRoutingFromSlice();
+
         void setRoutingFromSlice(boolean routingFromSlice);
 
         void setSource(Map<String, Object> source);
@@ -1134,6 +1136,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         @Override
         public String getRouting() {
             return request.routing();
+        }
+
+        @Override
+        public boolean isRoutingFromSlice() {
+            return request.isRoutingFromSlice();
         }
 
         @Override
@@ -1223,6 +1230,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         @Override
         public void setRoutingFromSlice(boolean routingFromSlice) {
             request.setRoutingFromSlice(routingFromSlice);
+        }
+
+        @Override
+        public boolean isRoutingFromSlice() {
+            return request.isRoutingFromSlice();
         }
 
         @Override

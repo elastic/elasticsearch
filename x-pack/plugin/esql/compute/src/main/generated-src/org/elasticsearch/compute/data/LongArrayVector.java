@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
  * Vector implementation that stores an array of long values.
  * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
-final class LongArrayVector extends AbstractVector implements LongVector {
+public final class LongArrayVector extends AbstractVector implements LongVector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.

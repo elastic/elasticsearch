@@ -10,6 +10,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.util.Map;
@@ -18,7 +19,7 @@ import java.util.Set;
 
 /**
  * Metadata for the {@link ReindexScript} context.
- * _index, _id, _version, _routing are all read-write.  _id, _version and _routing are also nullable.
+ * _index, _id, _version, _routing, _slice are all read-write. _id, _version, _routing and _slice are also nullable.
  * _now is millis since epoch and read-only
  * op is read-write one of 'index', 'noop', 'delete'
  *
@@ -29,7 +30,8 @@ import java.util.Set;
  * but handle the internal versioning scheme without scripts accessing the ctx map.
  */
 public class ReindexMetadata extends Metadata {
-    static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
+    private static final String SLICE = SliceIndexing.PARAM_NAME;
+    private static final Map<String, FieldProperty<?>> PROPERTIES_WITHOUT_SLICE = Map.of(
         INDEX,
         ObjectField.withWritable(),
         ID,
@@ -43,11 +45,32 @@ public class ReindexMetadata extends Metadata {
         NOW,
         LongField
     );
+    private static final Map<String, FieldProperty<?>> PROPERTIES_WITH_SLICE = Map.of(
+        INDEX,
+        ObjectField.withWritable(),
+        ID,
+        ObjectField.withWritable().withNullable(),
+        VERSION,
+        LongField.withWritable().withNullable(),
+        ROUTING,
+        StringField.withWritable().withNullable(),
+        SLICE,
+        StringField.withWritable().withNullable(),
+        OP,
+        StringField.withWritable().withValidation(stringSetValidator(Set.of("noop", "index", "delete"))),
+        NOW,
+        LongField
+    );
+
+    static final Map<String, FieldProperty<?>> PROPERTIES = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()
+        ? PROPERTIES_WITH_SLICE
+        : PROPERTIES_WITHOUT_SLICE;
 
     protected final String index;
     protected final String id;
     protected final Long version;
     protected final String routing;
+    private boolean routingFromSlice;
 
     public ReindexMetadata(String index, String id, Long version, String routing, String op, long timestamp) {
         super(metadataMap(index, id, version, routing, op, timestamp), PROPERTIES);
@@ -66,9 +89,42 @@ public class ReindexMetadata extends Metadata {
         metadata.put(ID, id);
         metadata.put(VERSION, version);
         metadata.put(ROUTING, routing);
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            metadata.put(SLICE, routing);
+        }
         metadata.put(OP, op);
         metadata.put(NOW, timestamp);
         return metadata;
+    }
+
+    @Override
+    public Object put(String key, Object value) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && (ROUTING.equals(key) || SLICE.equals(key))) {
+            final Object previous = super.put(ROUTING, value);
+            super.put(SLICE, value);
+            routingFromSlice = SLICE.equals(key);
+            return previous;
+        }
+        return super.put(key, value);
+    }
+
+    @Override
+    public Object remove(String key) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && (ROUTING.equals(key) || SLICE.equals(key))) {
+            final Object previous = super.remove(ROUTING);
+            super.remove(SLICE);
+            routingFromSlice = false;
+            return previous;
+        }
+        return super.remove(key);
+    }
+
+    @Override
+    public Object get(String key) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && SLICE.equals(key)) {
+            return super.get(ROUTING);
+        }
+        return super.get(key);
     }
 
     /**
@@ -121,5 +177,13 @@ public class ReindexMetadata extends Metadata {
 
     public boolean routingChanged() {
         return Objects.equals(routing, getString(ROUTING)) == false;
+    }
+
+    public boolean routingChangedWithSlice(boolean previousRoutingFromSlice) {
+        return Objects.equals(routing, getString(ROUTING)) == false || routingFromSlice != previousRoutingFromSlice;
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
     }
 }

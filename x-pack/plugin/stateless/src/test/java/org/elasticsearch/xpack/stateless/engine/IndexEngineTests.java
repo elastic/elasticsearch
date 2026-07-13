@@ -25,6 +25,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.MergeMemoryEstimator;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -390,6 +391,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
         when(documentParsingProvider.createDocumentSizeAccumulator()).thenReturn(DocumentSizeAccumulator.EMPTY_INSTANCE);
         MapperService mapperService = mock(MapperService.class);
+        when(mapperService.mappingLookup()).thenReturn(MappingLookup.EMPTY);
         EngineConfig indexConfig = indexConfig(mapperService);
         DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
         when(
@@ -439,6 +441,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         when(documentParsingProvider.createDocumentSizeAccumulator()).thenReturn(documentSizeAccumulator);
 
         MapperService mapperService = Mockito.mock(MapperService.class);
+        when(mapperService.mappingLookup()).thenReturn(MappingLookup.EMPTY);
         EngineConfig indexConfig = indexConfig(mapperService);
         DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
         when(

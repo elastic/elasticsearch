@@ -11,8 +11,8 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -30,7 +30,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
@@ -140,38 +139,28 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         float maxRescoreOversampleAcrossLeaves = 1f;
         for (LeafReaderContext context : leafReaderContexts) {
-            SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(context.reader());
-            if (segmentReader == null) {
-                IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
-                    IvfSegmentConfig.leafCollectorBudget(k, maxRescoreOversampleAcrossLeaves),
-                    indexSearcher
-                );
-                tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio));
-                continue;
+            LeafReader leafReader = context.reader();
+            FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
+            float segmentOversample = 1f;
+            IvfSegmentConfig resolved = null;
+            if (fieldInfo != null) {
+                resolved = ivfQueryConfigResolver.resolve(fieldInfo, leafReader);
+                segmentOversample = resolved.rescoreOversample();
+                maxRescoreOversampleAcrossLeaves = Math.max(maxRescoreOversampleAcrossLeaves, segmentOversample);
             }
-            FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(field);
-            if (fieldInfo == null) {
-                IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
-                    IvfSegmentConfig.leafCollectorBudget(k, maxRescoreOversampleAcrossLeaves),
-                    indexSearcher
-                );
-                tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio));
-                continue;
-            }
-            IvfSegmentConfig resolved = ivfQueryConfigResolver.resolve(fieldInfo, segmentReader);
-
-            float segmentOversample = resolved.rescoreOversample();
-            maxRescoreOversampleAcrossLeaves = Math.max(maxRescoreOversampleAcrossLeaves, segmentOversample);
 
             IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
                 IvfSegmentConfig.leafCollectorBudget(k, segmentOversample),
                 indexSearcher
             );
 
-            if (resolved.usePrecondition()) {
-                preconditionQuery(context);
-            }
-            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio));
+            // Preconditioning might differ per segment when they are calibrated, so, potentially,
+            // each carries its own preconditioner. The transform is therefore applied inside
+            // getLeafResults against that segment's own preconditioner, producing a segment-local
+            // query. The shared query field is never mutated, so segments that disagree on
+            // preconditioning (and the exact-rescore query) each see the correct vector.
+            final boolean usePrecondition = resolved != null && resolved.usePrecondition();
+            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio, usePrecondition));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
@@ -227,9 +216,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new TopDocs(new TotalHits(totalHitsValue, relation), mergedScoreDocs);
     }
 
-    private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
-        throws IOException {
-        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio);
+    private TopDocs searchLeaf(
+        LeafReaderContext ctx,
+        Weight filterWeight,
+        IVFCollectorManager knnCollectorManager,
+        float visitRatio,
+        boolean usePrecondition
+    ) throws IOException {
+        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio, usePrecondition);
         IntObjectHashMap<ScoreDoc> dedupByDoc = new IntObjectHashMap<>(results.scoreDocs.length * 4 / 3);
         for (ScoreDoc scoreDoc : results.scoreDocs) {
             int globalDoc = scoreDoc.doc + ctx.docBase;
@@ -246,10 +240,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }
 
-    abstract TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
-        throws IOException;
-
-    abstract void preconditionQuery(LeafReaderContext context) throws IOException;
+    abstract TopDocs getLeafResults(
+        LeafReaderContext ctx,
+        Weight filterWeight,
+        IVFCollectorManager knnCollectorManager,
+        float visitRatio,
+        boolean usePrecondition
+    ) throws IOException;
 
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         return new IVFCollectorManager(k, searcher);

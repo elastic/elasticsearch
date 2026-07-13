@@ -13,6 +13,7 @@ import org.apache.lucene.search.HnswQueueSaturationCollector;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.core.WelfordVariance;
 
 /**
  * A {@link KnnCollector.Decorator} extending {@link HnswQueueSaturationCollector}
@@ -43,9 +44,7 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
     private int currentQueueSize = 0;
 
     private float smoothedDiscoveryRate = 0.0f;
-    private float mean = 0.0f;
-    private float m2 = 0.0f;
-    private int samples = 0;
+    private final WelfordVariance discoveryRateStats = new WelfordVariance();
     private int steps = 0;
 
     private int saturatedCount = 0;
@@ -101,15 +100,11 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
         smoothedDiscoveryRate = discoveryRateSmoothing * rate + (1 - discoveryRateSmoothing) * smoothedDiscoveryRate;
 
         // update rolling mean and variance using Welford's algorithm
-        samples++;
-        float deltaMean = smoothedDiscoveryRate - mean;
-        mean += deltaMean / samples;
-        m2 += deltaMean * (smoothedDiscoveryRate - mean);
-        double variance = samples > 1 ? m2 / (samples - 1) : 0.0;
-        double stddev = Math.sqrt(variance);
+        discoveryRateStats.add(smoothedDiscoveryRate);
+        double stddev = discoveryRateStats.sampleStdDev();
 
         // update adaptive threshold and patience
-        double adaptiveThreshold = mean + thresholdLooseness * stddev;
+        double adaptiveThreshold = discoveryRateStats.mean() + thresholdLooseness * stddev;
         double adaptivePatience = patienceScaling / (1.0 + stddev);
 
         if (smoothedDiscoveryRate < adaptiveThreshold) {

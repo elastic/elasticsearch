@@ -60,6 +60,11 @@ public class NoConfigFormatReaderTests extends ESTestCase {
 
     private static class Stub implements NoConfigFormatReader {
         @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
         public SourceMetadata metadata(StorageObject object) {
             return null;
         }
@@ -102,6 +107,11 @@ public class NoConfigFormatReaderTests extends ESTestCase {
     }
 
     private static class SegmentableStub implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
         @Override
         public RecordSplitter recordSplitter(int maxRecordBytes) {
             return new RecordSplitter() {

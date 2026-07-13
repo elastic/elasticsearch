@@ -17,7 +17,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Thrown when ES|QL detects views during cross-cluster search field resolution.
@@ -38,12 +37,11 @@ public class RemoteViewNotSupportedException extends ElasticsearchException {
     }
 
     /**
-     * Merge two exceptions into one that reports all matched views.
+     * The qualified names of the remote views that triggered this exception.
      */
-    public static RemoteViewNotSupportedException merge(RemoteViewNotSupportedException a, RemoteViewNotSupportedException b) {
-        return new RemoteViewNotSupportedException(
-            Stream.concat(a.getMetadata(VIEW_NAMES_KEY).stream(), b.getMetadata(VIEW_NAMES_KEY).stream()).toList()
-        );
+    public List<String> views() {
+        List<String> views = getMetadata(VIEW_NAMES_KEY);
+        return views == null ? List.of() : views;
     }
 
     private static String message(List<String> views) {

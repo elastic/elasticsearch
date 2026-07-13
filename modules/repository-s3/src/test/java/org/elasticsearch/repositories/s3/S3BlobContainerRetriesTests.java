@@ -136,7 +136,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private RecordingMeterRegistry recordingMeterRegistry;
 
     @Before
-    public void setUp() throws Exception {
+    public void initializeS3Service() throws Exception {
         shouldErrorOnDns = false;
         service = new S3Service(
             Mockito.mock(Environment.class),
@@ -173,13 +173,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         };
         service.start();
         recordingMeterRegistry = new RecordingMeterRegistry();
-        super.setUp();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeS3Service() throws Exception {
         IOUtils.close(service);
-        super.tearDown();
     }
 
     @Override

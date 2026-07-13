@@ -84,6 +84,7 @@ public class QueryLogger<Context extends QueryLoggerContext> extends ActivityLog
         this(settings, producer, writerProvider, fieldsProvider, null);
     }
 
+    @SuppressWarnings("this-escape")
     public QueryLogger(
         ClusterSettings settings,
         ActivityLogProducer<Context> producer,

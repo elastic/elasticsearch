@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
@@ -374,7 +374,7 @@ public class PrimaryReplicaSyncer {
         }
     }
 
-    public static class ResyncRequest extends LegacyActionRequest {
+    public static class ResyncRequest extends UntypedActionRequest {
 
         private final ShardId shardId;
         private final String allocationId;

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -24,8 +25,14 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.util.List;
@@ -212,6 +219,128 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals(1, hints.size());
         assertNotNull(hints.get("s3://bucket/a/*.parquet"));
         assertNull(hints.get("s3://bucket/b/*.parquet"));
+    }
+
+    // -- A hint rewrites the glob, so folders it excludes are never listed. These pin when it may not be trusted. --
+
+    /**
+     * {@code SORT id | LIMIT 4 | WHERE year == 2025} takes four rows and filters them <em>afterwards</em>. Narrowing
+     * the listing to {@code year=2025/} first would refill the {@code LIMIT} window from the surviving folders and
+     * return rows the query never asked for. No hint may cross a {@code LIMIT}.
+     */
+    public void testLimitBarrierDropsHints() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        LogicalPlan limit = new Limit(SRC, intLiteral(4), rel);
+        LogicalPlan plan = new Filter(SRC, limit, new Equals(SRC, unresolved("year"), intLiteral(2025)));
+
+        assertTrue("a filter above a LIMIT must not narrow the listing", PartitionFilterHintExtractor.extract(plan).isEmpty());
+    }
+
+    /** Same rule, a node that collapses rows rather than truncating them. */
+    public void testAggregateBarrierDropsHints() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        LogicalPlan stats = new Aggregate(SRC, rel, List.of(), List.of(unresolved("id")));
+        LogicalPlan plan = new Filter(SRC, stats, new Equals(SRC, unresolved("year"), intLiteral(2025)));
+
+        assertTrue("a filter above STATS must not narrow the listing", PartitionFilterHintExtractor.extract(plan).isEmpty());
+    }
+
+    /**
+     * {@code EVAL year = ...} redefines {@code year} as a row value that has nothing to do with the {@code year=2024/}
+     * folder the row came from. Rewriting the glob to {@code year=615/} would list nothing at all.
+     */
+    public void testEvalShadowDropsMatchingHint() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        LogicalPlan eval = new Eval(SRC, rel, List.of(new Alias(SRC, "year", unresolved("id"))));
+        LogicalPlan plan = new Filter(SRC, eval, new Equals(SRC, unresolved("year"), intLiteral(615)));
+
+        assertTrue(
+            "a hint on a column an EVAL redefined must not narrow the listing",
+            PartitionFilterHintExtractor.extract(plan).isEmpty()
+        );
+    }
+
+    /** Only the shadowed conjunct is dropped — a genuine partition predicate alongside it still prunes. */
+    public void testEvalShadowKeepsUnrelatedHint() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        LogicalPlan eval = new Eval(SRC, rel, List.of(new Alias(SRC, "year", unresolved("id"))));
+        Expression condition = new And(
+            SRC,
+            new Equals(SRC, unresolved("year"), intLiteral(615)),
+            new Equals(SRC, unresolved("month"), intLiteral(6))
+        );
+        LogicalPlan plan = new Filter(SRC, eval, condition);
+
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(plan).get(PATH);
+        assertNotNull("the untouched `month` predicate must survive", hints);
+        assertEquals(1, hints.size());
+        assertEquals("month", hints.get(0).columnName());
+    }
+
+    /**
+     * Direction check. Here the {@code WHERE} reads the real partition column and the {@code EVAL} only affects rows
+     * downstream of it, so the hint is still good. Applying shadowing at the relation rather than at the moment the
+     * walk passes the {@code EVAL} would wrongly drop it.
+     */
+    public void testFilterBelowEvalKeepsHint() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        LogicalPlan filter = new Filter(SRC, rel, new Equals(SRC, unresolved("year"), intLiteral(2025)));
+        LogicalPlan plan = new Eval(SRC, filter, List.of(new Alias(SRC, "year", intLiteral(9))));
+
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(plan).get(PATH);
+        assertNotNull("a filter BELOW the EVAL reads the partition column and must still prune", hints);
+        assertEquals("year", hints.get(0).columnName());
+    }
+
+    /** {@code RENAME id AS year} makes `year` row-derived just as an EVAL would; the new name is the dangerous one. */
+    public void testRenameShadowDropsHint() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        LogicalPlan rename = new Rename(SRC, rel, List.of(new Alias(SRC, "year", unresolved("id"))));
+        LogicalPlan plan = new Filter(SRC, rename, new Equals(SRC, unresolved("year"), intLiteral(615)));
+
+        assertTrue("a hint on a RENAMEd column must not narrow the listing", PartitionFilterHintExtractor.extract(plan).isEmpty());
+    }
+
+    /**
+     * {@code ENRICH} is the reason the listing layer cannot reuse the {@code Streaming} marker: it is row-preserving,
+     * but until the analyzer loads the policy its generated fields are unknown, so a policy that contributes a
+     * {@code year} column would shadow the partition column invisibly. It must stop the hint.
+     */
+    public void testEnrichBarrierDropsHints() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        LogicalPlan enrich = new Enrich(
+            SRC,
+            rel,
+            Enrich.Mode.ANY,
+            Literal.keyword(SRC, "policy"),
+            unresolved("id"),
+            null,
+            Map.of(),
+            List.of()
+        );
+        LogicalPlan plan = new Filter(SRC, enrich, new Equals(SRC, unresolved("year"), intLiteral(2025)));
+
+        assertTrue(
+            "ENRICH may introduce columns not knowable pre-resolution, so no hint may cross it",
+            PartitionFilterHintExtractor.extract(plan).isEmpty()
+        );
+    }
+
+    /** KEEP/DROP only remove columns; they never redefine one, so the common shapes must keep pruning. */
+    public void testKeepAndDropAreTransparent() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        LogicalPlan drop = new Drop(SRC, rel, List.of(unresolved("unused")));
+        LogicalPlan plan = new Filter(SRC, drop, new Equals(SRC, unresolved("year"), intLiteral(2025)));
+
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(plan).get(PATH);
+        assertNotNull("DROP must not stop a partition hint", hints);
+        assertEquals("year", hints.get(0).columnName());
+    }
+
+    private static final String PATH = "s3://bucket/data/*.parquet";
+
+    private static UnresolvedExternalRelation externalRelation(String path) {
+        return new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, path), Map.of());
     }
 
     private static LogicalPlan filterAboveExternal(Expression condition, String path) {

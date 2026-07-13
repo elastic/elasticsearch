@@ -22,15 +22,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.Streaming;
-import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.util.ArrayList;
@@ -101,7 +95,7 @@ public final class SplitDiscoveryPhase {
             return;
         }
 
-        List<Expression> filtersForChildren = rowPreserving(plan) ? ancestorFilters : List.of();
+        List<Expression> filtersForChildren = PartitionPruningRule.rowPreserving(plan) ? ancestorFilters : List.of();
         if (plan instanceof Filter filter) {
             List<Expression> extended = new ArrayList<>(filtersForChildren);
             extended.addAll(splitAnd(filter.condition()));
@@ -111,44 +105,6 @@ public final class SplitDiscoveryPhase {
         for (LogicalPlan child : plan.children()) {
             collectGuardedRelations(child, filtersForChildren, guarded);
         }
-    }
-
-    /**
-     * Whether a filter sitting <em>above</em> {@code plan} may still be used to prune the source files beneath it.
-     *
-     * <p>The reasoning that licenses pruning is: if no row of a file can satisfy the filter, the file cannot
-     * contribute to the result, so skipping it changes nothing. That holds only while every node between the filter
-     * and the source leaves the row count alone. The moment a node <em>selects</em> rows by cardinality, it breaks:
-     * {@code FROM ds | SORT id | LIMIT 4 | WHERE year == 2025} must take four rows and filter them <em>afterwards</em>
-     * — pruning the non-2025 files first would refill the {@code LIMIT} window from the surviving files and return
-     * rows the query never asked for. The same goes for {@code SAMPLE}, {@code STATS}, {@code MV_EXPAND} and joins.
-     *
-     * <p>{@link Streaming} already means exactly "does not add or remove rows", so it carries the rule for us and keeps
-     * carrying it as commands are added. Two nodes qualify without being {@code Streaming}: {@link Filter}, which only
-     * ever removes rows (pruning yet more of them below is still sound), and {@link OrderBy}, which reorders but never
-     * drops. Everything else — anything that could change how many rows reach the top — fails closed to "do not prune":
-     * a full scan, never an invented answer. Value provenance is a separate concern, enforced independently by the
-     * {@code NameId} binding in {@link #resolveExternalSource}.
-     *
-     * <p>Today no unsafe shape actually reaches this walk, so the guard is defence in depth rather than a live fix.
-     * That is not because of anything this class controls: it holds only because the optimizer never pushes a filter
-     * below a limit, nor a limit below a filter, so the two never end up stacked inside one fragment. The guard is here
-     * because that is an invariant of code far away, and #143696 is precisely the story of such an invariant quietly
-     * changing underneath partition pruning.
-     *
-     * @see #rowPreserving(PhysicalPlan) the same rule over the physical tree — the two must agree
-     */
-    private static boolean rowPreserving(LogicalPlan plan) {
-        return plan instanceof Streaming || plan instanceof Filter || plan instanceof OrderBy;
-    }
-
-    /**
-     * The physical-tree twin of {@link #rowPreserving(LogicalPlan)}; see there for why this is an allowlist. Note the
-     * absence of an order-by node: ES|QL lowers a sort to {@link TopNExec}, which carries a limit and therefore
-     * <em>is</em> cardinality-sensitive.
-     */
-    private static boolean rowPreserving(PhysicalPlan plan) {
-        return plan instanceof FilterExec || plan instanceof EvalExec || plan instanceof ProjectExec || plan instanceof RegexExtractExec;
     }
 
     /**
@@ -251,7 +207,7 @@ public final class SplitDiscoveryPhase {
             return resolveExternalSource(exec, ancestorFilters, sourceFactories, maxRecordBytes, stats, isCancelled);
         }
 
-        List<Expression> filtersForChildren = rowPreserving(plan) ? ancestorFilters : List.of();
+        List<Expression> filtersForChildren = PartitionPruningRule.rowPreserving(plan) ? ancestorFilters : List.of();
         if (plan instanceof FilterExec filterExec) {
             List<Expression> extended = new ArrayList<>(filtersForChildren);
             for (Expression conjunction : splitAnd(filterExec.condition())) {

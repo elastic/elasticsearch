@@ -148,7 +148,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(
                 randomAlphaOfLength(4),
                 totalBytes,
-                new NodeHeapEstimate(randomIntBetween(0, totalBytes), randomNonNegativeLong())
+                new NodeHeapEstimate(randomLongBetween(0, totalBytes), randomLongBetween(0, totalBytes))
             );
             nodeHeapUsage.put(key, estimatedHeapUsage);
         }

@@ -1050,3 +1050,16 @@ c:long | b:datetime
 1      | 2023-10-23T13:53:55.832Z
 1      | 2023-10-23T13:55:01.543Z
 ;
+
+
+autoBucketCountAcrossDstFallback
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "America/New_York"\;
+ROW ts = TO_DATETIME("2024-11-03T12:00:00Z")
+| STATS c = COUNT(*) BY b = BUCKET(ts, 8, "2024-11-03T00:00:00-04:00", "2024-11-04T00:00:00-05:00")
+;
+
+c:long | b:datetime
+1      | 2024-11-03T11:00:00.000Z
+;

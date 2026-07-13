@@ -3382,7 +3382,7 @@ public class EsqlCapabilities {
         SPATIAL_BBOX_VALIDATION_FIX,
 
         /**
-         * Fix BUCKET which bucket counts larger than MAX_INT (previously overflowed).
+         * Fix BUCKET with bucket counts larger than MAX_INT (previously overflowed).
          * See: <a href="https://github.com/elastic/elasticsearch/issues/153389">#153389</a>
          */
         FIX_BUCKET_LARGE_NUMBER_OF_BUCKETS,

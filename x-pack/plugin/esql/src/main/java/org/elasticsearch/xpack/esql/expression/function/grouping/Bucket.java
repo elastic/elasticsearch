@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -185,10 +186,16 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
          * True if the rounding produces less than or equal to the requested number of buckets.
          */
         boolean roundingIsOk(Unit unit) {
+            if (buckets <= 0) {
+                return false;
+            }
             Rounding.Prepared r = unit.rounding(zoneId).prepareForUnknown();
             Long fixedWidthMillis = unit.fixedWidthMillis();
             if (fixedWidthMillis != null) {
-                return (to - r.round(from) + fixedWidthMillis - 1) / fixedWidthMillis <= buckets;
+                long roundedFrom = r.round(from);
+                // Compensate local time span for potential DST changes in the span.
+                long localSpan = (to - roundedFrom) + (offsetMillis(to) - offsetMillis(roundedFrom));
+                return (localSpan + fixedWidthMillis - 1) / fixedWidthMillis <= buckets;
             } else {
                 long bucket = r.round(from);
                 long used = 0;
@@ -201,6 +208,14 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 }
                 return false;
             }
+        }
+
+        /**
+         * The zone offset, in milliseconds, that applies at the given instant. Used to convert an elapsed UTC span into
+         * a wall-clock span so that fixed-interval bucket counts remain correct across DST transitions.
+         */
+        private long offsetMillis(long epochMillis) {
+            return zoneId.getRules().getOffset(Instant.ofEpochMilli(epochMillis)).getTotalSeconds() * 1000L;
         }
     }
 

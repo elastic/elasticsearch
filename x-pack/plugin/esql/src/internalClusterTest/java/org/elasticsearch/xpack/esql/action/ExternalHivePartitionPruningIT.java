@@ -370,6 +370,60 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
         assertPrune(dataset, "WHERE year == 2025 | SORT id ASC | LIMIT 4", TOTAL_FILES, 4, idsWhere((y, m, d) -> y == 2025));
     }
 
+    // -- Keyed glob: the folder-LISTING layer. These are the only tests here where the glob rewrite is live. --
+
+    /**
+     * Positive control. On a glob that names its partition keys, a partition filter rewrites the glob itself, so the
+     * non-matching folders are never enumerated. This must keep working — the guards below restrict when a hint may be
+     * trusted, and a guard drawn too wide would silently turn every keyed dataset back into a full listing.
+     */
+    public void testKeyedGlobPrunesTheListing() throws Exception {
+        String dataset = registerKeyedTree("csv_keyed", "csv");
+        assertPrune(dataset, "WHERE year == 2025", TOTAL_FILES, 4, idsWhere((y, m, d) -> y == 2025));
+    }
+
+    /** Same, across all three keys, so every segment of the glob is rewritten. */
+    public void testKeyedGlobPrunesOnAllThreeKeys() throws Exception {
+        String dataset = registerKeyedTree("csv_keyed_full", "csv");
+        assertPrune(
+            dataset,
+            "WHERE year == 2025 AND month == 6 AND day == 15",
+            TOTAL_FILES,
+            1,
+            idsWhere((y, m, d) -> y == 2025 && m == 6 && d == 15)
+        );
+    }
+
+    /**
+     * The listing layer's cardinality guard, end to end. {@code SORT id | LIMIT 4 | WHERE year == 2025} takes the four
+     * lowest ids — all from 2024 — and filters them afterwards, so the answer is <b>no rows</b>. If the hint were
+     * allowed to rewrite the glob, only 2025's folders would be listed, the limit window would refill from them, and
+     * the query would return four rows nobody asked for.
+     *
+     * <p>Unlike its {@code **}-glob twin, this one genuinely discriminates the guard: remove it and the query returns
+     * four rows.
+     */
+    public void testKeyedGlobMustNotPruneListingAboveLimit() throws Exception {
+        String dataset = registerKeyedTree("csv_keyed_limit", "csv");
+        assertPrune(dataset, "SORT id ASC | LIMIT 4 | WHERE year == 2025", TOTAL_FILES, TOTAL_FILES, List.of());
+    }
+
+    /**
+     * The listing layer's shadow guard, end to end. {@code EVAL year = id % 10000} redefines {@code year} as a row
+     * value; {@code WHERE year == 615} must match the two June-15 rows. If the hint were trusted, the glob would be
+     * rewritten to {@code year=615/}, which matches no folder — historically an outright "matched no files" error.
+     */
+    public void testKeyedGlobMustNotPruneListingOnShadowedColumn() throws Exception {
+        String dataset = registerKeyedTree("csv_keyed_shadow", "csv");
+        assertPrune(
+            dataset,
+            "EVAL year = id % 10000 | WHERE year == 615",
+            TOTAL_FILES,
+            TOTAL_FILES,
+            idsWhere((y, m, d) -> idFor(y, m, d) % 10000 == 615)
+        );
+    }
+
     // -- End-to-end: pruning must be visible to a user, in the rendered profile JSON --
 
     /**
@@ -542,6 +596,38 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     }
 
     /**
+     * The same 8-file tree, registered with a glob that <em>names</em> its partition keys — {@code year=*},
+     * {@code month=*}, {@code day=*} — instead of hiding them behind a bare {@code **}.
+     *
+     * <p>This is the shape that reaches the listing layer. {@code GlobExpander.rewriteSegment} only rewrites a segment
+     * spelled exactly {@code key=*}, so on the {@code **} glob every other test here uses, the rewrite is inert and the
+     * folders are always listed — only the read layer prunes. With the keys named, a partition hint rewrites the glob
+     * and the non-matching folders are never <em>enumerated</em>, which is a pruning decision taken before a
+     * {@code FileList} exists and which nothing downstream can undo. That is why the guards have to hold here too.
+     *
+     * <p>Two fixture details are load-bearing. The glob keeps a recursive wildcard and a concrete extension — the local
+     * file provider only recurses for globs containing one, and the format is inferred from the extension. And the
+     * month/day segments are written <em>unpadded</em>
+     * ({@code month=6}, not {@code month=06}) because the rewrite spells a hint's value with {@code String.valueOf} —
+     * {@code month == 6} would rewrite to {@code month=6} and match no zero-padded folder at all.
+     */
+    private String registerKeyedTree(String name, String format) throws IOException {
+        Path root = createTempDir().resolve(name);
+        for (int year : YEARS) {
+            for (int month : MONTHS) {
+                for (int day : DAYS) {
+                    Path dir = root.resolve("year=" + year).resolve("month=" + month).resolve("day=" + day);
+                    Files.createDirectories(dir);
+                    writeRow(dir, idFor(year, month, day), format);
+                }
+            }
+        }
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's trailing '/**' is misread as Javadoc
+        String glob = StoragePath.fileUri(root) + "/year=*/month=*/day=*/**/*." + format;
+        return registerDataset(name, glob, Map.of("hive_partitioning", true));
+    }
+
+    /**
      * Registers the 8-file {@code year/month/day} Hive tree for the given format ({@code csv} or {@code parquet}),
      * one single-row file per {@code (year, month, day)} triple, each row's {@code id} = {@link #idFor}. Returns the
      * registered dataset name.
@@ -604,11 +690,15 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     private static void writeFile(Path root, int year, int month, int day, String format) throws IOException {
         Path dir = root.resolve("year=" + year).resolve("month=" + pad2(month)).resolve("day=" + pad2(day));
         Files.createDirectories(dir);
-        int id = idFor(year, month, day);
+        writeRow(dir, idFor(year, month, day), format);
+    }
+
+    /** Writes {@code dir/f.<format>} carrying one row with a single {@code id} column. */
+    private static void writeRow(Path dir, int id, String format) throws IOException {
         if (format.equals("csv")) {
             Files.writeString(dir.resolve("f.csv"), "id\n" + id + "\n", StandardCharsets.UTF_8);
         } else {
-            // One row, one int32 id column, value = YYYYMMDD. rowGroupSize 1024 keeps it a single row group -> one split.
+            // One row, one int32 id column. rowGroupSize 1024 keeps it a single row group -> one split.
             writeParquet(dir.resolve("f.parquet"), "message test { required int32 id; }", 1, 1024, (g, i) -> g.add("id", id));
         }
     }

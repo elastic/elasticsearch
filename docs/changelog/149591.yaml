@@ -1,0 +1,6 @@
+area: TSDB
+issues: []
+pr: 149591
+summary: Handle OTLP explicit-bounds histograms without buckets in tdigest and exponential
+  histogram conversion paths
+type: enhancement

@@ -47,7 +47,6 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -102,7 +101,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private final ClusterService clusterService;
     private final SnapshotFilesProvider snapshotFilesProvider;
 
-    private final RecoveriesCollection onGoingRecoveries;
+    // visible for testing
+    final RecoveriesCollection onGoingRecoveries;
 
     public PeerRecoveryTargetService(
         Client client,
@@ -520,16 +520,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             ),
             e
         );
-    }
-
-    public interface RecoveryListener {
-        void onRecoveryDone(
-            RecoveryState state,
-            ShardLongFieldRange timestampMillisFieldRange,
-            ShardLongFieldRange eventIngestedMillisFieldRange
-        );
-
-        void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
     }
 
     class HandoffPrimaryContextRequestHandler implements TransportRequestHandler<RecoveryHandoffPrimaryContextRequest> {

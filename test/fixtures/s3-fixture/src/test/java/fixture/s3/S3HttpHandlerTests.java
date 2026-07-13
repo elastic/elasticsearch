@@ -18,14 +18,18 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +38,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -73,7 +78,15 @@ public class S3HttpHandlerTests extends ESTestCase {
         Randomness.shuffle(queryParts);
 
         final var requestUri = "/bucket" + randomFrom("", "/") + (queryParts.isEmpty() ? "" : "?" + String.join("&", queryParts));
-        assertEquals("GET " + requestUri, new TestHttpResponse(RestStatus.OK, expectedResponse), handleRequest(handler, "GET", requestUri));
+        final var actual = handleRequest(handler, "GET", requestUri);
+        assertEquals("GET " + requestUri + " status", RestStatus.OK, actual.status());
+        // Normalize <LastModified> values before comparing: BlobEntry.lastModified() is Instant.now() so the exact
+        // timestamp varies per run. Replacing both sides with a placeholder still verifies the element is present.
+        assertEquals("GET " + requestUri, normalizeLastModified(expectedResponse), normalizeLastModified(actual.body().utf8ToString()));
+    }
+
+    private static String normalizeLastModified(String xml) {
+        return xml.replaceAll("<LastModified>[^<]+</LastModified>", "<LastModified>*</LastModified>");
     }
 
     public void testSimpleObjectOperations() {
@@ -442,6 +455,93 @@ public class S3HttpHandlerTests extends ESTestCase {
         return createUploadResponseBody.substring(startIdPosition, startIdPosition + 22);
     }
 
+    public void testParseAmzChunkedRequestBody() throws IOException {
+        assertThat(S3HttpHandler.parseAmzChunkedRequestBody(0, buildAmzChunkedBody()), equalBytes(BytesArray.EMPTY));
+
+        final var singleChunkData = randomBytesReference(between(1, 256));
+        assertThat(
+            S3HttpHandler.parseAmzChunkedRequestBody(singleChunkData.length(), buildAmzChunkedBody(singleChunkData)),
+            equalBytes(singleChunkData)
+        );
+
+        final var chunk1 = randomBytesReference(between(1, 128));
+        final var chunk2 = randomBytesReference(between(1, 128));
+        assertThat(
+            S3HttpHandler.parseAmzChunkedRequestBody(chunk1.length() + chunk2.length(), buildAmzChunkedBody(chunk1, chunk2)),
+            equalBytes(CompositeBytesReference.of(chunk1, chunk2))
+        );
+
+        expectParseAmzChunkedFailure("header of chunk [1] was not terminated", 0, new BytesArray("no-newline-here"));
+        expectParseAmzChunkedFailure("header of chunk [1] was too long", 0, new BytesArray(randomAlphaOfLength(149) + "\r\n"));
+        expectParseAmzChunkedFailure("header of chunk [1] was too short", 0, new BytesArray("\n"));
+        expectParseAmzChunkedFailure("header of chunk [1] not terminated with [\\r\\n]", 0, new BytesArray("abc\n"));
+        expectParseAmzChunkedFailure("header of chunk [1] did not match expected pattern", 0, new BytesArray("z\r\n"));
+
+        try (var out = new BytesStreamOutput()) {
+            writeAmzChunkedBodyChunk(out, singleChunkData);
+            // remove or corrupt terminator
+            out.seek(out.size() - 2);
+            if (randomBoolean()) {
+                out.writeByte((byte) (int) randomValueOtherThan(0x0d, () -> between(0x00, 0xff)));
+            }
+            if (randomBoolean()) {
+                out.writeByte((byte) (int) randomValueOtherThan(0x0a, () -> between(0x00, 0xff)));
+            }
+            expectParseAmzChunkedFailure("chunk [1] not terminated with [\\r\\n]", singleChunkData.length(), out.bytes());
+        }
+
+        expectParseAmzChunkedFailure(
+            "Something went wrong when parsing the chunked request",
+            singleChunkData.length() + randomFrom(-2, -1, 1, 2),
+            buildAmzChunkedBody(singleChunkData)
+        );
+    }
+
+    private static BytesReference buildAmzChunkedBody(BytesReference... dataChunks) throws IOException {
+        try (var out = new BytesStreamOutput()) {
+            for (BytesReference dataChunk : dataChunks) {
+                writeAmzChunkedBodyChunk(out, dataChunk);
+            }
+            writeAmzChunkedBodyChunk(out, BytesArray.EMPTY);
+            return out.bytes();
+        }
+    }
+
+    private static void writeAmzChunkedBodyChunk(OutputStream out, BytesReference dataChunk) throws IOException {
+        try (var writer = new OutputStreamWriter(Streams.noCloseStream(out), StandardCharsets.UTF_8)) {
+            writer.write(Integer.toHexString(dataChunk.length()));
+            if (randomBoolean()) {
+                // a chunk-signature chunk header is permitted but not required:
+                writer.write(";chunk-signature=");
+                writer.write(randomAlphaOfLengthBetween(0, 64));
+            }
+            writer.write("\r\n");
+            if (dataChunk.length() == 0) {
+                if (randomBoolean()) {
+                    // the last chunk may include trailers such as a checksum
+                    writer.write(randomIdentifier("x-amz-checksum-"));
+                    writer.write(":");
+                    writer.write(randomAlphaOfLengthBetween(0, 64));
+                    writer.write("\r\n");
+                }
+            } else {
+                writer.flush();
+                dataChunk.writeTo(out);
+            }
+            writer.write("\r\n");
+        }
+    }
+
+    private void expectParseAmzChunkedFailure(String expectedMessageFragment, int headerDecodedContentLength, BytesReference encodedBody) {
+        assertThat(
+            expectThrows(
+                IllegalStateException.class,
+                () -> S3HttpHandler.parseAmzChunkedRequestBody(headerDecodedContentLength, encodedBody)
+            ).getMessage(),
+            containsString(expectedMessageFragment)
+        );
+    }
+
     public void testExtractPartEtags() {
         runExtractPartETagsTest("""
             <?xml version="1.0" encoding="UTF-8"?><CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/"/>""");
@@ -669,7 +769,17 @@ public class S3HttpHandlerTests extends ESTestCase {
         BytesReference requestBody,
         Headers requestHeaders
     ) {
-        final var httpExchange = new TestHttpExchange(method, uri, requestBody, requestHeaders);
+        final Headers finalRequestHeaders;
+        if (method.equals("PUT")) {
+            finalRequestHeaders = new Headers(requestHeaders);
+            finalRequestHeaders.add(
+                S3HttpHandler.CONTENT_SHA256_HEADER,
+                MessageDigests.toHexString(MessageDigests.digest(requestBody, MessageDigests.sha256()))
+            );
+        } else {
+            finalRequestHeaders = requestHeaders;
+        }
+        final var httpExchange = new TestHttpExchange(method, uri, requestBody, finalRequestHeaders);
         try {
             handler.handle(httpExchange);
         } catch (IOException e) {

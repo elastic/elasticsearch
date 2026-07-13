@@ -281,7 +281,7 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 This connector does not currently support [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 ::::{note}
-* Files bigger than 10 MB won’t be extracted.
+* Files bigger than 8 MiB won’t be extracted.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::

@@ -51,6 +51,7 @@ import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
+import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_EVALUATOR_CONTEXT;
@@ -202,6 +203,10 @@ public class GroupingAggregatorImplementer {
         return warnExceptions.isEmpty() == false || init.getParameters().stream().anyMatch(p -> TypeName.get(p.asType()).equals(WARNINGS));
     }
 
+    private boolean hasSeen() {
+        return intermediateState.stream().anyMatch(s -> s.name().equals("seen") && s.elementType().equals("BOOLEAN"));
+    }
+
     public JavaFile sourceFile() {
         JavaFile.Builder builder = JavaFile.builder(implementation.packageName(), type());
         builder.addFileComment("""
@@ -244,6 +249,9 @@ public class GroupingAggregatorImplementer {
                 builder.addMethod(addRawInputLoop(groupIdClass, true));
             }
             builder.addMethod(addIntermediateInput(groupIdClass));
+        }
+        if (hasSeen()) {
+            builder.addMethod(prepareProcessIntermediateInputPage());
         }
         builder.addMethod(maybeEnableGroupIdTracking());
         builder.addMethod(selectedMayContainUnseenGroups());
@@ -637,6 +645,28 @@ public class GroupingAggregatorImplementer {
         }
     }
 
+    private MethodSpec prepareProcessIntermediateInputPage() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareProcessIntermediateInputPage");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
+        builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds");
+        builder.addParameter(PAGE, "page");
+
+        int seenIndex = -1;
+        for (int i = 0; i < intermediateState.size(); i++) {
+            if (intermediateState.get(i).name().equals("seen")) {
+                seenIndex = i;
+                break;
+            }
+        }
+        builder.addStatement("$T seen = (($T) page.getBlock(channels.get($L))).asVector()", BOOLEAN_VECTOR, Types.BOOLEAN_BLOCK, seenIndex);
+        builder.beginControlFlow("if (seen == null || seen.isConstant() == false || seen.getBoolean(0) == false)");
+        builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
+        builder.endControlFlow();
+
+        builder.addStatement("return new $T.IntermediateAddInput(this, seenGroupIds, page)", GROUPING_AGGREGATOR_FUNCTION);
+        return builder.build();
+    }
+
     private MethodSpec selectedMayContainUnseenGroups() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("selectedMayContainUnseenGroups");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
@@ -653,7 +683,9 @@ public class GroupingAggregatorImplementer {
         builder.addParameter(groupsType, "groups");
         builder.addParameter(PAGE, "page");
 
-        builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
+        if (hasSeen() == false) {
+            builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
+        }
         builder.addStatement("assert channels.size() == intermediateBlockCount()");
 
         int count = 0;

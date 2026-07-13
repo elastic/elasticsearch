@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 153005
+summary: Bump ES|QL/Arrow Jackson to 2.21.4
+type: upgrade

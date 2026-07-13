@@ -2643,7 +2643,6 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testDocValuesFormatRequiresTimeSeriesDocValuesFormatSetting() {
-        assumeTrue("feature under test must be enabled", IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled());
         Settings tsdbDocValuesFormatEnabled = Settings.builder()
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
             .build();

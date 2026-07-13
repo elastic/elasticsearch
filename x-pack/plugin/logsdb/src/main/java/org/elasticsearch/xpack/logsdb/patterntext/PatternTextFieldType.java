@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryB
 import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
@@ -229,13 +230,15 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         boolean transpositions,
         SearchExecutionContext context
     ) {
-        FuzzyQuery fuzzyQuery = new FuzzyQuery(
+        FuzzyQuery fuzzyQuery = FuzzyQueries.create(
             new Term(name(), term),
             maxDistance,
             prefixLength,
             IndexSearcher.getMaxClauseCount(),
             transpositions,
-            MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
+            MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+            context,
+            name()
         );
         IntervalsSource fuzzyIntervals = Intervals.multiterm(fuzzyQuery.getAutomata(), IndexSearcher.getMaxClauseCount(), term);
         return toIntervalsSource(fuzzyIntervals, fuzzyQuery, context);

@@ -105,18 +105,7 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
         try (var service = createInferenceService()) {
             var listener = new PlainActionFuture<InferenceServiceResults>();
 
-            service.infer(
-                getInvalidModel("id", "service"),
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.UNSPECIFIED,
-                null,
-                listener
-            );
+            service.infer(getInvalidModel("id", "service"), List.of(""), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -294,7 +283,7 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
             model = mock();
         }
 
-        inferenceService.chunkedInfer(model, null, inputs, Map.of(), InputType.INTERNAL_INGEST, ESTestCase.TEST_REQUEST_TIMEOUT, listener);
+        inferenceService.chunkedInfer(model, inputs, Map.of(), InputType.INTERNAL_INGEST, ESTestCase.TEST_REQUEST_TIMEOUT, listener);
         var exception = expectThrows(ElasticsearchStatusException.class, listener::actionGet);
 
         assertThat(exception.status(), is(BAD_REQUEST));

@@ -26,7 +26,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByPaginatedSearchActionTestCase;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
@@ -44,7 +44,7 @@ import static org.mockito.Mockito.when;
 /**
  * Reindex tests for picking ids.
  */
-public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTestCase<ReindexRequest, BulkByScrollResponse> {
+public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTestCase<ReindexRequest, BulkByPaginatedSearchResponse> {
     public void testEmptyStateCopiesId() throws Exception {
         final ProjectState projectState = ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID);
         assertThat(action(projectState).buildRequest(doc()).getId(), equalTo(doc().getId()));

@@ -12,6 +12,7 @@ package org.elasticsearch.painless.lookup;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.Def;
+import org.elasticsearch.painless.PainlessScript;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistClass;
 import org.elasticsearch.painless.spi.WhitelistClassBinding;
@@ -20,10 +21,13 @@ import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
 import org.elasticsearch.painless.spi.annotation.AliasAnnotation;
+import org.elasticsearch.painless.spi.annotation.AllocatesConstantAnnotation;
+import org.elasticsearch.painless.spi.annotation.AllocatesDynamicAnnotation;
 import org.elasticsearch.painless.spi.annotation.AugmentedAnnotation;
 import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
 import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
+import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -87,6 +91,7 @@ public final class PainlessLookupBuilder {
                     for (WhitelistConstructor whitelistConstructor : whitelistClass.whitelistConstructors) {
                         origin = whitelistConstructor.origin;
                         painlessLookupBuilder.addPainlessConstructor(
+                            whitelist.classLoader,
                             targetCanonicalClassName,
                             whitelistConstructor.canonicalTypeNameParameters,
                             whitelistConstructor.painlessAnnotations,
@@ -183,6 +188,11 @@ public final class PainlessLookupBuilder {
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
 
+    private final Map<Class<?>, Set<String>> annotationsToMethodKeys;
+
+    // Resolved @allocates_dynamic estimators keyed by PainlessMethod/PainlessConstructor; a derived index like annotationsToMethodKeys.
+    private final Map<Object, Method> allocationEstimators;
+
     public PainlessLookupBuilder() {
         javaClassNamesToClasses = new HashMap<>();
         canonicalClassNamesToClasses = new HashMap<>();
@@ -192,6 +202,9 @@ public final class PainlessLookupBuilder {
         painlessMethodKeysToImportedPainlessMethods = new HashMap<>();
         painlessMethodKeysToPainlessClassBindings = new HashMap<>();
         painlessMethodKeysToPainlessInstanceBindings = new HashMap<>();
+
+        annotationsToMethodKeys = new HashMap<>();
+        allocationEstimators = new HashMap<>();
     }
 
     private Class<?> canonicalTypeNameToType(String canonicalTypeName) {
@@ -219,6 +232,84 @@ public final class PainlessLookupBuilder {
                 throw iae;
             }
         }
+    }
+
+    /**
+     * Resolves the {@code @allocates_dynamic} estimator for an annotated method or constructor, or {@code null} when the
+     * annotation is absent. The estimator class is loaded through the allowlist's class loader (so plugins can ship their own)
+     * and must declare a {@code public static long} method matching {@code methodType}'s parameters (receiver first for
+     * instance methods; the underlying Java static signature for augmented ones). Any mismatch throws at allowlist-load time:
+     * a mistyped estimator must fail loudly rather than silently disable the pre-check.
+     */
+    private static Method resolveAllocationEstimator(
+        ClassLoader classLoader,
+        Map<Class<?>, Object> annotations,
+        MethodType methodType,
+        Supplier<String> targetDescription
+    ) {
+        AllocatesDynamicAnnotation dynamicAnnotation = (AllocatesDynamicAnnotation) annotations.get(AllocatesDynamicAnnotation.class);
+
+        if (annotations.containsKey(AllocatesConstantAnnotation.class) && dynamicAnnotation != null) {
+            throw new IllegalArgumentException(
+                "cannot use both [@"
+                    + AllocatesConstantAnnotation.NAME
+                    + "] and [@"
+                    + AllocatesDynamicAnnotation.NAME
+                    + "] on "
+                    + targetDescription.get()
+            );
+        }
+
+        if (dynamicAnnotation == null) {
+            return null;
+        }
+
+        String estimatorClassName = dynamicAnnotation.estimatorClassName();
+        String estimatorMethodName = dynamicAnnotation.estimatorMethodName();
+        Class<?> estimatorClass = loadClass(
+            classLoader,
+            estimatorClassName,
+            () -> "estimator class ["
+                + estimatorClassName
+                + "] not found for [@"
+                + AllocatesDynamicAnnotation.NAME
+                + "] on "
+                + targetDescription.get()
+        );
+
+        Method estimator;
+
+        try {
+            estimator = estimatorClass.getMethod(estimatorMethodName, methodType.parameterArray());
+        } catch (NoSuchMethodException nsme) {
+            throw new IllegalArgumentException(
+                "estimator method [public static long "
+                    + estimatorClassName
+                    + "#"
+                    + estimatorMethodName
+                    + Arrays.toString(methodType.parameterArray())
+                    + "] not found for [@"
+                    + AllocatesDynamicAnnotation.NAME
+                    + "] on "
+                    + targetDescription.get(),
+                nsme
+            );
+        }
+
+        if (Modifier.isStatic(estimator.getModifiers()) == false || estimator.getReturnType() != long.class) {
+            throw new IllegalArgumentException(
+                "estimator method ["
+                    + estimatorClassName
+                    + "#"
+                    + estimatorMethodName
+                    + "] must be public static and return long for [@"
+                    + AllocatesDynamicAnnotation.NAME
+                    + "] on "
+                    + targetDescription.get()
+            );
+        }
+
+        return estimator;
     }
 
     /**
@@ -359,11 +450,13 @@ public final class PainlessLookupBuilder {
     }
 
     private void addPainlessConstructor(
+        ClassLoader classLoader,
         String targetCanonicalClassName,
         List<String> canonicalTypeNameParameters,
         Map<Class<?>, Object> annotations,
         Map<Object, Object> dedup
     ) {
+        Objects.requireNonNull(classLoader);
         Objects.requireNonNull(targetCanonicalClassName);
         Objects.requireNonNull(canonicalTypeNameParameters);
 
@@ -395,10 +488,11 @@ public final class PainlessLookupBuilder {
             typeParameters.add(typeParameter);
         }
 
-        addPainlessConstructor(targetClass, typeParameters, annotations, dedup);
+        addPainlessConstructor(classLoader, targetClass, typeParameters, annotations, dedup);
     }
 
     private void addPainlessConstructor(
+        ClassLoader classLoader,
         Class<?> targetClass,
         List<Class<?>> typeParameters,
         Map<Class<?>, Object> annotations,
@@ -470,6 +564,12 @@ public final class PainlessLookupBuilder {
         }
 
         MethodType methodType = methodHandle.type();
+        Method allocationEstimator = resolveAllocationEstimator(
+            classLoader,
+            annotations,
+            methodType,
+            () -> "constructor [[" + targetCanonicalClassName + "], " + typesToCanonicalTypeNames(typeParameters) + "]"
+        );
 
         String painlessConstructorKey = buildPainlessConstructorKey(typeParametersSize);
         PainlessConstructor existingPainlessConstructor = painlessClassBuilder.constructors.get(painlessConstructorKey);
@@ -491,6 +591,14 @@ public final class PainlessLookupBuilder {
                 typesToCanonicalTypeNames(typeParameters),
                 targetCanonicalClassName,
                 typesToCanonicalTypeNames(existingPainlessConstructor.typeParameters())
+            );
+        }
+
+        if (allocationEstimator != null) {
+            // Key by the final (deduped or pre-existing) instance, which is what consumers hold.
+            allocationEstimators.put(
+                existingPainlessConstructor == null ? newPainlessConstructor : existingPainlessConstructor,
+                allocationEstimator
             );
         }
     }
@@ -571,10 +679,11 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        addPainlessMethod(targetClass, augmentedClass, methodName, returnType, typeParameters, annotations, dedup);
+        addPainlessMethod(classLoader, targetClass, augmentedClass, methodName, returnType, typeParameters, annotations, dedup);
     }
 
     public void addPainlessMethod(
+        ClassLoader classLoader,
         Class<?> targetClass,
         Class<?> augmentedClass,
         String methodName,
@@ -584,6 +693,7 @@ public final class PainlessLookupBuilder {
         Map<Object, Object> dedup
     ) {
 
+        Objects.requireNonNull(classLoader);
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(methodName);
         Objects.requireNonNull(returnType);
@@ -614,9 +724,24 @@ public final class PainlessLookupBuilder {
             );
         }
 
+        if (annotations.containsKey(ScriptAwareAnnotation.class) && augmentedClass == null) {
+            throw lookupException(
+                "[@%s] requires the whitelist line to declare an augmentation class for method [[%s], [%s], %s]",
+                ScriptAwareAnnotation.NAME,
+                targetCanonicalClassName,
+                methodName,
+                typesToCanonicalTypeNames(typeParameters)
+            );
+        }
+
         int typeParametersSize = typeParameters.size();
         int augmentedParameterOffset = augmentedClass == null ? 0 : 1;
-        List<Class<?>> javaTypeParameters = new ArrayList<>(typeParametersSize + augmentedParameterOffset);
+        int scriptParameterOffset = annotations.containsKey(ScriptAwareAnnotation.class) ? 1 : 0;
+        List<Class<?>> javaTypeParameters = new ArrayList<>(typeParametersSize + augmentedParameterOffset + scriptParameterOffset);
+
+        if (scriptParameterOffset == 1) {
+            javaTypeParameters.add(PainlessScript.class);
+        }
 
         if (augmentedClass != null) {
             javaTypeParameters.add(targetClass);
@@ -676,7 +801,12 @@ public final class PainlessLookupBuilder {
             } catch (NoSuchMethodException nsme) {
                 throw lookupException(
                     nsme,
-                    "reflection object not found for method [[%s], [%s], %s] with augmented class [%s]",
+                    scriptParameterOffset == 1
+                        ? "[@"
+                            + ScriptAwareAnnotation.NAME
+                            + "] requires augmented class [%4$s] to declare an overload of method [[%1$s], [%2$s], %3$s] "
+                            + "with a leading [org.elasticsearch.painless.PainlessScript] parameter"
+                        : "reflection object not found for method [[%s], [%s], %s] with augmented class [%s]",
                     targetCanonicalClassName,
                     methodName,
                     typesToCanonicalTypeNames(typeParameters),
@@ -743,8 +873,17 @@ public final class PainlessLookupBuilder {
         }
 
         MethodType methodType = methodHandle.type();
+        Method allocationEstimator = resolveAllocationEstimator(
+            classLoader,
+            annotations,
+            methodType,
+            () -> "method [[" + targetCanonicalClassName + "], [" + methodName + "], " + typesToCanonicalTypeNames(typeParameters) + "]"
+        );
         boolean isStatic = augmentedClass == null && Modifier.isStatic(javaMethod.getModifiers());
         String painlessMethodKey = buildPainlessMethodKey(methodName, typeParametersSize);
+        for (Class<?> annotationType : annotations.keySet()) {
+            annotationsToMethodKeys.computeIfAbsent(annotationType, unused -> new HashSet<>()).add(painlessMethodKey);
+        }
         PainlessMethod existingPainlessMethod = isStatic
             ? painlessClassBuilder.staticMethods.get(painlessMethodKey)
             : painlessClassBuilder.methods.get(painlessMethodKey);
@@ -779,6 +918,11 @@ public final class PainlessLookupBuilder {
                 typeToCanonicalTypeName(existingPainlessMethod.returnType()),
                 typesToCanonicalTypeNames(existingPainlessMethod.typeParameters())
             );
+        }
+
+        if (allocationEstimator != null) {
+            // Key by the final (deduped or pre-existing) instance, which is what consumers hold.
+            allocationEstimators.put(existingPainlessMethod == null ? newPainlessMethod : existingPainlessMethod, allocationEstimator);
         }
     }
 
@@ -1060,10 +1204,11 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        addImportedPainlessMethod(targetClass, methodName, returnType, typeParameters, annotations, dedup);
+        addImportedPainlessMethod(classLoader, targetClass, methodName, returnType, typeParameters, annotations, dedup);
     }
 
     public void addImportedPainlessMethod(
+        ClassLoader classLoader,
         Class<?> targetClass,
         String methodName,
         Class<?> returnType,
@@ -1071,6 +1216,7 @@ public final class PainlessLookupBuilder {
         Map<Class<?>, Object> annotations,
         Map<Object, Object> dedup
     ) {
+        Objects.requireNonNull(classLoader);
         Objects.requireNonNull(targetClass);
         Objects.requireNonNull(methodName);
         Objects.requireNonNull(returnType);
@@ -1184,6 +1330,18 @@ public final class PainlessLookupBuilder {
         }
 
         MethodType methodType = methodHandle.type();
+        Method allocationEstimator = resolveAllocationEstimator(
+            classLoader,
+            annotations,
+            methodType,
+            () -> "imported method [["
+                + targetCanonicalClassName
+                + "], ["
+                + methodName
+                + "], "
+                + typesToCanonicalTypeNames(typeParameters)
+                + "]"
+        );
 
         PainlessMethod existingImportedPainlessMethod = painlessMethodKeysToImportedPainlessMethods.get(painlessMethodKey);
         PainlessMethod newImportedPainlessMethod = new PainlessMethod(
@@ -1211,6 +1369,14 @@ public final class PainlessLookupBuilder {
                 methodName,
                 typeToCanonicalTypeName(existingImportedPainlessMethod.returnType()),
                 typesToCanonicalTypeNames(existingImportedPainlessMethod.typeParameters())
+            );
+        }
+
+        if (allocationEstimator != null) {
+            // Key by the final (deduped or pre-existing) instance, which is what consumers hold.
+            allocationEstimators.put(
+                existingImportedPainlessMethod == null ? newImportedPainlessMethod : existingImportedPainlessMethod,
+                allocationEstimator
             );
         }
     }
@@ -1703,6 +1869,7 @@ public final class PainlessLookupBuilder {
         }
 
         classesToDirectSubClasses.replaceAll((key, set) -> Set.copyOf(set)); // save some memory, especially when set is empty
+        annotationsToMethodKeys.replaceAll((key, set) -> Set.copyOf(set));
         return new PainlessLookup(
             javaClassNamesToClasses,
             canonicalClassNamesToClasses,
@@ -1710,7 +1877,9 @@ public final class PainlessLookupBuilder {
             classesToDirectSubClasses,
             painlessMethodKeysToImportedPainlessMethods,
             painlessMethodKeysToPainlessClassBindings,
-            painlessMethodKeysToPainlessInstanceBindings
+            painlessMethodKeysToPainlessInstanceBindings,
+            annotationsToMethodKeys,
+            allocationEstimators
         );
     }
 

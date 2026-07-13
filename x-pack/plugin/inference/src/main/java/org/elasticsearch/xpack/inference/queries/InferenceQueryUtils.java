@@ -236,21 +236,32 @@ public final class InferenceQueryUtils {
         InferenceInfoRequest inferenceInfoRequest,
         ActionListener<InferenceInfo> localInferenceInfoListener
     ) {
+        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
         InferenceStringGroup input = inferenceInfoRequest.input();
         var inferenceResultsMap = inferenceInfoRequest.inferenceResultsMap();
+        int indexCount = resolvedIndices.getConcreteLocalIndicesMetadata().size();
 
-        Map<String, Set<InferenceFieldMetadata>> localInferenceFields = getLocalInferenceFields(
-            queryRewriteContext.getResolvedIndices(),
+        if (Boolean.FALSE.equals(queryRewriteContext.getHasAnyLocalInferenceFields())) {
+            localInferenceInfoListener.onResponse(
+                new InferenceInfo(
+                    0,
+                    indexCount,
+                    inferenceResultsMap != null ? inferenceResultsMap : Map.of(),
+                    queryRewriteContext.getMinTransportVersion()
+                )
+            );
+            return;
+        }
+
+        LocalInferenceFieldsInfo localInferenceFieldsInfo = getLocalInferenceFields(
+            queryRewriteContext,
+            resolvedIndices,
             inferenceInfoRequest.fields(),
             inferenceInfoRequest.resolveWildcards(),
             inferenceInfoRequest.useDefaultFields()
         );
-
-        int indexCount = localInferenceFields.size();
-        int inferenceFieldCount = 0;
-        for (var inferenceFieldMetadataSet : localInferenceFields.values()) {
-            inferenceFieldCount += inferenceFieldMetadataSet.size();
-        }
+        assert indexCount == localInferenceFieldsInfo.indexCount();
+        int inferenceFieldCount = localInferenceFieldsInfo.inferenceFieldCount();
 
         if (inferenceFieldCount == 0 || input == null) {
             // Skip local inference result generation if:
@@ -268,7 +279,7 @@ public final class InferenceQueryUtils {
         }
 
         final Set<FullyQualifiedInferenceId> localInferenceIds = getLocalInferenceIds(
-            localInferenceFields,
+            localInferenceFieldsInfo.inferenceFieldMap(),
             queryRewriteContext.getLocalClusterAlias()
         );
         final int finalInferenceFieldCount = inferenceFieldCount;
@@ -366,27 +377,44 @@ public final class InferenceQueryUtils {
         return new InferenceInfo(totalInferenceFieldCount, totalIndexCount, completeInferenceResultsMap, minTransportVersion);
     }
 
-    private static Map<String, Set<InferenceFieldMetadata>> getLocalInferenceFields(
+    private record LocalInferenceFieldsInfo(
+        Map<String, Set<InferenceFieldMetadata>> inferenceFieldMap,
+        int inferenceFieldCount,
+        int indexCount
+    ) {}
+
+    private static LocalInferenceFieldsInfo getLocalInferenceFields(
+        QueryRewriteContext queryRewriteContext,
         ResolvedIndices resolvedIndices,
         Map<String, Float> fields,
         boolean resolveWildcards,
         boolean useDefaultFields
     ) {
         Map<String, Set<InferenceFieldMetadata>> inferenceFieldMap = new HashMap<>();
+        int inferenceFieldCount = 0;
+        boolean hasAnyLocalInferenceFields = false;
 
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            final String indexName = indexMetadata.getIndex().getName();
+            if (indexMetadata.getInferenceFields().isEmpty()) {
+                continue;
+            }
+            hasAnyLocalInferenceFields = true;
             final Map<InferenceFieldMetadata, Float> matchingInferenceFieldMap = indexMetadata.getMatchingInferenceFields(
                 fields,
                 resolveWildcards,
                 useDefaultFields
             );
 
-            inferenceFieldMap.put(indexName, matchingInferenceFieldMap.keySet());
+            Set<InferenceFieldMetadata> inferenceFieldMetadataSet = matchingInferenceFieldMap.keySet();
+            if (inferenceFieldMetadataSet.isEmpty() == false) {
+                inferenceFieldMap.put(indexMetadata.getIndex().getName(), inferenceFieldMetadataSet);
+                inferenceFieldCount += inferenceFieldMetadataSet.size();
+            }
         }
+        queryRewriteContext.setHasAnyLocalInferenceFields(hasAnyLocalInferenceFields);
 
-        return inferenceFieldMap;
+        return new LocalInferenceFieldsInfo(inferenceFieldMap, inferenceFieldCount, indexMetadataCollection.size());
     }
 
     private static Set<FullyQualifiedInferenceId> getLocalInferenceIds(
@@ -557,9 +585,6 @@ public final class InferenceQueryUtils {
                     new InferenceAction.Request(
                         taskType,
                         inferenceId,
-                        null,
-                        null,
-                        null,
                         List.of(input.textValue()),
                         Map.of(),
                         InputType.INTERNAL_SEARCH,

@@ -13,17 +13,57 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class CommonAnalysisPluginTests extends ESTestCase {
+
+    // Assert analysis-common prebuilt analyzers are reused across indices and their position gap is 100.
+    public void testPrebuiltAnalyzersAreReusedWithElasticsearchPositionIncrementGap() throws IOException {
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+
+        try (CommonAnalysisPlugin plugin = new CommonAnalysisPlugin()) {
+            AnalysisRegistry registry = new AnalysisModule(
+                TestEnvironment.newEnvironment(nodeSettings),
+                List.of(plugin),
+                new StablePluginsRegistry()
+            ).getAnalysisRegistry();
+
+            IndexAnalyzers firstIndex = registry.build(IndexCreationContext.CREATE_INDEX, idxSettings);
+            IndexAnalyzers secondIndex = registry.build(IndexCreationContext.CREATE_INDEX, idxSettings);
+
+            List<PreBuiltAnalyzerProviderFactory> prebuiltAnalyzers = plugin.getPreBuiltAnalyzerProviderFactories();
+            for (int i = 0; i < 5; i++) {
+                String name = randomFrom(prebuiltAnalyzers).getName();
+                NamedAnalyzer analyzer = firstIndex.get(name);
+                assertNotNull(name, analyzer);
+                assertThat(analyzer.getPositionIncrementGap(name), equalTo(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP));
+                assertSame(analyzer, secondIndex.get(name));
+            }
+        }
+    }
 
     /**
      * Check that the deprecated "nGram" filter throws exception for indices created since 7.0.0 and

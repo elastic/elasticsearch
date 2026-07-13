@@ -16,6 +16,8 @@ import org.apache.http.protocol.HttpContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -42,6 +44,8 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  * the HttpEntity.</p>
  */
 class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
+    private static final Logger logger = LogManager.getLogger(StreamingHttpResultPublisher.class);
+
     private final ActionListener<StreamingHttpResult> listener;
     private final AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
@@ -220,6 +224,9 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
                 public void cancel() {
                     if (subscriptionCanceled.compareAndSet(false, true)) {
                         backpressure.releaseTrackedBytes();
+                        // If the producer was paused for backpressure, Apache will never call consumeContent again, so the
+                        // subscriptionCanceled check there cannot fire. Shut the producer down here to release the leased connection.
+                        backpressure.shutdownProducer();
                         taskRunner.cancel();
                     }
                 }
@@ -268,6 +275,8 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         private volatile IOControl savedIoControl;
         private final CircuitBreaker circuitBreaker;
         private final String inferenceEntityId;
+        // true once shutdownProducer() is called
+        private volatile boolean shutdown = false;
 
         private ApacheClientBackpressure(HttpSettings settings, CircuitBreaker circuitBreaker, String inferenceEntityId) {
             this.settings = settings;
@@ -283,9 +292,16 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         }
 
         private void pauseProducer(IOControl ioControl) {
-            ioControl.suspendInput();
             synchronized (ioLock) {
-                savedIoControl = ioControl;
+                if (shutdown) {
+                    // shutdownProducer() was called while we were consuming this chunk, before the IOControl
+                    // was saved. Shut down now; otherwise the suspended producer would never be resumed and
+                    // the leased connection would be held indefinitely.
+                    doShutdown(ioControl);
+                } else {
+                    ioControl.suspendInput();
+                    savedIoControl = ioControl;
+                }
             }
         }
 
@@ -313,6 +329,24 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             var remaining = bytesInQueue.getAndSet(0);
             if (remaining > 0) {
                 circuitBreaker.addWithoutBreaking(-remaining);
+            }
+        }
+
+      private void shutdownProducer() {
+            synchronized (ioLock) {
+                shutdown = true;
+                if (savedIoControl != null) {
+                    doShutdown(savedIoControl);
+                    savedIoControl = null;
+                }
+            }
+        }
+
+        private void doShutdown(IOControl ioControl) {
+            try {
+                ioControl.shutdown();
+            } catch (IOException e) {
+                logger.warn("Failed to shut down paused Apache producer after subscription cancellation", e);
             }
         }
     }

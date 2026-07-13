@@ -207,11 +207,6 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
     }
 
     @Override
-    public boolean supportsNewRerankCodePath() {
-        return true;
-    }
-
-    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,

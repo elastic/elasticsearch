@@ -25,6 +25,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -274,7 +275,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(9, answer.size());
+        assertEquals(13, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -284,6 +285,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("is_partial", any(Boolean.class))
                 .entry("documents_found", 0)
                 .entry("values_loaded", 0)
+                .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
+                .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
+                .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
                 .entry("completion_time_in_millis", greaterThan(0L))
@@ -400,6 +405,27 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         String actual = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         assertEquals("keyword0,0\r\n", actual);
         assertWarnings(response, new AssertWarnings.NoWarnings(), actual);
+    }
+
+    public void testMarkdownMode() throws IOException {
+        int count = randomIntBetween(0, 100);
+        bulkLoadTestData(count);
+        var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
+        assertEquals(expectedTextBody("md", count, null), runEsqlAsTextWithFormat(builder, "md", null, mode));
+    }
+
+    public void testMarkdownHeaderAbsentIsError() throws IOException {
+        bulkLoadTestData(1);
+        var builder = requestObjectBuilder().query(fromIndex() + " | keep keyword, integer | sort integer asc | limit 100");
+        Request request = prepareRequest(SYNC);
+        String mediaType = attachBody(builder.build(), request);
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Content-Type", mediaType);
+        options.addHeader("Accept", "text/markdown; header=absent");
+        request.setOptions(options);
+        ResponseException e = expectThrows(ResponseException.class, () -> performRequest(request));
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("[header=absent] is not supported for the [md] format"));
     }
 
     public void testOutOfRangeComparisons() throws IOException {
@@ -1428,11 +1454,19 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             }
             case "csv" -> sb.append("keyword").append(csvDelimiter).append("integer\r\n");
             case "tsv" -> sb.append("keyword\tinteger\n");
+            case "md" -> {
+                sb.append("| keyword | integer |\n");
+                sb.append("| --- | --- |\n");
+            }
             default -> {
                 assert false : "unexpected format type [" + format + "]";
             }
         }
         for (int i = 0; i < count; i++) {
+            if (format.equals("md")) {
+                sb.append("| keyword").append(i).append(" | ").append(i).append(" |\n");
+                continue;
+            }
             sb.append("keyword").append(i);
             int iLen = String.valueOf(i).length();
             switch (format) {
@@ -1645,6 +1679,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 throw new UncheckedIOException(e);
             }
         });
+    }
+
+    public static boolean doesntHaveCapabilities(RestClient client, List<String> capabilities) {
+        return capabilities.stream().noneMatch(cap -> hasCapabilities(client, List.of(cap)));
     }
 
     private static Object removeOriginalTypesAndSuggestedCast(Object response) {
@@ -2073,6 +2111,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 case "txt" -> options.addHeader("Accept", "text/plain");
                 case "csv" -> options.addHeader("Accept", "text/csv");
                 case "tsv" -> options.addHeader("Accept", "text/tab-separated-values");
+                case "md" -> options.addHeader("Accept", "text/markdown");
             }
         }
         if (delimiter != null) {
@@ -2122,6 +2161,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     }
                     case "tsv" -> {
                         assertEquals("\n", initialValue);
+                        initialValue = "";
+                    }
+                    case "md" -> {
+                        // the markdown formatter always writes a header row and a separator row, even when no
+                        // columns are known yet (the still-running response has no column info)
+                        assertEquals("|\n|\n", initialValue);
                         initialValue = "";
                     }
                 }

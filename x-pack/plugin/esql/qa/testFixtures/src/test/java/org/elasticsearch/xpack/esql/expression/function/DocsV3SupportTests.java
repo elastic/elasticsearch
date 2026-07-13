@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -366,6 +367,10 @@ public class DocsV3SupportTests extends ESTestCase {
                 stack: ga 9.1.0
                 ```
 
+
+                :::{include} ../briefSummary/count.md
+                :::
+
                 ## Syntax
 
                 :::{image} /reference/query-languages/esql/images/generated/test-plugin-name/functions/count.svg
@@ -392,6 +397,34 @@ public class DocsV3SupportTests extends ESTestCase {
     }
 
     private static final String TEST_PLUGIN_NAME = "test-plugin-name";
+
+    public void testRenderingTypeTableAppliesToAnnotations() throws Exception {
+        FunctionInfo info = functionInfo(TestPreviewClass.class);
+        assert info != null;
+        FunctionDefinition definition = FunctionDefinition.def(TestPreviewClass.class).unary(TestPreviewClass::new).name("preview_func");
+        TestCallbacks callbacks = new TestCallbacks();
+        var docs = new TestFunctionDocsSupport("preview_func", TestPreviewClass.class, definition, TestPreviewClass::signatures, callbacks);
+        docs.renderDocs();
+        String rendered = callbacks.rendered.get("types/preview_func.md");
+        assertNotNull("types table should be rendered", rendered);
+        // Four signatures cover the rendering cases:
+        // - keyword: no appliesTo, no preview -> plain row
+        // - integer: appliesTo, preview=false -> stack annotation only
+        // - double: appliesTo, preview=true -> stack annotation + serverless: preview
+        // - boolean: multiple appliesTo (preview->GA) -> combined stack annotation, no serverless
+        String expected = """
+            ## Supported types
+
+            | str | result |
+            | --- | --- |
+            | boolean {applies_to}`stack: preview 9.3.0, ga 9.4.0` | long |
+            | double {applies_to}`stack: preview 9.3.0` {applies_to}`serverless: preview` | long |
+            | integer {applies_to}`stack: preview 9.3.0` | long |
+            | keyword | long |
+            """;
+        String table = rendered.substring(rendered.indexOf("## Supported types"));
+        assertThat(table.trim(), equalTo(expected.trim()));
+    }
 
     private TestCallbacks renderTestClassDocs() throws Exception {
         FunctionInfo info = functionInfo(TestClass.class);
@@ -623,6 +656,71 @@ public class DocsV3SupportTests extends ESTestCase {
         @Override
         protected NodeInfo<? extends Expression> info() {
             return NodeInfo.create(this, TestClass::new, children().getFirst());
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    public static class TestPreviewClass extends Function {
+        @FunctionInfo(
+            returnType = "long",
+            description = "A preview test function.",
+            examples = { @Example(file = "stats", tag = "count") },
+            appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+            preview = true
+        )
+        public TestPreviewClass(
+            Source source,
+            @Param(name = "str", type = { "keyword", "integer", "double", "boolean" }, description = "A field.") Expression field
+        ) {
+            super(source, List.of(field));
+        }
+
+        public static Set<DocsV3Support.TypeSignature> signatures() {
+            FunctionAppliesTo previewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+            FunctionAppliesTo gaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+            return Set.of(
+                // No appliesTo, no preview: plain row
+                new DocsV3Support.TypeSignature(List.of(new DocsV3Support.Param(DataType.KEYWORD, List.of())), DataType.LONG),
+                // appliesTo present but preview=false: stack annotation only
+                new DocsV3Support.TypeSignature(
+                    List.of(new DocsV3Support.Param(DataType.INTEGER, List.of(previewAppliesTo), false)),
+                    DataType.LONG
+                ),
+                // appliesTo present and preview=true: stack annotation + serverless: preview
+                new DocsV3Support.TypeSignature(
+                    List.of(new DocsV3Support.Param(DataType.DOUBLE, List.of(previewAppliesTo), true)),
+                    DataType.LONG
+                ),
+                // Multiple appliesTo entries (preview promoted to GA), preview=false: combined stack annotation only
+                new DocsV3Support.TypeSignature(
+                    List.of(new DocsV3Support.Param(DataType.BOOLEAN, List.of(previewAppliesTo, gaAppliesTo), false)),
+                    DataType.LONG
+                )
+            );
+        }
+
+        @Override
+        public DataType dataType() {
+            return DataType.LONG;
+        }
+
+        @Override
+        public Expression replaceChildren(List<Expression> newChildren) {
+            return new TestPreviewClass(source(), newChildren.getFirst());
+        }
+
+        @Override
+        protected NodeInfo<? extends Expression> info() {
+            return NodeInfo.create(this, TestPreviewClass::new, children().getFirst());
         }
 
         @Override

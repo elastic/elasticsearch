@@ -9,33 +9,27 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.util.hnsw.IntToIntFunction;
+import java.util.function.IntUnaryOperator;
 
 /**
- * Intermediate object for clustering (partitioning) a set of vectors
+ * Intermediate object for clustering (partitioning) a set of vectors.
+ *
+ * @param <V> the array type for centroids ({@code float[]} or {@code byte[]})
  */
-class KMeansIntermediate extends KMeansResult {
-    private final IntToIntFunction assignmentOrds;
+class KMeansIntermediate<V> extends KMeansResult<V> {
+    private final IntUnaryOperator assignmentOrds;
 
-    private KMeansIntermediate(float[][] centroids, int[] assignments, IntToIntFunction assignmentOrds, int[] soarAssignments) {
-        super(centroids, assignments, soarAssignments);
+    KMeansIntermediate(V[] centroids, int[] assignments, IntUnaryOperator assignmentOrds) {
+        super(centroids, assignments);
         assert assignmentOrds != null;
         this.assignmentOrds = assignmentOrds;
     }
 
-    KMeansIntermediate(float[][] centroids, int[] assignments, IntToIntFunction assignmentOrdinals) {
-        this(centroids, assignments, assignmentOrdinals, new int[0]);
-    }
-
-    KMeansIntermediate() {
-        this(new float[0][0], new int[0], i -> i, new int[0]);
-    }
-
-    KMeansIntermediate(float[][] centroids, int[] assignments) {
-        this(centroids, assignments, i -> i, new int[0]);
+    public static <V> KMeansIntermediate<V> empty(CentroidOps<V> ops) {
+        return new KMeansIntermediate<>(ops.newCentroidArray(0, 0), new int[0], IntUnaryOperator.identity());
     }
 
     public int ordToDoc(int ord) {
-        return assignmentOrds.apply(ord);
+        return assignmentOrds.applyAsInt(ord);
     }
 }

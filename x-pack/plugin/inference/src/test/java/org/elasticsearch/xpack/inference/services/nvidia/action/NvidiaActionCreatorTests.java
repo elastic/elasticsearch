@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
@@ -773,7 +772,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(PASSAGES_VALUE)),
+                new QueryAndDocsInputs(InferenceString.ofText(QUERY_VALUE), InferenceString.fromStringList(PASSAGES_VALUE)),
                 null,
                 listener
             );
@@ -827,7 +826,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(PASSAGES_VALUE)),
+                new QueryAndDocsInputs(InferenceString.ofText(QUERY_VALUE), InferenceString.fromStringList(PASSAGES_VALUE)),
                 null,
                 listener
             );

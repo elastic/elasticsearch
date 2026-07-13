@@ -45,6 +45,7 @@ public class Space extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Returns a string made of the specified number of spaces.",
         description = "Returns a string made of `number` spaces.",
         examples = @Example(file = "string", tag = "space")
     )

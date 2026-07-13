@@ -11,7 +11,6 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
@@ -194,8 +193,8 @@ public class JinaAIActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, TEST_QUERY),
-                    List.of(new InferenceString(DataType.TEXT, TEST_DOCUMENT)),
+                    InferenceString.ofText(TEST_QUERY),
+                    List.of(InferenceString.ofText(TEST_DOCUMENT)),
                     null,
                     null,
                     false

@@ -33,6 +33,7 @@ public class RLike extends RegexMatch<RLikePattern> {
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Filters data based on string patterns using regular expressions.",
         description = """
             Use `RLIKE` to filter data based on string patterns using
             <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on

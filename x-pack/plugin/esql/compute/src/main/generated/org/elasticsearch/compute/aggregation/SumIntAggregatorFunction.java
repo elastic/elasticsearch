@@ -8,16 +8,23 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.Int16ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.Int8ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.IntArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -106,6 +113,63 @@ public final class SumIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(IntVector vVector) {
+    if (vVector.getClass() == IntArrayVector.class) {
+      IntArrayVector specialized = (IntArrayVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        state.longValue(SumIntAggregator.combine(state.longValue(), vValue));
+      }
+      return;
+    }
+    if (vVector.getClass() == IntArrowBufVector.class) {
+      IntArrowBufVector specialized = (IntArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      long bulkAcc = state.longValue();
+      for (int p = 0; p < bulkCount; p++) {
+        int vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, p);
+        bulkAcc = SumIntAggregator.combine(bulkAcc, vValue);
+      }
+      state.longValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == Int16ArrowBufVector.class) {
+      Int16ArrowBufVector specialized = (Int16ArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      long bulkAcc = state.longValue();
+      for (int p = 0; p < bulkCount; p++) {
+        int vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_SHORT_UNALIGNED, p);
+        bulkAcc = SumIntAggregator.combine(bulkAcc, vValue);
+      }
+      state.longValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == Int8ArrowBufVector.class) {
+      Int8ArrowBufVector specialized = (Int8ArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      long bulkAcc = state.longValue();
+      for (int p = 0; p < bulkCount; p++) {
+        int vValue = bulkSegment.get(ValueLayout.JAVA_BYTE, p);
+        bulkAcc = SumIntAggregator.combine(bulkAcc, vValue);
+      }
+      state.longValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == ConstantIntVector.class) {
+      ConstantIntVector specialized = (ConstantIntVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        state.longValue(SumIntAggregator.combine(state.longValue(), vValue));
+      }
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       int vValue = vVector.getInt(valuesPosition);
@@ -114,6 +178,78 @@ public final class SumIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(IntVector vVector, BooleanVector mask) {
+    if (vVector.getClass() == IntArrayVector.class) {
+      IntArrayVector specialized = (IntArrayVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        state.longValue(SumIntAggregator.combine(state.longValue(), vValue));
+      }
+      return;
+    }
+    if (vVector.getClass() == IntArrowBufVector.class) {
+      IntArrowBufVector specialized = (IntArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      long bulkAcc = state.longValue();
+      for (int p = 0; p < bulkCount; p++) {
+        if (mask.getBoolean(p) == false) {
+          continue;
+        }
+        int vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_INT_UNALIGNED, p);
+        bulkAcc = SumIntAggregator.combine(bulkAcc, vValue);
+      }
+      state.longValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == Int16ArrowBufVector.class) {
+      Int16ArrowBufVector specialized = (Int16ArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      long bulkAcc = state.longValue();
+      for (int p = 0; p < bulkCount; p++) {
+        if (mask.getBoolean(p) == false) {
+          continue;
+        }
+        int vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_SHORT_UNALIGNED, p);
+        bulkAcc = SumIntAggregator.combine(bulkAcc, vValue);
+      }
+      state.longValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == Int8ArrowBufVector.class) {
+      Int8ArrowBufVector specialized = (Int8ArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      long bulkAcc = state.longValue();
+      for (int p = 0; p < bulkCount; p++) {
+        if (mask.getBoolean(p) == false) {
+          continue;
+        }
+        int vValue = bulkSegment.get(ValueLayout.JAVA_BYTE, p);
+        bulkAcc = SumIntAggregator.combine(bulkAcc, vValue);
+      }
+      state.longValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == ConstantIntVector.class) {
+      ConstantIntVector specialized = (ConstantIntVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        state.longValue(SumIntAggregator.combine(state.longValue(), vValue));
+      }
+      return;
+    }
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {

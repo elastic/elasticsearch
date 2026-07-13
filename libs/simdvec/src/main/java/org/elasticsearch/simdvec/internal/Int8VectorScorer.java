@@ -16,6 +16,7 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
@@ -25,7 +26,6 @@ import java.util.Optional;
 import static org.elasticsearch.simdvec.internal.Similarities.cosineI8;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI8;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceI8;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public abstract sealed class Int8VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
@@ -38,9 +38,6 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         checkDimensions(queryVector.length, values.dimension());
         IndexInput input = values instanceof HasIndexSlice slice ? slice.getSlice() : null;
         if (input == null) {

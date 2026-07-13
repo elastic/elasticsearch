@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -26,16 +26,15 @@ import static org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse.isZer
  * for ES|QL text, but callers that build plans by hand must stack collapse the same way or optimization
  * fails fast here instead of later with unresolved bounds.
  */
-public final class TranslateTimeSeriesCollapse extends OptimizerRules.ParameterizedOptimizerRule<
-    TimeSeriesCollapse,
-    LogicalOptimizerContext> {
+public final class TranslateTimeSeriesCollapse extends AnalyzerRules.ParameterizedAnalyzerRule<TimeSeriesCollapse, AnalyzerContext> {
 
-    public TranslateTimeSeriesCollapse() {
-        super(OptimizerRules.TransformDirection.UP);
+    @Override
+    protected boolean skipResolved() {
+        return false;
     }
 
     @Override
-    protected LogicalPlan rule(TimeSeriesCollapse collapse, LogicalOptimizerContext context) {
+    protected LogicalPlan rule(TimeSeriesCollapse collapse, AnalyzerContext context) {
         // Missing Prometheus indices have already been lowered to an empty child by analysis.
         if (isZeroLimit(collapse.child())) {
             return collapse.child();

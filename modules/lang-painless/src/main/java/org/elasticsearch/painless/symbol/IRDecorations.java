@@ -23,6 +23,7 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
 public class IRDecorations {
@@ -346,6 +347,14 @@ public class IRDecorations {
         }
     }
 
+    /** marks a def call that might resolve to a {@code @script_aware} augmentation so the script receiver is pushed */
+    public static class IRCScriptAware implements IRCondition {
+
+        private IRCScriptAware() {
+
+        }
+    }
+
     /** describes the maximum number of loop iterations possible in a method */
     public static class IRDMaxLoopCounter extends IRDecoration<Integer> {
 
@@ -355,13 +364,40 @@ public class IRDecorations {
     }
 
     /**
-     * Marker that opts a function into the cancellation-aware loop guard (vs. the legacy
-     * {@link IRDMaxLoopCounter}). Attached when the script base class overrides
-     * {@code _getCancellationCheck()}.
+     * describes the per-context heuristic allocation limit in bytes for a method, or {@code -1} when tracking is disabled.
+     * Mirrors {@link IRDMaxLoopCounter}: attached to every protected function so allocation-tracking bytecode can read the
+     * limit without reaching back into the compiler settings.
      */
-    public static class IRCCancellationCheck implements IRCondition {
+    public static class IRDMaxAllocationBytes extends IRDecoration<Long> {
 
-        private IRCCancellationCheck() {
+        public IRDMaxAllocationBytes(Long value) {
+            super(value);
+        }
+    }
+
+    /** the resolved {@code @allocates_dynamic} estimator for a call or construction site; attached only when tracking is enabled */
+    public static class IRDAllocationEstimator extends IRDecoration<Method> {
+
+        public IRDAllocationEstimator(Method value) {
+            super(value);
+        }
+    }
+
+    /** opts a function into the cancellation-aware loop guard rather than the legacy {@link IRDMaxLoopCounter} */
+    public static class IRCInstanceCancellationCheck implements IRCondition {
+
+        private IRCInstanceCancellationCheck() {
+
+        }
+    }
+
+    /**
+     * like {@link IRCInstanceCancellationCheck} but for static lambdas, which receive the script as a synthetic
+     * {@code #scriptThis} parameter
+     */
+    public static class IRCStaticCancellationCheck implements IRCondition {
+
+        private IRCStaticCancellationCheck() {
 
         }
     }

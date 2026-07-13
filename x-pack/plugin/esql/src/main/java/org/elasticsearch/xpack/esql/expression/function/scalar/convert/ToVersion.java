@@ -47,6 +47,7 @@ public class ToVersion extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "version",
+        briefSummary = "Converts a string to a version value.",
         description = "Converts an input string to a version value.",
         examples = @Example(file = "version", tag = "to_version")
     )

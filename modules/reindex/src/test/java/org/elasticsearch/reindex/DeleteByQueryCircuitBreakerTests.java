@@ -53,14 +53,12 @@ public class DeleteByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         return Settings.builder()
             .put(super.nodeSettings())
-            // DBQ's BulkRequest for 5 DeleteRequests is ≈ 5 × 50 = 250 bytes (no source bodies). Set the
-            // breaker just under that so the reservation in prepareBulkRequest trips.
-            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "200b")
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "2kb")
             .build();
     }
 
     public void testDeleteByQueryFailsWhenBulkRequestSizeExceedsRequestBreakerLimit() {
-        int docCount = 5;
+        int docCount = 100;
         for (int i = 0; i < docCount; i++) {
             prepareIndex("source").setId(Integer.toString(i)).setSource("data", "x".repeat(500)).get();
         }

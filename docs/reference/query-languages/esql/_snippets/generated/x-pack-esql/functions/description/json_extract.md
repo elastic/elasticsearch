@@ -37,3 +37,17 @@ This function does not support wildcards (`*`), recursive descent
 (`..`), array slicing (`[0:3]`), filter expressions
 (`?(@.price<10)`), or negative array indices (`[-1]`).
 
+When called with [`_source`][source], this function reads
+`_source` as Elasticsearch returns it. On indices using
+[synthetic `_source`][synthetic], Elasticsearch reconstructs
+`_source` from stored data when documents are retrieved, so the
+JSON the function sees can differ from the original document.
+See [synthetic `_source` modifications][modifications] for the
+changes that apply — for example, arrays are moved to leaves,
+fields are named as in the mapping, and object keys are sorted
+alphabetically.
+
+[source]: /reference/elasticsearch/mapping-reference/mapping-source-field.md
+[synthetic]: /reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source
+[modifications]: /reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source-modifications
+

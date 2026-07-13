@@ -276,7 +276,7 @@ public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> imp
         }
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
-        int matchFlagsValue = caseInsensitive ? RegExp.ASCII_CASE_INSENSITIVE : 0;
+        int matchFlagsValue = caseInsensitive ? RegExp.CASE_INSENSITIVE : 0;
         // For BWC we mask irrelevant bits (RegExp changed ALL from 0xffff to 0xff)
         // We need to preserve the DEPRECATED_COMPLEMENT for now though
         int deprecatedComplementFlag = syntaxFlagsValue & RegExp.DEPRECATED_COMPLEMENT;
@@ -304,12 +304,15 @@ public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> imp
             reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
             context.addCircuitBreakerMemory(reservation, "regexp-compiled:" + fieldName);
             query = method == null ? new AutomatonQuery(term, dfa) : new AutomatonQuery(term, dfa, false, method);
+            // Construction succeeded; refund the pre-flight reservation. The retained
+            // ramBytesUsed() of the produced query is charged once per phase by the
+            // visitor walk in AbstractQueryBuilder#toQuery.
+            context.addCircuitBreakerMemory(0L, reservation, "regexp-compiled:" + fieldName);
         } else {
             query = method == null
                 ? new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates)
                 : new RegexpQuery(term, sanitisedSyntaxFlag, matchFlagsValue, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, method);
         }
-        context.addCircuitBreakerMemory(query.ramBytesUsed(), reservation, "regexp:" + fieldName);
         return query;
     }
 

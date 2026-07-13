@@ -34,7 +34,6 @@ import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -73,11 +72,6 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
     // keep RPS reasonable so each slice doesn't sleep and delay relocation for too long (max 1s)
     private final int requestsPerSecond = randomIntBetween(bulkSize * numOfSlices, 20);
     private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
-
-    @BeforeClass
-    public static void skipIfReindexResilienceDisabled() {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

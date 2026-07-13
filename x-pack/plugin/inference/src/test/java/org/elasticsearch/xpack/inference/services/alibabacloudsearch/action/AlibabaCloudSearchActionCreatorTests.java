@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
@@ -196,10 +195,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
 
         TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
         action.execute(
-            new QueryAndDocsInputs(
-                new InferenceString(DataType.TEXT, "query"),
-                List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)))
-            ),
+            new QueryAndDocsInputs(InferenceString.ofText("query"), List.of(InferenceString.ofText(randomAlphaOfLength(10)))),
             null,
             listener
         );
@@ -221,10 +217,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
 
         TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
         action.execute(
-            new QueryAndDocsInputs(
-                new InferenceString(DataType.TEXT, "query"),
-                List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)))
-            ),
+            new QueryAndDocsInputs(InferenceString.ofText("query"), List.of(InferenceString.ofText(randomAlphaOfLength(10)))),
             null,
             listener
         );
@@ -239,10 +232,7 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
 
         TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
         action.execute(
-            new QueryAndDocsInputs(
-                new InferenceString(DataType.TEXT, "query"),
-                List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)))
-            ),
+            new QueryAndDocsInputs(InferenceString.ofText("query"), List.of(InferenceString.ofText(randomAlphaOfLength(10)))),
             null,
             listener
         );

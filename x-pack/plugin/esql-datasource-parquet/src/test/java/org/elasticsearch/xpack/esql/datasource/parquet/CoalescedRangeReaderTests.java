@@ -7,10 +7,18 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.ByteRange;
+import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.CoalescedRangeResult;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.MergedRange;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -28,6 +36,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class CoalescedRangeReaderTests extends ESTestCase {
+
+    private BufferAllocator allocator;
+    private BlockFactory blockFactory;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        allocator = blockFactory.arrowAllocator();
+    }
 
     public void testMergeAdjacentRanges() {
         List<ByteRange> ranges = List.of(new ByteRange(0, 100), new ByteRange(100, 200), new ByteRange(300, 50));
@@ -117,9 +135,15 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             }
 
             @Override
-            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
                 asyncCallCount.incrementAndGet();
-                StorageObject.super.readBytesAsync(position, length, executor, listener);
+                StorageObject.super.readBytesAsync(position, length, factory, executor, listener);
             }
         };
 
@@ -127,12 +151,12 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         List<ByteRange> ranges = List.of(new ByteRange(0, 100), new ByteRange(100, 200), new ByteRange(500, 100));
 
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Map<ByteRange, ByteBuffer>> resultRef = new AtomicReference<>();
+        AtomicReference<CoalescedRangeResult> resultRef = new AtomicReference<>();
         AtomicReference<Exception> failureRef = new AtomicReference<>();
 
-        CoalescedRangeReader.readCoalesced(storageObject, ranges, 50, Runnable::run, new ActionListener<>() {
+        CoalescedRangeReader.readCoalesced(storageObject, ranges, 50, allocator, Runnable::run, new ActionListener<>() {
             @Override
-            public void onResponse(Map<ByteRange, ByteBuffer> result) {
+            public void onResponse(CoalescedRangeResult result) {
                 resultRef.set(result);
                 latch.countDown();
             }
@@ -147,8 +171,10 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNull(failureRef.get());
 
-        Map<ByteRange, ByteBuffer> results = resultRef.get();
-        assertNotNull(results);
+        CoalescedRangeResult coalescedResult = resultRef.get();
+        assertNotNull(coalescedResult);
+        Map<ByteRange, ByteBuffer> results = coalescedResult.ranges();
+        Releasable release = coalescedResult.release();
         assertEquals(3, results.size());
 
         // Adjacent ranges [0,100) and [100,300) should be merged into one async call
@@ -169,16 +195,17 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         assertNotNull(buf2);
         assertEquals(100, buf2.remaining());
         assertEquals((byte) (500 & 0xFF), buf2.get(0));
+        release.close();
     }
 
     public void testReadCoalescedEmptyRanges() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Map<ByteRange, ByteBuffer>> resultRef = new AtomicReference<>();
+        AtomicReference<CoalescedRangeResult> resultRef = new AtomicReference<>();
 
         // null StorageObject is safe here: the empty-ranges path returns before any I/O
-        CoalescedRangeReader.readCoalesced(null, List.of(), 0, Runnable::run, new ActionListener<>() {
+        CoalescedRangeReader.readCoalesced(null, List.of(), 0, allocator, Runnable::run, new ActionListener<>() {
             @Override
-            public void onResponse(Map<ByteRange, ByteBuffer> result) {
+            public void onResponse(CoalescedRangeResult result) {
                 resultRef.set(result);
                 latch.countDown();
             }
@@ -191,7 +218,8 @@ public class CoalescedRangeReaderTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNotNull(resultRef.get());
-        assertTrue(resultRef.get().isEmpty());
+        assertTrue(resultRef.get().ranges().isEmpty());
+        resultRef.get().release().close();
     }
 
     public void testReadCoalescedFailure() throws Exception {
@@ -230,18 +258,26 @@ public class CoalescedRangeReaderTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> failureRef = new AtomicReference<>();
 
-        CoalescedRangeReader.readCoalesced(failingObject, List.of(new ByteRange(0, 100)), 0, Runnable::run, new ActionListener<>() {
-            @Override
-            public void onResponse(Map<ByteRange, ByteBuffer> result) {
-                latch.countDown();
-            }
+        CoalescedRangeReader.readCoalesced(
+            failingObject,
+            List.of(new ByteRange(0, 100)),
+            0,
+            allocator,
+            Runnable::run,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(CoalescedRangeResult result) {
+                    result.release().close();
+                    latch.countDown();
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                failureRef.set(e);
-                latch.countDown();
+                @Override
+                public void onFailure(Exception e) {
+                    failureRef.set(e);
+                    latch.countDown();
+                }
             }
-        });
+        );
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNotNull(failureRef.get());

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryStats;
@@ -39,6 +41,8 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -793,6 +797,35 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             internalCluster().stopNode(indexNode1);
             internalCluster().stopNode(indexNode2);
             internalCluster().stopNode(searchNode);
+        }
+    }
+
+    public void testCopyShardWithTenaciousRetries() throws Exception {
+        final var settings = Settings.builder().put("s3.client.test.tenacious_retries.enabled", true).build();
+        final String node = startMasterAndIndexNode(settings);
+        try {
+            final var objectStoreService = getCurrentMasterObjectStoreService();
+
+            final String indexName = randomIdentifier();
+            createIndex(indexName, indexSettings(1, 0).build());
+            final var sourceShardId = new ShardId(resolveIndex(indexName), 0);
+            final var destShardId = new ShardId(resolveIndex(indexName), 1);
+            final long primaryTerm = 1L;
+
+            final var blobData = randomBytesReference(between(1, 100));
+            objectStoreService.getProjectBlobContainer(sourceShardId, primaryTerm)
+                .writeBlob(OperationPurpose.INDICES, "commit-1", blobData, true);
+
+            final var task = new CancellableTask(1L, "test", "copyShard", "", TaskId.EMPTY_TASK_ID, Map.of());
+            objectStoreService.copyShard(task, sourceShardId, destShardId, primaryTerm);
+
+            try (
+                var is = objectStoreService.getProjectBlobContainer(destShardId, primaryTerm).readBlob(OperationPurpose.INDICES, "commit-1")
+            ) {
+                assertArrayEquals(BytesReference.toBytes(blobData), is.readAllBytes());
+            }
+        } finally {
+            internalCluster().stopNode(node);
         }
     }
 

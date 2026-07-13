@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
@@ -52,16 +51,6 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
     // (This approach means that the functionality requires both reindex and reindex-management modules to be present and enabled.)
     public static final NodeFeature RELOCATE_ON_SHUTDOWN_NODE_FEATURE = new NodeFeature("reindex_relocate_on_shutdown");
     public static final NodeFeature REINDEX_PIT_SEARCH_FEATURE = new NodeFeature("reindex_pit_search");
-
-    /**
-     * Whether the feature flag to guard the work to make reindex more resilient while it is under development.
-     */
-    public static final boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
-
-    /**
-     * Guards the development work to change reindexing to use point in time (PIT) searching
-     */
-    public static final boolean REINDEX_PIT_SEARCH_ENABLED = new FeatureFlag("reindex_pit_search").isEnabled();
 
     public static ReindexRelocationNodePicker getReindexRelocationNodePicker(final Environment environment) {
         return DiscoveryNode.isStateless(environment.settings())
@@ -114,7 +103,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         return List.of(
             new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()),
             new ReindexMetrics(services.telemetryProvider().getMeterRegistry()),
-            new BulkByScrollSearchContextMetrics(services.telemetryProvider().getMeterRegistry()),
+            new BulkByPaginatedSearchSearchContextMetrics(services.telemetryProvider().getMeterRegistry()),
             new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
             new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
             new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment())),

@@ -14,6 +14,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
@@ -30,6 +31,12 @@ final class FlightTypeMapping {
 
     private FlightTypeMapping() {}
 
+    /**
+     * Convert an Arrow schema into ES|QL attributes, honoring Arrow's field-level nullability flag. Defaulting to
+     * non-nullable (as the 3-arg {@link ReferenceAttribute} constructor does) would mislead planner rules
+     * (e.g. {@code COALESCE} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) into dropping legitimate
+     * null rows for nullable Arrow fields.
+     */
     static List<Attribute> toAttributes(Schema schema) {
         List<Attribute> attributes = new ArrayList<>(schema.getFields().size());
         for (Field field : schema.getFields()) {
@@ -37,7 +44,8 @@ final class FlightTypeMapping {
             if (mapping == null) {
                 throw new IllegalArgumentException("Unsupported Arrow vector type: " + field.getType());
             }
-            attributes.add(new ReferenceAttribute(Source.EMPTY, field.getName(), mapping.dataType()));
+            Nullability nullability = field.isNullable() ? Nullability.TRUE : Nullability.FALSE;
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, field.getName(), mapping.dataType(), nullability, null, false));
         }
         return attributes;
     }

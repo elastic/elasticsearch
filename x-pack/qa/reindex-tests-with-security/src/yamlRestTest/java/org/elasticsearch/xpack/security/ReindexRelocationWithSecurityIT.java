@@ -105,8 +105,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
     }
 
     public void testReindexRelocatesWhenCoordinatorShutsDown() throws Exception {
-        // Skip if reindex resilience features aren't enabled in this build (e.g. release distro without the feature flag);
-        // the dedicated GET /_reindex/{task_id} endpoint is registered iff REINDEX_RESILIENCE_ENABLED is true.
+        // Skip if reindex resilience endpoints aren't registered in this build (e.g. older mixed-version clusters).
         assumeTrue(
             "reindex resilience endpoints must be available",
             clusterHasCapability("GET", "/_reindex/{task_id}", List.of(), List.of("reindex_management_api")).orElse(false)

@@ -11,7 +11,10 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.simdvec.VectorSimilarityType;
+
+import java.util.List;
 
 public class VectorScorerInt7uBulkBenchmarkTests extends BenchmarkTest {
 
@@ -22,6 +25,11 @@ public class VectorScorerInt7uBulkBenchmarkTests extends BenchmarkTest {
     public VectorScorerInt7uBulkBenchmarkTests(VectorSimilarityType function, int dims) {
         this.function = function;
         this.dims = dims;
+    }
+
+    @Override
+    protected List<VectorImplementation> implementations() {
+        return List.of(VectorImplementation.SCALAR, VectorImplementation.LUCENE, VectorImplementation.NATIVE);
     }
 
     public void testSequential() throws Exception {

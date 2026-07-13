@@ -49,10 +49,10 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/142819
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:METRICS}
-  issue: https://github.com/elastic/elasticsearch/issues/143697
+  issue: https://github.com/elastic/elasticsearch/issues/153507
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:METRICS}
-  issue: https://github.com/elastic/elasticsearch/issues/143697
+  issue: https://github.com/elastic/elasticsearch/issues/153507
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testClusterState {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143800
@@ -517,9 +517,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalSourceProfileIT
   method: testCsvCountStarScansColdThenSkipsWarm
   issue: https://github.com/elastic/elasticsearch/issues/152132
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:BASELINE}
-  issue: https://github.com/elastic/elasticsearch/issues/149746
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:highlight.highlightFieldWithNoMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152240
@@ -790,9 +787,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testRateGroupByNothing
   issue: https://github.com/elastic/elasticsearch/issues/153559
-- class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCanMatchOnCoordinatorIntegTests
-  method: testLogsDBSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode
-  issue: https://github.com/elastic/elasticsearch/issues/153564
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecK8sTimeseriesIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153565
@@ -835,3 +829,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT
   method: test {csv-spec:k8s-timeseries.firstAndLastWithNullSort}
   issue: https://github.com/elastic/elasticsearch/issues/153638
+- class: org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBufferTests
+  method: testRecordInformationalWarningAppliesOneGlobalCapAcrossManyCallers
+  issue: https://github.com/elastic/elasticsearch/issues/153652
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecChangePointIT
+  method: test {csv-spec:change_point.values int column with all nulls}
+  issue: https://github.com/elastic/elasticsearch/issues/153656
+- class: org.elasticsearch.exponentialhistogram.ExponentialHistogramMergerTests
+  method: testDifferenceForCumulativeHistos
+  issue: https://github.com/elastic/elasticsearch/issues/153665

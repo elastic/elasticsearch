@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromLoadGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -1167,8 +1169,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     public QueryExecuted execute(String query, int depth) {
         QueryExecuted result;
         try {
+            RestEsqlTestCase.RequestObjectBuilder requestBuilder = new RestEsqlTestCase.RequestObjectBuilder().query(query);
+            // Occasionally cap shard concurrency per node at 1. Combined with the wide index patterns
+            // EsqlQueryGenerator#indexPattern already produces, this increases coverage of per-shard local
+            // planning (e.g. constant_keyword folding) across many shards. See
+            // https://github.com/elastic/elasticsearch/issues/150055
+            if (rarely()) {
+                requestBuilder.pragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build());
+                requestBuilder.pragmasOk();
+            }
             Map<String, Object> json = RestEsqlTestCase.runEsql(
-                new RestEsqlTestCase.RequestObjectBuilder().query(query).build(),
+                requestBuilder.build(),
                 new AssertWarnings.AllowedRegexes(List.of(Pattern.compile(".*"))),// we don't care about warnings
                 profileLogger,
                 RestEsqlTestCase.Mode.SYNC

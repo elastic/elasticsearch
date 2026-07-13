@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -17,6 +18,7 @@ import org.mockito.Mockito;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RetainedSearchContextsRegistryTests extends ESTestCase {
@@ -246,6 +248,75 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         });
 
         assertTrue(searchContext.isClosed());
+    }
+
+    public void testExpireDoesNotCloseRegistrationBeforeFinishRegistration() {
+        long[] now = new long[] { 0L };
+        RetainedSearchContextsRegistry testRegistry = new RetainedSearchContextsRegistry(() -> now[0], TimeValue.timeValueMillis(5));
+        SearchContext searchContext = createSearchContext();
+        AcquiredSearchContexts contexts = createContexts(searchContext);
+
+        RetainedSearchContextsRegistry.Handle registration = testRegistry.register("session-1", contexts);
+        now[0] = 10L;
+        testRegistry.expire();
+
+        assertTrue(testRegistry.isRetained("session-1"));
+        assertFalse(searchContext.isClosed());
+
+        registration.close();
+        assertTrue(searchContext.isClosed());
+    }
+
+    public void testExpireClosesFinishedIdleRegistration() {
+        long[] now = new long[] { 0L };
+        RetainedSearchContextsRegistry testRegistry = new RetainedSearchContextsRegistry(() -> now[0], TimeValue.timeValueMillis(5));
+        SearchContext searchContext = createSearchContext();
+        AcquiredSearchContexts contexts = createContexts(searchContext);
+
+        RetainedSearchContextsRegistry.Handle registration = testRegistry.register("session-1", contexts);
+        registration.finishRegistration();
+        now[0] = 10L;
+        testRegistry.expire();
+
+        assertThat(testRegistry.retainedSessions(), equalTo(0));
+        assertTrue(searchContext.isClosed());
+        registration.close();
+    }
+
+    public void testExpireDoesNotCloseRegistrationWithOutstandingLease() {
+        long[] now = new long[] { 0L };
+        RetainedSearchContextsRegistry testRegistry = new RetainedSearchContextsRegistry(() -> now[0], TimeValue.timeValueMillis(5));
+        SearchContext searchContext = createSearchContext();
+        AcquiredSearchContexts contexts = createContexts(searchContext);
+
+        RetainedSearchContextsRegistry.Handle registration = testRegistry.register("session-1", contexts);
+        registration.finishRegistration();
+        RetainedSearchContextsRegistry.Handle lease = testRegistry.acquire("session-1");
+        now[0] = 10L;
+        testRegistry.expire();
+
+        assertTrue(testRegistry.isRetained("session-1"));
+        assertFalse(searchContext.isClosed());
+
+        registration.close();
+        assertFalse(searchContext.isClosed());
+        lease.close();
+        assertTrue(searchContext.isClosed());
+    }
+
+    public void testAcquireFailsAfterCloseRegistration() {
+        RetainedSearchContextsRegistry testRegistry = new RetainedSearchContextsRegistry();
+        SearchContext searchContext = createSearchContext();
+        AcquiredSearchContexts contexts = createContexts(searchContext);
+
+        RetainedSearchContextsRegistry.Handle registration = testRegistry.register("session-1", contexts);
+        registration.close();
+
+        assertThat(testRegistry.retainedSessions(), equalTo(0));
+        assertTrue(searchContext.isClosed());
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> testRegistry.acquire("session-1"));
+        assertThat(exception.getMessage(), containsString("no retained search contexts for session [session-1]"));
     }
 
     private static AcquiredSearchContexts createContexts(SearchContext searchContext) {

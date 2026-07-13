@@ -1749,7 +1749,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         }
     }
 
-    public void testAbortMergeReadsBeforeWithByteBufferSlice() throws IOException {
+    public void testAbortMergeReadsBeforeWithMemorySegmentSlice() throws IOException {
         final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
         final var settings = Settings.builder()
@@ -1764,16 +1764,12 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             BlobCacheIndexInput indexInput = newAbortableBlobCacheIndexInput(sharedBlobCacheService, input, abortMergeReads)
         ) {
             populateCache(indexInput, input);
-            boolean available = indexInput.withByteBufferSlice(0, input.length, slice -> {
-                byte[] sliceBytes = new byte[input.length];
-                slice.get(sliceBytes);
-                assertArrayEquals(input, sliceBytes);
-            });
+            boolean available = indexInput.withMemorySegmentSlice(0, input.length, seg -> { assertEquals(input.length, seg.byteSize()); });
             assertTrue(available);
         }
     }
 
-    public void testAbortMergeReadsThrowsOnWithByteBufferSlice() throws IOException {
+    public void testAbortMergeReadsThrowsOnWithMemorySegmentSlice() throws IOException {
         final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
         final var settings = Settings.builder()
@@ -1794,13 +1790,13 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         ) {
             populateCache(indexInput, input);
             abortMergeReads.set(true);
-            expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.withByteBufferSlice(0, input.length, slice -> {
+            expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.withMemorySegmentSlice(0, input.length, seg -> {
                 throw new AssertionError("should not run");
             }));
         }
     }
 
-    public void testAbortMergeReadsBeforeWithByteBufferSlices() throws IOException {
+    public void testAbortMergeReadsBeforeWithMemorySegmentSlices() throws IOException {
         final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
         final var settings = Settings.builder()
@@ -1817,12 +1813,12 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             populateCache(indexInput, input);
             int sliceLen = randomIntBetween(1, input.length / 4);
             long[] offsets = new long[] { 0, randomIntBetween(1, input.length / 2 - sliceLen), input.length - sliceLen };
-            boolean available = indexInput.withByteBufferSlices(offsets, sliceLen, 3, slices -> { assertEquals(3, slices.length); });
+            boolean available = indexInput.withMemorySegmentSlices(offsets, sliceLen, 3, segs -> { assertEquals(3, segs.length); });
             assertTrue(available);
         }
     }
 
-    public void testAbortMergeReadsThrowsOnWithByteBufferSlices() throws IOException {
+    public void testAbortMergeReadsThrowsOnWithMemorySegmentSlices() throws IOException {
         final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
         final var settings = Settings.builder()
@@ -1845,9 +1841,41 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             int sliceLen = randomIntBetween(1, input.length / 4);
             long[] offsets = new long[] { 0, randomIntBetween(1, input.length / 2 - sliceLen), input.length - sliceLen };
             abortMergeReads.set(true);
-            expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.withByteBufferSlices(offsets, sliceLen, 3, slices -> {
+            expectThrows(MergePolicy.MergeAbortedException.class, () -> indexInput.withMemorySegmentSlices(offsets, sliceLen, 3, segs -> {
                 throw new AssertionError("should not run");
             }));
+        }
+    }
+
+    /**
+     * Regression test for the bug where {@code doSlice(sliceDescription, offset, length, IOContext)} — the overload used
+     * by Lucene's compound-file reader to open sub-files with a per-sub-file context — creates a new
+     * {@code BlobCacheIndexInput} without forwarding the {@code mergeReadAbortSupplier}. The slice therefore never
+     * checks for abort, even when the parent had an active abort supplier. Since compound-file reads account for the
+     * majority of HNSW merge I/O, this gap means merge reads in {@code .cfs} blobs are not aborted on shard close.
+     */
+    public void testAbortMergeReadsThrowsOnIoContextSlice() throws IOException {
+        final AtomicBoolean abortMergeReads = new AtomicBoolean(false);
+        final byte[] input = randomByteArrayOfLength(randomIntBetween(64, 512));
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(64));
+        final var settings = sharedCacheSettings(ByteSizeValue.ofBytes(regionSize.getBytes() * 10), regionSize);
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool);
+            BlobCacheIndexInput indexInput = newAbortableBlobCacheIndexInput(sharedBlobCacheService, input, abortMergeReads)
+        ) {
+            // Populate the cache before enabling abort so the read itself doesn't fail for other reasons.
+            populateCache(indexInput, input);
+            abortMergeReads.set(true);
+
+            // doSlice with an explicit IOContext is the path Lucene's compound-file reader uses to open sub-files.
+            // It should propagate the parent's abort supplier to the resulting slice.
+            long sliceLength = input.length / 2;
+            BlobCacheIndexInput slice = asInstanceOf(
+                BlobCacheIndexInput.class,
+                indexInput.doSlice("sub-file", 0, sliceLength, IOContext.merge(new MergeInfo(100, 1024L, false, -1)))
+            );
+            expectThrows(MergePolicy.MergeAbortedException.class, slice::readByte);
         }
     }
 
@@ -1912,12 +1940,11 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                 createBlobFileRanges(primaryTerm, 0L, 0, input.length),
                 BlobCacheMetrics.NOOP,
                 System::currentTimeMillis
-            ),
+            ).withMergeReadAbortSupplier(abortMergeReads::get),
             null,
             input.length,
             0,
-            null,
-            abortMergeReads::get
+            null
         );
     }
 

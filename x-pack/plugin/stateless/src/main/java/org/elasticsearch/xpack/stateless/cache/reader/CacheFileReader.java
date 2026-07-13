@@ -38,6 +38,7 @@ import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.blobcache.BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY;
@@ -95,6 +96,7 @@ public class CacheFileReader {
     private final long exclusiveStart;
     private final long exclusiveEnd;
     private final boolean hasSearchRole;
+    private final BooleanSupplier mergeReadAbortSupplier;
 
     public CacheFileReader(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
@@ -113,7 +115,8 @@ public class CacheFileReader {
             SharedBytes.MADV_NORMAL,
             0,
             0,
-            false
+            false,
+            () -> false
         );
     }
 
@@ -143,7 +146,8 @@ public class CacheFileReader {
             contextToAdvice(context, hasSearchRole),
             0,
             Long.MAX_VALUE,
-            hasSearchRole
+            hasSearchRole,
+            () -> false
         );
     }
 
@@ -157,7 +161,8 @@ public class CacheFileReader {
         int desiredAdvice,
         long exclusiveStart,
         long exclusiveEnd,
-        boolean hasSearchRole
+        boolean hasSearchRole,
+        BooleanSupplier mergeReadAbortSupplier
     ) {
         this.cacheFile = Objects.requireNonNull(cacheFile);
         this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
@@ -169,6 +174,7 @@ public class CacheFileReader {
         this.exclusiveStart = exclusiveStart;
         this.exclusiveEnd = exclusiveEnd;
         this.hasSearchRole = hasSearchRole;
+        this.mergeReadAbortSupplier = Objects.requireNonNull(mergeReadAbortSupplier);
     }
 
     /**
@@ -185,8 +191,39 @@ public class CacheFileReader {
             desiredMAdvice,
             exclusiveStart,
             exclusiveEnd,
-            hasSearchRole
+            hasSearchRole,
+            mergeReadAbortSupplier
         );
+    }
+
+    /**
+     * Returns a copy of this reader with the given merge-read abort supplier. When the supplier returns {@code true},
+     * {@link BlobCacheIndexInput} will throw {@link org.apache.lucene.index.MergePolicy.MergeAbortedException} on any
+     * read attempted with a MERGE {@link IOContext}, stopping I/O on behalf of a closing shard.
+     * The supplier is propagated to all subsequent {@link #copy()} and {@link #copyWithContext(IOContext, long, long)}
+     * instances so that compound-file sub-file slices inherit it automatically.
+     */
+    public CacheFileReader withMergeReadAbortSupplier(BooleanSupplier supplier) {
+        return new CacheFileReader(
+            cacheFile,
+            cacheBlobReader,
+            blobFileRanges,
+            blobCacheMetrics,
+            relativeTimeInMillisSupplier,
+            regionSize,
+            desiredMAdvice,
+            exclusiveStart,
+            exclusiveEnd,
+            hasSearchRole,
+            Objects.requireNonNull(supplier)
+        );
+    }
+
+    /**
+     * Returns {@code true} if the merge-read abort supplier indicates that in-progress merge reads should be aborted.
+     */
+    public boolean isMergeReadAborted() {
+        return mergeReadAbortSupplier.getAsBoolean();
     }
 
     /**
@@ -220,7 +257,8 @@ public class CacheFileReader {
             advice,
             exclStart,
             exclEnd,
-            hasSearchRole
+            hasSearchRole,
+            mergeReadAbortSupplier
         );
     }
 

@@ -323,17 +323,8 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             cacheService.getRegionSize(),
             context,
             cacheService.hasSearchRole()
-        );
-        return new BlobCacheIndexInput(
-            name,
-            context,
-            reader,
-            releasable,
-            blobFileRanges.fileLength(),
-            blobFileRanges.fileOffset(),
-            null,
-            mergeReadAbortSupplier
-        );
+        ).withMergeReadAbortSupplier(mergeReadAbortSupplier);
+        return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset(), null);
     }
 
     private SharedBlobCacheService<FileCacheKey>.CacheFile getCacheFile(BlobFileRanges blobFileRanges) {

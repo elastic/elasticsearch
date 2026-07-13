@@ -31,7 +31,6 @@ import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BooleanSupplier;
 
 public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput implements DirectAccessInput {
 
@@ -48,7 +47,6 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     private final IOContext context;
     private final long offset;
     private final String sliceDescription;
-    private final BooleanSupplier mergeReadAbortSupplier;
 
     public BlobCacheIndexInput(
         String name,
@@ -59,19 +57,6 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
         long offset,
         String sliceDescription
     ) {
-        this(name, context, cacheFileReader, releasable, length, offset, sliceDescription, () -> false);
-    }
-
-    public BlobCacheIndexInput(
-        String name,
-        IOContext context,
-        CacheFileReader cacheFileReader,
-        Releasable releasable,
-        long length,
-        long offset,
-        String sliceDescription,
-        BooleanSupplier mergeReadAbortSupplier
-    ) {
         super(name, context, length);
         this.cacheFileReader = cacheFileReader;
         this.closed = new AtomicBoolean(false);
@@ -79,7 +64,6 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
         this.context = context;
         this.offset = offset;
         this.sliceDescription = sliceDescription;
-        this.mergeReadAbortSupplier = mergeReadAbortSupplier;
     }
 
     public BlobCacheIndexInput(
@@ -94,7 +78,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     }
 
     private void checkMergeReadAborted() throws IOException {
-        if (mergeReadAbortSupplier.getAsBoolean() && context.context() == IOContext.Context.MERGE) {
+        if (cacheFileReader.isMergeReadAborted() && context.context() == IOContext.Context.MERGE) {
             throw new MergePolicy.MergeAbortedException("shard is closing");
         }
     }
@@ -129,8 +113,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
             null,
             length,
             this.offset + offset,
-            sliceDescription,
-            mergeReadAbortSupplier
+            sliceDescription
         );
     }
 
@@ -174,8 +157,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
             null,
             length(),
             offset,
-            sliceDescription != null ? sliceDescription : super.toString(),
-            mergeReadAbortSupplier
+            sliceDescription != null ? sliceDescription : super.toString()
         );
         try {
             clone.seek(getFilePointer());
@@ -288,6 +270,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
     }
 
     private void readInternalSlow(ByteBuffer b, long position, int length) throws Exception {
+        checkMergeReadAborted();
         cacheFileReader.read(
             this,
             b,

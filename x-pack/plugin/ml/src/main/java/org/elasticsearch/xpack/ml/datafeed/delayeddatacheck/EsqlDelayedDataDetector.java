@@ -80,8 +80,8 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
             return Collections.emptyList();
         }
 
-        List<Bucket> finalizedBuckets = checkBucketEvents(start, end);
-        Map<Long, Long> indexedData = checkCurrentBucketEventCount(start, end);
+        List<Bucket> finalizedBuckets = getBucketEvents(start, end);
+        Map<Long, Long> indexedData = getCurrentBucketEventCount(start, end);
         return finalizedBuckets.stream()
             .filter(bucket -> calculateMissing(indexedData, bucket) > 0)
             .map(bucket -> BucketWithMissingData.fromMissingAndBucket(calculateMissing(indexedData, bucket), bucket))
@@ -93,7 +93,7 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
         return window;
     }
 
-    private List<Bucket> checkBucketEvents(long start, long end) {
+    private List<Bucket> getBucketEvents(long start, long end) {
         GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
         request.setStart(Long.toString(start));
         request.setEnd(Long.toString(end));
@@ -108,7 +108,7 @@ public class EsqlDelayedDataDetector implements DelayedDataDetector {
         }
     }
 
-    private Map<Long, Long> checkCurrentBucketEventCount(long start, long end) {
+    private Map<Long, Long> getCurrentBucketEventCount(long start, long end) {
         Map<Long, Long> bucketCounts = new HashMap<>();
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         try {

@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 
+import java.util.Optional;
+
 public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
 
     private final XPackLicenseState licenseState;
@@ -75,7 +77,16 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         ClusterState state,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
-        if (checkClusterVersionForDatafeed(request.getDatafeed(), state, listener) == false) {
+        Optional<String> unsupportedReason = checkClusterSupportsDatafeedConfig(request.getDatafeed(), state);
+        if (unsupportedReason.isPresent()) {
+            listener.onFailure(
+                ExceptionsHelper.badRequestException(
+                    "Cannot create datafeed [{}] while a cluster upgrade is in progress ({}); "
+                        + "wait for the cluster to finish upgrading and try again.",
+                    request.getDatafeed().getId(),
+                    unsupportedReason.get()
+                )
+            );
             return;
         }
         datafeedManager.putDatafeed(request, state, securityContext, threadPool, listener);
@@ -83,27 +94,19 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
 
     /**
      * Rejects datafeed creation when the datafeed requires a minimum transport version that the
-     * cluster has not yet reached. This guards against a datafeed with an ES|QL query being
-     * created while a rolling upgrade is still in progress — an ESQL datafeed must never be
-     * routed to a node that predates ES|QL datafeed support.
+     * cluster has not yet reached. This guards against a datafeed being created while a rolling
+     * upgrade is still in progress — a datafeed with such a requirement must never be routed to a
+     * node that predates the feature it depends on.
+     *
+     * @return the reason the datafeed requires a newer transport version, or empty if the cluster
+     * already supports it
      */
-    static boolean checkClusterVersionForDatafeed(
-        DatafeedConfig datafeed,
-        ClusterState state,
-        ActionListener<PutDatafeedAction.Response> listener
-    ) {
+    static Optional<String> checkClusterSupportsDatafeedConfig(DatafeedConfig datafeed, ClusterState state) {
         var minReq = datafeed.minRequiredTransportVersion();
         if (minReq.isPresent() && state.getMinTransportVersion().supports(minReq.get().v1()) == false) {
-            listener.onFailure(
-                ExceptionsHelper.badRequestException(
-                    "Cannot create datafeed [{}] with an ES|QL query while a cluster upgrade is in progress; "
-                        + "wait for the cluster to finish upgrading and try again.",
-                    datafeed.getId()
-                )
-            );
-            return false;
+            return Optional.of(minReq.get().v2());
         }
-        return true;
+        return Optional.empty();
     }
 
     @Override

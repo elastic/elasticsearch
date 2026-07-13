@@ -108,7 +108,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .build();
 
     public static final SystemIndexDescriptor CONTEXT_ENGINE_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(".context-engine-*")
+        .setIndexPattern(".contextengine-*")
         .setDescription("Context Engine system indices")
         .setType(Type.EXTERNAL_UNMANAGED)
         .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)

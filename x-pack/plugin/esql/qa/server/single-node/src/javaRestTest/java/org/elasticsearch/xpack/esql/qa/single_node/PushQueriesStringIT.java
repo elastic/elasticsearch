@@ -499,13 +499,13 @@ public class PushQueriesStringIT extends ESRestTestCase {
             FROM test
             | WHERE TO_LOWER(test) rlike "%value.*"
             """;
-        // Case-insensitive RLIKE uses RegexpQuery with ASCII_CASE_INSENSITIVE flag (matchFlags=256 for WILDCARD).
+        // Case-insensitive RLIKE uses RegexpQuery with CASE_INSENSITIVE flag (matchFlags=512 for WILDCARD).
         // KEYWORD uses the same /pattern/ toString format as non-case-insensitive RLIKE (flag not shown).
         String luceneQuery = switch (type) {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
             case KEYWORD -> "test:/%value.*/";
-            case WILDCARD -> ":RegexAutomatonProvider[value=%value.*, syntaxFlags=65791, matchFlags=256, maxDeterminizedStates=10000]";
+            case WILDCARD -> ":RegexAutomatonProvider[value=%value.*, syntaxFlags=65791, matchFlags=512, maxDeterminizedStates=10000]";
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case CONSTANT_KEYWORD, KEYWORD, WILDCARD -> ComputeSignature.FILTER_IN_QUERY;
@@ -592,7 +592,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> "*:*";
             case KEYWORD -> "-test:/%different_value.*/ #*:*";
             case WILDCARD ->
-                "-:RegexAutomatonProvider[value=%different_value.*, syntaxFlags=65791, matchFlags=256, maxDeterminizedStates=10000] #*:*";
+                "-:RegexAutomatonProvider[value=%different_value.*, syntaxFlags=65791, matchFlags=512, maxDeterminizedStates=10000] #*:*";
             case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
         };
         ComputeSignature dataNodeSignature = switch (type) {
@@ -659,7 +659,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case KEYWORD -> List.of("test:cat (-test:/%different_value.*/ #*:*)", "(-test:/%different_value.*/ #*:*) test:cat");
             case WILDCARD -> {
                 String regex = ":RegexAutomatonProvider[value=%different_value.*,"
-                    + " syntaxFlags=65791, matchFlags=256, maxDeterminizedStates=10000]";
+                    + " syntaxFlags=65791, matchFlags=512, maxDeterminizedStates=10000]";
                 yield List.of(": [cat] (-" + regex + " #*:*)");
             }
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
@@ -761,7 +761,7 @@ public class PushQueriesStringIT extends ESRestTestCase {
             case AUTO, CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, TEXT_WITH_KEYWORD -> List.of("*:*");
             case KEYWORD -> List.of("-test:/%different_value.*/ #*:*");
             case WILDCARD -> List.of(
-                "-:RegexAutomatonProvider[value=%different_value.*, syntaxFlags=65791, matchFlags=256, maxDeterminizedStates=10000] #*:*"
+                "-:RegexAutomatonProvider[value=%different_value.*, syntaxFlags=65791, matchFlags=512, maxDeterminizedStates=10000] #*:*"
             );
             case SEMANTIC_TEXT_WITH_KEYWORD -> List.of(
                 "FieldExistsQuery [field=_primary_term]",

@@ -25,5 +25,8 @@ stack: preview 9.6.0
 :::{include} ../types/mv_in_range.md
 :::
 
+:::{include} ../functionNamedParams/mv_in_range.md
+:::
+
 :::{include} ../examples/mv_in_range.md
 :::

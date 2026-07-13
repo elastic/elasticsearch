@@ -1468,19 +1468,31 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from " + index + " | where not mv_in_range(v, 20, 30) | keep id | sort id")) {
             assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("a", "e", "f", "h", "i"));
         }
+        // Open range (4th options arg): the bound values c (20) and d (30) drop out; b (25 interior) and g (22) stay.
+        String open = "{\"include_lower\": false, \"include_upper\": false}";
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(v, 20, 30, " + open + ") | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("b", "g"));
+        }
     }
 
     /**
      * mv_in_range treats -0.0 as equal to 0.0, but Lucene sorts -0.0 below +0.0. widenZeroBound keeps the pushed double
-     * range a superset, so a -0.0 document still matches [0.0, 1.0] instead of being silently dropped by the pre-filter.
+     * range a superset: an inclusive [0.0, 1.0] matches both signed zeros, while an exclusive lower (0.0, 1.0] excludes
+     * both — proving the inward normalization for exclusive bounds. Neither can be silently dropped by the pre-filter.
      */
     public void testMvInRangeNegativeZeroEndToEnd() {
         String index = "mv_in_range_negzero_e2e";
         assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "d", "type=double").get());
-        prepareIndex(index).setSource("id", "x", "d", -0.0).get();
+        prepareIndex(index).setSource("id", "neg", "d", -0.0).get();
+        prepareIndex(index).setSource("id", "pos", "d", 0.0).get();
         client().admin().indices().prepareRefresh(index).get();
-        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(d, 0.0, 1.0) | keep id")) {
-            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("x"));
+        // Inclusive lower: both signed zeros are in [0.0, 1.0].
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(d, 0.0, 1.0) | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("neg", "pos"));
+        }
+        // Exclusive lower: neither zero satisfies d > 0.0, so both are excluded.
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(d, 0.0, 1.0, {\"include_lower\": false}) | keep id")) {
+            assertThat(getValuesList(results), empty());
         }
     }
 

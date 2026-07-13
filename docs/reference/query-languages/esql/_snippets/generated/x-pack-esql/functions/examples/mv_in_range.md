@@ -33,4 +33,26 @@ ROW words = ["apple", "cherry"]
 | --- | --- |
 | [apple, cherry] | true |
 
+A half-open range `[4, 6)`: `6` sits on the excluded upper bound, so it does not match.
+
+```esql
+ROW values = [3, 6]
+| EVAL in_range = mv_in_range(values, 4, 6, {"include_upper": false})
+```
+
+| values:integer | in_range:boolean |
+| --- | --- |
+| [3, 6] | false |
+
+An open range `(4, 6)`: values equal to either bound are excluded.
+
+```esql
+ROW values = [4, 6]
+| EVAL in_range = mv_in_range(values, 4, 6, {"include_lower": false, "include_upper": false})
+```
+
+| values:integer | in_range:boolean |
+| --- | --- |
+| [4, 6] | false |
+
 

@@ -775,6 +775,34 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         }
     }
 
+    /**
+     * Exclusive bounds via the options map push down too. For an integral field the pushed range carries the exclusive
+     * endpoints (gt/lt) and the FilterExec is still dropped (YES). For a double (RECHECK) an exclusive zero lower bound is
+     * pushed as +0.0 (widenZeroBound normalizes inward so the range stays a superset) and the FilterExec is retained.
+     */
+    public void testMvInRangeExclusivePushdown() {
+        var lower = plannerOptimizer.plan("from test | where mv_in_range(salary, 25000, 30000, {\"include_lower\": false})");
+        assertThat(lower.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(mvInRangeQuery(lower).toString(), equalTo(unscore(rangeQuery("salary").from(25000, false).to(30000, true)).toString()));
+
+        var both = plannerOptimizer.plan(
+            "from test | where mv_in_range(salary, 25000, 30000, {\"include_lower\": false, \"include_upper\": false})"
+        );
+        assertThat(both.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(mvInRangeQuery(both).toString(), equalTo(unscore(rangeQuery("salary").from(25000, false).to(30000, false)).toString()));
+
+        var dbl = plannerOptimizer.plan(
+            "from test | where mv_in_range(double, 0.0, 1.0, {\"include_lower\": false})",
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json")
+        );
+        assertThat(dbl.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(
+            mvInRangeQuery(dbl).toString(),
+            equalTo(boolQuery().filter(unscore(rangeQuery("double").from(0.0, false).to(1.0, true))).toString())
+        );
+    }
+
     private static QueryBuilder mvInRangeQuery(PhysicalPlan plan) {
         var esQueryExec = (EsQueryExec) plan.collectLeaves()
             .stream()

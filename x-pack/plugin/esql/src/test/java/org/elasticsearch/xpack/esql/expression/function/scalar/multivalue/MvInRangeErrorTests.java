@@ -16,6 +16,7 @@ import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -31,7 +32,13 @@ public class MvInRangeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MvInRange(source, args.get(0), args.get(1), args.get(2));
+        return new MvInRange(source, args.get(0), args.get(1), args.get(2), args.size() > 3 ? args.get(3) : null);
+    }
+
+    @Override
+    protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
+        // Don't fuzz the options position by type — options are validated by Options.resolve, not by positional type.
+        return super.testCandidates(cases, valid).filter(sig -> sig.size() == 3 || sig.get(3) == DataType.UNSUPPORTED);
     }
 
     /**

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -35,6 +37,9 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -45,9 +50,12 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -61,26 +69,35 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * null), so it composes under {@code AND}/{@code OR}/{@code NOT} — the negation of a range over a missing field is
  * {@code true}.
  */
-public class MvInRange extends EsqlScalarFunction implements TranslationAware {
+public class MvInRange extends EsqlScalarFunction implements OptionalArgument, TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvInRange",
         MvInRange::new
     );
 
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvInRange.class).ternary(MvInRange::new).name("mv_in_range");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvInRange.class)
+        .quaternary(MvInRange::new)
+        .name("mv_in_range");
 
     private static final String SUPPORTED_TYPES = "a numeric, date, ip, version or string type";
+
+    private static final String INCLUDE_LOWER = "include_lower";
+    private static final String INCLUDE_UPPER = "include_upper";
+    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(INCLUDE_LOWER, DataType.BOOLEAN, INCLUDE_UPPER, DataType.BOOLEAN);
 
     private final Expression field;
     private final Expression lower;
     private final Expression upper;
+    private final Expression options;
 
     @FunctionInfo(
         returnType = "boolean",
-        briefSummary = "Checks whether a multivalue field has any value within an inclusive range.",
-        description = "Returns `true` if at least one value of `field` is within the inclusive range `[lower, upper]`, "
+        briefSummary = "Checks whether a multivalue field has any value within a range.",
+        description = "Returns `true` if at least one value of `field` is within the range `[lower, upper]`, "
             + "using the natural order of the type. A null or empty field returns `false`, as does a null bound. "
+            + "Both bounds are inclusive by default; set `include_lower` or `include_upper` to `false` in the optional "
+            + "`options` map to make either bound exclusive, covering all four interval forms. "
             + "Works on any ordered type: numbers, dates, IPs, versions, and strings (compared by their UTF-8 bytes).",
         examples = {
             @Example(file = "ints", tag = "mv_in_range"),
@@ -89,7 +106,17 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
                 file = "ints",
                 tag = "mv_in_range_element_wise"
             ),
-            @Example(description = "Strings are compared by their UTF-8 bytes:", file = "ints", tag = "mv_in_range_keyword") },
+            @Example(description = "Strings are compared by their UTF-8 bytes:", file = "ints", tag = "mv_in_range_keyword"),
+            @Example(
+                description = "A half-open range `[4, 6)`: `6` sits on the excluded upper bound, so it does not match.",
+                file = "ints",
+                tag = "mv_in_range_half_open"
+            ),
+            @Example(
+                description = "An open range `(4, 6)`: values equal to either bound are excluded.",
+                file = "ints",
+                tag = "mv_in_range_open"
+            ) },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.6.0") }
     )
     public MvInRange(
@@ -102,18 +129,41 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
         @Param(
             name = "lower",
             type = { "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
-            description = "Inclusive lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
+            description = "Lower bound, of the same type as `field`. If null or multivalued, the function returns `false`."
         ) Expression lower,
         @Param(
             name = "upper",
             type = { "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
-            description = "Inclusive upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
-        ) Expression upper
+            description = "Upper bound, of the same type as `field`. If null or multivalued, the function returns `false`."
+        ) Expression upper,
+        @MapParam(
+            name = "options",
+            params = {
+                @MapParam.MapParamEntry(
+                    name = "include_lower",
+                    type = "boolean",
+                    valueHint = { "true", "false" },
+                    description = "Whether the lower bound is inclusive. Defaults to `true`; `false` makes it exclusive (`value > lower`)."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "include_upper",
+                    type = "boolean",
+                    valueHint = { "true", "false" },
+                    description = "Whether the upper bound is inclusive. Defaults to `true`; `false` makes it exclusive (`value < upper`)."
+                ) },
+            description = "(Optional) Range boundary options.",
+            optional = true
+        ) Expression options
     ) {
-        super(source, List.of(field, lower, upper));
+        super(source, options == null ? List.of(field, lower, upper) : List.of(field, lower, upper, options));
         this.field = field;
         this.lower = lower;
         this.upper = upper;
+        this.options = options;
+    }
+
+    public MvInRange(Source source, Expression field, Expression lower, Expression upper) {
+        this(source, field, lower, upper, null);
     }
 
     private MvInRange(StreamInput in) throws IOException {
@@ -121,7 +171,8 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
         );
     }
 
@@ -131,6 +182,9 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
         out.writeNamedWriteable(field);
         out.writeNamedWriteable(lower);
         out.writeNamedWriteable(upper);
+        // Options change the evaluator's answer (unlike Match, whose options are baked into a pushed query), so they must
+        // survive the wire — a dropped options map would silently misbind include_lower/include_upper on a remote node.
+        out.writeOptionalNamedWriteable(options);
     }
 
     @Override
@@ -175,6 +229,7 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
             }
             // With a null field there is no field type to anchor to, so the bounds must agree with each other
             // (keyword and text agree, as everywhere else).
+            TypeResolution optionsResolution = Options.resolve(options, source(), FOURTH, ALLOWED_OPTIONS);
             if (lower.dataType() != DataType.NULL
                 && upper.dataType() != DataType.NULL
                 && lower.dataType().noText() != upper.dataType().noText()) {
@@ -184,21 +239,24 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
                     sourceText(),
                     THIRD,
                     lower.dataType().noText().typeName()
-                );
+                ).and(optionsResolution);
             }
-            return resolution;
+            return resolution.and(optionsResolution);
         }
         DataType fieldType = field.dataType().noText();
         resolution = isType(lower, t -> t.noText() == fieldType, sourceText(), SECOND, fieldType.typeName());
         if (resolution.unresolved()) {
             return resolution;
         }
-        return isType(upper, t -> t.noText() == fieldType, sourceText(), THIRD, fieldType.typeName());
+        return isType(upper, t -> t.noText() == fieldType, sourceText(), THIRD, fieldType.typeName()).and(
+            Options.resolve(options, source(), FOURTH, ALLOWED_OPTIONS)
+        );
     }
 
     // Must stay in lockstep with the @Param type lists, the toEvaluator switch, and the tests (unit + MvInRangeErrorTests):
     // the function-test framework fails if they disagree, so no supported type is silently missing. boolean is excluded —
-    // a range over booleans is not meaningful.
+    // a range over booleans is not meaningful. The options map has its own parallel chain: the @MapParam entries, the
+    // ALLOWED_OPTIONS map, the two @Fixed kernel flags, and the VerifierTests option-error cases must all agree.
     private static boolean isSupportedRangeType(DataType dt) {
         return dt == DataType.INTEGER
             || dt == DataType.LONG
@@ -221,7 +279,14 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
     }
 
     @Evaluator(extraName = "Int", allNullsIsNull = false)
-    static boolean process(@Position int position, IntBlock field, IntBlock lower, IntBlock upper) {
+    static boolean process(
+        @Position int position,
+        IntBlock field,
+        IntBlock lower,
+        IntBlock upper,
+        @Fixed boolean includeLower,
+        @Fixed boolean includeUpper
+    ) {
         if (hasSingleValue(lower, position) == false || hasSingleValue(upper, position) == false) {
             return false;
         }
@@ -231,7 +296,7 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
         int start = field.getFirstValueIndex(position);
         for (int i = start; i < start + count; i++) {
             int v = field.getInt(i);
-            if (v >= lo && v <= hi) {
+            if ((includeLower ? v >= lo : v > lo) && (includeUpper ? v <= hi : v < hi)) {
                 return true;
             }
         }
@@ -239,7 +304,14 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
     }
 
     @Evaluator(extraName = "Long", allNullsIsNull = false)
-    static boolean process(@Position int position, LongBlock field, LongBlock lower, LongBlock upper) {
+    static boolean process(
+        @Position int position,
+        LongBlock field,
+        LongBlock lower,
+        LongBlock upper,
+        @Fixed boolean includeLower,
+        @Fixed boolean includeUpper
+    ) {
         if (hasSingleValue(lower, position) == false || hasSingleValue(upper, position) == false) {
             return false;
         }
@@ -249,7 +321,7 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
         int start = field.getFirstValueIndex(position);
         for (int i = start; i < start + count; i++) {
             long v = field.getLong(i);
-            if (v >= lo && v <= hi) {
+            if ((includeLower ? v >= lo : v > lo) && (includeUpper ? v <= hi : v < hi)) {
                 return true;
             }
         }
@@ -257,7 +329,14 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
     }
 
     @Evaluator(extraName = "Double", allNullsIsNull = false)
-    static boolean process(@Position int position, DoubleBlock field, DoubleBlock lower, DoubleBlock upper) {
+    static boolean process(
+        @Position int position,
+        DoubleBlock field,
+        DoubleBlock lower,
+        DoubleBlock upper,
+        @Fixed boolean includeLower,
+        @Fixed boolean includeUpper
+    ) {
         if (hasSingleValue(lower, position) == false || hasSingleValue(upper, position) == false) {
             return false;
         }
@@ -267,7 +346,7 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
         int start = field.getFirstValueIndex(position);
         for (int i = start; i < start + count; i++) {
             double v = field.getDouble(i);
-            if (v >= lo && v <= hi) {
+            if ((includeLower ? v >= lo : v > lo) && (includeUpper ? v <= hi : v < hi)) {
                 return true;
             }
         }
@@ -275,7 +354,14 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
     }
 
     @Evaluator(extraName = "BytesRef", allNullsIsNull = false)
-    static boolean process(@Position int position, BytesRefBlock field, BytesRefBlock lower, BytesRefBlock upper) {
+    static boolean process(
+        @Position int position,
+        BytesRefBlock field,
+        BytesRefBlock lower,
+        BytesRefBlock upper,
+        @Fixed boolean includeLower,
+        @Fixed boolean includeUpper
+    ) {
         if (hasSingleValue(lower, position) == false || hasSingleValue(upper, position) == false) {
             return false;
         }
@@ -288,7 +374,9 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
             BytesRef v = field.getBytesRef(i, scratch);
             // BytesRef.compareTo is an unsigned byte-by-byte comparison, which is the correct order for keyword/text
             // (UTF-8), ip (fixed-width encoding), and version (order-preserving encoding).
-            if (v.compareTo(lo) >= 0 && v.compareTo(hi) <= 0) {
+            boolean aboveLower = includeLower ? v.compareTo(lo) >= 0 : v.compareTo(lo) > 0;
+            boolean belowUpper = includeUpper ? v.compareTo(hi) <= 0 : v.compareTo(hi) < 0;
+            if (aboveLower && belowUpper) {
                 return true;
             }
         }
@@ -305,15 +393,30 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
         var f = toEvaluator.apply(field);
         var lo = toEvaluator.apply(lower);
         var hi = toEvaluator.apply(upper);
+        boolean il = includeBound(INCLUDE_LOWER);
+        boolean iu = includeBound(INCLUDE_UPPER);
         // date/date_nanos/unsigned_long land on LONG and ip/version/keyword/text on BYTES_REF; resolveType has already
         // pinned the bounds to the field type, so the single per-element-type evaluator reads all three safely.
         return switch (PlannerUtils.toElementType(field.dataType())) {
-            case INT -> new MvInRangeIntEvaluator.Factory(source(), f, lo, hi);
-            case LONG -> new MvInRangeLongEvaluator.Factory(source(), f, lo, hi);
-            case DOUBLE -> new MvInRangeDoubleEvaluator.Factory(source(), f, lo, hi);
-            case BYTES_REF -> new MvInRangeBytesRefEvaluator.Factory(source(), f, lo, hi);
+            case INT -> new MvInRangeIntEvaluator.Factory(source(), f, lo, hi, il, iu);
+            case LONG -> new MvInRangeLongEvaluator.Factory(source(), f, lo, hi, il, iu);
+            case DOUBLE -> new MvInRangeDoubleEvaluator.Factory(source(), f, lo, hi, il, iu);
+            case BYTES_REF -> new MvInRangeBytesRefEvaluator.Factory(source(), f, lo, hi, il, iu);
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
+    }
+
+    /**
+     * Resolves an inclusivity flag from the options map, defaulting to {@code true} (inclusive) when absent or unset.
+     * Resolved lazily (never in the constructor) so {@code resolveType} reports a friendly error before this runs.
+     */
+    private boolean includeBound(String key) {
+        if (options == null) {
+            return true;
+        }
+        Map<String, Object> optionsMap = new HashMap<>();
+        Options.populateMap((MapExpression) options, optionsMap, source(), FOURTH, ALLOWED_OPTIONS);
+        return (boolean) optionsMap.getOrDefault(key, Boolean.TRUE);
     }
 
     @Override
@@ -346,36 +449,50 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
         // Reuse Range's per-type bound formatting (dates, ip, version, unsigned_long). For a plain field attribute Range
         // returns the bare RangeQuery (its single-value wrap is the framework's job, not ours) — exactly the any-value
         // range semantics we want over a multivalue field.
-        return new Range(source(), field, widenZeroBound(lower, true), true, widenZeroBound(upper, false), true, null).asQuery(
+        boolean il = includeBound(INCLUDE_LOWER);
+        boolean iu = includeBound(INCLUDE_UPPER);
+        return new Range(source(), field, widenZeroBound(lower, true, il), il, widenZeroBound(upper, false, iu), iu, null).asQuery(
             pushdownPredicates,
             handler
         );
     }
 
     /**
-     * Lucene sorts {@code -0.0} below {@code +0.0}, but this evaluator treats them equal, so a {@code [0.0, ...]} range
-     * would miss a {@code -0.0} document. Widen a {@code 0.0} bound to the signed zero that keeps the pushed range a
-     * superset ({@code -0.0} as lower, {@code +0.0} as upper); only doubles have a signed zero.
+     * Lucene sorts {@code -0.0} below {@code +0.0}, but this evaluator treats them equal. Widen a {@code 0.0} bound to the
+     * signed zero that keeps the pushed range a superset of the evaluator's matches. Inclusive bounds widen outward
+     * ({@code -0.0} lower, {@code +0.0} upper, so both zeros match); exclusive bounds normalize inward ({@code +0.0} lower,
+     * {@code -0.0} upper, so neither zero matches) — captured by {@code (isLower == include) ? -0.0 : 0.0}. Only doubles
+     * have a signed zero.
      */
-    private Expression widenZeroBound(Expression bound, boolean isLower) {
+    private Expression widenZeroBound(Expression bound, boolean isLower, boolean include) {
         if (field.dataType() == DataType.DOUBLE && bound instanceof Literal literal && literal.value() instanceof Double d && d == 0.0) {
-            return Literal.of(literal, isLower ? -0.0 : 0.0);
+            return Literal.of(literal, (isLower == include) ? -0.0 : 0.0);
         }
         return bound;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new MvInRange(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new MvInRange(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.get(2),
+            newChildren.size() > 3 ? newChildren.get(3) : null
+        );
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MvInRange::new, field, lower, upper);
+        return NodeInfo.create(this, MvInRange::new, field, lower, upper, options);
     }
 
     public Expression field() {
         return field;
+    }
+
+    public Expression options() {
+        return options;
     }
 
     public Expression lower() {

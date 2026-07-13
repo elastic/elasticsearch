@@ -32,16 +32,23 @@ public final class MvInRangeLongEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator upper;
 
+  private final boolean includeLower;
+
+  private final boolean includeUpper;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public MvInRangeLongEvaluator(Source source, ExpressionEvaluator field, ExpressionEvaluator lower,
-      ExpressionEvaluator upper, DriverContext driverContext) {
+      ExpressionEvaluator upper, boolean includeLower, boolean includeUpper,
+      DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.lower = lower;
     this.upper = upper;
+    this.includeLower = includeLower;
+    this.includeUpper = includeUpper;
     this.driverContext = driverContext;
   }
 
@@ -69,7 +76,7 @@ public final class MvInRangeLongEvaluator implements ExpressionEvaluator {
       LongBlock upperBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(MvInRange.process(p, fieldBlock, lowerBlock, upperBlock));
+        result.appendBoolean(MvInRange.process(p, fieldBlock, lowerBlock, upperBlock, this.includeLower, this.includeUpper));
       }
       return result.build();
     }
@@ -77,7 +84,7 @@ public final class MvInRangeLongEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "MvInRangeLongEvaluator[" + "field=" + field + ", lower=" + lower + ", upper=" + upper + "]";
+    return "MvInRangeLongEvaluator[" + "field=" + field + ", lower=" + lower + ", upper=" + upper + ", includeLower=" + includeLower + ", includeUpper=" + includeUpper + "]";
   }
 
   @Override
@@ -101,22 +108,29 @@ public final class MvInRangeLongEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory upper;
 
+    private final boolean includeLower;
+
+    private final boolean includeUpper;
+
     public Factory(Source source, ExpressionEvaluator.Factory field,
-        ExpressionEvaluator.Factory lower, ExpressionEvaluator.Factory upper) {
+        ExpressionEvaluator.Factory lower, ExpressionEvaluator.Factory upper, boolean includeLower,
+        boolean includeUpper) {
       this.source = source;
       this.field = field;
       this.lower = lower;
       this.upper = upper;
+      this.includeLower = includeLower;
+      this.includeUpper = includeUpper;
     }
 
     @Override
     public MvInRangeLongEvaluator get(DriverContext context) {
-      return new MvInRangeLongEvaluator(source, field.get(context), lower.get(context), upper.get(context), context);
+      return new MvInRangeLongEvaluator(source, field.get(context), lower.get(context), upper.get(context), includeLower, includeUpper, context);
     }
 
     @Override
     public String toString() {
-      return "MvInRangeLongEvaluator[" + "field=" + field + ", lower=" + lower + ", upper=" + upper + "]";
+      return "MvInRangeLongEvaluator[" + "field=" + field + ", lower=" + lower + ", upper=" + upper + ", includeLower=" + includeLower + ", includeUpper=" + includeUpper + "]";
     }
   }
 }

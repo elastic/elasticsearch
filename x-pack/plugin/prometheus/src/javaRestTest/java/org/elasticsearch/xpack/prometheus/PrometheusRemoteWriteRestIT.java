@@ -312,6 +312,7 @@ public class PrometheusRemoteWriteRestIT extends AbstractPrometheusRestIT {
         request.setJsonEntity("""
             {
               "persistent": {
+                "xpack.security.audit.enabled": true,
                 "xpack.security.audit.logfile.events.emit_request_body": true
               }
             }

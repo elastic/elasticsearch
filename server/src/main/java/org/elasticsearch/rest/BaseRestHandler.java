@@ -117,11 +117,10 @@ public abstract class BaseRestHandler implements RestHandler {
             }
 
             // Chunk consumers may defer reading until accept(), including when an interceptor has already aggregated the stream.
-            final boolean consumesBodyAfterPreparation = action instanceof RequestBodyChunkConsumer;
             if (request.hasContent()
                 && request.isContentConsumed() == false
                 && request.isFullContent()
-                && consumesBodyAfterPreparation == false) {
+                && action instanceof RequestBodyChunkConsumer == false) {
                 throw new IllegalArgumentException(
                     "request [" + request.method() + " " + request.path() + "] does not support having a body"
                 );

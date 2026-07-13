@@ -1324,7 +1324,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "FROM_BASE64:string is missing",
         "GREATEST:first is missing",
         "GREATEST:rest is missing",
-        "IN:field is missing",
         "JSON_EXTRACT:string is missing",
         "KNN:field is missing",
         "KQL:query is missing",
@@ -1337,12 +1336,15 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "MATCH_OPERATOR:query is missing",
         "MAX_OVER_TIME:field is missing",
         "MIN_OVER_TIME:field is missing",
+        // mv_in_range's bounds are literals in the csv-specs (like the comparison operators below), so its
+        // keyword/text parameters are not exercised via flattened-keyword field extraction.
+        "MV_IN_RANGE:field is missing",
+        "MV_IN_RANGE:lower is missing",
+        "MV_IN_RANGE:upper is missing",
         // MV_SORT's order argument is now marked as a CONSTANT hint in the function's docs
         // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
         // check below) and never appears here as missing.
         "NETWORK_DIRECTION:internal_networks is missing",
-        "NOT_IN:field is missing",
-        "NOT_IN:inlist is missing",
         "NOT_LIKE:pattern is missing",
         "NOT_LIKE:str is missing",
         "NOT_RLIKE:pattern is missing",
@@ -1409,13 +1411,18 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         String name = (String) map.get("name");
                         if (name == null) return;
                         name = name.toUpperCase(Locale.ROOT);
-                        // NOT_EQUALS can never be exercised by this variant: ExpressionBuilder#buildComparison desugars
-                        // "!=" to Not(Equals(lhs, rhs)) at parse time (see EsqlBaseParser.NEQ), so the pre-analysis AST
-                        // this variant walks never contains a NotEquals node - only Not wrapping Equals. A keyword field
-                        // reference on either side of "!=" is therefore tracked and wrapped as an EQUALS:lhs/EQUALS:rhs
-                        // argument, never NOT_EQUALS:lhs/NOT_EQUALS:rhs, so the whole operator is excluded from
-                        // candidates here rather than left as a permanent EXPECTED_ERRORS entry.
-                        if ("NOT_EQUALS".equals(name)) return;
+
+                        /*
+                         * The parser just refuses to build these real looking functions, instead building something
+                         * like NOT(IN()). So we skip tracking them here - though we do actually test them.
+                         */
+                        boolean rewrittenAwayAtParseTime = switch (name) {
+                            case "NOT_EQUALS", "NOT_IN" -> true;
+                            default -> false;
+                        };
+                        if (rewrittenAwayAtParseTime) {
+                            return;
+                        }
 
                         List<Map<String, Object>> signatures = (List<Map<String, Object>>) map.get("signatures");
                         if (signatures == null) return;

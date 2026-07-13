@@ -13,11 +13,15 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 
 /**
  * Serializes and deserializes {@link SourceStatistics} to/from a flat {@code Map<String, Object>}
@@ -70,6 +74,37 @@ public final class SourceStatisticsSerializer {
     static final String MAX_UNSERVABLE_SUFFIX = ".max_unservable";
 
     private SourceStatisticsSerializer() {}
+
+    /**
+     * The names of the Hive-partition (path-derived) columns for a source, read from the serialized
+     * {@link #PARTITION_COLUMNS_KEY} stamp in {@code sourceMetadata}. This is the ONE node-safe channel for
+     * partition identity: the {@code FileList} that carries {@code PartitionMetadata} is coordinator-only and
+     * deserializes to {@code UNRESOLVED} on a data node, so any consumer that reads partition names off the
+     * fileList sees an empty set there. Every node-agnostic consumer reads partition identity through this
+     * method (usually via the {@code partitionColumnNames()} accessor on {@code ExternalSourceExec} /
+     * {@code ExternalRelation}), never off the fileList. Returns an empty set when the source is not
+     * partitioned, and otherwise preserves the stamped order (the partition nesting, e.g. {@code region} then
+     * {@code tier}).
+     * <p>
+     * Deliberately a {@link LinkedHashSet} rather than {@code Set.copyOf}: no consumer reads this set by
+     * iteration today (they all use {@code contains} / {@code isEmpty}), but {@code Set.copyOf} randomizes
+     * iteration order <em>per JVM</em>, so a coordinator and a data node would order it differently. The day
+     * these names surface anywhere user-visible — an error message, a plan string, debug output — that would be
+     * nondeterministic and divergent across nodes. Ordering a handful of strings once per plan costs nothing and
+     * removes the failure mode.
+     */
+    @SuppressWarnings("unchecked")
+    public static Set<String> partitionColumnNames(Map<String, Object> sourceMetadata) {
+        if (sourceMetadata == null) {
+            return Set.of();
+        }
+        Object names = sourceMetadata.get(PARTITION_COLUMNS_KEY);
+        if (names instanceof Collection<?> collection) {
+            // The stamp is written as List.copyOf(names), which rejects nulls, so the copy cannot NPE here.
+            return Collections.unmodifiableSet(new LinkedHashSet<>((Collection<String>) collection));
+        }
+        return Set.of();
+    }
 
     /**
      * Merges statistics entries into a new map that includes both the original sourceMetadata
@@ -228,6 +263,65 @@ public final class SourceStatisticsSerializer {
         statsMap.remove(columnMaxKey(columnName));
         statsMap.put(columnMinUnservableKey(columnName), Boolean.TRUE);
         statsMap.put(columnMaxUnservableKey(columnName), Boolean.TRUE);
+    }
+
+    // All seven per-column stat suffixes, for the declared-overlay rekey: a column's whole stat family moves together,
+    // including the unservable markers (an upstream FFW-divergence poison must survive a `path` rename).
+    private static final String[] COLUMN_STAT_SUFFIXES = {
+        NULL_COUNT_SUFFIX,
+        VALUE_COUNT_SUFFIX,
+        MIN_SUFFIX,
+        MAX_SUFFIX,
+        SIZE_BYTES_SUFFIX,
+        MIN_UNSERVABLE_SUFFIX,
+        MAX_UNSERVABLE_SUFFIX };
+
+    /**
+     * The declared-schema overlay's stats boundary — the fourth, after reconciliation-normalize, FFW-divergence poison,
+     * and commit-time coercion. Stats are produced keyed by <b>physical</b> (file) column names holding <b>inferred</b>-type
+     * values; the declared overlay renames/retypes the plan afterwards, so without this the warm path serves physical-keyed
+     * stats under logical names (a renamed {@code COUNT(col)} serves 0) and inferred-type extrema/counts a coerced scan
+     * never produces. This (1) REKEYS every per-column stat family physical&rarr;logical for each {@code path} rename — a
+     * pure move changes no value, so the rekeyed stats stay exactly correct and warm serving survives the rename; (2)
+     * POISONS the extrema and DROPS {@code value_count}/{@code null_count} for {@code poisonColumns} (declared retype or
+     * declared date format — read-time coercion can null cells and re-represent values, so no pre-coercion stat is
+     * trustworthy). {@code row_count}/{@code file_count}/{@code size_bytes} and non-column keys are untouched, so
+     * {@code COUNT(*)} stays warm and the cost estimator keeps its byte signal. Returns the input instance unchanged when
+     * there is nothing to do; otherwise a new map (inputs are routinely {@code Map.copyOf}-immutable).
+     *
+     * @param physicalToLogical physical&rarr;logical name moves (the inverse of {@code DeclaredReadSpec#renames}; 1:1 by
+     *                          validation, so the inverse is well-defined)
+     * @param poisonColumns     LOGICAL names whose extrema + counts must safe-miss
+     */
+    public static Map<String, Object> overlayDeclaredSchemaOnStats(
+        Map<String, Object> statsMap,
+        Map<String, String> physicalToLogical,
+        Set<String> poisonColumns
+    ) {
+        if (statsMap == null || statsMap.isEmpty() || (physicalToLogical.isEmpty() && poisonColumns.isEmpty())) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        // Two-phase move: renames may swap/chain (logical `a`->physical `b` while `b`->`a` — the overlap
+        // PhysicalNames.noLogicalNamesRemain documents), so remove ALL source families first, then write.
+        Map<String, Object> staged = new HashMap<>();
+        for (Map.Entry<String, String> move : physicalToLogical.entrySet()) {
+            String physicalPrefix = STATS_COL_PREFIX + move.getKey();
+            String logicalPrefix = STATS_COL_PREFIX + move.getValue();
+            for (String suffix : COLUMN_STAT_SUFFIXES) {
+                Object value = out.remove(physicalPrefix + suffix);
+                if (value != null) {
+                    staged.put(logicalPrefix + suffix, value);
+                }
+            }
+        }
+        out.putAll(staged);
+        for (String column : poisonColumns) {
+            poisonColumnExtrema(out, column);        // drops .min/.max, writes both unservable markers
+            out.remove(columnValueCountKey(column)); // count-family unknown, not zero: SplitStats.of defaults both
+            out.remove(columnNullCountKey(column));  // to -1 -> COUNT(col) safe-misses; COUNT(*) is unaffected
+        }
+        return out;
     }
 
     /**

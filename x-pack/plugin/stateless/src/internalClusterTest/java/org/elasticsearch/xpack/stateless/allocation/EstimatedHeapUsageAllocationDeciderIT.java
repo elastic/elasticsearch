@@ -386,6 +386,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
                                 entry.getValue().totalFields(),
                                 entry.getValue().postingsInMemoryBytes(),
                                 entry.getValue().liveDocsBytes(),
+                                entry.getValue().pointsInMemoryBytes(),
                                 UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
                                 nodeId
                             )

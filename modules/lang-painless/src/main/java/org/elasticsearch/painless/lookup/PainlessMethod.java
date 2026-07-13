@@ -44,6 +44,11 @@ public record PainlessMethod(
         this.annotations = Map.copyOf(annotations);
     }
 
+    /** Returns this method's annotation of the given type, or {@code null}. */
+    public <T> T annotation(Class<T> type) {
+        return type.cast(annotations.get(type));
+    }
+
     @Override
     public boolean equals(Object object) {
         if (this == object) {

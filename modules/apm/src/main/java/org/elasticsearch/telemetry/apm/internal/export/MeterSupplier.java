@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal.export;
 
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import java.util.function.Supplier;
@@ -21,6 +22,14 @@ public interface MeterSupplier extends Supplier<Meter>, AutoCloseable {
      */
     default CompletableResultCode attemptFlushMetrics() {
         return CompletableResultCode.ofSuccess();
+    }
+
+    /**
+     * Returns the underlying {@link MeterProvider} for wiring SDK self-monitoring into other exporters.
+     * Defaults to {@link MeterProvider#noop()} when the supplier does not expose a concrete provider.
+     */
+    default MeterProvider getMeterProvider() {
+        return MeterProvider.noop();
     }
 
     @Override

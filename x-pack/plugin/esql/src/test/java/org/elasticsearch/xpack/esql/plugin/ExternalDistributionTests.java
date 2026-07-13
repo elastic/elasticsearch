@@ -11,6 +11,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -42,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -151,6 +155,79 @@ public class ExternalDistributionTests extends ESTestCase {
             "Expected TopN inside fragment, got: " + fragment.fragment().getClass().getSimpleName(),
             fragment.fragment() instanceof TopN
         );
+    }
+
+    // --- Request filter warning tests (elastic/esql-planning#1158) ---
+
+    public void testIntegrateEsFilterWarnsForExternalDataset() {
+        ExternalRelation external = createExternalRelation();
+        FragmentExec fragment = new FragmentExec(external);
+
+        PhysicalPlan result = PlannerUtils.integrateEsFilterIntoFragment(fragment, QueryBuilders.termQuery("name", "foo"));
+
+        assertTrue("Expected FragmentExec, got: " + result.getClass().getSimpleName(), result instanceof FragmentExec);
+        // The filter is still stored on the fragment (unchanged, pre-existing no-op behavior for external
+        // sources); only the warning is new -- see PlannerUtils.localPlan, which only ever consumes it for EsSourceExec.
+        assertNotNull("Filter should still be stored on the fragment", ((FragmentExec) result).esFilter());
+        assertWarnings(
+            "The filter in the ES|QL query request is not applied to external dataset(s) [s3://bucket/data/*.parquet]; "
+                + "use a WHERE clause to filter rows from external datasets instead"
+        );
+    }
+
+    public void testIntegrateEsFilterWarningNamesDatasetName() {
+        ExternalRelation external = createExternalRelationWithDatasetName("my_dataset");
+        FragmentExec fragment = new FragmentExec(external);
+
+        PlannerUtils.integrateEsFilterIntoFragment(fragment, QueryBuilders.termQuery("name", "foo"));
+
+        assertWarnings(
+            "The filter in the ES|QL query request is not applied to external dataset(s) [my_dataset]; "
+                + "use a WHERE clause to filter rows from external datasets instead"
+        );
+    }
+
+    public void testIntegrateEsFilterWarningListsMultipleDistinctDatasets() {
+        ExternalRelation left = createExternalRelationWithDatasetName("dataset_a");
+        ExternalRelation right = createExternalRelationWithDatasetName("dataset_b");
+        LookupJoinExec join = new LookupJoinExec(
+            SRC,
+            new FragmentExec(left),
+            new FragmentExec(right),
+            List.of(),
+            List.of(),
+            List.of(),
+            null
+        );
+
+        PlannerUtils.integrateEsFilterIntoFragment(join, QueryBuilders.termQuery("name", "foo"));
+
+        // Both distinct datasets must be named, in encounter order, joined into a single warning
+        // rather than one warning per dataset.
+        assertWarnings(
+            "The filter in the ES|QL query request is not applied to external dataset(s) [dataset_a, dataset_b]; "
+                + "use a WHERE clause to filter rows from external datasets instead"
+        );
+    }
+
+    public void testIntegrateEsFilterNoWarningWithoutEsFilter() {
+        ExternalRelation external = createExternalRelation();
+        FragmentExec fragment = new FragmentExec(external);
+
+        PhysicalPlan result = PlannerUtils.integrateEsFilterIntoFragment(fragment, null);
+
+        // no request filter at all -- nothing to warn about; unchecked warnings would fail teardown
+        assertSame(fragment, result);
+    }
+
+    public void testIntegrateEsFilterNoWarningWithoutExternalSource() {
+        EsRelation relation = createEsRelation();
+        FragmentExec fragment = new FragmentExec(relation);
+
+        PlannerUtils.integrateEsFilterIntoFragment(fragment, QueryBuilders.termQuery("name", "foo"));
+
+        // no ExternalRelation anywhere in the plan -- the warning must not fire; an unexpected warning
+        // would otherwise fail this test at teardown (ESTestCase#ensureNoWarnings)
     }
 
     // --- Context validation tests ---
@@ -518,6 +595,21 @@ public class ExternalDistributionTests extends ESTestCase {
         );
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "parquet", "s3://bucket/data/*.parquet");
         return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, null, Map.of());
+    }
+
+    private static ExternalRelation createExternalRelationWithDatasetName(String datasetName) {
+        List<Attribute> output = List.of(
+            new FieldAttribute(SRC, "name", new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "parquet", "s3://bucket/data/*.parquet");
+        return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, null, Map.of(), datasetName);
+    }
+
+    private static EsRelation createEsRelation() {
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(SRC, "name", new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+        return new EsRelation(SRC, "test", IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), attributes);
     }
 
     private static ExternalRelation createMultiFieldExternalRelation() {

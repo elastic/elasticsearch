@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 150824
+summary: Add keyless workload-identity auth to ESQL Azure
+type: enhancement

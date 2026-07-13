@@ -12,9 +12,13 @@ package org.elasticsearch.repositories.gcs;
 import fixture.gcs.GoogleCloudStorageHttpFixture;
 import fixture.gcs.TestUtils;
 
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.StorageClass;
 import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -22,25 +26,32 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.junit.ClassRule;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MEGABYTES_COPIED_PER_CHUNK_SETTING;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.google.fixture", "true"));
@@ -164,5 +175,116 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
             return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
         });
         assertArrayEquals(BytesReference.toBytes(blobBytes), targetBytes);
+    }
+
+    /**
+     * Verifies that the {@code data_storage_class} / {@code metadata_storage_class} settings are applied to the correct uploads. We
+     * configure two distinct storage classes, write blobs with each {@link OperationPurpose} via the single-part, resumable and
+     * server-side copy paths, and read the storage class back from the object metadata.
+     * <p>
+     * One of the two configured classes is always {@code STANDARD} (the default class) or {@code REGIONAL} (the legacy default class
+     * used by the test bucket elasticsearch-ci-thirdparty) and the other is a colder class ({@code NEARLINE} or {@code COLDLINE}),
+     * so the positive assertions cover both an explicit default and an explicit non-default class.
+     * <p>
+     * Unlike Azure (which exposes an "inferred" flag), GCS always reports a concrete storage class for an object: the fixture reports no
+     * class when none was configured, while a real bucket falls back to its default class (test buckets default to {@code STANDARD} or
+     * {@code REGIONAL}). The non-snapshot purpose therefore asserts only that no colder class leaked onto the upload.
+     */
+    public void testStorageClassPerOperationPurpose() throws Exception {
+        // always configure STANDARD plus one colder class so the positive assertions exercise both the default and a non-default class
+        final List<StorageClass> snapshotStorageClasses = shuffledList(
+            List.of(StorageClass.STANDARD, randomFrom(StorageClass.NEARLINE, StorageClass.COLDLINE))
+        );
+        final StorageClass dataStorageClass = snapshotStorageClasses.get(0);
+        final StorageClass metadataStorageClass = snapshotStorageClasses.get(1);
+        logger.info("--> data_storage_class [{}], metadata_storage_class [{}]", dataStorageClass, metadataStorageClass);
+
+        final String repoName = "test-storage-class-repo";
+        final AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            repoName
+        )
+            .setType("gcs")
+            .setSettings(
+                Settings.builder()
+                    .put("bucket", System.getProperty("test.google.bucket"))
+                    .put("base_path", System.getProperty("test.google.base", "/") + randomAlphaOfLength(8))
+                    .put(GoogleCloudStorageRepository.DATA_STORAGE_CLASS.getKey(), dataStorageClass.toString())
+                    .put(GoogleCloudStorageRepository.METADATA_STORAGE_CLASS.getKey(), metadataStorageClass.toString())
+            )
+            .get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        try {
+            final BlobStoreRepository repository = (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository(
+                repoName
+            );
+            final GoogleCloudStorageBlobStore blobStore = asInstanceOf(GoogleCloudStorageBlobStore.class, repository.blobStore());
+            final BlobContainer blobContainer = blobStore.blobContainer(repository.basePath());
+            final String bucket = System.getProperty("test.google.bucket");
+            final String keyPrefix = repository.basePath().buildAsString();
+            try {
+                // a purpose that resolves to no explicit storage class (i.e. neither SNAPSHOT_DATA nor SNAPSHOT_METADATA)
+                final OperationPurpose noClassPurpose = randomFrom(
+                    OperationPurpose.REPOSITORY_ANALYSIS,
+                    OperationPurpose.CLUSTER_STATE,
+                    OperationPurpose.INDICES,
+                    OperationPurpose.TRANSLOG
+                );
+                for (final OperationPurpose purpose : List.of(
+                    OperationPurpose.SNAPSHOT_DATA,
+                    OperationPurpose.SNAPSHOT_METADATA,
+                    noClassPurpose
+                )) {
+                    final StorageClass expectedStorageClass = blobStore.resolveStorageClass(purpose);
+
+                    // single-part upload (blob stays below the large blob threshold, so the multipart upload path is used)
+                    final String singlePartName = randomIdentifier();
+                    final BytesReference singlePartBytes = randomBytesReference(between(1, 512));
+                    blobContainer.writeBlob(purpose, singlePartName, singlePartBytes, true);
+                    assertStorageClass(blobStore, bucket, keyPrefix + singlePartName, expectedStorageClass, "single-part upload", purpose);
+
+                    // resumable upload (exceeds the large blob threshold so the resumable upload path is used)
+                    final String resumableName = randomIdentifier();
+                    final int resumableSize = GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE + between(1, 1024);
+                    final byte[] resumableBytes = randomByteArrayOfLength(resumableSize);
+                    blobContainer.writeBlob(purpose, resumableName, new ByteArrayInputStream(resumableBytes), resumableSize, true);
+                    assertStorageClass(blobStore, bucket, keyPrefix + resumableName, expectedStorageClass, "resumable upload", purpose);
+
+                    // server-side copy (source is the small single-part blob written above)
+                    final String copyName = randomIdentifier();
+                    blobContainer.copyBlob(purpose, blobContainer, singlePartName, copyName, singlePartBytes.length());
+                    assertStorageClass(blobStore, bucket, keyPrefix + copyName, expectedStorageClass, "server-side copy", purpose);
+                }
+            } finally {
+                blobContainer.delete(randomPurpose());
+            }
+        } finally {
+            clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).get();
+        }
+    }
+
+    private static void assertStorageClass(
+        GoogleCloudStorageBlobStore blobStore,
+        String bucket,
+        String blobKey,
+        @Nullable StorageClass expectedStorageClass,
+        String uploadType,
+        OperationPurpose purpose
+    ) throws IOException {
+        final StorageClass actualStorageClass = blobStore.client().meteredGet(purpose, BlobId.of(bucket, blobKey)).getStorageClass();
+        final String message = uploadType + " with purpose [" + purpose + "]";
+        if (expectedStorageClass != null) {
+            assertThat(message, actualStorageClass, equalTo(expectedStorageClass));
+        } else {
+            // No storage class configured for this purpose: the fixture reports no class, while a real bucket reports its default class
+            // (test buckets default to STANDARD). Either way, no colder class should have been applied to the blob.
+            assertThat(
+                message + " should not carry a colder storage class",
+                actualStorageClass,
+                anyOf(nullValue(), equalTo(StorageClass.STANDARD), equalTo(StorageClass.REGIONAL))
+            );
+        }
     }
 }

@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { classifyChangedFiles } from "./changed-files";
+import { describe, expect, test } from "vitest";
+import { classifyChangedFiles } from "./changed-files.ts";
 
 describe("classifyChangedFiles", () => {
   test("classifies unit test files", () => {

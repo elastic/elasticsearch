@@ -1,0 +1,141 @@
+// End-to-end PromQL csv-spec coverage for classic histogram_quantile.
+
+histogram_quantile_by_job
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(round(histogram_quantile(0.5, sum by (job, le) (request_duration_seconds_bucket)), 0.001))
+| SORT job;
+
+result:double      | step:datetime            | job:keyword
+1.5                | 2024-05-10T00:10:00.000Z | api
+2.167              | 2024-05-10T00:10:00.000Z | repair
+1.333              | 2024-05-10T00:10:00.000Z | worker
+;
+
+histogram_quantile_filtered_scalar_output
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(round(histogram_quantile(0.5, sum by (le) (request_duration_seconds_bucket{job="api"})), 0.001));
+
+result:double | step:datetime
+1.5           | 2024-05-10T00:10:00.000Z
+;
+
+histogram_quantile_raw_selector
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+required_capability: promql_histogram_quantile_implicit_le
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(round(histogram_quantile(0.5, request_duration_seconds_bucket), 0.001))
+| KEEP result, step
+| SORT result;
+
+result:double      | step:datetime
+1.25               | 2024-05-10T00:10:00.000Z
+1.375              | 2024-05-10T00:10:00.000Z
+1.5                | 2024-05-10T00:10:00.000Z
+1.583              | 2024-05-10T00:10:00.000Z
+2.167              | 2024-05-10T00:10:00.000Z
+;
+
+// Same raw bucket selector as above, but evaluated as an instant query.
+histogram_quantile_raw_selector_instant
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+required_capability: promql_histogram_quantile_implicit_le
+required_capability: promql_instant_query
+PROMQL index=promql_classic_histogram time="2024-05-10T00:10:00.000Z" result=(round(histogram_quantile(0.5, request_duration_seconds_bucket), 0.001))
+| KEEP result, step
+| SORT result;
+
+result:double      | step:datetime
+1.25               | 2024-05-10T00:10:00.000Z
+1.375              | 2024-05-10T00:10:00.000Z
+1.5                | 2024-05-10T00:10:00.000Z
+1.583              | 2024-05-10T00:10:00.000Z
+2.167              | 2024-05-10T00:10:00.000Z
+;
+
+histogram_quantile_raw_rate_selector
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+required_capability: promql_histogram_quantile_implicit_le
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(round(histogram_quantile(0.5, rate(request_duration_seconds_bucket[5m])), 0.001))
+| KEEP result, step
+| SORT result;
+
+result:double      | step:datetime
+1.25               | 2024-05-10T00:10:00.000Z
+1.375              | 2024-05-10T00:10:00.000Z
+1.5                | 2024-05-10T00:10:00.000Z
+1.583              | 2024-05-10T00:10:00.000Z
+2.167              | 2024-05-10T00:10:00.000Z
+;
+
+histogram_quantile_rate_by_job
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(round(histogram_quantile(0.5, sum by (job, le) (rate(request_duration_seconds_bucket[5m]))), 0.001))
+| KEEP result, step, job
+| SORT job;
+
+result:double      | step:datetime            | job:keyword
+1.5                | 2024-05-10T00:10:00.000Z | api
+2.167              | 2024-05-10T00:10:00.000Z | repair
+1.333              | 2024-05-10T00:10:00.000Z | worker
+;
+
+// Like Prometheus, an input without the `le` label yields no quantile and emits a warning.
+histogram_quantile_without_le_returns_empty
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(histogram_quantile(0.5, sum by (job) (request_duration_seconds_bucket)))
+| SORT job;
+warningRegex:.*histogram_quantile: input vector has no le label; no buckets to evaluate.*
+
+result:double | step:datetime | job:keyword
+;
+
+// A non-existing metric produces no series, matching Prometheus (empty result, no error).
+histogram_quantile_nonexistent_metric_returns_empty
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(histogram_quantile(0.5, sum by (job, le) (nonexistent_seconds_bucket)))
+| SORT job;
+
+result:double | step:datetime | job:keyword
+;
+
+histogram_quantile_malformed_le_warns_and_ignores_bucket
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:00:00.000Z" result=(round(histogram_quantile(0.9, sum by (job, le) (request_duration_seconds_bucket{job="malformed"})), 0.001));
+warningRegex:.*evaluation of \[histogram_quantile\(0.9, sum by \(job, le\) \(request_duration_seconds_bucket\{job=\\\"malformed\\\"\}\)\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:.*NumberFormatException: bucket label \[le\] has a malformed value of \[bogus\]
+
+result:double | step:datetime            | job:keyword
+2.0           | 2024-05-10T00:00:00.000Z | malformed
+;
+
+// Nests histogram_quantile under sum(...) by (...), matching promcheck dashboards.
+histogram_quantile_sum_nested_by_job
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+required_capability: promql_histogram_quantile_implicit_le
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(round(sum(histogram_quantile(0.5, rate(request_duration_seconds_bucket[5m]))) by (job), 0.001))
+| SORT job;
+
+result:double      | step:datetime            | job:keyword
+2.958              | 2024-05-10T00:10:00.000Z | api
+2.167              | 2024-05-10T00:10:00.000Z | repair
+2.75               | 2024-05-10T00:10:00.000Z | worker
+;
+
+// rate(...) over bucket metrics without an `le` dimension yields an empty result and warning, not an error.
+histogram_quantile_rate_without_le_returns_empty
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+PROMQL index=promql_histogram_no_le step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(histogram_quantile(0.9, rate(request_duration_seconds_bucket[5m])));
+warningRegex:.*histogram_quantile: input vector has no le label; no buckets to evaluate.*
+
+result:double | step:datetime | _timeseries:keyword
+;

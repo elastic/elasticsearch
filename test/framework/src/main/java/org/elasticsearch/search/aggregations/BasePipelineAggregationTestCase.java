@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,9 +62,8 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
     /**
      * Setup for the whole base test class.
      */
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeSearchModule() throws Exception {
         Settings settings = Settings.builder()
             .put("node.name", AbstractQueryTestCase.class.toString())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
@@ -83,6 +83,11 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
             String type = randomAlphaOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
+    }
+
+    @Override
+    public final void setUp() throws Exception {
+        super.setUp();
     }
 
     /**

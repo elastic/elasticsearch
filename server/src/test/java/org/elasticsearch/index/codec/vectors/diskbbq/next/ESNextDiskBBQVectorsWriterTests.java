@@ -15,7 +15,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -30,6 +29,13 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomVector;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+
 public class ESNextDiskBBQVectorsWriterTests extends ESTestCase {
 
     static {
@@ -39,7 +45,7 @@ public class ESNextDiskBBQVectorsWriterTests extends ESTestCase {
     public void testReadCentroidDataLoadsClusterSizesWithoutParents() throws Exception {
         try (IVFVectorsReader.CentroidData centroidData = readCentroidData(64, 16, 256)) {
             assertNotNull(centroidData);
-            assertTrue(centroidData.centroids().size() <= 16);
+            assertThat(centroidData.centroids().size(), lessThanOrEqualTo(16));
             assertClusterSizesAreLoaded(centroidData, 256);
         }
     }
@@ -47,7 +53,7 @@ public class ESNextDiskBBQVectorsWriterTests extends ESTestCase {
     public void testReadCentroidDataLoadsClusterSizesWithParents() throws Exception {
         try (IVFVectorsReader.CentroidData centroidData = readCentroidData(64, 2, 512)) {
             assertNotNull(centroidData);
-            assertTrue(centroidData.centroids().size() > 2);
+            assertThat(centroidData.centroids().size(), greaterThan(2));
             assertClusterSizesAreLoaded(centroidData, 512);
         }
     }
@@ -55,10 +61,9 @@ public class ESNextDiskBBQVectorsWriterTests extends ESTestCase {
     private static void assertClusterSizesAreLoaded(IVFVectorsReader.CentroidData centroidData, int numDocs) {
         assertEquals(centroidData.centroids().size(), centroidData.clusterSizes().length);
         int totalAssignments = Arrays.stream(centroidData.clusterSizes()).sum();
-        assertTrue(totalAssignments >= numDocs);
-        assertTrue(totalAssignments <= numDocs * 2);
+        assertThat(totalAssignments, both(greaterThanOrEqualTo(numDocs)).and(lessThanOrEqualTo(numDocs * 2)));
         for (int clusterSize : centroidData.clusterSizes()) {
-            assertTrue(clusterSize > 0);
+            assertThat(clusterSize, greaterThan(0));
         }
     }
 
@@ -78,13 +83,12 @@ public class ESNextDiskBBQVectorsWriterTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(writer)) {
                 assertEquals("expected a single segment", 1, reader.leaves().size());
                 LeafReader leafReader = reader.leaves().get(0).reader();
-                FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo("vector");
                 KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
                 if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
                     vectorReader = fieldsReader.getFieldReader("vector");
                 }
-                assertTrue(vectorReader instanceof ESNextDiskBBQVectorsReader);
-                return ((ESNextDiskBBQVectorsReader) vectorReader).readCentroidData(fieldInfo);
+                assertThat(vectorReader, instanceOf(ESNextDiskBBQVectorsReader.class));
+                return ((ESNextDiskBBQVectorsReader) vectorReader).readCentroidData("vector");
             }
         }
     }
@@ -101,13 +105,5 @@ public class ESNextDiskBBQVectorsWriterTests extends ESTestCase {
         indexWriterConfig.setMaxBufferedDocs(numDocs + 1);
         indexWriterConfig.setRAMBufferSizeMB(IndexWriterConfig.DISABLE_AUTO_FLUSH);
         return indexWriterConfig;
-    }
-
-    private float[] randomVector(int dims) {
-        float[] vector = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
     }
 }

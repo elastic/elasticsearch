@@ -39,7 +39,8 @@ public class ES940OSQVectorsScorer {
     public enum QuantEncoding {
         D1Q1((byte) 1, (byte) 1),
         D1Q4((byte) 1, (byte) 4),
-        D2Q4((byte) 2, (byte) 4),
+        D2Q4_STRIPED((byte) 2, (byte) 4),
+        D2Q4_PACKED((byte) 2, (byte) 4, BitEncoding.PACKED),
         D4Q4_STRIPED((byte) 4, (byte) 4),
         D4Q4_PACKED((byte) 4, (byte) 4, BitEncoding.PACKED),
         D7Q7((byte) 7, (byte) 7);
@@ -62,7 +63,7 @@ public class ES940OSQVectorsScorer {
             return switch ((queryBits << 8) | indexBits) {
                 case (1 << 8) | 1 -> D1Q1;
                 case (4 << 8) | 1 -> D1Q4;
-                case (4 << 8) | 2 -> D2Q4;
+                case (4 << 8) | 2 -> bitEncoding == BitEncoding.PACKED ? D2Q4_PACKED : D2Q4_STRIPED;
                 case (4 << 8) | 4 -> bitEncoding == BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
                 case (7 << 8) | 7 -> D7Q7;
                 default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
@@ -118,7 +119,7 @@ public class ES940OSQVectorsScorer {
         this.additionalCorrections = new float[bulkSize];
         this.bulkSize = bulkSize;
         this.scratch = encoding.indexBits() == 7 ? new byte[dimensions] : null;
-        this.packedScratch = encoding == QuantEncoding.D4Q4_PACKED ? new byte[length] : null;
+        this.packedScratch = encoding.bitEncoding == BitEncoding.PACKED ? new byte[length] : null;
     }
 
     public ES940OSQVectorsScorer(
@@ -149,7 +150,8 @@ public class ES940OSQVectorsScorer {
         return switch (encoding) {
             case D1Q1 -> quantized1BitScoreSymmetric(q, length);
             case D1Q4 -> quantized4BitScore(q, length);
-            case D2Q4 -> quantized4BitScore2BitIndex(q);
+            case D2Q4_STRIPED -> quantized4BitScore2BitIndexStriped(q);
+            case D2Q4_PACKED -> quantized4BitScore2BitIndexPacked(q);
             case D4Q4_PACKED -> quantized4BitScorePacked(q);
             case D4Q4_STRIPED -> quantized4BitScoreSymmetric(q);
             case D7Q7 -> quantized7BitScore(q);
@@ -195,12 +197,26 @@ public class ES940OSQVectorsScorer {
         return score;
     }
 
-    private long quantized4BitScore2BitIndex(byte[] q) throws IOException {
+    private long quantized4BitScore2BitIndexStriped(byte[] q) throws IOException {
         assert q.length == length * 2;
         assert length % 2 == 0 : "length must be even for 2-bit index length: " + length + " dimensions: " + dimensions;
         int lower = (int) quantized4BitScore(q, length / 2);
         int upper = (int) quantized4BitScore(q, length / 2);
         return lower + ((long) upper << 1);
+    }
+
+    private long quantized4BitScore2BitIndexPacked(byte[] q) throws IOException {
+        assert q.length == length * 4 : "length mismatch q " + q.length + " vs " + (length * 4);
+        in.readBytes(packedScratch, 0, length);
+        long score = 0;
+        for (int i = 0; i < length; i++) {
+            int packed = packedScratch[i] & 0xFF;
+            score += ((packed >>> 6) & 0x03) * (q[i] & 0x0F);
+            score += ((packed >>> 4) & 0x03) * (q[i + length] & 0x0F);
+            score += ((packed >>> 2) & 0x03) * (q[i + 2 * length] & 0x0F);
+            score += (packed & 0x03) * (q[i + 3 * length] & 0x0F);
+        }
+        return score;
     }
 
     private long quantized4BitScore(byte[] q, int length) throws IOException {

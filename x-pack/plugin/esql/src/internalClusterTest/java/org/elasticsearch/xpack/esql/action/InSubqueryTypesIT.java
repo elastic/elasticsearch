@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -22,8 +23,8 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
@@ -94,7 +95,6 @@ import static org.hamcrest.Matchers.is;
  * {@code FROM <main_idx> | WHERE main_<x> IN (FROM <sub_idx> | KEEP sub_<y>) | KEEP <output>}. For valid combinations the row should
  * come back; for invalid combinations the analyzer should reject the query with a {@link VerificationException}. If no exception is
  * thrown and no row is returned, our validation rules are out of sync with the runtime behaviour.
- * <p>
  * <ul>
  *     <li>The left and right effective types must be equal, or both must be string types ({@code KEYWORD} or {@code TEXT}). Small
  *     numerics are widened on load by the analyzer ({@code BYTE} / {@code SHORT} → {@code INTEGER}; {@code FLOAT} / {@code HALF_FLOAT}
@@ -125,15 +125,15 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
+            // Must precede the ESQL plugin: EsqlPlugin.createComponents reads EncryptionServiceRegistry, populated by this stub.
+            TestEncryptionServicePlugin.class,
             EsqlPluginWithEnterpriseOrTrialLicense.class,
             MapperExtrasPlugin.class,
             VersionFieldPlugin.class,
             UnsignedLongMapperPlugin.class,
             SpatialPlugin.class,
             AnalyticsPlugin.class,
-            AggregateMetricMapperPlugin.class,
-            // EsqlPlugin's TransportPutDataSourceAction requires an EncryptionService at injection time.
-            TestEncryptionServicePlugin.class
+            AggregateMetricMapperPlugin.class
         );
     }
 
@@ -255,15 +255,16 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
     );
 
     /**
-     * Types that the {@link SemiJoin}'s post-analysis verifier rejects these data types on an IN subquery. Derived from
-     * {@link Join#UNSUPPORTED_TYPES} and filtered through {@link SemiJoin#isSemiJoinUnsupported} so the test automatically picks up any
-     * new unsupported type that comes with a regular REST mapping; the entries in {@link #NOT_MAPPABLE_VIA_REST} are filtered out.
+     * Types that the {@link AbstractSubqueryJoin}'s post-analysis verifier rejects these data types on an IN subquery. Derived from
+     * {@link Join#UNSUPPORTED_TYPES} and filtered through {@link AbstractSubqueryJoin#isSubqueryJoinUnsupported(DataType)} so the test
+     * automatically picks up any new unsupported type that comes with a regular REST mapping; the entries in
+     * {@link #NOT_MAPPABLE_VIA_REST} are filtered out.
      */
     private static final List<DataType> UNSUPPORTED;
     static {
         List<DataType> list = new ArrayList<>();
         for (DataType t : Join.UNSUPPORTED_TYPES) {
-            if (SemiJoin.isSemiJoinUnsupported(t) == false) {
+            if (AbstractSubqueryJoin.isSubqueryJoinUnsupported(t) == false) {
                 continue; // TEXT and VERSION are allowed on the right side of an IN subquery even though Join rejects them
             }
             if (NOT_MAPPABLE_VIA_REST.contains(t)) {
@@ -292,10 +293,10 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
 
     /**
      * All types that get a column in both {@code main_index} and {@code sub_index}, including under-construction types
-     * ({@code DATE_RANGE}, {@code FLATTENED} as of writing): these are reported as {@code supportedOn(...) == true} on snapshot builds
-     * by {@link SupportedVersion#underConstruction}, and {@code internalClusterTest}s only run on snapshot builds, so the analyzer
-     * surfaces them with their proper {@code DataType}. Counter types are intentionally excluded — they live in {@link #TSDB_INDEX}
-     * instead.
+     * ({@code DATE_RANGE}, {@code FLATTENED} as of writing): on snapshot builds these are reported as {@code supportedOn(...) == true}
+     * by {@link SupportedVersion#underConstruction}, so the analyzer surfaces them with their proper {@code DataType}. On release builds
+     * they surface as {@link DataType#UNSUPPORTED} instead, so the pairs that involve them are skipped at test time (see
+     * {@link #testableOnCurrentBuild}). Counter types are intentionally excluded — they live in {@link #TSDB_INDEX} instead.
      */
     private static final List<DataType> ALL_TEST_TYPES;
     static {
@@ -391,7 +392,11 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
             Collection<TestConfigs> existing = testConfigurations.values();
             TestConfigs configs = testConfigurations.computeIfAbsent("same", TestConfigs::new);
             for (DataType type : SUPPORTED) {
-                assertThat("Claiming supported for unsupported type: " + type, SemiJoin.isSemiJoinUnsupported(type), is(false));
+                assertThat(
+                    "Claiming supported for unsupported type: " + type,
+                    AbstractSubqueryJoin.isSubqueryJoinUnsupported(type),
+                    is(false)
+                );
                 if (existingPair(existing, type, type) == false) {
                     configs.addPasses(type, type);
                 }
@@ -494,8 +499,27 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
     private void testInSubqueryTypes(String group) {
         TestConfigs configs = testConfigurations.get(group);
         for (TestConfig config : configs.values()) {
+            if (testableOnCurrentBuild(config) == false) {
+                continue;
+            }
             config.doTest();
         }
+    }
+
+    /**
+     * Under-construction data types ({@code DATE_RANGE}, {@code FLATTENED} as of writing) are only surfaced with their real
+     * {@link DataType} on snapshot builds; on release builds {@link DataType#fromEs} maps them to {@link DataType#UNSUPPORTED}, so the
+     * analyzer rejects the query with a generic {@code "Cannot use field [...] with unsupported type [...]"} error before the IN subquery
+     * verifier ever runs — which doesn't match the type-specific error these configs assert. Skip any pair that involves an
+     * under-construction type when not on a snapshot build so the suite still exercises every other combination on release builds. This
+     * mirrors {@code LookupJoinTypesIT}, which filters out {@link DataType#UNDER_CONSTRUCTION} types the same way.
+     */
+    private static boolean testableOnCurrentBuild(TestConfig config) {
+        if (Build.current().isSnapshot()) {
+            return true;
+        }
+        return DataType.UNDER_CONSTRUCTION.contains(config.mainType()) == false
+            && DataType.UNDER_CONSTRUCTION.contains(config.subType()) == false;
     }
 
     private void createIndex(String indexName, String fieldPrefix) {

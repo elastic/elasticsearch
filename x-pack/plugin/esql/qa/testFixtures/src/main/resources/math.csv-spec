@@ -202,7 +202,7 @@ s:double
 25976.0
 ;
 
-exp#[skip:-8.15.99,reason:new scalar function added in 8.16]
+exp
 // tag::exp[]
 ROW d = 5.0
 | EVAL s = EXP(d)
@@ -235,7 +235,7 @@ salary:integer | s:double
 73851          | 1330201
 ;
 
-log#[skip:-8.12.99,reason:new scalar function added in 8.13]
+log
 // tag::log[]
 ROW base = 2.0, value = 8.0
 | EVAL s = LOG(base, value)
@@ -248,7 +248,7 @@ base: double | value: double | s:double
 // end::log-result[]
 ;
 
-logofNegativeValue#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofNegativeValue
 ROW base = 2.0, value = -2
 | EVAL s = LOG(base, value);
 
@@ -259,7 +259,7 @@ base: double | value: integer | s:double
 2.0          | -2             | null
 ;
 
-logofNegativeBase#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofNegativeBase
 ROW base = -2, value = 2.0
 | EVAL s = LOG(base, value);
 
@@ -270,7 +270,7 @@ base: integer | value: double | s:double
 -2            | 2.0           | null
 ;
 
-logofBaseOne#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofBaseOne
 ROW base = 1, value = 2
 | EVAL s = LOG(base, value);
 
@@ -281,7 +281,7 @@ base: integer | value: integer | s:double
 1             | 2              | null
 ;
 
-logofZero#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofZero
 ROW base = 2.0, value = 0.0
 | EVAL s = LOG(base, value);
 
@@ -292,7 +292,7 @@ base:double | value:double | s:double
 2.0         | 0.0          |null
 ;
 
-logofNegativeZero#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofNegativeZero
 ROW base = 2.0, value = -0.0
 | EVAL s = LOG(base, value);
 
@@ -303,7 +303,7 @@ base:double | value:double | s:double
 2.0         | -0.0         |null
 ;
 
-logofIntLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofIntLong
 ROW base = 10, value = to_long(1000000000000)
 | EVAL s = LOG(base, value);
 
@@ -311,7 +311,7 @@ base:integer | value:long      | s:double
 10           | 1000000000000   | 12
 ;
 
-logofLongInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofLongInt
 ROW base = to_long(1000000000000), value = 10
 | EVAL s = LOG(base, value);
 
@@ -319,7 +319,7 @@ base:long             | value:integer | s:double
 1000000000000         | 10            | 0.08333333333333333
 ;
 
-logofLongLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofLongLong
 ROW base = to_long(1000000000000), value = to_long(1000000000000)
 | EVAL s = LOG(base, value);
 
@@ -327,7 +327,7 @@ base:long      | value:long     | s:double
 1000000000000  | 1000000000000  |1.0
 ;
 
-logofLongDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofLongDouble
 ROW base = to_long(1000000000000), value = 10.0
 | EVAL s = LOG(base, value);
 
@@ -335,7 +335,7 @@ base:long             | value:double | s:double
 1000000000000         | 10.0         | 0.08333333333333333
 ;
 
-logofDoubleLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofDoubleLong
 ROW base = 10.0, value = to_long(1000000000000)
 | EVAL s = LOG(base, value);
 
@@ -343,7 +343,7 @@ base:double | value:long     | s:double
 10.0        | 1000000000000  | 12
 ;
 
-logofLongUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofLongUnsignedLong
 ROW base = to_long(1000000000000), value = to_ul(1000000000000000000)
 | EVAL s = LOG(base, value);
 
@@ -351,7 +351,7 @@ base:long     | value:UNSIGNED_LONG | s:double
 1000000000000 | 1000000000000000000 | 1.5
 ;
 
-logofUnsignedLongLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofUnsignedLongLong
 ROW base = to_ul(1000000000000000000), value = to_long(1000000000000)
 | EVAL s = LOG(base, value);
 
@@ -359,7 +359,7 @@ base:UNSIGNED_LONG  | value:long     | s:double
 1000000000000000000 | 1000000000000  | 0.6666666666666666
 ;
 
-logofIntUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofIntUnsignedLong
 ROW base = 10, value = to_ul(1000000000000000000)
 | EVAL s = LOG(base, value);
 
@@ -367,7 +367,7 @@ base:integer | value:UNSIGNED_LONG | s:double
 10           | 1000000000000000000 | 18.0
 ;
 
-logofUnsignedLongInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofUnsignedLongInt
 ROW base = to_ul(1000000000000000000), value = 10
 | EVAL s = LOG(base, value);
 
@@ -375,7 +375,7 @@ base:UNSIGNED_LONG  | value:integer | s:double
 1000000000000000000 | 10            | 0.05555555555555555
 ;
 
-logofUnsignedLongUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofUnsignedLongUnsignedLong
 ROW base = to_ul(1000000000000000000), value = to_ul(1000000000000000000)
 | EVAL s = LOG(base, value);
 
@@ -383,7 +383,7 @@ base:UNSIGNED_LONG  | value:UNSIGNED_LONG | s:double
 1000000000000000000 | 1000000000000000000 | 1.0
 ;
 
-logofUnsignedLongDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofUnsignedLongDouble
 ROW base = to_ul(1000000000000000000), value = 1000000000.0
 | EVAL s = LOG(base, value);
 
@@ -391,7 +391,7 @@ base:UNSIGNED_LONG  | value:double | s:double
 1000000000000000000 | 1.0E9        | 0.5
 ;
 
-logofDoubleUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofDoubleUnsignedLong
 ROW base = 10.0, value = to_ul(1000000000000000000)
 | EVAL s = LOG(base, value);
 
@@ -399,7 +399,7 @@ base:double | value:UNSIGNED_LONG | s:double
 10.0        | 1000000000000000000 | 18.0
 ;
 
-logofInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofInt
 // tag::logUnary[]
 ROW value = 100
 | EVAL s = LOG(value);
@@ -411,7 +411,7 @@ value: integer | s:double
 // end::logUnary-result[]
 ;
 
-logofLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofLong
 ROW value = to_long(1000000000000)
 | EVAL s = LOG(value);
 
@@ -419,7 +419,7 @@ value: long   | s:double
 1000000000000 | 27.631021115928547
 ;
 
-logofUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofUnsignedLong
 ROW value = to_ul(1000000000000000000)
 | EVAL s = LOG(value);
 
@@ -427,7 +427,7 @@ value: unsigned_long   | s:double
 1000000000000000000    | 41.44653167389282
 ;
 
-logofDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofDouble
 ROW value = 1000000000000.0
 | EVAL s = LOG(value);
 
@@ -435,7 +435,7 @@ value: double   | s:double
 1000000000000.0 | 27.631021115928547
 ;
 
-logofNegativeUnary#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofNegativeUnary
 row value = -1
 | EVAL s = LOG(value);
 
@@ -446,7 +446,7 @@ value: integer | s:double
 -1             | null
 ;
 
-logofZeroUnary#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofZeroUnary
 row value = 0
 | EVAL s = LOG(value);
 
@@ -457,7 +457,7 @@ value: integer | s:double
 0              | null
 ;
 
-logofRefs#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofRefs
 from employees
 | EVAL l1 = LOG(languages, salary)
 | EVAL l2 = LOG(avg_worked_seconds)
@@ -477,7 +477,7 @@ emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | 
 10005          | 1                 | 63528          | 244294991               | null               | 19.313887032538442 | null
 ;
 
-logofRefExps#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofRefExps
 from employees
 | EVAL base = languages * 2
 | EVAL l1 = LOG(base, salary * 2)
@@ -495,7 +495,7 @@ emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | 
 10005          | 1                 | 63528          | 244294991               | 16.955104980216557 | 9.656963982909355 | 26.612068963125914
 ;
 
-logofSort#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofSort
 from employees
 | EVAL l1 = LOG(languages, salary)
 | EVAL l2 = LOG(avg_worked_seconds)
@@ -515,7 +515,7 @@ l1:double         | l2:double          | emp_no:integer | languages:integer | sa
 6.450671492193451 | 19.538385836155943 | 10087          | 5                 | 32272          | 305782871               | 25.989057328349393
 ;
 
-logofRenameSort#[skip:-8.12.99,reason:new scalar function added in 8.13]
+logofRenameSort
 from employees
 | RENAME languages as base1
 | EVAL l1 = LOG(base1, salary)
@@ -612,7 +612,7 @@ base:integer | exponent:double | s:double
 // end::powID-sqrt-result[]
 ;
 
-powSqrtNeg#[skip:-8.12.99,reason:warning message changed in 8.13]
+powSqrtNeg
 // tag::powNeg-sqrt[]
 ROW base = -4, exponent = 0.5
 | EVAL s = POW(base, exponent)
@@ -691,7 +691,7 @@ x:double
 1.0
 ;
 
-powIntULOverrun#[skip:-8.12.99,reason:warning message changed in 8.13]
+powIntULOverrun
 row x = pow(2, 9223372036854775808);
 warning:Line 1:9: evaluation of [pow(2, 9223372036854775808)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:9: java.lang.ArithmeticException: not a finite double number: Infinity
@@ -1428,7 +1428,7 @@ i:ul                | c:ul                | f:ul
 1000000000000000000 | 1000000000000000000 | 1000000000000000000
 ;
 
-signum#[skip:-8.13.99,reason:new scalar function added in 8.14]
+signum
 // tag::signum[]
 ROW d = 100.0
 | EVAL s = SIGNUM(d)

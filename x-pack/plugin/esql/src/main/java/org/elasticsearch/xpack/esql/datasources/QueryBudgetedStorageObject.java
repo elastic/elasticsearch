@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -129,7 +132,13 @@ class QueryBudgetedStorageObject implements StorageObject {
     }
 
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+    public void readBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         try {
             acquirePermit();
         } catch (Exception e) {
@@ -137,13 +146,36 @@ class QueryBudgetedStorageObject implements StorageObject {
             return;
         }
         try {
-            delegate.readBytesAsync(position, length, executor, ActionListener.wrap(result -> {
-                budget.release();
-                listener.onResponse(result);
-            }, e -> {
-                budget.release();
-                listener.onFailure(e);
-            }));
+            // We intentionally use a raw ActionListener instead of ActionListener.wrap so a
+            // throw from listener.onResponse(result) does NOT get auto-routed to our onFailure
+            // lambda — that would double-release the budget and double-fire the downstream
+            // listener (onResponse + onFailure for the same I/O).
+            delegate.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer result) {
+                    budget.release();
+                    try {
+                        listener.onResponse(result);
+                    } catch (Exception e) {
+                        // listener.onResponse was already invoked; routing via listener.onFailure
+                        // here would violate the single-completion contract. Close the buffer to
+                        // free the breaker reservation and propagate so the caller observes the
+                        // failure instead of a silent swallow.
+                        try {
+                            result.close();
+                        } catch (Exception closeFailure) {
+                            e.addSuppressed(closeFailure);
+                        }
+                        throw ExceptionsHelper.convertToRuntime(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    budget.release();
+                    listener.onFailure(e);
+                }
+            });
         } catch (Exception e) {
             budget.release();
             listener.onFailure(e);
@@ -159,13 +191,25 @@ class QueryBudgetedStorageObject implements StorageObject {
             return;
         }
         try {
-            delegate.readBytesAsync(position, target, executor, ActionListener.wrap(result -> {
-                budget.release();
-                listener.onResponse(result);
-            }, e -> {
-                budget.release();
-                listener.onFailure(e);
-            }));
+            // Raw ActionListener (see overload above) so a throw from listener.onResponse does
+            // not get auto-routed and double-release the budget / double-fire the listener.
+            delegate.readBytesAsync(position, target, executor, new ActionListener<>() {
+                @Override
+                public void onResponse(Integer result) {
+                    budget.release();
+                    try {
+                        listener.onResponse(result);
+                    } catch (Exception e) {
+                        throw ExceptionsHelper.convertToRuntime(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    budget.release();
+                    listener.onFailure(e);
+                }
+            });
         } catch (Exception e) {
             budget.release();
             listener.onFailure(e);

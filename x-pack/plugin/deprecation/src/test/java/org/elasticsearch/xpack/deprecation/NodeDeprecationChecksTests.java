@@ -278,15 +278,15 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
-        final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
-                    "setting [" + settingKey + "] is deprecated and will be removed after 8.0",
+                    DeprecationIssue.Level.CRITICAL,
+                    "Setting [" + settingKey + "] is deprecated",
                     expectedUrl,
-                    "the setting [" + settingKey + "] is currently set to [" + value + "], remove this setting",
+                    "Remove the [" + settingKey + "] setting. This setting will be removed in 10.0.",
                     false,
                     null
                 )
@@ -302,13 +302,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
         );
-        final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
-                    "The [" + settingKey + "] settings are deprecated and will be removed after 8.0",
+                    DeprecationIssue.Level.CRITICAL,
+                    "The [" + settingKey + "] settings are deprecated and will be removed in 10.0",
                     expectedUrl,
                     "Remove the following settings: [" + settingKey + "]",
                     false,
@@ -327,13 +327,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
         );
-        final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
-                    "The [" + settingKey + ".*] settings are deprecated and will be removed after 8.0",
+                    DeprecationIssue.Level.CRITICAL,
+                    "The [" + settingKey + ".*] settings are deprecated and will be removed in 10.0",
                     expectedUrl,
                     "Remove the following settings: [" + subSettingKey + "]",
                     false,
@@ -353,13 +353,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
         );
-        final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
-                    "The [" + settingKey + "] settings are deprecated and will be removed after 8.0",
+                    DeprecationIssue.Level.CRITICAL,
+                    "The [" + settingKey + "] settings are deprecated and will be removed in 10.0",
                     expectedUrl,
                     "Remove the following settings from the keystore: [" + settingKey + "]",
                     false,
@@ -493,6 +493,15 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         monitoringSetting("xpack.monitoring.collection.interval", "10s");
     }
 
+    public void testMonitoringTemplatesEnabledSettingDoesNotTriggerDeprecation() {
+        Settings settings = Settings.builder().put("xpack.monitoring.templates.enabled", true).build();
+        List<DeprecationIssue> issues = filterChecks(
+            SINGLE_NODE_CHECKS,
+            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
+        );
+        assertFalse(issues.stream().anyMatch(issue -> issue.getMessage().contains("xpack.monitoring.templates.enabled")));
+    }
+
     public void testExporterUseIngestPipelineSettings() {
         Settings settings = Settings.builder().put("xpack.monitoring.exporters.test.use_ingest", true).build();
 
@@ -501,13 +510,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
-        final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
-                    "The [xpack.monitoring.exporters.test.use_ingest] settings are deprecated and will be removed after 8.0",
+                    DeprecationIssue.Level.CRITICAL,
+                    "The [xpack.monitoring.exporters.test.use_ingest] settings are deprecated and will be removed in 10.0",
                     expectedUrl,
                     "Remove the following settings: [xpack.monitoring.exporters.test.use_ingest]",
                     false,
@@ -527,14 +536,14 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
-        final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] "
-                        + "settings are deprecated and will be removed after 8.0",
+                        + "settings are deprecated and will be removed in 10.0",
                     expectedUrl,
                     "Remove the following settings: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
                     false,
@@ -552,14 +561,14 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
-        final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting";
+        final String expectedUrl = "https://ela.st/es-10-legacy-monitoring-removal";
         assertThat(
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "The [xpack.monitoring.exporters.test.index.template.create_legacy_templates] settings are deprecated and will be "
-                        + "removed after 8.0",
+                        + "removed in 10.0",
                     expectedUrl,
                     "Remove the following settings: " + "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
                     false,
@@ -845,9 +854,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         Map<String, Object> meta = null;
         final DeprecationIssue expected = new DeprecationIssue(
-            DeprecationIssue.Level.WARNING,
-            "The [" + concreteSettingKey + "] settings are deprecated and will be removed after 8.0",
-            "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting",
+            DeprecationIssue.Level.CRITICAL,
+            "The [" + concreteSettingKey + "] settings are deprecated and will be removed in 10.0",
+            "https://ela.st/es-10-legacy-monitoring-removal",
             "Remove the following settings: [" + concreteSettingKey + "]",
             false,
             meta
@@ -870,6 +879,114 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             null
         );
         assertThat(issues, hasItem(expected));
+    }
+
+    public void testCheckDynamicLoggerChildOverride_parentAndChildBothSet_persistentSettings() {
+        Settings clusterSettings = Settings.builder()
+            .put("logger.org.elasticsearch.http", "INFO")
+            .put("logger.org.elasticsearch.http.HttpTracer", "TRACE")
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().persistentSettings(clusterSettings).build())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkDynamicLoggerChildOverride(
+            Settings.EMPTY,
+            pluginsAndModules,
+            clusterState,
+            new XPackLicenseState(() -> 0)
+        );
+
+        assertNotNull(issue);
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+        assertThat(
+            issue.getMessage(),
+            equalTo(
+                "Explicitly configured child logger(s) will no longer be overridden by a parent logger update in a future major version"
+            )
+        );
+        assertThat(issue.getDetails(), org.hamcrest.Matchers.containsString("[logger.org.elasticsearch.http.HttpTracer]"));
+    }
+
+    public void testCheckDynamicLoggerChildOverride_parentAndChildBothSet_transientSettings() {
+        Settings clusterSettings = Settings.builder()
+            .put("logger.org.elasticsearch.http", "INFO")
+            .put("logger.org.elasticsearch.http.HttpTracer", "TRACE")
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().transientSettings(clusterSettings).build())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkDynamicLoggerChildOverride(
+            Settings.EMPTY,
+            pluginsAndModules,
+            clusterState,
+            new XPackLicenseState(() -> 0)
+        );
+
+        assertNotNull(issue);
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+    }
+
+    public void testCheckDynamicLoggerChildOverride_onlyParentSet_noIssue() {
+        Settings clusterSettings = Settings.builder().put("logger.org.elasticsearch.http", "INFO").build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().persistentSettings(clusterSettings).build())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkDynamicLoggerChildOverride(
+            Settings.EMPTY,
+            pluginsAndModules,
+            clusterState,
+            new XPackLicenseState(() -> 0)
+        );
+
+        assertThat(issue, nullValue());
+    }
+
+    public void testCheckDynamicLoggerChildOverride_siblingLoggers_noIssue() {
+        // Two sibling loggers that are neither ancestor nor descendant of each other.
+        Settings clusterSettings = Settings.builder()
+            .put("logger.org.elasticsearch.http", "INFO")
+            .put("logger.org.elasticsearch.transport", "DEBUG")
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().persistentSettings(clusterSettings).build())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkDynamicLoggerChildOverride(
+            Settings.EMPTY,
+            pluginsAndModules,
+            clusterState,
+            new XPackLicenseState(() -> 0)
+        );
+
+        assertThat(issue, nullValue());
+    }
+
+    public void testCheckDynamicLoggerChildOverride_parentInNodeSettings_childInClusterSettings() {
+        // Parent comes from node settings, child comes from cluster settings — the cross-origin case.
+        Settings nodeSettings = Settings.builder().put("logger.org.elasticsearch.http", "INFO").build();
+        Settings clusterSettings = Settings.builder().put("logger.org.elasticsearch.http.HttpTracer", "TRACE").build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().persistentSettings(clusterSettings).build())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkDynamicLoggerChildOverride(
+            nodeSettings,
+            pluginsAndModules,
+            clusterState,
+            new XPackLicenseState(() -> 0)
+        );
+
+        assertNotNull(issue);
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+        assertThat(issue.getDetails(), org.hamcrest.Matchers.containsString("[logger.org.elasticsearch.http.HttpTracer]"));
     }
 
     static <T> List<DeprecationIssue> filterChecks(List<T> checks, Function<T, DeprecationIssue> mapper) {

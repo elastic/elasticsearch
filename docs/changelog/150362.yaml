@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 150362
+summary: Fix ML jobs stuck in starting state on Serverless trial projects
+type: bug

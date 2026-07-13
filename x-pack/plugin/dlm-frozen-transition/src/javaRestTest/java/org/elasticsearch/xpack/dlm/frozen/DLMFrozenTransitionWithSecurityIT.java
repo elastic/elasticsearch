@@ -136,7 +136,7 @@ public class DLMFrozenTransitionWithSecurityIT extends ESRestTestCase {
             Object object = frozenIndexInfo.get(expectedFrozenIndexName);
             assertNotNull(object);
             // Then use the object path
-            String dlmCreated = ObjectPath.evaluate(object, "settings." + DLMConvertToFrozen.DLM_CREATED_SETTING_KEY);
+            String dlmCreated = ObjectPath.evaluate(object, "settings." + DataStreamLifecycleService.DLM_CREATED_SETTING_KEY);
             assertEquals("true", dlmCreated);
         } finally {
             // Be a good citizen and unset the default repo or else we cannot delete the repository
@@ -145,17 +145,9 @@ public class DLMFrozenTransitionWithSecurityIT extends ESRestTestCase {
     }
 
     public static void createSnapshotRepo(String repoName) throws IOException {
-        Request request = new Request("PUT", "/_snapshot/" + repoName);
-        request.setJsonEntity(Strings.format("""
-            {
-              "type": "fs",
-              "settings": {
-                "location": "%s",
-                "max_snapshot_bytes_per_sec": "100m"
-              }
-            }
-            """, getAbsoluteRepoPath() + "/" + randomAlphaOfLengthBetween(4, 10)));
-        assertOK(adminClient().performRequest(request));
+        String location = getAbsoluteRepoPath() + "/" + randomAlphaOfLengthBetween(4, 10);
+        Settings settings = Settings.builder().put("location", location).put("max_snapshot_bytes_per_sec", "100m").build();
+        registerRepository(adminClient(), repoName, "fs", true, settings);
     }
 
     public static void setDefaultRepo(String repoName) throws IOException {

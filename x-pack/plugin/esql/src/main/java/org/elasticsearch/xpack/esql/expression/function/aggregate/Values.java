@@ -15,10 +15,10 @@ import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSup
 import org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesLongRangeAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -38,6 +38,8 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 
 public class Values extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
@@ -65,7 +67,8 @@ public class Values extends AggregateFunction implements ToAggregator {
         Map.entry(DataType.GEOHASH, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEOTILE, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEOHEX, ValuesLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.BOOLEAN, ValuesBooleanAggregatorFunctionSupplier::new)
+        Map.entry(DataType.BOOLEAN, ValuesBooleanAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DATE_RANGE, ValuesLongRangeAggregatorFunctionSupplier::new)
     );
 
     @FunctionInfo(
@@ -75,6 +78,7 @@ public class Values extends AggregateFunction implements ToAggregator {
             "cartesian_shape",
             "date",
             "date_nanos",
+            "date_range",
             "double",
             "flattened",
             "geo_point",
@@ -91,6 +95,7 @@ public class Values extends AggregateFunction implements ToAggregator {
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "8.14.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0"), },
+        briefSummary = "Returns unique deduplicated values as a multivalued field.",
         description = """
             Returns unique (deduplicated) values as a multivalued field. The order of the returned values isn’t guaranteed.
             If you need the values returned in order use
@@ -120,6 +125,7 @@ public class Values extends AggregateFunction implements ToAggregator {
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "date_range",
                 "double",
                 "flattened",
                 "geo_point",
@@ -174,7 +180,18 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field(), sourceText(), DEFAULT);
+        return isType(
+            field(),
+            dt -> isRepresentable(dt)
+                && dt != DataType.DENSE_VECTOR
+                && dt != DataType.AGGREGATE_METRIC_DOUBLE
+                && dt != DataType.EXPONENTIAL_HISTOGRAM
+                && dt != DataType.HISTOGRAM
+                && dt != DataType.TDIGEST,
+            sourceText(),
+            DEFAULT,
+            "any type except counter types, dense_vector, aggregate_metric_double, tdigest, histogram, or exponential_histogram"
+        );
     }
 
     @Override

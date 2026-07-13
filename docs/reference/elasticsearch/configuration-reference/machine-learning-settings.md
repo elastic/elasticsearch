@@ -89,6 +89,9 @@ $$$xpack.ml.max_open_jobs$$$
 `xpack.ml.results_index_rollover_max_size`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The maximum size the anomaly detection results indices can reach before being rolled over by the nightly maintenance task. When the {{operator-feature}} is enabled, this setting can be updated only by operator users. Valid values must be greater than or equal to `-1B`. A value of `-1B` means the indices will never be rolled over. A value of `0B` means the indices will always be rolled over, regardless of size. Defaults to `50GB`.
 
+`xpack.ml.anomalies.heal_reindexed_v7.enabled` {applies_to}`stack: ga 9.3`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls if {{es}} automatically fixes anomaly detection result aliases that point to `.reindexed-v7-ml-anomalies-*` indices with incorrect mappings after an upgrade. See [#147686](https://github.com/elastic/elasticsearch/issues/147686) for details. When `true`, startup maintenance repairs affected aliases; historic data remains in old indices, with ML Notifications providing manual reindexing steps. Set to `false` to disable. Defaults to `true`.
+
 `xpack.ml.node_concurrent_job_allocations`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The maximum number of jobs that can concurrently be in the `opening` state on each node. Typically, jobs spend a small amount of time in this state before they move to `open` state. Jobs that must restore large models when they are opening spend more time in the `opening` state. When the {{operator-feature}} is enabled, this setting can be updated only by operator users. Defaults to `2`.
 

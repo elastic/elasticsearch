@@ -427,6 +427,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
+    public void checkCancelled() {
+        cancellable.checkCancelled();
+    }
+
     /**
      * Exception thrown whenever a search timeout occurs. May be thrown by {@link ContextIndexSearcher} or {@link ExitableDirectoryReader}.
      */

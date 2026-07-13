@@ -7,25 +7,19 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.request.completion;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicToolUtils;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionTaskSettings;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.UnifiedCompletionRequest.DESCRIPTION_FIELD;
 import static org.elasticsearch.inference.UnifiedCompletionRequest.MESSAGES_FIELD;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.NAME_FIELD;
 import static org.elasticsearch.inference.UnifiedCompletionRequest.TEMPERATURE_FIELD;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.TOOL_CHOICE_FIELD;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.TOOL_FIELD;
 import static org.elasticsearch.inference.UnifiedCompletionRequest.TOP_P_FIELD;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.TYPE_FIELD;
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MAX_TOKENS_FIELD;
 
 /**
@@ -38,7 +32,6 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
     // https://console.cloud.google.com/vertex-ai/publishers/anthropic/model-garden/claude-3-5-haiku
     private static final String VERTEX_2023_10_16 = "vertex-2023-10-16";
     private static final String STREAM_FIELD = "stream";
-    private static final String INPUT_SCHEMA_FIELD = "input_schema";
     public static final int DEFAULT_MAX_TOKENS = 1024;
 
     private final UnifiedCompletionRequest unifiedRequest;
@@ -74,35 +67,8 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
         if (unifiedRequest.temperature() != null) {
             builder.field(TEMPERATURE_FIELD, unifiedRequest.temperature());
         }
-        var toolChoice = unifiedRequest.toolChoice();
-        if (toolChoice != null) {
-            if (toolChoice instanceof UnifiedCompletionRequest.ToolChoiceObject) {
-                builder.startObject(TOOL_CHOICE_FIELD);
-                builder.field(TYPE_FIELD, ((UnifiedCompletionRequest.ToolChoiceObject) toolChoice).type());
-                builder.endObject();
-            } else if (toolChoice instanceof UnifiedCompletionRequest.ToolChoiceString) {
-                throw new ElasticsearchStatusException(
-                    "Tool choice value is not supported as string by Google Model Garden Anthropic Chat Completion.",
-                    RestStatus.BAD_REQUEST
-                );
-            }
-        }
-        var tools = unifiedRequest.tools();
-        if (tools != null && (tools.isEmpty() == false)) {
-            builder.startArray(TOOL_FIELD);
-            for (var tool : tools) {
-                var function = tool.function();
-                builder.startObject();
-                builder.field(NAME_FIELD, function.name());
-                builder.field(DESCRIPTION_FIELD, function.description());
-                var parameters = function.parameters();
-                if (parameters != null && parameters.isEmpty() == false) {
-                    builder.field(INPUT_SCHEMA_FIELD, parameters);
-                }
-                builder.endObject();
-            }
-            builder.endArray();
-        }
+        AnthropicToolUtils.writeToolChoice(builder, unifiedRequest.toolChoice());
+        AnthropicToolUtils.writeTools(builder, unifiedRequest.tools());
         if (unifiedRequest.topP() != null) {
             builder.field(TOP_P_FIELD, unifiedRequest.topP());
         }

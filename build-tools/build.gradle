@@ -184,6 +184,10 @@ tasks.named('test').configure {
 tasks.register("integTest", Test) {
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath
+    // The nested Gradle TestKit runners require an absolute path, so a relative value is not an option here.
+    // A CommandLineArgumentProvider keeps that absolute path out of the task inputs so it stays cache relocatable.
+    def tempDir = temporaryDir
+    jvmArgumentProviders.add({ ["-Djava.io.tmpdir=${tempDir}"] as List<String> } as CommandLineArgumentProvider)
     useJUnitPlatform()
 }
 

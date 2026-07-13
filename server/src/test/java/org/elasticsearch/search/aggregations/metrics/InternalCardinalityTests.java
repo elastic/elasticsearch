@@ -11,13 +11,22 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
 
@@ -26,7 +35,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class InternalCardinalityTests extends InternalAggregationTestCase<InternalCardinality> {
     private static List<HyperLogLogPlusPlus> algos;
@@ -73,6 +85,104 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
             result.add(createTestInstance(name, createTestMetadata(), precision));
         }
         return new BuilderAndToReduce<>(mock(AggregationBuilder.class), result);
+    }
+
+    public void testReduceUsesRequestCircuitBreaker() {
+        int precision = AbstractHyperLogLog.MAX_PRECISION;
+        InternalCardinality input = createTestInstance("cardinality", null, precision);
+        CircuitBreakerService breakerService = limitedBreakerService(ByteSizeValue.ofBytes(1));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService).withCircuitBreaking();
+        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+            bigArrays,
+            null,
+            () -> false,
+            AggregatorFactories.builder(),
+            b -> {}
+        );
+
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> {
+            try (AggregatorReducer reducer = input.getReducer(reduceContext, 1)) {
+                reducer.accept(input);
+            }
+        });
+        assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+    }
+
+    public void testReduceAccountsForResultClonePeakMemory() {
+        int precision = AbstractHyperLogLog.MAX_PRECISION;
+        InternalCardinality input = createTestInstance("cardinality", null, precision);
+        long reducedHllBytes;
+        try (
+            HyperLogLogPlusPlus reduced = new HyperLogLogPlusPlus(
+                precision,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
+                1
+            )
+        ) {
+            reduced.merge(0, input.getCounts(), 0);
+            reducedHllBytes = reduced.ramBytesUsed();
+        }
+        CircuitBreakerService breakerService = limitedBreakerService(ByteSizeValue.ofBytes(reducedHllBytes * 3 / 2));
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService).withCircuitBreaking();
+        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+            bigArrays,
+            null,
+            () -> false,
+            AggregatorFactories.builder(),
+            b -> {}
+        );
+
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> {
+            try (AggregatorReducer reducer = input.getReducer(reduceContext, 1)) {
+                reducer.accept(input);
+                assertThat(breaker.getUsed(), greaterThan(0L));
+                reducer.get();
+            }
+        });
+        assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testReduceSucceedsWithBreakerLimitAboveResultClonePeakMemory() {
+        int precision = AbstractHyperLogLog.MAX_PRECISION;
+        InternalCardinality input = createTestInstance("cardinality", null, precision);
+        long reducedHllBytes;
+        try (
+            HyperLogLogPlusPlus reduced = new HyperLogLogPlusPlus(
+                precision,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
+                1
+            )
+        ) {
+            reduced.merge(0, input.getCounts(), 0);
+            reducedHllBytes = reduced.ramBytesUsed();
+        }
+        CircuitBreakerService breakerService = limitedBreakerService(ByteSizeValue.ofBytes(reducedHllBytes * 3));
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService).withCircuitBreaking();
+        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+            bigArrays,
+            null,
+            () -> false,
+            AggregatorFactories.builder(),
+            b -> {}
+        );
+
+        try (AggregatorReducer reducer = input.getReducer(reduceContext, 1)) {
+            reducer.accept(input);
+            assertThat(breaker.getUsed(), greaterThan(0L));
+            InternalCardinality result = (InternalCardinality) reducer.get();
+            assertThat(result.value(), equalTo(input.value()));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    private static CircuitBreakerService limitedBreakerService(ByteSizeValue limit) {
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, limit));
+        return breakerService;
     }
 
     @Override

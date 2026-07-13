@@ -7,12 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq;
+package org.elasticsearch.foreign.processor.model;
 
 /**
- * Functional interface representing a function that takes an integer input
- * and produces a boolean output.
+ * A scalar {@link StructFieldModel} — one primitive or address value at a field position within a
+ * struct.
  */
-public interface IntToBooleanFunction {
-    boolean apply(int value);
-}
+public record ScalarFieldModel(String name, NativeType type) implements StructFieldModel {}

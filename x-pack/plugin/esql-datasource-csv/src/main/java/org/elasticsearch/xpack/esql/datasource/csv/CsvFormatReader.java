@@ -1830,6 +1830,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case "SHORT", "BYTE" -> DataType.INTEGER;
             case "INTEGER", "INT", "I" -> DataType.INTEGER;
             case "LONG", "L" -> DataType.LONG;
+            case "UNSIGNED_LONG", "UL" -> DataType.UNSIGNED_LONG;
             case "FLOAT", "F", "HALF_FLOAT", "SCALED_FLOAT" -> DataType.DOUBLE;
             case "DOUBLE", "D" -> DataType.DOUBLE;
             case "KEYWORD", "K", "STRING", "S", "TEXT", "TXT" -> DataType.KEYWORD;
@@ -3814,7 +3815,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 keywordScratch = new BytesRef[columnCount];
                 directElements = new ElementType[columnCount];
                 for (int i = 0; i < columnCount; i++) {
-                    directElements[i] = ElementType.fromJava(javaClassForDataType(projectedTypes[i]));
+                    directElements[i] = DeclaredTypeCoercions.elementTypeFor(projectedTypes[i]);
                 }
                 stageLong = new long[columnCount];
                 stageInt = new int[columnCount];
@@ -3885,7 +3886,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (int i = 0; i < columnCount; i++) {
                     builders[i] = BlockUtils.wrapperFor(
                         blockFactory,
-                        ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
+                        DeclaredTypeCoercions.elementTypeFor(projectedTypes[i]),
                         rows.size(),
                         byteHints[i]
                     );
@@ -4041,7 +4042,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (int i = 0; i < columnCount; i++) {
                     builders[i] = BlockUtils.wrapperFor(
                         blockFactory,
-                        ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
+                        DeclaredTypeCoercions.elementTypeFor(projectedTypes[i]),
                         lines.size()
                     );
                 }
@@ -4294,11 +4295,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (useByteHint && columnToByteHintSlot[i] >= 0) {
                         continue;
                     }
-                    builders[i] = BlockUtils.wrapperFor(
-                        blockFactory,
-                        ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
-                        batchSize
-                    );
+                    builders[i] = BlockUtils.wrapperFor(blockFactory, DeclaredTypeCoercions.elementTypeFor(projectedTypes[i]), batchSize);
                 }
                 if (useByteHint) {
                     resetByteHintRetain();
@@ -4806,7 +4803,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
                     }
                 }
-                case DATETIME, DATE_NANOS, BOOLEAN, IP, VERSION, NULL -> {
+                // UNSIGNED_LONG must stay on this cold path: the LONG fast arm above accumulates a raw signed
+                // value and can neither sign-flip nor represent anything above Long.MAX_VALUE, so routing
+                // unsigned_long through it would silently corrupt exactly the (2^63, 2^64) values it exists for.
+                case UNSIGNED_LONG, DATETIME, DATE_NANOS, BOOLEAN, IP, VERSION, NULL -> {
                     return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
                 }
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dt);
@@ -5528,6 +5528,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return switch (dataType) {
                 case INTEGER -> tryParseInt(value);
                 case LONG -> tryParseLong(value);
+                case UNSIGNED_LONG -> tryParseUnsignedLong(value);
                 case DOUBLE -> tryParseDouble(value);
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
@@ -5636,6 +5637,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return switch (dataType) {
                 case INTEGER -> tryParseInt(value);
                 case LONG -> tryParseLong(value);
+                case UNSIGNED_LONG -> tryParseUnsignedLong(value);
                 case DOUBLE -> tryParseDouble(value);
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
@@ -5697,6 +5699,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return Double.parseDouble(value);
             } catch (NumberFormatException e) {
                 lastFieldError = "Failed to parse CSV value [" + value + "] as [DOUBLE]";
+                return null;
+            }
+        }
+
+        private Object tryParseUnsignedLong(String value) {
+            try {
+                // Delegate to the single unsigned_long authority (DeclaredTypeCoercions.coerceToUnsignedLong), the
+                // same scalar the Parquet and ORC declared-read paths use. It parses, range-checks [0, 2^64-1] and
+                // returns the sign-flip block encoding, so a declared unsigned_long reads bit-identically whatever
+                // the file format. Fractional and scientific tokens truncate toward zero, matching ::unsigned_long
+                // and deliberately unlike the round-half behavior of the long/integer coercers.
+                return DeclaredTypeCoercions.coerceToUnsignedLong(value);
+            } catch (IllegalArgumentException e) {
+                // coerceToUnsignedLong signals every bad token with an IllegalArgumentException (its range guard, the
+                // ArithmeticException remap, and the NumberFormatException subclass from BigDecimal); unlike
+                // strictParseBoolean it never throws InvalidArgumentException, so one catch clause covers it.
+                lastFieldError = "Failed to parse CSV value [" + value + "] as [UNSIGNED_LONG]";
                 return null;
             }
         }
@@ -5955,18 +5974,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     errorPolicy.maxErrorRatio()
                 );
             }
-        }
-
-        private Class<?> javaClassForDataType(DataType dataType) {
-            return switch (dataType) {
-                case INTEGER -> Integer.class;
-                case LONG, DATETIME, DATE_NANOS -> Long.class;
-                case DOUBLE -> Double.class;
-                case KEYWORD, TEXT, IP, VERSION -> BytesRef.class;
-                case BOOLEAN -> Boolean.class;
-                case NULL -> Void.class;
-                default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
-            };
         }
 
         /**

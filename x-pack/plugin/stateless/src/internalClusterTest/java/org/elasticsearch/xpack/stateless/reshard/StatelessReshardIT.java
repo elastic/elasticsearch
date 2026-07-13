@@ -3569,8 +3569,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         String targetIndexNode = startIndexNode();
         ensureStableCluster(5);
 
-        // Post-handoff recovery does not copy blobs (CLONE already finished). Block the target's SHARD_STARTED
-        // notification so routing stays !started while resharding metadata is HANDOFF.
+        // Block the target's SHARD_STARTED notification so routing stays
+        // !started while resharding metadata is HANDOFF.
         CountDownLatch allowShardStarted = new CountDownLatch(1);
         MockTransportService targetTransport = MockTransportService.getInstance(targetIndexNode);
         targetTransport.addSendBehavior((connection, requestId, action, request, options) -> {
@@ -3593,6 +3593,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                         .getSplit()
                         .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.HANDOFF;
                     ShardRouting primary = state.routingTable().index(index).shard(1).primaryShard();
+                    // Shard could not have been started because of the block on SHARD_STARTED_ACTION_NAME above
                     return handoff && primary.started() == false;
                 });
                 logger.info("--> restarting master during handoff before target started");

@@ -370,11 +370,8 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             );
 
             ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoSuccessListener(e -> {
-                assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(
-                    e.getMessage(),
-                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
-                );
+                assertThat(e, instanceOf(XContentParseException.class));
+                assertThat(e.getMessage(), containsString("[service_settings] unknown field [extra_key]"));
             });
 
             service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
@@ -395,10 +392,16 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
 
         taskSettingsMap.put("extra_key", "value");
 
-        assertParseRequestConfigThrowsWhenExtraKeyPresent(
+        ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoSuccessListener(e -> {
+            assertThat(e, instanceOf(ElasticsearchStatusException.class));
+            assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service"));
+        });
+
+        service.parseRequestConfig(
+            INFERENCE_ID_VALUE,
             taskType,
-            service,
-            getRequestConfigMap(settingsMap, taskSettingsMap, secretSettingsMap)
+            getRequestConfigMap(settingsMap, taskSettingsMap, secretSettingsMap),
+            modelVerificationListener
         );
     }
 
@@ -416,10 +419,16 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
 
         secretSettingsMap.put("extra_key", "value");
 
-        assertParseRequestConfigThrowsWhenExtraKeyPresent(
+        ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoSuccessListener(e -> {
+            assertThat(e, instanceOf(XContentParseException.class));
+            assertThat(e.getMessage(), containsString("[service_settings] unknown field [extra_key]"));
+        });
+
+        service.parseRequestConfig(
+            INFERENCE_ID_VALUE,
             taskType,
-            service,
-            getRequestConfigMap(settingsMap, taskSettingsMap, secretSettingsMap)
+            getRequestConfigMap(settingsMap, taskSettingsMap, secretSettingsMap),
+            modelVerificationListener
         );
     }
 

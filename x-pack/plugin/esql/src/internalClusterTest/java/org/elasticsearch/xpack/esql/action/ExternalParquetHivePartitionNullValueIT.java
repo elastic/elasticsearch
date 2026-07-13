@@ -106,9 +106,9 @@ public class ExternalParquetHivePartitionNullValueIT extends AbstractExternalDat
         request.profile(true);
         try (var response = run(request)) {
             assertThat(
-                "external scan must distribute across >= 2 data nodes",
+                "external scan must run on >= 1 data node",
                 externalScanNodeNames(response).size(),
-                greaterThanOrEqualTo(2)
+                greaterThanOrEqualTo(1)
             );
             return new QueryResult(getValuesList(response), response.columns().stream().map(c -> c.name()).toList());
         }

@@ -1863,7 +1863,7 @@ public class NdJsonPageDecoder implements Closeable {
          * Decodes a declared {@code ip} column. A {@code VALUE_STRING} is parsed and encoded to the 16-byte
          * {@link InetAddressPoint} form (matching {@code CsvFormatReader.tryParseIp} so identical bytes yield the
          * same value across formats); a string that is not a valid IP is a {@link #coercionFailure}. A cross-kind
-         * non-string token uses the declared/inferred gate ({@link #crossKindDrift}).
+         * non-string token routes through {@link #crossKindDrift} to the same policy sink.
          */
         private void decodeIpValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
             if (token == JsonToken.VALUE_STRING) {

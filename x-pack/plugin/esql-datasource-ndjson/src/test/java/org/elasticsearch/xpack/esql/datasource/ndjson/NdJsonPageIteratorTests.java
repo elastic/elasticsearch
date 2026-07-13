@@ -1880,9 +1880,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Under a non-strict policy, the conflicting record's [user] column is null-filled and a client warning is
-     * surfaced, while [event] (and the other records) decode normally -- a per-field null-fill, not a
-     * whole-row skip (elastic/esql-planning#1028).
+     * Under skip_row, the object-valued record is dropped whole and a client warning is surfaced, while the two
+     * scalar records decode normally. error_mode governs the outcome the same for a declared or an inferred column;
+     * null_field keeps the record and nulls the [user] cell instead (elastic/esql-planning#1028).
      */
     public void testScalarThenObjectConflictSkipRowDropsRecordAndWarns() throws IOException {
         String ndjson = """
@@ -2498,8 +2498,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * {@code childDecoder.decodeValue(...)}). So an exactly-2-block Page with the right values
      * across the nested object and the array - the most expensive shapes to materialise - implies
      * those fields were skipped at parse time, not silently materialised into a discarded buffer.
-     * (Note: {@code skipChildren} is also called by {@code unexpectedValue} and the {@code NULL}
-     * branch of {@code decodeValue}; this test does not depend on those paths.)
+     * (Note: {@code skipChildren} is also called by {@code coercionFailure} and the {@code NULL}-typed-column
+     * early return in {@code decodeValue}; this test does not depend on those paths.)
      */
     public void testWideSchemaProjectionDropsAllUnreferencedFields() throws IOException {
         StringBuilder sb = new StringBuilder();

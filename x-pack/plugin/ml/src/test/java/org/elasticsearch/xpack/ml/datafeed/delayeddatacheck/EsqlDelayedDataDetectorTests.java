@@ -204,7 +204,7 @@ public class EsqlDelayedDataDetectorTests extends ESTestCase {
         assertThat(missing, is(Collections.emptyList()));
     }
 
-    public void testCheckBucketEventsBuildsExpectedRequest() throws IOException {
+    public void testGetBucketEventsBuildsExpectedRequest() throws IOException {
         stubQueryAndBuckets(START_MS, END_MS, ndjson("{\"ts\":120000,\"event_count\":5}"), List.of(newBucket(120_000L, 3L)));
 
         newDetector().detectMissingData(LATEST_MS);

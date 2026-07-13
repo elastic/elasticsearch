@@ -66,7 +66,12 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * Java oracle over the fixture — which is what catches a file wrongly pruned away — <em>and</em> {@code files_scanned}
  * from the profile, which is what catches pruning that silently stopped happening. Neither alone is enough: a row count
  * cannot tell a dropped row from a never-matching one, and a file count cannot tell a correct answer from a lucky one.
- * Every {@code files_scanned} expectation here is red on the parent commit, where the number is always the full 8.
+ *
+ * <p>The cases that expect <em>fewer</em> files than the fixture holds are the ones red on the parent commit, where the
+ * count is always the full set. The cases that expect the full count are the opposite kind of guard — they pin that a
+ * data-column filter, an un-evaluable {@code OR} arm, or a row-derived column does <em>not</em> prune, and they are
+ * green on the parent precisely because nothing pruned there. They earn their place by failing if pruning is ever drawn
+ * too wide.
  */
 public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT {
 
@@ -206,7 +211,7 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     // -- Zero-match: a partition filter matching no folder prunes to the empty set (not an error, not a full scan) --
 
     public void testCsvZeroMatchPrunesToNoFiles() throws Exception {
-        // year=2099 matches no folder -> every file pruned. files_scanned == 0, files_pruned == 8, no rows.
+        // year=2099 matches no folder, so every file is pruned: nothing scanned, no rows.
         assertPrune("csv_zero", "csv", "WHERE year == 2099", 0, idsWhere((y, m, d) -> y == 2099));
     }
 
@@ -373,11 +378,8 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
      * actually receives. Every other test here reads the profile as an in-process object, which never exercises the
      * XContent rendering — so a counter that is collected correctly but never serialized would pass all of them.
      *
-     * <p>This is also the test that makes the fix self-evidencing. Before #153618, {@code files_pruned} was
-     * structurally absent from every query's profile (nothing was ever pruned) and {@code files_scanned} was always
-     * the full file count. Both halves are asserted here, because either one alone can be read the wrong way:
-     * {@code files_scanned: 4} looks healthy on a dataset that happens to have 4 files, and {@code files_pruned: 4}
-     * without its counterpart says nothing about what was actually read.
+     * <p>Before this fix {@code files_scanned} was always the full file count, so the number a client saw was the
+     * proof that pruning was dead. It is the number asserted here.
      */
     public void testPruningIsVisibleInRenderedProfileJson() throws Exception {
         String dataset = registerTree("csv_profile_e2e", "csv");
@@ -439,10 +441,8 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
      *       {@link #idsWhere}, an oracle that evaluates the same predicate in plain Java over the known fixture,
      *       independently of ES|QL. This is what catches pruning that drops a file it should have kept: a row-count
      *       check cannot, because a lost row and a never-matching row produce the same number.</li>
-     *   <li><b>Files (the optimization).</b> Exactly {@code expectedFilesScanned} files may be opened, and
-     *       {@code files_scanned + files_pruned} must account for every candidate file ({@code totalFiles}) — no file
-     *       may vanish for an unaccounted reason. {@code files_pruned} is the affirmative signal that pruning fired at
-     *       all; before #153618 it was structurally zero on every query.</li>
+     *   <li><b>Files (the optimization).</b> Exactly {@code expectedFilesScanned} of the fixture's {@code totalFiles}
+     *       may be opened. On the parent commit this number is always the full count, whatever the filter says.</li>
      * </ul>
      *
      * <p>Both are asserted on <b>both plan shapes</b>: the projection path ({@code KEEP id | SORT id}) and the aggregate

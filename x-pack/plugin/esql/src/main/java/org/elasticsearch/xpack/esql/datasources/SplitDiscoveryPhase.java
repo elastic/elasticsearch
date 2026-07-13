@@ -50,9 +50,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.split
  * #143696 — the fragment path was added without the filter ever being re-threaded.
  *
  * <p>This decides which files are <em>read</em>. It is not the only place a partition filter is consulted:
- * {@code PartitionFilterHintExtractor} extracts hints far earlier, pre-resolution, for {@code GlobExpander} to skip
- * <em>listing</em> whole folders. That layer has its own copy of this problem and does not share these guards — see its
- * javadoc. Nothing here can compensate for a file that was never listed.
+ * {@link PartitionFilterHintExtractor} runs far earlier, pre-resolution, and lets {@code GlobExpander} skip
+ * <em>listing</em> whole folders. Nothing here can compensate for a file that was never listed, so both layers obey the
+ * rules in {@link PartitionPruningRule} — with the pre-resolution layer held to a stricter one, since it has only names
+ * to go on where this side binds by {@code NameId}.
  */
 public final class SplitDiscoveryPhase {
 

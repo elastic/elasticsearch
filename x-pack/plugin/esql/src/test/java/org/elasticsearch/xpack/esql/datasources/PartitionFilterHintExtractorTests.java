@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -335,6 +336,50 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(plan).get(PATH);
         assertNotNull("DROP must not stop a partition hint", hints);
         assertEquals("year", hints.get(0).columnName());
+    }
+
+    // -- One listing serves every occurrence of a path, so a folder may be skipped only if EVERY occurrence excludes it --
+
+    /**
+     * {@code FORK} reaches the same relation from two branches, and both are served by one listing. A folder excluded
+     * by one branch's filter may still be needed by the other, so an unfiltered branch has to veto the rewrite
+     * outright — otherwise it silently loses the folders the other branch pruned away.
+     */
+    public void testForkUnfilteredBranchVetoesTheRewrite() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        LogicalPlan guarded = new Filter(SRC, rel, new Equals(SRC, unresolved("year"), intLiteral(2025)));
+        LogicalPlan fork = new Fork(SRC, List.of(guarded, rel), List.of());
+
+        assertTrue(
+            "one branch's filter must not narrow a listing the other branch reads unfiltered",
+            PartitionFilterHintExtractor.extract(fork).isEmpty()
+        );
+    }
+
+    /** Both branches exclude the same folders, so the listing may safely skip them. */
+    public void testForkAgreeingBranchesKeepTheCommonHint() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        LogicalPlan left = new Filter(SRC, rel, new Equals(SRC, unresolved("year"), intLiteral(2025)));
+        LogicalPlan right = new Filter(SRC, rel, new Equals(SRC, unresolved("year"), intLiteral(2025)));
+        LogicalPlan fork = new Fork(SRC, List.of(left, right), List.of());
+
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(fork).get(PATH);
+        assertNotNull("both branches want only year=2025, so the rest may be skipped", hints);
+        assertEquals(1, hints.size());
+        assertEquals("year", hints.get(0).columnName());
+    }
+
+    /** Branches wanting different years between them need every folder, so nothing may be skipped. */
+    public void testForkDisagreeingBranchesKeepNoHint() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        LogicalPlan left = new Filter(SRC, rel, new Equals(SRC, unresolved("year"), intLiteral(2025)));
+        LogicalPlan right = new Filter(SRC, rel, new Equals(SRC, unresolved("year"), intLiteral(2024)));
+        LogicalPlan fork = new Fork(SRC, List.of(left, right), List.of());
+
+        assertTrue(
+            "the branches need different folders, so neither may narrow the shared listing",
+            PartitionFilterHintExtractor.extract(fork).isEmpty()
+        );
     }
 
     private static final String PATH = "s3://bucket/data/*.parquet";

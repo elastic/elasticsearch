@@ -36,9 +36,9 @@ import java.util.stream.Collectors;
  * <p>Two layers act on that decision, and both must obey these rules — so the rules live here instead of being restated
  * in each. {@link PartitionFilterHintExtractor} rewrites the glob, so non-matching folders are never even
  * <em>listed</em>; {@link SplitDiscoveryPhase} prunes files that were listed. The two run at opposite ends of planning
- * (one before resolution, one after) and nothing downstream can recover a file the listing layer skipped. Partition
- * filtering has already produced wrong answers once because a rule held in one place and not the other, which looks
- * exactly like a rule that was never there.
+ * (one before resolution, one after) and nothing downstream can recover a file the listing layer skipped. Keeping the
+ * rules apart from the walks that apply them is deliberate: a rule restated in two places drifts, and a filter trusted
+ * where it should not be does not scan too much — it returns the wrong rows.
  */
 final class PartitionPruningRule {
 
@@ -87,7 +87,8 @@ final class PartitionPruningRule {
      * {@link GeneratingPlan}, but until the analyzer loads the policy its {@code enrichFields} are empty unless the query
      * spelled out a {@code WITH} clause. So {@code FROM ds | ENRICH policy ON k | WHERE year == 615}, with a policy that
      * contributes a {@code year} field, would look like it shadows nothing and would prune folders by the path's year.
-     * {@code COMPLETION}, {@code RERANK} and {@code INSIST} are {@code Streaming} for the same reason and just as opaque.
+     * The other {@code Streaming} nodes are left out on the same principle: whatever their columns turn out to be, this is
+     * not the layer that can prove it.
      *
      * <p>So this is an explicit allowlist of nodes whose name changes are fully visible in the parsed tree, and it fails
      * closed: an unrecognized node stops the hint, the glob is not rewritten, and the folders are listed. That costs a

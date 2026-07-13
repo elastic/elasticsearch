@@ -324,10 +324,10 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         final IndexableFieldType seqNoFieldType = withPoints
             ? POINTS_AND_DOC_VALUES_COLUMN_FIELD_TYPE
             : DOC_VALUES_ONLY_LONG_COLUMN_FIELD_TYPE;
-        context.addColumn(LuceneColumns.arrayLongColumn(context.seqNoArray(), NAME, seqNoFieldType, LongColumn.NumericKind.LONG));
+        context.addColumn(LuceneColumns.arrayLongColumn(context.seqNos(), NAME, seqNoFieldType, LongColumn.NumericKind.LONG));
         context.addColumn(
             LuceneColumns.arrayLongColumn(
-                context.primaryTermArray(),
+                context.primaryTerms(),
                 PRIMARY_TERM_NAME,
                 DOC_VALUES_ONLY_LONG_COLUMN_FIELD_TYPE,
                 LongColumn.NumericKind.LONG

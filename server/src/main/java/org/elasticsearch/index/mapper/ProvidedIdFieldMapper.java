@@ -14,6 +14,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.StoredValue;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -322,22 +323,6 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         return mode == Mode.COLUMNAR;
     }
 
-    // Mirrors the standard _id field (see IdFieldMapper#standardIdField): indexed (DOCS), not
-    // tokenized, no norms, stored. Used for the columnar bulk batch-mapping path (preColumnarParse)
-    // when this mapper is in Mode.DOCUMENT; Mode.COLUMNAR instead uses ColumnarIdField.TYPE, matching
-    // the field added by preParse.
-    private static final IndexableFieldType ID_COLUMN_FIELD_TYPE = buildIdColumnFieldType();
-
-    private static IndexableFieldType buildIdColumnFieldType() {
-        FieldType ft = new FieldType();
-        ft.setIndexOptions(IndexOptions.DOCS);
-        ft.setTokenized(false);
-        ft.setOmitNorms(true);
-        ft.setStored(true);
-        ft.freeze();
-        return ft;
-    }
-
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
         return true;
@@ -345,20 +330,17 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     @Override
     public void preColumnarParse(BatchMappingContext context) {
-        final int docCount = context.docCount();
-        final BytesRef[] ids = new BytesRef[docCount];
-        for (int d = 0; d < docCount; d++) {
-            final String id = context.id(d);
-            if (id == null) {
-                throw new IllegalStateException("_id should have been set on the coordinating node");
-            }
-            ids[d] = Uid.encodeId(id);
-        }
         // Mirror preParse: in columnar storage mode _id is indexed + BINARY doc values; otherwise it
         // is indexed + stored.
-        final IndexableFieldType idFieldType = mode == Mode.COLUMNAR ? ColumnarIdField.TYPE : ID_COLUMN_FIELD_TYPE;
-        final BinaryColumn column = LuceneColumns.arrayBinaryColumn(ids, NAME, idFieldType);
+        final IndexableFieldType idFieldType = mode == Mode.COLUMNAR ? ColumnarIdField.TYPE : StringField.TYPE_STORED;
+        final BinaryColumn column = LuceneColumns.arrayBinaryColumn(context.uids(), NAME, idFieldType);
         context.addColumn(column);
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        super.postColumnarParse(context);
+        // TODO: Need to implement the id propogation to non-root documents when we support nested fields.
     }
 
     @Override

@@ -10,10 +10,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
@@ -330,6 +328,13 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
     }
 
+    // Mirrors the non-doc-values branch of addRoutingField: indexed (DOCS), not tokenized, stored.
+    private static final IndexableFieldType ROUTING_FIELD_TYPE = StringField.TYPE_STORED;
+
+    // Mirrors the doc-values branch of addRoutingField: sorted doc values with a skip index, no
+    // inverted index or stored value (matches SortedDocValuesField.indexedField).
+    private static final IndexableFieldType ROUTING_DV_FIELD_TYPE = SortedDocValuesField.indexedField("", new BytesRef()).fieldType();
+
     /**
      * Should we require {@code routing} on CRUD operations?
      */
@@ -399,25 +404,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    // Mirrors the non-doc-values branch of addRoutingField: indexed (DOCS), not tokenized, stored.
-    private static final IndexableFieldType ROUTING_COLUMN_FIELD_TYPE = buildRoutingColumnFieldType();
-
-    private static IndexableFieldType buildRoutingColumnFieldType() {
-        FieldType ft = new FieldType();
-        ft.setIndexOptions(IndexOptions.DOCS);
-        ft.setTokenized(false);
-        ft.setOmitNorms(true);
-        ft.setStored(true);
-        ft.freeze();
-        return ft;
-    }
-
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // The doc-values (sorted, skip-index) routing storage mode is only used for sliced/strict-
-        // columnar index configs; that Lucene column shape is not yet ported here, so those indices
-        // fall back for now. The default (stored + indexed) mode is fully supported.
-        return docValues == false;
+        return true;
     }
 
     @Override
@@ -435,11 +424,16 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         if (any == false) {
             return;
         }
-        // TODO(columnar): the row path also calls context.addToFieldNames(NAME) here so _routing
-        // participates in _field_names-based exists queries; the columnar path has no _field_names
-        // column plumbing yet. Narrow, documented gap — does not affect indices that never set an
-        // explicit routing value.
-        context.addColumn(LuceneColumns.arrayBinaryColumn(routings, fieldType().name(), ROUTING_COLUMN_FIELD_TYPE));
+        if (docValues) {
+            context.addColumn(LuceneColumns.arrayBinaryColumn(routings, fieldType().name(), ROUTING_DV_FIELD_TYPE));
+            // _field_names is only used for fields without doc values; doc values fields use FieldExistsQuery directly
+        } else {
+            // TODO(columnar): the row path also calls context.addToFieldNames(NAME) here so _routing
+            // participates in _field_names-based exists queries; the columnar path has no _field_names
+            // column plumbing yet. Narrow, documented gap — does not affect indices that never set an
+            // explicit routing value.
+            context.addColumn(LuceneColumns.arrayBinaryColumn(routings, fieldType().name(), ROUTING_FIELD_TYPE));
+        }
     }
 
     @Override

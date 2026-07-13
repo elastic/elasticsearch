@@ -10,11 +10,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -138,6 +140,35 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
             var field = new SortedDocValuesField(NAME, Uid.encodeId(routingHash));
             context.rootDoc().add(field);
         }
+    }
+
+    // Mirrors postParse: plain sorted doc values, matching new SortedDocValuesField(NAME, ...).
+    private static final IndexableFieldType ROUTING_HASH_DV_FIELD_TYPE = new SortedDocValuesField(NAME, new BytesRef()).fieldType();
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // Mirrors postParse's own gate: only engaged for tsdb indices at/after the version where
+        // the routing hash is embedded in _id — the coordinating node already computed and set it
+        // on the request via IndexRouting.ExtractFromSource#postProcess (see IndexRequest#routing()).
+        return indexSettings.getMode().isTsdb()
+            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
+    }
+
+    @Override
+    public void preColumnarParse(BatchMappingContext context) {
+        final int docCount = context.docCount();
+        final BytesRef[] hashes = new BytesRef[docCount];
+        for (int d = 0; d < docCount; d++) {
+            final String routingHash = context.routing(d);
+            if (routingHash == null) {
+                // postParse falls back to reconstructing the hash from _id when routing is absent;
+                // that needs the same _id machinery the columnar path doesn't have yet (see
+                // TsidExtractingIdFieldMapper). Throw to fall back to the row path for this chunk.
+                throw new IllegalStateException("_ts_routing_hash should have been set on the coordinating node");
+            }
+            hashes[d] = Uid.encodeId(routingHash);
+        }
+        context.addColumn(LuceneColumns.arrayBinaryColumn(hashes, NAME, ROUTING_HASH_DV_FIELD_TYPE));
     }
 
     @Override

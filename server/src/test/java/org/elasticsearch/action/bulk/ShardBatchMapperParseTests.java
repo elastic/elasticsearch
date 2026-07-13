@@ -105,7 +105,6 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             assertNotNull("columnar mapping should engage for documents with no field leaves", engineBatch);
             assertThat(engineBatch.operations(), hasSize(numDocs));
             assertNotNull(engineBatch.columnBatch());
-            assertNotNull(engineBatch.mappingContext());
 
             ColumnBatch columnBatch = engineBatch.columnBatch().columnBatch(0, numDocs);
             assertThat(columnBatch.numDocs(), equalTo(numDocs));

@@ -225,7 +225,7 @@ public final class ShardBatchIndexer {
                 // traditional per-document parser (above), not the columnar mapping path, so there is no real
                 // ColumnBatchProvider/BatchMappingContext to offer — the engine falls back to per-operation indexing.
                 final SourceBatch chunkBatch = batch.slice(chunkStart, chunkStart + operations.size());
-                final EngineBatch engineBatch = new EngineBatch(operations, chunkBatch, null, null);
+                final EngineBatch engineBatch = new EngineBatch(operations, chunkBatch, null);
                 final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(engineBatch);
                 for (Engine.IndexResult result : results) {
                     if (result.getFailure() != null) {

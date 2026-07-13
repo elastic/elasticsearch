@@ -250,7 +250,7 @@ public class InternalEngineTests extends EngineTestCase {
      * only for a single translog write, not {@code IndexWriter#addBatch}.
      */
     private static EngineBatch engineBatch(List<Engine.Index> operations, SourceBatch batch) {
-        return new EngineBatch(operations, batch, null, null);
+        return new EngineBatch(operations, batch, null);
     }
 
     /**

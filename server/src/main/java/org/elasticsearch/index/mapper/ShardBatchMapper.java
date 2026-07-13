@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.index.IndexRequest;
@@ -211,6 +212,8 @@ public final class ShardBatchMapper {
         final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
             primary.indexSettings().seqNoIndexOptions()
         );
+        // Uid-encoded ids were already computed once by the id mapper's preColumnarParse.
+        final BytesRef[] encodedIds = context.uids();
         for (int d = 0; d < docCount; d++) {
             final IndexRequest request = requests[d];
             final XContentType xContentType = request.getContentType() != null ? request.getContentType() : XContentType.JSON;
@@ -227,7 +230,7 @@ public final class ShardBatchMapper {
             );
             operations.add(
                 new Engine.Index(
-                    Uid.encodeId(parsedDoc.id()),
+                    encodedIds[d],
                     parsedDoc,
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
                     primary.getOperationPrimaryTerm(),
@@ -243,6 +246,6 @@ public final class ShardBatchMapper {
             );
         }
 
-        return new EngineBatch(operations, batch.slice(chunkStart, chunkEnd), context, context);
+        return new EngineBatch(operations, batch.slice(chunkStart, chunkEnd), context);
     }
 }

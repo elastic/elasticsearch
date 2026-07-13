@@ -10,7 +10,6 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.sourcebatch.ColumnBatchProvider;
 import org.elasticsearch.sourcebatch.SourceBatch;
 
@@ -31,14 +30,10 @@ import java.util.List;
  *     {@code null} unless {@code ShardBatchMapper.mapColumnBatch} actually engaged the columnar
  *     mapping path for this chunk; the engine falls back to per-operation Lucene indexing whenever
  *     this is {@code null}.</li>
- *     <li>{@link #mappingContext()} — the {@link BatchMappingContext} the columns were mapped into,
- *     for callers that need more than the narrower {@link ColumnBatchProvider} view. {@code null}
- *     exactly when {@link #columnBatch()} is {@code null}.</li>
  * </ul>
  */
 public record EngineBatch(
     List<Engine.Index> operations,
     SourceBatch sourceBatch,
-    @Nullable ColumnBatchProvider columnBatch,
-    @Nullable BatchMappingContext mappingContext
+    @Nullable ColumnBatchProvider columnBatch
 ) {}

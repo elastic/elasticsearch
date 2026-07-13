@@ -296,6 +296,12 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         return enabled == false;
     }
 
+    @Override
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        super.postColumnarParse(context);
+        // TODO: Implement validation and enable this mapper once we can map timetstamps
+    }
+
     public boolean isEnabled() {
         return enabled;
     }

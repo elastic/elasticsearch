@@ -133,8 +133,6 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         // Engine-assigned: register an array-backed column over the context's mutable version
         // array; the engine fills the real per-document value (see InternalEngine) after mapping,
         // just before requesting the ColumnBatch.
-        context.addColumn(
-            LuceneColumns.arrayLongColumn(context.versionArray(), NAME, VERSION_COLUMN_FIELD_TYPE, LongColumn.NumericKind.LONG)
-        );
+        context.addColumn(LuceneColumns.arrayLongColumn(context.versions(), NAME, VERSION_COLUMN_FIELD_TYPE, LongColumn.NumericKind.LONG));
     }
 }

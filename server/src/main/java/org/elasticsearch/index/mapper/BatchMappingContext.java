@@ -11,8 +11,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ColumnBatch;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.sourcebatch.ColumnBatchProvider;
 
 import java.util.ArrayList;
@@ -33,15 +35,20 @@ import java.util.List;
  */
 public final class BatchMappingContext implements ColumnBatchProvider {
 
+    // TODO: Need to remove dependency on the IndexRequest object. We currently need it for source and tsid.
     private final IndexRequest[] requests;
     private final int docCount;
     private final MappingLookup mappingLookup;
     private final IndexSettings indexSettings;
     private final List<Column> columns = new ArrayList<>();
 
+    // Will go in translog
     private long[] seqNo;
     private long[] primaryTerm;
     private long[] version;
+    private BytesRef[] uids;
+
+    // Not stored in translog
 
     public BatchMappingContext(IndexRequest[] requests, MappingLookup mappingLookup, IndexSettings indexSettings) {
         this.requests = requests;
@@ -79,15 +86,16 @@ public final class BatchMappingContext implements ColumnBatchProvider {
     }
 
     /** Lazily allocates and returns the mutable {@code _seq_no} backing array (length {@code docCount}). */
-    public long[] seqNoArray() {
+    public long[] seqNos() {
         if (seqNo == null) {
             seqNo = new long[docCount];
+            Arrays.fill(seqNo, SequenceNumbers.UNASSIGNED_SEQ_NO);
         }
         return seqNo;
     }
 
     /** Lazily allocates and returns the mutable {@code _primary_term} backing array (length {@code docCount}). */
-    public long[] primaryTermArray() {
+    public long[] primaryTerms() {
         if (primaryTerm == null) {
             primaryTerm = new long[docCount];
         }
@@ -95,11 +103,28 @@ public final class BatchMappingContext implements ColumnBatchProvider {
     }
 
     /** Lazily allocates and returns the mutable {@code _version} backing array (length {@code docCount}). */
-    public long[] versionArray() {
+    public long[] versions() {
         if (version == null) {
             version = new long[docCount];
         }
         return version;
+    }
+
+    /**
+     * Lazily computes and returns the {@code _id} (Uid-encoded) array.
+     */
+    public BytesRef[] uids() {
+        if (uids == null) {
+            uids = new BytesRef[docCount];
+            for (int d = 0; d < docCount; d++) {
+                final String id = requests[d].id();
+                if (id == null) {
+                    throw new IllegalStateException("_id should have been set on the coordinating node");
+                }
+                uids[d] = Uid.encodeId(id);
+            }
+        }
+        return uids;
     }
 
     @Override
@@ -109,22 +134,17 @@ public final class BatchMappingContext implements ColumnBatchProvider {
 
     @Override
     public void setSeqNo(int doc, long value) {
-        seqNoArray()[doc] = value;
-    }
-
-    @Override
-    public void setPrimaryTerm(int doc, long value) {
-        primaryTermArray()[doc] = value;
+        seqNos()[doc] = value;
     }
 
     @Override
     public void fillPrimaryTerm(long value) {
-        Arrays.fill(primaryTermArray(), value);
+        Arrays.fill(primaryTerms(), value);
     }
 
     @Override
     public void setVersion(int doc, long value) {
-        versionArray()[doc] = value;
+        versions()[doc] = value;
     }
 
     @Override
@@ -136,16 +156,26 @@ public final class BatchMappingContext implements ColumnBatchProvider {
             );
         }
         final List<Column> batchColumns = List.copyOf(columns);
-        return new ColumnBatch() {
-            @Override
-            public int numDocs() {
-                return docCount;
-            }
+        return new LuceneColumnBatch(batchColumns, docCount);
+    }
 
-            @Override
-            public Iterable<Column> columns() {
-                return batchColumns;
-            }
-        };
+    private static class LuceneColumnBatch extends ColumnBatch {
+        private final List<Column> batchColumns;
+        private final int docCount;
+
+        private LuceneColumnBatch(List<Column> batchColumns, int docCount) {
+            this.batchColumns = batchColumns;
+            this.docCount = docCount;
+        }
+
+        @Override
+        public int numDocs() {
+            return docCount;
+        }
+
+        @Override
+        public Iterable<Column> columns() {
+            return batchColumns;
+        }
     }
 }

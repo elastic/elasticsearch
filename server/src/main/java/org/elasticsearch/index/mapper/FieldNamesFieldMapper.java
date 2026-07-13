@@ -194,9 +194,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // No preParse/postParse override — _field_names is populated via addToFieldNames calls from
-        // other mappers, which the columnar path does not yet wire up (see e.g.
-        // RoutingFieldMapper#preColumnarParse). Nothing for this mapper itself to port.
+        // TODO: NEED MORE WORK
         return true;
     }
 }

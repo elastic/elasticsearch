@@ -13,9 +13,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.column.LongColumn;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
@@ -517,17 +515,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static final IndexableFieldType RECOVERY_SOURCE_SIZE_COLUMN_FIELD_TYPE = buildNumericDocValuesColumnFieldType();
-
-    private static IndexableFieldType buildNumericDocValuesColumnFieldType() {
-        FieldType ft = new FieldType();
-        ft.setDocValuesType(DocValuesType.NUMERIC);
-        ft.freeze();
-        return ft;
-    }
-
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // TODO: Need to implement support for additional scenarios
         // Columnar batch mapping only ports the cheap branch of preParse: no stored _source to
         // materialize, and either recovery source is disabled or only a size estimate is needed
         // (synthetic recovery). Stored source, COLUMNAR_STORED (stored() == true for that mode
@@ -537,11 +527,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return stored() == false && (recoverySourceEnabled == false || syntheticRecovery);
     }
 
-    /**
-     * Columnar counterpart of the cheap branch of {@link #preParse} (see
-     * {@link #supportsColumnarParse}). Builds one column per batch instead of adding a
-     * per-document {@link org.apache.lucene.document.Field}.
-     */
     @Override
     public void preColumnarParse(BatchMappingContext context) throws IOException {
         final boolean syntheticRecovery = context.indexSettings().isRecoverySourceEnabled()
@@ -553,22 +538,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final int docCount = context.docCount();
         final long[] sizes = new long[docCount];
         for (int d = 0; d < docCount; d++) {
-            sizes[d] = sourceOf(context, d).estimatedSizeInBytes();
+            final IndexRequest request = context.request(d);
+            final XContentType contentType = request.getContentType() != null ? request.getContentType() : XContentType.JSON;
+            sizes[d] = SourceToParse.Source.fromBytes(request.source(), contentType).estimatedSizeInBytes();
         }
         context.addColumn(
-            LuceneColumns.arrayLongColumn(
-                sizes,
-                RECOVERY_SOURCE_SIZE_NAME,
-                RECOVERY_SOURCE_SIZE_COLUMN_FIELD_TYPE,
-                LongColumn.NumericKind.LONG
-            )
+            LuceneColumns.arrayLongColumn(sizes, RECOVERY_SOURCE_SIZE_NAME, NumericDocValuesField.TYPE, LongColumn.NumericKind.LONG)
         );
-    }
-
-    private static SourceToParse.Source sourceOf(BatchMappingContext context, int doc) {
-        final IndexRequest request = context.request(doc);
-        final XContentType contentType = request.getContentType() != null ? request.getContentType() : XContentType.JSON;
-        return SourceToParse.Source.fromBytes(request.source(), contentType);
     }
 
     /**

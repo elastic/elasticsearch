@@ -20,9 +20,7 @@ import org.apache.lucene.document.column.ColumnBatch;
  *
  * <p>Some columns — {@code _seq_no}, {@code _primary_term}, {@code _version} — are only known once
  * the engine has assigned them, long after mapping. Those are registered as array-backed columns
- * during mapping (placeholder values), and the engine fills the real per-document values via
- * {@link #setSeqNo}/{@link #setPrimaryTerm}/{@link #setVersion} immediately before requesting the
- * {@link ColumnBatch}.
+ * during mapping (placeholder values), and the engine fills the real per-document values.
  */
 public interface ColumnBatchProvider {
 
@@ -32,13 +30,8 @@ public interface ColumnBatchProvider {
     /** Sets the engine-assigned {@code _seq_no} for batch-local document {@code doc}. */
     void setSeqNo(int doc, long seqNo);
 
-    /** Sets the engine-assigned {@code _primary_term} for batch-local document {@code doc}. */
-    void setPrimaryTerm(int doc, long primaryTerm);
-
     /**
-     * Sets the engine-assigned {@code _primary_term} for every document in the batch. Callers use
-     * this instead of looping {@link #setPrimaryTerm} when they've already established the whole
-     * batch shares one primary term.
+     * Sets the engine-assigned {@code _primary_term} for every document in the batch.
      */
     void fillPrimaryTerm(long primaryTerm);
 

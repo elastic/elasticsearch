@@ -144,12 +144,13 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        // TODO: Implement support
         return false;
     }
 
     @Override
     public void postColumnarParse(BatchMappingContext context) {
+        // TODO: Implement support
     }
 }

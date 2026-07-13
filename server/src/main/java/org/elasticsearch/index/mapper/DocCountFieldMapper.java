@@ -134,7 +134,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // No preParse/postParse override — nothing to port for the columnar path either.
+        // No preParse/postParse override — nothing to port for the columnar path.
         return true;
     }
 

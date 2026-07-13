@@ -86,29 +86,13 @@ public final class QueryDslTranslator {
             return bool(bool);
         }
         if (query instanceof TermQueryBuilder term) {
-            // A case-insensitive term is a different predicate; translating it as-is would silently under-match.
-            if (term.caseInsensitive()) {
-                throw new TranslationUnsupportedException("term[case_insensitive]");
-            }
-            // any-value equality: the field's values contain the term value
-            Expression field = fieldBinder.apply(term.fieldName());
-            // A term on a date field is a range over the value's rounding unit ("2020" means all of that year), not a
-            // point — so a coarse or date-math value matches the same span the index path's term query does.
-            if (isDate(field.dataType())) {
-                return checkedLeaf(field, dateTermRange(field, field.dataType(), term.value(), null));
-            }
-            // A value that no value of the field's integral type can equal (a decimal, or one outside the type's range)
-            // matches nothing, exactly as the index path's term query returns match-no-docs — never a truncated match.
-            if (isPresent(field) && cannotEqualIntegral(field.dataType(), term.value())) {
-                return Literal.FALSE;
-            }
-            return checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, term.value())));
+            return term(term);
         }
         if (query instanceof TermsQueryBuilder terms) {
             return terms(terms);
         }
         if (query instanceof ExistsQueryBuilder exists) {
-            return new IsNotNull(Source.EMPTY, fieldBinder.apply(exists.fieldName()));
+            return exists(exists);
         }
         if (query instanceof MatchAllQueryBuilder) {
             return Literal.TRUE;
@@ -120,6 +104,30 @@ public final class QueryDslTranslator {
             return range(range);
         }
         throw new TranslationUnsupportedException(query.getName());
+    }
+
+    private Expression term(TermQueryBuilder term) {
+        // A case-insensitive term is a different predicate; translating it as-is would silently under-match.
+        if (term.caseInsensitive()) {
+            throw new TranslationUnsupportedException("term[case_insensitive]");
+        }
+        // any-value equality: the field's values contain the term value
+        Expression field = fieldBinder.apply(term.fieldName());
+        // A term on a date field is a range over the value's rounding unit ("2020" means all of that year), not a
+        // point — so a coarse or date-math value matches the same span the index path's term query does.
+        if (isDate(field.dataType())) {
+            return checkedLeaf(field, dateTermRange(field, field.dataType(), term.value(), null));
+        }
+        // A value that no value of the field's integral type can equal (a decimal, or one outside the type's range)
+        // matches nothing, exactly as the index path's term query returns match-no-docs — never a truncated match.
+        if (isPresent(field) && cannotEqualIntegral(field.dataType(), term.value())) {
+            return Literal.FALSE;
+        }
+        return checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, term.value())));
+    }
+
+    private Expression exists(ExistsQueryBuilder exists) {
+        return new IsNotNull(Source.EMPTY, fieldBinder.apply(exists.fieldName()));
     }
 
     private Expression terms(TermsQueryBuilder terms) {

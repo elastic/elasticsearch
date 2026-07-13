@@ -390,4 +390,19 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertThat(or.left(), instanceOf(MvInRange.class));
         assertThat(or.right(), instanceOf(MvInRange.class));
     }
+
+    /** An exclusive bound sitting at the type's limit leaves an empty open interval beyond it, so it matches nothing. */
+    public void testExclusiveBoundAtIntegerLimitMatchesNothing() {
+        assertEquals(Literal.FALSE, translate(QueryBuilders.rangeQuery("status").gt(Integer.MAX_VALUE).lte(Integer.MAX_VALUE)));
+    }
+
+    /** A range with neither bound is a tautology — it matches everything. */
+    public void testRangeWithNoBoundsMatchesEverything() {
+        assertEquals(Literal.TRUE, translate(QueryBuilders.rangeQuery("status")));
+    }
+
+    /** When rounding pushes the lower bound past the upper (an exclusive one-day date range), it matches nothing. */
+    public void testDateRangeCollapsedByRoundingMatchesNothing() {
+        assertEquals(Literal.FALSE, translate(QueryBuilders.rangeQuery("@timestamp").gt("2020-06-15").lt("2020-06-15")));
+    }
 }

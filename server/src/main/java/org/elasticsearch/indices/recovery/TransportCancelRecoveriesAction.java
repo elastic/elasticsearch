@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardRecoveryCancellation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -33,6 +34,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -87,17 +89,22 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
     private void processCancellations(CancelRecoveriesAction.Request request, ActionListener<CancelRecoveriesAction.Response> listener) {
         assert Transports.assertNotTransportThread("TransportCancelRecoveriesAction must not run on a transport thread");
         final Map<String, ShardId> toCancel = new HashMap<>(request.cancellations().size());
-        for (CancelRecoveriesAction.ShardRecoveryCancellation cancellation : request.cancellations()) {
+        for (ShardRecoveryCancellation cancellation : request.cancellations()) {
             toCancel.put(cancellation.allocationId(), cancellation.shardId());
         }
         final Set<String> cancelledInQueue = throttlingRecoveryService.cancelRecoveries(toCancel);
 
-        for (CancelRecoveriesAction.ShardRecoveryCancellation cancellation : request.cancellations()) {
+        for (ShardRecoveryCancellation cancellation : request.cancellations()) {
             if (cancelledInQueue.contains(cancellation.allocationId()) == false && cancellation.cancelIfStarted()) {
                 tryCancelStartedRecovery(cancellation.shardId(), cancellation.allocationId());
             }
         }
-        listener.onResponse(new CancelRecoveriesAction.Response(cancelledInQueue));
+
+        final Set<CancelRecoveriesAction.CancelledInQueue> response = new HashSet<>(cancelledInQueue.size());
+        for (String allocationId : cancelledInQueue) {
+            response.add(new CancelRecoveriesAction.CancelledInQueue(allocationId, toCancel.get(allocationId)));
+        }
+        listener.onResponse(new CancelRecoveriesAction.Response(response));
     }
 
     private void tryCancelStartedRecovery(ShardId shardId, String allocationId) {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardRecoveryCancellation;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
@@ -44,12 +45,12 @@ public class CancelRecoveriesActionRequestTests extends AbstractWireSerializingT
             );
     }
 
-    private List<CancelRecoveriesAction.ShardRecoveryCancellation> randomCancellations() {
+    private List<ShardRecoveryCancellation> randomCancellations() {
         final int size = randomIntBetween(0, 5);
-        final var cancellations = new ArrayList<CancelRecoveriesAction.ShardRecoveryCancellation>(size);
+        final var cancellations = new ArrayList<ShardRecoveryCancellation>(size);
         for (int i = 0; i < size; i++) {
             cancellations.add(
-                new CancelRecoveriesAction.ShardRecoveryCancellation(
+                new ShardRecoveryCancellation(
                     new ShardId(randomIdentifier(), UUIDs.randomBase64UUID(), i),
                     UUIDs.randomBase64UUID(),
                     randomBoolean()

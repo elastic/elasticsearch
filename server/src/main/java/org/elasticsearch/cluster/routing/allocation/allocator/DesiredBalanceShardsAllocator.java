@@ -89,6 +89,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final AtomicReference<DesiredBalance> currentDesiredBalanceRef = new AtomicReference<>(DesiredBalance.NOT_MASTER);
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
+
+    private volatile DirectCancellationExecutor directCancellationExecutor = DirectCancellationExecutor.NO_OP;
+    private final AtomicReference<DirectCancellationCandidates> pendingRecoveryCancellations = new AtomicReference<>(
+        DirectCancellationCandidates.EMPTY
+    );
     private final NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator;
     private final DesiredBalanceMetrics desiredBalanceMetrics;
     private final AllocationBalancingRoundMetrics balancingRoundMetrics;
@@ -113,6 +118,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     @FunctionalInterface
     public interface ShardAllocationExplainer {
         ShardAllocationDecision explain(ShardRouting shard, RoutingAllocation allocation);
+    }
+
+    @FunctionalInterface
+    public interface DirectCancellationExecutor {
+        DirectCancellationExecutor NO_OP = (version, candidates) -> {};
+
+        void onNewCancellationCandidates(long clusterStateVersion, DirectCancellationCandidates candidates);
     }
 
     public DesiredBalanceShardsAllocator(
@@ -377,9 +389,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
         }
         recordTime(cumulativeReconciliationTime, () -> {
-            final var allocationStats = desiredBalanceReconciler.reconcile(desiredBalance, allocation);
+            final var reconciliationResult = desiredBalanceReconciler.reconcile(desiredBalance, allocation);
+            pendingRecoveryCancellations.set(reconciliationResult.cancellationCandidates());
             final var desiredBalanceStats = getStats();
-            updateDesireBalanceMetrics(desiredBalance, allocation, allocationStats, desiredBalanceStats);
+            updateDesiredBalanceMetrics(desiredBalance, allocation, reconciliationResult.allocationStats(), desiredBalanceStats);
         });
 
         if (logger.isTraceEnabled()) {
@@ -418,11 +431,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     /**
      * Used as the argument for the {@code ensureNotCancelled} {@code Runnable} when calling the
      * {@code nodeAllocationStatsAndWeightsCalculator} since there is no cancellation mechanism when called from
-     * {@code updateDesireBalanceMetrics()}.
+     * {@code updateDesiredBalanceMetrics()}.
      */
     private static final Runnable NEVER_CANCELLED = () -> {};
 
-    private void updateDesireBalanceMetrics(
+    private void updateDesiredBalanceMetrics(
         DesiredBalance desiredBalance,
         RoutingAllocation routingAllocation,
         DesiredBalanceMetrics.AllocationStats allocationStats,
@@ -479,6 +492,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             pendingDesiredBalanceMoves.clear();
             desiredBalanceReconciler.clear();
             desiredBalanceMetrics.zeroAllMetrics();
+            pendingRecoveryCancellations.set(DirectCancellationCandidates.EMPTY);
         }
     }
 
@@ -525,7 +539,15 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     batchExecutionContext.initialState(),
                     createReconcileAllocationAction(latest.getTask().desiredBalance)
                 );
-                latest.success(() -> pendingListenersQueue.complete(latest.getTask().desiredBalance.lastConvergedIndex()));
+
+                var cancellationsForThisRound = pendingRecoveryCancellations.get();
+                // The cancellation candidates were computed from initialState and the reconciler should not
+                // ask to direct cancel shards it just allocated.
+                var clusterStateVersion = batchExecutionContext.initialState().version();
+                latest.success(() -> {
+                    pendingListenersQueue.complete(latest.getTask().desiredBalance.lastConvergedIndex());
+                    directCancellationExecutor.onNewCancellationCandidates(clusterStateVersion, cancellationsForThisRound);
+                });
                 return newState;
             }
         }
@@ -565,5 +587,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     // Visible for testing
     public DesiredBalanceReconciler getReconciler() {
         return desiredBalanceReconciler;
+    }
+
+    public void setDirectCancellationConsumer(DirectCancellationExecutor cancellationExecutor) {
+        directCancellationExecutor = cancellationExecutor;
     }
 }

@@ -37,8 +37,10 @@ import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -103,14 +105,24 @@ public class DesiredBalanceReconciler {
      * @param desiredBalance The new desired cluster shard allocation
      * @param allocation Cluster state information with which to make decisions, contains routing table metadata that will be modified to
      *                   reach the given desired balance.
-     * @return {@link DesiredBalanceMetrics.AllocationStats} for this round of reconciliation changes.
+     * @return the {@link ReconciliationResult} output for this round of reconciliation changes.
      */
-    public DesiredBalanceMetrics.AllocationStats reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+    public ReconciliationResult reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         var nodeIds = allocation.routingNodes().getAllNodeIds();
         allocationOrdering.retainNodes(nodeIds);
         moveOrdering.retainNodes(nodeIds);
         return new Reconciliation(desiredBalance, allocation).run();
     }
+
+    /**
+     * @param allocationStats stats for this round of reconciliation changes.
+     * @param cancellationCandidates in-flight recoveries identified during this round as no longer allocated on
+     *                               a desired location and that are candidate for direct cancellation.
+     */
+    public record ReconciliationResult(
+        DesiredBalanceMetrics.AllocationStats allocationStats,
+        DirectCancellationCandidates cancellationCandidates
+    ) {}
 
     public void clear() {
         allocationOrdering.clear();
@@ -140,7 +152,7 @@ public class DesiredBalanceReconciler {
             this.routingNodes = allocation.routingNodes();
         }
 
-        DesiredBalanceMetrics.AllocationStats run() {
+        ReconciliationResult run() {
             undesiredAllocationsTracker.cleanup(routingNodes);
             try (var ignored = allocation.withReconcilingFlag()) {
 
@@ -150,35 +162,131 @@ public class DesiredBalanceReconciler {
                     // no data nodes, so fail allocation to report red health
                     failAllocationOfNewPrimaries(allocation);
                     logger.trace("no nodes available, nothing to reconcile");
-                    return DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS;
+                    return new ReconciliationResult(DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS, DirectCancellationCandidates.EMPTY);
                 }
 
                 if (desiredBalance.assignments().isEmpty()) {
                     // no desired state yet but it is on its way and we'll reroute again when it is ready
                     logger.trace("desired balance is empty, nothing to reconcile");
-                    return DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS;
+                    return new ReconciliationResult(DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS, DirectCancellationCandidates.EMPTY);
                 }
 
                 // compute next moves towards current desired balance:
 
-                // 1. allocate unassigned shards first
+                // 1. identify candidates for direct cancellation.
+                logger.trace("Reconciler#computeDirectCancellationCandidates");
+                final DirectCancellationCandidates cancellationCandidates = computeDirectCancellationCandidates();
+
+                // 2. unassign the subset of those candidates that are safe to interrupt via the routing table
+                logger.trace("Reconciler#unassignInterruptableInitializingShards");
+                unassignInterruptableInitializingShards(cancellationCandidates);
+
+                // 3. allocate unassigned shards
                 logger.trace("Reconciler#allocateUnassigned");
                 allocateUnassigned();
                 assert allocateUnassignedInvariant();
 
-                // 2. move any shards that cannot remain where they are
-                logger.trace("Reconciler#moveShards");
-                moveShards();
+                // 4. move any shards that cannot remain where they are
+                logger.trace("Reconciler#moveStartedShards");
+                moveStartedShards();
 
-                // 3. move any other shards that are desired elsewhere
+                // 5. move any other shards that are desired elsewhere
                 // This is the rebalancing work. The previous calls were necessary, to assign unassigned shard copies, and move shards that
                 // violate resource thresholds. Now we run moves to improve the relative node resource loads.
                 logger.trace("Reconciler#balance");
                 DesiredBalanceMetrics.AllocationStats allocationStats = balance();
 
                 logger.debug("Reconciliation is complete");
-                return allocationStats;
+                return new ReconciliationResult(allocationStats, cancellationCandidates);
             }
+        }
+
+        /**
+         * Identifies initializing shards that are no longer allocated on a desired location and are candidate for
+         * direct cancellation. The master will separately ask the data node to cancel these, since interrupting an
+         * in-flight recovery via the routing table isn't safe for every recovery type (e.g. mid-handover primary relocations).
+         */
+        private DirectCancellationCandidates computeDirectCancellationCandidates() {
+            final List<DirectCancellationCandidates.Candidates> candidates = new ArrayList<>();
+            for (RoutingNode routingNode : routingNodes) {
+                List<ShardRecoveryCancellation> nodeCancellations = new ArrayList<>();
+                for (ShardRouting shardRouting : routingNode) {
+                    if (shardRouting.initializing() == false) {
+                        continue;
+                    }
+
+                    final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
+                    if (assignment == null || assignment.nodeIds().contains(shardRouting.currentNodeId())) {
+                        // balance not computed for this shard yet, or it's already recovering to a desired node
+                        continue;
+                    }
+
+                    boolean cancelIfRecoveryStarted = false;
+                    if (recoveryCanBeCancelledIfStarted(shardRouting)) {
+                        final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
+                        cancelIfRecoveryStarted = canRemainDecision.type() == Decision.Type.NO;
+                    }
+                    nodeCancellations.add(
+                        new ShardRecoveryCancellation(shardRouting.shardId(), shardRouting.allocationId().getId(), cancelIfRecoveryStarted)
+                    );
+                }
+                if (nodeCancellations.isEmpty() == false) {
+                    candidates.add(new DirectCancellationCandidates.Candidates(routingNode.node(), nodeCancellations));
+                }
+            }
+            return new DirectCancellationCandidates(candidates);
+        }
+
+        /**
+         * Unassigns the subset of {@code cancellationCandidates} that are safe to interrupt via the routing table.
+         */
+        private void unassignInterruptableInitializingShards(DirectCancellationCandidates cancellationCandidates) {
+            for (DirectCancellationCandidates.Candidates nodeCandidates : cancellationCandidates.candidates()) {
+                for (ShardRecoveryCancellation cancellation : nodeCandidates.cancellations()) {
+                    if (cancellation.cancelIfStarted() == false) {
+                        continue;
+                    }
+
+                    final var shardRouting = routingNodes.getByAllocationId(cancellation.shardId(), cancellation.allocationId());
+                    if (shardRouting == null || shardRouting.primary()) {
+                        continue;
+                    }
+
+                    routingNodes.failShard(
+                        shardRouting,
+                        new UnassignedInfo(
+                            UnassignedInfo.Reason.REALLOCATED_REPLICA,
+                            "cancelling in-flight recovery, no longer allocated on a desired node",
+                            null,
+                            0,
+                            allocation.getCurrentNanoTime(),
+                            System.currentTimeMillis(),
+                            false,
+                            AllocationStatus.NO_ATTEMPT,
+                            Set.of(),
+                            null
+                        ),
+                        allocation.changes()
+                    );
+                }
+            }
+        }
+
+        /// For unassigned primaries, or the sole search-capable copy of a shard, we favor availability rather
+        /// than speeding up the shard movement to another node.
+        private boolean recoveryCanBeCancelledIfStarted(ShardRouting shardRouting) {
+            // TODO: add empty store?
+            if (shardRouting.primary()) {
+                return shardRouting.relocatingNodeId() != null;
+            }
+            if (shardRouting.role().equals(ShardRouting.Role.SEARCH_ONLY) == false) {
+                return true;
+            }
+            return routingNodes.assignedShards(shardRouting.shardId())
+                .stream()
+                .filter(s -> s != shardRouting)
+                .filter(ShardRouting::started)
+                .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
         }
 
         /**
@@ -484,7 +592,7 @@ public class DesiredBalanceReconciler {
             return assignment.total() - assignment.ignored() <= assigned;
         }
 
-        private void moveShards() {
+        private void moveStartedShards() {
             // Iterate over all started shards and check if they can remain. In the presence of throttling shard movements,
             // the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the shards.
             for (final var iterator = OrderedShardsIterator.createForNecessaryMoves(

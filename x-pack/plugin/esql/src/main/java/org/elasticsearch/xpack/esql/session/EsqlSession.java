@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalStatsRequirementExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.dsltranslate.RequestFilterGraft;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -455,7 +456,9 @@ public class EsqlSession {
                         EsqlPlugin.externalBlobStorePool()
                     );
 
-                    LogicalPlan plan = analyzedPlan.inner();
+                    // Graft the out-of-band request filter onto external-source (dataset) leaves, translated
+                    // against each source's schema. Index leaves keep their existing filter path.
+                    LogicalPlan plan = RequestFilterGraft.graft(analyzedPlan.inner(), request.filter());
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
                     planSnapshot = planSnapshot.withAnalyzed(plan);

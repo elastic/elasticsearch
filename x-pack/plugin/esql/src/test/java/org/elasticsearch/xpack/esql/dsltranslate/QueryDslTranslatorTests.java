@@ -1,0 +1,272 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.dsltranslate;
+
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+
+import java.util.List;
+import java.util.function.Function;
+
+import static org.hamcrest.Matchers.instanceOf;
+
+public class QueryDslTranslatorTests extends ESTestCase {
+
+    // These fields exist; everything else is missing and binds to NULL.
+    private static final Function<String, Expression> BINDER = name -> switch (name) {
+        case "status" -> new ReferenceAttribute(Source.EMPTY, "status", DataType.INTEGER);
+        case "tags" -> new ReferenceAttribute(Source.EMPTY, "tags", DataType.KEYWORD);
+        case "bytes" -> new ReferenceAttribute(Source.EMPTY, "bytes", DataType.LONG);
+        case "score" -> new ReferenceAttribute(Source.EMPTY, "score", DataType.DOUBLE);
+        case "@timestamp" -> new ReferenceAttribute(Source.EMPTY, "@timestamp", DataType.DATETIME);
+        default -> Literal.NULL;
+    };
+
+    private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb) {
+        return new QueryDslTranslator(BINDER).translate(qb);
+    }
+
+    public void testTermBecomesAnyValueContains() {
+        Expression e = translate(QueryBuilders.termQuery("status", 200));
+        assertThat(e, instanceOf(MvContains.class));
+        MvContains c = (MvContains) e;
+        assertThat(c.children().get(0), instanceOf(ReferenceAttribute.class));
+        assertThat(c.children().get(1), instanceOf(Literal.class));
+    }
+
+    public void testTermsBecomesIntersects() {
+        Expression e = translate(QueryBuilders.termsQuery("status", java.util.List.of(200, 404)));
+        assertThat(e, instanceOf(MvIntersects.class));
+    }
+
+    public void testExistsBecomesIsNotNull() {
+        Expression e = translate(QueryBuilders.existsQuery("status"));
+        assertThat(e, instanceOf(IsNotNull.class));
+    }
+
+    public void testMatchAllAndNoneBecomeLiterals() {
+        assertEquals(Literal.TRUE, translate(new MatchAllQueryBuilder()));
+        assertEquals(Literal.FALSE, translate(new MatchNoneQueryBuilder()));
+    }
+
+    public void testBoolMustBecomesAnd() {
+        Expression e = translate(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 1)).must(QueryBuilders.existsQuery("status"))
+        );
+        assertThat(e, instanceOf(And.class));
+    }
+
+    /**
+     * The design's sharp edge (rule 4): a negated clause over a field the source does not have must match everything.
+     * It translates to {@code Not(mv_contains(NULL, value))}; {@code mv_contains(NULL, value)} is {@code false} and
+     * {@code mv_contains} never returns null, so {@code Not(false)} is {@code true} — match-all — with no special code.
+     */
+    public void testNegatedMissingFieldStructureIsNotOverNullContains() {
+        Expression e = translate(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("missing_field", "x")));
+        assertThat(e, instanceOf(Not.class));
+        Not not = (Not) e;
+        assertThat(not.children().get(0), instanceOf(MvContains.class));
+        MvContains contains = (MvContains) not.children().get(0);
+        assertEquals(Literal.NULL, contains.children().get(0));
+    }
+
+    public void testUnsupportedConstructThrows() {
+        var ex = expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.wildcardQuery("status", "2*")));
+        assertEquals("wildcard", ex.construct());
+    }
+
+    public void testRangeTranslation() {
+        // single lower bound -> two-valued (Coalesce-to-false) comparison against the field's max value (any-value on
+        // multivalue fields; the Coalesce keeps a missing field two-valued so must_not-over-missing matches all)
+        Expression lower = translate(QueryBuilders.rangeQuery("status").gte(1));
+        assertThat(lower, instanceOf(Coalesce.class));
+        Expression lowerCmp = ((Coalesce) lower).children().get(0);
+        assertThat(lowerCmp, instanceOf(GreaterThanOrEqual.class));
+        assertThat(((GreaterThanOrEqual) lowerCmp).left(), instanceOf(MvMax.class));
+        // single upper bound -> two-valued comparison against the field's min value
+        Expression upper = translate(QueryBuilders.rangeQuery("status").lte(10));
+        assertThat(upper, instanceOf(Coalesce.class));
+        Expression upperCmp = ((Coalesce) upper).children().get(0);
+        assertThat(upperCmp, instanceOf(LessThanOrEqual.class));
+        assertThat(((LessThanOrEqual) upperCmp).left(), instanceOf(MvMin.class));
+        // exclusive single bound -> strict comparison, still two-valued and over the extreme value
+        Expression exclusive = translate(QueryBuilders.rangeQuery("status").gt(1));
+        assertThat(exclusive, instanceOf(Coalesce.class));
+        assertThat(((Coalesce) exclusive).children().get(0), instanceOf(GreaterThan.class));
+        // closed range -> the two-valued any-value range intrinsic
+        assertThat(translate(QueryBuilders.rangeQuery("status").gte(1).lte(10)), instanceOf(MvInRange.class));
+    }
+
+    public void testShouldOnlyBoolBecomesOr() {
+        // no must/filter present -> the should clauses are the required predicate (minimum_should_match defaults to 1)
+        Expression e = translate(
+            QueryBuilders.boolQuery().should(QueryBuilders.termQuery("status", 1)).should(QueryBuilders.termQuery("status", 2))
+        );
+        assertThat(e, instanceOf(Or.class));
+    }
+
+    public void testMustWithShouldDropsShould() {
+        // should is scoring-only alongside a must/filter in a filter context -> dropped, leaving just the must
+        Expression e = translate(
+            QueryBuilders.boolQuery().must(QueryBuilders.existsQuery("status")).should(QueryBuilders.termQuery("status", 1))
+        );
+        assertThat(e, instanceOf(IsNotNull.class));
+    }
+
+    /**
+     * A two-bound range must be ONE any-value test. Splitting it into mv_max &gt;= lo AND mv_min &lt;= hi is an envelope
+     * test that wrongly matches a multivalue field straddling the interval ([0,100] would satisfy (40,60)). Exclusive
+     * bounds on a whole-number type are therefore normalized to the equivalent inclusive bounds and routed to
+     * mv_in_range, which is exact.
+     */
+    public void testExclusiveTwoBoundRangeNormalizesToInclusiveMvInRange() {
+        Expression e = translate(QueryBuilders.rangeQuery("status").gt(40).lt(60));
+        assertThat(e, instanceOf(MvInRange.class));
+        MvInRange r = (MvInRange) e;
+        // (40, 60) exclusive == [41, 59] inclusive on a whole-number type
+        assertEquals(41, ((Literal) r.lower()).value());
+        assertEquals(59, ((Literal) r.upper()).value());
+
+        // a mixed bound pair (the standard Kibana time range shape) normalizes the exclusive end only
+        Expression mixed = translate(QueryBuilders.rangeQuery("status").gte(40).lt(60));
+        assertThat(mixed, instanceOf(MvInRange.class));
+        assertEquals(40, ((Literal) ((MvInRange) mixed).lower()).value());
+        assertEquals(59, ((Literal) ((MvInRange) mixed).upper()).value());
+    }
+
+    /** There is no predecessor for a double, so an exclusive two-bound range over one cannot be expressed exactly. */
+    public void testExclusiveTwoBoundRangeOnDoubleIsUnsupported() {
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("score").gt(1.5).lt(9.5)));
+    }
+
+    /**
+     * The graft runs after the analyzer, so no implicit cast fixes a literal typed from the JSON value. A date string
+     * against a date column must become a datetime literal here, or the evaluator is handed a BytesRef block.
+     */
+    public void testDateStringBoundsAreCoercedToTheFieldType() {
+        Expression e = translate(QueryBuilders.rangeQuery("@timestamp").gte("2024-01-01T00:00:00Z").lte("2024-12-31T00:00:00Z"));
+        assertThat(e, instanceOf(MvInRange.class));
+        MvInRange r = (MvInRange) e;
+        assertEquals(DataType.DATETIME, r.lower().dataType());
+        assertEquals(DataType.DATETIME, r.upper().dataType());
+        assertThat(((Literal) r.lower()).value(), instanceOf(Long.class));
+    }
+
+    /** An int literal against a long column must become a long literal, or the evaluator element types disagree. */
+    public void testIntLiteralIsCoercedToLongField() {
+        Expression e = translate(QueryBuilders.termQuery("bytes", 62));
+        assertThat(e, instanceOf(MvContains.class));
+        Literal value = (Literal) ((MvContains) e).children().get(1);
+        assertEquals(DataType.LONG, value.dataType());
+        assertEquals(62L, value.value());
+    }
+
+    /** A terms-lookup has no values to translate (and values() is null — it used to NPE). */
+    public void testTermsLookupIsUnsupported() {
+        var lookup = new TermsQueryBuilder("status", new TermsLookup("idx", "1", "path"));
+        expectThrows(TranslationUnsupportedException.class, () -> translate(lookup));
+    }
+
+    /** An empty terms list is legal DSL and matches nothing (it used to NPE on a null data type). */
+    public void testEmptyTermsMatchesNothing() {
+        assertEquals(Literal.FALSE, translate(QueryBuilders.termsQuery("status", List.of())));
+    }
+
+    /** These options change what the query means; translating without them would silently mis-match. */
+    public void testUnhonorableOptionsAreUnsupported() {
+        // n-of-m (anything but 0 or 1) cannot be expressed as an OR
+        expectThrows(
+            TranslationUnsupportedException.class,
+            () -> translate(
+                QueryBuilders.boolQuery()
+                    .should(QueryBuilders.termQuery("status", 1))
+                    .should(QueryBuilders.termQuery("status", 2))
+                    .minimumShouldMatch(2)
+            )
+        );
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termQuery("tags", "a").caseInsensitive(true)));
+        expectThrows(
+            TranslationUnsupportedException.class,
+            () -> translate(QueryBuilders.rangeQuery("@timestamp").gte("2024-01-01T00:00:00Z").timeZone("+02:00"))
+        );
+    }
+
+    /**
+     * An explicit {@code minimum_should_match: 1} is exactly what Kibana's "is one of" pill and every KQL {@code or}
+     * emit. It means "at least one should clause must match" — a plain OR — and must be honored, not refused.
+     */
+    public void testExplicitMinimumShouldMatchOfOneIsAnOr() {
+        Expression e = translate(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.termQuery("status", 1))
+                .should(QueryBuilders.termQuery("status", 2))
+                .minimumShouldMatch(1)
+        );
+        assertThat(e, instanceOf(Or.class));
+
+        // alongside a must, msm:1 makes the should REQUIRED (unlike the default, where it would drop)
+        Expression withMust = translate(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.existsQuery("status"))
+                .should(QueryBuilders.termQuery("status", 1))
+                .minimumShouldMatch(1)
+        );
+        assertThat(withMust, instanceOf(And.class));
+    }
+
+    /** msm:0 makes the should clauses optional, so in a filter context they drop out entirely. */
+    public void testMinimumShouldMatchOfZeroDropsShould() {
+        Expression e = translate(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.existsQuery("status"))
+                .should(QueryBuilders.termQuery("status", 1))
+                .minimumShouldMatch(0)
+        );
+        assertThat(e, instanceOf(IsNotNull.class));
+    }
+
+    /**
+     * The DSL default for minimum_should_match is 1 when the bool has no must/filter — and must_not does NOT count
+     * towards that. So must_not + should still requires a should clause to match.
+     */
+    public void testMustNotDoesNotSuppressTheDefaultShouldRequirement() {
+        Expression e = translate(
+            QueryBuilders.boolQuery()
+                .mustNot(QueryBuilders.termQuery("status", 9))
+                .should(QueryBuilders.termQuery("status", 1))
+                .should(QueryBuilders.termQuery("status", 2))
+        );
+        // Not(term) AND (term OR term) — the should survives as a required conjunct
+        assertThat(e, instanceOf(And.class));
+        And and = (And) e;
+        assertThat(and.left(), instanceOf(Not.class));
+        assertThat(and.right(), instanceOf(Or.class));
+    }
+}

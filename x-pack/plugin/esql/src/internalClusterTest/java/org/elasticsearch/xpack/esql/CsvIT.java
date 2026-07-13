@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+import com.sun.management.HotSpotDiagnosticMXBean;
 
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -95,6 +97,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.management.ManagementFactory;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -380,7 +383,7 @@ public class CsvIT extends ESTestCase {
         var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
         cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);
         // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.
-        try (var response = listener.actionGet(5, TimeUnit.MINUTES)) {
+        try (EsqlQueryResponse response = listener.actionGet(5, TimeUnit.MINUTES)) {
             assertFalse("response must not be partial: " + response.getExecutionInfo(), response.isPartial());
             ExpectedResults expected = indexLoadStrategy.transformExpectedResults(
                 groupName + "." + testName,
@@ -412,6 +415,9 @@ public class CsvIT extends ESTestCase {
             testCase.assertWarnings(false).assertWarnings(warnings, null);
             CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
         } catch (Throwable t) {
+            if (t instanceof ElasticsearchTimeoutException) {
+                dumpHeapOnTimeout();
+            }
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
         }
@@ -732,6 +738,16 @@ public class CsvIT extends ESTestCase {
         Path geoIpDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpDir);
         GeoIpTestUtils.copyDefaultDatabases(geoIpDir);
+    }
+
+    private static void dumpHeapOnTimeout() {
+        try {
+            String path = System.getProperty("java.io.tmpdir") + "/esql-hang-" + System.currentTimeMillis() + ".hprof";
+            ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class).dumpHeap(path, true);
+            logger.warn("Query timed out; heap dump written to [{}]", path);
+        } catch (Exception e) {
+            logger.warn("Query timed out; failed to dump heap", e);
+        }
     }
 
     private static class ResponseListener extends PlainActionFuture<EsqlQueryResponse> {

@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 /**
  * Similar to {@link org.elasticsearch.action.support.RefCountingListener},
@@ -18,6 +20,8 @@ import org.elasticsearch.core.Releasable;
  * @see FailureCollector
  */
 public final class EsqlRefCountingListener implements Releasable {
+    private static final Logger logger = LogManager.getLogger(EsqlRefCountingListener.class);
+
     private final FailureCollector failureCollector;
     private final RefCountingRunnable refs;
 
@@ -25,6 +29,7 @@ public final class EsqlRefCountingListener implements Releasable {
         this.failureCollector = new FailureCollector();
         this.refs = new RefCountingRunnable(() -> {
             Exception error = failureCollector.getFailure();
+            logger.debug("all refs released [success={}]", error == null);
             if (error != null) {
                 delegate.onFailure(error);
             } else {
@@ -43,6 +48,7 @@ public final class EsqlRefCountingListener implements Releasable {
 
     @Override
     public void close() {
+        logger.trace("releasing initial ref");
         refs.close();
     }
 }

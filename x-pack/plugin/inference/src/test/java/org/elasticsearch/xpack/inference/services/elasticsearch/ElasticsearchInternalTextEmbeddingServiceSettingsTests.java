@@ -209,6 +209,73 @@ public class ElasticsearchInternalTextEmbeddingServiceSettingsTests extends Abst
         );
     }
 
+    public void testFromMapWithBuilder_ParsesSimilarityAndElementType() {
+        var modelId = "model-foo";
+        var deploymentId = "deployment-foo";
+        var numAllocations = 1;
+        var numThreads = 1;
+        var builder = new ElasticsearchInternalServiceSettings.Builder().setNumAllocations(numAllocations)
+            .setNumThreads(numThreads)
+            .setModelId(modelId)
+            .setDeploymentId(deploymentId);
+
+        var map = new HashMap<String, Object>(
+            Map.of(
+                ServiceFields.SIMILARITY,
+                SimilarityMeasure.DOT_PRODUCT.toString(),
+                ELEMENT_TYPE,
+                DenseVectorFieldMapper.ElementType.BYTE.toString()
+            )
+        );
+        var serviceSettings = ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(map, builder);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new ElasticsearchInternalTextEmbeddingServiceSettings(
+                    numAllocations,
+                    numThreads,
+                    modelId,
+                    null,
+                    deploymentId,
+                    null,
+                    SimilarityMeasure.DOT_PRODUCT,
+                    DenseVectorFieldMapper.ElementType.BYTE
+                )
+            )
+        );
+        assertTrue(map.isEmpty());
+    }
+
+    public void testFromMapWithBuilder_DefaultsSimilarityAndElementTypeWhenAbsent() {
+        var modelId = "model-foo";
+        var deploymentId = "deployment-foo";
+        var numAllocations = 1;
+        var numThreads = 1;
+        var builder = new ElasticsearchInternalServiceSettings.Builder().setNumAllocations(numAllocations)
+            .setNumThreads(numThreads)
+            .setModelId(modelId)
+            .setDeploymentId(deploymentId);
+
+        var serviceSettings = ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(new HashMap<>(), builder);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new ElasticsearchInternalTextEmbeddingServiceSettings(
+                    numAllocations,
+                    numThreads,
+                    modelId,
+                    null,
+                    deploymentId,
+                    null,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                )
+            )
+        );
+    }
+
     public void testToXContent_WritesAllValues() throws IOException {
         var entity = new ElasticsearchInternalTextEmbeddingServiceSettings(
             1,

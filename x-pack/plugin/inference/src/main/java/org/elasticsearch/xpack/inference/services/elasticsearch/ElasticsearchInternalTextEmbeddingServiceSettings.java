@@ -71,6 +71,24 @@ public class ElasticsearchInternalTextEmbeddingServiceSettings extends Elasticse
         return new ElasticsearchInternalTextEmbeddingServiceSettings(commonFields, dims);
     }
 
+    /**
+     * Parse the similarity and element type from the request map, layering them onto a common settings
+     * builder populated from another source (e.g. an existing ML deployment's assignment stats rather
+     * than the map itself). Dimensions are left null; validation determines them after performing a
+     * request to the model.
+     */
+    public static ElasticsearchInternalTextEmbeddingServiceSettings fromMap(
+        Map<String, Object> map,
+        ElasticsearchInternalServiceSettings.Builder commonSettingsBuilder
+    ) {
+        var validationException = new ValidationException();
+        var similarity = extractSimilarityOrDefault(map, validationException);
+        var elementType = extractElementTypeOrDefault(map, validationException);
+        validationException.throwIfValidationErrorsExist();
+
+        return new ElasticsearchInternalTextEmbeddingServiceSettings(commonSettingsBuilder.build(), null, similarity, elementType);
+    }
+
     private record CommonFields(
         ElasticsearchInternalServiceSettings internalServiceSettings,
         SimilarityMeasure similarityMeasure,
@@ -83,7 +101,21 @@ public class ElasticsearchInternalTextEmbeddingServiceSettings extends Elasticse
 
     private static CommonFields commonFieldsFromMap(Map<String, Object> map, ValidationException validationException) {
         var internalSettings = ElasticsearchInternalServiceSettings.fromMap(map, validationException);
+        var similarity = extractSimilarityOrDefault(map, validationException);
+        var elementType = extractElementTypeOrDefault(map, validationException);
+
+        return new CommonFields(internalSettings.build(), similarity, elementType);
+    }
+
+    private static SimilarityMeasure extractSimilarityOrDefault(Map<String, Object> map, ValidationException validationException) {
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        return Objects.requireNonNullElse(similarity, SimilarityMeasure.COSINE);
+    }
+
+    private static DenseVectorFieldMapper.ElementType extractElementTypeOrDefault(
+        Map<String, Object> map,
+        ValidationException validationException
+    ) {
         DenseVectorFieldMapper.ElementType elementType = extractOptionalEnum(
             map,
             ELEMENT_TYPE,
@@ -92,12 +124,7 @@ public class ElasticsearchInternalTextEmbeddingServiceSettings extends Elasticse
             EnumSet.of(DenseVectorFieldMapper.ElementType.BYTE, DenseVectorFieldMapper.ElementType.FLOAT),
             validationException
         );
-
-        return new CommonFields(
-            internalSettings.build(),
-            Objects.requireNonNullElse(similarity, SimilarityMeasure.COSINE),
-            Objects.requireNonNullElse(elementType, DenseVectorFieldMapper.ElementType.FLOAT)
-        );
+        return Objects.requireNonNullElse(elementType, DenseVectorFieldMapper.ElementType.FLOAT);
     }
 
     private final Integer dimensions;

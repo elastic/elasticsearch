@@ -693,9 +693,13 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      * evaluator compares full doubles. Those roundings only over-match, so the range stays a superset and the retained
      * evaluator re-checks the surfaced documents to drop the false positives — the FilterExec stays for exactly that.
      */
-    /** date_nanos and unsigned_long are YES types with no recheck net, so pin their per-type pushed-range formatting. */
+    /** long, date_nanos and unsigned_long are YES types with no recheck net, so pin their per-type pushed-range shape. */
     public void testMvInRangeYesTypeFormatting() {
         var analyzer = makeAnalyzer("mapping-all-types.json");
+        var lng = plannerOptimizer.plan("from test | where mv_in_range(long, 10::long, 20::long)", IS_SV_STATS, analyzer);
+        assertThat(lng.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(mvInRangeQuery(lng).toString(), equalTo(unscore(rangeQuery("long").from(10, true).to(20, true)).toString()));
+
         var dn = plannerOptimizer.plan(
             "from test | where mv_in_range(date_nanos, \"2020-01-01\"::date_nanos, \"2021-01-01\"::date_nanos)",
             IS_SV_STATS,
@@ -726,6 +730,21 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             assertThat("field " + field + " must RECHECK (retain the FilterExec)", plan.anyMatch(FilterExec.class::isInstance), is(true));
             assertThat("field " + field + " must still push a range pre-filter", mvInRangeQuery(plan), is(not(nullValue())));
         }
+    }
+
+    /** ip and version are byte-encoded, so like keyword they push the range but stay RECHECK (retain the FilterExec). */
+    public void testMvInRangeIpVersionRecheck() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var ip = plannerOptimizer.plan("from test | where mv_in_range(ip, \"1.1.1.1\"::ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(mvInRangeQuery(ip), is(not(nullValue())));
+        var version = plannerOptimizer.plan(
+            "from test | where mv_in_range(version, \"1.0.0\"::version, \"2.0.0\"::version)",
+            IS_SV_STATS,
+            analyzer
+        );
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(mvInRangeQuery(version), is(not(nullValue())));
     }
 
     private static QueryBuilder mvInRangeQuery(PhysicalPlan plan) {

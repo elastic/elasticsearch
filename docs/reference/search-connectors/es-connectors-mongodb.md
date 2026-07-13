@@ -84,16 +84,18 @@ We strongly recommend leaving this option disabled in production environments.
 ::::
 
 
-`Out-of-range date handling`
-:   How to handle MongoDB dates that fall outside the range supported by Python (years 1–9999). Available in the advanced configuration options. The available options are:
+`datetime_conversion`
+:   How to handle MongoDB dates that fall outside the range supported by Python (years 1–9999). Available in the advanced configuration options. Available values:
 
-    * `Raise an error (legacy)` — The default. The sync fails when it encounters an out-of-range date. This preserves the historical behavior.
-    * `Clamp to the min/max date` — Out-of-range dates are clamped to the minimum or maximum supported date and indexed as ordinary date strings, so the sync can continue.
-    * `Out-of-range dates as epoch milliseconds` — In-range dates are indexed as date strings, while out-of-range dates are indexed as raw milliseconds since the epoch.
-    * `All dates as epoch milliseconds` — All dates are indexed as raw milliseconds since the epoch.
+    * `DATETIME` — Raise an error (legacy). The sync fails when it encounters an out-of-range date. This preserves the historical behavior.
+    * `DATETIME_CLAMP` — Out-of-range dates are clamped to the minimum or maximum supported date and indexed as ordinary date strings, so the sync can continue.
+    * `DATETIME_AUTO` — In-range dates are indexed as date strings, while out-of-range dates are indexed as raw milliseconds since the epoch.
+    * `DATETIME_MS` — All dates are indexed as raw milliseconds since the epoch.
+
+    Default value is `DATETIME`.
 
 ::::{note}
-The `Out-of-range dates as epoch milliseconds` option can produce mixed types for the same field (date strings and numbers), which may cause Elasticsearch mapping conflicts. Prefer `Clamp to the min/max date` if you need the sync to continue past out-of-range dates.
+The `DATETIME_AUTO` option can produce mixed types for the same field (date strings and numbers), which may cause Elasticsearch mapping conflicts. Prefer `DATETIME_CLAMP` if you need the sync to continue past out-of-range dates.
 
 ::::
 

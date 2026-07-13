@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
@@ -1719,16 +1720,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // we align the outputs of the sub plans such that they have the same columns
             boolean changed = false;
             List<LogicalPlan> newSubPlans = new ArrayList<>();
-            // FORK branches share one source index, so load-align across them; subqueries/views (UnionAll) read independent
+            // FORK branches share one source index, so align across them; subqueries/views (UnionAll) read independent
             // sources and are handled in ResolveUnmapped. See #142033.
             boolean loadAlignAcrossBranches = unmappedResolution == UnmappedResolution.LOAD && fork instanceof UnionAll == false;
+            boolean alignDropAcrossBranches = (unmappedResolution == UnmappedResolution.LOAD
+                || unmappedResolution == UnmappedResolution.NULLIFY) && fork instanceof UnionAll == false;
 
             List<Attribute> outputUnion = Fork.outputUnion(fork.children());
-            // DROP of an unmapped field in a branch is a mention: the field is loaded into that branch's source but dropped from its
-            // output, so Fork.outputUnion misses it. Surface it as a FORK column when a sibling branch can materialize it (the dropping
-            // branch then null-fills it). Skip it when no branch can surface it, else it would be null in every branch and isn't a real
-            // column.
-            if (loadAlignAcrossBranches && fork.children().stream().anyMatch(ResolveRefs::branchCanSurfaceLoadedField)) {
+            // DROP of an unmapped field in a branch is a mention: the field is materialized in that branch's source but dropped from its
+            // output, so Fork.outputUnion misses it. Surface it as a FORK column when a sibling branch can surface it (the dropping branch
+            // then null-fills it). Skip it when no branch can surface it (e.g. dropped in every branch), else it would be null everywhere
+            // and isn't a real column.
+            if (alignDropAcrossBranches && fork.children().stream().anyMatch(ResolveRefs::branchCanSurfaceLoadedField)) {
                 addDroppedUnmappedFieldsMissingFromUnion(outputUnion, unmappedFieldsDroppedByProjection(fork));
             }
             List<String> forkColumns = outputUnion.stream().map(Attribute::name).toList();
@@ -1876,8 +1879,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * Unmapped fields a {@link Project} in a FORK branch drops outright, in the projection input but neither surfaced nor referenced
-         * (a plain {@code DROP}, not a {@code RENAME}). Keyed by name, first occurrence wins. A field consumed by an {@link Aggregate}
-         * (e.g., {@code STATS ... BY f}) is excluded: it was never a branch output column, so it must not become a {@code FORK} column.
+         * (a plain {@code DROP}, not a {@code RENAME}). Detects both materialization markers: {@link PotentiallyUnmappedKeywordEsField}
+         * under {@code load} and {@link MissingEsField} under {@code nullify}. Keyed by name, first occurrence wins. A field consumed by an
+         * {@link Aggregate} (e.g., {@code STATS ... BY f}) is excluded: it was never a branch output column, so it must not become a
+         * {@code FORK} column.
          */
         private static Map<String, FieldAttribute> unmappedFieldsDroppedByProjection(Fork fork) {
             Map<String, FieldAttribute> byName = new LinkedHashMap<>();
@@ -1887,7 +1892,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     Set<String> referencedNames = project.references().names();
                     for (Attribute attr : project.child().output()) {
                         if (attr instanceof FieldAttribute fa
-                            && fa.field() instanceof PotentiallyUnmappedKeywordEsField
+                            && (fa.field() instanceof PotentiallyUnmappedKeywordEsField || fa.field() instanceof MissingEsField)
                             && survivingNames.contains(fa.name()) == false
                             && referencedNames.contains(fa.name()) == false) {
                             byName.putIfAbsent(fa.name(), fa);
@@ -1914,7 +1919,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> loaders = new ArrayList<>();
             for (Map.Entry<String, FieldAttribute> entry : droppedUnmappedFields.entrySet()) {
                 if (unionNames.contains(entry.getKey()) == false) {
-                    loaders.add(insistKeyword(entry.getValue()));
+                    FieldAttribute dropped = entry.getValue();
+                    // Match how the field was materialized: a nullified MissingEsField under nullify, else an insisted keyword under load.
+                    loaders.add(dropped.field() instanceof MissingEsField ? nullifyField(dropped) : insistKeyword(dropped));
                 }
             }
             if (loaders.isEmpty()) {
@@ -2038,6 +2045,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 attribute.qualifier(),
                 attribute.name(),
                 new PotentiallyUnmappedKeywordEsField(attribute.name())
+            );
+        }
+
+        /**
+         * A {@link FieldAttribute} backed by a {@link MissingEsField} of type {@link DataType#NULL}, i.e., the
+         * {@code unmapped_fields="nullify"} marker.
+         */
+        public static FieldAttribute nullifyField(Attribute attribute) {
+            return new FieldAttribute(
+                attribute.source(),
+                null,
+                attribute.qualifier(),
+                attribute.name(),
+                new MissingEsField(attribute.name())
             );
         }
 

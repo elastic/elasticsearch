@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -26,8 +27,10 @@ import java.util.Set;
 
 /// Transport action for batch cancellation of now-undesired recoveries.
 /// The elected master node uses this action to directly request cancellation of recoveries.
-// TODO: Introduce transport version when we wire this up on the master
 public class CancelRecoveriesAction {
+
+    /// Minimum cluster-wide transport version before the master starts sending direct cancellation requests
+    public static final TransportVersion DIRECT_RECOVERY_CANCELLATION = TransportVersion.fromName("direct_recovery_cancellation");
 
     public static final ActionType<Response> TYPE = new ActionType<>("internal:index/shard/recovery/cancel_recoveries");
 

@@ -81,8 +81,16 @@ public class DesiredBalanceReconciler {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> ENABLE_INITIALIZING_SHARD_CANCELLATION_SETTING = Setting.boolSetting(
+        "cluster.routing.allocation.desired_balance.enable_initializing_shard_cancellation",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final FrequencyCappedAction undesiredAllocationLogInterval;
     private double undesiredAllocationsLogThreshold;
+    private volatile boolean enableInitializingShardCancellation;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
     private final UndesiredAllocationsTracker undesiredAllocationsTracker;
@@ -94,6 +102,10 @@ public class DesiredBalanceReconciler {
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
+        );
+        clusterSettings.initializeAndWatchIfRegistered(
+            ENABLE_INITIALIZING_SHARD_CANCELLATION_SETTING,
+            value -> this.enableInitializingShardCancellation = value
         );
         this.undesiredAllocationsTracker = new UndesiredAllocationsTracker(clusterSettings, timeProvider);
         this.shardRelocationOrder = shardRelocationOrder;
@@ -178,8 +190,10 @@ public class DesiredBalanceReconciler {
                 final DirectCancellationCandidates cancellationCandidates = computeDirectCancellationCandidates();
 
                 // 2. unassign the subset of those candidates that are safe to interrupt via the routing table
-                logger.trace("Reconciler#unassignInterruptableInitializingShards");
-                unassignInterruptableInitializingShards(cancellationCandidates);
+                if (enableInitializingShardCancellation) {
+                    logger.trace("Reconciler#unassignInterruptableInitializingShards");
+                    unassignInterruptableInitializingShards(cancellationCandidates);
+                }
 
                 // 3. allocate unassigned shards
                 logger.trace("Reconciler#allocateUnassigned");

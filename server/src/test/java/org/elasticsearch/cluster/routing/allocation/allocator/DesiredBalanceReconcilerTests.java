@@ -1020,7 +1020,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         // With no decider forbidding the replica from remaining on node-1, the candidate is not escalated to cancel an
         // already-started recovery.
         final var candidates = new DesiredBalanceReconciler(
-            createBuiltInClusterSettings(),
+            defaultTestClusterSettings(),
             new AdvancingTimeProvider(),
             new ShardRelocationOrder.DefaultOrder()
         ).reconcile(balance, createRoutingAllocationFrom(clusterState)).cancellationCandidates().candidates();
@@ -1048,7 +1048,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             }
         };
         final var escalatedCandidates = new DesiredBalanceReconciler(
-            createBuiltInClusterSettings(),
+            defaultTestClusterSettings(),
             new AdvancingTimeProvider(),
             new ShardRelocationOrder.DefaultOrder()
         ).reconcile(balance, createRoutingAllocationFrom(clusterState, forbidRemainOnNode1)).cancellationCandidates().candidates();
@@ -1085,7 +1085,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         // With no decider forbidding the replica from remaining on node-1, it is a cancellation candidate but not escalated,
         // so the routing table is left untouched.
         final var untouchedAllocation = createRoutingAllocationFrom(clusterState);
-        new DesiredBalanceReconciler(createBuiltInClusterSettings(), new AdvancingTimeProvider(), new ShardRelocationOrder.DefaultOrder())
+        new DesiredBalanceReconciler(defaultTestClusterSettings(), new AdvancingTimeProvider(), new ShardRelocationOrder.DefaultOrder())
             .reconcile(balance, untouchedAllocation);
 
         final var untouchedReplica = untouchedAllocation.routingNodes().node("node-1").getByShardId(shardId);
@@ -1107,7 +1107,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             }
         };
         final var reallocatedAllocation = createRoutingAllocationFrom(clusterState, forbidRemain);
-        new DesiredBalanceReconciler(createBuiltInClusterSettings(), new AdvancingTimeProvider(), new ShardRelocationOrder.DefaultOrder())
+        new DesiredBalanceReconciler(defaultTestClusterSettings(), new AdvancingTimeProvider(), new ShardRelocationOrder.DefaultOrder())
             .reconcile(balance, reallocatedAllocation);
 
         assertThat(reallocatedAllocation.routingNodes().node("node-1").getByShardId(shardId), nullValue());
@@ -1152,7 +1152,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .relocateShard(startedPrimary, "node-1", ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, "test-setup", allocation.changes());
 
         final var result = new DesiredBalanceReconciler(
-            createBuiltInClusterSettings(),
+            defaultTestClusterSettings(),
             new AdvancingTimeProvider(),
             new ShardRelocationOrder.DefaultOrder()
         ).reconcile(balance, allocation);
@@ -1207,7 +1207,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
         final var result = new DesiredBalanceReconciler(
-            createBuiltInClusterSettings(),
+            defaultTestClusterSettings(),
             new AdvancingTimeProvider(),
             new ShardRelocationOrder.DefaultOrder()
         ).reconcile(balance, allocation);
@@ -1509,7 +1509,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
             .build();
 
-        var clusterSettings = createBuiltInClusterSettings();
+        var clusterSettings = defaultTestClusterSettings();
         var deciders = new AllocationDecider[] {
             new ConcurrentRebalanceAllocationDecider(clusterSettings),
             new ThrottlingAllocationDecider(clusterSettings) };
@@ -1601,11 +1601,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .build();
 
         var timeProvider = new AdvancingTimeProvider();
-        var reconciler = new DesiredBalanceReconciler(
-            createBuiltInClusterSettings(),
-            timeProvider,
-            new ShardRelocationOrder.DefaultOrder()
-        );
+        var reconciler = new DesiredBalanceReconciler(defaultTestClusterSettings(), timeProvider, new ShardRelocationOrder.DefaultOrder());
         final long initialDelayInMillis = TimeValue.timeValueMinutes(5).getMillis();
         timeProvider.advanceByMillis(randomLongBetween(initialDelayInMillis, 2 * initialDelayInMillis));
 
@@ -1876,11 +1872,15 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         AtomicReference<DesiredBalanceMetrics.AllocationStats> allocationStatsAtomicReference
     ) {
         allocationStatsAtomicReference.set(
-            new DesiredBalanceReconciler(
-                createBuiltInClusterSettings(),
-                new AdvancingTimeProvider(),
-                new ShardRelocationOrder.DefaultOrder()
-            ).reconcile(desiredBalance, routingAllocation).allocationStats()
+            new DesiredBalanceReconciler(defaultTestClusterSettings(), new AdvancingTimeProvider(), new ShardRelocationOrder.DefaultOrder())
+                .reconcile(desiredBalance, routingAllocation)
+                .allocationStats()
+        );
+    }
+
+    private static ClusterSettings defaultTestClusterSettings() {
+        return ClusterSettings.createBuiltInClusterSettings(
+            Settings.builder().put(DesiredBalanceReconciler.ENABLE_INITIALIZING_SHARD_CANCELLATION_SETTING.getKey(), true).build()
         );
     }
 

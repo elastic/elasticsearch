@@ -11,6 +11,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShar
 import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellationCandidates;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
@@ -31,10 +33,18 @@ public class RecoveryCancellationService {
 
     private static final Logger logger = LogManager.getLogger(RecoveryCancellationService.class);
 
+    public static final Setting<Boolean> ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING = Setting.boolSetting(
+        "indices.recovery.enable_direct_cancellations",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final ShardStateAction shardStateAction;
     private final Executor executor;
+    private volatile boolean enableDirectRecoveryCancellations;
 
     @Inject
     @SuppressWarnings("this-escape")
@@ -48,6 +58,11 @@ public class RecoveryCancellationService {
         this.clusterService = clusterService;
         this.shardStateAction = shardStateAction;
         this.executor = transportService.getThreadPool().generic();
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(
+                ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
+                value -> this.enableDirectRecoveryCancellations = value
+            );
         if (shardsAllocator instanceof DesiredBalanceShardsAllocator desiredBalanceShardsAllocator) {
             desiredBalanceShardsAllocator.setDirectCancellationConsumer(this::directCancelRecoveries);
         }
@@ -56,13 +71,32 @@ public class RecoveryCancellationService {
     /// Sends a batch of direct recovery cancellations to a specific data node, lets the node decide
     /// whether to honor each cancellation and fails any shard the data node cancelled straight out of its queue.
     public void sendDirectCancelRecoveriesRequest(DiscoveryNode node, CancelRecoveriesAction.Request request) {
+        if (enableDirectRecoveryCancellations == false) {
+            logger.debug(
+                "[{}] is disabled, would have sent direct recovery cancellations {} to [{}]",
+                ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING.getKey(),
+                request.cancellations(),
+                node
+            );
+            return;
+        }
+        final TransportVersion clusterTransportVersion = clusterService.state().getMinTransportVersion();
+        if (clusterTransportVersion.supports(CancelRecoveriesAction.DIRECT_RECOVERY_CANCELLATION) == false) {
+            logger.debug(
+                "not every node in the cluster supports direct recovery cancellation yet, "
+                    + "would have sent direct recovery cancellations {} to [{}]",
+                request.cancellations(),
+                node
+            );
+            return;
+        }
         transportService.sendRequest(
             node,
             CancelRecoveriesAction.TYPE.name(),
             request,
             new ActionListenerResponseHandler<>(
                 ActionListener.wrap(
-                    this::failShardsCancelledInQueue,
+                    response -> failShardsCancelledInQueue(node, response),
                     e -> logger.warn(() -> "failed to cancel recoveries on [" + node + "]", e)
                 ),
                 CancelRecoveriesAction.Response::new,
@@ -98,7 +132,7 @@ public class RecoveryCancellationService {
         });
     }
 
-    private void failShardsCancelledInQueue(CancelRecoveriesAction.Response response) {
+    private void failShardsCancelledInQueue(DiscoveryNode node, CancelRecoveriesAction.Response response) {
         final var state = clusterService.state();
         for (CancelRecoveriesAction.CancelledInQueue cancelled : response.cancelledInQueue()) {
             final ShardId shardId = cancelled.shardId();
@@ -114,7 +148,7 @@ public class RecoveryCancellationService {
                 indexMetadata.primaryTerm(shardId.id()),
                 true,
                 "recovery direct cancelled while still queued on the data node",
-                null,
+                new RecoveryCancelledException(shardId, null, node),
                 ActionListener.noop()
             );
         }

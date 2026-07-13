@@ -395,7 +395,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         restartNodesOnBrokenClusterState(ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(brokenMeta)));
 
         // check that the cluster does not keep reallocating shards
-        awaitPrimariesUnassignedWithDecidersNo("test");
+        awaitFailedAllocations("test");
         indicesAdmin().prepareClose("test").get();
 
         state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
@@ -450,7 +450,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         restartNodesOnBrokenClusterState(ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(brokenMeta)));
 
         // check that the cluster does not keep reallocating shards
-        awaitPrimariesUnassignedWithDecidersNo("test");
+        awaitFailedAllocations("test");
         indicesAdmin().prepareClose("test").get();
 
         // try to open it with the broken setting - fail again!
@@ -510,7 +510,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertHitCount(prepareSearch().setQuery(matchAllQuery()), 1L);
     }
 
-    private void awaitPrimariesUnassignedWithDecidersNo(String indexName) {
+    private void awaitFailedAllocations(String indexName) {
         awaitClusterState(state -> {
             IndexRoutingTable indexRoutingTable = state.routingTable().index(indexName);
             if (indexRoutingTable == null) {

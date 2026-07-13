@@ -254,18 +254,6 @@ tests:
 - class: org.elasticsearch.repositories.SnapshotMetricsIT
   method: testSnapshotAPMMetrics
   issue: https://github.com/elastic/elasticsearch/issues/153595
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testDeleteCleanupIndex
-  issue: https://github.com/elastic/elasticsearch/issues/153658
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testRestartAfterCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/153659
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testInvalidId
-  issue: https://github.com/elastic/elasticsearch/issues/153660
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testCleanupOnFailure
-  issue: https://github.com/elastic/elasticsearch/issues/153662
 
 # Examples:
 #

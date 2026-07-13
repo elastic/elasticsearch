@@ -38,10 +38,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
@@ -375,10 +375,8 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
             // produce very slightly different float scores for the same doc (e.g. the DenseVectorQuery
             // doc-values COSINE path uses a pre-stored magnitude while the script baseline recomputes it),
             // causing docs with near-identical scores to sort differently between the two result sets.
-            Map<String, Float> exactScoreById = new HashMap<>(exactResponse.getHits().getHits().length);
-            for (SearchHit hit : exactResponse.getHits().getHits()) {
-                exactScoreById.put(hit.getId(), hit.getScore());
-            }
+            var exactScoreById = Arrays.stream(exactResponse.getHits().getHits())
+                .collect(Collectors.toMap(SearchHit::getId, SearchHit::getScore));
             for (SearchHit denseHit : denseResponse.getHits().getHits()) {
                 Float exactScore = exactScoreById.get(denseHit.getId());
                 assertNotNull("dense_vector hit " + denseHit.getId() + " not found in exact search", exactScore);

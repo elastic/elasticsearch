@@ -1,0 +1,54 @@
+---
+setup:
+  - do:
+      snapshot.create_repository:
+        repository: foo
+        body:
+          type: fs
+          settings:
+            location: "some_location"
+
+---
+teardown:
+  - do:
+      snapshot.delete_repository:
+        repository: foo
+
+---
+"Test put lifecycle with searchable snapshot action including force_merge_on_clone":
+  - requires:
+      test_runner_features: [ warnings, capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_ilm/policy/{name}
+          capabilities: [ searchable_snapshot_force_merge_on_clone ]
+      reason: Capability must be present to run test
+
+
+  - do:
+      ilm.put_lifecycle:
+        policy: searchable_snapshot_policy
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "frozen": {
+                  "min_age": "1d",
+                  "actions": {
+                    "searchable_snapshot": {
+                      "snapshot_repository": "foo",
+                      "force_merge_on_clone": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      ilm.get_lifecycle:
+        policy: searchable_snapshot_policy
+
+  - match: { searchable_snapshot_policy.policy.phases.frozen.min_age: "1d" }
+  - match: { searchable_snapshot_policy.policy.phases.frozen.actions.searchable_snapshot.snapshot_repository: "foo" }
+  - match: { searchable_snapshot_policy.policy.phases.frozen.actions.searchable_snapshot.force_merge_on_clone: false }

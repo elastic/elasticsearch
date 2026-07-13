@@ -1,0 +1,19 @@
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+dependencies {
+  yamlRestTestImplementation project(":x-pack:plugin:core")
+}
+
+// bring in graph rest test suite
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'index', 'graph'
+  }
+  restTests {
+    includeXpack 'graph'
+  }
+}
+
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("to be triaged")
+}

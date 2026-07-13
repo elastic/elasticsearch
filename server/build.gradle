@@ -1,0 +1,309 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.test-build-info'
+apply plugin: 'elasticsearch.transport-version-references'
+apply plugin: 'elasticsearch.transport-version-resources'
+apply plugin: 'elasticsearch.foreign-api'
+
+publishing {
+  publications {
+    elastic {
+      artifactId = 'elasticsearch'
+    }
+  }
+}
+
+base {
+  archivesName = 'elasticsearch'
+}
+
+dependencies {
+
+  api project(':libs:core')
+  api project(':libs:logging')
+  api project(':libs:x-content')
+  api project(":libs:geo")
+  api project(":libs:lz4")
+  api project(":libs:plugin-api")
+  api project(":libs:plugin-analysis-api")
+  api project(':libs:grok')
+  api project(':libs:user-agent-api')
+  api project(':libs:ip-location-api')
+  api project(":libs:tdigest")
+  api project(":libs:exponential-histogram")
+  implementation project(":libs:simdvec")
+  implementation project(":libs:entitlement")
+
+  // lucene
+  api "org.apache.lucene:lucene-core:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
+  api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
+  api "org.apache.lucene:lucene-facet:${versions.lucene}"
+  api "org.apache.lucene:lucene-grouping:${versions.lucene}"
+  api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
+  api "org.apache.lucene:lucene-join:${versions.lucene}"
+  api "org.apache.lucene:lucene-memory:${versions.lucene}"
+  api "org.apache.lucene:lucene-misc:${versions.lucene}"
+  api "org.apache.lucene:lucene-queries:${versions.lucene}"
+  api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
+  api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
+  api "org.apache.lucene:lucene-suggest:${versions.lucene}"
+
+  // utilities
+  api project(":libs:cli")
+  implementation 'com.carrotsearch:hppc:0.8.1'
+
+  // precentil ranks aggregation
+  api 'org.hdrhistogram:HdrHistogram:2.1.9'
+
+  // logging
+  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  annotationProcessor "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+
+  // access to native functions
+  implementation project(':libs:native')
+
+  api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
+  api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
+
+  testImplementation(project(":test:framework")) {
+    // tests use the locally compiled version of server
+    exclude group: 'org.elasticsearch', module: 'server'
+  }
+  testImplementation(testArtifact(project(":libs:exponential-histogram"))) {
+    // The test framework is manually included with excludes above
+    exclude group: 'org.elasticsearch.test', module: 'framework'
+  }
+
+  internalClusterTestImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'server'
+  }
+
+  internalClusterTestImplementation(project(':modules:reindex'))
+  internalClusterTestImplementation(project(':modules:mapper-extras'))
+  internalClusterTestImplementation(project(':modules:data-streams'))
+}
+
+// log4j-core registers both the PluginProcessor and GraalVmProcessor on the processor path; we only want the former
+tasks.named("compileJava").configure {
+  options.compilerArgs.addAll(
+    "-processor",
+    "org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor",
+  )
+}
+
+spotless {
+  java {
+    targetExclude "src/main/java/org/elasticsearch/index/IndexVersion.java"
+  }
+}
+
+tasks.named("forbiddenPatterns").configure {
+    exclude '**/*.json'
+    exclude '**/*.jmx'
+    exclude '**/*.dic'
+    exclude '**/*.binary'
+    exclude '**/*.st'
+}
+
+tasks.named('internalClusterTestTestingConventions').configure {
+    baseClass "org.elasticsearch.test.AbstractMultiClustersTestCase"
+    baseClass "org.elasticsearch.test.ESIntegTestCase"
+    baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
+}
+
+File generatedResourcesDir = new File(buildDir, 'generated-resources')
+def generateModulesList = tasks.register("generateModulesList") {
+    List<String> modules = project(':modules').subprojects.collect { it.name }
+    modules.add('x-pack')
+    File modulesFile = new File(generatedResourcesDir, "modules.txt")
+    inputs.property('modules', modules)
+    outputs.file(modulesFile)
+    doLast {
+        modulesFile.parentFile.mkdirs()
+        modulesFile.setText(modules.join('\n'), 'UTF-8')
+    }
+}
+
+def generatePluginsList = tasks.register("generatePluginsList") {
+    Set<String> plugins = new TreeSet<>(project(':plugins').childProjects.keySet())
+    plugins.remove('example')
+
+    File pluginsFile = new File(generatedResourcesDir, 'plugins.txt')
+    inputs.property('plugins', plugins)
+    outputs.file(pluginsFile)
+    doLast {
+        pluginsFile.parentFile.mkdirs()
+        pluginsFile.setText(plugins.join('\n'), 'UTF-8')
+    }
+}
+
+sourceSets.main.output.dir(generatedResourcesDir)
+sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
+
+if (buildParams.snapshotBuild == false) {
+    tasks.named("test").configure {
+        systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    }
+    tasks.named("internalClusterTest").configure {
+        systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    }
+}
+
+tasks.named("test").configure {
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
+}
+
+tasks.named("thirdPartyAudit").configure {
+    ignoreMissingClasses(
+            // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
+            'com.fasterxml.jackson.databind.ObjectMapper',
+
+            // from log4j
+            'com.conversantmedia.util.concurrent.SpinPolicy',
+            'com.fasterxml.jackson.core.io.IOContext',
+            'com.fasterxml.jackson.core.JsonGenerator',
+            'com.fasterxml.jackson.core.JsonParser',
+            'com.fasterxml.jackson.core.JsonParser$Feature',
+            'com.fasterxml.jackson.core.JsonToken',
+            'com.fasterxml.jackson.core.ObjectCodec',
+            'com.fasterxml.jackson.core.PrettyPrinter',
+            'com.fasterxml.jackson.core.type.TypeReference',
+            'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
+            'com.fasterxml.jackson.databind.SerializationFeature',
+            'com.fasterxml.jackson.annotation.JsonInclude$Include',
+            'com.fasterxml.jackson.databind.DeserializationContext',
+            'com.fasterxml.jackson.databind.DeserializationFeature',
+            'com.fasterxml.jackson.databind.JsonMappingException',
+            'com.fasterxml.jackson.databind.JsonNode',
+            'com.fasterxml.jackson.databind.Module$SetupContext',
+            'com.fasterxml.jackson.databind.ObjectReader',
+            'com.fasterxml.jackson.databind.ObjectWriter',
+            'com.fasterxml.jackson.databind.SerializerProvider',
+            'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
+            'com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer',
+            'com.fasterxml.jackson.databind.module.SimpleModule',
+            'com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter',
+            'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
+            'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
+            'com.fasterxml.jackson.databind.ser.std.StdSerializer',
+            'com.fasterxml.jackson.databind.util.ClassUtil',
+            'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
+            'com.fasterxml.jackson.dataformat.xml.XmlFactory',
+            'com.fasterxml.jackson.dataformat.xml.XmlMapper',
+            'com.fasterxml.jackson.dataformat.xml.XmlNameProcessor',
+            'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
+            'com.lmax.disruptor.EventFactory',
+            'com.lmax.disruptor.EventHandler',
+            'com.lmax.disruptor.EventTranslator',
+            'com.lmax.disruptor.EventTranslatorTwoArg',
+            'com.lmax.disruptor.EventTranslatorVararg',
+            'com.lmax.disruptor.ExceptionHandler',
+            'com.lmax.disruptor.LifecycleAware',
+            'com.lmax.disruptor.RingBuffer',
+            'com.lmax.disruptor.Sequence',
+            'com.lmax.disruptor.SequenceBarrier',
+            'com.lmax.disruptor.SequenceReportingEventHandler',
+            'com.lmax.disruptor.TimeoutException',
+            'com.lmax.disruptor.WaitStrategy',
+            'com.lmax.disruptor.dsl.Disruptor',
+            'com.lmax.disruptor.dsl.ProducerType',
+            'javax.jms.Connection',
+            'javax.jms.ConnectionFactory',
+            'javax.jms.Destination',
+            'javax.jms.JMSException',
+            'javax.jms.MapMessage',
+            'javax.jms.Message',
+            'javax.jms.MessageConsumer',
+            'javax.jms.MessageProducer',
+            'javax.jms.Session',
+            'javax.mail.Authenticator',
+            'javax.mail.Message$RecipientType',
+            'javax.mail.PasswordAuthentication',
+            'javax.mail.Session',
+            'javax.mail.Transport',
+            'javax.mail.internet.InternetAddress',
+            'javax.mail.internet.InternetHeaders',
+            'javax.mail.internet.MimeMessage',
+            'javax.mail.internet.MimeMultipart',
+            'javax.mail.internet.MimeUtility',
+            'org.apache.commons.compress.compressors.CompressorStreamFactory',
+            'org.apache.commons.compress.utils.IOUtils',
+            'org.apache.commons.csv.CSVFormat',
+            'org.apache.commons.csv.QuoteMode',
+            'org.apache.kafka.clients.producer.Producer',
+            'org.apache.kafka.clients.producer.RecordMetadata',
+            'org.apache.kafka.common.serialization.ByteArraySerializer',
+            'org.codehaus.stax2.XMLStreamWriter2',
+            'org.codehaus.stax2.ri.Stax2WriterAdapter',
+            'org.codehaus.stax2.util.StreamWriter2Delegate',
+            'org.jctools.queues.MpscArrayQueue',
+            'org.osgi.framework.Bundle',
+            'org.osgi.framework.BundleActivator',
+            'org.osgi.framework.BundleContext',
+            'org.osgi.framework.BundleEvent',
+            'org.osgi.framework.BundleReference',
+            'org.osgi.framework.FrameworkUtil',
+            'org.osgi.framework.ServiceReference',
+            'org.osgi.framework.ServiceRegistration',
+            'org.osgi.framework.SynchronousBundleListener',
+            'org.osgi.framework.wiring.BundleRevision',
+            'org.osgi.framework.wiring.BundleWire',
+            'org.osgi.framework.wiring.BundleWiring',
+            'org.zeromq.SocketType',
+            'org.zeromq.ZContext',
+            'org.zeromq.ZMonitor',
+            'org.zeromq.ZMonitor$Event',
+            'org.zeromq.ZMonitor$ZEvent',
+            'org.zeromq.ZMQ$Context',
+            'org.zeromq.ZMQ$Socket',
+            'org.zeromq.ZMQ',
+    )
+    ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
+
+    ignoreViolations(
+        'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
+        'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
+    )
+}
+
+tasks.named("dependencyLicenses").configure {
+    mapping from: /lucene-.*/, to: 'lucene'
+    mapping from: /log4j-.*/, to: 'log4j'
+
+    configureDependencies(
+      project.configurations.runtimeClasspath, project.configurations.resolveableCompileOnly, identifier -> {
+      return identifier instanceof ModuleComponentIdentifier
+        (identifier.moduleIdentifier.name == 'jna' || identifier.moduleIdentifier.name == 'securesm')
+    })
+}
+
+tasks.named("licenseHeaders").configure {
+    // Ignore our vendored version of Google Guice
+    excludes << 'org/elasticsearch/injection/guice/**/*'
+    // Ignore temporary copies of impending 8.7 Lucene classes
+    excludes << 'org/apache/lucene/search/RegExp87*'
+    excludes << 'org/apache/lucene/search/RegexpQuery87*'
+}
+
+tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }
+
+tasks.named("generateTestBuildInfo").configure {
+  t -> {
+    t.getComponentName().set("server")
+    t.getOutputFile().set(project.getLayout().getBuildDirectory().file("generated-build-info/server-test-build-info.json"))
+  }
+}

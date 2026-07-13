@@ -1,0 +1,24 @@
+---
+"Index without ID":
+
+
+
+ - do:
+      index:
+          index:  test_1
+          body:   { foo: bar }
+
+ - is_true:   _id
+ - match:   { _index:   test_1 }
+ - match:   { _version: 1      }
+ - set:     { _id:      id    }
+
+ - do:
+      get:
+          index:  test_1
+          id:     '$id'
+
+ - match:   { _index:   test_1 }
+ - match:   { _id:      $id    }
+ - match:   { _version: 1      }
+ - match:   { _source: { foo: bar }}

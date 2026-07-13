@@ -1,0 +1,44 @@
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.java-rest-test'
+
+esplugin {
+  name = 'security-authorization-engine'
+  description = 'An example spi extension plugin for security that implements an Authorization Engine'
+  classname ='org.elasticsearch.example.AuthorizationEnginePlugin'
+  extendedPlugins = ['x-pack-security']
+  licenseFile = layout.settingsDirectory.file('AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
+  noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
+}
+
+dependencies {
+  compileOnly "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  testImplementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+  testImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  javaRestTestImplementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+  javaRestTestImplementation("co.elastic.clients:elasticsearch-java:[9.0,10.0)") {
+    // Exclude the old bundled jakarta.json artifact which conflicts with jakarta.json-api
+    // The elasticsearch-rest5-client transitively pulls in org.eclipse.parsson:jakarta.json which
+    // bundles the API classes, while elasticsearch-java also depends on jakarta.json:jakarta.json-api.
+    // Both contain jakarta.json.EmptyArray and other classes, causing JAR hell.
+    // TODO: Remove this exclusion once elasticsearch-java >= 9.3.1 is released (see elastic/elasticsearch-java#1159)
+    exclude group: 'org.eclipse.parsson', module: 'jakarta.json'
+  }
+  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}"
+  javaRestTestImplementation 'com.fasterxml.jackson.core:jackson-databind:2.12.3'
+  javaRestTestImplementation "org.elasticsearch.test:framework:${elasticsearchVersion}"
+}
+
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+
+  // This is important, so that all the modules are available too.
+  // There are index templates that use token filters that are in analysis-module and
+  // processors are being used that are in ingest-common module.
+  testDistribution = 'DEFAULT'
+
+  user role: 'custom_superuser'
+}
+

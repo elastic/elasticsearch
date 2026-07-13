@@ -1,0 +1,197 @@
+= Keystore Details
+This document details the steps used to create the certificate and keystore files in this directory.
+
+== Instructions on generating self-signed certificates
+The certificates in this directory have been generated using the following openssl configuration and commands.
+
+OpenSSL Configuration File is located in this directory as `openssl_config.cnf`.
+
+NOTE: The `alt_names` section provides the Subject Alternative Names for each certificate. This is necessary for testing
+with hostname verification enabled.
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+openssl req -new -x509 -extensions v3_req -out <NAME>.cert -keyout <NAME>.pem -days 1460 -config config.cnf
+-----------------------------------------------------------------------------------------------------------
+
+When prompted the password is always set to the value of <NAME>.
+
+Because we intend to import these certificates into a Java Keystore file, they certificate and private key must be combined
+in a PKCS12 certificate.
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+openssl pkcs12 -export -name <NAME> -in <NAME>.cert -inkey <NAME>.pem -out <NAME>.p12
+-----------------------------------------------------------------------------------------------------------
+
+== Creating the Keystore
+We need to create a keystore from the created PKCS12 certificate.
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+keytool -importkeystore -destkeystore <NAME>.jks -srckeystore <NAME>.p12 -srcstoretype pkcs12 -alias <NAME>
+-----------------------------------------------------------------------------------------------------------
+
+The keystore is now created and has the private/public key pair. You can import additional trusted certificates using
+`keytool -importcert`. When doing so make sure to specify an alias so that others can recreate the keystore if necessary.
+
+=== Changes and additions for removing Bouncy Castle Dependency
+
+`testnode-unprotected.pem` is simply the decrypted `testnode.pem`
+------
+openssl rsa -in testnode.pem -out testnode-unprotected.pem
+------
+
+`rsa_key_pkcs8_plain.pem` is the same plaintext key encoded in `PKCS#8`
+------
+openssl pkcs8 -topk8 -inform PEM -outform PEM -in testnode-unprotected.pem -out rsa_key_pkcs8_plain.pem -nocrypt
+------
+
+`testnode-aes{128,192,256}.pem` is the testnode.pem private key, encrypted with `AES-128`, `AES-192` and `AES-256`
+respectively, encoded in `PKCS#1`
+[source,shell]
+------
+openssl rsa -aes128 -in testnode-unprotected.pem -out testnode-aes128.pem
+------
+[source,shell]
+------
+openssl rsa -aes192 -in testnode-unprotected.pem -out testnode-aes192.pem
+------
+[source,shell]
+------
+openssl rsa -aes256 -in testnode-unprotected.pem -out testnode-aes256.pem
+------
+
+Adding `DSA` and `EC` Keys to the Keystore
+
+[source,shell]
+------
+keytool -genkeypair -keyalg DSA -alias testnode_dsa -keystore testnode.jks -storepass testnode \
+        -keypass testnode -validity 10000 -keysize 1024 -dname "CN=Elasticsearch Test Node" \
+        -ext SAN=dns:localhost,dns:localhost.localdomain,dns:localhost4,dns:localhost4.localdomain4,dns:localhost6,dns:localhost6.localdomain6,ip:127.0.0.1,ip:0:0:0:0:0:0:0:1
+------
+[source,shell]
+------
+keytool -genkeypair -keyalg EC -alias testnode_ec -keystore testnode.jks -storepass testnode \
+        -keypass testnode -validity 10000 -keysize 256 -dname "CN=Elasticsearch Test Node" \
+        -ext SAN=dns:localhost,dns:localhost.localdomain,dns:localhost4,dns:localhost4.localdomain4,dns:localhost6,dns:localhost6.localdomain6,ip:127.0.0.1,ip:0:0:0:0:0:0:0:1
+------
+
+Exporting the `DSA` and `EC` private keys from the keystore
+
+[source,shell]
+----
+keytool -importkeystore -srckeystore testnode.jks -destkeystore dsa.p12 -deststoretype PKCS12 \
+        -srcalias testnode_dsa -deststorepass testnode -destkeypass testnode
+----
+[source,shell]
+----
+openssl pkcs12 -in dsa.p12 -nodes -nocerts | openssl pkcs8 -topk8 -nocrypt -outform pem \
+        -out dsa_key_pkcs8_plain.pem
+----
+[source,shell]
+----
+keytool -importkeystore -srckeystore testnode.jks -destkeystore ec.p12 -deststoretype PKCS12 \
+                -srcalias testnode_ec -deststorepass testnode -destkeypass testnode
+----
+[source,shell]
+----
+openssl pkcs12 -in ec.p12 -nodes -nocerts | openssl pkcs8 -topk8 -nocrypt -outform pem \
+                -out ec_key_pkcs8_plain.pem
+----
+
+
+Create `PKCS#8` encrypted key from the encrypted `PKCS#1` encoded `testnode.pem`
+The `-v1 PBE-MD5-DES` parameter forces pbeWithMD5AndDES-CBC as the encryption scheme (which is also the default, but that could change with diffent OpenSSL versions)
+See: http://oid-info.com/get/1.2.840.113549.1.5.3
+See: https://datatracker.ietf.org/doc/html/rfc8018#appendix-A.3
+[source,shell]
+-----
+openssl pkcs8 -topk8 -v1 PBE-MD5-DES -inform PEM -outform PEM -in testnode.pem -passin "pass:testnode" -out key_pkcs8_encrypted_pbes1_des.pem -passout "pass:testnode"
+-----
+
+Create `PKCS#8` `PBES2` `AES` encrypted key from the encrypted `PKCS#1` encoded `testnode.pem`
+The `-v2 aes256` parameter forces PBES2 with AES256
+See: http://oid-info.com/get/1.2.840.113549.1.5.13
+See: https://datatracker.ietf.org/doc/html/rfc8018#appendix-A.4
+[source,shell]
+-----
+openssl pkcs8 -topk8 -v2 aes256 -inform PEM -outform PEM -in testnode.pem -passin "pass:testnode" -out key_pkcs8_encrypted_pbes2_aes.pem -passout "pass:testnode"
+-----
+
+Create `PKCS#8` `PBES2` `DES` encrypted key from the encrypted `PKCS#1` encoded `testnode.pem`
+The `-v2 des` parameter forces PBES2 with DES
+See: http://oid-info.com/get/1.2.840.113549.1.5.13
+See: https://datatracker.ietf.org/doc/html/rfc8018#appendix-A.4
+[source,shell]
+-----
+openssl pkcs8 -topk8 -v2 des -inform PEM -outform PEM -in testnode.pem -passin "pass:testnode" -out key_pkcs8_encrypted_pbes2_des.pem -passout "pass:testnode"
+-----
+
+
+[source,shell]
+-----
+ssh-keygen -t ed25519 -f key_unsupported.pem
+-----
+
+
+Convert `prime256v1-key-noparam.pem` to `PKCS#8` format
+-----
+openssl pkcs8 -topk8 -in prime256v1-key-noparam.pem -nocrypt -out prime256v1-key-noparam-pkcs8.pem
+-----
+
+Generate the keys and self-signed certificates in `nodes/self/` :
+
+------
+openssl req -newkey rsa:2048 -keyout n1.c1.key -x509 -days 3650 -subj "/CN=n1.c1" -reqexts SAN \
+        -extensions SAN -config <(cat /etc/ssl/openssl.cnf \
+        <(printf "[SAN]\nsubjectAltName=otherName.1:2.5.4.3;UTF8:node1.cluster1")) -out n1.c1.crt
+------
+
+
+Create a `CA` keypair for testing
+[source,shell]
+-----
+openssl req -newkey rsa:2048 -nodes -keyout ca.key -x509 -subj "/CN=certAuth" -days 10000 -out ca.crt
+-----
+
+Generate Certificates signed with our CA for testing
+[source,shell]
+------
+ openssl req -new -newkey rsa:2048 -keyout n2.c2.key -reqexts SAN -extensions SAN \
+         -config <(cat /etc/ssl/openssl.cnf <(printf "[SAN]\nsubjectAltName=otherName.1:2.5.4.3;UTF8:node2.cluster2"))\
+         -out n2.c2.csr
+------
+
+[source,shell]
+------
+openssl x509 -req -in n2.c2.csr -extensions SAN -CA ca.crt -CAkey ca.key -CAcreateserial \
+       -extfile <(cat /etc/ssl/openssl.cnf <(printf "[SAN]\nsubjectAltName=otherName.1:2.5.4.3;UTF8:node2.cluster2"))\
+       -out n2.c2.crt -days 10000
+------
+
+== Generate EC keys using various curves for testing
+
+[source,shell]
+-------
+openssl ecparam -list_curves
+-------
+
+will list all the available curves in a given system.
+For the purposes of the tests here, the following curves were used to generate ec keys named accordingly:
+
+[source,shell]
+-------
+openssl ecparam -name secp256r1 -genkey -out private_secp256r1.pem
+openssl ecparam -name secp384r1 -genkey -out private_secp384r1.pem
+openssl ecparam -name secp521r1 -genkey -out private_secp521r1.pem
+-------
+
+and the respective certificates
+
+[source,shell]
+-------
+openssl req -x509 -extensions v3_req -key private_secp256r1.pem -out certificate_secp256r1.pem -days 1460 -config openssl_config.cnf
+openssl req -x509 -extensions v3_req -key private_secp384r1.pem -out certificate_secp384r1.pem -days 1460 -config openssl_config.cnf
+openssl req -x509 -extensions v3_req -key private_secp521r1.pem -out certificate_secp521r1.pem -days 1460 -config openssl_config.cnf
+-------

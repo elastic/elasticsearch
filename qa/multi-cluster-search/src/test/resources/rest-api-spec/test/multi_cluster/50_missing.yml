@@ -1,0 +1,49 @@
+---
+"Search with missing remote index pattern":
+  - do:
+      catch: "missing"
+      search:
+        rest_total_hits_as_int: true
+        index: "my_remote_cluster:foo"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "my_remote_cluster:fooo*"
+  - match: { _shards.total: 0 }
+  - match: { hits.total: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "*:foo*"
+
+  - match: { _shards.total: 0 }
+  - match: { hits.total: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "my_remote_cluster:test_index,my_remote_cluster:foo*"
+        body:
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 6 }
+  - length: { aggregations.cluster.buckets: 1 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+
+  - do:
+      catch: "missing"
+      search:
+        rest_total_hits_as_int: true
+        index: "my_remote_cluster:test_index,my_remote_cluster:foo"
+        body:
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword

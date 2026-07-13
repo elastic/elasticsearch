@@ -1,0 +1,134 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import java.nio.file.Files
+import java.nio.file.Path
+
+apply plugin: 'elasticsearch.internal-distribution-archive-setup'
+
+CopySpec archiveFiles(String distributionType, String os, String architecture, boolean isTestDistro) {
+  return copySpec {
+    into("elasticsearch-${version}") {
+      into('lib') {
+        with libFiles(os, architecture)
+      }
+      into('config') {
+        dirPermissions {
+          unix 0750
+        }
+        filePermissions {
+          unix 0660
+        }
+        with configFiles(distributionType, isTestDistro)
+        from {
+          dirPermissions {
+            unix 0750
+          }
+          jvmOptionsDir.getParent()
+        }
+      }
+      into('bin') {
+        with binFiles(distributionType, isTestDistro)
+      }
+      into("darwin".equals(os) ? 'jdk.app' : 'jdk') {
+        if (isTestDistro == false) {
+          with jdkFiles(project, os, architecture)
+        }
+      }
+      into('') {
+        from {
+          dirPermissions {
+            unix 0755
+          }
+          logsDir.getParent()
+        }
+      }
+      into('') {
+        from {
+          dirPermissions {
+            unix 0755
+          }
+          pluginsDir.getParent()
+        }
+      }
+      from(layout.settingsDirectory.asFile) {
+        filePermissions {
+          unix(0644)
+        }
+        include 'README.asciidoc'
+      }
+      from(layout.settingsDirectory.file('licenses').asFile) {
+        include isTestDistro ? 'AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt' : 'ELASTIC-LICENSE-2.0.txt'
+        filePermissions {
+          unix(0644)
+        }
+        rename { 'LICENSE.txt' }
+      }
+
+      with noticeFile(isTestDistro)
+      into('modules') {
+        if (isTestDistro) {
+          with integTestModulesFiles
+        } else {
+          with modulesFiles(os, architecture)
+        }
+      }
+    }
+  }
+}
+
+distribution_archives {
+  integTestZip {
+    content {
+      archiveFiles('zip', null, null, true)
+    }
+  }
+
+  windowsZip {
+    archiveClassifier = 'windows-x86_64'
+    content {
+      archiveFiles('zip', 'windows', 'x64', false)
+    }
+  }
+
+  darwinTar {
+    archiveClassifier = 'darwin-x86_64'
+    content {
+      archiveFiles('tar', 'darwin', 'x64', false)
+    }
+  }
+
+  darwinAarch64Tar {
+    archiveClassifier = 'darwin-aarch64'
+    content {
+      archiveFiles('tar', 'darwin', 'aarch64', false)
+    }
+  }
+
+  linuxAarch64Tar {
+    archiveClassifier = 'linux-aarch64'
+    content {
+      archiveFiles('tar', 'linux', 'aarch64', false)
+    }
+  }
+
+  linuxTar {
+    archiveClassifier = 'linux-x86_64'
+    content {
+      archiveFiles('tar', 'linux', 'x64', false)
+    }
+  }
+}
+
+subprojects {
+  apply plugin: 'distribution'
+  apply plugin: 'elasticsearch.internal-distribution-archive-check'
+
+  group = "org.elasticsearch.distribution.default"
+}

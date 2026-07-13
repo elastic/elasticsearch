@@ -1,0 +1,28 @@
+{
+  "security.enroll_node": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-enroll-node",
+      "description": "Enroll a node"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/enroll/node",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

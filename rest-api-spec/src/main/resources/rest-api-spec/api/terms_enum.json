@@ -1,0 +1,39 @@
+{
+  "terms_enum": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-terms-enum",
+      "description": "Get terms in an index"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/{index}/_terms_enum",
+          "methods": [
+            "GET",
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names to search; use `_all` or empty string to perform the operation on all indices"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "field name, string which is the prefix expected in matching terms, timeout and size for max number of results",
+      "required": true
+    }
+  }
+}

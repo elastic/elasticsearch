@@ -1,0 +1,172 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.painless;
+
+import org.elasticsearch.script.ScriptException;
+
+import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Abstract superclass on top of which all Painless scripts are built.
+ */
+public interface PainlessScript {
+
+    /**
+     * @return The name of the script retrieved from a static variable generated
+     * during compilation of a Painless script.
+     */
+    String getName();
+
+    /**
+     * @return The source for a script retrieved from a static variable generated
+     * during compilation of a Painless script.
+     */
+    String getSource();
+
+    /**
+     * @return The {@link BitSet} tracking the boundaries for statements necessary
+     * for good exception messages.
+     */
+    BitSet getStatements();
+
+    /**
+     * Adds stack trace and other useful information to exceptions thrown
+     * from a Painless script.
+     * @param t The throwable to build an exception around.
+     * @return The generated ScriptException.
+     */
+    default ScriptException convertToScriptException(Throwable t, Map<String, List<String>> extraMetadata) {
+        if (t instanceof PainlessWrappedException) {
+            t = t.getCause();
+        }
+        // create a script stack: this is just the script portion
+        List<String> scriptStack = new ArrayList<>();
+        ScriptException.Position pos = null;
+        for (StackTraceElement element : t.getStackTrace()) {
+            if (WriterConstants.CLASS_NAME.equals(element.getClassName())) {
+                // found the script portion
+                int originalOffset = element.getLineNumber();
+                if (originalOffset == -1) {
+                    scriptStack.add("<<< unknown portion of script >>>");
+                } else {
+                    int offset = --originalOffset; // offset is 1 based, line numbers must be!
+                    int startOffset = getPreviousStatement(offset);
+                    if (startOffset == -1) {
+                        assert false; // should never happen unless we hit exc in ctor prologue...
+                        startOffset = 0;
+                    }
+                    int endOffset = getNextStatement(startOffset);
+                    if (endOffset == -1) {
+                        endOffset = getSource().length();
+                    }
+                    // TODO: if this is still too long, truncate and use ellipses
+                    String snippet = getSource().substring(startOffset, endOffset);
+                    scriptStack.add(snippet);
+                    StringBuilder pointer = new StringBuilder();
+                    for (int i = startOffset; i < offset; i++) {
+                        pointer.append(' ');
+                    }
+                    pointer.append("^---- HERE");
+                    scriptStack.add(pointer.toString());
+                    pos = new ScriptException.Position(originalOffset, startOffset, endOffset);
+                }
+                break;
+                // but filter our own internal stacks (e.g. indy bootstrap)
+            } else if (shouldFilter(element) == false) {
+                scriptStack.add(element.toString());
+            }
+        }
+        Throwable cause = ErrorCauseWrapper.maybeWrap(t);
+        ScriptException scriptException = new ScriptException(
+            "runtime error",
+            cause,
+            scriptStack,
+            getName(),
+            PainlessScriptEngine.NAME,
+            pos
+        );
+        for (Map.Entry<String, List<String>> entry : extraMetadata.entrySet()) {
+            scriptException.addMetadata(entry.getKey(), entry.getValue());
+        }
+        return scriptException;
+    }
+
+    /** returns true for methods that are part of the runtime */
+    default boolean shouldFilter(StackTraceElement element) {
+        return element.getClassName().startsWith("org.elasticsearch.painless.")
+            || element.getClassName().startsWith("java.lang.invoke.")
+            || element.getClassName().startsWith("sun.invoke.");
+    }
+
+    /**
+     * Finds the start of the first statement boundary that is on or before {@code offset}. If one is not found, {@code -1} is returned.
+     */
+    default int getPreviousStatement(int offset) {
+        return getStatements().previousSetBit(offset);
+    }
+
+    /**
+     * Finds the start of the first statement boundary that is after {@code offset}. If one is not found, {@code -1} is returned.
+     */
+    default int getNextStatement(int offset) {
+        return getStatements().nextSetBit(offset + 1);
+    }
+
+    /**
+     * Returns the cancellation runnable for this script instance, or {@code null} for none.
+     * The painless engine reads this once at {@code execute} entry and invokes it between loop
+     * iterations to honor the surrounding deadline (search timeout, task cancellation). Contexts
+     * opt in by overriding both this method and {@link #_setCancellationCheck}; the default
+     * {@code null} means non-opted-in contexts pay no per-iteration cost.
+     */
+    default Runnable _getCancellationCheck() {
+        return null;
+    }
+
+    /** Binds a cancellation runnable; default no-op. See {@link #_getCancellationCheck()}. */
+    default void _setCancellationCheck(Runnable cancellationCheck) {}
+
+    /**
+     * Performs one decrement-and-check of this script instance's persistent cancellation poll
+     * counter, running the cancellation runnable and resetting the counter when it reaches zero.
+     * Opted-in contexts back the counter with a generated field ({@code $cancelPoll}) that the
+     * compiler also decrements inline at every loop back-edge and function entry;
+     * {@code @script_aware} augmentations call this once per iteration so their polling shares
+     * that single counter rather than a private copy, keeping the cadence amortised across all
+     * script work. The default no-op is for non-opted-in contexts.
+     */
+    default void _pollCancellation() {}
+
+    /**
+     * Adds {@code bytes} to this instance's running allocation total and returns the new total; tracking-enabled generated
+     * classes override it to update {@code $allocBytes}. On the interface so Java code handed the script (e.g. an injected
+     * augmented method) can charge the same counter. Default throws because non-opted-in scripts have no counter.
+     */
+    default long $incAllocBytes(long bytes) {
+        throw new UnsupportedOperationException("allocation tracking is not enabled for this script");
+    }
+
+    /** Returns the running allocation total in bytes, or {@code 0} when tracking is disabled. */
+    default long getAllocBytes() {
+        return 0L;
+    }
+
+    /**
+     * Charges {@code bytes} against this instance's running allocation total and throws a {@link PainlessError} (uncatchable
+     * from script source) if the total exceeds the script's per-context limit. Mirrors {@link #_pollCancellation()}:
+     * tracking-enabled generated classes override it (baking in their limit), and it lives on the interface so the compiler
+     * emits it at allocation sites and {@code @script_aware} augmentations handed the script instance can charge the same
+     * counter. The default is a no-op for non-opted-in scripts.
+     */
+    default void $checkAllocBytes(long bytes) {}
+}

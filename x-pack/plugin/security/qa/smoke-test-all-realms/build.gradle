@@ -1,0 +1,18 @@
+/*
+ * This QA test is intended to smoke test all security realms with minimal dependencies.
+ * That is, it makes sure a node that has every realm configured can start, and tests those realms that can be tested without needing external services.
+ * This tradeoff is intentional because we want this set of tests to be very stable - failures in this QA suite should be an indicator that
+ *    something is broken in Elasticsearch (and not that an external docker fixture broke)
+ * This test is also intended to work correctly on FIPS mode because we also want to know if a realm breaks on FIPS.
+ */
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("to be triaged")
+}

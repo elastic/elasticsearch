@@ -1,0 +1,7 @@
+"_default_": {
+  "properties": {
+    "user": {
+      "type": "nested"
+    }
+  }
+}

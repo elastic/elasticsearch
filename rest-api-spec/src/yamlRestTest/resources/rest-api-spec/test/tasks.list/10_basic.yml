@@ -1,0 +1,36 @@
+---
+"tasks_list test":
+  - skip:
+      features: [arbitrary_key]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      tasks.list: {}
+
+  - is_true: nodes
+  - is_true: nodes.$node_id.roles
+
+  - do:
+      tasks.list:
+        group_by: parents
+
+  - is_true: tasks
+
+---
+"tasks_list headers":
+  - skip:
+      features: headers
+
+  - do:
+      headers: { "X-Opaque-Id": "That is me" }
+      tasks.list:
+        actions: "cluster:monitor/tasks/lists"
+        group_by: none
+
+  - is_true: tasks
+  - match: { tasks.0.headers.X-Opaque-Id: "That is me" }
+

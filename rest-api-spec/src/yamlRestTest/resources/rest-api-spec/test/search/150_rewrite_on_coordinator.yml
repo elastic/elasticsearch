@@ -1,0 +1,72 @@
+"Ensure that we fetch the document only once":
+  - do:
+      indices.create:
+          index: search_index
+          body:
+            settings:
+              number_of_shards: 5
+            mappings:
+              properties:
+                user:
+                   type: keyword
+  - do:
+      index:
+        index: search_index
+        id: "1"
+        body: { "user": "1" }
+
+  - do:
+      index:
+        index: search_index
+        id: "2"
+        body: { "user": "2" }
+
+  - do:
+      index:
+        index: search_index
+        id: "3"
+        body: { "user": "3" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /no such index/
+      search:
+        rest_total_hits_as_int: true
+        index: "search_index"
+        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "id": "1", "path": "followers"} } } }
+  - do:
+      indices.create:
+          index: lookup_index
+          body:
+            settings:
+              number_of_shards: 1
+            mappings:
+              properties:
+                followers:
+                   type: keyword
+  - do:
+      index:
+        index: lookup_index
+        id: "1"
+        body: { "followers" : ["1", "3"] }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: "search_index"
+        body: { "size" : 0, "query" : { "terms" : { "user" : { "index": "lookup_index", "id": "1", "path": "followers"} } } }
+
+  - match: { _shards.total: 5 }
+  - match: { _shards.successful: 5 }
+  - match: { _shards.skipped: 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+
+  - do:
+      indices.stats: { index: 'lookup_index', "metric": "get"}
+
+  - match: { indices.lookup_index.total.get.total: 1 }

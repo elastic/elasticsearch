@@ -1,0 +1,122 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.search.aggregations.bucket.range;
+
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.junit.Before;
+
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+
+public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRange> {
+
+    private DocValueFormat format;
+    private List<Tuple<Double, Double>> dateRanges;
+
+    @Before
+    public void initializeDateRanges() throws Exception {
+        format = randomDateDocValueFormat();
+
+        Function<ZonedDateTime, ZonedDateTime> interval = randomFrom(
+            dateTime -> dateTime.plusSeconds(1),
+            dateTime -> dateTime.plusMinutes(1),
+            dateTime -> dateTime.plusHours(1),
+            dateTime -> dateTime.plusDays(1),
+            dateTime -> dateTime.plusMonths(1),
+            dateTime -> dateTime.plusYears(1)
+        );
+
+        final int numRanges = randomNumberOfBuckets();
+        final List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
+
+        ZonedDateTime date = ZonedDateTime.now(ZoneOffset.UTC);
+        double start = date.toInstant().toEpochMilli();
+        double end = 0;
+        for (int i = 0; i < numRanges; i++) {
+            double from = date.toInstant().toEpochMilli();
+            date = interval.apply(date);
+            double to = date.toInstant().toEpochMilli();
+            if (to > end) {
+                end = to;
+            }
+
+            if (randomBoolean()) {
+                listOfRanges.add(Tuple.tuple(from, to));
+            } else {
+                // Add some overlapping range
+                listOfRanges.add(Tuple.tuple(start, randomDoubleBetween(start, end, false)));
+            }
+        }
+        Collections.shuffle(listOfRanges, random());
+        dateRanges = Collections.unmodifiableList(listOfRanges);
+    }
+
+    @Override
+    protected InternalDateRange createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations,
+        boolean keyed
+    ) {
+        final List<InternalDateRange.Bucket> buckets = new ArrayList<>();
+        for (int i = 0; i < dateRanges.size(); ++i) {
+            Tuple<Double, Double> range = dateRanges.get(i);
+            int docCount = randomIntBetween(0, 1000);
+            double from = range.v1();
+            double to = range.v2();
+            buckets.add(new InternalDateRange.Bucket("range_" + i, from, to, docCount, aggregations, format));
+        }
+        return new InternalDateRange(name, buckets, format, keyed, metadata);
+    }
+
+    @Override
+    protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
+        return InternalDateRange.Bucket.class;
+    }
+
+    @Override
+    protected InternalDateRange mutateInstance(InternalDateRange instance) {
+        String name = instance.getName();
+        DocValueFormat format = instance.format;
+        boolean keyed = instance.keyed;
+        List<InternalDateRange.Bucket> buckets = instance.getBuckets();
+        Map<String, Object> metadata = instance.getMetadata();
+        switch (between(0, 3)) {
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> keyed = keyed == false;
+            case 2 -> {
+                buckets = new ArrayList<>(buckets);
+                double from = randomDouble();
+                double to = from + randomDouble();
+                buckets.add(new InternalDateRange.Bucket("range_a", from, to, randomNonNegativeLong(), InternalAggregations.EMPTY, format));
+            }
+            case 3 -> {
+                if (metadata == null) {
+                    metadata = Maps.newMapWithExpectedSize(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new InternalDateRange(name, buckets, format, keyed, metadata);
+    }
+}

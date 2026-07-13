@@ -1,0 +1,44 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.VersionProperties
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-distribution-download'
+
+dependencies {
+  javaRestTestImplementation project(':test:fixtures:testcontainer-utils')
+}
+
+elasticsearch_distributions {
+  docker {
+    type = DOCKER
+    architecture = Architecture.current()
+    version = VersionProperties.getElasticsearch()
+    failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
+  }
+}
+
+tasks.named("processJavaRestTestResources").configure {
+  from project(':x-pack:plugin:core')
+    .files(
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
+    )
+}
+
+tasks.named("javaRestTest").configure {
+  outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
+  maxParallelForks = 1
+  include '**/*IT.class'
+  // Boot the JUnit-driven Testcontainers fixture against the locally tagged elasticsearch:test image
+  dependsOn elasticsearch_distributions.docker
+}

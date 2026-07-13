@@ -1,0 +1,14 @@
+bcrypt:$2a$05$zxnP0vdREMxnEpkLCDI2OuSaSk/QEKA2.A42iOpI6U2u.RLLOWm1e
+md5:$apr1$R3DdqiAZ$aljIkaIVPSarmDMlJUBBP.
+crypt:hsP1PYSLsEEvs
+plain:{plain}test123
+sha:{SHA}cojt0Pw//L6ToM8G41aOKFIWh7w=
+# this is a comment line
+# another comment line
+pbkdf2:{PBKDF2}10000$NB6kwTrIPrwJJTu+KXiPUkW5bMf1oG2BMzDJLA479Bk=$CvCgHb5UkalUiNPicqMDOzIsnh3ppyz3SZOp+Gjv+hc=
+pbkdf2_1000:{PBKDF2}1000$cofpEhehEObS+tNtS8/t9Zpf6UgwqkgkQFct2hhmGWA=$9Qb0S04fkF+Ebz1sGIaB9S6huZAXDihopPc6Z748f3E=
+pbkdf2_50000:{PBKDF2}50000$riPhBgfrNIpsN91QmF5mQNCwxHfJm0q2XtGt0x5+PRM=$v2j/DD+aFIRrusEeSDUO+eX3IrBPiG+ysgc9y0RDmhs=
+pbkdf2_stretch:{PBKDF2_STRETCH}10000$s1y/xv1T1iJxS9BKQ1FkZpSO19dSs6vsGgOb14d+KkU=$PtdgZoRGCSaim033lz/RcEoyhXQ/3WU4E6hfeKGsGes=
+bcrypt9:$2a$09$YhstxoAjO7M5MtAIFv7dVO70/pElJAYrzyumeCpLpZV2Gcz4J2/F.
+bcrypt10:$2a$10$cFxpMx6YDrH/PXwLpTlux.KVykN1TG2Pgdl5oJX5/G/KYp3G6jbFG
+bcrypt11:$2a$11$uxr7b0qgCrLV9VIz9XS7M.Eoc0gJRR60oV48UK5DKfLOp.9HjfYF2

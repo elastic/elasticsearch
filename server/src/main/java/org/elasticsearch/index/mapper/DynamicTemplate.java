@@ -1,0 +1,651 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.mapper;
+
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
+
+public class DynamicTemplate implements ToXContentObject {
+
+    /**
+     * Pattern to match <code>{{param}}</code> in dynamic template mappings.
+     * These will be replaced with values from {@link DocumentParserContext#getDynamicTemplateParams(String)}
+     */
+    private static final Pattern DYNAMIC_TEMPLATE_PARAM = Pattern.compile("\\{\\{(.*?)}}");
+
+    public enum MatchType {
+        /**
+         * DEFAULT is set when the user did not explicitly set a match_pattern in their dynamic_templates entry.
+         * DEFAULT uses the functionality of SIMPLE for matching, but does additional validation
+         * to detect whether the user appears to be using regex notation, in order to provide a warning.
+         */
+        DEFAULT {
+            @Override
+            public boolean matches(String pattern, String value) {
+                return MatchType.SIMPLE.matches(pattern, value);
+            }
+
+            @Override
+            public String toString() {
+                return "default";
+            }
+
+            /**
+             * Attempts to determine if the String passed in appears to be
+             * regular expression rather than a simple wildcard match or a
+             * regular ES field name (or dotted path) with no regex metacharacters.
+             *
+             * The method looks for the presence of standard regex metacharacters
+             * like $, ^, |, .*, or paired braces or brackets. If found, it will then
+             * attempt to compile it as a regex to determine if it is a valid regex.
+             *
+             * It will add a {@link HeaderWarning} if the user appears to be passing in a regex
+             * in a default (simple) match scenario. This method will not throw an Exception.
+             *
+             * @param pattern pattern to evaluate
+             */
+            @Override
+            public void validate(String pattern, String templateName) {
+                // regexes cannot start with '*' so we assume this is valid (not a regex)
+                if (pattern.startsWith("*")) {
+                    return;
+                }
+
+                boolean regexCandidate = false;
+                if (pattern.startsWith(".*")) {  // .* is valid for SIMPLE because of ES dotted field names, except at string start
+                    regexCandidate = true;
+                } else if (pattern.contains("^")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("$")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("|")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("[") && pattern.contains("]")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("{") && pattern.contains("}")) {
+                    regexCandidate = true;
+                }
+
+                if (regexCandidate) {
+                    try {
+                        Pattern.compile(pattern);
+                        // simple patterns only warrant a warning and only if the user did not explicitly set match_pattern=simple
+                        String warning = "Pattern ["
+                            + pattern
+                            + "] in dynamic template ["
+                            + templateName
+                            + "] appears to be a regular expression, not a simple wildcard pattern"
+                            + ". To remove this warning, set [match_pattern] in the dynamic template.";
+                        HeaderWarning.addWarning(warning);
+                    } catch (PatternSyntaxException e) {
+                        // ignore since it is not a valid regex
+                    }
+                }
+            }
+        },
+        SIMPLE {
+            @Override
+            public boolean matches(String pattern, String value) {
+                return Regex.simpleMatch(pattern, value);
+            }
+
+            @Override
+            public String toString() {
+                return "simple";
+            }
+
+            @Override
+            public void validate(String pattern, String templateName) {
+                // no-op. All patterns are valid if user explicitly set match_pattern=simple
+            }
+        },
+        REGEX {
+            @Override
+            public boolean matches(String pattern, String value) {
+                return value.matches(pattern);
+            }
+
+            @Override
+            public String toString() {
+                return "regex";
+            }
+
+            /**
+             * If pattern is valid, no exception is thrown.
+             * @param pattern to evaluate
+             * @throws MapperParsingException if pattern is not a valid Java regex
+             */
+            @Override
+            public void validate(String pattern, String templateName) {
+                try {
+                    // if it parses as a Java regex, it is valid
+                    this.matches(pattern, "");
+                } catch (PatternSyntaxException e) {
+                    // fail dynamic_template calls that have invalid regexes
+                    throw new MapperParsingException(
+                        Strings.format(
+                            "Pattern [%s] of type [regex] is invalid. Cannot create dynamic template [%s].",
+                            pattern,
+                            templateName
+                        ),
+                        e
+                    );
+                }
+            }
+        };
+
+        public static MatchType fromString(String value) {
+            for (MatchType v : values()) {
+                if (v.toString().equals(value)) {
+                    return v;
+                }
+            }
+            throw new IllegalArgumentException("No matching pattern matched on [" + value + "]");
+        }
+
+        /** Whether {@code value} matches {@code regex}. */
+        public abstract boolean matches(String regex, String value);
+
+        /**
+         * Validates {@code pattern} for the MatchType.
+         * @param pattern to validate
+         * @param templateName naming of the dynamic_template passed in (for use in warnings/error messages)
+         * @throws IllegalArgumentException if the pattern is not valid
+         */
+        public abstract void validate(String pattern, String templateName);
+    }
+
+    /** The type of a field as detected while parsing a json document. */
+    public enum XContentFieldType {
+        OBJECT {
+            @Override
+            boolean supportsRuntimeField() {
+                return false;
+            }
+        },
+        STRING {
+            @Override
+            public String defaultMappingType() {
+                return TextFieldMapper.CONTENT_TYPE;
+            }
+
+            @Override
+            String defaultRuntimeMappingType() {
+                return KeywordFieldMapper.CONTENT_TYPE;
+            }
+        },
+        LONG,
+        DOUBLE {
+            @Override
+            public String defaultMappingType() {
+                return NumberFieldMapper.NumberType.FLOAT.typeName();
+            }
+        },
+        BOOLEAN,
+        DATE,
+        BINARY {
+            @Override
+            boolean supportsRuntimeField() {
+                return false;
+            }
+        };
+
+        public static XContentFieldType fromString(String value) {
+            for (XContentFieldType v : values()) {
+                if (v.toString().equals(value)) {
+                    return v;
+                }
+            }
+            throw new IllegalArgumentException(
+                "No field type matched on [" + value + "], possible values are " + Arrays.toString(values())
+            );
+        }
+
+        /**
+         * The default mapping type to use for fields of this {@link XContentFieldType}.
+         * By default, the lowercase field type is used.
+         */
+        String defaultMappingType() {
+            return toString();
+        }
+
+        /**
+         * The default mapping type to use for fields of this {@link XContentFieldType} when defined as runtime fields
+         * By default, the lowercase field type is used.
+         */
+        String defaultRuntimeMappingType() {
+            return toString();
+        }
+
+        /**
+         * Returns true if the field type supported as runtime field, false otherwise.
+         * Whenever a match_mapping_type has not been defined in a dynamic template, if a runtime mapping has been specified only
+         * field types that are supported as runtime field will match the template.
+         * Also, it is not possible to define a dynamic template that defines a runtime field and explicitly matches a type that
+         * is not supported as runtime field.
+         */
+        boolean supportsRuntimeField() {
+            return true;
+        }
+
+        @Override
+        public final String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    static DynamicTemplate parse(String name, Map<String, ?> conf) throws MapperParsingException {
+        List<String> match = new ArrayList<>(4); // these pattern lists will typically be very small
+        List<String> pathMatch = new ArrayList<>(4);
+        List<String> unmatch = new ArrayList<>(4);
+        List<String> pathUnmatch = new ArrayList<>(4);
+        Map<String, Object> mapping = null;
+        boolean runtime = false;
+        List<String> matchMappingType = new ArrayList<>(4);
+        List<String> unmatchMappingType = new ArrayList<>(4);
+        String matchPattern = MatchType.DEFAULT.toString();
+
+        for (Map.Entry<String, ?> entry : conf.entrySet()) {
+            String propName = entry.getKey();
+            if ("match".equals(propName)) {
+                addEntriesToPatternList(match, propName, entry);
+            } else if ("path_match".equals(propName)) {
+                addEntriesToPatternList(pathMatch, propName, entry);
+            } else if ("unmatch".equals(propName)) {
+                addEntriesToPatternList(unmatch, propName, entry);
+            } else if ("path_unmatch".equals(propName)) {
+                addEntriesToPatternList(pathUnmatch, propName, entry);
+            } else if ("match_mapping_type".equals(propName)) {
+                addEntriesToPatternList(matchMappingType, propName, entry);
+            } else if ("unmatch_mapping_type".equals(propName)) {
+                addEntriesToPatternList(unmatchMappingType, propName, entry);
+            } else if ("match_pattern".equals(propName)) {
+                matchPattern = entry.getValue().toString();
+            } else if ("mapping".equals(propName)) {
+                if (mapping != null) {
+                    throw new MapperParsingException(
+                        "mapping and runtime cannot be both specified in the same dynamic template [" + name + "]"
+                    );
+                }
+                mapping = (Map<String, Object>) entry.getValue();
+                runtime = false;
+            } else if ("runtime".equals(propName)) {
+                if (mapping != null) {
+                    throw new MapperParsingException(
+                        "mapping and runtime cannot be both specified in the same dynamic template [" + name + "]"
+                    );
+
+                }
+                mapping = (Map<String, Object>) entry.getValue();
+                runtime = true;
+            } else {
+                // unknown parameters were ignored before but still carried through serialization
+                // so we need to ignore them at parsing time for old indices
+                throw new IllegalArgumentException("Illegal dynamic template parameter: [" + propName + "]");
+            }
+        }
+        if (mapping == null) {
+            throw new MapperParsingException("template [" + name + "] must have either mapping or runtime set");
+        }
+
+        // match, path_match, and unmatch_mapping_type all imply
+        // "match_mapping_type: *" if not explicitly specified.
+        final boolean wildcardMatchMappingType = ((matchMappingType.isEmpty()
+            && matchPatternsAreDefined(match, pathMatch, unmatchMappingType))
+            || (matchMappingType.size() == 1 && matchMappingType.get(0).equals("*")));
+
+        Stream<XContentFieldType> matchXContentFieldTypes;
+        if (wildcardMatchMappingType) {
+            matchXContentFieldTypes = Stream.of(XContentFieldType.values());
+            if (runtime) {
+                matchXContentFieldTypes = matchXContentFieldTypes.filter(XContentFieldType::supportsRuntimeField);
+            }
+        } else {
+            if (runtime) {
+                final List<String> unsupported = matchMappingType.stream()
+                    .map(XContentFieldType::fromString)
+                    .filter(Predicate.not(XContentFieldType::supportsRuntimeField))
+                    .map(XContentFieldType::toString)
+                    .toList();
+                if (unsupported.isEmpty() == false) {
+                    final int numUnsupported = unsupported.size();
+                    throw new MapperParsingException(
+                        "Dynamic template ["
+                            + name
+                            + "] defines a runtime field but type"
+                            + (numUnsupported == 1 ? "" : "s")
+                            + " ["
+                            + String.join(", ", unsupported)
+                            + "] "
+                            + (numUnsupported == 1 ? "is" : "are")
+                            + " not supported as runtime field"
+                    );
+                }
+            }
+            matchXContentFieldTypes = matchMappingType.stream().map(XContentFieldType::fromString);
+        }
+
+        final Set<XContentFieldType> unmatchXContentFieldTypesSet = unmatchMappingType.stream()
+            .map(XContentFieldType::fromString)
+            .collect(Collectors.toSet());
+        final XContentFieldType[] xContentFieldTypes = matchXContentFieldTypes.filter(Predicate.not(unmatchXContentFieldTypesSet::contains))
+            .toArray(XContentFieldType[]::new);
+
+        final MatchType matchType = MatchType.fromString(matchPattern);
+        // no need to check return value - the method impls either have side effects (set header warnings)
+        // or throw an exception that should be sent back to the user
+        Stream.of(match, unmatch, pathMatch, pathUnmatch).flatMap(Collection::stream).forEach(pattern -> matchType.validate(pattern, name));
+        return new DynamicTemplate(
+            name,
+            pathMatch,
+            pathUnmatch,
+            match,
+            unmatch,
+            matchMappingType,
+            unmatchMappingType,
+            xContentFieldTypes,
+            matchType,
+            mapping,
+            runtime
+        );
+    }
+
+    /**
+     * @param matchLists zero or more lists of match patterns (can be empty but not null)
+     * @return return true if any of the given lists is non-empty
+     */
+    private static boolean matchPatternsAreDefined(final List<?>... matchLists) {
+        return Stream.of(matchLists).anyMatch(Predicate.not(List::isEmpty));
+    }
+
+    private static void addEntriesToPatternList(List<String> matchList, String propName, Map.Entry<String, ?> entry) {
+        if (entry.getValue() instanceof List<?> ls) {
+            for (Object o : ls) {
+                if (o instanceof String s) {
+                    matchList.add(s);
+                } else {
+                    // for array-based matches, we enforce that only strings are allowed as un/match values in the array
+                    throw new MapperParsingException(
+                        Strings.format("[%s] values must either be a string or list of strings, but was [%s]", propName, entry.getValue())
+                    );
+                }
+            }
+        } else {
+            // to preserve backwards compatability for single-valued matches, we convert whatever the user provided to a string
+            matchList.add(entry.getValue().toString());
+        }
+    }
+
+    private final String name;
+    private final List<String> pathMatch;
+    private final List<String> pathUnmatch;
+    private final List<String> match;
+    private final List<String> unmatch;
+    private final MatchType matchType;
+    private final List<String> matchMappingType;
+    private final List<String> unmatchMappingType;
+    private final XContentFieldType[] xContentFieldTypes;
+    private final Map<String, Object> mapping;
+    private final boolean runtimeMapping;
+
+    private DynamicTemplate(
+        String name,
+        List<String> pathMatch,
+        List<String> pathUnmatch,
+        List<String> match,
+        List<String> unmatch,
+        List<String> matchMappingType,
+        List<String> unmatchMappingType,
+        XContentFieldType[] xContentFieldTypes,
+        MatchType matchType,
+        Map<String, Object> mapping,
+        boolean runtimeMapping
+    ) {
+        this.name = name;
+        this.pathMatch = List.copyOf(pathMatch);
+        this.pathUnmatch = List.copyOf(pathUnmatch);
+        this.match = List.copyOf(match);
+        this.unmatch = List.copyOf(unmatch);
+        this.matchType = matchType;
+        this.matchMappingType = List.copyOf(matchMappingType);
+        this.unmatchMappingType = List.copyOf(unmatchMappingType);
+        this.xContentFieldTypes = xContentFieldTypes;
+        this.mapping = mapping;
+        this.runtimeMapping = runtimeMapping;
+    }
+
+    public String name() {
+        return this.name;
+    }
+
+    public List<String> pathMatch() {
+        return pathMatch;
+    }
+
+    public List<String> match() {
+        return match;
+    }
+
+    public boolean isTimeSeriesDimension() {
+        if (mapping != null) {
+            Object value = mapping.get(TIME_SERIES_DIMENSION_PARAM);
+            if (value instanceof Boolean bool) return bool;
+        }
+        return false;
+    }
+
+    public boolean match(String templateName, String path, String fieldName, XContentFieldType xcontentFieldType) {
+        // If the template name parameter is specified, then we will check only the name of the template and ignore other matches.
+        if (templateName != null) {
+            return templateName.equals(name);
+        }
+        boolean matchedXContentType = false;
+        for (XContentFieldType type : xContentFieldTypes) {
+            if (type.equals(xcontentFieldType)) {
+                matchedXContentType = true;
+                break;
+            }
+        }
+        if (matchedXContentType == false) {
+            return false;
+        }
+        if (pathMatch.isEmpty() == false && matchesAny(matchType, pathMatch, path) == false) {
+            return false;
+        }
+        if (match.isEmpty() == false && matchesAny(matchType, match, fieldName) == false) {
+            return false;
+        }
+        for (String um : pathUnmatch) {
+            if (matchType.matches(um, path)) {
+                return false;
+            }
+        }
+        for (String um : unmatch) {
+            if (matchType.matches(um, fieldName)) {
+                return false;
+            }
+        }
+        if (runtimeMapping && xcontentFieldType.supportsRuntimeField() == false) {
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean matchesAny(MatchType matchType, List<String> patterns, String value) {
+        for (String pattern : patterns) {
+            if (matchType.matches(pattern, value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public String mappingType(String dynamicType) {
+        String type;
+        if (mapping.containsKey("type")) {
+            type = mapping.get("type").toString();
+            type = type.replace("{{dynamic_type}}", dynamicType);
+            type = type.replace("{dynamic_type}", dynamicType);
+            type = type.replace("{{dynamicType}}", dynamicType);
+            type = type.replace("{dynamicType}", dynamicType);
+        } else {
+            type = dynamicType;
+        }
+        if (type.equals(mapping.get("type")) == false // either the type was not set, or we updated it through replacements
+            && TextFieldMapper.CONTENT_TYPE.equals(type)) { // and the result is "text"
+            // now that string has been splitted into text and keyword, we use text for
+            // dynamic mappings. However before it used to be possible to index as a keyword
+            // by setting index=not_analyzed, so for now we will use a keyword field rather
+            // than a text field if index=not_analyzed and the field type was not specified
+            // explicitly
+            // TODO: remove this in 6.0
+            // TODO: how to do it in the future?
+            final Object index = mapping.get("index");
+            if ("not_analyzed".equals(index) || "no".equals(index)) {
+                return KeywordFieldMapper.CONTENT_TYPE;
+            }
+        }
+        return type;
+    }
+
+    public boolean isRuntimeMapping() {
+        return runtimeMapping;
+    }
+
+    public Map<String, Object> mappingForName(String name, String dynamicType) {
+        return mappingForName(name, dynamicType, Map.of());
+    }
+
+    public Map<String, Object> mappingForName(String name, String dynamicType, Map<String, String> params) {
+        return processMap(mapping, name, dynamicType, params);
+    }
+
+    private static Map<String, Object> processMap(Map<String, Object> map, String name, String dynamicType, Map<String, String> params) {
+        Map<String, Object> processedMap = new HashMap<>();
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            String key = processString(entry.getKey(), name, dynamicType, params);
+            processedMap.put(key, extractValue(entry.getValue(), name, dynamicType, params));
+        }
+        return processedMap;
+    }
+
+    private static List<?> processList(List<?> list, String name, String dynamicType, Map<String, String> params) {
+        List<Object> processedList = new ArrayList<>(list.size());
+        for (Object value : list) {
+            processedList.add(extractValue(value, name, dynamicType, params));
+        }
+        return processedList;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object extractValue(Object value, String name, String dynamicType, Map<String, String> params) {
+        if (value instanceof Map) {
+            return processMap((Map<String, Object>) value, name, dynamicType, params);
+        } else if (value instanceof List) {
+            return processList((List<?>) value, name, dynamicType, params);
+        } else if (value instanceof String valueString) {
+            valueString = processString(valueString, name, dynamicType, params);
+            return valueString;
+        }
+        return value;
+    }
+
+    private static String processString(String s, String name, String dynamicType, Map<String, String> params) {
+        if (s.contains("{{")) {
+            s = s.replace("{{name}}", name).replace("{{dynamic_type}}", dynamicType).replace("{{dynamicType}}", dynamicType);
+        }
+        if (s.contains("{")) {
+            s = s.replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+        }
+
+        if (s.contains("{{") == false) {
+            return s;
+        }
+
+        // Handle {{param}} replacements
+        Matcher matcher = DYNAMIC_TEMPLATE_PARAM.matcher(s);
+        StringBuilder sb = new StringBuilder();
+        while (matcher.find()) {
+            String key = matcher.group(1);
+            String replacement = params.getOrDefault(key, "");
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(sb);
+
+        return sb.toString();
+    }
+
+    String getName() {
+        return name;
+    }
+
+    XContentFieldType[] getXContentFieldTypes() {
+        return xContentFieldTypes;
+    }
+
+    Map<String, Object> getMapping() {
+        return mapping;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        addStringOrArrayField(builder, "match", match);
+        addStringOrArrayField(builder, "path_match", pathMatch);
+        addStringOrArrayField(builder, "unmatch", unmatch);
+        addStringOrArrayField(builder, "path_unmatch", pathUnmatch);
+        addStringOrArrayField(builder, "match_mapping_type", matchMappingType);
+        addStringOrArrayField(builder, "unmatch_mapping_type", unmatchMappingType);
+        if (matchType != MatchType.DEFAULT) {
+            builder.field("match_pattern", matchType);
+        }
+        // use a sorted map for consistent serialization
+        if (runtimeMapping) {
+            builder.field("runtime", new TreeMap<>(mapping));
+        } else {
+            builder.field("mapping", new TreeMap<>(mapping));
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    private void addStringOrArrayField(XContentBuilder builder, String fieldName, List<String> list) throws IOException {
+        if (list.isEmpty() == false) {
+            if (list.size() == 1) {
+                builder.field(fieldName, list.get(0));
+            } else {
+                builder.field(fieldName, list);
+            }
+        }
+    }
+}

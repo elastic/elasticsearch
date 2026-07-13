@@ -1,0 +1,21 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Default mappings for metrics-apm.service_destination.* data streams
+  managed: true
+template:
+  mappings:
+    properties:
+      metricset.name:
+        type: constant_keyword
+        value: service_destination
+      transaction.duration.histogram:
+        type: histogram
+      transaction.duration.summary:
+        type: aggregate_metric_double
+        metrics: [sum, value_count]
+        default_metric: sum
+      event.success_count:
+        type: aggregate_metric_double
+        metrics: [sum, value_count]
+        default_metric: sum

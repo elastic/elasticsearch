@@ -1,0 +1,443 @@
+setup:
+  - requires:
+      cluster_features: "search.semantic_sparse_vector_query_rewrite_interception_supported"
+      reason: semantic_text sparse_vector support introduced in 8.18.0
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id-2
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-semantic-text-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      indices.create:
+        index: test-semantic-text-index-2
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id-2
+
+  - do:
+      indices.create:
+        index: test-sparse-vector-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: sparse_vector
+
+  - do:
+      index:
+        index: test-semantic-text-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
+
+  - do:
+      index:
+        index: test-semantic-text-index-2
+        id: doc_3
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
+
+  - do:
+      index:
+        index: test-sparse-vector-index
+        id: doc_2
+        body:
+          inference_field: { "feature_0": 1, "feature_1": 2, "feature_2": 3, "feature_3": 4, "feature_4": 5 }
+        refresh: true
+
+---
+"Nested sparse_vector queries using the old format on semantic_text embeddings and inference still work":
+  - skip:
+      features: [ "headers" ]
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-semantic-text-index
+        body:
+          query:
+            nested:
+              path: inference_field.inference.chunks
+              query:
+                sparse_vector:
+                  field: inference_field.inference.chunks.embeddings
+                  inference_id: sparse-inference-id
+                  query: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Nested sparse_vector queries using the old format on semantic_text embeddings and query vectors still work":
+  - skip:
+      features: [ "headers" ]
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-semantic-text-index
+        body:
+          query:
+            nested:
+              path: inference_field.inference.chunks
+              query:
+                sparse_vector:
+                  field: inference_field.inference.chunks.embeddings
+                  query_vector: { "feature_0": 1, "feature_1": 2, "feature_2": 3, "feature_3": 4, "feature_4": 5 }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"sparse_vector query against semantic_text field using a specified inference ID":
+
+  - do:
+      search:
+        index: test-semantic-text-index
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              inference_id: sparse-inference-id
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"sparse_vector query against semantic_text field using inference ID configured in semantic_text field":
+
+  - do:
+      search:
+        index: test-semantic-text-index
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"sparse_vector query against semantic_text field using query vectors":
+
+  - do:
+      search:
+        index: test-semantic-text-index
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query_vector: { "feature_0": 1, "feature_1": 2, "feature_2": 3, "feature_3": 4, "feature_4": 5 }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"sparse_vector query against combined sparse_vector and semantic_text fields using inference":
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-sparse-vector-index
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              inference_id: sparse-inference-id
+              query: "inference test"
+
+  - match: { hits.total.value: 2 }
+
+---
+"sparse_vector query against combined sparse_vector and semantic_text fields still requires inference ID":
+
+  - do:
+      catch: bad_request
+      search:
+        index:
+          - test-semantic-text-index
+          - test-sparse-vector-index
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "inference_id required to perform vector search on query string" }
+
+---
+"sparse_vector query against combined sparse_vector and semantic_text fields using query vectors":
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-sparse-vector-index
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query_vector: { "feature_0": 1, "feature_1": 2, "feature_2": 3, "feature_3": 4, "feature_4": 5 }
+
+  - match: { hits.total.value: 2 }
+
+
+---
+"sparse_vector query against multiple semantic_text fields with multiple inference IDs specified in semantic_text fields":
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-semantic-text-index-2
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+
+  - match: { hits.total.value: 2 }
+
+---
+"Apply boost and query name on single index":
+  - requires:
+      cluster_features: "semantic_query_rewrite_interceptors.propagate_boost_and_query_name_fix"
+      reason: fix boosting and query name for semantic text sparse vector queries.
+
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-semantic-text-index
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.7837332E17, error: 1e14 } }
+  - not_exists: hits.hits.0.matched_queries
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-semantic-text-index
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+              boost: 5.0
+              _name: i-like-naming-my-queries
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 1.8918664E18, error: 1e15 } }
+  - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
+
+---
+"Apply boost and query name on multiple indices":
+  - requires:
+      cluster_features: "semantic_query_rewrite_interceptors.propagate_boost_and_query_name_fix"
+      reason: fix boosting and query name for semantic text sparse vector queries.
+
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-semantic-text-index,test-sparse-vector-index
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+              inference_id: sparse-inference-id
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_2" }
+  - close_to: { hits.hits.0._score: { value: 3.7837332E17, error: 1e14 } }
+  - not_exists: hits.hits.0.matched_queries
+  - close_to: { hits.hits.1._score: { value: 7.314424E8, error: 1e5 } }
+  - not_exists: hits.hits.1.matched_queries
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-semantic-text-index,test-sparse-vector-index
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+              inference_id: sparse-inference-id
+              boost: 5.0
+              _name: i-like-naming-my-queries
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_2" }
+  - close_to: { hits.hits.0._score: { value: 1.8918664E18, error: 1e15 } }
+  - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
+  - close_to: { hits.hits.1._score: { value: 3.657212E9, error: 1e6 } }
+  - match: { hits.hits.1.matched_queries: [ "i-like-naming-my-queries" ] }
+
+---
+"sparse_vector query against an empty semantic_text field":
+  - requires:
+      cluster_features: "search.new_semantic_query_interceptors"
+      reason: New semantic query interceptors
+
+  - do:
+      indices.create:
+        index: empty-semantic-text-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      search:
+        index: empty-semantic-text-index
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+
+  - match: { hits.total.value: 0 }
+
+---
+"sparse_vector query against semantic_text field using a dense vector model":
+  - requires:
+      cluster_features: "search.new_semantic_query_interceptors"
+      reason: New semantic query interceptors
+
+  - do:
+      indices.create:
+        index: test-semantic-text-index-using-dense-vector
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      index:
+        index: test-semantic-text-index-using-dense-vector
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
+
+  # Don't specify the inference ID so that dense vector inference results are generated for the query text
+  - do:
+      catch: bad_request
+      search:
+        index: test-semantic-text-index-using-dense-vector
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Field [inference_field] does not use a [sparse_embedding] model" }
+
+  # Specify the inference ID so that sparse vector inference results are generated for the query text
+  - do:
+      catch: bad_request
+      search:
+        index: test-semantic-text-index-using-dense-vector
+        body:
+          query:
+            sparse_vector:
+              field: inference_field
+              query: "inference test"
+              inference_id: sparse-inference-id
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Field [inference_field] does not use a [sparse_embedding] model" }

@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 147812
+pr: 147855
+summary: Fix `SearchHit` leak in chunked fetch failure cleanup path
+type: bug

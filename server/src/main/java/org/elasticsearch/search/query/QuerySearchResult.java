@@ -1,0 +1,643 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.search.query;
+
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SimpleRefCounted;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.RescoreDocIds;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
+import org.elasticsearch.search.rank.RankShardResult;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.transport.LeakTracker;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
+import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
+
+public final class QuerySearchResult extends SearchPhaseResult {
+    private static final TransportVersion TIMESTAMP_RANGE_TELEMETRY = TransportVersion.fromName("timestamp_range_telemetry");
+    private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.fromName("batched_query_phase_version");
+
+    private int from;
+    private int size;
+    private TopDocsAndMaxScore topDocsAndMaxScore;
+    private boolean hasScoreDocs;
+    private RankShardResult rankShardResult;
+    private TotalHits totalHits;
+    private float maxScore = Float.NaN;
+    private DocValueFormat[] sortValueFormats;
+    /**
+     * Aggregation results. We wrap them in
+     * {@linkplain DelayableWriteable} because
+     * {@link InternalAggregation} is usually made up of many small objects
+     * which have a fairly high overhead in the JVM. So we delay deserializing
+     * them until just before we need them.
+     */
+    private DelayableWriteable<InternalAggregations> aggregations;
+    private boolean hasAggs;
+    private Suggest suggest;
+    private boolean searchTimedOut;
+    private Boolean terminatedEarly = null;
+    private SearchProfileQueryPhaseResult profileShardResults;
+    private boolean hasProfileResults;
+    private long serviceTimeEWMA = -1;
+    private int nodeQueueSize = -1;
+
+    private boolean reduced;
+
+    private final boolean isNull;
+
+    private final RefCounted refCounted;
+
+    private final SubscribableListener<Void> aggsContextReleased;
+
+    @Nullable
+    private Long timeRangeFilterFromMillis;
+
+    /**
+     * SearchHits from top_hits that must be released when this result is released. Eagerly allocated so
+     * concurrent {@link #registerTopHitsForRelease} calls cannot race on lazy queue creation.
+     */
+    private final ConcurrentLinkedQueue<SearchHits> topHitsToReleaseQueue = new ConcurrentLinkedQueue<>();
+
+    public QuerySearchResult() {
+        this(false);
+    }
+
+    public QuerySearchResult(StreamInput in) throws IOException {
+        this(in, false);
+    }
+
+    /**
+     * Read the object, but using a delayed aggregations field when delayedAggregations=true. Using this, the caller must ensure that
+     * either `consumeAggs` or `releaseAggs` is called if `hasAggs() == true`.
+     * @param delayedAggregations whether to use delayed aggregations or not
+     */
+    public QuerySearchResult(StreamInput in, boolean delayedAggregations) throws IOException {
+        isNull = in.readBoolean();
+        if (isNull == false) {
+            ShardSearchContextId id = versionSupportsBatchedExecution(in.getTransportVersion())
+                ? in.readOptionalWriteable(ShardSearchContextId::new)
+                : new ShardSearchContextId(in);
+            readFromWithId(id, in, delayedAggregations);
+        }
+        refCounted = isNull ? null : LeakTracker.wrap(new SimpleRefCounted());
+        aggsContextReleased = null;
+    }
+
+    public QuerySearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
+        this.contextId = contextId;
+        setSearchShardTarget(shardTarget);
+        isNull = false;
+        setShardSearchRequest(shardSearchRequest);
+        this.refCounted = LeakTracker.wrap(new SimpleRefCounted());
+        this.aggsContextReleased = new SubscribableListener<>();
+    }
+
+    private QuerySearchResult(boolean isNull) {
+        this.isNull = isNull;
+        this.refCounted = null;
+        aggsContextReleased = null;
+    }
+
+    /**
+     * Returns an instance that contains no response.
+     */
+    public static QuerySearchResult nullInstance() {
+        return new QuerySearchResult(true);
+    }
+
+    /**
+     * Returns true if the result doesn't contain any useful information.
+     * It is used by the search action to avoid creating an empty response on
+     * shard request that rewrites to match_no_docs.
+     *
+     * TODO: Currently we need the concrete aggregators to build empty responses. This means that we cannot
+     *       build an empty response in the coordinating node so we rely on this hack to ensure that at least one shard
+     *       returns a valid empty response. We should move the ability to create empty responses to aggregation builders
+     *       in order to allow building empty responses directly from the coordinating node.
+     */
+    public boolean isNull() {
+        return isNull;
+    }
+
+    @Override
+    public QuerySearchResult queryResult() {
+        return this;
+    }
+
+    /**
+     * @return true if this result was already partially reduced on the data node that it originated on so that the coordinating node
+     * will skip trying to merge aggregations and top-hits from this instance on the final reduce pass
+     */
+    public boolean isPartiallyReduced() {
+        return reduced;
+    }
+
+    /**
+     * See {@link #isPartiallyReduced()}, calling this method marks this hit as having undergone partial reduction on the data node.
+     */
+    public void markAsPartiallyReduced() {
+        assert (hasConsumedTopDocs() || topDocsAndMaxScore.topDocs.scoreDocs.length == 0) && aggregations == null
+            : "result not yet partially reduced [" + topDocsAndMaxScore + "][" + aggregations + "]";
+        this.reduced = true;
+    }
+
+    public void searchTimedOut(boolean searchTimedOut) {
+        this.searchTimedOut = searchTimedOut;
+    }
+
+    public boolean searchTimedOut() {
+        return searchTimedOut;
+    }
+
+    public void terminatedEarly(boolean terminatedEarly) {
+        this.terminatedEarly = terminatedEarly;
+    }
+
+    @Nullable
+    public Boolean terminatedEarly() {
+        return this.terminatedEarly;
+    }
+
+    public TopDocsAndMaxScore topDocs() {
+        if (topDocsAndMaxScore == null) {
+            throw new IllegalStateException("topDocs already consumed");
+        }
+        return topDocsAndMaxScore;
+    }
+
+    /**
+     * Returns <code>true</code> iff the top docs have already been consumed.
+     */
+    public boolean hasConsumedTopDocs() {
+        return topDocsAndMaxScore == null;
+    }
+
+    /**
+     * Returns and nulls out the top docs for this search results. This allows to free up memory once the top docs are consumed.
+     * @throws IllegalStateException if the top docs have already been consumed.
+     */
+    public TopDocsAndMaxScore consumeTopDocs() {
+        TopDocsAndMaxScore topDocsAndMaxScore = this.topDocsAndMaxScore;
+        if (topDocsAndMaxScore == null) {
+            throw new IllegalStateException("topDocs already consumed");
+        }
+        this.topDocsAndMaxScore = null;
+        return topDocsAndMaxScore;
+    }
+
+    public void topDocs(TopDocsAndMaxScore topDocs, DocValueFormat[] sortValueFormats) {
+        setTopDocs(topDocs);
+        if (topDocs.topDocs.scoreDocs.length > 0 && topDocs.topDocs.scoreDocs[0] instanceof FieldDoc) {
+            int numFields = ((FieldDoc) topDocs.topDocs.scoreDocs[0]).fields.length;
+            if (numFields != sortValueFormats.length) {
+                throw new IllegalArgumentException(
+                    "The number of sort fields does not match: " + numFields + " != " + sortValueFormats.length
+                );
+            }
+        }
+        this.sortValueFormats = sortValueFormats;
+    }
+
+    private void setTopDocs(TopDocsAndMaxScore topDocsAndMaxScore) {
+        this.topDocsAndMaxScore = topDocsAndMaxScore;
+        this.totalHits = topDocsAndMaxScore.topDocs.totalHits;
+        this.maxScore = topDocsAndMaxScore.maxScore;
+        this.hasScoreDocs = topDocsAndMaxScore.topDocs.scoreDocs.length > 0;
+    }
+
+    public void setRankShardResult(RankShardResult rankShardResult) {
+        this.rankShardResult = rankShardResult;
+    }
+
+    @Nullable
+    public RankShardResult getRankShardResult() {
+        return rankShardResult;
+    }
+
+    @Nullable
+    public DocValueFormat[] sortValueFormats() {
+        return sortValueFormats;
+    }
+
+    /**
+     * Returns <code>true</code> if this query result has unconsumed aggregations
+     */
+    public boolean hasAggs() {
+        return hasAggs;
+    }
+
+    /**
+     * Returns the aggregation as a {@link DelayableWriteable} object. Callers are free to expand them whenever they wat
+     * but they should call {@link #releaseAggs()} in order to free memory,
+     * @throws IllegalStateException if {@link #releaseAggs()} has already being called.
+     */
+    public DelayableWriteable<InternalAggregations> getAggs() {
+        if (aggregations == null) {
+            throw new IllegalStateException("aggs already released");
+        }
+        return aggregations;
+    }
+
+    public DelayableWriteable<InternalAggregations> consumeAggs() {
+        if (aggregations == null) {
+            throw new IllegalStateException("aggs already released");
+        }
+        var res = aggregations;
+        aggregations = null;
+        return res;
+    }
+
+    /**
+     * Release the memory hold by the {@link DelayableWriteable} aggregations
+     * @throws IllegalStateException if {@link #releaseAggs()} has already being called.
+     */
+    public void releaseAggs() {
+        if (aggregations != null) {
+            aggregations.close();
+            aggregations = null;
+        }
+        releaseAggsContext();
+    }
+
+    public void addAggregationContext(AggregationContext aggsContext) {
+        aggsContextReleased.addListener(ActionListener.releasing(aggsContext));
+    }
+
+    public void aggregations(InternalAggregations aggregations) {
+        assert this.aggregations == null : "aggregations already set to [" + this.aggregations + "]";
+        this.aggregations = aggregations == null ? null : DelayableWriteable.referencing(aggregations);
+        hasAggs = aggregations != null;
+        // On the shard, register top_hits for release when there was no partial reduce (list empty).
+        // When there was a partial reduce, the reduce context already registered merged refs here.
+        if (aggregations != null && topHitsToReleaseQueue.isEmpty()) {
+            InternalAggregations.addTopHitsToReleaseList(aggregations, topHitsToReleaseCollector());
+        }
+        releaseAggsContext();
+    }
+
+    private void releaseAggsContext() {
+        if (aggsContextReleased != null) {
+            aggsContextReleased.onResponse(null);
+        }
+    }
+
+    @Nullable
+    public DelayableWriteable<InternalAggregations> aggregations() {
+        return aggregations;
+    }
+
+    public void setSearchProfileDfsPhaseResult(SearchProfileDfsPhaseResult searchProfileDfsPhaseResult) {
+        if (profileShardResults == null) {
+            return;
+        }
+        profileShardResults.setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);
+    }
+
+    /**
+     * Returns and nulls out the profiled results for this search, or potentially null if result was empty.
+     * This allows to free up memory once the profiled result is consumed.
+     * @throws IllegalStateException if the profiled result has already been consumed.
+     */
+    public SearchProfileQueryPhaseResult consumeProfileResult() {
+        if (profileShardResults == null) {
+            throw new IllegalStateException("profile results already consumed");
+        }
+        SearchProfileQueryPhaseResult result = profileShardResults;
+        profileShardResults = null;
+        return result;
+    }
+
+    public boolean hasProfileResults() {
+        return hasProfileResults;
+    }
+
+    public void consumeAll() {
+        if (hasProfileResults()) {
+            consumeProfileResult();
+        }
+        if (hasConsumedTopDocs() == false) {
+            consumeTopDocs();
+        }
+        releaseAggs();
+    }
+
+    /**
+     * Sets the finalized profiling results for this query
+     * @param shardResults The finalized profile
+     */
+    public void profileResults(SearchProfileQueryPhaseResult shardResults) {
+        this.profileShardResults = shardResults;
+        hasProfileResults = shardResults != null;
+    }
+
+    public Suggest suggest() {
+        return suggest;
+    }
+
+    public void suggest(Suggest suggest) {
+        this.suggest = suggest;
+    }
+
+    public int from() {
+        return from;
+    }
+
+    public QuerySearchResult from(int from) {
+        this.from = from;
+        return this;
+    }
+
+    /**
+     * Returns the maximum size of this results top docs.
+     */
+    public int size() {
+        return size;
+    }
+
+    public QuerySearchResult size(int size) {
+        this.size = size;
+        return this;
+    }
+
+    public long serviceTimeEWMA() {
+        return this.serviceTimeEWMA;
+    }
+
+    public QuerySearchResult serviceTimeEWMA(long serviceTimeEWMA) {
+        this.serviceTimeEWMA = serviceTimeEWMA;
+        return this;
+    }
+
+    public int nodeQueueSize() {
+        return this.nodeQueueSize;
+    }
+
+    public QuerySearchResult nodeQueueSize(int nodeQueueSize) {
+        this.nodeQueueSize = nodeQueueSize;
+        return this;
+    }
+
+    /**
+     * Returns <code>true</code> if this result has any suggest score docs
+     */
+    public boolean hasSuggestHits() {
+        return (suggest != null && suggest.hasScoreDocs());
+    }
+
+    public boolean hasSearchContext() {
+        return hasScoreDocs || hasSuggestHits() || rankShardResult != null;
+    }
+
+    public void readFromWithId(ShardSearchContextId id, StreamInput in) throws IOException {
+        readFromWithId(id, in, false);
+    }
+
+    private void readFromWithId(ShardSearchContextId id, StreamInput in, boolean delayedAggregations) throws IOException {
+        this.contextId = id;
+        from = in.readVInt();
+        size = in.readVInt();
+        int numSortFieldsPlus1 = in.readVInt();
+        if (numSortFieldsPlus1 == 0) {
+            sortValueFormats = null;
+        } else {
+            sortValueFormats = new DocValueFormat[numSortFieldsPlus1 - 1];
+            for (int i = 0; i < sortValueFormats.length; ++i) {
+                sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
+            }
+        }
+        if (versionSupportsBatchedExecution(in.getTransportVersion())) {
+            if (in.readBoolean()) {
+                setTopDocs(readTopDocs(in));
+            }
+        } else {
+            setTopDocs(readTopDocs(in));
+        }
+        hasAggs = in.readBoolean();
+        boolean success = false;
+        try {
+            if (hasAggs) {
+                if (delayedAggregations) {
+                    aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
+                } else {
+                    aggregations = DelayableWriteable.referencing(InternalAggregations::readFrom, in);
+                    InternalAggregations.addTopHitsToReleaseList(aggregations.expand(), topHitsToReleaseCollector());
+                }
+            }
+            if (in.readBoolean()) {
+                suggest = new Suggest(in);
+            }
+            searchTimedOut = in.readBoolean();
+            terminatedEarly = in.readOptionalBoolean();
+            profileShardResults = in.readOptionalWriteable(SearchProfileQueryPhaseResult::new);
+            hasProfileResults = profileShardResults != null;
+            serviceTimeEWMA = in.readZLong();
+            nodeQueueSize = in.readInt();
+            readShardSearchRequest(in);
+            setRescoreDocIds(new RescoreDocIds(in));
+            rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
+            if (versionSupportsBatchedExecution(in.getTransportVersion())) {
+                reduced = in.readBoolean();
+            }
+            if (in.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
+                timeRangeFilterFromMillis = in.readOptionalLong();
+            }
+            readDirectoryMetrics(in);
+            success = true;
+        } finally {
+            if (success == false) {
+                // in case we were not able to deserialize the full message we must release the aggregation buffer
+                Releasables.close(aggregations);
+            }
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // we do not know that it is being sent over transport, but this at least protects all writes from happening, including sending.
+        if (aggregations != null && aggregations.isSerialized()) {
+            throw new IllegalStateException("cannot send serialized version since it will leak");
+        }
+        out.writeBoolean(isNull);
+        if (isNull == false) {
+            if (versionSupportsBatchedExecution(out.getTransportVersion())) {
+                out.writeOptionalWriteable(contextId);
+            } else {
+                contextId.writeTo(out);
+            }
+            writeToNoId(out);
+        }
+    }
+
+    public void writeToNoId(StreamOutput out) throws IOException {
+        out.writeVInt(from);
+        out.writeVInt(size);
+        if (sortValueFormats == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(1 + sortValueFormats.length);
+            for (int i = 0; i < sortValueFormats.length; ++i) {
+                out.writeNamedWriteable(sortValueFormats[i]);
+            }
+        }
+        if (versionSupportsBatchedExecution(out.getTransportVersion())) {
+            if (topDocsAndMaxScore != null) {
+                out.writeBoolean(true);
+                writeTopDocs(out, topDocsAndMaxScore);
+            } else {
+                out.writeBoolean(false);
+            }
+        } else {
+            writeTopDocs(out, topDocsAndMaxScore);
+        }
+        out.writeOptionalWriteable(aggregations);
+        if (suggest == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            suggest.writeTo(out);
+        }
+        out.writeBoolean(searchTimedOut);
+        out.writeOptionalBoolean(terminatedEarly);
+        out.writeOptionalWriteable(profileShardResults);
+        out.writeZLong(serviceTimeEWMA);
+        out.writeInt(nodeQueueSize);
+        writeShardSearchRequest(out);
+        getRescoreDocIds().writeTo(out);
+        out.writeOptionalNamedWriteable(rankShardResult);
+        if (versionSupportsBatchedExecution(out.getTransportVersion())) {
+            out.writeBoolean(reduced);
+        }
+        if (out.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
+            out.writeOptionalLong(timeRangeFilterFromMillis);
+        }
+        writeDirectoryMetrics(out);
+    }
+
+    @Nullable
+    public TotalHits getTotalHits() {
+        return totalHits;
+    }
+
+    public float getMaxScore() {
+        return maxScore;
+    }
+
+    @Override
+    public void incRef() {
+        if (refCounted != null) {
+            refCounted.incRef();
+        } else {
+            super.incRef();
+        }
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        if (refCounted != null) {
+            return refCounted.tryIncRef();
+        }
+        return super.tryIncRef();
+    }
+
+    /**
+     * Register SearchHits from a top_hits aggregation so they are released when this result is released.
+     * Takes a new reference ({@link SearchHits#incRef()}) so the SearchHits stay valid until this
+     * result is serialized and released (the fetch phase may release its reference before the query
+     * result is serialized).
+     * <p>
+     * SearchHits can flow along two paths: the SearchResponse path and this QuerySearchResult path
+     * (used in the aggregation fetch phase). Both need a reference; the SearchResponse path holds
+     * the default one for all cases. This method adds a ref for the flow where this result is used
+     * (e.g. partial reduction on the shard). An alternative would be to incRef here and decRef in
+     * the caller (e.g. InternalTopHits reducer), but that would add more volatile access. Release
+     * timings for SearchContext and SearchResponse are not correlated, so both paths must keep a
+     * ref count. For the reduce path that does not go through this result, use
+     * {@link org.elasticsearch.search.aggregations.AggregationReduceContext#transferTopHitsForRelease}
+     * instead (caller keeps the ref, no extra incRef).
+     */
+    public void registerTopHitsForRelease(SearchHits searchHits) {
+        searchHits.incRef();
+        topHitsToReleaseQueue.add(searchHits);
+    }
+
+    /**
+     * Returns the collection used to collect SearchHits that must be released when this result is released.
+     * Used when building the aggregation reduce context for partial reduction on the shard, so that
+     * merged top_hits from InternalTopHits.reduce are registered here and released in decRef().
+     */
+    public Collection<SearchHits> topHitsToReleaseCollector() {
+        return topHitsToReleaseQueue;
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted != null) {
+            if (refCounted.decRef()) {
+                for (SearchHits h : topHitsToReleaseQueue) {
+                    h.decRef();
+                }
+                topHitsToReleaseQueue.clear();
+                if (aggsContextReleased != null) {
+                    aggsContextReleased.onResponse(null);
+                }
+                return true;
+            }
+            return false;
+        }
+        assert topHitsToReleaseQueue.isEmpty() : "topHitsToReleaseQueue not empty on unmanaged QuerySearchResult";
+        return super.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        if (refCounted != null) {
+            return refCounted.hasReferences();
+        }
+        return super.hasReferences();
+    }
+
+    private static boolean versionSupportsBatchedExecution(TransportVersion transportVersion) {
+        return transportVersion.supports(BATCHED_QUERY_PHASE_VERSION);
+    }
+
+    public Long getTimeRangeFilterFromMillis() {
+        return timeRangeFilterFromMillis;
+    }
+
+    public void setTimeRangeFilterFromMillis(Long timeRangeFilterFromMillis) {
+        this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+    }
+}

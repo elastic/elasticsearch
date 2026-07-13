@@ -1,0 +1,52 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.security.authz.interceptor;
+
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.TransportActionProxy;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+
+import java.util.Arrays;
+
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
+
+public class SearchRequestCacheDisablingInterceptor implements RequestInterceptor {
+
+    private final ThreadContext threadContext;
+
+    public SearchRequestCacheDisablingInterceptor(ThreadPool threadPool) {
+        this.threadContext = threadPool.getThreadContext();
+    }
+
+    @Override
+    public SubscribableListener<Void> intercept(
+        AuthorizationEngine.RequestInfo requestInfo,
+        AuthorizationEngine authorizationEngine,
+        AuthorizationEngine.AuthorizationInfo authorizationInfo
+    ) {
+        if (requestInfo.getRequest() instanceof SearchRequest searchRequest
+            && false == TransportActionProxy.isProxyAction(requestInfo.getAction())
+            && hasRemoteIndices(searchRequest)
+            && DlsFlsInterceptorUtils.isCurrentRoleNullOrHasDlsFlsPermissions(threadContext)) {
+            final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
+            if (indicesAccessControl.getFieldAndDocumentLevelSecurityUsage() != IndicesAccessControl.DlsFlsUsage.NONE) {
+                searchRequest.requestCache(false);
+            }
+        }
+        return SubscribableListener.nullSuccess();
+    }
+
+    // package private for test
+    static boolean hasRemoteIndices(SearchRequest request) {
+        return Arrays.stream(request.indices()).anyMatch(RemoteClusterAware::isRemoteIndexName);
+    }
+}

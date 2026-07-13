@@ -1,0 +1,5 @@
+pr: 147738
+summary: Stop sharing decode buffers between Parquet pages
+area: ES|QL
+type: bug
+issues: []

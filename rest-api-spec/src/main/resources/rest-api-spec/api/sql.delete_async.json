@@ -1,0 +1,31 @@
+{
+  "sql.delete_async": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-sql-delete-async",
+      "description": "Delete an async SQL search"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_sql/async/delete/{id}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The async search ID"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

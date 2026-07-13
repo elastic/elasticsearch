@@ -1,0 +1,7 @@
+DELAY
+required_capability: delay_debug_fn
+row a = 1 | where delay(1ms);
+
+a:integer
+1
+;

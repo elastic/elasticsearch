@@ -1,0 +1,63 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTask
+
+apply plugin: 'elasticsearch.build'
+
+java {
+  targetCompatibility = JavaVersion.VERSION_1_8
+  sourceCompatibility = JavaVersion.VERSION_1_8
+}
+
+group = "${group}.client.test"
+
+dependencies {
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  api "junit:junit:${versions.junit}"
+  api "org.hamcrest:hamcrest:${versions.hamcrest}"
+
+  // mockito
+  api 'org.mockito:mockito-core:5.15.2'
+  api 'org.mockito:mockito-subclass:5.15.2'
+  api 'net.bytebuddy:byte-buddy:1.15.11'
+  api 'org.objenesis:objenesis:3.3'
+}
+
+tasks.named('forbiddenApisMain').configure {
+  //client does not depend on core, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named('forbiddenApisTest').configure {
+  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  modifyBundledSignatures { bundledSignatures ->
+    bundledSignatures -= 'jdk-non-portable'
+    bundledSignatures += 'jdk-internal'
+    bundledSignatures
+  }
+  //client does not depend on core, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+// since this client implementation is going away, third party audit is pointless
+tasks.named("thirdPartyAudit").configure { enabled = false }
+
+// JarHell is part of es server, which we don't want to pull in
+// TODO: Not anymore. Now in :libs:core
+tasks.named("jarHell").configure { enabled = false }
+
+// TODO: should we have licenses for our test deps?
+tasks.named("dependencyLicenses").configure { enabled = false }
+tasks.named("dependenciesInfo").configure { enabled = false }
+tasks.named("uploadSnykDependencyGraph").configure { enabled = false }
+
+tasks.withType(LicenseHeadersTask.class).configureEach {
+  approvedLicenses = ['Apache', 'Generated', 'Vendored']
+}

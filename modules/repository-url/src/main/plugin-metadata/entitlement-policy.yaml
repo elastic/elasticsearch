@@ -1,0 +1,8 @@
+org.elasticsearch.repository.url:
+  - outbound_network
+  - files:
+      - relative_path: .
+        relative_to: shared_repo
+        mode: read
+org.apache.httpcomponents.httpclient:
+  - outbound_network # for URLHttpClient

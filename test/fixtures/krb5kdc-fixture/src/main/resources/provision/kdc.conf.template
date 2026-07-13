@@ -1,0 +1,24 @@
+ # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ # or more contributor license agreements. Licensed under the "Elastic License
+ # 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ # Public License v 1"; you may not use this file except in compliance with, at
+ # your election, the "Elastic License 2.0", the "GNU Affero General Public
+ # License v3.0 only", or the "Server Side Public License, v 1".
+
+[kdcdefaults]
+    kdc_listen = 88
+    kdc_tcp_listen = 88
+
+[realms]
+    ${REALM_NAME} = {
+        kadmind_port = 749
+        max_life = 12h 0m 0s
+        max_renewable_life = 7d 0h 0m 0s
+        master_key_type = aes256-cts-hmac-sha1-96
+        supported_enctypes = aes256-cts-hmac-sha1-96:normal
+    }
+
+[logging]
+    kdc = FILE:/var/log/krb5kdc.log
+    admin_server = FILE:/var/log/kadmin.log
+    default = FILE:/var/log/krb5lib.log

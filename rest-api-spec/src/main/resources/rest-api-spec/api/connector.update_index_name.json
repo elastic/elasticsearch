@@ -1,0 +1,38 @@
+{
+  "connector.update_index_name": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-update-index-name",
+      "description": "Update the connector index name"
+    },
+    "stability": "beta",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector/{connector_id}/_index_name",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "connector_id": {
+              "type": "string",
+              "description": "The unique identifier of the connector to be updated."
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "An object containing the connector's index name.",
+      "required": true
+    }
+  }
+}

@@ -1,0 +1,785 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.engine;
+
+import org.apache.lucene.codecs.StoredFieldsReader;
+import org.apache.lucene.index.BaseTermsEnum;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.ImpactsEnum;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafMetaData;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.fieldvisitor.FieldNamesProvidingStoredFieldsVisitor;
+import org.elasticsearch.index.mapper.DocumentParser;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * A {@link DirectoryReader} that contains a single translog indexing operation.
+ * This can be used during a realtime get to access documents that haven't been refreshed yet.
+ * In the normal case, all information relevant to resolve the realtime get is mocked out
+ * to provide fast access to _id and _source. In case where more values are requested
+ * (e.g. access to other stored fields) etc., this reader will index the document
+ * into an in-memory Lucene segment that is created on-demand.
+ */
+final class TranslogDirectoryReader extends DirectoryReader {
+    private final LeafReader leafReader;
+
+    static DirectoryReader create(
+        ShardId shardId,
+        Translog.Index operation,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        EngineConfig engineConfig,
+        Runnable onSegmentCreated,
+        boolean forceSynthetic
+    ) throws IOException {
+        final Directory directory = new ByteBuffersDirectory();
+        boolean success = false;
+        try {
+            final LeafReader leafReader;
+            // When using synthetic source, the translog operation must always be reindexed into an in-memory Lucene to ensure consistent
+            // output for realtime-get operations. However, this can degrade the performance of realtime-get and update operations.
+            // If slight inconsistencies in realtime-get operations are acceptable, the translog operation can be reindexed lazily.
+            if (mappingLookup.isSourceSynthetic() || forceSynthetic) {
+                onSegmentCreated.run();
+                leafReader = createInMemoryReader(shardId, engineConfig, directory, documentParser, mappingLookup, false, operation);
+            } else {
+                leafReader = new TranslogLeafReader(
+                    shardId,
+                    operation,
+                    mappingLookup,
+                    documentParser,
+                    engineConfig,
+                    directory,
+                    onSegmentCreated
+                );
+            }
+            var directoryReader = ElasticsearchDirectoryReader.wrap(new TranslogDirectoryReader(directory, leafReader), shardId);
+            success = true;
+            return directoryReader;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(directory);
+            }
+        }
+    }
+
+    private TranslogDirectoryReader(Directory directory, LeafReader leafReader) throws IOException {
+        super(directory, new LeafReader[] { leafReader }, null);
+        this.leafReader = leafReader;
+    }
+
+    private static UnsupportedOperationException unsupported() {
+        assert false : "unsupported operation";
+        return new UnsupportedOperationException();
+    }
+
+    @Override
+    protected DirectoryReader doOpenIfChanged() {
+        throw unsupported();
+    }
+
+    @Override
+    protected DirectoryReader doOpenIfChanged(ExecutorService executorService) {
+        throw unsupported();
+    }
+
+    @Override
+    protected DirectoryReader doOpenIfChanged(IndexCommit commit) {
+        throw unsupported();
+    }
+
+    @Override
+    protected DirectoryReader doOpenIfChanged(IndexCommit commit, ExecutorService executorService) {
+        throw unsupported();
+    }
+
+    @Override
+    protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) {
+        throw unsupported();
+    }
+
+    @Override
+    protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes, ExecutorService executorService) {
+        throw unsupported();
+    }
+
+    @Override
+    public long getVersion() {
+        throw unsupported();
+    }
+
+    @Override
+    public boolean isCurrent() {
+        throw unsupported();
+    }
+
+    @Override
+    public IndexCommit getIndexCommit() {
+        throw unsupported();
+    }
+
+    @Override
+    protected void doClose() throws IOException {
+        leafReader.close();
+    }
+
+    @Override
+    public CacheHelper getReaderCacheHelper() {
+        return leafReader.getReaderCacheHelper();
+    }
+
+    private static LeafReader createInMemoryReader(
+        ShardId shardId,
+        EngineConfig engineConfig,
+        Directory directory,
+        DocumentParser documentParser,
+        MappingLookup mappingLookup,
+        boolean rootDocOnly,
+        Translog.Index operation
+    ) {
+        final String id = Uid.decodeId(operation.uid());
+        final ParsedDocument parsedDocs = documentParser.parseDocument(
+            new SourceToParse(id, operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
+            mappingLookup
+        );
+
+        parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
+        parsedDocs.version().setLongValue(operation.version());
+        // To guarantee indexability, we configure the analyzer and codec using the main engine configuration
+        final IndexWriterConfig writeConfig = new IndexWriterConfig(engineConfig.getAnalyzer()).setOpenMode(
+            IndexWriterConfig.OpenMode.CREATE
+        ).setCodec(engineConfig.getCodec());
+        try (IndexWriter writer = new IndexWriter(directory, writeConfig)) {
+            final int numDocs;
+            if (rootDocOnly) {
+                numDocs = 1;
+                writer.addDocument(parsedDocs.rootDoc());
+            } else {
+                numDocs = parsedDocs.docs().size();
+                writer.addDocuments(parsedDocs.docs());
+            }
+            final DirectoryReader reader = open(writer);
+            if (reader.leaves().size() != 1 || reader.leaves().get(0).reader().numDocs() != numDocs) {
+                reader.close();
+                throw new IllegalStateException(
+                    "Expected a single segment with "
+                        + numDocs
+                        + " documents, "
+                        + "but ["
+                        + reader.leaves().size()
+                        + " segments with "
+                        + reader.leaves().get(0).reader().numDocs()
+                        + " documents"
+                );
+            }
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            return new SequentialStoredFieldsLeafReader(leafReader) {
+                @Override
+                protected void doClose() throws IOException {
+                    IOUtils.close(super::doClose, directory);
+                }
+
+                @Override
+                public CacheHelper getCoreCacheHelper() {
+                    return leafReader.getCoreCacheHelper();
+                }
+
+                @Override
+                public CacheHelper getReaderCacheHelper() {
+                    return leafReader.getReaderCacheHelper();
+                }
+
+                @Override
+                public StoredFieldsReader getSequentialStoredFieldsReader() {
+                    return Lucene.segmentReader(leafReader).getFieldsReader().getMergeInstance();
+                }
+
+                @Override
+                protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+                    return reader;
+                }
+            };
+        } catch (IOException e) {
+            throw new EngineException(shardId, "failed to create an in-memory segment for get [" + id + "]", e);
+        }
+    }
+
+    private static class TranslogLeafReader extends LeafReader {
+
+        private static final FieldInfo FAKE_SOURCE_FIELD = new FieldInfo(
+            SourceFieldMapper.NAME,
+            1,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
+        private static final FieldInfo FAKE_ROUTING_FIELD = new FieldInfo(
+            RoutingFieldMapper.NAME,
+            2,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
+        private static final FieldInfo FAKE_ID_FIELD = new FieldInfo(
+            IdFieldMapper.NAME,
+            3,
+            false,
+            false,
+            false,
+            IndexOptions.DOCS,
+            DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Collections.emptyMap(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
+        private static final Set<String> TRANSLOG_FIELD_NAMES = Set.of(SourceFieldMapper.NAME, RoutingFieldMapper.NAME, IdFieldMapper.NAME);
+
+        private final ShardId shardId;
+        private final Translog.Index operation;
+        private final MappingLookup mappingLookup;
+        private final DocumentParser documentParser;
+        private final EngineConfig engineConfig;
+        private final Directory directory;
+        private final Runnable onSegmentCreated;
+
+        private final AtomicReference<LeafReader> delegate = new AtomicReference<>();
+        private final BytesRef uid;
+
+        TranslogLeafReader(
+            ShardId shardId,
+            Translog.Index operation,
+            MappingLookup mappingLookup,
+            DocumentParser documentParser,
+            EngineConfig engineConfig,
+            Directory directory,
+            Runnable onSegmentCreated
+        ) {
+            this.shardId = shardId;
+            this.operation = operation;
+            this.mappingLookup = mappingLookup;
+            this.documentParser = documentParser;
+            this.engineConfig = engineConfig;
+            this.onSegmentCreated = onSegmentCreated;
+            this.directory = directory;
+            this.uid = operation.uid();
+        }
+
+        private LeafReader getDelegate() {
+            ensureOpen();
+            LeafReader reader = delegate.get();
+            if (reader == null) {
+                synchronized (this) {
+                    ensureOpen();
+                    reader = delegate.get();
+                    if (reader == null) {
+                        var indexReader = createInMemoryReader(
+                            shardId,
+                            engineConfig,
+                            directory,
+                            documentParser,
+                            mappingLookup,
+                            true,
+                            operation
+                        );
+                        reader = indexReader.leaves().get(0).reader();
+                        final LeafReader existing = delegate.getAndSet(reader);
+                        assert existing == null;
+                        onSegmentCreated.run();
+                    }
+                }
+            }
+            return reader;
+        }
+
+        @Override
+        public CacheHelper getCoreCacheHelper() {
+            return getDelegate().getCoreCacheHelper();
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return null;
+        }
+
+        @Override
+        public Terms terms(String field) throws IOException {
+            if (delegate.get() == null) {
+                // override this for VersionsAndSeqNoResolver
+                if (field.equals(IdFieldMapper.NAME)) {
+                    return new FakeTerms(uid);
+                }
+            }
+            return getDelegate().terms(field);
+        }
+
+        @Override
+        public NumericDocValues getNumericDocValues(String field) throws IOException {
+            if (delegate.get() == null) {
+                // override this for VersionsAndSeqNoResolver
+                if (field.equals(VersionFieldMapper.NAME)) {
+                    return new FakeNumericDocValues(operation.version());
+                }
+                if (field.equals(SeqNoFieldMapper.NAME)) {
+                    return new FakeNumericDocValues(operation.seqNo());
+                }
+                if (field.equals(SeqNoFieldMapper.PRIMARY_TERM_NAME)) {
+                    return new FakeNumericDocValues(operation.primaryTerm());
+                }
+            }
+            return getDelegate().getNumericDocValues(field);
+        }
+
+        @Override
+        public BinaryDocValues getBinaryDocValues(String field) throws IOException {
+            return getDelegate().getBinaryDocValues(field);
+        }
+
+        @Override
+        public SortedDocValues getSortedDocValues(String field) throws IOException {
+            return getDelegate().getSortedDocValues(field);
+        }
+
+        @Override
+        public SortedNumericDocValues getSortedNumericDocValues(String field) throws IOException {
+            return getDelegate().getSortedNumericDocValues(field);
+        }
+
+        @Override
+        public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
+            return getDelegate().getSortedSetDocValues(field);
+        }
+
+        @Override
+        public NumericDocValues getNormValues(String field) throws IOException {
+            return getDelegate().getNormValues(field);
+        }
+
+        @Override
+        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+            return getDelegate().getDocValuesSkipper(field);
+        }
+
+        @Override
+        public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            return getDelegate().getFloatVectorValues(field);
+        }
+
+        @Override
+        public ByteVectorValues getByteVectorValues(String field) throws IOException {
+            return getDelegate().getByteVectorValues(field);
+        }
+
+        @Override
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
+            getDelegate().searchNearestVectors(field, target, collector, acceptDocs);
+        }
+
+        @Override
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
+            getDelegate().searchNearestVectors(field, target, collector, acceptDocs);
+        }
+
+        @Override
+        public FieldInfos getFieldInfos() {
+            return getDelegate().getFieldInfos();
+        }
+
+        @Override
+        public Bits getLiveDocs() {
+            return null;
+        }
+
+        @Override
+        public PointValues getPointValues(String field) throws IOException {
+            return getDelegate().getPointValues(field);
+        }
+
+        @Override
+        public void checkIntegrity() throws IOException {}
+
+        @Override
+        public LeafMetaData getMetaData() {
+            return getDelegate().getMetaData();
+        }
+
+        @Override
+        public TermVectors termVectors() throws IOException {
+            return getDelegate().termVectors();
+        }
+
+        @Override
+        public StoredFields storedFields() throws IOException {
+            return new StoredFields() {
+                @Override
+                public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                    assert docID == 0;
+                    if (delegate.get() == null) {
+                        if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
+                            // override this for ShardGetService
+                            if (TRANSLOG_FIELD_NAMES.containsAll(((FieldNamesProvidingStoredFieldsVisitor) visitor).getFieldNames())) {
+                                readStoredFieldsDirectly(visitor);
+                                return;
+                            }
+                        }
+                    }
+                    getDelegate().storedFields().document(docID, visitor);
+                }
+            };
+        }
+
+        @Override
+        public int numDocs() {
+            return 1;
+        }
+
+        @Override
+        public int maxDoc() {
+            return 1;
+        }
+
+        private void readStoredFieldsDirectly(StoredFieldVisitor visitor) throws IOException {
+            if (visitor.needsField(FAKE_SOURCE_FIELD) == StoredFieldVisitor.Status.YES) {
+                BytesReference sourceBytes = operation.source();
+                assert BytesReference.toBytes(sourceBytes) == sourceBytes.toBytesRef().bytes;
+                SourceFieldMapper mapper = mappingLookup.getMapping().getMetadataMapperByClass(SourceFieldMapper.class);
+                if (mapper != null) {
+                    try {
+                        sourceBytes = mapper.applyFilters(mappingLookup, sourceBytes, null, true);
+                    } catch (IOException e) {
+                        throw new IOException("Failed to reapply filters after reading from translog", e);
+                    }
+                }
+                if (sourceBytes != null) {
+                    visitor.binaryField(FAKE_SOURCE_FIELD, BytesReference.toBytes(sourceBytes));
+                }
+            }
+            if (operation.routing() != null && visitor.needsField(FAKE_ROUTING_FIELD) == StoredFieldVisitor.Status.YES) {
+                visitor.stringField(FAKE_ROUTING_FIELD, operation.routing());
+            }
+            if (visitor.needsField(FAKE_ID_FIELD) == StoredFieldVisitor.Status.YES) {
+                final byte[] id = new byte[uid.length];
+                System.arraycopy(uid.bytes, uid.offset, id, 0, uid.length);
+                visitor.binaryField(FAKE_ID_FIELD, id);
+            }
+        }
+
+        @Override
+        protected synchronized void doClose() throws IOException {
+            final LeafReader leaf = delegate.get();
+            if (leaf != null) {
+                leaf.close();
+            } else {
+                directory.close();
+            }
+        }
+    }
+
+    private static class FakeTerms extends Terms {
+        private final BytesRef uid;
+
+        FakeTerms(BytesRef uid) {
+            this.uid = uid;
+        }
+
+        @Override
+        public TermsEnum iterator() throws IOException {
+            return new FakeTermsEnum(uid);
+        }
+
+        @Override
+        public long size() throws IOException {
+            return 1;
+        }
+
+        @Override
+        public long getSumTotalTermFreq() throws IOException {
+            return 1;
+        }
+
+        @Override
+        public long getSumDocFreq() throws IOException {
+            return 1;
+        }
+
+        @Override
+        public int getDocCount() throws IOException {
+            return 1;
+        }
+
+        @Override
+        public boolean hasFreqs() {
+            return false;
+        }
+
+        @Override
+        public boolean hasOffsets() {
+            return false;
+        }
+
+        @Override
+        public boolean hasPositions() {
+            return false;
+        }
+
+        @Override
+        public boolean hasPayloads() {
+            return false;
+        }
+    }
+
+    private static class FakeTermsEnum extends BaseTermsEnum {
+        private final BytesRef term;
+        private long position = -1;
+
+        FakeTermsEnum(BytesRef term) {
+            this.term = term;
+        }
+
+        @Override
+        public SeekStatus seekCeil(BytesRef text) throws IOException {
+            int cmp = text.compareTo(term);
+            if (cmp == 0) {
+                position = 0;
+                return SeekStatus.FOUND;
+            } else if (cmp < 0) {
+                position = 0;
+                return SeekStatus.NOT_FOUND;
+            }
+            position = Long.MAX_VALUE;
+            return SeekStatus.END;
+        }
+
+        @Override
+        public void seekExact(long ord) throws IOException {
+            position = ord;
+        }
+
+        @Override
+        public BytesRef term() throws IOException {
+            assert position == 0;
+            return term;
+        }
+
+        @Override
+        public long ord() throws IOException {
+            return position;
+        }
+
+        @Override
+        public int docFreq() throws IOException {
+            return 1;
+        }
+
+        @Override
+        public long totalTermFreq() throws IOException {
+            return 1;
+        }
+
+        @Override
+        public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
+            return new FakePostingsEnum(term);
+        }
+
+        @Override
+        public ImpactsEnum impacts(int flags) throws IOException {
+            throw unsupported();
+        }
+
+        @Override
+        public BytesRef next() throws IOException {
+            return ++position == 0 ? term : null;
+        }
+    }
+
+    private static class FakePostingsEnum extends PostingsEnum {
+        private final BytesRef term;
+
+        private int iter = -1;
+
+        private FakePostingsEnum(BytesRef term) {
+            this.term = term;
+        }
+
+        @Override
+        public int freq() {
+            return 1;
+        }
+
+        @Override
+        public int nextPosition() {
+            return 0;
+        }
+
+        @Override
+        public int startOffset() {
+            return 0;
+        }
+
+        @Override
+        public int endOffset() {
+            return term.length;
+        }
+
+        @Override
+        public BytesRef getPayload() {
+            return null;
+        }
+
+        @Override
+        public int docID() {
+            return iter > 0 ? NO_MORE_DOCS : iter;
+        }
+
+        @Override
+        public int nextDoc() {
+            return ++iter == 0 ? 0 : NO_MORE_DOCS;
+        }
+
+        @Override
+        public int advance(int target) {
+            int doc;
+            while ((doc = nextDoc()) < target) {
+            }
+            return doc;
+        }
+
+        @Override
+        public long cost() {
+            return 0;
+        }
+    }
+
+    private static class FakeNumericDocValues extends NumericDocValues {
+        private final long value;
+        private final DocIdSetIterator disi = DocIdSetIterator.all(1);
+
+        FakeNumericDocValues(long value) {
+            this.value = value;
+        }
+
+        @Override
+        public long longValue() {
+            return value;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            return disi.advance(target) == target;
+        }
+
+        @Override
+        public int docID() {
+            return disi.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return disi.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return disi.advance(target);
+        }
+
+        @Override
+        public long cost() {
+            return disi.cost();
+        }
+    }
+}

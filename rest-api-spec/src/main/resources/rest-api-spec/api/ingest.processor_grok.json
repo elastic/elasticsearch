@@ -1,0 +1,25 @@
+{
+  "ingest.processor_grok": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/reference/ingest-processor/grok-processor",
+      "description": "Run a grok processor"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_ingest/processor/grok",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,88 @@
+ProjectExec[[x{r}#0, cnt{r}#1, date{r}#2]]
+\_LimitExec[1000[INTEGER],null]
+  \_MergeExec[[!alias_integer, boolean{r}#3, byte{r}#4, constant_keyword-foo{r}#5, date{r}#2, date_nanos{r}#6, dense_vector{r}#7, double{r}#8, float{r}#9, half_float{r}#10, integer{r}#11, ip{r}#12, keyword{r}#13, long{r}#14, scaled_float{r}#15, semantic_text{r}#16, short{r}#17, text{r}#18, unsigned_long{r}#19, version{r}#20, wildcard{r}#21, cnt{r}#1, x{r}#0]]
+    |_ExchangeExec[[alias_integer{r}#22, boolean{f}#23, byte{f}#24, constant_keyword-foo{f}#25, date{f}#26, date_nanos{f}#27, dense_vector{f}#28, double{f}#29, float{f}#30, half_float{f}#31, integer{f}#32, ip{f}#33, keyword{f}#34, long{f}#35, scaled_float{f}#36, semantic_text{f}#37, short{f}#38, text{f}#39, unsigned_long{f}#40, version{f}#41, wildcard{f}#42, cnt{r}#43, x{r}#44],false]
+    | \_ProjectExec[[alias_integer{r}#22, boolean{f}#23, byte{f}#24, constant_keyword-foo{f}#25, date{f}#26, date_nanos{f}#27, dense_vector{f}#28, double{f}#29, float{f}#30, half_float{f}#31, integer{f}#32, ip{f}#33, keyword{f}#34, long{f}#35, scaled_float{f}#36, semantic_text{f}#37, short{f}#38, text{f}#39, unsigned_long{f}#40, version{f}#41, wildcard{f}#42, cnt{r}#43, x{r}#44]]
+    |   \_FieldExtractExec[boolean{f}#23, byte{f}#24, constant_keyword-foo{f}#25, date{f}#26, date_nanos{f}#27, dense_vector{f}#28, double{f}#29, float{f}#30, half_float{f}#31, integer{f}#32, ip{f}#33, keyword{f}#34, long{f}#35, scaled_float{f}#36, semantic_text{f}#37, short{f}#38, text{f}#39, unsigned_long{f}#40, version{f}#41, wildcard{f}#42]<[],[],[]>
+    |     \_EvalExec[[null[LONG] AS cnt#43, null[DATETIME] AS x#44, null[KEYWORD] AS alias_integer#22]]
+    |       \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#45], limit[], sort[] estimatedRowSize[6472] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+    \_ProjectExec[[alias_integer{r}#46, boolean{r}#47, byte{r}#48, constant_keyword-foo{r}#49, date{r}#50, date_nanos{r}#51, dense_vector{r}#52, double{r}#53, float{r}#54, half_float{r}#55, integer{r}#56, ip{r}#57, keyword{r}#58, long{r}#59, scaled_float{r}#60, semantic_text{r}#61, short{r}#62, text{r}#63, unsigned_long{r}#64, version{r}#65, wildcard{r}#66, cnt{r}#67, x{r}#68]]
+      \_EvalExec[[null[KEYWORD] AS alias_integer#69, null[BOOLEAN] AS boolean#47, null[INTEGER] AS byte#48, null[KEYWORD] AS constant_keyword-foo#49, null[DATETIME] AS date#50, null[DATE_NANOS] AS date_nanos#51, null[DENSE_VECTOR] AS dense_vector#52, null[DOUBLE] AS double#53, null[DOUBLE] AS float#54, null[DOUBLE] AS half_float#55, null[INTEGER] AS integer#56, null[IP] AS ip#57, null[KEYWORD] AS keyword#58, null[LONG] AS long#59, null[DOUBLE] AS scaled_float#60, null[TEXT] AS semantic_text#61, null[INTEGER] AS short#62, null[TEXT] AS text#63, null[UNSIGNED_LONG] AS unsigned_long#64, null[VERSION] AS version#65, null[KEYWORD] AS wildcard#66, null[KEYWORD] AS alias_integer#46]]
+        \_AggregateExec[[x{r}#68],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#67, x{r}#68],FINAL,[x{r}#68, $$cnt$count{r}#70, $$cnt$seen{r}#71],null]
+          \_ExchangeExec[[x{r}#68, $$cnt$count{r}#70, $$cnt$seen{r}#71],true]
+            \_FilterExec[$$cnt$count{r}#72 > 0[LONG]]
+              \_EsStatsQueryExec[all_types], stats[ByStat{queryBuilderAndTags=[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "date",
+    "next" : {
+      "range" : {
+        "date" : {
+          "lt" : "2023-10-21T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "date_trunc(1 day, date)@1:63"
+  }
+}, tags=[1697760000000]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "date",
+    "next" : {
+      "range" : {
+        "date" : {
+          "gte" : "2023-10-21T00:00:00.000Z",
+          "lt" : "2023-10-22T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "date_trunc(1 day, date)@1:63"
+  }
+}, tags=[1697846400000]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "date",
+    "next" : {
+      "range" : {
+        "date" : {
+          "gte" : "2023-10-22T00:00:00.000Z",
+          "lt" : "2023-10-23T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "date_trunc(1 day, date)@1:63"
+  }
+}, tags=[1697932800000]], QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "date",
+    "next" : {
+      "range" : {
+        "date" : {
+          "gte" : "2023-10-23T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "date_trunc(1 day, date)@1:63"
+  }
+}, tags=[1698019200000]], QueryBuilderAndTags[query={
+  "bool" : {
+    "must_not" : [
+      {
+        "exists" : {
+          "field" : "date",
+          "boost" : 0.0
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[null]]]}], query[][x{r}#68, $$cnt$count{r}#72, $$cnt$seen{r}#73], limit[],

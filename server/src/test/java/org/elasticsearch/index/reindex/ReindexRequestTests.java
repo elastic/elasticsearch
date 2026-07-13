@@ -1,0 +1,921 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.reindex;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+
+/**
+ * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
+ */
+public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTestCase<ReindexRequest> {
+
+    private final BytesReference matchAll = new BytesArray("{ \"foo\" : \"bar\" }");
+
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
+    @Override
+    protected boolean enableWarningsCheck() {
+        // There sometimes will be a warning about specifying types in reindex requests being deprecated.
+        return false;
+    }
+
+    @Override
+    protected ReindexRequest createTestInstance() {
+        ReindexRequest reindexRequest = new ReindexRequest();
+        reindexRequest.setSourceIndices("source");
+        reindexRequest.setDestIndex("destination");
+
+        if (randomBoolean()) {
+            try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint()) {
+                BytesReference query = BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
+                reindexRequest.setRemoteInfo(
+                    new RemoteInfo(
+                        randomAlphaOfLength(5),
+                        randomAlphaOfLength(5),
+                        between(1, Integer.MAX_VALUE),
+                        null,
+                        query,
+                        "user",
+                        new SecureString("pass".toCharArray()),
+                        emptyMap(),
+                        RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                        RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+                    )
+                );
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        if (randomBoolean()) {
+            reindexRequest.setSourceBatchSize(randomInt(100));
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestOpType("create");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestPipeline("my_pipeline");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestRouting("=cat");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setMaxDocs(randomIntBetween(100, 1000));
+        }
+        if (randomBoolean()) {
+            reindexRequest.setAbortOnVersionConflict(false);
+        }
+
+        if (reindexRequest.getRemoteInfo() == null && randomBoolean()) {
+            reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+
+        return reindexRequest;
+    }
+
+    @Override
+    protected ReindexRequest doParseInstance(XContentParser parser) throws IOException {
+        return ReindexRequest.fromXContent(parser, Predicates.never());
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
+    protected void assertEqualInstances(ReindexRequest expectedInstance, ReindexRequest newInstance) {
+        assertNotSame(newInstance, expectedInstance);
+        assertArrayEquals(expectedInstance.getSearchRequest().indices(), newInstance.getSearchRequest().indices());
+        assertEquals(expectedInstance.getSearchRequest(), newInstance.getSearchRequest());
+        assertEquals(expectedInstance.getMaxDocs(), newInstance.getMaxDocs());
+        assertEquals(expectedInstance.getSlices(), newInstance.getSlices());
+        assertEquals(expectedInstance.isAbortOnVersionConflict(), newInstance.isAbortOnVersionConflict());
+        assertEquals(expectedInstance.getRemoteInfo(), newInstance.getRemoteInfo());
+        assertEquals(expectedInstance.getDestination().getPipeline(), newInstance.getDestination().getPipeline());
+        assertEquals(expectedInstance.getDestination().routing(), newInstance.getDestination().routing());
+        assertEquals(expectedInstance.getDestination().opType(), newInstance.getDestination().opType());
+    }
+
+    public void testReindexFromRemoteDoesNotSupportSearchQuery() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        reindex.getSearchRequest().source().query(matchAllQuery()); // Unsupported place to put query
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals(
+            "Validation Failed: 1: reindex from remote sources should use RemoteInfo's query instead of source's query;",
+            e.getMessage()
+        );
+    }
+
+    public void testReindexFromRemoteDoesNotSupportSlicesParameterGreaterThan1() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        // Enable automatic slicing with a random number of slices greater than 1 (like setting the slices URL parameter):
+        reindex.setSlices(between(2, Integer.MAX_VALUE));
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals(
+            "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
+            e.getMessage()
+        );
+    }
+
+    public void testReindexFromRemoteDoesNotSupportSlicesParameterSetToAuto() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        // Enable automatic slicing with an automatically chosen number of slices (like setting the slices URL parameter to "auto"):
+        reindex.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals(
+            "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
+            e.getMessage()
+        );
+    }
+
+    public void testReindexFromRemoteDoesNotSupportSlicesSourceField() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        // Enable manual slicing (like setting source.slice.max and source.slice.id in the request body):
+        int numSlices = randomIntBetween(2, Integer.MAX_VALUE);
+        int sliceId = randomIntBetween(0, numSlices - 1);
+        reindex.getSearchRequest().source().slice(new SliceBuilder(sliceId, numSlices));
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals(
+            "Validation Failed: 1: reindex from remote sources doesn't support source.slice but was ["
+                + reindex.getSearchRequest().source().slice()
+                + "];",
+            e.getMessage()
+        );
+    }
+
+    public void testReindexFromRemoteRejectsUsernameWithNoPassword() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                "user",
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: reindex from remote source included username but not password;", e.getMessage());
+    }
+
+    public void testReindexFromRemoteRejectsPasswordWithNoUsername() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                new SecureString("password".toCharArray()),
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: reindex from remote source included password but not username;", e.getMessage());
+    }
+
+    public void testCreateOpTypeWithExternalVersioningIsRejected() {
+        ReindexRequest reindex = newRequest();
+        reindex.setDestOpType("create");
+        reindex.setDestVersionType(VersionType.EXTERNAL);
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: create operations only support internal versioning. use index instead;", e.getMessage());
+    }
+
+    public void testCreateOpTypeWithExternalGteVersioningIsRejected() {
+        ReindexRequest reindex = newRequest();
+        reindex.setDestOpType("create");
+        reindex.setDestVersionType(VersionType.EXTERNAL_GTE);
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: create operations only support internal versioning. use index instead;", e.getMessage());
+    }
+
+    public void testCreateOpTypeWithInternalVersioningIsAccepted() {
+        ReindexRequest reindex = newRequest();
+        reindex.setDestOpType("create");
+        reindex.setDestVersionType(VersionType.INTERNAL);
+        ActionRequestValidationException e = reindex.validate();
+        assertNull(e);
+    }
+
+    public void testNoSliceBuilderSetWithSlicedRequest() {
+        ReindexRequest reindex = newRequest();
+        reindex.getSearchRequest().source().slice(new SliceBuilder(0, 4));
+        reindex.setSlices(between(2, Integer.MAX_VALUE));
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: can't specify both manual and automatic slicing at the same time;", e.getMessage());
+    }
+
+    @Override
+    protected void extraRandomizationForSlice(ReindexRequest original) {
+        if (randomBoolean()) {
+            original.setScript(mockScript(randomAlphaOfLength(5)));
+        }
+        if (randomBoolean()) {
+            original.setRemoteInfo(
+                new RemoteInfo(
+                    randomAlphaOfLength(5),
+                    randomAlphaOfLength(5),
+                    between(1, 10000),
+                    null,
+                    matchAll,
+                    null,
+                    null,
+                    emptyMap(),
+                    randomPositiveTimeValue(),
+                    randomPositiveTimeValue()
+                )
+            );
+        }
+    }
+
+    @Override
+    protected void extraForSliceAssertions(ReindexRequest original, ReindexRequest forSliced) {
+        assertEquals(original.getScript(), forSliced.getScript());
+        assertEquals(original.getDestination(), forSliced.getDestination());
+        assertEquals(original.getRemoteInfo(), forSliced.getRemoteInfo());
+    }
+
+    @Override
+    protected ReindexRequest newRequest() {
+        ReindexRequest reindex = new ReindexRequest();
+        reindex.setSourceIndices("source");
+        reindex.setDestIndex("dest");
+        return reindex;
+    }
+
+    public void testBuildRemoteInfoNoRemote() throws IOException {
+        assertNull(ReindexRequest.buildRemoteInfo(new HashMap<>()));
+    }
+
+    public void testBuildRemoteInfoFullyLoaded() throws IOException {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("first", "a");
+        headers.put("second", "b");
+        headers.put("third", "");
+
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("username", "testuser");
+        remote.put("password", "testpass");
+        remote.put("headers", headers);
+        remote.put("socket_timeout", "90s");
+        remote.put("connect_timeout", "10s");
+
+        Map<String, Object> query = new HashMap<>();
+        query.put("a", "b");
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        source.put("query", query);
+
+        RemoteInfo remoteInfo = ReindexRequest.buildRemoteInfo(source);
+        assertEquals("https", remoteInfo.getScheme());
+        assertEquals("example.com", remoteInfo.getHost());
+        assertEquals(9200, remoteInfo.getPort());
+        assertEquals("""
+            {
+              "a" : "b"
+            }""", remoteInfo.getQuery().utf8ToString());
+        assertEquals("testuser", remoteInfo.getUsername());
+        assertEquals("testpass", remoteInfo.getPassword().toString());
+        assertEquals(headers, remoteInfo.getHeaders());
+        assertEquals(timeValueSeconds(90), remoteInfo.getSocketTimeout());
+        assertEquals(timeValueSeconds(10), remoteInfo.getConnectTimeout());
+    }
+
+    public void testBuildRemoteInfoWithoutAllParts() throws IOException {
+        expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("example.com"));
+        expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase(":9200"));
+        expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("http://:9200"));
+        expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("example.com:9200"));
+        expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("http://example.com"));
+    }
+
+    public void testBuildRemoteInfoWithAllHostParts() throws IOException {
+        RemoteInfo info = buildRemoteInfoHostTestCase("http://example.com:9200");
+        assertEquals("http", info.getScheme());
+        assertEquals("example.com", info.getHost());
+        assertEquals(9200, info.getPort());
+        assertNull(info.getPathPrefix());
+        assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout()); // Didn't set the timeout so we should get the default
+        assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout()); // Didn't set the timeout so we should get the default
+
+        info = buildRemoteInfoHostTestCase("https://other.example.com:9201");
+        assertEquals("https", info.getScheme());
+        assertEquals("other.example.com", info.getHost());
+        assertEquals(9201, info.getPort());
+        assertNull(info.getPathPrefix());
+        assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
+        assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout());
+
+        info = buildRemoteInfoHostTestCase("https://[::1]:9201");
+        assertEquals("https", info.getScheme());
+        assertEquals("[::1]", info.getHost());
+        assertEquals(9201, info.getPort());
+        assertNull(info.getPathPrefix());
+        assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
+        assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout());
+
+        info = buildRemoteInfoHostTestCase("https://other.example.com:9201/");
+        assertEquals("https", info.getScheme());
+        assertEquals("other.example.com", info.getHost());
+        assertEquals(9201, info.getPort());
+        assertEquals("/", info.getPathPrefix());
+        assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
+        assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout());
+
+        info = buildRemoteInfoHostTestCase("https://other.example.com:9201/proxy-path/");
+        assertEquals("https", info.getScheme());
+        assertEquals("other.example.com", info.getHost());
+        assertEquals(9201, info.getPort());
+        assertEquals("/proxy-path/", info.getPathPrefix());
+        assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
+        assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout());
+
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("https"));
+        assertEquals("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was [https]", exception.getMessage());
+    }
+
+    public void testBuildRemoteInfoWithApiKey() throws IOException {
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        RemoteInfo remoteInfo = ReindexRequest.buildRemoteInfo(source);
+        assertEquals(remoteInfo.getHeaders(), Map.of("Authorization", "ApiKey l3t-m3-1n"));
+    }
+
+    public void testBuildRemoteInfoWithApiKeyAndOtherHeaders() throws IOException {
+        Map<String, Object> originalHeaders = new HashMap<>();
+        originalHeaders.put("X-Routing-Magic", "Abracadabra");
+        originalHeaders.put("X-Tracing-Magic", "12345");
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        remote.put("headers", originalHeaders);
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        RemoteInfo remoteInfo = ReindexRequest.buildRemoteInfo(source);
+        assertEquals(
+            remoteInfo.getHeaders(),
+            Map.of("X-Routing-Magic", "Abracadabra", "X-Tracing-Magic", "12345", "Authorization", "ApiKey l3t-m3-1n")
+        );
+    }
+
+    public void testBuildRemoteInfoWithConflictingApiKeyAndAuthorizationHeader() throws IOException {
+        Map<String, Object> originalHeaders = new HashMap<>();
+        originalHeaders.put("aUtHoRiZaTiOn", "op3n-s3s4m3"); // non-standard capitalization, but HTTP headers are not case-sensitive
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        remote.put("headers", originalHeaders);
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        assertThrows(IllegalArgumentException.class, () -> ReindexRequest.buildRemoteInfo(source));
+    }
+
+    public void testReindexFromRemoteRequestParsing() throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.startObject("remote");
+                    {
+                        b.field("host", "http://localhost:9200");
+                    }
+                    b.endObject();
+                    b.field("index", "source");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            ReindexRequest r = ReindexRequest.fromXContent(p, nf -> false);
+            assertEquals("localhost", r.getRemoteInfo().getHost());
+            assertArrayEquals(new String[] { "source" }, r.getSearchRequest().indices());
+        }
+    }
+
+    private RemoteInfo buildRemoteInfoHostTestCase(String hostInRest) throws IOException {
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", hostInRest);
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+
+        return ReindexRequest.buildRemoteInfo(source);
+    }
+
+    public void testCommaSeparatedSourceIndices() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices("a,b");
+        assertArrayEquals(new String[] { "a", "b" }, r.getSearchRequest().indices());
+    }
+
+    public void testArraySourceIndices() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices(new String[] { "a", "b" });
+        assertArrayEquals(new String[] { "a", "b" }, r.getSearchRequest().indices());
+    }
+
+    public void testEmptyStringSourceIndices() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices("");
+        assertArrayEquals(new String[0], r.getSearchRequest().indices());
+        ActionRequestValidationException validationException = r.validate();
+        assertNotNull(validationException);
+        assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
+    }
+
+    /** Verifies that empty source indices are allowed when using PIT (point-in-time) search. */
+    public void testEmptyIndicesAllowedWhenUsingPit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.getSearchRequest().scroll(null);  // PIT and scroll are mutually exclusive
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().pointInTimeBuilder(
+                    new PointInTimeBuilder(new BytesArray("pit-id".getBytes(StandardCharsets.UTF_8))).setKeepAlive(
+                        TimeValue.timeValueMinutes(5)
+                    )
+                )
+            );
+        ActionRequestValidationException validationException = request.validate();
+        assertNull("ReindexRequest with PIT and empty indices should pass validation", validationException);
+    }
+
+    /** Verifies that empty source indices are rejected when not using PIT; validation suggests using _all instead. */
+    public void testEmptyIndicesRejectedWhenNotUsingPit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.getSearchRequest().source(new SearchSourceBuilder());
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
+    }
+
+    /** Verifies that the {@code from} parameter is rejected when not using PIT. */
+    public void testFromParameterRejectedWhenNotUsingPit() {
+        ReindexRequest request = newRequest();
+        request.getSearchRequest().scroll(null);  // avoid SearchRequest's scroll+from error; we test AbstractBulkBySearchRequest only
+        request.getSearchRequest().source().from(1);
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertEquals(List.of("from is not supported in this context"), validationException.validationErrors());
+    }
+
+    /** Verifies that {@code from=0} is allowed when using PIT. */
+    public void testFromZeroAllowedWhenUsingPit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.getSearchRequest().scroll(null);  // PIT and scroll are mutually exclusive
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().pointInTimeBuilder(
+                    new PointInTimeBuilder(new BytesArray("pit-id".getBytes(java.nio.charset.StandardCharsets.UTF_8))).setKeepAlive(
+                        TimeValue.timeValueMinutes(5)
+                    )
+                ).from(0)
+            );
+        ActionRequestValidationException validationException = request.validate();
+        assertNull("ReindexRequest with PIT and from=0 should pass validation", validationException);
+    }
+
+    /** Verifies that the task description uses sourceIndicesForDescription when indices are empty (e.g. PIT case). */
+    public void testDescriptionUsesSourceIndicesForDescriptionWhenIndicesEmpty() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.setSourceIndicesForDescription(new String[] { "reindex_src" });
+        String description = request.getDescription();
+        assertThat(description, containsString("reindex_src"));
+        assertThat(description, not(containsString("all indices")));
+    }
+
+    /** Verifies that the task description uses "all indices" when both indices and sourceIndicesForDescription are empty. */
+    public void testDescriptionUsesAllIndicesWhenBothIndicesAndSourceIndicesForDescriptionEmpty() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.setSourceIndicesForDescription(null);
+        String description = request.getDescription();
+        assertThat(description, containsString("all indices"));
+    }
+
+    /** Verifies that the task description uses the search request indices when set, even if sourceIndicesForDescription is also set. */
+    public void testDescriptionUsesIndicesWhenSet() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices("foo", "bar");
+        request.setSourceIndicesForDescription(new String[] { "reindex_src" });
+        String description = request.getDescription();
+        assertThat(description, containsString("foo"));
+        assertThat(description, containsString("bar"));
+    }
+
+    /** Verifies that a non-zero {@code from} parameter is rejected when using PIT. */
+    public void testFromNonZeroRejectedWhenUsingPit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.getSearchRequest().scroll(null);  // PIT and scroll are mutually exclusive
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().pointInTimeBuilder(
+                    new PointInTimeBuilder(new BytesArray("pit-id".getBytes(java.nio.charset.StandardCharsets.UTF_8))).setKeepAlive(
+                        TimeValue.timeValueMinutes(5)
+                    )
+                ).from(5)
+            );
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertEquals(List.of("from is not supported in this context"), validationException.validationErrors());
+    }
+
+    /** Verifies {@link ReindexRequest#convertSearchRequestToUsePit} wires PIT, description indices, and clears routing. */
+    public void testConvertSearchRequestToUsePit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.setSourceIndices("idx-a", "idx-b");
+        request.getSearchRequest().source(new SearchSourceBuilder().query(matchAllQuery()));
+        request.getSearchRequest().setProjectRouting("_alias:foo");
+
+        BytesReference pitId = new BytesArray("new-pit-id");
+        TimeValue keepAlive = TimeValue.timeValueMinutes(5);
+        request.convertSearchRequestToUsePit(pitId, keepAlive);
+
+        assertEquals(pitId, request.getSearchRequest().source().pointInTimeBuilder().getEncodedId());
+        assertEquals(keepAlive, request.getSearchRequest().source().pointInTimeBuilder().getKeepAlive());
+        assertNull(request.getSearchRequest().scroll());
+        assertArrayEquals(new String[] { "idx-a", "idx-b" }, request.getSourceIndicesForDescription());
+        assertEquals(0, request.getSearchRequest().indices().length);
+        assertNull(request.getSearchRequest().getProjectRouting());
+    }
+
+    public void testValidateGivenRemoteIndex() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices("remote:index");
+        assertArrayEquals(new String[] { "remote:index" }, r.getSearchRequest().indices());
+        ActionRequestValidationException validationException = r.validate();
+        assertNull(validationException);
+    }
+
+    public void testCreateTask_notEligibleForRelocationOnShutdown() throws IOException {
+        ReindexRequest request = parseRequestWithSourceIndices("source");
+        Task task = request.createTask(randomTaskId(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        assertThat(asInstanceOf(BulkByPaginatedSearchTask.class, task).isEligibleForRelocationOnShutdown(), is(false));
+    }
+
+    public void testCreateTask_eligibleForRelocationOnShutdown() throws IOException {
+        ReindexRequest request = parseRequestWithSourceIndices("source");
+        request.setEligibleForRelocationOnShutdown(true);
+        Task task = request.createTask(randomTaskId(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        assertThat(asInstanceOf(BulkByPaginatedSearchTask.class, task).isEligibleForRelocationOnShutdown(), is(true));
+    }
+
+    public void testProjectRoutingParsing() throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                    b.field("project_routing", "_alias:_origin");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            ReindexRequest r = ReindexRequest.fromXContent(p, Predicates.never());
+            assertEquals("_alias:_origin", r.getSearchRequest().getProjectRouting());
+        }
+    }
+
+    public void testDestSliceParsesWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.PARAM_NAME, "s1");
+        assertEquals("s1", request.getDestination().routing());
+        assertTrue(request.getDestination().isRoutingFromSlice());
+    }
+
+    public void testDestSliceCommandParsesWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.PARAM_NAME, "=s1");
+        assertEquals("=s1", request.getDestination().routing());
+        assertTrue(request.getDestination().isRoutingFromSlice());
+    }
+
+    public void testDestSliceLiteralFailsValidationWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.PARAM_NAME, "s1");
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertThat(
+            validationException.getMessage(),
+            containsString("[" + SliceIndexing.PARAM_NAME + "] must be [keep], [discard], or [=<some value>]")
+        );
+    }
+
+    public void testDestSliceKeepPassesValidationWhenFeatureFlagEnabled() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.PARAM_NAME, "keep");
+        assertNull(request.validate());
+    }
+
+    public void testDestSliceAndRoutingAreMutuallyExclusive() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                    b.field("routing", "keep");
+                    b.field(SliceIndexing.PARAM_NAME, "s1");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            Exception e = expectThrows(Exception.class, () -> ReindexRequest.fromXContent(p, Predicates.always()));
+            assertThat(e.getMessage(), containsString("[reindex] failed to parse field [dest]"));
+        }
+    }
+
+    public void testDestSliceRejectedWhenClusterFeatureUnsupported() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                    b.field(SliceIndexing.PARAM_NAME, "keep");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            Exception e = expectThrows(Exception.class, () -> ReindexRequest.fromXContent(p, Predicates.never()));
+            assertThat(e.getMessage(), containsString("[reindex] failed to parse field [dest]"));
+        }
+    }
+
+    public void testDestSliceProvenancePreservedOnTransportSerialization() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = parseRequestWithDestRoutingField(SliceIndexing.PARAM_NAME, "keep");
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersion.current());
+        request.writeTo(out);
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry());
+        in.setTransportVersion(TransportVersion.current());
+        ReindexRequest deserialized = new ReindexRequest(in);
+
+        assertEquals("keep", deserialized.getDestination().routing());
+        assertTrue(deserialized.getDestination().isRoutingFromSlice());
+    }
+
+    public void testDestSliceRejectedWhenFeatureFlagDisabled() throws IOException {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                    b.field(SliceIndexing.PARAM_NAME, "s1");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ReindexRequest.fromXContent(p, Predicates.never())
+            );
+            assertThat(e.getMessage(), containsString("failed to parse field"));
+            assertThat(e.getCause().getMessage(), containsString("failed to parse field"));
+            assertThat(e.getCause().getCause().getMessage(), equalTo("request does not support [" + SliceIndexing.PARAM_NAME + "]"));
+        }
+    }
+
+    private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", sourceIndices);
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            return ReindexRequest.fromXContent(p, Predicates.never());
+        }
+    }
+
+    private ReindexRequest parseRequestWithDestRoutingField(String field, String value) throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                    b.field(field, value);
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            return ReindexRequest.fromXContent(p, Predicates.always());
+        }
+    }
+
+    private static TaskId randomTaskId() {
+        return randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong());
+    }
+}

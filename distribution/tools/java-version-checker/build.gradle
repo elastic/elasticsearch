@@ -1,0 +1,10 @@
+apply plugin: 'elasticsearch.build'
+
+tasks.named("compileJava").configure {
+  options.release = 8
+}
+
+// TODO revisit forbiddenApis issues
+["javadoc", "forbiddenApisMain"].each {
+  tasks.named(it).configure { enabled = false }
+}

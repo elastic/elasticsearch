@@ -1,0 +1,21 @@
+---
+"Test delete snapshot missing snapshotId":
+  - do:
+      catch: param
+      ml.delete_model_snapshot:
+        job_id: "delete-model-snapshot"
+
+---
+"Test delete snapshot missing job_id":
+  - do:
+      catch: param
+      ml.delete_model_snapshot:
+        snapshot_id: "inactive-snapshot"
+
+---
+"Test with unknown job id":
+  - do:
+      catch: missing
+      ml.delete_model_snapshot:
+        job_id: "non-existent-job"
+        snapshot_id: "delete-model-snapshot"

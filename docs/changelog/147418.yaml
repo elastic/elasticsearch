@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 147418
+summary: Add `EncryptionService` for encrypt/decrypt operations using PEK
+type: enhancement

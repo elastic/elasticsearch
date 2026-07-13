@@ -1,0 +1,15 @@
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+dependencies {
+  yamlRestTestImplementation project(':x-pack:qa')
+}
+
+restResources {
+  restApi {
+    include '_common', 'index', 'put_script', 'cluster', 'indices', 'ingest', 'msearch_template', 'render_search_template', 'search', 'security'
+  }
+}
+
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("security and mustache features require default distribution")
+}

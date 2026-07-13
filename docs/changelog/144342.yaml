@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 144342
+summary: '`ExpandSearchPhase:` fix inner hits lifecycle to use pooled hits'
+type: enhancement

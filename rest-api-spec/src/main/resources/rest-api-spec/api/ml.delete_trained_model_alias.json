@@ -1,0 +1,38 @@
+{
+  "ml.delete_trained_model_alias": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-trained-model-alias",
+      "description": "Delete a trained model alias"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_ml/trained_models/{model_id}/model_aliases/{model_alias}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "model_alias": {
+              "type": "string",
+              "description": "The trained model alias to delete"
+            },
+            "model_id": {
+              "type": "string",
+              "description": "The trained model where the model alias is assigned"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

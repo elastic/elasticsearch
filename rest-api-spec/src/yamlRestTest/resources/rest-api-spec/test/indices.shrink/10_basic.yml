@@ -1,0 +1,79 @@
+---
+"Shrink index via API":
+  - skip:
+      features: "arbitrary_key"
+
+  # creates an index with one document solely allocated on a particular data node
+  # and shrinks it into a new index with a single shard
+  # we don't do the relocation to a single node after the index is created
+  # here since in a mixed version cluster we can't identify
+  # which node is the one with the highest version and that is the only one that can safely
+  # be used to shrink the index.
+
+  - do:
+      nodes.info:
+        node_id: data:true
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      indices.create:
+        index: source
+        wait_for_active_shards: 1
+        body:
+          settings:
+            # ensure everything is allocated on the same data node
+            index.routing.allocation.include._id: $node_id
+            index.number_of_shards: 2
+            index.number_of_replicas: 0
+  - do:
+      index:
+        index: source
+        id:    "1"
+        body:  { "foo": "hello world" }
+
+  - do:
+      get:
+        index: source
+        id:    "1"
+
+  - match: { _index:   source }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+  # make it read-only
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+          index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source
+
+  # now we do the actual shrink
+  - do:
+      indices.shrink:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      get:
+        index: target
+        id:    "1"
+
+  - match: { _index:   target }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }

@@ -1,0 +1,46 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.PropertyNormalization
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  description = 'Module for URL repository'
+  classname ='org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk', 'count', 'snapshot'
+  }
+}
+
+dependencies {
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  yamlRestTestImplementation project(':test:fixtures:url-fixture')
+  yamlRestTestImplementation project(':modules:repository-url')
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+    'javax.jms.Message'
+  )
+}
+

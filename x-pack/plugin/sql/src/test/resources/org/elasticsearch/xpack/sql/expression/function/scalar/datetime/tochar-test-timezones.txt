@@ -1,0 +1,50 @@
+# The following timezone names are a subset of the timezones names
+# that are both available in PostgeSQL `SELECT name FROM pg_timezone_names`
+# and in Java `java.time.ZoneId.getAvailableZoneIds()`
+US/Samoa
+Pacific/Honolulu
+Pacific/Marquesas
+Pacific/Gambier
+America/Juneau
+Canada/Yukon
+America/Vancouver
+Pacific/Easter
+US/Mountain
+America/Chicago
+US/Michigan
+Atlantic/Bermuda
+Canada/Newfoundland
+Atlantic/Cape_Verde
+Pacific/Kiritimati
+Pacific/Chatham
+Pacific/Auckland
+Asia/Sakhalin
+Australia/Tasmania
+Australia/North
+Asia/Tokyo
+Australia/Eucla
+Asia/Singapore
+Asia/Rangoon
+Indian/Chagos
+Asia/Calcutta
+Asia/Tashkent
+Asia/Tehran
+Asia/Dubai
+Africa/Nairobi
+Europe/Brussels
+Europe/Vienna
+Europe/London
+Etc/GMT+12
+# Short names of some major timezones
+GMT
+UTC
+CET
+# Offsets, since zones can be specified by the offset too
++11:00
++04:30
++01:00
++00:00
+-00:00
+-01:15
+-02:00
+-11:00

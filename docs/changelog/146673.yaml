@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 146673
+summary: Migrate rank-eval `SearchHits` from unpooled to pooled
+type: enhancement

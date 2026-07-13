@@ -1,0 +1,270 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: store
+        body:
+          mappings:
+            properties:
+              product:
+                type: keyword
+              cost:
+                type: integer
+              time:
+                type: date
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: store
+        refresh: true
+        body: |
+          { "index": {} }
+          { "product": "TV", "cost": 200, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "TV", "cost": 400, "time": 1587501233000}
+          { "index": {} }
+          { "product": "TV", "cost": 600, "time": 1587501233000}
+          { "index": {} }
+          { "product": "VCR", "cost": 150, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "VCR", "cost": 350, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "VCR", "cost": 580, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "Laptop", "cost": 100, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "Laptop", "cost": 300, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "Laptop", "cost": 500, "time": 1587501233000 }
+
+---
+"Test bucket count ks test bucket agg simple":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  },
+                  "bucket_ks": {
+                    "bucket_count_ks_test": {
+                      "buckets_path": "ranged_cost>_count"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_true: aggregations.good.buckets.0.bucket_ks.less
+  - is_true: aggregations.good.buckets.1.bucket_ks.greater
+  - is_true: aggregations.good.buckets.2.bucket_ks.two_sided
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  },
+                  "bucket_ks": {
+                    "bucket_count_ks_test": {
+                      "buckets_path": "ranged_cost>_count",
+                      "alternative": ["less"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_true: aggregations.good.buckets.0.bucket_ks.less
+  - is_false: aggregations.good.buckets.1.bucket_ks.greater
+  - is_false: aggregations.good.buckets.2.bucket_ks.two_sided
+
+---
+"Test bucket count ks test bucket agg simple with fractions":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 250},
+                        {"from": 250, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  },
+                  "bucket_ks": {
+                    "bucket_count_ks_test": {
+                      "buckets_path": "ranged_cost>_count",
+                      "fractions": [0.25, 0.25, 0.25, 0.25]
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_true: aggregations.good.buckets.0.bucket_ks.less
+  - is_true: aggregations.good.buckets.1.bucket_ks.greater
+  - is_true: aggregations.good.buckets.2.bucket_ks.two_sided
+---
+"Test bucket count ks test with missing buckets_path":
+
+  - do:
+      catch: /Required \[buckets_path\]/
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  },
+                  "bucket_ks": {
+                    "bucket_count_ks_test": {
+                      "alternative": ["less"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+---
+"Test bucket count ks test with empty alternatives":
+
+  - do:
+      catch: /\[alternative\] must not be empty for aggregation/
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  },
+                  "bucket_ks": {
+                    "bucket_count_ks_test": {
+                      "buckets_path": "ranged_cost>_count",
+                      "alternative": []
+                    }
+                  }
+                }
+              }
+            }
+          }
+---
+"Test correlation with pointing to missing agg":
+  - do:
+      catch: /No aggregation found for path \[missing>_count\]/
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  },
+                  "bucket_ks": {
+                   "bucket_count_ks_test": {
+                     "buckets_path": "missing>_count"
+                    }
+                  }
+                }
+              }
+            }
+          }

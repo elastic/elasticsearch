@@ -1,0 +1,37 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.apache.tools.ant.filters.ReplaceTokens
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+// The integ-test-distribution is published to maven
+apply plugin: 'elasticsearch.publish'
+
+group = "org.elasticsearch.distribution.integ-test-zip"
+
+tasks.named("processJavaRestTestResources").configure {
+  inputs.properties(project(':distribution').restTestExpansions)
+  filter("tokens" : project(':distribution').restTestExpansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
+}
+
+// make the pom file name use elasticsearch instead of the project name
+base {
+  archivesName = "elasticsearch"
+}
+ext.buildDist = parent.tasks.named("buildIntegTestZip")
+
+publishing {
+  publications {
+    elastic {
+      pom.packaging = 'zip'
+      artifact(buildDist.flatMap { it.archiveFile })
+    }
+  }
+}

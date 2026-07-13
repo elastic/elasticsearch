@@ -1,0 +1,322 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.transport;
+
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.LinkedProjectConfig.ProxyLinkedProjectConfig;
+
+public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
+
+    static final int CHANNELS_PER_CONNECTION = 1;
+
+    private static final int MAX_CONNECT_ATTEMPTS_PER_RUN = 3;
+
+    private final int maxNumConnections;
+    private final String configuredAddress;
+    private final String configuredServerName;
+    private final Supplier<TransportAddress> address;
+    private final AtomicReference<ClusterName> remoteClusterName = new AtomicReference<>();
+    private final ConnectionManager.ConnectionValidator clusterNameValidator;
+
+    ProxyConnectionStrategy(ProxyLinkedProjectConfig config, TransportService transportService, RemoteConnectionManager connectionManager) {
+        this(config, () -> resolveAddress(config.proxyAddress()), transportService, connectionManager);
+    }
+
+    ProxyConnectionStrategy(
+        ProxyLinkedProjectConfig config,
+        Supplier<TransportAddress> address,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager
+    ) {
+        super(config, transportService, connectionManager);
+        this.maxNumConnections = config.maxNumConnections();
+        this.configuredAddress = config.proxyAddress();
+        this.configuredServerName = config.serverName();
+        assert Strings.isEmpty(configuredAddress) == false : "Cannot use proxy connection strategy with no configured addresses";
+        this.address = address;
+        this.clusterNameValidator = (newConnection, actualProfile, listener) -> {
+            assert actualProfile.getTransportProfile().equals(connectionManager.getConnectionProfile().getTransportProfile())
+                : "transport profile must be consistent between the connection manager and the actual profile";
+            transportService.handshake(
+                RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+                    newConnection,
+                    clusterAlias,
+                    connectionManager.getCredentialsManager()
+                ),
+                actualProfile.getHandshakeTimeout(),
+                Predicates.always(),
+                listener.map(resp -> {
+                    ClusterName remote = resp.getClusterName();
+                    if (remoteClusterName.compareAndSet(null, remote)) {
+                        return null;
+                    } else {
+                        if (remoteClusterName.get().equals(remote) == false) {
+                            DiscoveryNode node = newConnection.getNode();
+                            throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
+                        }
+                        return null;
+                    }
+                })
+            );
+        };
+    }
+
+    static Writeable.Reader<RemoteConnectionInfo.ModeInfo> infoReader() {
+        return ProxyModeInfo::new;
+    }
+
+    @Override
+    protected boolean shouldOpenMoreConnections() {
+        return connectionManager.size() < maxNumConnections;
+    }
+
+    @Override
+    protected boolean strategyMustBeRebuilt(LinkedProjectConfig config) {
+        assert config instanceof ProxyLinkedProjectConfig : "expected config to be of type " + ProxyLinkedProjectConfig.class;
+        final var proxyConfig = (ProxyLinkedProjectConfig) config;
+        return proxyConfig.maxNumConnections() != maxNumConnections
+            || configuredAddress.equals(proxyConfig.proxyAddress()) == false
+            || Objects.equals(proxyConfig.serverName(), configuredServerName) == false;
+    }
+
+    @Override
+    protected ConnectionStrategy strategyType() {
+        return ConnectionStrategy.PROXY;
+    }
+
+    @Override
+    protected void connectImpl(ActionListener<Void> listener) {
+        performProxyConnectionProcess(listener);
+    }
+
+    @Override
+    public RemoteConnectionInfo.ModeInfo getModeInfo() {
+        return new ProxyModeInfo(configuredAddress, configuredServerName, maxNumConnections, connectionManager.size());
+    }
+
+    private void performProxyConnectionProcess(ActionListener<Void> listener) {
+        openConnections(listener, 1);
+    }
+
+    private void openConnections(ActionListener<Void> finished, int attemptNumber) {
+        if (attemptNumber <= MAX_CONNECT_ATTEMPTS_PER_RUN) {
+            TransportAddress resolved = address.get();
+
+            int remaining = maxNumConnections - connectionManager.size();
+            ActionListener<Void> compositeListener = new ActionListener<>() {
+
+                private final AtomicInteger successfulConnections = new AtomicInteger(0);
+                private final CountDown countDown = new CountDown(remaining);
+                // Collecting exceptions during connection but deduplicate them by type and message to avoid excessive error reporting
+                private final Map<Tuple<Class<?>, String>, Exception> exceptions = new ConcurrentHashMap<>();
+
+                @Override
+                public void onResponse(Void v) {
+                    successfulConnections.incrementAndGet();
+                    if (countDown.countDown()) {
+                        if (shouldOpenMoreConnections()) {
+                            openConnections(finished, attemptNumber + 1);
+                        } else {
+                            assert connectionManager.size() > 0 : "must have at least one opened connection";
+                            finished.onResponse(v);
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    exceptions.put(new Tuple<>(e.getClass(), e.getMessage()), e);
+                    if (countDown.countDown()) {
+                        if (attemptNumber >= MAX_CONNECT_ATTEMPTS_PER_RUN && connectionManager.size() == 0) {
+                            if (exceptions.values().stream().allMatch(RemoteConnectionStrategy::isRetryableException)) {
+                                finished.onFailure(getNoSeedNodeLeftException(exceptions.values()));
+                            } else {
+                                exceptions.values().stream().filter(e1 -> e1 != e).forEach(e::addSuppressed);
+                                finished.onFailure(e);
+                            }
+                        } else {
+                            openConnections(finished, attemptNumber + 1);
+                        }
+                    }
+                }
+            };
+
+            for (int i = 0; i < remaining; ++i) {
+                String id = clusterAlias + "#" + resolved;
+                Map<String, String> attributes;
+                if (Strings.isNullOrEmpty(configuredServerName)) {
+                    attributes = Collections.emptyMap();
+                } else {
+                    attributes = Collections.singletonMap("server_name", configuredServerName);
+                }
+                DiscoveryNode node = new DiscoveryNode(
+                    null,
+                    id,
+                    resolved,
+                    attributes,
+                    DiscoveryNodeRole.roles(),
+                    new VersionInformation(
+                        Version.CURRENT.minimumCompatibilityVersion(),
+                        IndexVersions.MINIMUM_COMPATIBLE,
+                        IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                        IndexVersion.current()
+                    )
+                );
+
+                connectionManager.connectToRemoteClusterNode(node, clusterNameValidator, compositeListener.delegateResponse((l, e) -> {
+                    logger.debug(
+                        () -> format("failed to open remote connection [remote cluster: %s, address: %s]", clusterAlias, resolved),
+                        e
+                    );
+                    l.onFailure(e);
+                }));
+            }
+        } else {
+            logger.debug(
+                "unable to open maximum number of connections [remote cluster: {}, opened: {}, maximum: {}]",
+                clusterAlias,
+                connectionManager.size(),
+                maxNumConnections
+            );
+            finished.onResponse(null);
+        }
+    }
+
+    private NoSeedNodeLeftException getNoSeedNodeLeftException(Collection<Exception> suppressedExceptions) {
+        final var msg = Strings.format(
+            "Unable to open any proxy connections to cluster [%s] at address [%s], configuredAddress=[%s], configuredServerName=[%s]",
+            clusterAlias,
+            address.get(),
+            configuredAddress,
+            configuredServerName
+        );
+        final var e = new NoSeedNodeLeftException(msg);
+        suppressedExceptions.forEach(e::addSuppressed);
+        return e;
+    }
+
+    private static TransportAddress resolveAddress(String address) {
+        return new TransportAddress(parseConfiguredAddress(address));
+    }
+
+    public static class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
+
+        private final String address;
+        private final String serverName;
+        private final int maxSocketConnections;
+        private final int numSocketsConnected;
+
+        public ProxyModeInfo(String address, String serverName, int maxSocketConnections, int numSocketsConnected) {
+            this.address = address;
+            this.serverName = serverName;
+            this.maxSocketConnections = maxSocketConnections;
+            this.numSocketsConnected = numSocketsConnected;
+        }
+
+        private ProxyModeInfo(StreamInput input) throws IOException {
+            address = input.readString();
+            serverName = input.readString();
+            maxSocketConnections = input.readVInt();
+            numSocketsConnected = input.readVInt();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("proxy_address", address);
+            builder.field("server_name", serverName);
+            builder.field("num_proxy_sockets_connected", numSocketsConnected);
+            builder.field("max_proxy_socket_connections", maxSocketConnections);
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(address);
+            out.writeString(serverName);
+            out.writeVInt(maxSocketConnections);
+            out.writeVInt(numSocketsConnected);
+        }
+
+        @Override
+        public boolean isConnected() {
+            return numSocketsConnected > 0;
+        }
+
+        @Override
+        public String modeName() {
+            return "proxy";
+        }
+
+        @Override
+        public RemoteConnectionStrategy.ConnectionStrategy modeType() {
+            return RemoteConnectionStrategy.ConnectionStrategy.PROXY;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ProxyModeInfo otherProxy = (ProxyModeInfo) o;
+            return maxSocketConnections == otherProxy.maxSocketConnections
+                && numSocketsConnected == otherProxy.numSocketsConnected
+                && Objects.equals(address, otherProxy.address)
+                && Objects.equals(serverName, otherProxy.serverName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(address, serverName, maxSocketConnections, numSocketsConnected);
+        }
+
+        @Override
+        public String toString() {
+            return "ProxyModeInfo{"
+                + "address='"
+                + address
+                + '\''
+                + ", serverName='"
+                + serverName
+                + '\''
+                + ", maxSocketConnections="
+                + maxSocketConnections
+                + ", numSocketsConnected="
+                + numSocketsConnected
+                + '}';
+        }
+    }
+}

@@ -1,0 +1,18 @@
+---
+"One Test":
+  - do:
+      something:
+        id: "something1"
+  - match: { acknowledged: true }
+---
+"Two Test":
+  - do:
+      something:
+        id: "something2"
+  - match: { acknowledged: true }
+---
+"Three Test":
+  - do:
+      something:
+        id: "something3"
+  - match: { acknowledged: true }

@@ -1,0 +1,59 @@
+{
+  "searchable_snapshots.clear_cache": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-searchable-snapshots-clear-cache",
+      "description": "Clear the cache of searchable snapshots."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_searchable_snapshots/cache/clear",
+          "methods": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/{index}/_searchable_snapshots/cache/clear",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "Clear the cache"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "ignore_unavailable": {
+        "type": "boolean",
+        "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+      },
+      "allow_no_indices": {
+        "type": "boolean",
+        "description": "Whether to allow (1) wildcard index expressions that match no indices and (2) requests where the final resolved set is empty."
+      },
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "open",
+        "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      }
+    }
+  }
+}

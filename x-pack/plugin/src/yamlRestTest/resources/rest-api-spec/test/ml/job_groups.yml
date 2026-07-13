@@ -1,0 +1,272 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: test-job-groups-foo-1
+        body:  >
+          {
+            "groups": ["foo-group", "ones"],
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
+            },
+            "data_description" : {}
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: test-job-groups-foo-2
+        body:  >
+          {
+            "groups": ["foo-group", "twos"],
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
+            },
+            "data_description" : {}
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: test-job-groups-bar-1
+        body:  >
+          {
+            "groups": ["bar-group", "ones"],
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
+            },
+            "data_description" : {}
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: test-job-groups-bar-2
+        body:  >
+          {
+            "groups": ["bar-group", "twos"],
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
+            },
+            "data_description" : {}
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: test-job-groups-nogroup
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "10mb"
+            },
+            "data_description" : {}
+          }
+
+---
+"Test put job with id that matches an existing group":
+
+  - do:
+      catch: /resource_already_exists_exception/
+      ml.put_job:
+        job_id: foo-group
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {}
+          }
+
+---
+"Test put job with group that matches an job id":
+
+  - do:
+      catch: /resource_already_exists_exception/
+      ml.put_job:
+        job_id: test-job-groups-job-with-group-matching-existing-job-id
+        body:  >
+          {
+            "groups": ["test-job-groups-nogroup"],
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {}
+          }
+
+---
+"Test put job with group that matches its id":
+
+  - do:
+      catch: /resource_already_exists_exception/
+      ml.put_job:
+        job_id: test-job-groups-job-with-group-matching-its-id
+        body:  >
+          {
+            "groups": ["test-job-groups-job-with-group-matching-its-id"],
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {}
+          }
+
+---
+"Test put job with empty group":
+
+  - do:
+      catch: /Invalid group id ''; must be non-empty string and may contain lowercase alphanumeric \(a-z and 0-9\), hyphens or underscores; must start and end with alphanumeric/
+      ml.put_job:
+        job_id: test-job-groups-job-with-empty-group
+        body:  >
+          {
+            "groups": ["foo-group", ""],
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {}
+          }
+
+---
+"Test put job with invalid group":
+
+  - do:
+      catch: /Invalid group id '___'; must be non-empty string and may contain lowercase alphanumeric \(a-z and 0-9\), hyphens or underscores; must start and end with alphanumeric/
+      ml.put_job:
+        job_id: test-job-groups-job-with-invalid-group
+        body:  >
+          {
+            "groups": ["foo", "___"],
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {}
+          }
+
+---
+"Test get job API":
+
+  - do:
+      ml.get_jobs:
+        job_id: "_all"
+  - match: { count: 5 }
+  - match: { jobs.0.job_id: "test-job-groups-bar-1"}
+  - match: { jobs.1.job_id: "test-job-groups-bar-2"}
+  - match: { jobs.2.job_id: "test-job-groups-foo-1"}
+  - match: { jobs.3.job_id: "test-job-groups-foo-2"}
+  - match: { jobs.4.job_id: "test-job-groups-nogroup"}
+
+  - do:
+      ml.get_jobs:
+        job_id: "test-job-groups-bar-1"
+  - match: { count: 1 }
+  - match: { jobs.0.job_id: "test-job-groups-bar-1"}
+
+  - do:
+      ml.get_jobs:
+        job_id: "foo-group"
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: "test-job-groups-foo-1"}
+  - match: { jobs.1.job_id: "test-job-groups-foo-2"}
+
+  - do:
+      ml.get_jobs:
+        job_id: "bar-group"
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: "test-job-groups-bar-1"}
+  - match: { jobs.1.job_id: "test-job-groups-bar-2"}
+
+  - do:
+      ml.get_jobs:
+        job_id: "ones"
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: "test-job-groups-bar-1"}
+  - match: { jobs.1.job_id: "test-job-groups-foo-1"}
+
+  - do:
+      ml.get_jobs:
+        job_id: "twos"
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: "test-job-groups-bar-2"}
+  - match: { jobs.1.job_id: "test-job-groups-foo-2"}
+
+  - do:
+      ml.get_jobs:
+        job_id: "*-group"
+  - match: { count: 4 }
+  - match: { jobs.0.job_id: "test-job-groups-bar-1"}
+  - match: { jobs.1.job_id: "test-job-groups-bar-2"}
+  - match: { jobs.2.job_id: "test-job-groups-foo-1"}
+  - match: { jobs.3.job_id: "test-job-groups-foo-2"}
+
+  - do:
+      ml.get_jobs:
+        job_id: "bar-group,test-job-groups-nogroup"
+  - match: { count: 3 }
+  - match: { jobs.0.job_id: "test-job-groups-bar-1"}
+  - match: { jobs.1.job_id: "test-job-groups-bar-2"}
+  - match: { jobs.2.job_id: "test-job-groups-nogroup"}
+
+---
+"Test get job stats API":
+
+  - do:
+      ml.get_job_stats:
+        job_id: "foo-group"
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: "test-job-groups-foo-1"}
+  - match: { jobs.1.job_id: "test-job-groups-foo-2"}
+
+---
+"Test close job API":
+
+  - do:
+      ml.open_job:
+        job_id: "test-job-groups-foo-1"
+
+  - do:
+      ml.open_job:
+        job_id: "test-job-groups-bar-1"
+
+  - do:
+      ml.get_job_stats:
+        job_id: "ones"
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: "test-job-groups-bar-1"}
+  - match: { jobs.0.state: opened}
+  - match: { jobs.1.job_id: "test-job-groups-foo-1"}
+  - match: { jobs.1.state: opened}
+
+  - do:
+      ml.close_job:
+        job_id: "ones"
+
+  - do:
+      ml.get_job_stats:
+        job_id: "ones"
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: "test-job-groups-bar-1"}
+  - match: { jobs.0.state: closed}
+  - match: { jobs.1.job_id: "test-job-groups-foo-1"}
+  - match: { jobs.1.state: closed}

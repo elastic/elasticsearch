@@ -1,0 +1,6 @@
+snappy-java
+Copyright 2011 Taro L. Saito
+https://github.com/xerial/snappy-java
+
+This product includes software developed by Google Inc.
+(Snappy: http://code.google.com/p/snappy/)

@@ -1,0 +1,2014 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasource.ndjson;
+
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.exc.InputCoercionException;
+import com.fasterxml.jackson.core.io.JsonEOFException;
+
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.math.BigInteger;
+import java.nio.CharBuffer;
+import java.time.DateTimeException;
+import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
+
+/**
+ * Parses NDJSON into {@link Page}s for a single input stream.
+ * <p>
+ * <strong>Not thread-safe:</strong> each instance is intended for use by a single consumer (one
+ * {@link NdJsonPageIterator}); do not call {@link #decodePage()} concurrently from multiple threads.
+ */
+public class NdJsonPageDecoder implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(NdJsonPageDecoder.class);
+
+    /**
+     * Floor for the per-{@code BlockDecoder} identity-cache bound (see
+     * {@code BlockDecoder#identityCacheMaxEntries}). High enough that the common NDJSON STATS
+     * shape (a handful of projected columns plus tens of unprojected ones) fits entirely; low
+     * enough that the worst-case retention on a dynamic-key input stays in the kilobytes range
+     * per decoder level.
+     */
+    static final int IDENTITY_CACHE_MIN_CAP = 256;
+
+    /**
+     * Multiplier on the local projected {@code children.size()} when sizing the identity-cache
+     * bound. The fixed floor gives narrow projections room for common unprojected field names;
+     * this multiplier gives wider projections extra space without scaling with dynamic JSON keys.
+     */
+    static final int IDENTITY_CACHE_FANOUT_MULT = 4;
+
+    private InputStream input;
+    /**
+     * Non-null when the decoder is reading from a fully buffered byte array (no {@link InputStream}
+     * indirection); in that case {@link #input} is {@code null} and recovery uses the byte-array
+     * fast path. Streaming-parallel parsing uses this path because every chunk is already a
+     * bounded {@code byte[]} region — going straight to Jackson's {@code createParser(byte[])}
+     * skips the per-call dispatch through {@link InputStream#read} and lets Jackson 2.16+ pick
+     * its small-input fast paths.
+     */
+    private final byte[] sourceBytes;
+    /** Factory used to create (and recreate after recovery) the underlying {@link JsonParser}. */
+    private final JsonFactory jsonFactory;
+    /**
+     * Exclusive end of the readable region in {@link #sourceBytes}. The decoder may read bytes in
+     * the half-open range {@code [parserSliceStart, sourceEnd)}; everything outside it must not
+     * be touched (e.g. when the byte array is a large pooled buffer and only a prefix is data).
+     */
+    private final int sourceEnd;
+    /**
+     * Total readable bytes for the byte-array path ({@code sourceEnd - sourceOffset}), or {@code -1}
+     * on the {@link InputStream} path. Used by {@link #setMaxRecordBytes(int)} to decide whether the
+     * per-record cap can ever trip: a record can never be longer than the buffer that fully contains
+     * it, so a byte-array whose whole length is {@code <= max_record_size} needs no enforcement at all.
+     */
+    private final int sourceDataLength;
+    /**
+     * Absolute offset (within {@link #sourceBytes}) where {@link #parser}'s input slice starts;
+     * tracked because {@code JsonParser.getCurrentLocation().getByteOffset()} is relative to the
+     * slice the parser was created over, not to the underlying byte array. Updated each time
+     * {@link #recoverFromParseException} restarts the parser at a later offset.
+     */
+    private int parserSliceStart;
+
+    /**
+     * Record-offset tracking for the orthogonal per-stripe stats path. Enabled by
+     * {@link #enableRecordOffsetTracking(long)}: {@link #decodePage()} then records every decoded record's
+     * own file-global start offset (the byte of its opening brace, scan-invariant) into
+     * {@link #lastPageRecordOffsets} so the iterator can attribute each row to its canonical stripe
+     * ({@code floor(offset / B)}) — exactly as the CSV reader uses its per-row {@code rowStartBytes}. The
+     * page is NOT capped at stripe lines: byte-range cover attribution by record offset needs no page
+     * alignment. {@code baseOffset} is this read's first byte in file/decompressed coordinates; the absolute
+     * offset of the START of the parser's current token (a record's opening brace) is {@code baseOffset +
+     * parserSliceStart + parser.getTokenLocation().getByteOffset()} — see {@link #tokenStartOffset()}, which
+     * uses the token-start location (not the current/end location) so attribution is scan-invariant. Disabled
+     * by default — a pure stats overlay, never affecting page contents.
+     */
+    private long statsBaseOffset = 0L;
+    private boolean recordOffsetTracking = false;
+    /**
+     * Per-record file-global start offsets of the page {@link #decodePage()} last returned, filled positionally
+     * with the page's rows when {@link #recordOffsetTracking} is on. Reused across pages; only the first
+     * {@link #lastPageRecordCount} entries are meaningful.
+     */
+    private long[] lastPageRecordOffsets = new long[0];
+    /** Number of meaningful entries in {@link #lastPageRecordOffsets} for the last page. */
+    private int lastPageRecordCount;
+
+    private final BlockDecoder decoder;
+    private final int batchSize;
+    private final BlockFactory blockFactory;
+    private JsonParser parser;
+    private final List<Attribute> projectedAttributes;
+    /**
+     * Index of the synthetic {@code _rowPosition} attribute in {@link #projectedAttributes}, or
+     * {@code -1} when not projected. When non-negative, each decoded record's file-global start
+     * byte is emitted into this slot (see {@link #recordFileOffset(long)}).
+     */
+    private final int rowPositionSlot;
+    /**
+     * Logical start offset of the parser's initial slice (the {@code sourceOffset} the first parser
+     * was created over). Used to relativize {@link #parserSliceStart}, which is updated to absolute
+     * positions within {@link #sourceBytes} on recovery.
+     */
+    private final int initialSliceStart;
+    /**
+     * File-global byte offset of the first byte this decoder reads (i.e. the split's start byte plus
+     * any leading partial record skipped before the decoder was handed the stream). Base for the
+     * {@code _rowPosition} / {@code _file.record_ref} emit; {@code 0} when not relevant. Set by the
+     * caller via {@link #setRecordOffsetBase(long)} before the first {@link #decodePage()}.
+     */
+    private long recordOffsetBase = 0L;
+
+    /**
+     * Per-record {@code max_record_size} byte cap. Enforced inside the decode loop on the same pass
+     * Jackson already makes (no separate full sweep), so it replaces the pre-#965 stream-wrapper /
+     * pre-scan. Defaults to {@link Integer#MAX_VALUE} (no cap) until {@link #setMaxRecordBytes(int)}
+     * is called by the iterator.
+     */
+    private int maxRecordBytes = Integer.MAX_VALUE;
+    /**
+     * True only when an oversized record is actually reachable on this input, so the hot path (a
+     * byte-array segment whose whole length is within the cap — the streaming-parallel chunk case)
+     * pays nothing. See {@link #setMaxRecordBytes(int)}.
+     */
+    private boolean capEnforced = false;
+    /**
+     * Set when a non-strict policy stops the read at an oversized record on the {@link InputStream}
+     * (streaming / fallback) path. Unlike the byte-array path — where a fully-buffered oversized
+     * record can be dropped and decoding continues — a streaming oversized record has no cheap
+     * resumption point, so the read truncates at the failure (matching the segmentator's behavior).
+     * The records emitted before it are a partial prefix; {@link NdJsonPageIterator} surfaces a
+     * client warning and keeps the under-count out of the stats cache.
+     */
+    private boolean truncated = false;
+    /** File-global byte offset where the oversized record that triggered {@link #truncated} began. */
+    private long truncatedAtByte = -1L;
+    /**
+     * Set when the BYTE-ARRAY path drops an oversized record and keeps decoding. Unlike {@link #truncated}
+     * (streaming, which stops at the record), the byte-array path recovers, so the emitted rows are complete
+     * EXCEPT the dropped one — a {@code max_record_size}-dependent under-count. Since {@code max_record_size}
+     * is a query pragma and not in the cache fingerprint ({@code SchemaCacheKey.FORMAT_AFFECTING_PARAMS}), a
+     * warm aggregate under a different cap would count differently, so {@link NdJsonPageIterator} must keep
+     * this scan out of the stats cache (safe-miss). Mirrors CSV's {@code recordCapDropped} guard.
+     */
+    private boolean capDropped = false;
+    /**
+     * Set when a lenient-mode parse-error recovery on the STREAMING ({@link InputStream}) path rebuilt the parser
+     * over the remaining stream ({@link #recoverFromParseException}'s {@code sourceBytes == null} branch): the new
+     * parser's byte offsets restart at the recovery point while {@link #parserSliceStart} stays 0, so every
+     * subsequent {@link #tokenStartOffset()} is short by the bytes consumed before recovery — record offsets are no
+     * longer file-global. Per-stripe attribution derived from them would commit records to EARLIER stripes, and
+     * NDJSON has no emit-time byte-exactness tripwire (unlike CSV), so {@link NdJsonPageIterator} must safe-miss
+     * stripe capture. The byte-array recovery path re-anchors {@link #parserSliceStart} exactly and is immune.
+     */
+    private boolean offsetBaselineLost = false;
+
+    /** Page block layout: index {@code i} corresponds to {@code projectedAttributes().get(i)}. */
+    List<Attribute> projectedAttributes() {
+        return projectedAttributes;
+    }
+
+    // What blocks got a value on the current line? Needed because Block.Builder doesn't provide
+    // the number of positions that were added.
+    private final BitSet blockTracker;
+    private final ErrorPolicy errorPolicy;
+    private final SkipWarnings skipWarnings;
+    private final NdJsonReaderCounters counters;
+    private long totalRowCount;
+    private long errorCount;
+    private final DateFormatter datetimeFormatter;
+    /**
+     * Per-column declared date parse-patterns keyed by <b>physical</b> (file) column name; empty when none. Each
+     * {@link BlockDecoder} resolves its own {@link DateFormatter} once from this map in {@link BlockDecoder#setAttribute}
+     * and parses that column's timestamps with it instead of {@link #datetimeFormatter}.
+     */
+    private final Map<String, String> declaredDateFormats;
+    /**
+     * Physical (file) column names whose target type came from an explicit declaration. A cross-kind token
+     * (a boolean in a numeric/datetime column, a number in a boolean column, a non-string in an IP column)
+     * on such a column has no silent-null tolerance — it routes through {@link BlockDecoder#coercionFailure}
+     * per the declared-type invariant that no declared type may silently read as null. An INFERRED column
+     * (not in this set) keeps the schema-on-read {@link BlockDecoder#unexpectedValue} tolerance. Empty when
+     * no column type was declared.
+     */
+    private final Set<String> declaredTypeColumns;
+
+    /** Number of malformed records observed during decoding (lenient policies swallow these). */
+    long errorCount() {
+        return errorCount;
+    }
+
+    /**
+     * Enables per-record offset tracking so {@link #decodePage()} fills {@link #lastPageRecordOffsets} with
+     * each row's own file-global start byte. Does NOT cap pages at stripe lines — the iterator attributes
+     * rows to stripes by their recorded offsets via the byte-range cover model.
+     */
+    void enableRecordOffsetTracking(long baseOffset) {
+        this.statsBaseOffset = baseOffset;
+        this.recordOffsetTracking = true;
+    }
+
+    /**
+     * Absolute file offset of the START of the most recently read token — for a record's {@code START_OBJECT}
+     * this is the byte of its opening brace. A record's own start is independent of how the file is chunked,
+     * so {@code floor(thisOffset / B)} attributes the record to the same stripe under every scan.
+     */
+    private long tokenStartOffset() {
+        return statsBaseOffset + parserSliceStart + parser.getTokenLocation().getByteOffset();
+    }
+
+    /** Per-record file-global start offsets of the last decoded page; valid for the first {@link #lastPageRecordCount()} rows. */
+    long[] lastPageRecordOffsets() {
+        return lastPageRecordOffsets;
+    }
+
+    /** Number of meaningful entries in {@link #lastPageRecordOffsets()} (== the last page's row count when tracking is on). */
+    int lastPageRecordCount() {
+        return lastPageRecordCount;
+    }
+
+    /**
+     * Lazily allocated for {@link #decodePageLenient} only; reused across rows within this decoder
+     * (avoids per-row {@code new Block.Builder[n]}).
+     */
+    @Nullable
+    private Block.Builder[] lenientScratchBuilders;
+
+    /**
+     * Reused buffer for {@link #appendDecodedScratchRow}; paired with {@link #lenientScratchBuilders}.
+     */
+    @Nullable
+    private Block[] lenientScratchRowBlocks;
+
+    /**
+     * Reused for every keyword field; see {@link #toScratchBytesRef(String)}.
+     */
+    private final BytesRef keywordScratch = new BytesRef(BytesRef.EMPTY_BYTES);
+
+    /** No-declared-date-formats, no-sink convenience (tests and callers that need neither feature). */
+    NdJsonPageDecoder(
+        InputStream input,
+        DateFormatter datetimeFormatter,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonReaderCounters counters
+    ) throws IOException {
+        this(
+            input,
+            datetimeFormatter,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            counters,
+            Map.of(),
+            Set.of(),
+            null
+        );
+    }
+
+    /** Test-only: back-compat overload for callers that don't need sink-routed warnings. */
+    NdJsonPageDecoder(
+        InputStream input,
+        DateFormatter datetimeFormatter,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonReaderCounters counters,
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns
+    ) throws IOException {
+        this(
+            input,
+            datetimeFormatter,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            counters,
+            declaredDateFormats,
+            declaredTypeColumns,
+            null
+        );
+    }
+
+    /** Test-only: back-compat overload for callers that don't need declared-date/type info. */
+    NdJsonPageDecoder(
+        InputStream input,
+        DateFormatter datetimeFormatter,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonReaderCounters counters,
+        @Nullable Consumer<String> warningSink
+    ) throws IOException {
+        this(
+            input,
+            datetimeFormatter,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            counters,
+            Map.of(),
+            Set.of(),
+            warningSink
+        );
+    }
+
+    NdJsonPageDecoder(
+        InputStream input,
+        DateFormatter datetimeFormatter,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonReaderCounters counters,
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns,
+        @Nullable Consumer<String> warningSink
+    ) throws IOException {
+        this(
+            input,
+            null,
+            0,
+            0,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            datetimeFormatter,
+            counters,
+            NdJsonUtils.JSON_FACTORY,
+            declaredDateFormats,
+            declaredTypeColumns,
+            warningSink
+        );
+    }
+
+    /** No-declared-date-formats, no-sink convenience for the byte[] path (see the fully-loaded ctor below). */
+    NdJsonPageDecoder(
+        byte[] data,
+        int offset,
+        int length,
+        DateFormatter datetimeFormatter,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonReaderCounters counters
+    ) throws IOException {
+        this(
+            data,
+            offset,
+            length,
+            datetimeFormatter,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            counters,
+            Map.of(),
+            Set.of(),
+            null
+        );
+    }
+
+    /**
+     * Buffered-bytes constructor for the streaming-parallel path: {@code data[offset .. offset+length)}
+     * is the entire input. Recovery from {@link JsonParseException} stays inside the byte array
+     * (no buffered-bytes shuttling through {@link NdJsonUtils#moveToNextLine}) by scanning for the
+     * next {@code '\n'} from the parser's current byte offset.
+     */
+    /** Test-only: back-compat overload for callers that don't need sink-routed warnings. */
+    NdJsonPageDecoder(
+        byte[] data,
+        int offset,
+        int length,
+        DateFormatter datetimeFormatter,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonReaderCounters counters,
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns
+    ) throws IOException {
+        this(
+            data,
+            offset,
+            length,
+            datetimeFormatter,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            counters,
+            declaredDateFormats,
+            declaredTypeColumns,
+            null
+        );
+    }
+
+    /** Test-only: back-compat overload for callers that don't need declared-date/type info. */
+    NdJsonPageDecoder(
+        byte[] data,
+        int offset,
+        int length,
+        DateFormatter datetimeFormatter,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonReaderCounters counters,
+        @Nullable Consumer<String> warningSink
+    ) throws IOException {
+        this(
+            data,
+            offset,
+            length,
+            datetimeFormatter,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            counters,
+            Map.of(),
+            Set.of(),
+            warningSink
+        );
+    }
+
+    NdJsonPageDecoder(
+        byte[] data,
+        int offset,
+        int length,
+        DateFormatter datetimeFormatter,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonReaderCounters counters,
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns,
+        @Nullable Consumer<String> warningSink
+    ) throws IOException {
+        this(
+            null,
+            data,
+            offset,
+            length,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            datetimeFormatter,
+            counters,
+            NdJsonUtils.JSON_FACTORY,
+            declaredDateFormats,
+            declaredTypeColumns,
+            warningSink
+        );
+    }
+
+    /**
+     * Test-only: accepts an injected {@link JsonFactory} so tests can wrap the created parser in a
+     * delegate (e.g. to count token-advance calls) without reflection. Uses a fresh counters
+     * instance since these tests don't assert on the counter snapshot.
+     */
+    NdJsonPageDecoder(
+        InputStream input,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        JsonFactory factory
+    ) throws IOException {
+        this(input, attributes, projectedColumns, batchSize, blockFactory, errorPolicy, sourceLocation, factory, null);
+    }
+
+    /** Test-only: like the above, but also allows asserting on the {@link SkipWarnings} sink. */
+    NdJsonPageDecoder(
+        InputStream input,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        JsonFactory factory,
+        @Nullable Consumer<String> warningSink
+    ) throws IOException {
+        this(
+            input,
+            null,
+            0,
+            0,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            null,
+            new NdJsonReaderCounters(),
+            factory,
+            Map.of(),
+            Set.of(),
+            warningSink
+        );
+    }
+
+    private NdJsonPageDecoder(
+        InputStream input,
+        byte[] sourceBytes,
+        int sourceOffset,
+        int sourceLength,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        DateFormatter datetimeFormatter,
+        NdJsonReaderCounters counters,
+        JsonFactory factory,
+        Map<String, String> declaredDateFormats,
+        Set<String> declaredTypeColumns,
+        @Nullable Consumer<String> warningSink
+    ) throws IOException {
+        this.jsonFactory = factory;
+        this.input = input;
+        this.sourceBytes = sourceBytes;
+        if (sourceBytes != null) {
+            Check.isTrue(sourceOffset >= 0, "sourceOffset must be non-negative, got: {}", sourceOffset);
+            Check.isTrue(sourceLength >= 0, "sourceLength must be non-negative, got: {}", sourceLength);
+            int end = Math.addExact(sourceOffset, sourceLength);
+            Check.isTrue(end <= sourceBytes.length, "byte slice [{}, {}) exceeds buffer length {}", sourceOffset, end, sourceBytes.length);
+            this.sourceEnd = end;
+            this.parserSliceStart = sourceOffset;
+            this.sourceDataLength = sourceLength;
+        } else {
+            // The default-zero values are unreachable on the InputStream path: every read of these
+            // fields is gated on {@code sourceBytes != null}. Assign explicitly so the dependency is
+            // self-documenting and a future refactor that lifts the gate fails at the source rather
+            // than reading silently from a zero-initialized field.
+            this.sourceEnd = 0;
+            this.parserSliceStart = 0;
+            this.sourceDataLength = -1;
+        }
+        Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
+        Check.isTrue(counters != null, "counters must not be null");
+        this.errorPolicy = errorPolicy;
+        this.counters = counters;
+        this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.STRICT_DATE_OPTIONAL_TIME;
+        this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
+        this.declaredTypeColumns = declaredTypeColumns != null ? Set.copyOf(declaredTypeColumns) : Set.of();
+        this.skipWarnings = SkipWarnings.of(
+            errorPolicy,
+            "NDJSON read from ["
+                + sourceLocation
+                + "] encountered parse errors handled per policy (policy: "
+                + errorPolicy.modeName()
+                + "); affected rows are listed below",
+            warningSink
+        );
+
+        List<Attribute> fullSchema = attributes;
+        // Three projection cases:
+        // - null : caller has no projection info (e.g. metadata path); materialize every attribute.
+        // - empty : optimizer pruned every column (COUNT(*) and similar); produce row-count-only Pages.
+        // - other : project the listed columns in the requested order, with NULL for missing names.
+        List<Attribute> projectedAttributes;
+        if (projectedColumns == null) {
+            projectedAttributes = attributes;
+        } else if (projectedColumns.isEmpty()) {
+            projectedAttributes = List.of();
+        } else {
+            // Build the lookup map once: O(N) here vs. O(N*M) for a per-projection nested scan,
+            // which matters on wide schemas (the NYC taxis fixture has 100+ columns). putIfAbsent
+            // preserves the first-wins semantics of the prior findFirst() call so a schema with
+            // duplicated names (rare, but legal) keeps the same attribute the optimizer would have
+            // picked. We never iterate the map, so HashMap suffices (no LinkedHashMap overhead).
+            // Capacity 2*N keeps us safely above the 0.75 load factor for at most N entries.
+            Map<String, Attribute> byName = new HashMap<>(attributes.size() * 2);
+            for (Attribute a : attributes) {
+                byName.putIfAbsent(a.name(), a);
+            }
+            var resolved = new ArrayList<Attribute>(projectedColumns.size());
+            for (String col : projectedColumns) {
+                if (ColumnExtractor.ROW_POSITION_COLUMN.equals(col)) {
+                    // Synthetic file-global record offset, not a JSON field. Typed LONG (not NULL) so
+                    // setupBuilders allocates a Long builder; the decode loop fills it from the
+                    // parser's byte offset rather than from JSON.
+                    resolved.add(NdJsonSchemaInferrer.attribute(col, DataType.LONG, false));
+                    continue;
+                }
+                Attribute match = byName.get(col);
+                resolved.add(match != null ? match : NdJsonSchemaInferrer.attribute(col, DataType.NULL, false));
+            }
+            projectedAttributes = resolved;
+        }
+
+        this.decoder = prepareSchema(projectedAttributes, fullSchema);
+        this.batchSize = batchSize;
+        this.blockFactory = blockFactory;
+        this.projectedAttributes = projectedAttributes;
+        this.blockTracker = new BitSet(projectedAttributes.size());
+        this.initialSliceStart = sourceOffset;
+        this.rowPositionSlot = SyntheticColumns.rowPositionIndexInAttributes(projectedAttributes);
+
+        if (sourceBytes != null) {
+            this.parser = factory.createParser(sourceBytes, sourceOffset, sourceLength);
+        } else {
+            this.parser = factory.createParser(input);
+        }
+    }
+
+    private void recoverFromParseException(JsonParser failedParser) throws IOException {
+        if (sourceBytes != null) {
+            int next = nextLineStartByteAfter(failedParser);
+            failedParser.close();
+            this.parserSliceStart = next;
+            this.parser = jsonFactory.createParser(sourceBytes, next, sourceEnd - next);
+        } else {
+            this.input = NdJsonUtils.moveToNextLine(failedParser, this.input);
+            this.parser = jsonFactory.createParser(this.input);
+            // The fresh parser's byte offsets restart at the recovery point while parserSliceStart stays 0, so
+            // every subsequent tokenStartOffset() is short by the pre-recovery bytes. Record offsets are no longer
+            // file-global — any per-stripe attribution derived from them is skewed; NdJsonPageIterator safe-misses
+            // stripe capture. (The byte-array branch above re-anchors parserSliceStart exactly, so it is immune.)
+            this.offsetBaselineLost = true;
+        }
+    }
+
+    /**
+     * Returns the absolute byte offset (into {@link #sourceBytes}) of the start of the line
+     * following the failed parser's current position (the byte after the next {@code '\n'} or
+     * {@code '\r'}, or {@link #sourceEnd} on EOF). The new parser created from this offset will
+     * not re-encounter the malformed line. {@code getByteOffset()} is added to
+     * {@link #parserSliceStart} because it is relative to the slice the failed parser was created
+     * over, not to {@link #sourceBytes}. Both LF and CR terminate a line so the byte-array path
+     * handles the same record terminators as {@link NdJsonUtils#moveToNextLine}.
+     */
+    private int nextLineStartByteAfter(JsonParser failedParser) {
+        long sliceOffsetLong = failedParser.getCurrentLocation().getByteOffset();
+        // getByteOffset() returns -1 only for non-byte-backed sources; we always pass byte[].
+        int sliceOffset = sliceOffsetLong < 0 ? (sourceEnd - parserSliceStart) : Math.toIntExact(sliceOffsetLong);
+        int from = Math.min(parserSliceStart + sliceOffset, sourceEnd);
+        for (int i = from; i < sourceEnd; i++) {
+            byte b = sourceBytes[i];
+            if (b == '\n') {
+                return i + 1;
+            }
+            if (b == '\r') {
+                // Consume an immediately-following LF so CRLF advances by two bytes (matches the
+                // streaming-side scanForTerminator semantics).
+                if (i + 1 < sourceEnd && sourceBytes[i + 1] == '\n') {
+                    return i + 2;
+                }
+                return i + 1;
+            }
+        }
+        return sourceEnd;
+    }
+
+    /**
+     * Whole-line JSON failures always drop the line. {@link ErrorPolicy.Mode#NULL_FIELD} is treated
+     * like {@link ErrorPolicy.Mode#SKIP_ROW} here; per-field null-fill would require partial decode support.
+     */
+    private void onNdjsonLineParseError(JsonParseException e, long logicalRowIndex, String phaseLabel) {
+        if (errorPolicy.isStrict()) {
+            throw new EsqlIllegalArgumentException(e, "Malformed NDJSON [{}]: {}", phaseLabel, e.getOriginalMessage());
+        }
+        errorCount++;
+        skipWarnings.add(
+            (e instanceof JsonEOFException ? "Truncated" : "Malformed")
+                + " NDJSON at logical row ["
+                + logicalRowIndex
+                + "] ("
+                + phaseLabel
+                + "): "
+                + e.getOriginalMessage()
+        );
+        checkErrorBudgetOrThrow();
+        logger.log(
+            errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
+            // The (Object) cast on the first vararg is required: a String-typed first vararg makes this
+            // call ambiguously resolve to the unrelated format(String prefix, String pattern, Object...
+            // args) overload instead of format(String pattern, Object... args), silently discarding the
+            // pattern and every argument but the first (confirmed empirically; not exercised by any
+            // existing assertion since this is a log-only message).
+            LoggerMessageFormat.format(
+                "{} NDJSON at logical row [{}] ({}): {}",
+                (Object) (e instanceof JsonEOFException ? "Truncated" : "Malformed"),
+                logicalRowIndex,
+                phaseLabel,
+                e.getOriginalMessage()
+            )
+        );
+    }
+
+    /**
+     * Throws when the non-strict error budget ({@code max_errors}/{@code max_error_ratio}) has been
+     * exceeded, after first surfacing a client warning describing what tripped it. Shared by every
+     * non-strict error path ({@link #onNdjsonLineParseError} and {@link BlockDecoder#shapeConflict})
+     * so the budget is enforced consistently regardless of which kind of error incremented
+     * {@link #errorCount}. Callers must have already incremented {@link #errorCount} for the
+     * current error.
+     */
+    private void checkErrorBudgetOrThrow() {
+        if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
+            // Surface the budget-exceeded condition as a warning so clients see exactly what tripped it.
+            skipWarnings.add(
+                "NDJSON error budget exceeded at row ["
+                    + totalRowCount
+                    + "]: ["
+                    + errorCount
+                    + "] errors, maximum ["
+                    + errorPolicy.maxErrors()
+                    + "] or ratio ["
+                    + errorPolicy.maxErrorRatio()
+                    + "]"
+            );
+            throw new EsqlIllegalArgumentException(
+                "NDJSON error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
+                errorCount,
+                totalRowCount,
+                errorPolicy.maxErrors(),
+                errorPolicy.maxErrorRatio()
+            );
+        }
+    }
+
+    /**
+     * Sets the file-global byte offset of this decoder's first input byte (split start + any leading
+     * partial record skipped upstream). Must be called before the first {@link #decodePage()} when
+     * {@code _rowPosition} is projected; harmless otherwise.
+     */
+    void setRecordOffsetBase(long recordOffsetBase) {
+        this.recordOffsetBase = recordOffsetBase;
+    }
+
+    /**
+     * Sets the per-record {@code max_record_size} cap (in bytes). Must be called before the first
+     * {@link #decodePage()}. Enforcement is gated on {@link #capEnforced}: on the byte-array path a
+     * record can never exceed the buffer that fully contains it, so when the whole segment is within
+     * the cap the loop skips offset tracking entirely (the streaming-parallel chunk hot path pays
+     * nothing — see issue 965). The {@link InputStream} path has no such bound, so it always enforces
+     * when a finite cap is configured.
+     */
+    void setMaxRecordBytes(int maxRecordBytes) {
+        Check.isTrue(maxRecordBytes > 0, "maxRecordBytes must be positive, got: {}", maxRecordBytes);
+        this.maxRecordBytes = maxRecordBytes;
+        this.capEnforced = maxRecordBytes != Integer.MAX_VALUE && (sourceDataLength < 0 || maxRecordBytes < sourceDataLength);
+    }
+
+    /**
+     * Whether the per-record {@code max_record_size} check runs in the decode loop. False on the
+     * byte-array hot path when the whole segment is within the cap (no record can exceed the buffer
+     * that contains it) — the streaming-parallel chunk case that issue 965 must keep free of any
+     * extra per-record work. Package-private for tests that pin that gate.
+     */
+    boolean capEnforced() {
+        return capEnforced;
+    }
+
+    /**
+     * True when a non-strict read stopped early at an oversized record on the streaming/fallback
+     * path. The emitted rows are a partial prefix of the input.
+     */
+    boolean truncated() {
+        return truncated;
+    }
+
+    /** File-global byte offset of the oversized record that caused {@link #truncated}, or {@code -1}. */
+    long truncatedAtByte() {
+        return truncatedAtByte;
+    }
+
+    /**
+     * True when the byte-array path dropped an oversized record and kept decoding — a
+     * {@code max_record_size}-dependent under-count that must not be cached. See {@link #capDropped}.
+     */
+    boolean capDropped() {
+        return capDropped;
+    }
+
+    /** Whether a streaming-path recovery reset the parser byte baseline (record offsets no longer file-global). */
+    boolean offsetBaselineLost() {
+        return offsetBaselineLost;
+    }
+
+    /**
+     * Parser byte offset relative to its current slice. Stable to subtract between two points within
+     * a single record's decode (no recovery happens between {@code nextToken} and a successful
+     * {@code decodeObject}), so {@code endOffset - startOffset} is the record's parsed JSON span.
+     */
+    private long parserSliceByteOffset() {
+        return parser.getCurrentLocation().getByteOffset();
+    }
+
+    /**
+     * Throws the strict-policy {@code max_record_size} failure for a record whose parsed span is
+     * {@code spanBytes}. Shares {@link NdJsonRecordSplitter}'s {@code NDJSON line exceeded max_record_size [N]}
+     * prefix so the user-facing wording is consistent regardless of which layer detects the overflow, and
+     * appends the decode-time span for diagnostics.
+     */
+    private IOException recordTooLarge(long spanBytes) {
+        return new IOException("NDJSON line exceeded max_record_size [" + maxRecordBytes + "]: spans at least [" + spanBytes + "] bytes");
+    }
+
+    /**
+     * File-global byte offset of a record whose slice-relative start is {@code startSliceOffset} (captured via
+     * {@link #parserSliceByteOffset()} before {@code decodeObject} advances the parser). {@link #parserSliceStart}
+     * is the parser slice's absolute start within {@link #sourceBytes} (updated on recovery);
+     * {@link #initialSliceStart} relativizes it so the result stays anchored to {@link #recordOffsetBase}.
+     * Stable across split layouts because it is the record's intrinsic position in the file. Single source of
+     * the offset formula shared by the strict and lenient decode loops.
+     */
+    private long recordFileOffset(long startSliceOffset) {
+        return recordOffsetBase + (parserSliceStart - initialSliceStart) + startSliceOffset;
+    }
+
+    Page decodePage() throws IOException {
+        if (truncated) {
+            // A prior page stopped at an oversized record on the streaming path; nothing more to read.
+            return null;
+        }
+        long startNanos = System.nanoTime();
+        long startTotalRowCount = totalRowCount;
+        long startErrorCount = errorCount;
+        var blockBuilders = new Block.Builder[projectedAttributes.size()];
+        // Per-record offset tracking: each decoded record's own start offset is recorded into
+        // lastPageRecordOffsets so the iterator can attribute rows to canonical stripes by the byte-range
+        // cover model. Pages are NOT capped at stripe lines — a page may span stripes; the iterator splits
+        // its rows by their recorded offsets. Reset the per-page count before decoding.
+        lastPageRecordCount = 0;
+        if (recordOffsetTracking && lastPageRecordOffsets.length < batchSize) {
+            lastPageRecordOffsets = new long[batchSize];
+        }
+        // Setting up builders may trip the circuit breaker. Make sure they're all always closed
+        try {
+            decoder.setupBuilders(blockBuilders);
+            return errorPolicy.isStrict() ? decodePageFailFast(blockBuilders) : decodePageLenient(blockBuilders);
+        } finally {
+            Releasables.close(blockBuilders);
+            long deltaTotal = totalRowCount - startTotalRowCount;
+            long deltaErrors = errorCount - startErrorCount;
+            counters.addRowsEmitted(deltaTotal - deltaErrors);
+            counters.addParseErrors(deltaErrors);
+            counters.addReadNanos(System.nanoTime() - startNanos);
+        }
+    }
+
+    /**
+     * {@link ErrorPolicy.Mode#FAIL_FAST}: abort on the first {@link JsonParseException} on a line
+     * (no recovery, no scratch-row path).
+     */
+    private Page decodePageFailFast(Block.Builder[] blockBuilders) throws IOException {
+        int lineCount = 0;
+        while (lineCount < batchSize) {
+            try {
+                if (parser.nextToken() == null) {
+                    break; // End of stream
+                }
+            } catch (JsonParseException e) {
+                totalRowCount++;
+                onNdjsonLineParseError(e, totalRowCount, "nextToken"); // FAIL_FAST: throws
+            }
+            // Record-canonical stripe attribution: this record belongs to floor(itsOwnStart / B), captured
+            // from its START_OBJECT byte before decodeObject advances the parser. Pages are not capped at
+            // stripe lines; the iterator splits the page's rows by their offsets (byte-range cover model).
+            long stripeRecordStart = recordOffsetTracking ? tokenStartOffset() : 0L;
+
+            totalRowCount++;
+            this.blockTracker.clear();
+            // Capture the record's start offset before decodeObject advances the parser. The slice-relative
+            // offset feeds the max_record_size span check; the file-global offset feeds _rowPosition.
+            boolean trackOffset = capEnforced || rowPositionSlot >= 0;
+            long startSliceOffset = trackOffset ? parserSliceByteOffset() : 0L;
+            long recordOffset = trackOffset ? recordFileOffset(startSliceOffset) : 0L;
+
+            try {
+                decoder.decodeObject(parser, false);
+            } catch (JsonParseException e) {
+                onNdjsonLineParseError(e, totalRowCount, "decodeObject");
+            }
+
+            if (capEnforced) {
+                // span runs from just after the record's opening '{' (startSliceOffset was captured after
+                // nextToken consumed START_OBJECT) through its closing '}', so it omits both the opening brace
+                // and the line terminator — a couple of bytes under the splitter's terminator-inclusive count.
+                // That can only make the decoder slightly more permissive at very small caps, never stricter, so
+                // it never spuriously rejects a record a coordinator chunk already accepted. The record was fully
+                // decoded before this check (the buffer is already bounded — byte-array segments are <= 16 MiB and
+                // Jackson's StreamReadConstraints bound a single streamed token), which trades a fail-fast
+                // pre-scan for the single-pass decode that issue 965 requires.
+                long span = parserSliceByteOffset() - startSliceOffset;
+                if (span > maxRecordBytes) {
+                    // Keep the failed row out of the emitted-rows counter (the finally adds totalRowCount).
+                    totalRowCount--;
+                    throw recordTooLarge(span);
+                }
+            }
+
+            if (rowPositionSlot >= 0) {
+                ((LongBlock.Builder) blockBuilders[rowPositionSlot]).appendLong(recordOffset);
+                blockTracker.set(rowPositionSlot);
+            }
+
+            if (recordOffsetTracking) {
+                lastPageRecordOffsets[lineCount] = stripeRecordStart;
+            }
+            lineCount++;
+            for (int i = 0; i < blockBuilders.length; i++) {
+                if (blockTracker.get(i) == false) {
+                    blockBuilders[i].appendNull();
+                }
+            }
+        }
+        if (recordOffsetTracking) {
+            lastPageRecordCount = lineCount;
+        }
+        return buildPageFromBuildersOrNull(blockBuilders, lineCount);
+    }
+
+    /**
+     * Lenient modes: skip bad lines up to the error budget, using scratch builders so partial rows
+     * are never committed to the page.
+     */
+    private Page decodePageLenient(Block.Builder[] blockBuilders) throws IOException {
+        ensureLenientScratchBuffers();
+        final Block.Builder[] rowScratch = lenientScratchBuilders;
+        if (rowScratch == null) {
+            throw new EsqlIllegalArgumentException("lenient scratch builders missing after ensureLenientScratchBuffers");
+        }
+
+        int lineCount = 0;
+        while (lineCount < batchSize) {
+            try {
+                if (parser.nextToken() == null) {
+                    break; // End of stream
+                }
+            } catch (JsonParseException e) {
+                totalRowCount++;
+                onNdjsonLineParseError(e, totalRowCount, "nextToken");
+                recoverFromParseException(parser);
+                continue;
+            }
+            // Record-canonical stripe attribution (see decodePageFailFast): the record's own START_OBJECT byte,
+            // captured before decodeObject / recovery advance the parser. Recorded only for committed rows.
+            long stripeRecordStart = recordOffsetTracking ? tokenStartOffset() : 0L;
+
+            totalRowCount++;
+            this.blockTracker.clear();
+            // Capture before decodeObject / recovery advance the parser. The slice-relative offset feeds
+            // the max_record_size span check; the file-global offset feeds _rowPosition and truncation.
+            boolean trackOffset = capEnforced || rowPositionSlot >= 0;
+            long startSliceOffset = trackOffset ? parserSliceByteOffset() : 0L;
+            long recordOffset = trackOffset ? recordFileOffset(startSliceOffset) : 0L;
+
+            try {
+                decoder.setupBuilders(rowScratch);
+                try {
+                    decoder.decodeObject(parser, false);
+                } catch (JsonParseException e) {
+                    onNdjsonLineParseError(e, totalRowCount, "decodeObject");
+                    recoverFromParseException(parser);
+                    continue;
+                }
+                if (capEnforced) {
+                    // The cap is checked only after a successful decode, so an oversized record that is ALSO
+                    // malformed JSON is classified by the parse-error path above (counts against the lenient
+                    // error budget) rather than being silently dropped as "too large". This is intentional:
+                    // the alternative is a raw-byte line scan on the recovery path, i.e. the redundant sweep
+                    // issue 965 removed. Both outcomes keep the bad row out of the result; only the warning
+                    // wording and budget attribution differ.
+                    long span = parserSliceByteOffset() - startSliceOffset;
+                    if (span > maxRecordBytes) {
+                        // Oversized record under a non-strict policy. Undo the pre-decode row count so the
+                        // skipped record stays out of rowsEmitted / error-budget accounting, matching the
+                        // pre-#965 byte-array filter (which dropped the record before it reached the
+                        // decoder). Crucially the buffer is NOT compacted, so retained rows keep their true
+                        // file offsets — the compaction in the old filter shifted _rowPosition /
+                        // _file.record_ref for every row after a skip (issue 965 feedback).
+                        totalRowCount--;
+                        if (sourceBytes == null) {
+                            // Streaming/fallback: no cheap resumption point, so stop at the oversized record.
+                            // Rows already in blockBuilders are a partial prefix. Emit a one-shot partial-results
+                            // warning (best-effort, via the same thread-bound HeaderWarning path as skip warnings);
+                            // NdJsonPageIterator keeps the under-count out of the stats cache (see truncated()).
+                            skipWarnings.add(
+                                "NDJSON read truncated at byte ["
+                                    + recordOffset
+                                    + "]: a record exceeded max_record_size ["
+                                    + maxRecordBytes
+                                    + "]; results are partial"
+                            );
+                            truncated = true;
+                            truncatedAtByte = recordOffset;
+                            break;
+                        }
+                        // Byte-array: the oversized record is fully buffered, so drop it and keep decoding. The
+                        // dropped record makes the row count max_record_size-dependent, so mark the scan
+                        // uncacheable (the iterator safe-misses on capDropped) — the cap is not fingerprinted.
+                        capDropped = true;
+                        continue;
+                    }
+                }
+                if (rowPositionSlot >= 0) {
+                    ((LongBlock.Builder) rowScratch[rowPositionSlot]).appendLong(recordOffset);
+                    blockTracker.set(rowPositionSlot);
+                }
+                for (int i = 0; i < rowScratch.length; i++) {
+                    if (blockTracker.get(i) == false) {
+                        rowScratch[i].appendNull();
+                    }
+                }
+                appendDecodedScratchRow(blockBuilders, rowScratch);
+            } finally {
+                Releasables.close(rowScratch);
+            }
+
+            if (recordOffsetTracking) {
+                lastPageRecordOffsets[lineCount] = stripeRecordStart;
+            }
+            lineCount++;
+        }
+        if (recordOffsetTracking) {
+            lastPageRecordCount = lineCount;
+        }
+        return buildPageFromBuildersOrNull(blockBuilders, lineCount);
+    }
+
+    private void ensureLenientScratchBuffers() {
+        if (lenientScratchBuilders == null) {
+            lenientScratchBuilders = new Block.Builder[projectedAttributes.size()];
+            lenientScratchRowBlocks = new Block[projectedAttributes.size()];
+        }
+    }
+
+    private Page buildPageFromBuildersOrNull(Block.Builder[] blockBuilders, int lineCount) {
+        if (lineCount == 0) {
+            return null;
+        }
+        // Row-count-only Page (zero-column projection, e.g. COUNT(*)). new Page(Block[]) rejects an
+        // empty block array, so route through the explicit positionCount constructor.
+        if (blockBuilders.length == 0) {
+            return new Page(lineCount);
+        }
+
+        var blocks = new Block[this.projectedAttributes.size()];
+        var success = false;
+        try {
+            for (int i = 0; i < blockBuilders.length; i++) {
+                blocks[i] = blockBuilders[i].build();
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(blocks);
+            }
+        }
+        return new Page(blocks);
+    }
+
+    /**
+     * Copies one fully decoded logical row from per-line scratch builders into the page builders.
+     * Scratch builders are {@link Block.Builder#build() built} and released; callers still close
+     * any non-built scratch builders via {@link Releasables#close}.
+     */
+    private void appendDecodedScratchRow(Block.Builder[] pageBuilders, Block.Builder[] scratchBuilders) {
+        final int columns = scratchBuilders.length;
+        Block[] rowBlocks = lenientScratchRowBlocks;
+        if (rowBlocks == null) {
+            throw new EsqlIllegalArgumentException("lenient scratch row blocks missing after ensureLenientScratchBuffers");
+        }
+        try {
+            for (int i = 0; i < columns; i++) {
+                rowBlocks[i] = scratchBuilders[i].build();
+            }
+            for (int i = 0; i < columns; i++) {
+                pageBuilders[i].copyFrom(rowBlocks[i], 0, 1);
+            }
+        } finally {
+            for (int i = 0; i < columns; i++) {
+                Releasables.close(rowBlocks[i]);
+                rowBlocks[i] = null;
+            }
+        }
+    }
+
+    // Prepare the tree of property decoders and return the root decoder.
+    private BlockDecoder prepareSchema(List<Attribute> projected, List<Attribute> fullSchema) {
+        BlockDecoder root = new BlockDecoder();
+        int idx = 0;
+        for (var attribute : projected) {
+            // attribute.name() is the file's PHYSICAL field name: a declared `source` rename is resolved centrally
+            // upstream (PhysicalNames), so the reader receives already-physical attributes and is rename-agnostic.
+            // setAttribute keeps this physical attribute at channel idx; the block is relabeled to the logical name by
+            // position downstream (ColumnMapping / queryDataSchema).
+            String name = attribute.name();
+            BlockDecoder decoder;
+            if (hasDottedPrefixConflict(name, fullSchema)) {
+                // CSV-style flat keys such as "languages.long" are single JSON field names; they cannot be reached
+                // via a nested "languages" object when "languages" is also a scalar column.
+                if (root.children == null) {
+                    root.children = new HashMap<>();
+                }
+                decoder = root.children.computeIfAbsent(name, k -> new BlockDecoder());
+            } else {
+                decoder = root;
+                var path = name.split("\\.");
+                for (var part : path) {
+                    if (decoder.children == null) {
+                        decoder.children = new HashMap<>();
+                    }
+                    decoder = decoder.children.computeIfAbsent(part, k -> new BlockDecoder());
+                }
+            }
+            decoder.setAttribute(attribute, idx);
+            idx++;
+        }
+        return root;
+    }
+
+    /**
+     * Whether {@code name} is a dotted field that shares a prefix with another attribute (e.g. {@code languages}
+     * vs {@code languages.long}). In that case the NDJSON uses a single field name equal to the full attribute name.
+     */
+    private static boolean hasDottedPrefixConflict(String name, List<Attribute> attributes) {
+        for (var other : attributes) {
+            String o = other.name();
+            if (name.equals(o) == false && name.startsWith(o + ".")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Encode {@code value} as UTF-8 into {@link #keywordScratch}, growing the backing array on demand,
+     * and return the scratch view. Callers must pass the returned {@link BytesRef} straight to a sink
+     * that copies the bytes synchronously (e.g. {@link BytesRefBlock.Builder#appendBytesRef}, which
+     * delegates to {@link org.elasticsearch.common.util.BytesRefArray#append(BytesRef)} and copies
+     * before returning); the next call to this method overwrites the scratch.
+     */
+    private BytesRef toScratchBytesRef(CharSequence value) {
+        int maxLen = UnicodeUtil.maxUTF8Length(value.length());
+        if (keywordScratch.bytes.length < maxLen) {
+            keywordScratch.bytes = new byte[maxLen];
+        }
+        keywordScratch.offset = 0;
+        keywordScratch.length = UnicodeUtil.UTF16toUTF8(value, 0, value.length(), keywordScratch.bytes);
+        return keywordScratch;
+    }
+
+    @Override
+    public void close() throws IOException {
+        // input may be null on the byte-array fast path; IOUtils.close tolerates null entries.
+        // We also close `parser` so its internal buffers (small but real) are released on the byte-array
+        // path, where there is no `input` to close. AUTO_CLOSE_SOURCE is disabled on the shared
+        // JsonFactory, so closing the parser does not double-close the wrapping codec stream.
+        IOUtils.close(parser, input);
+        input = null;
+        parser = null;
+    }
+
+    /**
+     * Total number of {@code children.get(String)} (HashMap) fallback lookups across the decoder
+     * tree on this decoder's lifetime. Each {@link BlockDecoder#decodeObject} field probes the
+     * per-object identity cache first; the HashMap is consulted only on identity-cache miss (i.e.
+     * the first time a given canonicalised {@code String} instance is seen by this object's
+     * decoder). Once a name is cached, repeat occurrences across pages cost a single identity
+     * compare. Package-private for tests that assert the cache is effective.
+     */
+    long hashMapFallbacks() {
+        return hashMapFallbacks;
+    }
+
+    private long hashMapFallbacks = 0L;
+
+    /**
+     * Size of the root {@code BlockDecoder}'s identity cache, or {@code 0} when the cache has
+     * not been allocated (no JSON object decoded yet, or the root decoder has {@code null}
+     * children). Package-private so tests can pin the bound semantics on dynamic-key inputs
+     * where the cache is intentionally capped rather than allowed to grow with each new field
+     * name on the wire.
+     */
+    int rootIdentityCacheSize() {
+        var cache = decoder.identityCache;
+        return cache == null ? 0 : cache.size();
+    }
+
+    /**
+     * Sentinel returned by {@link BlockDecoder#lookupChild} for canonicalised field-name
+     * {@code String} instances that have been resolved to "no matching projection". One per
+     * decoder; only identity comparisons are performed against it (never any method calls), so
+     * its inner-class outer-{@code this} binding is irrelevant.
+     */
+    private final BlockDecoder unprojected = new BlockDecoder();
+
+    // ---------------------------------------------------------------------------------------------
+    // A tree of decoders. Avoids path reconstruction when traversing nested objects.
+    private class BlockDecoder {
+        @Nullable
+        DataType dataType;
+        String name;
+        int blockIdx;
+        Block.Builder blockBuilder;
+        /** Declared date parser for this column, or {@code null} to use the file-level {@link #datetimeFormatter}. */
+        @Nullable
+        DateFormatter declaredFormatter;
+        Map<String, BlockDecoder> children;
+        /**
+         * Identity-keyed cache of field-name {@link String} instances previously seen by this
+         * object's decoder, mapped to either a child {@link BlockDecoder} (projected) or
+         * {@link #unprojected} (unprojected). Lazily allocated on the first field probe so
+         * leaf decoders (which never call {@link #decodeObject}) pay nothing.
+         * <p>
+         * Correctness rests on Jackson's {@link com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer}
+         * (enabled by default; {@code JsonFactory.Feature#CANONICALIZE_FIELD_NAMES}) returning the
+         * <em>same</em> {@code String} instance for repeat occurrences of a name across pages — and
+         * on the {@link NdJsonUtils#JSON_FACTORY} root canonicalizer being shared so subsequent
+         * parsers from the same factory inherit those instances. A name that hash-collides with a
+         * different identity falls through to the slow HashMap lookup and re-primes the cache; the
+         * code is therefore safe even when an instance does turn over (e.g. canonicaliser rehash).
+         */
+        @Nullable
+        IdentityHashMap<String, BlockDecoder> identityCache;
+
+        void setAttribute(Attribute attribute, int blockIdx) {
+            this.dataType = attribute.dataType();
+            this.name = attribute.name();
+            this.blockIdx = blockIdx;
+            // Resolve the declared date formatter ONCE (prepareSchema runs once per decoder), keyed by the column's
+            // physical (file) name — the same key space FileSourceFactory physicalized declaredDateFormats into.
+            String pattern = declaredDateFormats.get(attribute.name());
+            this.declaredFormatter = pattern != null ? DateFormatter.forPattern(pattern) : null;
+        }
+
+        // Builders setup independently as we need to create new ones for each page.
+        void setupBuilders(Block.Builder[] blockBuilders) {
+            if (dataType != null) {
+                // The type -> block-shape mapping is not re-derived here: it belongs to the declared-read SPI,
+                // which delegates the enumeration to PlannerUtils.toElementType. A reader-local copy of it is
+                // exactly how unsigned_long came to pass dataset validation and then throw at page setup.
+                try {
+                    blockBuilder = DeclaredTypeCoercions.builderFor(dataType, blockFactory, batchSize);
+                } catch (IllegalArgumentException e) {
+                    throw unsupportedTypeForNdjson(dataType, e);
+                }
+                blockBuilders[blockIdx] = blockBuilder;
+            }
+
+            if (children != null) {
+                for (var child : children.values()) {
+                    child.setupBuilders(blockBuilders);
+                }
+            }
+        }
+
+        /**
+         * The declared type passed create + resolution (it is in {@code DeclaredSchemaValidator.DECLARABLE_TYPES})
+         * but NDJSON has no decoder arm for it, or the declared-read SPI has no block shape for it. Names the
+         * column and type so the failure is actionable rather than a bare internal error.
+         * Raised from builder setup, where the SPI rejects the type, and from the {@code default} arm of the value
+         * decode switch. Either is a coverage gap, not a routine per-record condition: a bad <em>value</em> of a
+         * supported type takes the per-cell error policy instead.
+         */
+        private IllegalArgumentException unsupportedTypeForNdjson(DataType type) {
+            return unsupportedTypeForNdjson(type, null);
+        }
+
+        private IllegalArgumentException unsupportedTypeForNdjson(DataType type, Throwable cause) {
+            return new IllegalArgumentException(
+                "column [" + name + "] has declared type [" + type.typeName() + "] which is not supported for NDJSON reads",
+                cause
+            );
+        }
+
+        private void decodeObject(JsonParser parser, boolean inArray) throws IOException {
+            if (parser.currentToken() != JsonToken.START_OBJECT) {
+                throw new NdJsonParseException(parser, "Expected JSON object");
+            }
+            String fieldName;
+            while ((fieldName = parser.nextFieldName()) != null) {
+                var childDecoder = lookupChild(fieldName);
+                parser.nextToken();
+                if (childDecoder == unprojected) {
+                    // Unknown/unprojected field: advance to its value then skip (no decode).
+                    // For string values nextFieldName() uses _skipString() internally on the next
+                    // call, so we avoid _finishString2 for non-projected string fields.
+                    parser.skipChildren();
+                } else {
+                    childDecoder.decodeValue(parser, inArray);
+                }
+            }
+        }
+
+        /**
+         * Resolve {@code fieldName} to either a projected child {@link BlockDecoder} or the
+         * {@link #unprojected} sentinel, using an identity-keyed cache to avoid the
+         * {@link String#hashCode}/{@link HashMap#get} pair on repeat occurrences of the same
+         * canonicalised {@code String} instance.
+         * <p>
+         * On cache miss (first time this object's decoder sees this identity) the call falls
+         * back to a single {@code children.get(fieldName)} probe and primes the cache with
+         * either the child decoder or {@link #unprojected}. The fallback count is exposed via
+         * {@link #hashMapFallbacks()} so tests can pin that the cache is doing its job.
+         * <p>
+         * When {@code children} is {@code null} the decoder cannot match any projection, so the
+         * loop short-circuits to {@link #unprojected} without allocating an identity cache or
+         * incrementing the fallback counter — there is no HashMap probe to avoid in that case.
+         * <p>
+         * The cache is bounded at {@link #identityCacheMaxEntries()} entries to keep
+         * dynamic-key NDJSON inputs (per-tenant column names, event ids embedded as JSON keys,
+         * sparse extensions) from growing the cache without bound. Once full it stops accepting
+         * new entries — existing entries keep serving identity hits and the rest pay the
+         * {@code HashMap} probe — so correctness degrades to "no cache" for the tail, not to a
+         * memory leak.
+         */
+        private BlockDecoder lookupChild(String fieldName) {
+            if (children == null) {
+                return unprojected;
+            }
+            int maxEntries = identityCacheMaxEntries();
+            if (identityCache == null) {
+                // Seed to the bound so narrow projections over wide objects avoid rehashing during
+                // warm-up as unprojected names fill the floor-sized working set.
+                identityCache = new IdentityHashMap<>(maxEntries);
+            }
+            BlockDecoder cached = identityCache.get(fieldName);
+            if (cached != null) {
+                return cached;
+            }
+            hashMapFallbacks++;
+            BlockDecoder resolved = children.get(fieldName);
+            BlockDecoder toCache = resolved == null ? unprojected : resolved;
+            if (identityCache.size() < maxEntries) {
+                identityCache.put(fieldName, toCache);
+            }
+            return toCache;
+        }
+
+        /**
+         * Upper bound for {@link #identityCache} entries on this decoder. The local
+         * {@code children} fanout is the projected fanout at this object level, not the full
+         * observed object width. The hard floor ({@value #IDENTITY_CACHE_MIN_CAP}) gives narrow
+         * projections a usable working set for unprojected names, while wider projections get
+         * additional space proportional to their projected children.
+         */
+        private int identityCacheMaxEntries() {
+            return Math.max(IDENTITY_CACHE_MIN_CAP, children.size() * IDENTITY_CACHE_FANOUT_MULT);
+        }
+
+        /**
+         * @param includeChildren when {@code true}, also begins MV entries on child decoders. Use this only for JSON
+         *        arrays of objects (e.g. {@code [{"a":1},{"a":2}]}) where every child column shares one MV slot per
+         *        element. For arrays of primitives (e.g. {@code salary_change} as doubles while {@code salary_change.int}
+         *        is a separate top-level field), {@code false} so children are not opened for values they will never
+         *        receive from this array.
+         */
+        private void beginPositionEntry(boolean includeChildren) {
+            // We may have DataType.NULL for unknown columns. And NullBlock.Builder throws on beginPositionEntry()
+            if (blockBuilder != null && dataType != DataType.NULL) {
+                blockBuilder.beginPositionEntry();
+            }
+            if (includeChildren && children != null) {
+                for (var child : children.values()) {
+                    child.beginPositionEntry(includeChildren);
+                }
+            }
+        }
+
+        private void endPositionEntry(boolean includeChildren) {
+            if (blockBuilder != null && dataType != DataType.NULL) {
+                blockBuilder.endPositionEntry();
+            }
+            if (includeChildren && children != null) {
+                for (var child : children.values()) {
+                    child.endPositionEntry(includeChildren);
+                }
+            }
+        }
+
+        /**
+         * An empty JSON array {@code []} must not run {@link Block.Builder#beginPositionEntry()} with no values:
+         * {@link org.elasticsearch.compute.data.AbstractBlockBuilder#endPositionEntry()} asserts on empty multi-value
+         * slots. Treat {@code []} like a missing field for every leaf column under this decoder subtree.
+         */
+        private void appendNullsForEmptyArray() {
+            if (blockBuilder != null) {
+                if (dataType != DataType.NULL) {
+                    blockTracker.set(blockIdx);
+                    blockBuilder.appendNull();
+                }
+            } else if (children != null) {
+                for (var child : children.values()) {
+                    child.appendNullsForEmptyArray();
+                }
+            }
+        }
+
+        /**
+         * Decodes the current JSON value into this decoder's block (or, for a structural prefix node, recurses into
+         * its children). NDJSON is schema-on-read: the inferred/bound schema flattens nested objects to dotted leaf
+         * columns, so most value/schema shape mismatches are not a hard error and are null-filled for the affected
+         * column(s) rather than failing the query:
+         * <ul>
+         *   <li>a JSON {@code null} where an object was expected on a structural prefix node leaves its leaf columns
+         *       null for that row (e.g. an intermittently-null nested object across millions of records) — logged at
+         *       {@code DEBUG} only, never {@code WARN}, since surfacing it by default would flood the log without
+         *       giving the cluster admin an actionable signal;</li>
+         *   <li>a stray scalar among a heterogeneous array of objects is likewise null-filled and {@code DEBUG}-logged
+         *       (a distinct, supported shape from the point below), and symmetrically a stray object among a
+         *       heterogeneous array of scalars is simply omitted from that column's multi-value entry and
+         *       {@code DEBUG}-logged — neither direction is the record-level conflict below;</li>
+         *   <li>a scalar of the wrong primitive type is reported via {@link #unexpectedValue} and null-filled.</li>
+         * </ul>
+         * The one genuine hard-error case is a top-level (non-array) scalar/object shape conflict — a field that is a
+         * scalar in some records and an object in others — handled by {@link #shapeConflict}: this is routed through
+         * {@link ErrorPolicy} like any other unparseable value ({@code FAIL_FAST} fails the query, other modes
+         * null-fill and warn) rather than silently decoded, because core ES dynamic mapping treats the same ambiguity
+         * as a hard document-parsing conflict. See elastic/esql-planning#1028.
+         */
+        private void decodeValue(JsonParser parser, boolean inArray) throws IOException {
+            JsonToken token = parser.currentToken();
+
+            if (dataType == DataType.NULL) {
+                // Don't do anything. We must do a single appendNull() on null blocks, this will be done
+                // at the end of decodePage() when we check that all blocks have moved forward.
+                parser.skipChildren();
+                return;
+            }
+
+            if (token == JsonToken.START_ARRAY) {
+                // Start a multi-value entry on this decoder and all its children (nested arrays are flattened).
+                // Note: the `inArray` flag is needed because blockBuilder.beginPositionEntry() is not idempotent.
+                // Calling it twice implicitly calls endPositionEntry().
+                if (!inArray) {
+                    // `includeChildren` gates opening the child MV entries and must reflect whether the array
+                    // actually contains an object: otherwise later objects append into never-opened child builders,
+                    // misaligning rows across columns. Skip leading elements that cannot open this node's MV entry:
+                    // - a structural (prefix) node carries no scalar values of its own, so it skips leading
+                    // stray scalars (e.g. [null, "x", {"type":"a"}]) until the first object or the array end;
+                    // - symmetrically, a scalar leaf skips leading stray objects (e.g. [null, {"x":1}, "a"]) until
+                    // the first scalar or the array end: without this, an all-object array on a scalar leaf would
+                    // call beginPositionEntry() and then never append a value before endPositionEntry(), which
+                    // AbstractBlockBuilder#endPositionEntry() asserts against (see appendNullsForEmptyArray).
+                    JsonToken first = parser.nextToken();
+                    while (first == JsonToken.VALUE_NULL
+                        || (blockBuilder == null && first != null && first != JsonToken.START_OBJECT && first != JsonToken.END_ARRAY)
+                        || (dataType != null && first == JsonToken.START_OBJECT)) {
+                        if (first != JsonToken.VALUE_NULL && logger.isDebugEnabled()) {
+                            if (blockBuilder == null) {
+                                logger.debug(
+                                    "Expected object in array for nested field [{}] but got {} at {}",
+                                    parser.getParsingContext().pathAsPointer(),
+                                    first,
+                                    parser.getTokenLocation()
+                                );
+                            } else {
+                                logger.debug(
+                                    "Expected scalar type [{}] for attribute [{}] but got object at {}",
+                                    dataType.typeName(),
+                                    name,
+                                    parser.getTokenLocation()
+                                );
+                            }
+                        }
+                        parser.skipChildren(); // no-op for scalar/null tokens; safe to call here
+                        first = parser.nextToken();
+                    }
+                    if (first == JsonToken.END_ARRAY) {
+                        appendNullsForEmptyArray();
+                        return;
+                    }
+                    boolean includeChildren = first == JsonToken.START_OBJECT;
+                    beginPositionEntry(includeChildren);
+                    decodeValue(parser, true);
+                    while (parser.nextToken() != JsonToken.END_ARRAY) {
+                        decodeValue(parser, true);
+                    }
+                    endPositionEntry(includeChildren);
+                    return;
+                }
+                while (parser.nextToken() != JsonToken.END_ARRAY) {
+                    decodeValue(parser, true);
+                }
+                return;
+            }
+
+            if (token == JsonToken.START_OBJECT) {
+                if (dataType != null) {
+                    if (inArray) {
+                        // A stray object among a heterogeneous array of scalars is a distinct, supported shape
+                        // (mirrors the stray-scalar-among-objects case below), not the record-level scalar/object
+                        // conflict this issue targets: the array's other scalar elements still decode and
+                        // contribute to this column's multi-value entry, this element is simply omitted from it.
+                        // Guarded by isDebugEnabled() so the JsonLocation allocation is skipped when DEBUG is off,
+                        // since this can fire per-element across millions of records.
+                        if (logger.isDebugEnabled()) {
+                            logger.debug(
+                                "Expected scalar type [{}] for attribute [{}] but got object at {}",
+                                dataType.typeName(),
+                                name,
+                                parser.getTokenLocation()
+                            );
+                        }
+                        parser.skipChildren();
+                        return;
+                    }
+                    // Scalar leaf receiving an object value outside an array: a genuine scalar/object schema
+                    // conflict (elastic/esql-planning#1028), not routine schema-on-read flattening. With
+                    // single-shape schema inference (see NdJsonSchemaInferrer) this can only happen when
+                    // the actual data diverges from the shape observed during sampling, so — unlike the
+                    // routine mismatches above — it is routed through ErrorPolicy instead of silently
+                    // decoded (which would otherwise skip the object's fields with no trace).
+                    shapeConflict(parser, name, "an object", "scalar type [" + dataType.typeName() + "]");
+                    return;
+                }
+                decodeObject(parser, inArray);
+                return;
+            }
+
+            if (blockBuilder == null) {
+                // Structural (prefix) node with no scalar builder of its own: the schema only knows dotted leaf
+                // columns for this field (e.g. "address.city"/"address.zip"). A JSON null is the common,
+                // legitimate case (e.g. CloudTrail "responseElements": null) and stays silent either way.
+                if (token != JsonToken.VALUE_NULL) {
+                    if (inArray) {
+                        // A stray scalar among a heterogeneous array of objects is a distinct, supported
+                        // shape (see the array-handling block above), not the record-level scalar/object
+                        // conflict this issue targets. Leave the leaf descendants untracked so the
+                        // end-of-row fill assigns them null, mirroring missing fields/empty arrays.
+                        // Guarded by isDebugEnabled() so the JsonPointer/JsonLocation allocations are
+                        // skipped when DEBUG is off, since this can fire per-row across millions of records.
+                        if (logger.isDebugEnabled()) {
+                            logger.debug(
+                                "Expected object for nested field [{}] but got {} at {}",
+                                parser.getParsingContext().pathAsPointer(),
+                                token,
+                                parser.getTokenLocation()
+                            );
+                        }
+                    } else {
+                        // Genuine scalar/object schema conflict (elastic/esql-planning#1028): route
+                        // through ErrorPolicy instead of silently null-filling. Structural nodes never
+                        // receive setAttribute(), so `name` is null here; derive the JSON path (e.g.
+                        // /userIdentity/sessionContext) from the parser context to identify the field.
+                        shapeConflict(
+                            parser,
+                            parser.getParsingContext().pathAsPointer().toString(),
+                            describeScalarShape(token),
+                            "an object"
+                        );
+                        return;
+                    }
+                }
+                parser.skipChildren();
+                return;
+            }
+
+            blockTracker.set(blockIdx);
+            if (token == JsonToken.VALUE_NULL) {
+                // Nulls in arrays aren't supported. Furthermore, appendNull will implicitly call endPositionEntry()
+                if (inArray == false) {
+                    blockBuilder.appendNull();
+                }
+                return;
+            }
+
+            switch (dataType) {
+                case BOOLEAN -> decodeBooleanValue(parser, token, inArray);
+                case INTEGER -> decodeIntValue(parser, token, inArray);
+                case LONG -> decodeLongValue(parser, token, inArray);
+                case UNSIGNED_LONG -> decodeUnsignedLongValue(parser, token, inArray);
+                case DOUBLE -> decodeDoubleValue(parser, token, inArray);
+                case DATETIME -> decodeDatetimeValue(parser, token, inArray);
+                case KEYWORD, TEXT -> {
+                    var chars = CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
+                    ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(chars));
+                }
+                case IP -> decodeIpValue(parser, token, inArray);
+                // A NULL-typed column expects no value; a stray scalar keeps the policy-blind channel (edge case).
+                case NULL -> unexpectedValue(blockBuilder, parser, inArray);
+                default -> throw unsupportedTypeForNdjson(dataType);
+            }
+        }
+
+        /**
+         * The scalar-coercion arms below make an NDJSON declared read match the columnar and CSV readers,
+         * drawing the same line the reader already draws between {@link #shapeConflict} (policy-routed) and
+         * {@link #unexpectedValue} (schema-on-read tolerant):
+         * <ul>
+         *   <li>A <b>supported</b> coercion — a JSON string for any scalar column, a fractional number for a
+         *       whole-number column, an epoch number for a datetime column — is coerced through the same
+         *       {@code ::} cast engine (string→number rounds like {@code ::long}; string→boolean is strict
+         *       case-insensitive; string→double preserves NaN). A parse failure or numeric overflow on such a
+         *       token is a genuine value error and is routed through {@link #coercionFailure} — so it fails
+         *       {@code fail_fast}, warns, and counts against the error budget exactly like a malformed CSV
+         *       value, closing the "policy-blind silent null" gap for the coercible cases.</li>
+         *   <li>An <b>unsupported cross-kind</b> token — a boolean in a numeric/datetime column, a number in a
+         *       boolean column: {@code supports(from, to)} is false, the pair the columnar readers reject at
+         *       resolution. NDJSON has no physical schema to reject upfront, so {@link #crossKindDrift} splits by
+         *       whether the column was DECLARED: a declared column routes the drift through {@link #coercionFailure}
+         *       (no declared type may silently read as null), while an inferred column keeps the pre-existing
+         *       {@link #unexpectedValue} silent null — schema-on-read tolerance of a heterogeneous JSON field,
+         *       the same tolerance {@code unexpectedValue} already gave primitive type drift.</li>
+         * </ul>
+         * The common case (a JSON number in a numeric column, a JSON boolean in a boolean column) still decodes
+         * straight from the parser with no string allocation.
+         */
+        private void decodeBooleanValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_TRUE) {
+                ((BooleanBlock.Builder) blockBuilder).appendBoolean(true);
+            } else if (token == JsonToken.VALUE_FALSE) {
+                ((BooleanBlock.Builder) blockBuilder).appendBoolean(false);
+            } else if (token == JsonToken.VALUE_STRING) {
+                try {
+                    // strict + case-insensitive, matching the columnar/CSV declared-boolean coercion
+                    ((BooleanBlock.Builder) blockBuilder).appendBoolean(
+                        DeclaredTypeCoercions.strictParseBoolean(parser.getValueAsString())
+                    );
+                } catch (IllegalArgumentException | InvalidArgumentException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.BOOLEAN);
+                }
+            } else {
+                // A number in a boolean column: an unsupported cross-kind drift, not a coercion attempt
+                // (supports(numeric, boolean) is false).
+                crossKindDrift(parser, inArray, DataType.BOOLEAN);
+            }
+        }
+
+        /**
+         * A cross-kind token — a JSON kind that has no coercion to this column's declared type (a boolean in a
+         * numeric/datetime column, a number in a boolean column, a non-string in an IP column). The columnar
+         * readers reject such a pair at schema resolution; NDJSON has no physical schema to reject upfront, so it
+         * splits by whether the target type was DECLARED:
+         * <ul>
+         *   <li>a DECLARED column has no third state — {@link DeclaredTypeCoercions} requires that a declared type
+         *       which cannot be produced from the physical value must never silently read as null — so the drift is
+         *       routed through {@link #coercionFailure} ({@code fail_fast} fails, other modes warn + null + budget);</li>
+         *   <li>an INFERRED column keeps the pre-existing {@link #unexpectedValue} silent null — schema-on-read
+         *       tolerance of a heterogeneous JSON field, the same tolerance {@code unexpectedValue} already gave
+         *       primitive type drift.</li>
+         * </ul>
+         */
+        private void crossKindDrift(JsonParser parser, boolean inArray, DataType target) throws IOException {
+            if (declaredTypeColumns.contains(name)) {
+                coercionFailure(blockBuilder, parser, inArray, target);
+            } else {
+                unexpectedValue(blockBuilder, parser, inArray);
+            }
+        }
+
+        private void decodeIntValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_NUMBER_INT) {
+                try {
+                    ((IntBlock.Builder) blockBuilder).appendInt(parser.getIntValue());
+                } catch (InputCoercionException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.INTEGER); // out-of-int-range: a real value error
+                }
+            } else if (token == JsonToken.VALUE_NUMBER_FLOAT || token == JsonToken.VALUE_STRING) {
+                try {
+                    // fractional number or string: parse + ROUND through :: (matches ::integer / columnar / CSV)
+                    ((IntBlock.Builder) blockBuilder).appendInt(EsqlDataTypeConverter.stringToInt(parser.getValueAsString()));
+                } catch (IllegalArgumentException | InvalidArgumentException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.INTEGER);
+                }
+            } else {
+                crossKindDrift(parser, inArray, DataType.INTEGER); // boolean in a number column: unsupported cross-kind drift
+            }
+        }
+
+        private void decodeLongValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_NUMBER_INT) {
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(parser.getLongValue());
+                } catch (InputCoercionException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.LONG);
+                }
+            } else if (token == JsonToken.VALUE_NUMBER_FLOAT || token == JsonToken.VALUE_STRING) {
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(EsqlDataTypeConverter.stringToLong(parser.getValueAsString()));
+                } catch (IllegalArgumentException | InvalidArgumentException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.LONG);
+                }
+            } else {
+                crossKindDrift(parser, inArray, DataType.LONG); // boolean in a number column: unsupported cross-kind drift
+            }
+        }
+
+        /**
+         * The {@code unsigned_long} twin of {@link #decodeLongValue}. A JSON integer is read as a
+         * {@link BigInteger} rather than a {@code long} because the interesting half of the domain --
+         * {@code (2^63, 2^64)} -- does not fit a signed long and would trip {@code getLongValue}. Float and
+         * string tokens go through the same {@link DeclaredTypeCoercions#coerceToUnsignedLong} scalar the CSV
+         * and columnar readers use, so truncation-toward-zero and the {@code [0, 2^64-1]} range check are
+         * identical across every format. A bad value fails the cell through the error policy; only a
+         * cross-kind token (a boolean in a numeric column) takes the drift path.
+         */
+        private void decodeUnsignedLongValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_NUMBER_INT) {
+                try {
+                    long encoded = DeclaredTypeCoercions.coerceToUnsignedLong(parser.getBigIntegerValue());
+                    ((LongBlock.Builder) blockBuilder).appendLong(encoded);
+                } catch (IllegalArgumentException | InputCoercionException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.UNSIGNED_LONG);
+                }
+            } else if (token == JsonToken.VALUE_NUMBER_FLOAT || token == JsonToken.VALUE_STRING) {
+                try {
+                    long encoded = DeclaredTypeCoercions.coerceToUnsignedLong(parser.getValueAsString());
+                    ((LongBlock.Builder) blockBuilder).appendLong(encoded);
+                } catch (IllegalArgumentException e) {
+                    // coerceToUnsignedLong signals every bad token with an IllegalArgumentException (its range guard,
+                    // the ArithmeticException remap, and the NumberFormatException subclass from BigDecimal); unlike
+                    // strictParseBoolean it never throws InvalidArgumentException, so one catch clause covers it.
+                    coercionFailure(blockBuilder, parser, inArray, DataType.UNSIGNED_LONG);
+                }
+            } else {
+                crossKindDrift(parser, inArray, DataType.UNSIGNED_LONG);
+            }
+        }
+
+        private void decodeDoubleValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
+                try {
+                    ((DoubleBlock.Builder) blockBuilder).appendDouble(parser.getDoubleValue());
+                } catch (InputCoercionException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DOUBLE);
+                }
+            } else if (token == JsonToken.VALUE_STRING) {
+                try {
+                    // Double.parseDouble accepts NaN/Infinity — an external read preserves the IEEE value the
+                    // file holds, matching the native columnar double read and CSV (see DeclaredTypeCoercions).
+                    ((DoubleBlock.Builder) blockBuilder).appendDouble(Double.parseDouble(parser.getValueAsString()));
+                } catch (NumberFormatException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DOUBLE);
+                }
+            } else {
+                crossKindDrift(parser, inArray, DataType.DOUBLE); // boolean in a double column: unsupported cross-kind drift
+            }
+        }
+
+        private void decodeDatetimeValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (declaredFormatter != null && (token == JsonToken.VALUE_STRING || token == JsonToken.VALUE_NUMBER_INT)) {
+                // A declared `format` is authoritative and OVERRIDES the numeric-epoch shortcut, exactly as
+                // CsvFormatReader.tryParseDatetime does (declaredFormatters win over looksNumeric): a column
+                // declared {datetime, format:"yyyyMMdd"} reads the token 20260101 as 2026-01-01, NOT as epoch
+                // millis. Parses through the shared DeclaredTypeCoercions.parseDatetimeMillis — the SAME
+                // string->datetime conversion the columnar readers use — so identical bytes + declared format
+                // yield the same instant across every format.
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(
+                        DeclaredTypeCoercions.parseDatetimeMillis(parser.getValueAsString(), declaredFormatter)
+                    );
+                } catch (IllegalArgumentException | InvalidArgumentException | DateTimeException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
+                }
+            } else if (token == JsonToken.VALUE_NUMBER_INT) {
+                // No declared format: a JSON number is epoch milliseconds, matching the columnar long->datetime
+                // fused reinterpret (supports(LONG, DATETIME) is true). This is a genuine improvement over the
+                // old file-level path, which silently null-filled an epoch number.
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(parser.getLongValue());
+                } catch (InputCoercionException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
+                }
+            } else if (token == JsonToken.VALUE_STRING) {
+                // No declared format: parse with the file-level formatter (STRICT_DATE_OPTIONAL_TIME by default).
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(datetimeFormatter.parseMillis(parser.getValueAsString()));
+                } catch (IllegalArgumentException | InvalidArgumentException | DateTimeException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
+                }
+            } else {
+                // a boolean, or a fractional number, in a datetime column: unsupported cross-kind drift
+                crossKindDrift(parser, inArray, DataType.DATETIME);
+            }
+        }
+
+        /**
+         * Decodes a declared {@code ip} column. A {@code VALUE_STRING} is parsed and encoded to the 16-byte
+         * {@link InetAddressPoint} form (matching {@code CsvFormatReader.tryParseIp} so identical bytes yield the
+         * same value across formats); a string that is not a valid IP is a {@link #coercionFailure}. A cross-kind
+         * non-string token uses the declared/inferred gate ({@link #crossKindDrift}).
+         */
+        private void decodeIpValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_STRING) {
+                try {
+                    ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(
+                        new BytesRef(InetAddressPoint.encode(InetAddresses.forString(parser.getValueAsString())))
+                    );
+                } catch (IllegalArgumentException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.IP);
+                }
+            } else {
+                // a boolean or a number in an ip column: unsupported cross-kind drift
+                crossKindDrift(parser, inArray, DataType.IP);
+            }
+        }
+
+        private void unexpectedValue(Block.Builder builder, JsonParser parser, boolean inArray) throws IOException {
+            // Append a null and log the problem
+            if (inArray == false) {
+                // See previous comment about nulls and arrays
+                builder.appendNull();
+            }
+
+            logger.debug("Unexpected token type: {} for attribute: {} at {}", parser.currentToken(), name, parser.getTokenLocation());
+            // Ignore any children to keep reading other values
+            parser.skipChildren();
+        }
+
+        /**
+         * Handles a scalar value that cannot be coerced into a column's declared type — a string that is not a
+         * number for a numeric column, a non-{@code true}/{@code false} token for a boolean column, a number that
+         * overflows the target, a string the declared date {@code format} cannot parse, or a token whose JSON kind
+         * has no coercion to the target. Routed through {@link ErrorPolicy} exactly like {@link #shapeConflict}
+         * and {@link DeclaredTypeCoercions#onCoercionFailure} so a declared-coercion failure produces the SAME
+         * observable outcome across every format: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with an
+         * actionable message; other modes null this cell only and surface the message as a client warning (subject to
+         * the error budget). This is distinct from {@link #unexpectedValue}, the policy-blind channel the file-level
+         * (undeclared) datetime path and other per-field type mismatches keep.
+         */
+        private void coercionFailure(Block.Builder builder, JsonParser parser, boolean inArray, DataType target) throws IOException {
+            String value = parser.getValueAsString();
+            // Not "the declared type": this path also fires for a supported-pair failure on an INFERRED column
+            // (e.g. a bad string in an inferred long), where the target type was not declared.
+            String message = "column ["
+                + name
+                + "] at line ["
+                + totalRowCount
+                + "]: value ["
+                + value
+                + "] could not be coerced to type ["
+                + target.typeName()
+                + "] — this record's ["
+                + name
+                + "] is null";
+            parser.skipChildren();
+            if (errorPolicy.isStrict()) {
+                // Mirror CsvFormatReader.onRowErrorImpl's field-error hint so the fail-fast message is actionable.
+                throw new EsqlIllegalArgumentException(
+                    message + "; set error_mode=null_field (or skip_row) to null-fill/skip and warn instead of failing"
+                );
+            }
+            if (inArray == false) {
+                builder.appendNull();
+            }
+            errorCount++;
+            skipWarnings.add(message);
+            checkErrorBudgetOrThrow();
+            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, message);
+        }
+
+        /**
+         * Handles a value whose JSON shape (scalar vs. object) conflicts with the shape {@code fieldLabel}
+         * resolved to from earlier records: a scalar-typed leaf receiving {@code START_OBJECT}, or an
+         * object-shaped (structural) node receiving a non-null scalar. Core ES dynamic mapping treats this
+         * as a hard document-parsing conflict; here it is routed through {@link ErrorPolicy} instead of the
+         * pre-#1028 silent {@code skipChildren()}: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with
+         * an actionable message naming both shapes; other modes null-fill this field only (the row's other
+         * columns already decoded) and surface the same message as a client warning. See
+         * elastic/esql-planning#1028.
+         */
+        private void shapeConflict(JsonParser parser, String fieldLabel, String actualShape, String resolvedShape) throws IOException {
+            // Built via concatenation, not LoggerMessageFormat.format: a String-typed first vararg
+            // would resolve to the ambiguous format(String prefix, String pattern, Object... args)
+            // overload instead of format(String pattern, Object... args), silently mangling the message.
+            String message = "field ["
+                + fieldLabel
+                + "] at line ["
+                + totalRowCount
+                + "]: value is "
+                + actualShape
+                + ", but ["
+                + fieldLabel
+                + "] resolved to "
+                + resolvedShape
+                + " from earlier records — this record's ["
+                + fieldLabel
+                + "] is null. A field that appears as both a scalar and an object across NDJSON "
+                + "records cannot be represented as one type; make the field's shape consistent, or "
+                + "model it as separate fields.";
+            parser.skipChildren();
+            if (errorPolicy.isStrict()) {
+                throw new EsqlIllegalArgumentException(message);
+            }
+            errorCount++;
+            skipWarnings.add(message);
+            checkErrorBudgetOrThrow();
+            logger.log(errorPolicy.logErrors() ? Level.INFO : Level.DEBUG, message);
+        }
+    }
+
+    /**
+     * Short description of a scalar {@link JsonToken}'s JSON type, for {@link BlockDecoder#shapeConflict} messages.
+     * Only called for a token that reached the structural-node scalar branch of {@link BlockDecoder#decodeValue},
+     * which has already excluded {@code VALUE_NULL}, {@code START_ARRAY}/{@code START_OBJECT} (handled earlier) and
+     * {@code END_ARRAY}/{@code END_OBJECT}/{@code FIELD_NAME} (never the current token where a value is expected);
+     * {@code VALUE_EMBEDDED_OBJECT} cannot occur either, since {@link NdJsonUtils#JSON_FACTORY} only ever parses
+     * text JSON, never a binary format (CBOR/Smile) that could produce one. The remaining {@link JsonToken} values
+     * are exactly the five enumerated below, so the {@code default} is unreachable.
+     */
+    private static String describeScalarShape(JsonToken token) {
+        return switch (token) {
+            case VALUE_STRING -> "a string";
+            case VALUE_NUMBER_INT, VALUE_NUMBER_FLOAT -> "a number";
+            case VALUE_TRUE, VALUE_FALSE -> "a boolean";
+            default -> throw new AssertionError("Unreachable: unexpected scalar token [" + token + "]");
+        };
+    }
+}

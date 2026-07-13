@@ -1,0 +1,7 @@
+role1:user1
+role2: user1,user2
+# this is a comment line
+role3: user1, user2 , user3
+role4: period.user
+# another comment line
+# and another one

@@ -1,0 +1,152 @@
+setup:
+  - skip:
+      features: ["allowed_warnings", "headers"]
+  - do:
+      indices.create:
+        index: foo
+        body:
+          mappings:
+            properties:
+              the_field:
+                type: date
+              value_field:
+                type: integer
+
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: { }
+
+  - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "value_field",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
+          }
+
+---
+"Test stop nonexistent job":
+
+  - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      catch: /Task for Rollup Job \[does_not_exist\] not found/
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.stop_job:
+        id: does_not_exist
+
+
+---
+"Test stop job twice":
+
+  - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.start_job:
+        id: foo
+  - is_true: started
+
+  - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.stop_job:
+        id: foo
+  - is_true: stopped
+
+  - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.stop_job:
+        id: foo
+  - is_true: stopped
+
+---
+"Test stop non-started job":
+
+  - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.stop_job:
+        id: foo
+
+  - is_true: stopped
+
+---
+"Test wait_for_completion default timeout":
+  - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.start_job:
+        id: foo
+  - is_true: started
+
+  - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.stop_job:
+        id: foo
+        wait_for_completion: true
+  - is_true: stopped
+
+---
+"Test wait_for_completion with custom timeout":
+  - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.start_job:
+        id: foo
+  - is_true: started
+
+  - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.stop_job:
+        id: foo
+        wait_for_completion: true
+        timeout: "5s"
+  - is_true: stopped
+

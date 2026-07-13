@@ -1,0 +1,855 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              boolean:
+                type: boolean
+              boolean_no_doc_values:
+                type: boolean
+                doc_values: false
+              geo_point:
+                type: geo_point
+              geo_point_no_doc_values:
+                type: geo_point
+                doc_values: false
+              keyword:
+                type: keyword
+              keyword_no_doc_values:
+                type: keyword
+                doc_values: false
+              long:
+                type: long
+              long_no_doc_values:
+                type: long
+                doc_values: false
+              integer:
+                type: integer
+              integer_no_doc_values:
+                type: integer
+                doc_values: false
+              short:
+                type: short
+              short_no_doc_values:
+                type: short
+                doc_values: false
+              byte:
+                type: byte
+              byte_no_doc_values:
+                type: byte
+                doc_values: false
+              double:
+                type: double
+              double_no_doc_values:
+                type: double
+                doc_values: false
+              float:
+                type: float
+              float_no_doc_values:
+                type: float
+                doc_values: false
+              half_float:
+                type: half_float
+              half_float_no_doc_values:
+                type: half_float
+                doc_values: false
+              scaled_float:
+                type: scaled_float
+                scaling_factor: 100
+              scaled_float_no_doc_values:
+                type: scaled_float
+                scaling_factor: 100
+                doc_values: false
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          rank: 1
+          boolean: [true, false, true]
+          boolean_no_doc_values: [true, true, false]
+          geo_point: [[-71.34,41.12],[60.32,21.25],[-71.34,41.12]]
+          geo_point_no_doc_values: [[-71.34,41.12],[60.32,21.25],[-71.34,41.12]]
+          keyword: ["one string", "another string", "one string"]
+          keyword_no_doc_values: ["one string", "another string", "one string"]
+          long: [1152921504606846976, -1, -576460752303423488, -1]
+          long_no_doc_values: [1152921504606846976, -1, -576460752303423488, -1]
+          integer: [5, -17, 29, -17]
+          integer_no_doc_values: [5, -17, 29, -17]
+          short: [45, 6, -18, 30, 45]
+          short_no_doc_values: [6, -18, 45, 45, 30]
+          byte: [16, -8, 64, -8, 4, 64]
+          byte_no_doc_values: [16, -8, -8, 4, 64, 64]
+          double: [3.141592653588, 2.141592653587, -1.0, -1.0]
+          double_no_doc_values: [-1.0, 3.141592653588, 2.141592653587, -1.0]
+          float: [1.123, 2.234, 2.234]
+          float_no_doc_values: [2.234, 2.234, 1.123]
+          half_float: [1.123, 1.123, 2.234]
+          half_float_no_doc_values: [2.234, 1.123, 1.123]
+          scaled_float: [-3.5, 2.5, -3.5]
+          scaled_float_no_doc_values: [2.5, -3.5, -3.5]
+
+  - do:
+      indices.refresh: {}
+
+---
+"boolean_dup_order":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "doc['boolean'].get(0)"
+            field_1:
+              script:
+                source: "doc['boolean'].get(1)"
+            field_2:
+              script:
+                source: "doc['boolean'].get(2)"
+  - match: { hits.hits.0.fields.field_0.0: false }
+  - match: { hits.hits.0.fields.field_1.0: true }
+  - match: { hits.hits.0.fields.field_2.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('boolean').get(true)"
+            field_1:
+              script:
+                source: "field('boolean').get(1, false)"
+            field_2:
+              script:
+                source: "field('boolean').get(2, false)"
+  - match: { hits.hits.0.fields.field_0.0: false }
+  - match: { hits.hits.0.fields.field_1.0: true }
+  - match: { hits.hits.0.fields.field_2.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('boolean_no_doc_values').get(true)"
+            field_1:
+              script:
+                source: "field('boolean_no_doc_values').get(1, false)"
+            field_2:
+              script:
+                source: "field('boolean_no_doc_values').get(2, false)"
+  - match: { hits.hits.0.fields.field_0.0: false }
+  - match: { hits.hits.0.fields.field_1.0: true }
+  - match: { hits.hits.0.fields.field_2.0: true }
+
+---
+"geo_point_dup_order":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "doc['geo_point'].get(0)"
+            field_1:
+              script:
+                source: "doc['geo_point'].get(1)"
+            field_2:
+              script:
+                source: "doc['geo_point'].get(2)"
+  - close_to: { hits.hits.0.fields.field_0.0.lat: { value: 21.249999990686774, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_0.0.lon: { value: 60.319999968633056, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0.lat: { value: 41.1199999647215, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0.lon: { value: -71.34000004269183, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0.lat: { value: 41.1199999647215, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0.lon: { value: -71.34000004269183, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('geo_point').get(new GeoPoint())"
+            field_1:
+              script:
+                source: "field('geo_point').get(1, new GeoPoint())"
+            field_2:
+              script:
+                source: "field('geo_point').get(2, new GeoPoint())"
+  - close_to: { hits.hits.0.fields.field_0.0.lat: { value: 21.249999990686774, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_0.0.lon: { value: 60.319999968633056, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0.lat: { value: 41.1199999647215, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0.lon: { value: -71.34000004269183, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0.lat: { value: 41.1199999647215, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0.lon: { value: -71.34000004269183, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('geo_point_no_doc_values').get(new GeoPoint())"
+            field_1:
+              script:
+                source: "field('geo_point_no_doc_values').get(1, new GeoPoint())"
+            field_2:
+              script:
+                source: "field('geo_point_no_doc_values').get(2, new GeoPoint())"
+  - close_to: { hits.hits.0.fields.field_0.0.lat: { value: 21.249999990686774, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_0.0.lon: { value: 60.319999968633056, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0.lat: { value: 41.1199999647215, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0.lon: { value: -71.34000004269183, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0.lat: { value: 41.1199999647215, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0.lon: { value: -71.34000004269183, error: 0.001 } }
+
+---
+"keyword_dup_order":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "doc['keyword'].get(0)"
+            field_1:
+              script:
+                source: "doc['keyword'].get(1)"
+  - match: { hits.hits.0.fields.field_0.0: "another string" }
+  - match: { hits.hits.0.fields.field_1.0: "one string" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('keyword').get('')"
+            field_1:
+              script:
+                source: "field('keyword').get(1, '')"
+  - match: { hits.hits.0.fields.field_0.0: "another string" }
+  - match: { hits.hits.0.fields.field_1.0: "one string" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('keyword_no_doc_values').get('')"
+            field_1:
+              script:
+                source: "field('keyword_no_doc_values').get(1, '')"
+  - match: { hits.hits.0.fields.field_0.0: "another string" }
+  - match: { hits.hits.0.fields.field_1.0: "one string" }
+
+---
+"long_dup_order":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "doc['long'].get(0)"
+            field_1:
+              script:
+                source: "doc['long'].get(1)"
+            field_2:
+              script:
+                source: "doc['long'].get(2)"
+            field_3:
+              script:
+                source: "doc['long'].get(3)"
+  - match: { hits.hits.0.fields.field_0.0: -576460752303423488 }
+  - match: { hits.hits.0.fields.field_1.0: -1 }
+  - match: { hits.hits.0.fields.field_2.0: -1 }
+  - match: { hits.hits.0.fields.field_3.0: 1152921504606846976 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('long').get(0L)"
+            field_1:
+              script:
+                source: "field('long').get(1, 0L)"
+            field_2:
+              script:
+                source: "field('long').get(2, 0L)"
+            field_3:
+              script:
+                source: "field('long').get(3, 0L)"
+  - match: { hits.hits.0.fields.field_0.0: -576460752303423488 }
+  - match: { hits.hits.0.fields.field_1.0: -1 }
+  - match: { hits.hits.0.fields.field_2.0: -1 }
+  - match: { hits.hits.0.fields.field_3.0: 1152921504606846976 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('long_no_doc_values').get(0L)"
+            field_1:
+              script:
+                source: "field('long_no_doc_values').get(1, 0L)"
+            field_2:
+              script:
+                source: "field('long_no_doc_values').get(2, 0L)"
+            field_3:
+              script:
+                source: "field('long_no_doc_values').get(3, 0L)"
+  - match: { hits.hits.0.fields.field_0.0: -576460752303423488 }
+  - match: { hits.hits.0.fields.field_1.0: -1 }
+  - match: { hits.hits.0.fields.field_2.0: -1 }
+  - match: { hits.hits.0.fields.field_3.0: 1152921504606846976 }
+
+---
+"integer_dup_order":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "doc['integer'].get(0)"
+            field_1:
+              script:
+                source: "doc['integer'].get(1)"
+            field_2:
+              script:
+                source: "doc['integer'].get(2)"
+            field_3:
+              script:
+                source: "doc['integer'].get(3)"
+  - match: { hits.hits.0.fields.field_0.0: -17 }
+  - match: { hits.hits.0.fields.field_1.0: -17 }
+  - match: { hits.hits.0.fields.field_2.0: 5 }
+  - match: { hits.hits.0.fields.field_3.0: 29 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('integer').get(0)"
+            field_1:
+              script:
+                source: "field('integer').get(1, 0)"
+            field_2:
+              script:
+                source: "field('integer').get(2, 0)"
+            field_3:
+              script:
+                source: "field('integer').get(3, 0)"
+  - match: { hits.hits.0.fields.field_0.0: -17 }
+  - match: { hits.hits.0.fields.field_1.0: -17 }
+  - match: { hits.hits.0.fields.field_2.0: 5 }
+  - match: { hits.hits.0.fields.field_3.0: 29 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('integer_no_doc_values').get(0)"
+            field_1:
+              script:
+                source: "field('integer_no_doc_values').get(1, 0)"
+            field_2:
+              script:
+                source: "field('integer_no_doc_values').get(2, 0)"
+            field_3:
+              script:
+                source: "field('integer_no_doc_values').get(3, 0)"
+  - match: { hits.hits.0.fields.field_0.0: -17 }
+  - match: { hits.hits.0.fields.field_1.0: -17 }
+  - match: { hits.hits.0.fields.field_2.0: 5 }
+  - match: { hits.hits.0.fields.field_3.0: 29 }
+
+---
+"short_dup_order":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "doc['short'].get(0)"
+            field_1:
+              script:
+                source: "doc['short'].get(1)"
+            field_2:
+              script:
+                source: "doc['short'].get(2)"
+            field_3:
+              script:
+                source: "doc['short'].get(3)"
+            field_4:
+              script:
+                source: "doc['short'].get(4)"
+  - match: { hits.hits.0.fields.field_0.0: -18 }
+  - match: { hits.hits.0.fields.field_1.0: 6 }
+  - match: { hits.hits.0.fields.field_2.0: 30 }
+  - match: { hits.hits.0.fields.field_3.0: 45 }
+  - match: { hits.hits.0.fields.field_4.0: 45 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('short').get((short)0)"
+            field_1:
+              script:
+                source: "field('short').get(1, (short)0)"
+            field_2:
+              script:
+                source: "field('short').get(2, (short)0)"
+            field_3:
+              script:
+                source: "field('short').get(3, (short)0)"
+            field_4:
+              script:
+                source: "field('short').get(4, (short)0)"
+  - match: { hits.hits.0.fields.field_0.0: -18 }
+  - match: { hits.hits.0.fields.field_1.0: 6 }
+  - match: { hits.hits.0.fields.field_2.0: 30 }
+  - match: { hits.hits.0.fields.field_3.0: 45 }
+  - match: { hits.hits.0.fields.field_4.0: 45 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('short_no_doc_values').get((short)0)"
+            field_1:
+              script:
+                source: "field('short_no_doc_values').get(1, (short)0)"
+            field_2:
+              script:
+                source: "field('short_no_doc_values').get(2, (short)0)"
+            field_3:
+              script:
+                source: "field('short_no_doc_values').get(3, (short)0)"
+            field_4:
+              script:
+                source: "field('short_no_doc_values').get(4, (short)0)"
+  - match: { hits.hits.0.fields.field_0.0: -18 }
+  - match: { hits.hits.0.fields.field_1.0: 6 }
+  - match: { hits.hits.0.fields.field_2.0: 30 }
+  - match: { hits.hits.0.fields.field_3.0: 45 }
+  - match: { hits.hits.0.fields.field_4.0: 45 }
+
+---
+"byte_dup_order":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "doc['byte'].get(0)"
+            field_1:
+              script:
+                source: "doc['byte'].get(1)"
+            field_2:
+              script:
+                source: "doc['byte'].get(2)"
+            field_3:
+              script:
+                source: "doc['byte'].get(3)"
+            field_4:
+              script:
+                source: "doc['byte'].get(4)"
+            field_5:
+              script:
+                source: "doc['byte'].get(5)"
+  - match: { hits.hits.0.fields.field_0.0: -8 }
+  - match: { hits.hits.0.fields.field_1.0: -8 }
+  - match: { hits.hits.0.fields.field_2.0: 4 }
+  - match: { hits.hits.0.fields.field_3.0: 16 }
+  - match: { hits.hits.0.fields.field_4.0: 64 }
+  - match: { hits.hits.0.fields.field_5.0: 64 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('byte').get((byte)0)"
+            field_1:
+              script:
+                source: "field('byte').get(1, (byte)0)"
+            field_2:
+              script:
+                source: "field('byte').get(2, (byte)0)"
+            field_3:
+              script:
+                source: "field('byte').get(3, (byte)0)"
+            field_4:
+              script:
+                source: "field('byte').get(4, (byte)0)"
+            field_5:
+              script:
+                source: "field('byte').get(5, (byte)0)"
+  - match: { hits.hits.0.fields.field_0.0: -8 }
+  - match: { hits.hits.0.fields.field_1.0: -8 }
+  - match: { hits.hits.0.fields.field_2.0: 4 }
+  - match: { hits.hits.0.fields.field_3.0: 16 }
+  - match: { hits.hits.0.fields.field_4.0: 64 }
+  - match: { hits.hits.0.fields.field_5.0: 64 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('byte_no_doc_values').get((byte)0)"
+            field_1:
+              script:
+                source: "field('byte_no_doc_values').get(1, (byte)0)"
+            field_2:
+              script:
+                source: "field('byte_no_doc_values').get(2, (byte)0)"
+            field_3:
+              script:
+                source: "field('byte_no_doc_values').get(3, (byte)0)"
+            field_4:
+              script:
+                source: "field('byte_no_doc_values').get(4, (byte)0)"
+            field_5:
+              script:
+                source: "field('byte_no_doc_values').get(5, (byte)0)"
+  - match: { hits.hits.0.fields.field_0.0: -8 }
+  - match: { hits.hits.0.fields.field_1.0: -8 }
+  - match: { hits.hits.0.fields.field_2.0: 4 }
+  - match: { hits.hits.0.fields.field_3.0: 16 }
+  - match: { hits.hits.0.fields.field_4.0: 64 }
+  - match: { hits.hits.0.fields.field_5.0: 64 }
+
+---
+"double_dup_order":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "doc['double'].get(0)"
+            field_1:
+              script:
+                source: "doc['double'].get(1)"
+            field_2:
+              script:
+                source: "doc['double'].get(2)"
+            field_3:
+              script:
+                source: "doc['double'].get(3)"
+  - close_to: { hits.hits.0.fields.field_0.0: { value: -1.0, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0: { value: -1.0, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0: { value: 2.141592653587, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_3.0: { value: 3.141592653588, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('double').get(0)"
+            field_1:
+              script:
+                source: "field('double').get(1, 0)"
+            field_2:
+              script:
+                source: "field('double').get(2, 0)"
+            field_3:
+              script:
+                source: "field('double').get(3, 0)"
+  - close_to: { hits.hits.0.fields.field_0.0: { value: -1.0, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0: { value: -1.0, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0: { value: 2.141592653587, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_3.0: { value: 3.141592653588, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('double_no_doc_values').get(0)"
+            field_1:
+              script:
+                source: "field('double_no_doc_values').get(1, 0)"
+            field_2:
+              script:
+                source: "field('double_no_doc_values').get(2, 0)"
+            field_3:
+              script:
+                source: "field('double_no_doc_values').get(3, 0)"
+  - close_to: { hits.hits.0.fields.field_0.0: { value: -1.0, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0: { value: -1.0, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0: { value: 2.141592653587, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_3.0: { value: 3.141592653588, error: 0.001 } }
+
+---
+"float_dup_order":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "doc['float'].get(0)"
+            field_1:
+              script:
+                source: "doc['float'].get(1)"
+            field_2:
+              script:
+                source: "doc['float'].get(2)"
+  - close_to: { hits.hits.0.fields.field_0.0: { value: 1.123, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0: { value: 2.234, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0: { value: 2.234, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('float').get(0)"
+            field_1:
+              script:
+                source: "field('float').get(1, 0)"
+            field_2:
+              script:
+                source: "field('float').get(2, 0)"
+  - close_to: { hits.hits.0.fields.field_0.0: { value: 1.123, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0: { value: 2.234, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0: { value: 2.234, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('float_no_doc_values').get(0)"
+            field_1:
+              script:
+                source: "field('float_no_doc_values').get(1, 0)"
+            field_2:
+              script:
+                source: "field('float_no_doc_values').get(2, 0)"
+  - close_to: { hits.hits.0.fields.field_0.0: { value: 1.123, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0: { value: 2.234, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0: { value: 2.234, error: 0.001 } }
+
+---
+"half_float_dup_order":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "doc['half_float'].get(0)"
+            field_1:
+              script:
+                source: "doc['half_float'].get(1)"
+            field_2:
+              script:
+                source: "doc['half_float'].get(2)"
+  - close_to: { hits.hits.0.fields.field_0.0: { value: 1.123, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0: { value: 1.123, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0: { value: 2.234, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('half_float').get(0)"
+            field_1:
+              script:
+                source: "field('half_float').get(1, 0)"
+            field_2:
+              script:
+                source: "field('half_float').get(2, 0)"
+  - close_to: { hits.hits.0.fields.field_0.0: { value: 1.123, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0: { value: 1.123, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0: { value: 2.234, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('half_float_no_doc_values').get(0)"
+            field_1:
+              script:
+                source: "field('half_float_no_doc_values').get(1, 0)"
+            field_2:
+              script:
+                source: "field('half_float_no_doc_values').get(2, 0)"
+  - close_to: { hits.hits.0.fields.field_0.0: { value: 1.123, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0: { value: 1.123, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0: { value: 2.234, error: 0.001 } }
+
+---
+"scaled_float_dup_order":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "doc['scaled_float'].get(0)"
+            field_1:
+              script:
+                source: "doc['scaled_float'].get(1)"
+            field_2:
+              script:
+                source: "doc['scaled_float'].get(2)"
+  - close_to: { hits.hits.0.fields.field_0.0: { value: -3.5, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0: { value: -3.5, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0: { value: 2.5, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('scaled_float').get(0)"
+            field_1:
+              script:
+                source: "field('scaled_float').get(1, 0)"
+            field_2:
+              script:
+                source: "field('scaled_float').get(2, 0)"
+  - close_to: { hits.hits.0.fields.field_0.0: { value: -3.5, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0: { value: -3.5, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0: { value: 2.5, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field_0:
+              script:
+                source: "field('scaled_float_no_doc_values').get(0)"
+            field_1:
+              script:
+                source: "field('scaled_float_no_doc_values').get(1, 0)"
+            field_2:
+              script:
+                source: "field('scaled_float_no_doc_values').get(2, 0)"
+  - close_to: { hits.hits.0.fields.field_0.0: { value: -3.5, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_1.0: { value: -3.5, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.field_2.0: { value: 2.5, error: 0.001 } }

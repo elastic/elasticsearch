@@ -1,0 +1,34 @@
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
+}
+
+final File repoDir = file("$buildDir/testclusters/repo")
+
+restResources {
+  restApi {
+    include 'indices', 'search', 'bulk', 'index', 'snapshot', 'nodes', '_common', 'searchable_snapshots', 'cluster', 'open_point_in_time', 'close_point_in_time', 'security'
+  }
+}
+
+tasks.withType(Test).configureEach {
+  nonInputProperties.systemProperty 'tests.path.repo', repoDir
+}
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'path.repo', repoDir.absolutePath, IGNORE_VALUE
+  setting 'xpack.license.self_generated.type', 'trial'
+
+  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
+  setting 'xpack.searchable_snapshots.cache_fetch_async_thread_pool.keep_alive', '0ms'
+
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+}

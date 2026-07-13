@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147162
+summary: Add Rust FFI foundation using Panama for Parquet metadata
+type: enhancement

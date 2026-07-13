@@ -1,0 +1,11 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(path: xpackModule('transform'))
+  javaRestTestImplementation project(path: xpackModule('transform:qa:common'))
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("Transform multi-node integration tests run against the default distribution to exercise the full x-pack license, security, audit, and feature stack.")
+}

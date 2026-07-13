@@ -1,0 +1,24 @@
+#
+ # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ # or more contributor license agreements. Licensed under the "Elastic License
+ # 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ # Public License v 1"; you may not use this file except in compliance with, at
+ # your election, the "Elastic License 2.0", the "GNU Affero General Public
+ # License v3.0 only", or the "Server Side Public License, v 1".
+#
+
+# This file contains a whitelist of static processor methods that can be accessed from painless
+
+class org.elasticsearch.ingest.common.Processors {
+  long bytes(String)
+  String lowercase(String)
+  String uppercase(String)
+  Object json(Object)
+  Object jsonLenient(Object)
+  void json(Map, String)
+  void jsonLenient(Map, String)
+  String urlDecode(String)
+  String communityId(String, String, Object, Object, Object, Object, Object, Object, int)
+  String communityId(String, String, Object, Object, Object, Object, Object, Object)
+  Map uriParts(String)
+}

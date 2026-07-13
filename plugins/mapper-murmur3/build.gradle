@@ -1,0 +1,28 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+esplugin {
+  description = 'The Mapper Murmur3 plugin allows to compute hashes of a field\'s values at index-time and to store them in the index.'
+  classname ='org.elasticsearch.plugin.mapper.MapperMurmur3Plugin'
+  extendedPlugins = ['lang-painless']
+}
+
+dependencies {
+  compileOnly project(':modules:lang-painless:spi')
+  testImplementation project(':modules:lang-painless')
+  clusterModules project(':modules:lang-painless')
+}
+
+restResources {
+  restApi {
+    include '_common', 'indices', 'index', 'search'
+  }
+}

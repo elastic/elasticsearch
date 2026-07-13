@@ -1,0 +1,111 @@
+setup:
+  - do:
+      indices.create:
+        index: test_index1
+
+  - do:
+      indices.create:
+        index: test_index2
+
+  - do:
+      indices.create:
+        index: test_index3
+
+  - do:
+      cluster.health:
+        index: [test_index1, test_index2, test_index3]
+        wait_for_no_initializing_shards: true
+
+---
+"All indices":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.close:
+        index: _all
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_index2
+
+  - do:
+      indices.open:
+        index: _all
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        index: [test_index1, test_index2, test_index3]
+        wait_for_no_initializing_shards: true
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index2
+
+---
+"Trailing wildcard":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.close:
+        index: test_*
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_index2
+
+  - do:
+      indices.open:
+        index: test_*
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        index: [test_index1, test_index2, test_index3]
+        wait_for_no_initializing_shards: true
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index2
+
+---
+"Only wildcard":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.close:
+        index: '*'
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_index3
+
+  - do:
+      indices.open:
+        index: '*'
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        index: [test_index1, test_index2, test_index3]
+        wait_for_no_initializing_shards: true
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index3
+

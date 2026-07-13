@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 148674
+summary: Updating `ecs@mappings` to include new flattened `gen_ai` fields
+type: feature

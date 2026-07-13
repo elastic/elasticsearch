@@ -1,0 +1,429 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.constantkeyword.mapper;
+
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.LevenshteinAutomata;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
+import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.constantkeyword.ConstantKeywordDocValuesField;
+import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
+
+import java.io.IOException;
+import java.time.ZoneId;
+import java.util.Collections;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+
+/**
+ * A {@link FieldMapper} that assigns every document the same value.
+ */
+public class ConstantKeywordFieldMapper extends FieldMapper {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ConstantKeywordFieldMapper.class);
+
+    public static final String CONTENT_TYPE = "constant_keyword";
+
+    private static ConstantKeywordFieldMapper toType(FieldMapper in) {
+        return (ConstantKeywordFieldMapper) in;
+    }
+
+    @Override
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(leafName()).init(this);
+    }
+
+    public static class Builder extends FieldMapper.Builder {
+
+        // This is defined as updateable because it can be updated once, from [null] to any value,
+        // by a dynamic mapping update. Once it has been set, however, the value cannot be changed.
+        private final Parameter<String> value = new Parameter<>("value", true, () -> null, (n, c, o) -> {
+            if (o instanceof Number == false && o instanceof CharSequence == false) {
+                throw new MapperParsingException("Property [value] on field [" + n + "] must be a number or a string, but got [" + o + "]");
+            }
+            return o.toString();
+        }, m -> toType(m).fieldType().value, XContentBuilder::field, Objects::toString);
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        public Builder(String name) {
+            super(name);
+            value.setSerializerCheck((id, ic, v) -> v != null);
+            value.setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
+        }
+
+        public Builder setValue(String v) {
+            this.value.setValue(v);
+            return this;
+        }
+
+        @Override
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { value, meta };
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        public ConstantKeywordFieldMapper build(MapperBuilderContext context) {
+            if (multiFieldsBuilder.hasMultiFields()) {
+                DEPRECATION_LOGGER.warn(
+                    DeprecationCategory.MAPPINGS,
+                    CONTENT_TYPE + "_multifields",
+                    "Adding multifields to [" + CONTENT_TYPE + "] mappers has no effect and will be forbidden in future"
+                );
+            }
+            return new ConstantKeywordFieldMapper(
+                leafName(),
+                new ConstantKeywordFieldType(context.buildFullName(leafName()), value.getValue(), meta.getValue()),
+                builderParams(this, context)
+            );
+        }
+    }
+
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+
+    public static final class ConstantKeywordFieldType extends ConstantFieldType {
+
+        private final String value;
+
+        public ConstantKeywordFieldType(String name, String value, Map<String, String> meta) {
+            super(name, meta);
+            this.value = value;
+        }
+
+        public ConstantKeywordFieldType(String name, String value) {
+            this(name, value, Collections.emptyMap());
+        }
+
+        /** Return the value that this field wraps. This may be {@code null} if the field is not configured yet. */
+        public String value() {
+            return value;
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        public String familyTypeName() {
+            return KeywordFieldMapper.CONTENT_TYPE;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (value == null) {
+                return ConstantNull.INSTANCE;
+            }
+            return new ConstantBytes(new BytesRef(value));
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            return new ConstantIndexFieldData.Builder(
+                value,
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new ConstantKeywordDocValuesField(FieldData.toString(dv), n)
+            );
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            return value == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(value);
+        }
+
+        @Override
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
+                return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return binaryValue.utf8ToString();
+        }
+
+        @Override
+        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) {
+            if (value == null) {
+                return TermsEnum.EMPTY;
+            }
+            boolean matches = caseInsensitive
+                ? value.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))
+                : value.startsWith(prefix);
+            if (matches == false) {
+                return TermsEnum.EMPTY;
+            }
+            if (searchAfter != null) {
+                if (searchAfter.compareTo(value) >= 0) {
+                    // The constant value is before the searchAfter value so must be ignored
+                    return TermsEnum.EMPTY;
+                }
+            }
+            return new SimpleTermCountEnum(value);
+        }
+
+        @Override
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
+            if (value == null) {
+                return false;
+            }
+            return Regex.simpleMatch(pattern, value, caseInsensitive);
+        }
+
+        @Override
+        public Query wildcardQuery(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
+            // Lucene wildcard semantics support both * and ?; Regex.simpleMatch (used by matches()) only handles *.
+            // See gh-141785. constant_keyword has no Lucene index (IndexType.NONE), so we compile the pattern
+            // to an automaton and run it in-memory against the single constant value, mirroring the
+            // ConstantFieldType#automatonQuery pattern. AutomatonQueries.toWildcardAutomaton tracks
+            // determinization heap with the SearchExecutionContext circuit breaker when one is available.
+            if (value == null) {
+                return Queries.NO_DOCS_INSTANCE;
+            }
+            String matchTarget = caseInsensitive ? value.toLowerCase(Locale.ROOT) : value;
+            String matchPattern = caseInsensitive ? pattern.toLowerCase(Locale.ROOT) : pattern;
+            Term term = new Term(name(), matchPattern);
+            CircuitBreaker circuitBreaker = (context instanceof SearchExecutionContext sec) ? sec.getCircuitBreaker() : null;
+            Automaton automaton;
+            try {
+                automaton = circuitBreaker != null
+                    ? AutomatonQueries.toWildcardAutomaton(term, circuitBreaker)
+                    : WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            } catch (TooComplexToDeterminizeException e) {
+                throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+            }
+            return new CharacterRunAutomaton(automaton).run(matchTarget) ? Queries.ALL_DOCS_INSTANCE : Queries.NO_DOCS_INSTANCE;
+        }
+
+        @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return value;
+        }
+
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            return value != null ? Queries.ALL_DOCS_INSTANCE : Queries.NO_DOCS_INSTANCE;
+        }
+
+        @Override
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            ShapeRelation relation,
+            ZoneId timeZone,
+            DateMathParser parser,
+            SearchExecutionContext context
+        ) {
+            if (this.value == null) {
+                return Queries.NO_DOCS_INSTANCE;
+            }
+
+            final BytesRef valueAsBytesRef = new BytesRef(value);
+            if (lowerTerm != null && BytesRefs.toBytesRef(lowerTerm).compareTo(valueAsBytesRef) >= (includeLower ? 1 : 0)) {
+                return Queries.NO_DOCS_INSTANCE;
+            }
+            if (upperTerm != null && valueAsBytesRef.compareTo(BytesRefs.toBytesRef(upperTerm)) >= (includeUpper ? 1 : 0)) {
+                return Queries.NO_DOCS_INSTANCE;
+            }
+            return Queries.ALL_DOCS_INSTANCE;
+        }
+
+        @Override
+        public Query fuzzyQuery(
+            Object term,
+            Fuzziness fuzziness,
+            int prefixLength,
+            int maxExpansions,
+            boolean transpositions,
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
+        ) {
+            if (this.value == null) {
+                return Queries.NO_DOCS_INSTANCE;
+            }
+
+            final String termAsString = BytesRefs.toString(term);
+            final int maxEdits = fuzziness.asDistance(termAsString);
+
+            final int[] termText = new int[termAsString.codePointCount(0, termAsString.length())];
+            for (int cp, i = 0, j = 0; i < termAsString.length(); i += Character.charCount(cp)) {
+                termText[j++] = cp = termAsString.codePointAt(i);
+            }
+            final int termLength = termText.length;
+
+            prefixLength = Math.min(prefixLength, termLength);
+            final String suffix = UnicodeUtil.newString(termText, prefixLength, termText.length - prefixLength);
+            final LevenshteinAutomata builder = new LevenshteinAutomata(suffix, transpositions);
+            final String prefix = UnicodeUtil.newString(termText, 0, prefixLength);
+            final Automaton automaton = builder.toAutomaton(maxEdits, prefix);
+
+            final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
+            if (runAutomaton.run(this.value)) {
+                return Queries.ALL_DOCS_INSTANCE;
+            } else {
+                return Queries.NO_DOCS_INSTANCE;
+            }
+        }
+
+        @Override
+        public Query regexpQuery(
+            String regexp,
+            int syntaxFlags,
+            int matchFlags,
+            int maxDeterminizedStates,
+            MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
+            if (this.value == null) {
+                return Queries.NO_DOCS_INSTANCE;
+            }
+
+            final Automaton automaton = Operations.determinize(
+                new RegExp(regexp, syntaxFlags, matchFlags).toAutomaton(),
+                maxDeterminizedStates
+            );
+            final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
+            if (runAutomaton.run(this.value)) {
+                return Queries.ALL_DOCS_INSTANCE;
+            } else {
+                return Queries.NO_DOCS_INSTANCE;
+            }
+        }
+
+    }
+
+    ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+        super(simpleName, mappedFieldType, builderParams);
+    }
+
+    @Override
+    public ConstantKeywordFieldType fieldType() {
+        return (ConstantKeywordFieldType) super.fieldType();
+    }
+
+    @Override
+    public boolean supportsBatchIndexing() {
+        // Constant keyword can be driven through parseCreateField by the bulk batch path only
+        // once the value is pinned. While the value is unset, parseCreateField triggers a
+        // dynamic mapping update, which the v1 batch path does not support. copy_to and
+        // multi-fields pull in behavior that the v1 batch path does not support either; scripts
+        // are not configurable on this mapper.
+        return fieldType().value() != null && copyTo().copyToFields().isEmpty() && multiFields().iterator().hasNext() == false;
+    }
+
+    @Override
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        XContentParser parser = context.parser();
+        final String value = parser.textOrNull();
+
+        if (value == null) {
+            throw new IllegalArgumentException("[constant_keyword] field [" + fullPath() + "] doesn't accept [null] values");
+        }
+
+        if (fieldType().value == null) {
+            Builder builder = new Builder(leafName()).setValue(value);
+            Mapper result = context.getDynamicMapper(builder);
+            // the mapper is already part of the mapping, we're just updating it with the new value
+            assert result != null;
+        } else if (Objects.equals(fieldType().value, value) == false) {
+            throw new IllegalArgumentException(
+                "[constant_keyword] field ["
+                    + fullPath()
+                    + "] only accepts values that are equal to the value defined in the mappings ["
+                    + fieldType().value()
+                    + "], but got ["
+                    + value
+                    + "]"
+            );
+        }
+
+        if (context.mappingLookup().isSourceSynthetic()) {
+            // Remember which documents had value in source so that it can be correctly
+            // reconstructed in synthetic source
+            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), 1));
+        }
+    }
+
+    @Override
+    protected String contentType() {
+        return CONTENT_TYPE;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        String const_value = fieldType().value();
+
+        if (const_value == null) {
+            return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
+        }
+
+        return new SyntheticSourceSupport.Native(
+            () -> new CompositeSyntheticFieldLoader(
+                leafName(),
+                fullPath(),
+                new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, ignored) -> b.value(const_value))
+            )
+        );
+    }
+}

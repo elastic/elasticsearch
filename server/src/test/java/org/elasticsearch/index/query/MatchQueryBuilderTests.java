@@ -1,0 +1,886 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.query;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.StopFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
+import org.apache.lucene.analysis.synonym.SynonymMap;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanOrQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PointRangeQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.analysis.CannedBinaryTokenStream;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.search.MatchQueryParser;
+import org.elasticsearch.index.search.MatchQueryParser.Type;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
+import org.elasticsearch.test.AbstractQueryTestCase;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+import static org.hamcrest.CoreMatchers.either;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+
+public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
+
+    @Override
+    protected MatchQueryBuilder doCreateTestQueryBuilder() {
+        String fieldName = randomFrom(
+            TEXT_FIELD_NAME,
+            TEXT_ALIAS_FIELD_NAME,
+            BOOLEAN_FIELD_NAME,
+            INT_FIELD_NAME,
+            DOUBLE_FIELD_NAME,
+            DATE_FIELD_NAME
+        );
+        Object value;
+        if (isTextField(fieldName)) {
+            int terms = randomIntBetween(0, 3);
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < terms; i++) {
+                builder.append(randomAlphaOfLengthBetween(1, 10)).append(" ");
+            }
+            value = builder.toString().trim();
+        } else {
+            value = getRandomValueForFieldName(fieldName);
+        }
+
+        MatchQueryBuilder matchQuery = new MatchQueryBuilder(fieldName, value);
+        matchQuery.operator(randomFrom(Operator.values()));
+
+        if (randomBoolean() && isTextField(fieldName)) {
+            matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
+        }
+
+        if (isTextField(fieldName) && randomBoolean()) {
+            matchQuery.fuzziness(randomFuzziness(fieldName));
+        }
+
+        if (randomBoolean()) {
+            matchQuery.prefixLength(randomIntBetween(0, 10));
+        }
+
+        if (randomBoolean()) {
+            matchQuery.maxExpansions(randomIntBetween(1, 1000));
+        }
+
+        if (randomBoolean()) {
+            matchQuery.minimumShouldMatch(randomMinimumShouldMatch());
+        }
+
+        if (randomBoolean()) {
+            matchQuery.fuzzyRewrite(getRandomRewriteMethod());
+        }
+
+        if (randomBoolean()) {
+            matchQuery.fuzzyTranspositions(randomBoolean());
+        }
+
+        if (randomBoolean()) {
+            matchQuery.lenient(randomBoolean());
+        }
+
+        if (randomBoolean()) {
+            matchQuery.zeroTermsQuery(randomFrom(ZeroTermsQueryOption.ALL, ZeroTermsQueryOption.NONE));
+        }
+
+        if (randomBoolean()) {
+            matchQuery.autoGenerateSynonymsPhraseQuery(randomBoolean());
+        }
+        return matchQuery;
+    }
+
+    @Override
+    protected Map<String, MatchQueryBuilder> getAlternateVersions() {
+        Map<String, MatchQueryBuilder> alternateVersions = new HashMap<>();
+        MatchQueryBuilder matchQuery = new MatchQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
+        String contentString = Strings.format("""
+            {
+                "match" : {
+                    "%s" : "%s"
+                }
+            }""", matchQuery.fieldName(), matchQuery.value());
+        alternateVersions.put(contentString, matchQuery);
+        return alternateVersions;
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(MatchQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+        assertThat(query, notNullValue());
+
+        if (query instanceof MatchAllDocsQuery) {
+            assertThat(queryBuilder.zeroTermsQuery(), equalTo(ZeroTermsQueryOption.ALL));
+            return;
+        }
+
+        MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
+        if (query instanceof TermQuery && fieldType != null) {
+            String queryValue = queryBuilder.value().toString();
+            if (isTextField(queryBuilder.fieldName()) && (queryBuilder.analyzer() == null || queryBuilder.analyzer().equals("simple"))) {
+                queryValue = queryValue.toLowerCase(Locale.ROOT);
+            }
+            Query expectedTermQuery = fieldType.termQuery(queryValue, context);
+            assertEquals(expectedTermQuery, query);
+        }
+
+        if (query instanceof BooleanQuery bq) {
+            if (queryBuilder.minimumShouldMatch() != null) {
+                // calculate expected minimumShouldMatch value
+                int optionalClauses = 0;
+                for (BooleanClause c : bq.clauses()) {
+                    if (c.occur() == BooleanClause.Occur.SHOULD) {
+                        optionalClauses++;
+                    }
+                }
+                int msm = Queries.calculateMinShouldMatch(optionalClauses, queryBuilder.minimumShouldMatch());
+                assertThat(bq.getMinimumNumberShouldMatch(), equalTo(msm));
+            }
+            if (queryBuilder.analyzer() == null && queryBuilder.value().toString().length() > 0) {
+                assertEquals(bq.clauses().size(), queryBuilder.value().toString().split(" ").length);
+            }
+        }
+
+        if (query instanceof FuzzyQuery fuzzyQuery) {
+            assertTrue(queryBuilder.fuzziness() != null);
+            // depending on analyzer being set or not we can have term lowercased along the way, so to simplify test we just
+            // compare lowercased terms here
+            String originalTermLc = queryBuilder.value().toString().toLowerCase(Locale.ROOT);
+            String actualTermLc = fuzzyQuery.getTerm().text().toLowerCase(Locale.ROOT);
+            Matcher<String> termLcMatcher = equalTo(originalTermLc);
+            if ("false".equals(originalTermLc) || "true".equals(originalTermLc)) {
+                // Booleans become t/f when querying a boolean field
+                termLcMatcher = either(termLcMatcher).or(equalTo(originalTermLc.substring(0, 1)));
+            }
+            assertThat(actualTermLc, termLcMatcher);
+
+            String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
+            assertThat(expectedFieldName, equalTo(fuzzyQuery.getTerm().field()));
+            assertThat(queryBuilder.prefixLength(), equalTo(fuzzyQuery.getPrefixLength()));
+            assertThat(queryBuilder.fuzzyTranspositions(), equalTo(fuzzyQuery.getTranspositions()));
+        }
+
+        if (query instanceof PointRangeQuery) {
+            // TODO
+        }
+    }
+
+    public void testIllegalValues() {
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MatchQueryBuilder(null, "value"));
+            assertEquals("[match] requires fieldName", e.getMessage());
+        }
+
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MatchQueryBuilder("fieldName", null));
+            assertEquals("[match] requires query value", e.getMessage());
+        }
+
+        MatchQueryBuilder matchQuery = new MatchQueryBuilder("fieldName", "text");
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> matchQuery.prefixLength(-1));
+            assertEquals("[match] requires prefix length to be non-negative.", e.getMessage());
+        }
+
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> matchQuery.maxExpansions(randomIntBetween(-10, 0))
+            );
+            assertEquals("[match] requires maxExpansions to be positive.", e.getMessage());
+        }
+
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> matchQuery.operator(null));
+            assertEquals("[match] requires operator to be non-null", e.getMessage());
+        }
+
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> matchQuery.zeroTermsQuery(null));
+            assertEquals("[match] requires zeroTermsQuery to be non-null", e.getMessage());
+        }
+
+        matchQuery.analyzer("bogusAnalyzer");
+        {
+            QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createSearchExecutionContext()));
+            assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
+        }
+    }
+
+    public void testParseDefaultsRemoved() throws IOException {
+        /*
+         * This json includes many defaults. When we parse the query and then
+         * call toString on it all of the defaults are removed.
+         */
+        String json = """
+            {
+              "match" : {
+                "message" : {
+                  "query" : "to be or not to be",
+                  "operator" : "AND",
+                  "prefix_length" : 0,
+                  "max_expansions" : 50,
+                  "fuzzy_transpositions" : true,
+                  "lenient" : false,
+                  "zero_terms_query" : "ALL",
+                  "auto_generate_synonyms_phrase_query" : true,
+                  "boost" : 1.0
+                }
+              }
+            }""";
+        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
+        checkGeneratedJson("""
+            {
+              "match": {
+                "message": {
+                  "query": "to be or not to be",
+                  "operator": "AND",
+                  "zero_terms_query": "ALL"
+                }
+              }
+            }""", qb);
+
+        assertEquals(json, "to be or not to be", qb.value());
+        assertEquals(json, Operator.AND, qb.operator());
+    }
+
+    public void testToXConentWithDefaults() throws IOException {
+        QueryBuilder query = new MatchQueryBuilder("foo", "bar");
+        checkGeneratedJson("""
+            {
+              "match": {
+                "foo": {
+                  "query": "bar"
+                }
+              }
+            }""", query);
+    }
+
+    public void testFuzzinessOnNonStringField() throws Exception {
+        MatchQueryBuilder query = new MatchQueryBuilder(INT_FIELD_NAME, 42);
+        query.fuzziness(randomFuzziness(INT_FIELD_NAME));
+        SearchExecutionContext context = createSearchExecutionContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals(
+            "Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
+            e.getMessage()
+        );
+        query.analyzer("keyword"); // triggers a different code path
+        e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals(
+            "Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
+            e.getMessage()
+        );
+
+        query.lenient(true);
+        query.toQuery(context); // no exception
+        query.analyzer(null);
+        query.toQuery(context); // no exception
+    }
+
+    public void testExactOnUnsupportedField() throws Exception {
+        MatchQueryBuilder query = new MatchQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
+        SearchExecutionContext context = createSearchExecutionContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals("Field [mapped_geo_point] of type [geo_point] does not support match queries", e.getMessage());
+        query.lenient(true);
+        assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testLenientFlag() throws Exception {
+        MatchQueryBuilder query = new MatchQueryBuilder(BINARY_FIELD_NAME, "test");
+        SearchExecutionContext context = createSearchExecutionContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals("Field [mapped_binary] of type [binary] does not support match queries", e.getMessage());
+        query.lenient(true);
+        query.toQuery(context);
+        assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testParseFailsWithMultipleFields() {
+        String json = """
+            {
+              "match" : {
+                "message1" : {
+                  "query" : "this is a test"
+                },
+                "message2" : {
+                  "query" : "this is a test"
+                }
+              }
+            }""";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+
+        String shortJson = """
+            {
+              "match" : {
+                "message1" : "this is a test",
+                "message2" : "this is a test"
+              }
+            }""";
+        e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
+        assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+    }
+
+    public void testParseFailsWithTermsArray() {
+        String json1 = """
+            {
+              "match" : {
+                "message1" : {
+                  "query" : ["term1", "term2"]
+                }
+              }
+            }""";
+        expectThrows(ParsingException.class, () -> parseQuery(json1));
+
+        String json2 = """
+            {
+              "match" : {
+                "message1" : ["term1", "term2"]
+              }
+            }""";
+        expectThrows(IllegalArgumentException.class, () -> parseQuery(json2));
+    }
+
+    public void testExceptionUsingAnalyzerOnNumericField() {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(DOUBLE_FIELD_NAME, 6.075210893508043E-4);
+        matchQueryBuilder.analyzer("simple");
+        NumberFormatException e = expectThrows(NumberFormatException.class, () -> matchQueryBuilder.toQuery(searchExecutionContext));
+        assertEquals("For input string: \"e\"", e.getMessage());
+    }
+
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        mapperService.merge(
+            "_doc",
+            new CompressedXContent(
+                Strings.toString(
+                    PutMappingRequest.simpleMapping("string_boost", "type=text", "string_no_pos", "type=text,index_options=docs")
+                )
+            ),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
+    }
+
+    public void testMatchPhrasePrefixWithBoost() throws Exception {
+        SearchExecutionContext context = createSearchExecutionContext();
+        {
+            // field boost is ignored on a single term query
+            MatchPhrasePrefixQueryBuilder builder = new MatchPhrasePrefixQueryBuilder("string_boost", "foo");
+            Query query = builder.toQuery(context);
+            assertThat(query, instanceOf(MultiPhrasePrefixQuery.class));
+        }
+
+        {
+            // field boost is ignored on phrase query
+            MatchPhrasePrefixQueryBuilder builder = new MatchPhrasePrefixQueryBuilder("string_boost", "foo bar");
+            Query query = builder.toQuery(context);
+            assertThat(query, instanceOf(MultiPhrasePrefixQuery.class));
+        }
+    }
+
+    public void testLenientPhraseQuery() throws Exception {
+        SearchExecutionContext context = createSearchExecutionContext();
+        MatchQueryParser b = new MatchQueryParser(context, QueryVisitor.EMPTY_VISITOR);
+        b.setLenient(true);
+        Query query = b.parse(Type.PHRASE, "string_no_pos", "foo bar");
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+        assertThat(query.toString(), containsString("field:[string_no_pos] was indexed without position data; cannot run PhraseQuery"));
+    }
+
+    public void testAutoGenerateSynonymsPhraseQuery() throws Exception {
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
+
+        {
+            matchQueryParser.setAutoGenerateSynonymsPhraseQuery(false);
+            final Query query = matchQueryParser.parse(Type.BOOLEAN, TEXT_FIELD_NAME, "guinea pig");
+            final Query expectedQuery = new BooleanQuery.Builder().add(
+                new BooleanQuery.Builder().add(
+                    new BooleanQuery.Builder().add(new TermQuery(new Term(TEXT_FIELD_NAME, "guinea")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term(TEXT_FIELD_NAME, "pig")), BooleanClause.Occur.MUST)
+                        .build(),
+                    BooleanClause.Occur.SHOULD
+                ).add(new TermQuery(new Term(TEXT_FIELD_NAME, "cavy")), BooleanClause.Occur.SHOULD).build(),
+                BooleanClause.Occur.SHOULD
+            ).build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+
+        {
+            matchQueryParser.setAutoGenerateSynonymsPhraseQuery(true);
+            final Query query = matchQueryParser.parse(Type.BOOLEAN, TEXT_FIELD_NAME, "guinea pig");
+            final Query expectedQuery = new BooleanQuery.Builder().add(
+                new BooleanQuery.Builder().add(
+                    new PhraseQuery.Builder().add(new Term(TEXT_FIELD_NAME, "guinea")).add(new Term(TEXT_FIELD_NAME, "pig")).build(),
+                    BooleanClause.Occur.SHOULD
+                ).add(new TermQuery(new Term(TEXT_FIELD_NAME, "cavy")), BooleanClause.Occur.SHOULD).build(),
+                BooleanClause.Occur.SHOULD
+            ).build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+
+        {
+            matchQueryParser.setAutoGenerateSynonymsPhraseQuery(false);
+            final Query query = matchQueryParser.parse(Type.BOOLEAN_PREFIX, TEXT_FIELD_NAME, "guinea pig");
+            final Query expectedQuery = new BooleanQuery.Builder().add(
+                new BooleanQuery.Builder().add(
+                    new BooleanQuery.Builder().add(new TermQuery(new Term(TEXT_FIELD_NAME, "guinea")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term(TEXT_FIELD_NAME, "pig")), BooleanClause.Occur.MUST)
+                        .build(),
+                    BooleanClause.Occur.SHOULD
+                ).add(new TermQuery(new Term(TEXT_FIELD_NAME, "cavy")), BooleanClause.Occur.SHOULD).build(),
+                BooleanClause.Occur.SHOULD
+            ).build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+
+        {
+            matchQueryParser.setAutoGenerateSynonymsPhraseQuery(true);
+            final Query query = matchQueryParser.parse(Type.BOOLEAN_PREFIX, TEXT_FIELD_NAME, "guinea pig");
+            final MultiPhrasePrefixQuery guineaPig = new MultiPhrasePrefixQuery(TEXT_FIELD_NAME);
+            guineaPig.add(new Term(TEXT_FIELD_NAME, "guinea"));
+            guineaPig.add(new Term(TEXT_FIELD_NAME, "pig"));
+            final MultiPhrasePrefixQuery cavy = new MultiPhrasePrefixQuery(TEXT_FIELD_NAME);
+            cavy.add(new Term(TEXT_FIELD_NAME, "cavy"));
+            final Query expectedQuery = new BooleanQuery.Builder().add(
+                new BooleanQuery.Builder().add(guineaPig, BooleanClause.Occur.SHOULD).add(cavy, BooleanClause.Occur.SHOULD).build(),
+                BooleanClause.Occur.SHOULD
+            ).build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+    }
+
+    public void testMultiWordSynonymsPhrase() throws Exception {
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
+        final Query actual = matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "guinea pig dogs");
+        Query expected = SpanNearQuery.newOrderedNearQuery(TEXT_FIELD_NAME)
+            .addClause(
+                new SpanOrQuery(
+                    new SpanQuery[] {
+                        SpanNearQuery.newOrderedNearQuery(TEXT_FIELD_NAME)
+                            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "guinea")))
+                            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "pig")))
+                            .setSlop(0)
+                            .build(),
+                        new SpanTermQuery(new Term(TEXT_FIELD_NAME, "cavy")) }
+                )
+            )
+            .addClause(
+                new SpanOrQuery(
+                    new SpanQuery[] {
+                        new SpanTermQuery(new Term(TEXT_FIELD_NAME, "dogs")),
+                        new SpanTermQuery(new Term(TEXT_FIELD_NAME, "dog")) }
+                )
+            )
+            .build();
+        assertEquals(expected, actual);
+    }
+
+    public void testGraphPhrasePreservesGapWithinSidePath() throws Exception {
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(
+            new MockGraphAnalyzer(
+                new CannedBinaryTokenStream.BinaryToken[] {
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("short"), 1, 5),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("one"), 0, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("three"), 2, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("four"), 1, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("five"), 1, 1) }
+            )
+        );
+
+        final Query actual = matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "");
+        Query expected = new SpanOrQuery(
+            new SpanTermQuery(new Term(TEXT_FIELD_NAME, "short")),
+            new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "one")))
+                .addGap(1)
+                .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "three")))
+                .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "four")))
+                .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "five")))
+                .build()
+        );
+        assertEquals(expected, actual);
+    }
+
+    public void testGraphPhrasePreservesGapAfterSidePath() throws Exception {
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(
+            new MockGraphAnalyzer(
+                new CannedBinaryTokenStream.BinaryToken[] {
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("ab"), 1, 2),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("a"), 0, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("b"), 1, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("c"), 1, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("d"), 2, 1) }
+            )
+        );
+
+        final Query actual = matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "");
+        Query expected = new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addClause(
+            new SpanOrQuery(
+                new SpanQuery[] {
+                    new SpanTermQuery(new Term(TEXT_FIELD_NAME, "ab")),
+                    new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "a")))
+                        .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "b")))
+                        .build() }
+            )
+        )
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "c")))
+            .addGap(1)
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "d")))
+            .build();
+        assertEquals(expected, actual);
+    }
+
+    public void testGraphPhrasePreservesGapBeforeSidePath() throws Exception {
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(
+            new MockGraphAnalyzer(
+                new CannedBinaryTokenStream.BinaryToken[] {
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("c"), 1, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("xy"), 2, 2),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("x"), 0, 1),
+                    new CannedBinaryTokenStream.BinaryToken(new BytesRef("y"), 1, 1) }
+            )
+        );
+
+        final Query actual = matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "");
+        // the hole before the side path surfaces as a leading gap inside each alternative
+        SpanQuery compound = new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addGap(1)
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "xy")))
+            .build();
+        SpanQuery decompound = new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addGap(1)
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "x")))
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "y")))
+            .build();
+        SpanTermQuery first = new SpanTermQuery(new Term(TEXT_FIELD_NAME, "c"));
+        Query variantA = new SpanNearQuery(new SpanQuery[] { first, new SpanOrQuery(compound, decompound) }, 0, true);
+        Query variantB = new SpanNearQuery(new SpanQuery[] { first, new SpanOrQuery(decompound, compound) }, 0, true);
+        assertThat(actual, either(equalTo(variantA)).or(equalTo(variantB)));
+    }
+
+    /**
+     * Scenario from https://github.com/elastic/elasticsearch/issues/86021 (duplicate of #28838):
+     * synonym_graph("fbi, federal bureau of investigation") followed by stop("of").
+     * The removed stop word leaves a position hole before "investigation" that the phrase
+     * query must preserve, otherwise documents indexed as "federal bureau of investigation"
+     * (positions federal=0 bureau=1 investigation=3) are missed at slop 0.
+     */
+    public void testGraphPhraseStopWordInSynonym() throws Exception {
+        SynonymMap synonyms = synonymMap("fbi", "federal", "bureau", "of", "investigation");
+        CharArraySet stopWords = new CharArraySet(List.of("of"), true);
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(synonymStopAnalyzer(true, synonyms, stopWords));
+
+        SpanQuery longPath = new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addClause(
+            new SpanTermQuery(new Term(TEXT_FIELD_NAME, "federal"))
+        )
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "bureau")))
+            .addGap(1)
+            .addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "investigation")))
+            .build();
+        SpanQuery shortPath = new SpanTermQuery(new Term(TEXT_FIELD_NAME, "fbi"));
+
+        // SpanOr clause order is not deterministic; only the gap placement matters here
+        assertSpanOrEither(longPath, shortPath, matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "federal bureau of investigation"));
+        assertSpanOrEither(longPath, shortPath, matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "fbi"));
+    }
+
+    /**
+     * Same synonym_graph + stop analyzer shape as discussed in
+     * https://github.com/elastic/elasticsearch/issues/28838, applied to phrase-query
+     * construction: synonym_graph("wow, world of war") followed by stop("of").
+     */
+    public void testGraphPhraseSynonymContainingStopWord() throws Exception {
+        SynonymMap synonyms = synonymMap("wow", "world", "of", "war");
+        CharArraySet stopWords = new CharArraySet(List.of("of"), true);
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(synonymStopAnalyzer(true, synonyms, stopWords));
+
+        SpanQuery longPath = new SpanNearQuery.Builder(TEXT_FIELD_NAME, true).addClause(
+            new SpanTermQuery(new Term(TEXT_FIELD_NAME, "world"))
+        ).addGap(1).addClause(new SpanTermQuery(new Term(TEXT_FIELD_NAME, "war"))).build();
+        SpanQuery shortPath = new SpanTermQuery(new Term(TEXT_FIELD_NAME, "wow"));
+
+        assertSpanOrEither(longPath, shortPath, matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "world of war"));
+        assertSpanOrEither(longPath, shortPath, matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "wow"));
+    }
+
+    /**
+     * Documents the boundary of the gap-preservation fix: when the stop filter runs before
+     * the synonym_graph filter, the failure happens inside the analysis chain (the synonym
+     * rule cannot fire across the hole, and expansions emit stop words the index never
+     * contains). Query construction cannot repair that; these assertions hold with and
+     * without the MatchQueryParser fix. See LUCENE-8137.
+     */
+    public void testGraphPhraseStopBeforeSynonymOutOfScope() throws Exception {
+        SynonymMap synonyms = synonymMap("fbi", "federal", "bureau", "of", "investigation");
+        CharArraySet stopWords = new CharArraySet(List.of("of"), true);
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(synonymStopAnalyzer(false, synonyms, stopWords));
+
+        // the hole left by "of" prevents the 4-token synonym rule from matching: no graph,
+        // plain phrase with the hole preserved, and no "fbi" expansion
+        PhraseQuery.Builder phrase = new PhraseQuery.Builder();
+        phrase.add(new Term(TEXT_FIELD_NAME, "federal"), 0);
+        phrase.add(new Term(TEXT_FIELD_NAME, "bureau"), 1);
+        phrase.add(new Term(TEXT_FIELD_NAME, "investigation"), 3);
+        assertEquals(phrase.build(), matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "federal bureau of investigation"));
+
+        // "fbi" expands after the stop filter, so the expansion contains the literal term
+        // "of" which index-time analysis removed from every document
+        Query fbiQuery = matchQueryParser.parse(Type.PHRASE, TEXT_FIELD_NAME, "fbi");
+        assertThat(fbiQuery.toString(), containsString("of"));
+    }
+
+    private static void assertSpanOrEither(SpanQuery a, SpanQuery b, Query actual) {
+        assertThat(actual, either(equalTo((Query) new SpanOrQuery(a, b))).or(equalTo((Query) new SpanOrQuery(b, a))));
+    }
+
+    private static SynonymMap synonymMap(String shortForm, String... longForm) throws IOException {
+        SynonymMap.Builder builder = new SynonymMap.Builder(true);
+        CharsRef shortRef = new CharsRef(shortForm);
+        CharsRef longRef = SynonymMap.Builder.join(longForm, new CharsRefBuilder());
+        builder.add(shortRef, longRef, true);
+        builder.add(longRef, shortRef, true);
+        return builder.build();
+    }
+
+    private static Analyzer synonymStopAnalyzer(boolean synonymFirst, SynonymMap synonyms, CharArraySet stopWords) {
+        return new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer tokenizer = new WhitespaceTokenizer();
+                TokenStream ts = tokenizer;
+                if (synonymFirst) {
+                    ts = new SynonymGraphFilter(ts, synonyms, true);
+                    ts = new StopFilter(ts, stopWords);
+                } else {
+                    ts = new StopFilter(ts, stopWords);
+                    ts = new SynonymGraphFilter(ts, synonyms, true);
+                }
+                return new TokenStreamComponents(tokenizer, ts);
+            }
+        };
+    }
+
+    public void testAliasWithSynonyms() throws Exception {
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
+        final Query actual = matchQueryParser.parse(Type.PHRASE, TEXT_ALIAS_FIELD_NAME, "dogs");
+        Query expected = new SynonymQuery.Builder(TEXT_FIELD_NAME).addTerm(new Term(TEXT_FIELD_NAME, "dogs"))
+            .addTerm(new Term(TEXT_FIELD_NAME, "dog"))
+            .build();
+        assertEquals(expected, actual);
+    }
+
+    public void testMaxBooleanClause() {
+        MatchQueryParser query = new MatchQueryParser(
+            createSearchExecutionContext(),
+            new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount())
+        );
+        query.setAnalyzer(new MockGraphAnalyzer(createGiantGraph(40)));
+        expectThrows(IndexSearcher.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
+        query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
+        expectThrows(IndexSearcher.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
+    }
+
+    private static class MockGraphAnalyzer extends Analyzer {
+
+        CannedBinaryTokenStream tokenStream;
+
+        MockGraphAnalyzer(CannedBinaryTokenStream.BinaryToken[] tokens) {
+            this.tokenStream = new CannedBinaryTokenStream(tokens);
+        }
+
+        @Override
+        protected TokenStreamComponents createComponents(String fieldName) {
+            return new TokenStreamComponents(r -> {}, tokenStream);
+        }
+    }
+
+    /**
+     * Creates a graph token stream with 2 side paths at each position.
+     **/
+    private static CannedBinaryTokenStream.BinaryToken[] createGiantGraph(int numPos) {
+        List<CannedBinaryTokenStream.BinaryToken> tokens = new ArrayList<>();
+        BytesRef term1 = new BytesRef("foo");
+        BytesRef term2 = new BytesRef("bar");
+        for (int i = 0; i < numPos;) {
+            if (i % 2 == 0) {
+                tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+                tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 2));
+                i += 2;
+            } else {
+                tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+                i++;
+            }
+        }
+        return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);
+    }
+
+    /**
+     * Creates a graph token stream with {@link IndexSearcher#getMaxClauseCount()}
+     * expansions at the last position.
+     **/
+    private static CannedBinaryTokenStream.BinaryToken[] createGiantGraphMultiTerms() {
+        List<CannedBinaryTokenStream.BinaryToken> tokens = new ArrayList<>();
+        BytesRef term1 = new BytesRef("foo");
+        BytesRef term2 = new BytesRef("bar");
+        tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+        tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 2));
+        tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+        tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
+        for (int i = 0; i < IndexSearcher.getMaxClauseCount(); i++) {
+            tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 1));
+        }
+        return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);
+    }
+
+    /**
+     * "now" on date fields should make the query non-cachable.
+     */
+    public void testCachingStrategiesWithNow() throws IOException {
+        // if we hit a date field with "now", this should diable cachability
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(DATE_FIELD_NAME, "now");
+        SearchExecutionContext context = createSearchExecutionContext();
+        assert context.isCacheable();
+        /*
+         * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
+         * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
+         * actual lucene query
+         */
+        QueryBuilder rewritten = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+        assertNotNull(rewritten.toQuery(context));
+        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+    }
+
+    public void testRewriteToTermQueries() throws IOException {
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
+        queryBuilder.boost(2f);
+        QueryRewriteContext[] contexts = new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() };
+        for (QueryRewriteContext context : contexts) {
+            QueryBuilder rewritten = queryBuilder.rewrite(context);
+            assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+            TermQueryBuilder tqb = (TermQueryBuilder) rewritten;
+            assertEquals(KEYWORD_FIELD_NAME, tqb.fieldName);
+            assertEquals(new BytesRef("value"), tqb.value);
+            assertThat(rewritten.boost(), equalTo(2f));
+        }
+    }
+
+    public void testRewriteToTermQueryWithAnalyzer() throws IOException {
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(TEXT_FIELD_NAME, "value");
+        queryBuilder.analyzer("keyword");
+        QueryRewriteContext[] contexts = new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() };
+        for (QueryRewriteContext context : contexts) {
+            QueryBuilder rewritten = queryBuilder.rewrite(context);
+            assertThat(rewritten, instanceOf(TermQueryBuilder.class));
+            TermQueryBuilder tqb = (TermQueryBuilder) rewritten;
+            assertEquals(TEXT_FIELD_NAME, tqb.fieldName);
+            assertEquals(new BytesRef("value"), tqb.value);
+        }
+    }
+
+    public void testRewriteWithFuzziness() throws IOException {
+        // If we've configured fuzziness then we can't rewrite to a term query
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
+        queryBuilder.fuzziness(Fuzziness.AUTO);
+        QueryRewriteContext[] contexts = new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() };
+        for (QueryRewriteContext context : contexts) {
+            QueryBuilder rewritten = queryBuilder.rewrite(context);
+            assertEquals(queryBuilder, rewritten);
+        }
+    }
+
+    public void testRewriteWithLeniency() throws IOException {
+        // If we've configured leniency then we can't rewrite to a term query
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");
+        queryBuilder.lenient(true);
+        QueryRewriteContext[] contexts = new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() };
+        for (QueryRewriteContext context : contexts) {
+            QueryBuilder rewritten = queryBuilder.rewrite(context);
+            assertEquals(queryBuilder, rewritten);
+        }
+    }
+
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        QueryBuilder query = new MatchQueryBuilder("_index", "does_not_exist");
+        QueryRewriteContext[] contexts = new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() };
+        for (QueryRewriteContext context : contexts) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        }
+    }
+
+    public void testRewriteIndexQueryToNotMatchNone() throws IOException {
+        QueryBuilder query = new MatchQueryBuilder("_index", getIndex().getName());
+        QueryRewriteContext[] contexts = new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() };
+        for (QueryRewriteContext context : contexts) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        }
+    }
+
+    public void testMatchFuzzyCircuitBreakerTripsOnManyTokens() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 2000; i++) {
+            sb.append("token").append(i).append(' ');
+        }
+        String longText = sb.toString();
+        assertCircuitBreakerTripsOnQueryConstruction(
+            "1kb",
+            () -> new MatchQueryBuilder(TEXT_FIELD_NAME, longText).fuzziness(Fuzziness.AUTO)
+        );
+    }
+}

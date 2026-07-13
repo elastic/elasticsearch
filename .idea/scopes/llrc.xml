@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="llrc" pattern="file[*.client.rest.*]:*//*||file[*.client.sniffer.*]:*//*||file[*.client.test.*]:*//*" />
+</component>

@@ -1,0 +1,8 @@
+"_default_": {
+  "properties": {
+    "content": {
+      "type": "text",
+      "analyzer": "custom_analyzer"
+    }
+  }
+}

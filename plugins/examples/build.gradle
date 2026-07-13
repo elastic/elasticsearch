@@ -1,0 +1,62 @@
+import org.elasticsearch.gradle.VersionProperties
+
+buildscript {
+  repositories {
+    maven {
+      url = 'https://snapshots.elastic.co/maven/'
+    }
+    mavenCentral()
+  }
+  dependencies {
+    classpath "org.elasticsearch.gradle:build-tools:${elasticsearchVersion}"
+  }
+}
+
+subprojects {
+  apply plugin: 'java'
+
+  java {
+    sourceCompatibility = 21
+    targetCompatibility = 21
+  }
+
+  test {
+    // testing with entitlements doesn't work for example plugins ES-12453
+    systemProperty 'es.entitlement.enableForTests', 'false'
+  }
+
+  repositories {
+    // Only necessary when building plugins against SNAPSHOT versions of Elasticsearch
+    if (gradle.includedBuilds.isEmpty()) {
+      maven {
+        url = "https://artifacts-snapshot.elastic.co/elasticsearch/${elasticsearchVersion}/maven"
+        mavenContent {
+          includeModule 'org.elasticsearch', 'elasticsearch'
+        }
+      }
+      maven {
+        url = 'https://snapshots.elastic.co/maven/'
+      }
+    }
+
+    // Same for Lucene, add the snapshot repo based on the currently used Lucene version
+    def luceneVersion = VersionProperties.getLucene()
+    if (luceneVersion.contains('-snapshot')) {
+      def matcher = luceneVersion =~ /[0-9\.]+-snapshot-([a-z0-9]+)/
+      assert matcher.matches(): "Invalid Lucene snapshot version '${luceneVersion}'"
+      maven {
+        url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${matcher.group(1)}"
+      }
+    }
+
+    mavenCentral()
+  }
+}
+
+tasks.register('check') {
+  dependsOn subprojects.collect { it.tasks.named('check') }
+}
+
+tasks.register('precommit') {
+  dependsOn subprojects.collect { it.tasks.named('classes') }
+}

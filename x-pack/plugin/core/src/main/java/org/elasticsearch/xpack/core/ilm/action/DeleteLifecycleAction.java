@@ -1,0 +1,78 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.core.ilm.action;
+
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+
+import java.io.IOException;
+import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
+
+public class DeleteLifecycleAction extends ActionType<AcknowledgedResponse> {
+    public static final DeleteLifecycleAction INSTANCE = new DeleteLifecycleAction();
+    public static final String NAME = "cluster:admin/ilm/delete";
+
+    protected DeleteLifecycleAction() {
+        super(NAME);
+    }
+
+    public static class Request extends AcknowledgedRequest<Request> {
+
+        private final String policyName;
+
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String policyName) {
+            super(masterNodeTimeout, ackTimeout);
+            this.policyName = policyName;
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            policyName = in.readString();
+        }
+
+        public String getPolicyName() {
+            return policyName;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(policyName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(policyName);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (obj.getClass() != getClass()) {
+                return false;
+            }
+            Request other = (Request) obj;
+            return Objects.equals(policyName, other.policyName);
+        }
+
+        @Override
+        public String toString() {
+            return format("delete lifecycle policy [%s]", policyName);
+        }
+
+    }
+
+}

@@ -1,0 +1,49 @@
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              test_wc:
+                type: wildcard
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "test_wc": "abc" }
+          { "index": {"_id" : "2"} }
+          { "test_wc": ["adc", "aec"] }
+
+---
+"Wildcard Fields API":
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              test_wc:
+                value: "a*c"
+          script_fields:
+            constOne:
+              script:
+                source: "/* avoid stash */ $('test_wc', 'dne')"
+            constTwo:
+              script:
+                source: "field('test_wc').get(0, 'dne') + field('test_wc').get(1, 'xyz')"
+            constThree:
+              script:
+                source: "String s = ''; for (String z : field('test_wc')) s += z; return s"
+
+  - match: { hits.hits.0.fields.constOne.0: "abc" }
+  - match: { hits.hits.0.fields.constTwo.0: "abcxyz" }
+  - match: { hits.hits.0.fields.constThree.0: "abc" }
+  - match: { hits.hits.1.fields.constOne.0: "adc" }
+  - match: { hits.hits.1.fields.constTwo.0: "adcaec" }
+  - match: { hits.hits.1.fields.constThree.0: "adcaec" }

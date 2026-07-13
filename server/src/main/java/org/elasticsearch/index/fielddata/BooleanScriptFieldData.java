@@ -1,0 +1,122 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.fielddata;
+
+import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
+import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
+public final class BooleanScriptFieldData extends IndexNumericFieldData {
+
+    public static class Builder implements IndexFieldData.Builder {
+        private final String name;
+        private final BooleanFieldScript.LeafFactory leafFactory;
+        protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
+
+        public Builder(
+            String name,
+            BooleanFieldScript.LeafFactory leafFactory,
+            ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory
+        ) {
+            this.name = name;
+            this.leafFactory = leafFactory;
+            this.toScriptFieldFactory = toScriptFieldFactory;
+        }
+
+        @Override
+        public BooleanScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+            return new BooleanScriptFieldData(name, leafFactory, toScriptFieldFactory);
+        }
+    }
+
+    private final String fieldName;
+    private final BooleanFieldScript.LeafFactory leafFactory;
+    protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
+
+    private BooleanScriptFieldData(
+        String fieldName,
+        BooleanFieldScript.LeafFactory leafFactory,
+        ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory
+    ) {
+        this.fieldName = fieldName;
+        this.leafFactory = leafFactory;
+        this.toScriptFieldFactory = toScriptFieldFactory;
+    }
+
+    @Override
+    public String getFieldName() {
+        return fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return CoreValuesSourceType.BOOLEAN;
+    }
+
+    @Override
+    public BooleanScriptLeafFieldData load(LeafReaderContext context) {
+        try {
+            return loadDirect(context);
+        } catch (Exception e) {
+            throw ExceptionsHelper.convertToElastic(e);
+        }
+    }
+
+    @Override
+    public BooleanScriptLeafFieldData loadDirect(LeafReaderContext context) {
+        return new BooleanScriptLeafFieldData(new BooleanScriptDocValues(leafFactory.newInstance(context)), toScriptFieldFactory);
+    }
+
+    @Override
+    public NumericType getNumericType() {
+        return NumericType.BOOLEAN;
+    }
+
+    @Override
+    protected boolean sortRequiresCustomComparator() {
+        return true;
+    }
+
+    @Override
+    protected IndexType indexType() {
+        return IndexType.NONE;
+    }
+
+    public static class BooleanScriptLeafFieldData extends LeafLongFieldData {
+        private final BooleanScriptDocValues booleanScriptDocValues;
+        protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
+
+        BooleanScriptLeafFieldData(
+            BooleanScriptDocValues booleanScriptDocValues,
+            ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory
+        ) {
+            super(0);
+            this.booleanScriptDocValues = booleanScriptDocValues;
+            this.toScriptFieldFactory = toScriptFieldFactory;
+        }
+
+        @Override
+        public SortedNumericLongValues getLongValues() {
+            return booleanScriptDocValues;
+        }
+
+        @Override
+        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+            return toScriptFieldFactory.getScriptFieldFactory(getLongValues(), name);
+        }
+    }
+}

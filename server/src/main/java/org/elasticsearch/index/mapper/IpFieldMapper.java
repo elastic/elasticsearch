@@ -1,0 +1,994 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.mapper;
+
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.PointRangeQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
+import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.IpDocValuesField;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.FieldValues;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentString;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.BiFunction;
+
+import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
+import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
+
+/**
+ * A {@link FieldMapper} for ip addresses.
+ */
+public class IpFieldMapper extends FieldMapper {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IpFieldMapper.class);
+
+    public static final String CONTENT_TYPE = "ip";
+
+    private static IpFieldMapper toType(FieldMapper in) {
+        return (IpFieldMapper) in;
+    }
+
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
+        if (indexSettings.getMode().isStrictColumnar() == false) {
+            return new DocValuesParameter.Values(
+                true,
+                DocValuesParameter.Values.Cardinality.LOW,
+                true,
+                true,
+                DocValuesParameter.Values.OnFailure.FAIL
+            );
+        }
+
+        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+        var onFailure = FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.get(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability, onFailure);
+    }
+
+    public static final class Builder extends FieldMapper.DimensionBuilder {
+
+        private final Parameter<Boolean> indexed;
+        private final DocValuesParameter docValuesParameters;
+        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+
+        private final Parameter<Boolean> ignoreMalformed;
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null)
+            .acceptsNull();
+
+        private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
+            m -> toType(m).builderParams.onScriptError(),
+            script
+        );
+
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final Parameter<Boolean> dimension;
+
+        private final ScriptCompiler scriptCompiler;
+        private final IndexSettings indexSettings;
+
+        private boolean arrayOrderBinaryDocValues;
+
+        public Builder(String name, ScriptCompiler scriptCompiler, IndexSettings indexSettings) {
+            super(name);
+            this.indexSettings = indexSettings;
+            this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
+            this.ignoreMalformed = Parameter.boolParam(
+                "ignore_malformed",
+                true,
+                m -> toType(m).ignoreMalformed,
+                IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
+            );
+            this.script.precludesParameters(nullValue, ignoreMalformed);
+
+            this.docValuesParameters = DocValuesParameter.of(
+                defaultDocValuesParameters(indexSettings),
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
+            );
+
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
+            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
+            addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
+        }
+
+        Builder nullValue(String nullValue) {
+            this.nullValue.setValue(nullValue);
+            return this;
+        }
+
+        public Builder dimension(boolean dimension) {
+            this.dimension.setValue(dimension);
+            return this;
+        }
+
+        private InetAddress parseNullValue() {
+            String nullValueAsString = nullValue.getValue();
+            if (nullValueAsString == null) {
+                return null;
+            }
+            try {
+                return InetAddresses.forString(nullValueAsString);
+            } catch (Exception e) {
+                if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_8_0_0)) {
+                    throw new MapperParsingException("Error parsing [null_value] on field [" + leafName() + "]: " + e.getMessage(), e);
+                } else {
+                    DEPRECATION_LOGGER.warn(
+                        DeprecationCategory.MAPPINGS,
+                        "ip_mapper_null_field",
+                        "Error parsing ["
+                            + nullValue.getValue()
+                            + "] as IP in [null_value] on field ["
+                            + leafName()
+                            + "]); [null_value] will be ignored"
+                    );
+                    return null;
+                }
+            }
+        }
+
+        private FieldValues<InetAddress> scriptValues() {
+            if (this.script.get() == null) {
+                return null;
+            }
+            IpFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), IpFieldScript.CONTEXT);
+            return factory == null
+                ? null
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
+                    .newInstance(ctx)
+                    .runForDoc(doc, consumer);
+        }
+
+        @Override
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
+                indexed,
+                docValuesParameters,
+                stored,
+                ignoreMalformed,
+                nullValue,
+                script,
+                onScriptErrorParam,
+                meta,
+                dimension };
+        }
+
+        private IndexType indexType() {
+            if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
+                return docValuesParameters.get().enabled() ? IndexType.archivedPoints() : IndexType.NONE;
+            }
+            if (usesBinaryDocValues()) {
+                // Disable skippers if using binary doc values
+                return IndexType.points(indexed.get(), true);
+            }
+            if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                return IndexType.skippers();
+            }
+            if (indexed.get() == false && docValuesParameters.get().enabled()) {
+                if (indexSettings.useDocValuesSkipper()
+                    && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
+                    return IndexType.skippers();
+                }
+            }
+            return IndexType.points(indexed.get(), docValuesParameters.get().enabled());
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        private boolean usesBinaryDocValues() {
+            var docValuesParams = docValuesParameters.getValue();
+            return docValuesParams.enabled() && docValuesParams.cardinality() == DocValuesParameter.Values.Cardinality.HIGH;
+        }
+
+        @Override
+        public IpFieldMapper build(MapperBuilderContext context) {
+            if (inheritDimensionParameterFromParentObject(context)) {
+                dimension.setValue(true);
+            }
+            hasScript = script.get() != null;
+            onScriptError = onScriptErrorParam.getValue();
+
+            String offsetsFieldName = getOffsetsFieldName(
+                context,
+                indexSettings.sourceKeepMode(),
+                docValuesParameters.getValue().enabled(),
+                stored.getValue(),
+                this,
+                indexSettings.getIndexVersionCreated(),
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_IP,
+                indexSettings.getMode().isStrictColumnar(),
+                docValuesParameters.getValue().multiValue()
+            );
+            // High-cardinality (binary doc values) fields in strict columnar mode store their values in document order directly in the
+            // binary doc values (ArrayOrderInlineNull) instead of recording a sidecar .offsets field; low-cardinality fields keep offsets.
+            if (offsetsFieldName != null && usesBinaryDocValues() && indexSettings.getMode().isStrictColumnar()) {
+                arrayOrderBinaryDocValues = true;
+                offsetsFieldName = null;
+            }
+            boolean readInArrayOrder = offsetsFieldName != null
+                && docValuesParameters.getValue().multiValue()
+                && indexSettings.getMode().isStrictColumnar();
+            return new IpFieldMapper(
+                leafName(),
+                new IpFieldType(
+                    context.buildFullName(leafName()),
+                    indexType(),
+                    stored.getValue(),
+                    parseNullValue(),
+                    scriptValues(),
+                    meta.getValue(),
+                    dimension.getValue(),
+                    context.isSourceSynthetic(),
+                    usesBinaryDocValues(),
+                    readInArrayOrder,
+                    arrayOrderBinaryDocValues,
+                    indexSettings.getIndexVersionCreated(),
+                    docValuesParameters.getValue()
+                ),
+                builderParams(this, context),
+                context.isSourceSynthetic(),
+                this,
+                offsetsFieldName
+            );
+        }
+
+    }
+
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport(
+        (n, c) -> new Builder(n, c.scriptCompiler(), c.getIndexSettings())
+    );
+
+    public static final class IpFieldType extends SimpleMappedFieldType {
+
+        private final InetAddress nullValue;
+        private final FieldValues<InetAddress> scriptValues;
+        private final boolean isDimension;
+        private final boolean isSyntheticSource;
+        private final boolean hasPoints;
+        private final boolean usesBinaryDocValues;
+        private final boolean readInArrayOrder;
+        private final boolean useArrayOrderBinaryDocValues;
+        private final IndexVersion indexVersion;
+        private final DocValuesParameter.Values docValuesParams;
+
+        public IpFieldType(
+            String name,
+            IndexType indexType,
+            boolean stored,
+            InetAddress nullValue,
+            FieldValues<InetAddress> scriptValues,
+            Map<String, String> meta,
+            boolean isDimension,
+            boolean isSyntheticSource,
+            boolean usesBinaryDocValues,
+            boolean readInArrayOrder,
+            boolean useArrayOrderBinaryDocValues,
+            IndexVersion indexVersion,
+            DocValuesParameter.Values docValuesParams
+        ) {
+            super(name, indexType, stored, meta);
+            this.nullValue = nullValue;
+            this.scriptValues = scriptValues;
+            this.isDimension = isDimension;
+            this.isSyntheticSource = isSyntheticSource;
+            this.hasPoints = indexType.hasPoints();
+            this.usesBinaryDocValues = usesBinaryDocValues;
+            this.readInArrayOrder = readInArrayOrder;
+            this.useArrayOrderBinaryDocValues = useArrayOrderBinaryDocValues;
+            this.indexVersion = indexVersion;
+            this.docValuesParams = docValuesParams;
+        }
+
+        public IpFieldType(String name) {
+            this(name, true, true);
+        }
+
+        public IpFieldType(String name, boolean isIndexed) {
+            this(name, isIndexed, true);
+        }
+
+        public IpFieldType(String name, boolean isIndexed, boolean hasDocValues) {
+            this(
+                name,
+                IndexType.points(isIndexed, hasDocValues),
+                false,
+                null,
+                null,
+                Collections.emptyMap(),
+                false,
+                false,
+                false,
+                false,
+                false,
+                IndexVersion.current(),
+                null
+            );
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return hasPoints || hasDocValues();
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
+        }
+
+        @Override
+        public boolean isDimension() {
+            return isDimension;
+        }
+
+        @Override
+        public boolean hasScriptValues() {
+            return scriptValues != null;
+        }
+
+        public boolean usesBinaryDocValues() {
+            return usesBinaryDocValues;
+        }
+
+        public boolean usesArrayOrderBinaryDocValues() {
+            return useArrayOrderBinaryDocValues;
+        }
+
+        private static InetAddress parse(Object value) {
+            if (value instanceof InetAddress) {
+                return (InetAddress) value;
+            } else {
+                if (value instanceof BytesRef) {
+                    value = ((BytesRef) value).utf8ToString();
+                }
+                return InetAddresses.forString(value.toString());
+            }
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+            if (scriptValues != null) {
+                return FieldValues.valueFetcher(scriptValues, v -> InetAddresses.toAddrString((InetAddress) v), context);
+            }
+            return new SourceValueFetcher(name(), context, nullValue) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    InetAddress address;
+                    if (value instanceof InetAddress) {
+                        address = (InetAddress) value;
+                    } else {
+                        address = InetAddresses.forString(value.toString());
+                    }
+                    return InetAddresses.toAddrString(address);
+                }
+            };
+        }
+
+        @Override
+        public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            Query query;
+            if (value instanceof InetAddress) {
+                query = InetAddressPoint.newExactQuery(name(), (InetAddress) value);
+            } else {
+                if (value instanceof BytesRef) {
+                    value = ((BytesRef) value).utf8ToString();
+                }
+                String term = value.toString();
+                if (term.contains("/")) {
+                    final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
+                    query = InetAddressPoint.newPrefixQuery(name(), cidr.v1(), cidr.v2());
+                } else {
+                    InetAddress address = InetAddresses.forString(term);
+                    query = InetAddressPoint.newExactQuery(name(), address);
+                }
+            }
+            if (hasPoints) {
+                if (hasDocValues()) {
+                    return convertToIndexOrDocValuesQuery(query, usesBinaryDocValues, useArrayOrderBinaryDocValues, context);
+                }
+                return query;
+            } else {
+                return convertToDocValuesQuery(query, usesBinaryDocValues, useArrayOrderBinaryDocValues, context);
+            }
+        }
+
+        static Query convertToIndexOrDocValuesQuery(
+            Query query,
+            boolean usesBinaryDocValues,
+            boolean arrayOrderInlineNull,
+            SearchExecutionContext context
+        ) {
+            assert query instanceof PointRangeQuery;
+            return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query, usesBinaryDocValues, arrayOrderInlineNull, context));
+        }
+
+        static Query convertToDocValuesQuery(
+            Query query,
+            boolean usesBinaryDocValues,
+            boolean arrayOrderInlineNull,
+            SearchExecutionContext context
+        ) {
+            assert query instanceof PointRangeQuery;
+            PointRangeQuery pointRangeQuery = (PointRangeQuery) query;
+
+            final String field = pointRangeQuery.getField();
+            final BytesRef lower = new BytesRef(pointRangeQuery.getLowerPoint());
+            final BytesRef upper = new BytesRef(pointRangeQuery.getUpperPoint());
+
+            if (usesBinaryDocValues) {
+                return new ScanningBinaryDocValuesRangeQuery(field, lower, upper, arrayOrderInlineNull);
+            } else {
+                return SortedSetDocValuesField.newSlowRangeQuery(field, lower, upper, true, true);
+            }
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (hasPoints == false) {
+                return super.termsQuery(values, context);
+            }
+            InetAddress[] addresses = new InetAddress[values.size()];
+            int i = 0;
+            for (Object value : values) {
+                InetAddress address;
+                if (value instanceof InetAddress) {
+                    address = (InetAddress) value;
+                } else {
+                    if (value instanceof BytesRef) {
+                        value = ((BytesRef) value).utf8ToString();
+                    }
+                    if (value.toString().contains("/")) {
+                        // the `terms` query contains some prefix queries, so we cannot create a set query
+                        // and need to fall back to a disjunction of `term` queries
+                        return super.termsQuery(values, context);
+                    }
+                    address = InetAddresses.forString(value.toString());
+                }
+                addresses[i++] = address;
+            }
+            return InetAddressPoint.newSetQuery(name(), addresses);
+        }
+
+        @Override
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (lower, upper) -> {
+                Query query = InetAddressPoint.newRangeQuery(name(), lower, upper);
+                if (hasPoints) {
+                    if (hasDocValues()) {
+                        return new IndexOrDocValuesQuery(
+                            query,
+                            convertToDocValuesQuery(query, usesBinaryDocValues, useArrayOrderBinaryDocValues, context)
+                        );
+                    } else {
+                        return query;
+                    }
+                } else {
+                    return convertToDocValuesQuery(query, usesBinaryDocValues, useArrayOrderBinaryDocValues, context);
+                }
+            });
+        }
+
+        /**
+         * Processes query bounds into {@code long}s and delegates the
+         * provided {@code builder} to build a range query.
+         */
+        public static Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            BiFunction<InetAddress, InetAddress, Query> builder
+        ) {
+            InetAddress lower;
+            if (lowerTerm == null) {
+                lower = InetAddressPoint.MIN_VALUE;
+            } else {
+                lower = parse(lowerTerm);
+                if (includeLower == false) {
+                    if (lower.equals(InetAddressPoint.MAX_VALUE)) {
+                        return Queries.NO_DOCS_INSTANCE;
+                    }
+                    lower = InetAddressPoint.nextUp(lower);
+                }
+            }
+
+            InetAddress upper;
+            if (upperTerm == null) {
+                upper = InetAddressPoint.MAX_VALUE;
+            } else {
+                upper = parse(upperTerm);
+                if (includeUpper == false) {
+                    if (upper.equals(InetAddressPoint.MIN_VALUE)) {
+                        return Queries.NO_DOCS_INSTANCE;
+                    }
+                    upper = InetAddressPoint.nextDown(upper);
+                }
+            }
+
+            return builder.apply(lower, upper);
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
+                BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
+                if (cfg == null) {
+                    if (usesBinaryDocValues) {
+                        if (docValuesParams != null && docValuesParams.multiValue() == false) {
+                            // Single-valued binary doc values are written as plain (no separate counts column), so read them as plain.
+                            return new BytesRefsFromBinaryBlockLoader(name());
+                        }
+                        return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
+                            name(),
+                            useArrayOrderBinaryDocValues ? ArrayOrderSource.INLINE : ArrayOrderSource.NONE
+                        );
+                    } else {
+                        return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), readInArrayOrder);
+                    }
+                }
+                return switch (cfg.function()) {
+                    case MV_MAX -> usesBinaryDocValues
+                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name())
+                        : new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
+                    case MV_MIN -> usesBinaryDocValues
+                        ? new MvMinBytesRefsFromBinaryBlockLoader(name())
+                        : new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
+                    default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
+                };
+            }
+            if (blContext.blockLoaderFunctionConfig() != null) {
+                throw new UnsupportedOperationException("function fusing only supported for doc values");
+            }
+            if (isStored()) {
+                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
+            }
+
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
+                return blockLoaderFromFallbackSyntheticSource(blContext);
+            }
+            // see #indexValue
+            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && hasPoints
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+                : BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.IpsBlockLoader(sourceValueFetcher(blContext), lookup);
+        }
+
+        @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSource)) {
+                return switch (config.function()) {
+                    case MV_MAX, MV_MIN -> true;
+                    default -> false;
+                };
+            }
+            return false;
+        }
+
+        private BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {
+            var reader = new IpFallbackSyntheticSourceReader(nullValue);
+            return new FallbackSyntheticSourceBlockLoader(
+                reader,
+                name(),
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
+            ) {
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return factory.bytesRefs(expectedCount);
+                }
+            };
+        }
+
+        private SourceValueFetcher sourceValueFetcher(BlockLoaderContext blContext) {
+            return new SourceValueFetcher(blContext.sourcePaths(name()), nullValue, blContext.indexSettings().getIgnoredSourceFormat()) {
+                @Override
+                public InetAddress parseSourceValue(Object value) {
+                    return parse(value);
+                }
+            };
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            failIfNoDocValues();
+            if (usesBinaryDocValues) {
+                // Binary doc values carry no sorted-set ordinals, so ordinals-based fielddata would silently read nothing; read the binary
+                // column directly (array-order aware when values are stored in document order via ArrayOrderInlineNull).
+                return new BytesBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.IP,
+                    IpDocValuesField::new,
+                    indexVersion,
+                    useArrayOrderBinaryDocValues
+                );
+            }
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.IP, IpDocValuesField::new);
+        }
+
+        @Override
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
+                return null;
+            }
+            return DocValueFormat.IP.format((BytesRef) value);
+        }
+
+        @Override
+        public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
+            checkNoFormat(format);
+            checkNoTimeZone(timeZone);
+            return DocValueFormat.IP;
+        }
+
+        @Override
+        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
+
+            Terms terms = null;
+            // terms_enum for ip only works if doc values are enabled
+            if (hasDocValues()) {
+                terms = SortedSetDocValuesTerms.getTerms(reader, name());
+            }
+            if (terms == null) {
+                // Field does not exist on this shard.
+                return null;
+            }
+            BytesRef searchBytes = searchAfter == null ? null : new BytesRef(InetAddressPoint.encode(InetAddress.getByName(searchAfter)));
+            CompiledAutomaton prefixAutomaton = buildIpPrefixAutomaton(prefix);
+
+            if (prefixAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.ALL) {
+                TermsEnum result = terms.iterator();
+                if (searchAfter != null) {
+                    result = new SearchAfterTermsEnum(result, searchBytes);
+                }
+                return result;
+            }
+            return terms.intersect(prefixAutomaton, searchBytes);
+        }
+    }
+
+    private final boolean indexed;
+    private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
+    private final boolean stored;
+    private final boolean ignoreMalformed;
+    private final boolean storeIgnored;
+    private final boolean dimension;
+    private final boolean writeDimensionRouting;
+
+    private final InetAddress nullValue;
+    private final String nullValueAsString;
+
+    private final IndexSettings indexSettings;
+    private final Script script;
+    private final FieldValues<InetAddress> scriptValues;
+    private final ScriptCompiler scriptCompiler;
+
+    private final String offsetsFieldName;
+
+    private IpFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
+        boolean storeIgnored,
+        Builder builder,
+        String offsetsFieldName
+    ) {
+        super(simpleName, mappedFieldType, builderParams);
+        this.indexed = builder.indexed.getValue();
+        this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            fieldType().indexType.hasDocValuesSkipper(),
+            builder.indexSettings.getIndexVersionCreated()
+        );
+        this.stored = builder.stored.getValue();
+        this.ignoreMalformed = builder.ignoreMalformed.getValue();
+        this.nullValue = builder.parseNullValue();
+        this.nullValueAsString = builder.nullValue.getValue();
+        this.script = builder.script.get();
+        this.scriptValues = builder.scriptValues();
+        this.scriptCompiler = builder.scriptCompiler;
+        this.dimension = builder.dimension.getValue();
+        this.writeDimensionRouting = this.dimension
+            && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
+            && efs.extractDimensionsWhileMapping();
+        this.storeIgnored = storeIgnored;
+        this.offsetsFieldName = offsetsFieldName;
+        this.indexSettings = builder.indexSettings;
+    }
+
+    @Override
+    public boolean ignoreMalformed() {
+        return ignoreMalformed;
+    }
+
+    public DocValuesParameter.Values docValuesParameters() {
+        return docValuesParameters;
+    }
+
+    @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    public boolean isNullable() {
+        return docValuesParameters.nullability() || nullValueAsString != null;
+    }
+
+    @Override
+    public IpFieldType fieldType() {
+        return (IpFieldType) super.fieldType();
+    }
+
+    @Override
+    protected String contentType() {
+        return fieldType().typeName();
+    }
+
+    @Override
+    public boolean supportsBatchIndexing() {
+        // Plain ip mappers can be driven through parseCreateField by the bulk batch path.
+        // ignore_malformed and null_value are allowed. Dimensions, copy_to, multi-fields, and
+        // scripts pull in behavior that the batch path does not support.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && fieldType().isDimension() == false;
+    }
+
+    @Override
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        ESInetAddressPoint address;
+        XContentString value = context.parser().optimizedTextOrNull();
+        try {
+            address = value == null
+                ? nullValue == null ? null : new ESInetAddressPoint(fieldType().name(), nullValue)
+                : new ESInetAddressPoint(fieldType().name(), value);
+        } catch (IllegalArgumentException e) {
+            if (ignoreMalformed) {
+                context.addIgnoredField(fieldType().name());
+                if (storeIgnored) {
+                    // Save a copy of the field so synthetic source can load it
+                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                }
+                return;
+            } else {
+                throw e;
+            }
+        }
+        if (address != null) {
+            indexValue(context, address);
+        }
+        if (fieldType().usesArrayOrderBinaryDocValues()) {
+            // In-order path: non-null values are recorded in indexValue (in document order); here we record null slots so their position
+            // is preserved. Non-null values record no slot here as they are already recorded above.
+            if (address == null) {
+                MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
+            }
+        } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
+            if (address != null) {
+                BytesRef sortableValue = address.binaryValue();
+                context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue);
+            } else {
+                context.getOffSetContext().recordNull(offsetsFieldName);
+            }
+        }
+    }
+
+    private void indexValue(DocumentParserContext context, ESInetAddressPoint address) {
+        if (writeDimensionRouting) {
+            context.getRoutingFields().addIp(fieldType().name(), address.getInetAddress());
+        }
+        LuceneDocument doc = context.doc();
+        if (fieldType().indexType.hasPoints()) {
+            doc.add(address);
+        }
+        if (fieldType().indexType.hasDocValues()) {
+            if (fieldType().usesBinaryDocValues()) {
+                assert fieldType().indexType.hasDocValuesSkipper() == false : "skippers are not supported for binary doc values";
+                if (fieldType().usesArrayOrderBinaryDocValues()) {
+                    // In-order path: write the value into the field's own binary doc-values column directly, in document order with nulls.
+                    if (context.isPartOfArray() == false) {
+                        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordSingleValue(
+                            doc,
+                            fieldType().name(),
+                            address.binaryValue()
+                        );
+                    } else {
+                        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordValue(doc, fieldType().name(), address.binaryValue());
+                    }
+                } else {
+                    dvFactory.addBinaryField(
+                        doc,
+                        fieldType().name(),
+                        address.binaryValue(),
+                        MultiValuedBinaryDocValuesField.ValueOrdering.SORTED_UNIQUE
+                    );
+                }
+            } else {
+                dvFactory.addSortedField(doc, fieldType().name(), address.binaryValue());
+            }
+        } else if (stored || indexed) {
+            context.addToFieldNames(fieldType().name());
+        }
+        if (stored) {
+            doc.add(new StoredField(fieldType().name(), address.binaryValue()));
+        }
+    }
+
+    @Override
+    protected void indexScriptValues(
+        SearchLookup searchLookup,
+        LeafReaderContext readerContext,
+        int doc,
+        DocumentParserContext documentParserContext
+    ) {
+        this.scriptValues.valuesForDoc(
+            searchLookup,
+            readerContext,
+            doc,
+            value -> indexValue(documentParserContext, new ESInetAddressPoint(fieldType().name(), value))
+        );
+    }
+
+    @Override
+    public FieldMapper.Builder getMergeBuilder() {
+        return new Builder(leafName(), scriptCompiler, indexSettings).dimension(dimension).init(this);
+    }
+
+    @Override
+    public void doValidate(MappingLookup lookup) {
+        if (dimension && null != lookup.nestedLookup().getNestedParent(fullPath())) {
+            throw new IllegalArgumentException(
+                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + fullPath() + "]"
+            );
+        }
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (docValuesParameters.enabled()) {
+            return new SyntheticSourceSupport.Native(() -> {
+                var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
+                if (fieldType().usesBinaryDocValues() == false) {
+                    if (offsetsFieldName != null) {
+                        layers.add(
+                            new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, IpFieldMapper::convert)
+                        );
+                    } else {
+                        layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                            @Override
+                            protected BytesRef convert(BytesRef value) {
+                                return IpFieldMapper.convert(value);
+                            }
+
+                            @Override
+                            protected BytesRef preserve(BytesRef value) {
+                                // No need to copy because convert has made a deep copy
+                                return value;
+                            }
+                        });
+                    }
+                } else {
+                    if (fieldType().usesArrayOrderBinaryDocValues()) {
+                        layers.add(new ArrayOrderBinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), IpFieldMapper::convert));
+                    } else {
+                        layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexSettings.getIndexVersionCreated()) {
+                            @Override
+                            protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                                BytesRef converted = IpFieldMapper.convert(value);
+                                b.utf8Value(converted.bytes, converted.offset, converted.length);
+                            }
+                        });
+                    }
+                }
+
+                if (ignoreMalformed) {
+                    layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+                }
+                return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+            });
+        }
+
+        return super.syntheticSourceSupport();
+    }
+
+    static BytesRef convert(BytesRef value) {
+        byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
+        return new BytesRef(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+    }
+
+    @Override
+    public String getOffsetFieldName() {
+        return offsetsFieldName;
+    }
+
+    @Override
+    public boolean storesArrayValuesInOrder() {
+        return fieldType().usesArrayOrderBinaryDocValues();
+    }
+}

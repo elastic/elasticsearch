@@ -1,0 +1,39 @@
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+dependencies {
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(":test:framework")
+  testImplementation project(':test:test-clusters')
+  testImplementation(project(':x-pack:plugin:sql:qa:server')) {
+    transitive = false
+  }
+  api project(xpackModule('ql:test-fixtures'))
+}
+
+Project mainProject = project
+
+subprojects {
+  // Use tests from the root security qa project in subprojects
+  configurations.create('testArtifacts').transitive = false
+
+  dependencies {
+    javaRestTestImplementation project(":x-pack:plugin:core")
+    javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+    testArtifacts testArtifact(project(mainProject.path))
+  }
+
+  File testArtifactsDir = project.file("$buildDir/testArtifacts")
+  TaskProvider copyTestClasses = tasks.register("copyTestClasses", Copy) {
+    dependsOn configurations.testArtifacts
+    from { zipTree(configurations.testArtifacts.singleFile) }
+    into testArtifactsDir
+  }
+
+  tasks.named("javaRestTest").configure {
+    dependsOn copyTestClasses
+    testClassesDirs = project.files(testArtifactsDir)
+    classpath += configurations.testArtifacts
+  }
+
+}

@@ -1,0 +1,23 @@
+{
+    "index":{
+        "analysis":{
+            "filter":{
+                "shingle_inverse":{
+                    "type":"shingle",
+                    "max_shingle_size" : 3,
+                    "min_shingle_size" : 3,
+                    "output_unigrams" : false,
+                    "output_unigrams_if_no_shingles" : true,
+                    "token_separator" : "_"
+                },
+                "shingle_filler":{
+                    "type":"shingle",
+                    "max_shingle_size" : 3,
+                    "min_shingle_size" : 2,
+                    "output_unigrams" : false,
+                    "filler_token" : "FILLER"
+                }
+            }            
+        }
+    }
+}

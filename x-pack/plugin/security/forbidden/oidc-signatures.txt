@@ -1,0 +1,3 @@
+@defaultMessage Blocking methods should not be used for HTTP requests. Use CloseableHttpAsyncClient instead
+com.nimbusds.oauth2.sdk.http.HTTPRequest#send(javax.net.ssl.HostnameVerifier, javax.net.ssl.SSLSocketFactory)
+com.nimbusds.oauth2.sdk.http.HTTPRequest#send()

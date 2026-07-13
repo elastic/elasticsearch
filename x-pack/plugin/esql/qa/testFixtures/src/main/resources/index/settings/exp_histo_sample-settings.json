@@ -1,0 +1,10 @@
+{
+  "index": {
+    "mode": "time_series",
+    "routing_path": ["instance"],
+    "time_series": {
+      "start_time": "2025-09-24T00:00:00Z",
+      "end_time": "2025-09-26T00:00:00Z"
+    }
+  }
+}

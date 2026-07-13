@@ -1,0 +1,17 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  clusterModules project(':test:external-modules:test-multi-project')
+  clusterModules project(':modules:analysis-common')
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+  javaRestTestImplementation testArtifact(project(':x-pack:plugin:security'))
+}
+
+tasks.named('javaRestTest') {
+  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+}
+
+tasks.withType(Test).configureEach {
+  it.systemProperty "tests.multi_project.enabled", true
+}

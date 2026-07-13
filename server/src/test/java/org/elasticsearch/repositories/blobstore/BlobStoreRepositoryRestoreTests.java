@@ -1,0 +1,214 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.repositories.blobstore;
+
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
+
+/**
+ * This class tests the behavior of {@link BlobStoreRepository} when it
+ * restores a shard from a snapshot but some files with same names already
+ * exist on disc.
+ */
+public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
+
+    /**
+     * Restoring a snapshot that contains multiple files must succeed even when
+     * some files already exist in the shard's store.
+     */
+    public void testRestoreSnapshotWithExistingFiles() throws IOException {
+        final IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
+        final ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 0);
+
+        IndexShard shard = newShard(shardId, true);
+        try {
+            // index documents in the shards
+            final int numDocs = scaledRandomIntBetween(1, 500);
+            recoverShardFromStore(shard);
+            for (int i = 0; i < numDocs; i++) {
+                indexDoc(shard, "_doc", Integer.toString(i));
+                if (rarely()) {
+                    flushShard(shard, false);
+                }
+            }
+            assertDocCount(shard, numDocs);
+
+            // snapshot the shard
+            @FixForMultiProject(description = "randomize when snapshot and restore support multiple projects, see also ES-10225, ES-10228")
+            final Repository repository = TestUtils.createRepository(ProjectId.DEFAULT, createTempDir(), xContentRegistry());
+            final Snapshot snapshot = new Snapshot(repository.getMetadata().name(), new SnapshotId(randomAlphaOfLength(10), "_uuid"));
+            snapshotShard(shard, snapshot, repository);
+
+            // capture current store files
+            final Store.MetadataSnapshot storeFiles = shard.snapshotStoreMetadata();
+            assertFalse(storeFiles.fileMetadataMap().isEmpty());
+
+            // close the shard
+            closeShards(shard);
+
+            // delete some random files in the store
+            List<String> deletedFiles = randomSubsetOf(randomIntBetween(1, storeFiles.size() - 1), storeFiles.fileMetadataMap().keySet());
+            for (String deletedFile : deletedFiles) {
+                Files.delete(shard.shardPath().resolveIndex().resolve(deletedFile));
+            }
+
+            // build a new shard using the same store directory as the closed shard
+            ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(
+                shard.routingEntry(),
+                RecoverySource.ExistingStoreRecoverySource.INSTANCE
+            );
+            shard = newShard(
+                shardRouting,
+                shard.shardPath(),
+                shard.indexSettings().getIndexMetadata(),
+                null,
+                null,
+                new InternalEngineFactory(),
+                NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY,
+                EMPTY_EVENT_LISTENER
+            );
+
+            // restore the shard
+            recoverShardFromSnapshot(shard, snapshot, repository);
+
+            // check that the shard is not corrupted
+            TestUtil.checkIndex(shard.store().directory());
+
+            // check that all files have been restored
+            final Directory directory = shard.store().directory();
+            final List<String> directoryFiles = Arrays.asList(directory.listAll());
+
+            for (StoreFileMetadata storeFile : storeFiles) {
+                String fileName = storeFile.name();
+                assertTrue("File [" + fileName + "] does not exist in store directory", directoryFiles.contains(fileName));
+                assertEquals(storeFile.length(), shard.store().directory().fileLength(fileName));
+            }
+        } finally {
+            if (shard != null && shard.state() != IndexShardState.CLOSED) {
+                try {
+                    closeShardNoCheck(shard);
+                } finally {
+                    IOUtils.close(shard.store());
+                }
+            }
+        }
+    }
+
+    public void testSnapshotWithConflictingName() throws Exception {
+        final IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
+        final ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 0);
+
+        IndexShard shard = newShard(shardId, true);
+        try {
+            // index documents in the shards
+            final int numDocs = scaledRandomIntBetween(1, 500);
+            recoverShardFromStore(shard);
+            for (int i = 0; i < numDocs; i++) {
+                indexDoc(shard, "_doc", Integer.toString(i));
+                if (rarely()) {
+                    flushShard(shard, false);
+                }
+            }
+            assertDocCount(shard, numDocs);
+
+            // snapshot the shard
+            @FixForMultiProject(description = "randomize when snapshot and restore support multiple projects, see also ES-10225, ES-10228")
+            final Repository repository = TestUtils.createRepository(ProjectId.DEFAULT, createTempDir(), xContentRegistry());
+            final Snapshot snapshot = new Snapshot(repository.getMetadata().name(), new SnapshotId(randomAlphaOfLength(10), "_uuid"));
+            final ShardGeneration shardGen = snapshotShard(shard, snapshot, repository);
+            assertNotNull(shardGen);
+            final Snapshot snapshotWithSameName = new Snapshot(
+                repository.getMetadata().name(),
+                new SnapshotId(snapshot.getSnapshotId().getName(), "_uuid2")
+            );
+            final var snapshotShardGenerations = new UpdatedShardGenerations(
+                ShardGenerations.builder().put(indexId, 0, shardGen).build(),
+                ShardGenerations.EMPTY
+            );
+            final RepositoryData ignoredRepositoryData = safeAwait(
+                listener -> repository.finalizeSnapshot(
+                    new FinalizeSnapshotContext(
+                        false,
+                        snapshotShardGenerations,
+                        RepositoryData.EMPTY_REPO_GEN,
+                        Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
+                        new SnapshotInfo(
+                            snapshot,
+                            snapshotShardGenerations.liveIndices().indices().stream().map(IndexId::getName).toList(),
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            null,
+                            1L,
+                            6,
+                            Collections.emptyList(),
+                            true,
+                            Collections.emptyMap(),
+                            0L,
+                            Collections.emptyMap()
+                        ),
+                        IndexVersion.current(),
+                        listener,
+                        () -> {}
+                    )
+                )
+            );
+            IndexShardSnapshotFailedException isfe = expectThrows(
+                IndexShardSnapshotFailedException.class,
+                () -> snapshotShard(shard, snapshotWithSameName, repository)
+            );
+            assertThat(isfe.getMessage(), containsString("Duplicate snapshot name"));
+        } finally {
+            if (shard != null && shard.state() != IndexShardState.CLOSED) {
+                try {
+                    closeShardNoCheck(shard);
+                } finally {
+                    IOUtils.close(shard.store());
+                }
+            }
+        }
+    }
+}

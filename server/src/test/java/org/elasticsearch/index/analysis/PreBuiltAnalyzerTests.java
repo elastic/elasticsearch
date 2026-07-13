@@ -1,0 +1,130 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+package org.elasticsearch.index.analysis;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Locale;
+
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+
+public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
+    public void testThatDefaultAndStandardAnalyzerAreTheSameInstance() {
+        Analyzer currentStandardAnalyzer = PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersion.current());
+        Analyzer currentDefaultAnalyzer = PreBuiltAnalyzers.DEFAULT.getAnalyzer(IndexVersion.current());
+
+        // special case, these two are the same instance
+        assertThat(currentDefaultAnalyzer, is(currentStandardAnalyzer));
+    }
+
+    public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {
+        assertThat(
+            PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersion.current()),
+            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersions.MINIMUM_COMPATIBLE))
+        );
+        assertThat(
+            PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersion.current()),
+            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersions.MINIMUM_READONLY_COMPATIBLE))
+        );
+    }
+
+    public void testThatInstancesAreCachedAndReused() {
+        assertSame(
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersion.current()),
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersion.current())
+        );
+        // same index version should be cached
+        IndexVersion v = IndexVersionUtils.randomVersion();
+        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(v), PreBuiltAnalyzers.STANDARD.getAnalyzer(v));
+        assertNotSame(
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersion.current()),
+            PreBuiltAnalyzers.STANDARD.getAnalyzer(IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersion.current()))
+        );
+
+        // Same Lucene version should be cached:
+        IndexVersion v1 = IndexVersionUtils.randomVersion();
+        IndexVersion v2 = new IndexVersion(v1.id() - 1, v1.luceneVersion());
+        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(v1), PreBuiltAnalyzers.STOP.getAnalyzer(v2));
+    }
+
+    public void testThatPrebuiltAnalyzersHaveElasticsearchPositionIncrementGap() {
+        // PreBuiltAnalyzerProvider bakes in the Elasticsearch default position_increment_gap (100)
+        // rather than leaving Lucene's default of 0 to be overridden later per index.
+        PreBuiltAnalyzers randomPreBuiltAnalyzer = randomFrom(PreBuiltAnalyzers.values());
+        String analyzerName = randomPreBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
+        NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(
+            analyzerName,
+            AnalyzerScope.INDICES,
+            randomPreBuiltAnalyzer.getAnalyzer(IndexVersion.current())
+        ).get();
+        assertThat(namedAnalyzer.getPositionIncrementGap(analyzerName), is(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP));
+    }
+
+    public void testThatAnalyzersAreUsedInMapping() throws IOException {
+        int randomInt = randomInt(PreBuiltAnalyzers.values().length - 1);
+        PreBuiltAnalyzers randomPreBuiltAnalyzer = PreBuiltAnalyzers.values()[randomInt];
+        String analyzerName = randomPreBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
+
+        IndexVersion randomVersion = IndexVersionUtils.randomWriteVersion();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion).build();
+
+        NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(
+            analyzerName,
+            AnalyzerScope.INDEX,
+            randomPreBuiltAnalyzer.getAnalyzer(randomVersion)
+        ).get();
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("analyzer", analyzerName)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        MapperService mapperService = createIndex("test", indexSettings, mapping).mapperService();
+
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertThat(fieldType.getTextSearchInfo().searchAnalyzer(), instanceOf(NamedAnalyzer.class));
+        NamedAnalyzer fieldMapperNamedAnalyzer = fieldType.getTextSearchInfo().searchAnalyzer();
+
+        assertThat(fieldMapperNamedAnalyzer.analyzer(), is(namedAnalyzer.analyzer()));
+    }
+}

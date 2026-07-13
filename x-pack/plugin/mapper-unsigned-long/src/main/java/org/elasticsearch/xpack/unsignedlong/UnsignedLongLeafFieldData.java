@@ -1,0 +1,78 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.unsignedlong;
+
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.plain.FormattedSortedNumericDocValues;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
+import org.elasticsearch.search.DocValueFormat;
+
+import java.io.IOException;
+
+import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.sortableSignedLongToUnsigned;
+
+public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
+    private final LeafNumericFieldData signedLongFD;
+    protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
+
+    UnsignedLongLeafFieldData(LeafNumericFieldData signedLongFD, ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory) {
+        this.signedLongFD = signedLongFD;
+        this.toScriptFieldFactory = toScriptFieldFactory;
+    }
+
+    @Override
+    public SortedNumericLongValues getLongValues() {
+        return signedLongFD.getLongValues();
+    }
+
+    @Override
+    public SortedNumericDoubleValues getDoubleValues() {
+        final SortedNumericLongValues values = signedLongFD.getLongValues();
+        return new SortedNumericDoubleValues.SortedNumericLongWrapper(values) {
+            @Override
+            public double nextValue() throws IOException {
+                return convertUnsignedLongToDouble(values.nextValue());
+            }
+        };
+    }
+
+    @Override
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return toScriptFieldFactory.getScriptFieldFactory(getLongValues(), name);
+    }
+
+    @Override
+    public SortedBinaryDocValues getBytesValues() {
+        return FieldData.toString(getDoubleValues());
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return signedLongFD.ramBytesUsed();
+    }
+
+    @Override
+    public FormattedDocValues getFormattedValues(DocValueFormat format) {
+        return new FormattedSortedNumericDocValues(getLongValues(), format);
+    }
+
+    static double convertUnsignedLongToDouble(long value) {
+        if (value < 0L) {
+            return sortableSignedLongToUnsigned(value); // add 2 ^ 63
+        } else {
+            // add 2 ^ 63 as a double to make sure there is no overflow and final result is positive
+            return 0x1.0p63 + value;
+        }
+    }
+}

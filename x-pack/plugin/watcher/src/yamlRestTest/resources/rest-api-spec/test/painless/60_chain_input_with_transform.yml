@@ -1,0 +1,52 @@
+---
+"Test chained input with transform":
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      watcher.execute_watch:
+        body:  >
+          {
+            "watch" : {
+              "trigger" : {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input" : {
+                "chain" : {
+                  "inputs" : [
+                    {
+                      "first" : {
+                        "simple" : { "foo" : "bar" }
+                      }
+                    },
+                    {
+                      "second" : {
+                        "transform": {
+                          "script" : "def value = ctx.payload.first.foo + ' baz' ; return [ 'foo' : value ]"
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "actions" : {
+                "index" : {
+                  "index" : {
+                    "index" : "my-index",
+                    "doc_id" : "my-id"
+                  }
+                }
+              }
+            }
+          }
+  - match: { "watch_record.state": "executed" }
+  - match: { "watch_record.result.input.status": "success" }
+
+  - do:
+      get:
+        index: my-index
+        id: my-id
+
+  - match: { _source.first.foo: "bar" }
+  - match: { _source.second.foo: "bar baz" }

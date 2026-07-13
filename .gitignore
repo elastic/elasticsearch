@@ -1,0 +1,101 @@
+
+# claude
+.claude
+
+# cursor
+.cursorrules
+
+# JetBrainsAI/Junie
+.junie/
+
+# Cursor rules and commands, if we want to implement project level rules and commands we'll want to remove these
+# These are based on the cursor docs here: https://cursor.com/docs/cli/using#rules
+# Prefix slash ensures these are only ignored at the same level as this file
+/.cursor/
+
+# codex
+.agent
+
+# pi agent harness
+.pi
+
+# intellij files
+.idea/
+*.iml
+*.ipr
+*.iws
+build-idea/
+# Eclipse and Intellij put there build files in "out"
+out/
+
+# include shared intellij config
+!.idea/eclipseCodeFormatter.xml
+!.idea/externalDependencies.xml
+!.idea/inspectionProfiles/Project_Default.xml
+!.idea/runConfigurations/
+!.idea/scopes/x_pack.xml
+
+# These files are generated in the main tree by IntelliJ
+benchmarks/src/main/generated/*
+
+# eclipse files
+.project
+.classpath
+.settings
+# We don't use this any more, but we'll keep it around in gitignore for a while so we don't accidentally commit it
+build-eclipse/
+
+# netbeans files
+nb-configuration.xml
+nbactions.xml
+
+# gradle stuff
+.gradle/
+build/
+
+# vscode stuff
+.vscode/
+
+# vs stuff
+.vs/
+
+# testing stuff
+**/.local*
+.vagrant/
+/logs/
+**/target/
+
+# osx stuff
+.DS_Store
+
+# default folders in which the create_bwc_index.py expects to find old es versions in
+/backwards
+/dev-tools/backwards
+
+# built docs
+.artifacts
+
+# random old stuff that we should look at the necessity of...
+/tmp/
+eclipse-build
+
+# projects using testfixtures
+testfixtures_shared/
+
+# These are generated from .ci/jobs.t, .ci/templates.t and .ci/views.t
+.ci/jobs/
+.ci/templates/
+.ci/views/
+
+# Generated
+checkstyle_ide.xml
+x-pack/plugin/esql/src/main/generated-src/generated/
+x-pack/plugin/esql/src/test/resources/org/elasticsearch/xpack/esql/**/golden_tests/**/*.actual
+
+server/src/main/resources/transport/definitions/manifest.txt
+
+# JEnv
+.java-version
+
+# Vector data files
+qa/vector/.data

@@ -1,0 +1,233 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+
+import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+esplugin {
+  description = 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
+  classname = 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
+}
+
+versions << [
+  'hadoop': '3.4.1'
+]
+
+def patched = Attribute.of('patched', Boolean)
+def hdfsVersionAttr = Attribute.of('hdfs.major.version', Integer)
+
+configurations {
+  hdfsFixture2 {
+    attributes {
+      attribute(hdfsVersionAttr, 2)
+    }
+  }
+  hdfsFixture3 {
+    attributes {
+      attribute(hdfsVersionAttr, 3)
+    }
+  }
+  compileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  runtimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testCompileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testRuntimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+}
+
+dependencies {
+  api("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
+  runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}"
+  implementation "org.apache.hadoop:hadoop-hdfs:${versions.hadoop}"
+  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api 'commons-cli:commons-cli:1.5.0'
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api 'commons-io:commons-io:2.16.1'
+  api 'org.apache.commons:commons-lang3:3.20.0'
+  api 'javax.servlet:javax.servlet-api:3.1.0'
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+  //  https://github.com/elastic/elasticsearch/issues/93714
+  //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
+
+  testImplementation(project(':test:fixtures:hdfs-fixture'))
+  javaRestTestCompileOnly(project(':test:fixtures:hdfs-fixture'))
+
+  javaRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
+  javaRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  javaRestTestRuntimeOnly "com.google.guava:guava:16.0.1"
+  javaRestTestRuntimeOnly "commons-cli:commons-cli:1.5.0"
+  javaRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+
+  yamlRestTestCompileOnly(project(':test:fixtures:hdfs-fixture'))
+  yamlRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
+  yamlRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  yamlRestTestRuntimeOnly "com.google.guava:guava:16.0.1"
+  yamlRestTestRuntimeOnly "commons-cli:commons-cli:1.5.0"
+  yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+
+  hdfsFixture2 project(':test:fixtures:hdfs-fixture')
+  hdfsFixture3 project(':test:fixtures:hdfs-fixture')
+
+  attributesSchema {
+    attribute(patched)
+  }
+  artifactTypes.getByName("jar") {
+    attributes.attribute(patched, false)
+  }
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher) {
+    from.attribute(patched, false)
+    to.attribute(patched, true)
+    parameters {
+      matchingArtifacts = ["hadoop-client-api"]
+    }
+  }
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'snapshot'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /hadoop-.*/, to: 'hadoop'
+}
+
+tasks.withType(RestIntegTestTask).configureEach {
+  usesDefaultDistribution("to be triaged")
+  buildParams.withFipsEnabledOnly(it)
+  jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
+}
+
+tasks.named('javaRestTest').configure {
+  classpath = sourceSets.javaRestTest.runtimeClasspath + configurations.hdfsFixture3
+}
+
+tasks.register("javaRestTestHdfs2", RestIntegTestTask) {
+  description = "Runs rest tests against an elasticsearch cluster with HDFS version 2"
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath + configurations.hdfsFixture2
+}
+
+tasks.named("test").configure {
+  onlyIf("Not running on windows") {
+    OS.current().equals(OS.WINDOWS) == false
+  }
+}
+
+tasks.named("check").configure {
+  dependsOn(tasks.withType(RestIntegTestTask))
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+  ignoreViolations(
+    // internal java api: sun.misc.Unsafe
+    'com.google.protobuf.MessageSchema',
+    'com.google.protobuf.UnsafeUtil',
+    'com.google.protobuf.UnsafeUtil$1',
+    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+    'org.apache.hadoop.hdfs.server.datanode.checker.AbstractFuture$UnsafeAtomicHelper',
+    'org.apache.hadoop.hdfs.server.datanode.checker.AbstractFuture$UnsafeAtomicHelper$1',
+    'org.apache.hadoop.shaded.com.google.common.cache.Striped64',
+    'org.apache.hadoop.shaded.com.google.common.cache.Striped64$1',
+    'org.apache.hadoop.shaded.com.google.common.cache.Striped64$Cell',
+    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+    'org.apache.hadoop.shaded.com.google.common.hash.Striped64',
+    'org.apache.hadoop.shaded.com.google.common.hash.Striped64$1',
+    'org.apache.hadoop.shaded.com.google.common.hash.Striped64$Cell',
+    'org.apache.hadoop.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'org.apache.hadoop.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.apache.hadoop.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'org.apache.hadoop.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeBooleanField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeByteField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCachedField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCharField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCustomEncodedField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeDoubleField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeFloatField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeIntField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeLongField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeObjectField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeShortField',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64$1',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64$Cell',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64$1',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64$Cell',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'org.apache.hadoop.shaded.org.xbill.DNS.spi.DNSJavaNameServiceDescriptor',
+    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64',
+    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64$1',
+    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64$Cell',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$1',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$Cell',
+    'org.apache.hadoop.thirdparty.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'org.apache.hadoop.thirdparty.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$1',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.MessageSchema',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
+    'org.apache.hadoop.io.nativeio.NativeIO',
+    'org.apache.hadoop.service.launcher.InterruptEscalator',
+    'org.apache.hadoop.service.launcher.IrqHandler',
+    'org.apache.hadoop.util.SignalLogger$Handler'
+  )
+}

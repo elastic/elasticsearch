@@ -1,0 +1,131 @@
+{
+  "cat.recovery": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-recovery",
+      "description": "Get shard recovery information"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "text/plain",
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_cat/recovery",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/_cat/recovery/{index}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "Comma-separated list or wildcard expression of index names to limit the returned information"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "format": {
+        "type": "string",
+        "default": "text",
+        "description": "a short version of the Accept header, e.g. json, yaml"
+      },
+      "active_only": {
+        "type": "boolean",
+        "description": "If `true`, the response only includes ongoing shard recoveries",
+        "default": false
+      },
+      "bytes": {
+        "type": "enum",
+        "description": "The unit in which to display byte values",
+        "options": [
+          "b",
+          "kb",
+          "mb",
+          "gb",
+          "tb",
+          "pb"
+        ]
+      },
+      "detailed": {
+        "type": "boolean",
+        "description": "If `true`, the response includes detailed information about shard recoveries",
+        "default": false
+      },
+      "h": {
+        "type": "list",
+        "default": "ip,hp,rp,r,m,n,cpu,l",
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "index",
+          "shard",
+          "start_time",
+          "start_time_millis",
+          "stop_time",
+          "stop_time_millis",
+          "time",
+          "type",
+          "stage",
+          "source_host",
+          "source_node",
+          "target_host",
+          "target_node",
+          "repository",
+          "snapshot",
+          "files",
+          "files_recovered",
+          "files_percent",
+          "files_total",
+          "bytes",
+          "bytes_recovered",
+          "bytes_percent",
+          "bytes_total",
+          "translog_ops",
+          "translog_ops_recovered",
+          "translog_ops_percent"
+        ]
+      },
+      "help": {
+        "type": "boolean",
+        "description": "Return help information",
+        "default": false
+      },
+      "index": {
+        "type": "list",
+        "description": "Comma-separated list or wildcard expression of index names to limit the returned information"
+      },
+      "s": {
+        "type": "list",
+        "description": "Comma-separated list of column names or column aliases to sort by"
+      },
+      "time": {
+        "type": "enum",
+        "description": "The unit in which to display time values",
+        "options": [
+          "d",
+          "h",
+          "m",
+          "s",
+          "ms",
+          "micros",
+          "nanos"
+        ]
+      },
+      "v": {
+        "type": "boolean",
+        "description": "Verbose mode. Display column headers",
+        "default": false
+      }
+    }
+  }
+}

@@ -1,0 +1,89 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.BwcVersions.UnreleasedVersionInfo
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+description = 'Integration tests for SQL JDBC driver'
+
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
+
+// Avoid circular dependency
+group = 'org.elasticsearch.x-pack.qa.sql.jdbc'
+
+repositories {
+  maven {
+    // Repository for downloading BWC compatible JDBC driver releases
+    url = 'https://artifacts-no-kpi.elastic.co/maven'
+  }
+}
+
+configurations {
+  jdbcDriver
+}
+
+dependencies {
+  api project(':test:framework')
+  api project(':test:test-clusters')
+  implementation project(':x-pack:plugin:sql:sql-proto')
+  implementation project(xpackModule('ql:test-fixtures'))
+
+  // Actual tests will use the shadow jar
+  compileOnly(project(xpackModule('sql:jdbc'))) {
+    // Since dependencies will be relocated in the shadow jar, don't attempt to compile against them
+    transitive = false
+  }
+
+  javaRestTestImplementation(project(':x-pack:plugin:sql:qa:jdbc'))
+  // We use the shadowjar for testing since that's the actual artifact we deliver to users
+  javaRestTestCompileOnly project(path: xpackModule('sql:jdbc'), configuration: 'shadow')
+
+  // Additional required test cluster modules
+  clusterModules project(xpackModule('sql'))
+  clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('mapper-unsigned-long'))
+  clusterModules project(xpackModule('mapper-version'))
+  clusterModules project(xpackModule('wildcard'))
+  clusterModules project(':modules:rest-root')
+}
+
+// Configure a task for each compatible JDBC driver version.
+// These tests use older JDBC drivers to communicate with the current version of Elasticsearch.
+buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
+    UnreleasedVersionInfo unreleasedVersion = buildParams.bwcVersions.unreleasedInfo(bwcVersion)
+    Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}") {
+      // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433
+      transitive = false
+    }
+    Object driverDependency = null
+
+    if (VersionProperties.getElasticsearchVersion() == bwcVersion) {
+      // For the current version use a regular project dependency
+      driverDependency = dependencies.project(path: xpackModule('sql:jdbc'), configuration: 'shadow')
+    } else if (unreleasedVersion) {
+      // For unreleased snapshot versions, build them from source
+      driverDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named('buildBwcJdbc'))
+    } else {
+      // For released versions, download it
+      driverDependency = "org.elasticsearch.plugin:x-pack-sql-jdbc:${bwcVersion}"
+    }
+
+    dependencies {
+      "jdbcDriver${baseName}"(driverDependency)
+    }
+
+    tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+      classpath += driverConfiguration
+      systemProperty 'jdbc.driver.version', bwcVersion.toString()
+      buildParams.withFipsEnabledOnly(it)
+    }
+}

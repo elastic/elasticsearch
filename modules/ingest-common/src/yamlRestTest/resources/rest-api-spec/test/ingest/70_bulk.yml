@@ -1,0 +1,248 @@
+setup:
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline1"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field1",
+                  "value": "value1"
+                }
+              }
+            ]
+          }
+
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline2"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field2",
+                  "value": "value2"
+                }
+              }
+            ]
+          }
+
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline1"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline2"
+        ignore: 404
+
+---
+"Test bulk request without default pipeline":
+
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: test_index
+              _id:    test_id1
+              pipeline: pipeline1
+          - f1: v1
+          - index:
+              _index: test_index
+              _id:    test_id2
+          - f1: v2
+  - gte: { ingest_took: 0 }
+
+  - do:
+      get:
+        index: test_index
+        id: test_id1
+
+  - match: {_source.field1: value1}
+  - is_false: _source.field2
+
+  - do:
+      get:
+        index: test_index
+        id: test_id2
+
+  - is_false: _source.field1
+  - is_false: _source.field2
+
+  - do:
+      cluster.state: {}
+    # Get master node id
+  - set: { master_node: master }
+
+  - do:
+      nodes.stats:
+        metric: [ ingest ]
+  #we can't assert anything here since we might have more than one node in the cluster
+  - gte: {nodes.$master.ingest.total.count: 0}
+  - gte: {nodes.$master.ingest.total.failed: 0}
+  - gte: {nodes.$master.ingest.total.time_in_millis: 0}
+  - match: {nodes.$master.ingest.total.current: 0}
+  - gte: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline1.count": 0}
+  - match: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline1.failed": 0}
+  - gte: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline1.time_in_millis": 0}
+  - match: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline1.current": 0}
+
+---
+"Test bulk request with default pipeline":
+
+  - do:
+      bulk:
+        pipeline: pipeline1
+        body:
+          - index:
+              _index: test_index
+              _id:    test_id1
+          - f1: v1
+          - index:
+              _index: test_index
+              _id:    test_id2
+              pipeline: pipeline2
+          - f1: v2
+  - gte: { ingest_took: 0 }
+
+  - do:
+      cluster.state: {}
+  # Get master node id
+  - set: { master_node: master }
+
+  - do:
+      nodes.stats:
+        metric: [ ingest ]
+  #we can't assert anything here since we might have more than one node in the cluster
+  - gte: {nodes.$master.ingest.total.count: 0}
+  - gte: {nodes.$master.ingest.total.failed: 0}
+  - gte: {nodes.$master.ingest.total.time_in_millis: 0}
+  - match: {nodes.$master.ingest.total.current: 0}
+  - gte: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline2.count": 0}
+  - match: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline2.failed": 0}
+  - gte: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline2.time_in_millis": 0}
+  - match: { "nodes.$master.ingest.pipelines.${_project_id_prefix_}pipeline2.current": 0}
+
+  - do:
+      get:
+        index: test_index
+        id: test_id1
+
+  - match: {_source.field1: value1}
+  - is_false: _source.field2
+
+  - do:
+      get:
+        index: test_index
+        id: test_id2
+
+  - is_false: _source.field1
+  - match: {_source.field2: value2}
+
+---
+"Test bulk request with _none request pipeline and default pipeline":
+
+  - do:
+      bulk:
+        pipeline: pipeline1
+        body:
+          - index:
+              _index: test_index
+              _id:    test_id1
+          - f1: v1
+          - index:
+              _index: test_index
+              _id:    test_id2
+              pipeline: _none
+          - f1: v2
+  - gte: { ingest_took: 0 }
+
+  - do:
+      cluster.state: {}
+  # Get master node id
+  - set: { master_node: master }
+
+  - do:
+      get:
+        index: test_index
+        id: test_id1
+
+  - match: {_source.field1: value1}
+  - is_false: _source.field2
+
+  - do:
+      get:
+        index: test_index
+        id: test_id2
+
+  - is_false: _source.field1
+  - is_false: _source.field2
+
+---
+"Update with pipeline":
+  - requires:
+      cluster_features: ["gte_v7.17.5"]
+      reason: "fixed in 7.17.5"
+
+  - do:
+      ingest.put_pipeline:
+        id: "lowercase-pipeline"
+        body: >
+          {
+            "processors": [
+              {
+                "lowercase" : {
+                  "field" : "my_field"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"update":{"_id":"1","_index":"test_index","pipeline":"lowercase-pipeline"}}'
+          - '{"upsert":{"my_field":"UPPER"},"script":{"source":"ctx._source.my_field = ctx._source.my_field.toLowercase()"}}'
+
+  - match: { errors: false }
+  - match: { items.0.update.result: created }
+
+  - do:
+      get:
+        index: test_index
+        id: 1
+  - match: { _source:  { my_field: "upper" } }
+
+---
+"Test bulk request with list_executed_pipelines":
+
+  - do:
+      bulk:
+        list_executed_pipelines: true
+        body:
+          - index:
+              _index: test_index
+              _id:    test_id1
+              pipeline: pipeline1
+          - f1: v1
+          - index:
+              _index: test_index
+              _id:    test_id2
+          - f1: v2
+          - index:
+              _index: test_index
+              _id:    test_id2
+              pipeline: fake_pipeline
+          - f1: v2
+
+  - match: { items.0.index.executed_pipelines: ["pipeline1"] }
+  - match: { items.1.index.executed_pipelines: [] }
+  - match: { items.2.index.executed_pipelines: null }

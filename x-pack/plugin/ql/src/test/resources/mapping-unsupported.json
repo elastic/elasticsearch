@@ -1,0 +1,14 @@
+{
+    "properties" : {
+        "range" : {
+            "type" : "integer_range"
+        },
+        "time_frame" : {
+            "type" : "date_range",
+            "format" : "yyyy-MM-dd"
+        },
+        "flat" : {
+            "type" : "flattened"
+        }
+    }
+}

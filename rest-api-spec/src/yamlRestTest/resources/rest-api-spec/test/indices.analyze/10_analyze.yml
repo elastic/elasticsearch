@@ -1,0 +1,75 @@
+"Basic test":
+    - do:
+        indices.analyze:
+          body:
+            text: Foo Bar
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: bar }
+
+---
+"Index and field":
+    - do:
+        indices.create:
+          index: test
+          body:
+            mappings:
+              properties:
+                text:
+                  type:     text
+                  analyzer: standard
+
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            field: text
+            text: Foo Bar!
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: bar }
+
+---
+"Array text":
+    - do:
+        indices.analyze:
+          body:
+            text: ["Foo Bar", "Baz"]
+            tokenizer: standard
+    - length: { tokens: 3 }
+    - match:  { tokens.0.token: Foo }
+    - match:  { tokens.1.token: Bar }
+    - match:  { tokens.2.token: Baz }
+
+---
+"Detail response with Analyzer":
+    - do:
+        indices.analyze:
+          body:
+            text: This is troubled
+            analyzer: standard
+            explain: true
+    - length: { detail.analyzer.tokens: 3 }
+    - match:  { detail.analyzer.name: standard }
+    - match:  { detail.analyzer.tokens.0.token: this }
+    - match:  { detail.analyzer.tokens.1.token: is }
+    - match:  { detail.analyzer.tokens.2.token: troubled }
+
+---
+"Custom filter in request":
+    - do:
+        indices.analyze:
+          body:
+            text: foo bar buzz
+            tokenizer: standard
+            explain: true
+            filter:
+             - type: stop
+               stopwords: ["foo", "buzz"]
+    - length: { detail.tokenizer.tokens: 3 }
+    - length: { detail.tokenfilters.0.tokens: 1 }
+    - match:  { detail.tokenizer.name: standard }
+    - match:  { detail.tokenizer.tokens.0.token: foo }
+    - match:  { detail.tokenizer.tokens.1.token: bar }
+    - match:  { detail.tokenizer.tokens.2.token: buzz }
+    - match:  { detail.tokenfilters.0.tokens.0.token: bar }

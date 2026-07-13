@@ -1,0 +1,113 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      indices.create:
+        index: index_fls1
+        body:
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+              secret:
+                type: "keyword"
+
+  - do:
+      indices.create:
+        index: index_fls2
+        body:
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+              object:
+                type: "object"
+                properties:
+                  secret:
+                    type: keyword
+                  public:
+                    type: keyword
+---
+"Retrieve documents with FLS":
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "index_fls1", "_id": "1a" }}'
+          - '{"name": "i1_doc", "secret":"squirrel"}'
+          - '{"index": {"_index": "index_fls2", "_id": "2a"}}'
+          - '{"name": "i2_doc", "object":{ "secret":"mission", "public":"interest" }}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls1" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "name" ]
+                - names: [ "index_fls2" ]
+                  privileges: [ "read", "monitor" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "object.secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls1
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: "i1_doc" }
+  - is_true: "hits.hits.0._source.secret"
+  - match: { hits.hits.0._source.secret: "squirrel" }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls1
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: "i1_doc" }
+  - is_false: "hits.hits.0._source.secret"
+
+
+  # With superuser...
+  - do:
+      get:
+        index: index_fls2
+        id: 2a
+  - match: { _source.name: "i2_doc" }
+  - match: { _source.object.secret: "mission" }
+  - match: { _source.object.public: "interest" }
+  - is_true: "_source.object.secret"
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      get:
+        index: index_fls2
+        id: 2a
+  - match: { _source.name: "i2_doc" }
+  - match: { _source.object.public: "interest" }
+  - is_false: "_source.object.secret"

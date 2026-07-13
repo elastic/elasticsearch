@@ -1,0 +1,50 @@
+{
+  "indices.delete_data_stream": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-delete-data-stream",
+      "description": "Delete data streams"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_data_stream/{name}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "name": {
+              "type": "list",
+              "description": "A comma-separated list of data streams to delete; use `*` to delete all data streams"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "open",
+        "description": "Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+      },
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
+      }
+    }
+  }
+}

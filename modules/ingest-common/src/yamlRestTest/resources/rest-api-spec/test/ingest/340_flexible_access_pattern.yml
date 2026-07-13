@@ -1,0 +1,381 @@
+---
+setup:
+  - requires:
+      reason: "Flexible access pattern was added in 9.2+"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_ingest/pipeline/{id}
+          capabilities: [ 'field_access_pattern.flexible' ]
+
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test dotted field name writes":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "field_access_pattern": "flexible",
+            "processors": [
+              {
+                "set": {
+                  "field": "a.b.c.d",
+                  "value": "1"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "no_field"
+        pipeline: "1"
+        body: {
+          foo: bar
+        }
+
+  - do:
+      index:
+        index: test
+        id: "normalized"
+        pipeline: "1"
+        body: {
+          a: {
+            b: {
+              c: {
+                d: 0
+              }
+            }
+          }
+        }
+
+  - do:
+      index:
+        index: test
+        id: "dotted_only"
+        pipeline: "1"
+        body: {
+          a.b.c.d: 0
+        }
+
+  - do:
+      index:
+        index: test
+        id: "split_dots"
+        pipeline: "1"
+        body: {
+          a.b: {
+            c.d: 0
+          }
+        }
+
+  - do:
+      index:
+        index: test
+        id: "middle_dot"
+        pipeline: "1"
+        body: {
+          a: {
+            b.c: {
+              d: 0
+            }
+          }
+        }
+
+  - do:
+      get:
+        index: test
+        id: "no_field"
+  - match: { _source.a\.b\.c\.d: "1" }
+  - do:
+      get:
+        index: test
+        id: "normalized"
+  - match: { _source.a.b.c.d: "1" }
+  - do:
+      get:
+        index: test
+        id: "dotted_only"
+  - match: { _source.a\.b\.c\.d: "1" }
+  - do:
+      get:
+        index: test
+        id: "split_dots"
+  - match: { _source.a\.b.c\.d: "1" }
+  - do:
+      get:
+        index: test
+        id: "middle_dot"
+  - match: { _source.a.b\.c.d: "1" }
+
+---
+"Test dotted field name retrieval":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "field_access_pattern": "flexible",
+            "processors": [
+              {
+                "set": {
+                  "field": "result",
+                  "copy_from": "a.b.c.d"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "normalized"
+        pipeline: "1"
+        body: {
+          a: {
+            b: {
+              c: {
+                d: 0
+              }
+            }
+          }
+        }
+
+  - do:
+      index:
+        index: test
+        id: "dotted_only"
+        pipeline: "1"
+        body: {
+          a.b.c.d: 0
+        }
+
+  - do:
+      index:
+        index: test
+        id: "split_dots"
+        pipeline: "1"
+        body: {
+          a.b: {
+            c.d: 0
+          }
+        }
+
+  - do:
+      index:
+        index: test
+        id: "middle_dot"
+        pipeline: "1"
+        body: {
+          a: {
+            b.c: {
+              d: 0
+            }
+          }
+        }
+
+  - do:
+      get:
+        index: test
+        id: "normalized"
+  - match: { _source.result: 0 }
+  - do:
+      get:
+        index: test
+        id: "dotted_only"
+  - match: { _source.result: 0 }
+  - do:
+      get:
+        index: test
+        id: "split_dots"
+  - match: { _source.result: 0 }
+  - do:
+      get:
+        index: test
+        id: "middle_dot"
+  - match: { _source.result: 0 }
+
+---
+"Test dotted field name exists":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "field_access_pattern": "flexible",
+            "processors": [
+              {
+                "rename": {
+                  "field": "foo",
+                  "target_field": "a.b.c.d",
+                  "override": false
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: "normalized"
+        pipeline: "1"
+        body: {
+          foo: "bar",
+          a: {
+            b: {
+              c: {
+                d: 0
+              }
+            }
+          }
+        }
+  - match: { error.root_cause.0.reason: "field [a.b.c.d] already exists" }
+
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: "dotted_only"
+        pipeline: "1"
+        body: {
+          foo: "bar",
+          a.b.c.d: 0
+        }
+  - match: { error.root_cause.0.reason: "field [a.b.c.d] already exists" }
+
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: "split_dots"
+        pipeline: "1"
+        body: {
+          foo: "bar",
+          a.b: {
+            c.d: 0
+          }
+        }
+  - match: { error.root_cause.0.reason: "field [a.b.c.d] already exists" }
+
+  - do:
+      catch: bad_request
+      index:
+        index: test
+        id: "middle_dot"
+        pipeline: "1"
+        body: {
+          foo: "bar",
+          a: {
+            b.c: {
+              d: 0
+            }
+          }
+        }
+  - match: { error.root_cause.0.reason: "field [a.b.c.d] already exists" }
+
+---
+"Test dotted field removal":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "field_access_pattern": "flexible",
+            "processors": [
+              {
+                "remove": {
+                  "field": "a.b.c.d"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "normalized"
+        pipeline: "1"
+        body: {
+          foo: "bar",
+          a: {
+            b: {
+              c: {
+                d: 0
+              }
+            }
+          }
+        }
+
+  - do:
+      index:
+        index: test
+        id: "dotted_only"
+        pipeline: "1"
+        body: {
+          foo: "bar",
+          a.b.c.d: 0
+        }
+
+  - do:
+      index:
+        index: test
+        id: "split_dots"
+        pipeline: "1"
+        body: {
+          foo: "bar",
+          a.b: {
+            c.d: 0
+          }
+        }
+
+  - do:
+      index:
+        index: test
+        id: "middle_dot"
+        pipeline: "1"
+        body: {
+          foo: "bar",
+          a: {
+            b.c: {
+              d: 0
+            }
+          }
+        }
+
+  - do:
+      get:
+        index: test
+        id: "normalized"
+  - match: { _source.foo: "bar" }
+  - is_false: _source.a.b.c.d
+  - do:
+      get:
+        index: test
+        id: "dotted_only"
+  - match: { _source.foo: "bar" }
+  - is_false: _source.a\.b\.c\.d
+  - do:
+      get:
+        index: test
+        id: "split_dots"
+  - match: { _source.foo: "bar" }
+  - is_false: _source.a\.b.c\.d
+  - do:
+      get:
+        index: test
+        id: "middle_dot"
+  - match: { _source.foo: "bar" }
+  - is_false: _source.a.b\.c.d

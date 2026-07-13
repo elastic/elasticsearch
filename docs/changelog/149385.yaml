@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149385
+summary: Clearer error message on nested aggregations
+type: bug

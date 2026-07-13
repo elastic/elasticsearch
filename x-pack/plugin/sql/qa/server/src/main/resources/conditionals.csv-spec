@@ -1,0 +1,551 @@
+// To mute tests follow example in file: example.csv-spec
+
+caseField
+SELECT emp_no, CASE WHEN emp_no - 10000 < 10 THEN 'First 10' ELSE 'Second 10' END as "case" FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+ emp_no |   case
+--------+-----------
+10005   | First 10
+10006   | First 10
+10007   | First 10
+10008   | First 10
+10009   | First 10
+10010   | Second 10
+10011   | Second 10
+10012   | Second 10
+10013   | Second 10
+10014   | Second 10
+;
+
+caseFieldWithoutAlias
+SELECT emp_no, CASE WHEN emp_no - 10000 < 10 THEN emp_no ELSE emp_no % 10 END FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+ emp_no | CASE WHEN emp_no - 10000 < 10 THEN emp_no ELSE emp_no % 10 END
+--------+----------------------------------------------------------------
+10005   | 10005
+10006   | 10006
+10007   | 10007
+10008   | 10008
+10009   | 10009
+10010   | 0
+10011   | 1
+10012   | 2
+10013   | 3
+10014   | 4
+;
+
+caseFieldNoElse
+SELECT emp_no, CASE WHEN emp_no - 10000 < 10 THEN 'First 10' END as "case" FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+ emp_no |   case
+--------+----------
+10005   | First 10
+10006   | First 10
+10007   | First 10
+10008   | First 10
+10009   | First 10
+10010   | null
+10011   | null
+10012   | null
+10013   | null
+10014   | null
+;
+
+caseWithConditionsFolded
+schema::emp_no:i|CASE_1:byte|CASE_2:i
+SELECT emp_no, CASE WHEN NULL = 1 THEN emp_no WHEN 10 < 5 THEN emp_no ELSE languages END AS "CASE_1",
+CASE WHEN NULL = 1 THEN languages WHEN 10 > 5 THEN emp_no ELSE languages END AS "CASE_2"
+FROM test_emp ORDER BY 1 LIMIT 5;
+
+ emp_no | CASE_1 | CASE_2
+--------+--------+-------
+10001   | 2      | 10001
+10002   | 5      | 10002
+10003   | 4      | 10003
+10004   | 5      | 10004
+10005   | 1      | 10005
+;
+
+caseWithErroneousResultsForFalseConditions
+schema::bytes_in:i|bytes_out:i|div:i
+SELECT bytes_in, bytes_out, CASE WHEN bytes_in = 0 THEN NULL WHEN bytes_in < 10 THEN bytes_in * 20 ELSE bytes_out / bytes_in END div FROM logs ORDER BY bytes_in LIMIT 5;
+
+   bytes_in    |   bytes_out   |      div
+---------------+---------------+---------------
+0              |128            |null
+0              |null           |null
+8              |null           |160
+8              |null           |160
+8              |null           |160
+;
+
+caseWhere
+SELECT last_name FROM test_emp WHERE CASE WHEN LENGTH(last_name) < 7 THEN 'ShortName' ELSE 'LongName' END = 'LongName'
+ORDER BY emp_no LIMIT 10;
+
+ last_name
+-----------
+Facello
+Bamford
+Koblick
+Maliniak
+Preusig
+Zielinski
+Kalloufi
+Piveteau
+Bridgland
+Nooteboom
+;
+
+caseWhereNoElse
+SELECT last_name FROM test_emp WHERE CASE WHEN LENGTH(last_name) < 7 THEN 'ShortName' END IS NOT NULL
+ORDER BY emp_no LIMIT 10;
+
+ last_name
+-----------
+Simmel
+Peac
+Sluis
+Terkki
+Genin
+Peha
+Erde
+Famili
+Pettey
+Heyers
+;
+
+caseOrderBy
+schema::last_name:s|languages:byte|emp_no:i
+SELECT last_name, languages, emp_no FROM test_emp WHERE emp_no BETWEEN 10005 AND 10015
+ORDER BY CASE WHEN languages >= 3 THEN 'first' ELSE 'second' END, emp_no LIMIT 10;
+
+ last_name | languages | emp_no
+-----------+-----------+--------
+ Preusig   | 3         | 10006
+ Zielinski | 4         | 10007
+ Piveteau  | 4         | 10010
+ Sluis     | 5         | 10011
+ Bridgland | 5         | 10012
+ Genin     | 5         | 10014
+ Nooteboom | 5         | 10015
+ Maliniak  | 1         | 10005
+ Kalloufi  | 2         | 10008
+ Peac      | 1         | 10009
+;
+
+caseOrderByNoElse
+schema::last_name:s|languages:byte|emp_no:i
+SELECT last_name, languages, emp_no FROM test_emp WHERE emp_no BETWEEN 10005 AND 10015
+ORDER BY CASE WHEN languages >= 3 THEN 'first' END NULLS FIRST, emp_no LIMIT 10;
+
+ last_name | languages | emp_no
+-----------+-----------+--------
+Maliniak   | 1         | 10005
+Kalloufi   | 2         | 10008
+Peac       | 1         | 10009
+Terkki     | 1         | 10013
+Preusig    | 3         | 10006
+Zielinski  | 4         | 10007
+Piveteau   | 4         | 10010
+Sluis      | 5         | 10011
+Bridgland  | 5         | 10012
+Genin      | 5         | 10014
+;
+
+caseGroupBy
+schema::count:l|lang_skills:s
+SELECT count(*) AS count, CASE WHEN NVL(languages, 0) <= 1  THEN 'zero-to-one' ELSE 'multilingual' END as lang_skills
+FROM test_emp GROUP BY lang_skills ORDER BY lang_skills;
+
+ count | lang_skills
+-------+--------------
+75     | multilingual
+25     | zero-to-one
+;
+
+caseGroupByNoElse
+schema::count:l|lang_skills:s
+SELECT count(*) AS count, CASE WHEN NVL(languages, 0) <= 1  THEN 'zero-to-one' END as lang_skills
+FROM test_emp GROUP BY lang_skills ORDER BY lang_skills;
+
+ count | lang_skills
+-------+-------------
+75     | null
+25     | zero-to-one
+;
+
+caseGroupByComplexNested
+schema::count:l|lang_skills:s
+SELECT count(*) AS count,
+CASE WHEN NVL(languages, 0) = 0 THEN 'zero'
+     WHEN languages = 1 THEN 'one'
+     WHEN languages = 2 THEN 'bilingual'
+     WHEN languages = 3 THEN 'trilingual'
+     ELSE 'multilingual'
+END as lang_skills FROM test_emp GROUP BY lang_skills ORDER BY 2;
+
+ count | lang_skills
+-------+--------------
+19     | bilingual
+39     | multilingual
+15     | one
+17     | trilingual
+10     | zero
+;
+
+caseGroupByProtectedDivisionByZero
+schema::x:i
+SELECT CASE WHEN languages = 1 THEN NULL ELSE ( salary / (languages - 1) ) END AS x FROM test_emp GROUP BY 1 ORDER BY 1 LIMIT 10;
+
+       x
+---------------
+null
+6331
+6486
+7780
+7974
+8068
+8489
+8935
+9043
+9071
+;
+
+caseGroupByAndHaving
+schema::count:l|gender:s|languages:byte
+SELECT count(*) AS count, gender, languages FROM test_emp
+GROUP BY 2, 3 HAVING CASE WHEN count(*) > 10 THEN 'many' ELSE 'a few' END = 'many'
+ORDER BY 2, 3;
+
+count     |    gender   |   languages
+----------+-------------+---------------
+11        | M           | 2
+11        | M           | 3
+11        | M           | 4
+;
+
+
+iifField
+SELECT emp_no, IIF(emp_no - 10000 < 10, 'First 10', 'Second 10') as "iif_result" FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+ emp_no | iif_result
+--------+-----------
+10005   | First 10
+10006   | First 10
+10007   | First 10
+10008   | First 10
+10009   | First 10
+10010   | Second 10
+10011   | Second 10
+10012   | Second 10
+10013   | Second 10
+10014   | Second 10
+;
+
+iifFieldWithoutAlias
+SELECT emp_no, IIF(emp_no - 10000 < 10, emp_no, emp_no % 10) FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+ emp_no | IIF(emp_no - 10000 < 10, emp_no, emp_no % 10)
+--------+----------------------------------------------
+10005   | 10005
+10006   | 10006
+10007   | 10007
+10008   | 10008
+10009   | 10009
+10010   | 0
+10011   | 1
+10012   | 2
+10013   | 3
+10014   | 4
+;
+
+iifFieldNoElse
+SELECT emp_no, IIF(emp_no - 10000 < 10, 'First 10') as "iif_result" FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+ emp_no | iif_result
+--------+----------
+10005   | First 10
+10006   | First 10
+10007   | First 10
+10008   | First 10
+10009   | First 10
+10010   | null
+10011   | null
+10012   | null
+10013   | null
+10014   | null
+;
+
+iifWithConditionFolded
+schema::emp_no:i|IIF_1:i|IIF_2:byte|IIF_3:i
+SELECT emp_no, IIF(NULL, emp_no) AS IIF_1, IIF(NULL, emp_no, languages) AS IIF_2, IIF(10 > 5, emp_no, languages) AS IIF_3 FROM test_emp ORDER BY 1 LIMIT 5;
+
+ emp_no | IIF_1 | IIF_2 | IIF_3
+--------+-------+-------+------
+10001   | null  | 2     | 10001
+10002   | null  | 5     | 10002
+10003   | null  | 4     | 10003
+10004   | null  | 5     | 10004
+10005   | null  | 1     | 10005
+;
+
+iifWithErroneousResultsForFalseCondition
+schema::bytes_in:i|bytes_out:i|div:i
+SELECT bytes_in, bytes_out, IIF(bytes_in < 10, IIF(bytes_in = 0, NULL, bytes_in * 10), bytes_out / bytes_in) div FROM logs ORDER BY bytes_in LIMIT 5;
+
+   bytes_in    |   bytes_out   |      div
+---------------+---------------+---------------
+0              |128            |null
+0              |null           |null
+8              |null           |80
+8              |null           |80
+8              |null           |80
+;
+
+iifWhere
+SELECT last_name FROM test_emp WHERE IIF(LENGTH(last_name) < 7, 'ShortName') IS NOT NULL ORDER BY emp_no LIMIT 10;
+
+  last_name
+-----------
+Simmel
+Peac
+Sluis
+Terkki
+Genin
+Peha
+Erde
+Famili
+Pettey
+Heyers
+;
+
+iifConditionWhere
+SELECT last_name FROM test_emp WHERE IIF(LENGTH(last_name) < 7, true, false) LIMIT 10;
+
+  last_name
+-----------
+Simmel
+Peac
+Sluis
+Terkki
+Genin
+Peha
+Erde
+Famili
+Pettey
+Heyers
+;
+
+iifOrderBy
+SELECT last_name FROM test_emp ORDER BY IIF(languages >= 3, 'first', 'second'), emp_no LIMIT 10;
+
+ last_name
+-----------
+Simmel
+Bamford
+Koblick
+Preusig
+Zielinski
+Piveteau
+Sluis
+Bridgland
+Genin
+Nooteboom
+;
+
+iifGroupBy
+schema::count:l|lang_skills:s
+SELECT count(*) AS count, IIF(NVL(languages, 0) <= 1 , 'zero-to-one', 'multilingual') as lang_skills FROM test_emp
+GROUP BY lang_skills ORDER BY 2;
+
+     count     |  lang_skills
+---------------+---------------
+75             |multilingual
+25             |zero-to-one
+;
+
+iifGroupByComplexNested
+schema::count:l|lang_skills:s
+SELECT count(*) AS count,
+IIF(NVL(languages, 0) = 0, 'zero',
+  IIF(languages = 1, 'one',
+    IIF(languages = 2, 'bilingual',
+      IIF(languages = 3, 'trilingual', 'multilingual')))) as lang_skills FROM test_emp GROUP BY lang_skills ORDER BY 2;
+
+     count     |  lang_skills
+---------------+---------------
+19             |bilingual
+39             |multilingual
+15             |one
+17             |trilingual
+10             |zero
+;
+
+iifGroupByProtectedDivisionByZero
+schema::count:l|x:i
+SELECT count(*) AS count,
+IIF(languages - 1 = 0, 0,
+  IIF(languages - 1 = 1, (salary / 10000) / (languages - 1),
+    IIF(languages - 1 = 2, (salary / 10000) / languages,
+      IIF(languages - 1 = 3, (salary / 10000) / (languages + 1),
+         (salary / 10000) / (languages + 2))))) as x FROM test_emp GROUP BY x ORDER BY 2;
+
+     count     |       x
+---------------+---------------
+10             |null
+50             |0
+14             |1
+8              |2
+4              |3
+5              |4
+6              |5
+2              |6
+1              |7
+;
+
+iifGroupByAndHaving
+schema::count:l|gender:s|languages:byte
+SELECT count(*) AS count, gender, languages FROM test_emp
+GROUP BY 2, 3 HAVING IIF(count(*) > 10, 'many', 'a few') = 'many'
+ORDER BY 2, 3;
+
+     count     |    gender     |   languages
+---------------+---------------+---------------
+11             |M              |2
+11             |M              |3
+11             |M              |4
+;
+
+iifWithConvertAndGroupBy
+SELECT CONVERT(IIF(languages > 1, IIF(languages = 3, '3')), SQL_BIGINT) AS cond FROM test_emp GROUP BY cond ORDER BY cond DESC;
+
+ cond:l
+-------
+3
+null
+;
+
+ifNullWithCompatibleDateBasedValues
+schema::replacement:ts
+SELECT IFNULL(birth_date, {d '2110-04-12'}) AS replacement FROM test_emp GROUP BY 1 ORDER BY replacement DESC LIMIT 5;
+
+    replacement       
+------------------------
+2110-04-12T00:00:00.000Z
+1965-01-03T00:00:00.000Z
+1964-10-18T00:00:00.000Z
+1964-06-11T00:00:00.000Z
+1964-06-02T00:00:00.000Z
+;
+
+caseWithCompatibleIntervals_1
+schema::date_math:ts|c:l
+SELECT birth_date + (CASE WHEN gender='M' THEN INTERVAL 1 YEAR ELSE INTERVAL 6 MONTH END) AS date_math, COUNT(*) c FROM test_emp GROUP BY 1 ORDER BY 1 DESC LIMIT 5;
+
+      date_math         |       c      
+------------------------+---------------
+1966-01-03T00:00:00.000Z|1              
+1965-06-11T00:00:00.000Z|1              
+1965-04-18T00:00:00.000Z|2              
+1964-12-02T00:00:00.000Z|1              
+1964-11-26T00:00:00.000Z|1              
+;
+
+caseWithCompatibleIntervals_2
+SELECT hire_date, birth_date, (CASE WHEN birth_date > {d '1960-01-01'} THEN INTERVAL 1 YEAR ELSE INTERVAL 1 MONTH END) AS x FROM test_emp WHERE x + hire_date > {d '1995-01-01'} ORDER BY hire_date;
+
+       hire_date        |       birth_date       |       x       
+------------------------+------------------------+---------------
+1994-04-09T00:00:00.000Z|1962-11-07T00:00:00.000Z|+1-0           
+1995-01-27T00:00:00.000Z|1961-05-02T00:00:00.000Z|+1-0           
+1995-03-13T00:00:00.000Z|1957-04-04T00:00:00.000Z|+0-1           
+1995-03-20T00:00:00.000Z|1953-04-03T00:00:00.000Z|+0-1           
+1995-08-22T00:00:00.000Z|1952-07-08T00:00:00.000Z|+0-1           
+1995-12-15T00:00:00.000Z|1960-05-25T00:00:00.000Z|+1-0           
+1996-11-05T00:00:00.000Z|1964-06-11T00:00:00.000Z|+1-0           
+1997-05-19T00:00:00.000Z|1958-09-05T00:00:00.000Z|+0-1           
+1999-04-30T00:00:00.000Z|1953-01-23T00:00:00.000Z|+0-1    
+;       
+
+iifWithCompatibleIntervals
+schema::hire_date + IIF(salary > 70000, INTERVAL 2 HOURS, INTERVAL 2 DAYS):ts|salary:i
+SELECT hire_date + IIF(salary > 70000, INTERVAL 2 HOURS, INTERVAL 2 DAYS), salary FROM test_emp ORDER BY salary DESC LIMIT 10;
+
+hire_date + IIF(salary > 70000, INTERVAL 2 HOURS, INTERVAL 2 DAYS)|    salary     
+------------------------------------------------------------------+---------------
+1985-11-20T02:00:00.000Z                                          |74999          
+1989-09-02T02:00:00.000Z                                          |74970          
+1989-02-10T02:00:00.000Z                                          |74572          
+1989-07-07T02:00:00.000Z                                          |73851          
+1999-04-30T02:00:00.000Z                                          |73717          
+1988-10-18T02:00:00.000Z                                          |73578          
+1990-09-15T02:00:00.000Z                                          |71165          
+1987-03-18T02:00:00.000Z                                          |70011          
+1987-05-28T00:00:00.000Z                                          |69904          
+1990-02-18T00:00:00.000Z                                          |68547          
+;
+
+isNullWithIntervalMath
+SELECT ISNULL(birth_date, INTERVAL '23:45' HOUR TO MINUTES + {d '2019-09-17'}) AS c, salary, birth_date, hire_date FROM test_emp ORDER BY salary DESC LIMIT 5;
+
+         c:ts           |    salary:i     |      birth_date:ts     |       hire_date:ts        
+------------------------+-----------------+------------------------+------------------------
+1956-12-13T00:00:00.000Z|74999            |1956-12-13T00:00:00.000Z|1985-11-20T00:00:00.000Z
+2019-09-17T23:45:00.000Z|74970            |null                    |1989-09-02T00:00:00.000Z
+1957-05-23T00:00:00.000Z|74572            |1957-05-23T00:00:00.000Z|1989-02-10T00:00:00.000Z
+1962-07-10T00:00:00.000Z|73851            |1962-07-10T00:00:00.000Z|1989-07-07T00:00:00.000Z
+1953-01-23T00:00:00.000Z|73717            |1953-01-23T00:00:00.000Z|1999-04-30T00:00:00.000Z
+;
+
+coalesceWithCompatibleDateBasedTypes
+SELECT COALESCE(birth_date, CAST(birth_date AS DATE), CAST(hire_date AS DATETIME)) AS coalesce FROM test_emp ORDER BY 1 LIMIT 5;
+
+      coalesce:ts        
+------------------------
+1952-02-27T00:00:00.000Z
+1952-04-19T00:00:00.000Z
+1952-05-15T00:00:00.000Z
+1952-06-13T00:00:00.000Z
+1952-07-08T00:00:00.000Z
+;
+
+greatestWithCompatibleDateBasedTypes
+SELECT GREATEST(null, null, birth_date + INTERVAL 25 YEARS, hire_date + INTERVAL 2 DAYS, CAST(hire_date + INTERVAL 2 DAYS AS DATE)) AS greatest, birth_date, hire_date FROM test_emp ORDER BY 1 LIMIT 10;
+
+      greatest:ts       |      birth_date:ts     |      hire_date:ts        
+------------------------+------------------------+------------------------
+1985-02-20T00:00:00.000Z|1952-04-19T00:00:00.000Z|1985-02-18T00:00:00.000Z
+1985-02-26T00:00:00.000Z|null                    |1985-02-24T00:00:00.000Z
+1985-07-11T00:00:00.000Z|1952-06-13T00:00:00.000Z|1985-07-09T00:00:00.000Z
+1985-10-16T00:00:00.000Z|1955-08-20T00:00:00.000Z|1985-10-14T00:00:00.000Z
+1985-11-21T00:00:00.000Z|1957-12-03T00:00:00.000Z|1985-11-19T00:00:00.000Z
+1985-11-22T00:00:00.000Z|1956-12-13T00:00:00.000Z|1985-11-20T00:00:00.000Z
+1985-11-22T00:00:00.000Z|1959-04-07T00:00:00.000Z|1985-11-20T00:00:00.000Z
+1986-02-06T00:00:00.000Z|1954-09-13T00:00:00.000Z|1986-02-04T00:00:00.000Z
+1986-02-28T00:00:00.000Z|1952-11-13T00:00:00.000Z|1986-02-26T00:00:00.000Z
+1986-05-30T00:00:00.000Z|1961-05-30T00:00:00.000Z|1986-03-14T00:00:00.000Z
+;
+
+ifNullWithRuntimeField
+SELECT COUNT(*) c, LEFT(IFNULL(name, 'never'), 1) AS n FROM test_emp GROUP BY n ORDER BY n DESC LIMIT 10;
+
+      c:l      |      n:s      
+---------------+---------------
+2              |Z
+3              |Y
+1              |X
+1              |W
+3              |V
+2              |U
+3              |T
+11             |S
+3              |R
+5              |P
+;

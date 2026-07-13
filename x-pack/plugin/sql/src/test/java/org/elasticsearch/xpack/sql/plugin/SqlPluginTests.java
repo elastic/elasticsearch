@@ -1,0 +1,38 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.sql.plugin;
+
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.PluginTestUtil;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
+import org.elasticsearch.xpack.sql.session.Cursors;
+
+import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
+
+public class SqlPluginTests extends ESTestCase {
+
+    public void testSqlDisabledIsNoOp() {
+        Settings settings = Settings.builder().put("xpack.sql.enabled", false).build();
+        SqlPlugin plugin = new SqlPlugin(settings);
+        assertThat(
+            plugin.createComponents(
+                mock(Client.class),
+                Settings.EMPTY,
+                randomAlphaOfLength(10),
+                StubLinkedProjectConfigService.INSTANCE,
+                new NamedWriteableRegistry(Cursors.getNamedWriteables())
+            ),
+            hasSize(3)
+        );
+        assertThat(plugin.getActions(), hasSize(8));
+        assertThat(plugin.getRestHandlers(PluginTestUtil.emptyRestHandlersServices(), null, null), hasSize(7));
+    }
+}

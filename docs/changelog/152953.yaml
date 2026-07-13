@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 152953
+summary: Fix fetch-phase `store_bytes_read` miscount
+type: bug

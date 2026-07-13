@@ -1,0 +1,6 @@
+area: Inference
+issues:
+ - 146432
+pr: 147329
+summary: "Add support for audio, video and pdf inputs for embedding task"
+type: enhancement

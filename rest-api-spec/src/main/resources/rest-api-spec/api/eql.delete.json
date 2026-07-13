@@ -1,0 +1,31 @@
+{
+  "eql.delete": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-delete",
+      "description": "Delete an async EQL search"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_eql/search/{id}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The async search ID"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

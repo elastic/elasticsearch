@@ -1,0 +1,31 @@
+# Integration tests for Kuromoji analysis components
+#
+---
+"Index kuromoji content":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type:     text
+                analyzer: kuromoji
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:   { "text": "JR新宿駅の近くにビールを飲みに行こうか" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              text: jr
+  - match: { hits.total: 1 }

@@ -1,0 +1,44 @@
+{
+  "security.get_user": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-user",
+      "description": "Get users"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/user/{username}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "username": {
+              "type": "list",
+              "description": "A comma-separated list of usernames"
+            }
+          }
+        },
+        {
+          "path": "/_security/user",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "with_profile_uid": {
+        "type": "boolean",
+        "default": false,
+        "description": "flag to retrieve profile uid (if exists) associated to the user"
+      }
+    }
+  }
+}

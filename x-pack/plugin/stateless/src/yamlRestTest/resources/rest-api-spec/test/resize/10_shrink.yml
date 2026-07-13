@@ -1,0 +1,145 @@
+---
+"Shrink index via API":
+  - do:
+      nodes.info:
+        node_id: index:true
+  - set:
+      nodes._arbitrary_key_: index_node_id
+
+  - do:
+      nodes.info:
+        node_id: search:true
+  - set:
+      nodes._arbitrary_key_: search_node_id
+
+  - do:
+      indices.create:
+        index: source
+        wait_for_active_shards: 1
+        body:
+          settings:
+            # Ensure primaries are allocated on the same index node.
+            # We include the search node as well for the replica shards to be able to be allocated as well.
+            index.routing.allocation.include._id: [ $index_node_id , $search_node_id ]
+            index.number_of_shards: 4
+            index.number_of_replicas: 1
+
+  - do:
+      index:
+        index: source
+        id:    "1"
+        body:  { "foo": "hello world" }
+
+  - do:
+      get:
+        index: source
+        id:    "1"
+
+  - match: { _index:   source }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source
+
+  - do:
+      indices.shrink:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 1
+            index.number_of_shards: 1
+            index.blocks.write: null
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      get:
+        index: target
+        id:    "1"
+
+  - match: { _index:   target }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+  - do:
+      indices.get_settings:
+        index: target
+
+  - match: { target.settings.index.number_of_shards: "1"}
+
+  - do:
+      index:
+        index: target
+        id:    "2"
+        body:  { "foo": "hello world 2" }
+
+  - do:
+      get:
+        index: target
+        id:    "2"
+
+  - match: { _index:   target }
+  - match: { _id:      "2"     }
+  - match: { _source:  { foo: "hello world 2" } }
+
+  - do:
+      indices.refresh:
+        index: target
+
+  - do:
+      search:
+        index: target
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: source
+  - match: { hits.total.value: 1 }
+
+---
+"Create illegal shrink indices":
+  - do:
+      indices.create:
+        index: source
+        wait_for_active_shards: 1
+        body:
+          settings:
+            index.number_of_shards: 3
+            index.number_of_replicas: 1
+
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.shrink:
+        index: "source"
+        target: "target"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        body:
+          settings:
+            index.number_of_replicas: 1
+            index.number_of_shards: 2

@@ -1,0 +1,266 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.transform.checkpoint;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
+
+class DefaultCheckpointProvider implements CheckpointProvider {
+
+    // threshold when to audit concrete index names, above this threshold we only
+    // report the number of changes
+    private static final int AUDIT_CONCRETED_SOURCE_INDEX_CHANGES = 10;
+
+    // Huge timeout for getting index checkpoints internally.
+    // It might help to release cluster resources earlier if e.g.: someone
+    // configures a transform that ends up checkpointing 100000
+    // searchable snapshot indices that all have to be retrieved from blob storage.
+    protected static final TimeValue INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT = TimeValue.timeValueHours(12);
+
+    private static final Logger logger = LogManager.getLogger(DefaultCheckpointProvider.class);
+
+    protected final Clock clock;
+    protected final Supplier<ThreadContext> threadContextSupplier;
+    protected final Supplier<Client> clientSupplier;
+    protected final TransformConfigManager transformConfigManager;
+    protected final TransformAuditor transformAuditor;
+    protected final TransformConfig transformConfig;
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    DefaultCheckpointProvider(
+        final Clock clock,
+        final Supplier<ThreadContext> threadContextSupplier,
+        final Supplier<Client> clientSupplier,
+        final TransformConfigManager transformConfigManager,
+        final TransformAuditor transformAuditor,
+        final TransformConfig transformConfig,
+        final CrossProjectModeDecider crossProjectModeDecider
+    ) {
+        this.clock = clock;
+        this.threadContextSupplier = threadContextSupplier;
+        this.clientSupplier = clientSupplier;
+        this.transformConfigManager = transformConfigManager;
+        this.transformAuditor = transformAuditor;
+        this.transformConfig = transformConfig;
+        this.crossProjectModeDecider = crossProjectModeDecider;
+    }
+
+    @Override
+    public void sourceHasChanged(final TransformCheckpoint lastCheckpoint, final ActionListener<Boolean> listener) {
+        listener.onResponse(false);
+    }
+
+    @Override
+    public void createNextCheckpoint(final TransformCheckpoint lastCheckpoint, final ActionListener<TransformCheckpoint> listener) {
+        final long timestamp = clock.millis();
+        final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
+
+        getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, listener.delegateFailureAndWrap((l, checkpointsByIndex) -> {
+            reportSourceIndexChanges(
+                TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? Set.of() : lastCheckpoint.getIndicesCheckpoints().keySet(),
+                checkpointsByIndex.keySet()
+            );
+
+            l.onResponse(new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, 0L));
+        }));
+    }
+
+    protected boolean crossProjectCheckpointingEnabled() {
+        return crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
+    }
+
+    protected IndicesOptions checkpointIndicesOptions() {
+        if (crossProjectCheckpointingEnabled()) {
+            return IndicesOptions.builder(IndicesOptions.LENIENT_EXPAND_OPEN)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+        }
+        return IndicesOptions.LENIENT_EXPAND_OPEN;
+    }
+
+    protected void getIndexCheckpoints(TimeValue timeout, ActionListener<Map<String, long[]>> listener) {
+        try {
+            var indicesOption = checkpointIndicesOptions();
+
+            // Only use the query for shard filtering when there are no runtime mappings,
+            // because SearchShardsRequest does not support runtime_mappings and the query
+            // may reference runtime fields
+            final QueryBuilder queryForShardFiltering = transformConfig.getSource().getRuntimeMappings().isEmpty()
+                ? transformConfig.getSource().getQueryConfig().getQuery()
+                : null;
+
+            var getCheckpointRequest = new GetCheckpointAction.Request(
+                transformConfig.getSource().getIndex(),
+                indicesOption,
+                queryForShardFiltering,
+                RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
+                timeout,
+                transformConfig.getSource().getProjectRouting(),
+                crossProjectCheckpointingEnabled()
+            );
+
+            ClientHelper.executeWithHeadersAsync(
+                threadContextSupplier.get(),
+                transformConfig.getHeaders(),
+                ClientHelper.TRANSFORM_ORIGIN,
+                getCheckpointRequest,
+                listener.map(GetCheckpointAction.Response::getCheckpoints),
+                (r, l) -> clientSupplier.get().execute(GetCheckpointAction.INSTANCE, r, l)
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    @Override
+    public void getCheckpointingInfo(
+        TransformCheckpoint lastCheckpoint,
+        TransformCheckpoint nextCheckpoint,
+        TransformIndexerPosition nextCheckpointPosition,
+        TransformProgress nextCheckpointProgress,
+        TimeValue timeout,
+        ActionListener<TransformCheckpointingInfoBuilder> listener
+    ) {
+        TransformCheckpointingInfo.TransformCheckpointingInfoBuilder checkpointingInfoBuilder =
+            new TransformCheckpointingInfo.TransformCheckpointingInfoBuilder();
+
+        checkpointingInfoBuilder.setLastCheckpoint(lastCheckpoint)
+            .setNextCheckpoint(nextCheckpoint)
+            .setNextCheckpointPosition(nextCheckpointPosition)
+            .setNextCheckpointProgress(nextCheckpointProgress);
+
+        long timestamp = clock.millis();
+
+        getIndexCheckpoints(timeout, listener.delegateFailure((l, checkpointsByIndex) -> {
+            TransformCheckpoint sourceCheckpoint = new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L);
+            checkpointingInfoBuilder.setSourceCheckpoint(sourceCheckpoint);
+            checkpointingInfoBuilder.setOperationsBehind(TransformCheckpoint.getBehind(lastCheckpoint, sourceCheckpoint));
+            l.onResponse(checkpointingInfoBuilder);
+        }));
+    }
+
+    @Override
+    public void getCheckpointingInfo(
+        long lastCheckpointNumber,
+        TransformIndexerPosition nextCheckpointPosition,
+        TransformProgress nextCheckpointProgress,
+        TimeValue timeout,
+        ActionListener<TransformCheckpointingInfoBuilder> listener
+    ) {
+
+        TransformCheckpointingInfo.TransformCheckpointingInfoBuilder checkpointingInfoBuilder =
+            new TransformCheckpointingInfo.TransformCheckpointingInfoBuilder();
+
+        checkpointingInfoBuilder.setNextCheckpointPosition(nextCheckpointPosition).setNextCheckpointProgress(nextCheckpointProgress);
+        checkpointingInfoBuilder.setLastCheckpoint(TransformCheckpoint.EMPTY);
+        long timestamp = clock.millis();
+
+        // <3> got the source checkpoint, notify the user
+        ActionListener<Map<String, long[]>> checkpointsByIndexListener = ActionListener.wrap(checkpointsByIndex -> {
+            TransformCheckpoint sourceCheckpoint = new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L);
+            checkpointingInfoBuilder.setSourceCheckpoint(sourceCheckpoint);
+            checkpointingInfoBuilder.setOperationsBehind(
+                TransformCheckpoint.getBehind(checkpointingInfoBuilder.getLastCheckpoint(), sourceCheckpoint)
+            );
+            listener.onResponse(checkpointingInfoBuilder);
+        }, e -> {
+            logger.debug(() -> format("[%s] failed to retrieve source checkpoint for transform", transformConfig.getId()), e);
+            listener.onFailure(new CheckpointException("Failure during source checkpoint info retrieval", e));
+        });
+
+        // <2> got the next checkpoint, get the source checkpoint
+        ActionListener<TransformCheckpoint> nextCheckpointListener = ActionListener.wrap(nextCheckpointObj -> {
+            checkpointingInfoBuilder.setNextCheckpoint(nextCheckpointObj);
+            getIndexCheckpoints(timeout, checkpointsByIndexListener);
+        }, e -> {
+            logger.debug(
+                () -> format("[%s] failed to retrieve next checkpoint [%s]", transformConfig.getId(), lastCheckpointNumber + 1),
+                e
+            );
+            listener.onFailure(new CheckpointException("Failure during next checkpoint info retrieval", e));
+        });
+
+        // <1> got last checkpoint, get the next checkpoint
+        ActionListener<TransformCheckpoint> lastCheckpointListener = ActionListener.wrap(lastCheckpointObj -> {
+            checkpointingInfoBuilder.setChangesLastDetectedAt(Instant.ofEpochMilli(lastCheckpointObj.getTimestamp()));
+            checkpointingInfoBuilder.setLastCheckpoint(lastCheckpointObj);
+            transformConfigManager.getTransformCheckpoint(transformConfig.getId(), lastCheckpointNumber + 1, nextCheckpointListener);
+        }, e -> {
+            logger.debug(() -> format("[%s] failed to retrieve last checkpoint [%s]", transformConfig.getId(), lastCheckpointNumber), e);
+            listener.onFailure(new CheckpointException("Failure during last checkpoint info retrieval", e));
+        });
+
+        if (lastCheckpointNumber != 0) {
+            transformConfigManager.getTransformCheckpoint(transformConfig.getId(), lastCheckpointNumber, lastCheckpointListener);
+        } else {
+            getIndexCheckpoints(timeout, checkpointsByIndexListener);
+        }
+    }
+
+    /**
+     * Inspect source changes and report differences
+     *
+     * @param lastSourceIndexes the set of indexes seen in the previous checkpoint
+     * @param newSourceIndexes  the set of indexes seen in the new checkpoint
+     */
+    void reportSourceIndexChanges(final Set<String> lastSourceIndexes, final Set<String> newSourceIndexes) {
+        // spam protection: only warn the first time
+        if (newSourceIndexes.isEmpty() && lastSourceIndexes.isEmpty() == false) {
+            String message = "Source did not resolve to any open indexes";
+            logger.warn("[{}] {}", transformConfig.getId(), message);
+            transformAuditor.warning(transformConfig.getId(), message);
+        } else {
+            Set<String> removedIndexes = Sets.difference(lastSourceIndexes, newSourceIndexes);
+            Set<String> addedIndexes = Sets.difference(newSourceIndexes, lastSourceIndexes);
+
+            if (removedIndexes.size() + addedIndexes.size() > AUDIT_CONCRETED_SOURCE_INDEX_CHANGES) {
+                String message = "Source index resolve found more than "
+                    + AUDIT_CONCRETED_SOURCE_INDEX_CHANGES
+                    + " changes, ["
+                    + removedIndexes.size()
+                    + "] removed indexes, ["
+                    + addedIndexes.size()
+                    + "] new indexes";
+                logger.debug("[{}] {}", transformConfig.getId(), message);
+                transformAuditor.info(transformConfig.getId(), message);
+            } else if (removedIndexes.size() + addedIndexes.size() > 0) {
+                String message = "Source index resolve found changes, removedIndexes: " + removedIndexes + ", new indexes: " + addedIndexes;
+                logger.debug("[{}] {}", transformConfig.getId(), message);
+                transformAuditor.info(transformConfig.getId(), message);
+            }
+        }
+    }
+
+}

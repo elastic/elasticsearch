@@ -1,0 +1,6 @@
+FROM *
+| ENRICH languages on street
+| KEEP abbrev, integer, year
+| LIMIT 1 BY abbrev
+| SORT abbrev
+| LIMIT 5

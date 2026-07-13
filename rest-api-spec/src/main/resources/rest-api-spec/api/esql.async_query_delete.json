@@ -1,0 +1,31 @@
+{
+  "esql.async_query_delete": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-async-query-delete",
+      "description": "Delete an async ES|QL query"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query/async/{id}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The async query ID"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

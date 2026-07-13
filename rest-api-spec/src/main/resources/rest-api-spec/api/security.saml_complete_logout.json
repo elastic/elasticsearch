@@ -1,0 +1,32 @@
+{
+  "security.saml_complete_logout": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-saml-complete-logout",
+      "description": "Logout of SAML completely"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/saml/complete_logout",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The logout response to verify",
+      "required": true
+    }
+  }
+}

@@ -1,0 +1,300 @@
+= Elasticsearch
+
+Elasticsearch is a distributed search and analytics engine, scalable data store and vector database optimized for speed and relevance on production-scale workloads. Elasticsearch is the foundation of Elastic's open Stack platform. Search in near real-time over massive datasets, perform vector searches, integrate with generative AI applications, and much more.
+
+Use cases enabled by Elasticsearch include:
+
+* https://www.elastic.co/search-labs/blog/articles/retrieval-augmented-generation-rag[Retrieval Augmented Generation (RAG)]
+* https://www.elastic.co/search-labs/blog/categories/vector-search[Vector search]
+* Full-text search
+* Logs
+* Metrics
+* Application performance monitoring (APM)
+* Security logs
+
+\... and more!
+
+To learn more about Elasticsearch's features and capabilities, see our
+https://www.elastic.co/products/elasticsearch[product page].
+
+To access information on https://www.elastic.co/search-labs/blog/categories/ml-research[machine learning innovations] and the latest https://www.elastic.co/search-labs/blog/categories/lucene[Lucene contributions from Elastic], more information can be found in https://www.elastic.co/search-labs[Search Labs].
+
+[[get-started]]
+== Get started
+
+The simplest way to set up Elasticsearch is to create a managed deployment with
+https://www.elastic.co/cloud/as-a-service[Elasticsearch Service on Elastic
+Cloud].
+
+If you prefer to install and manage Elasticsearch yourself, you can download
+the latest version from
+https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearch].
+
+=== Run Elasticsearch locally
+
+////
+IMPORTANT: This content is replicated in the Elasticsearch repo. See `run-elasticsearch-locally.asciidoc`.
+Ensure both files are in sync.
+
+https://github.com/elastic/start-local is the source of truth.
+////
+
+[WARNING]
+====
+DO NOT USE THESE INSTRUCTIONS FOR PRODUCTION DEPLOYMENTS.
+
+This setup is intended for local development and testing only.
+====
+
+Quickly set up Elasticsearch and Kibana in Docker for local development or testing, using the https://github.com/elastic/start-local?tab=readme-ov-file#-try-elasticsearch-and-kibana-locally[`start-local` script].
+
+ℹ️ For more detailed information about the `start-local` setup, refer to the https://github.com/elastic/start-local[README on GitHub].
+
+==== Prerequisites
+
+- If you don't have Docker installed, https://www.docker.com/products/docker-desktop[download and install Docker Desktop] for your operating system.
+- If you're using Microsoft Windows, then install https://learn.microsoft.com/en-us/windows/wsl/install[Windows Subsystem for Linux (WSL)].
+
+==== Trial license
+This setup comes with a one-month trial license that includes all Elastic features.
+
+After the trial period, the license reverts to *Free and open - Basic*.
+Refer to https://www.elastic.co/subscriptions[Elastic subscriptions] for more information.
+
+==== Run `start-local`
+
+To set up Elasticsearch and Kibana locally, run the `start-local` script:
+
+[source,sh]
+----
+curl -fsSL https://elastic.co/start-local | sh
+----
+// NOTCONSOLE
+
+This script creates an `elastic-start-local` folder containing configuration files and starts both Elasticsearch and Kibana using Docker.
+
+After running the script, you can access Elastic services at the following endpoints:
+
+* *Elasticsearch*: http://localhost:9200
+* *Kibana*: http://localhost:5601
+
+The script generates a random password for the `elastic` user, which is displayed at the end of the installation and stored in the `.env` file.
+
+[CAUTION]
+====
+This setup is for local testing only. HTTPS is disabled, and Basic authentication is used for Elasticsearch. For security, Elasticsearch and Kibana are accessible only through `localhost`.
+====
+
+==== API access
+
+An API key for Elasticsearch is generated and stored in the `.env` file as `ES_LOCAL_API_KEY`.
+Use this key to connect to Elasticsearch with a https://www.elastic.co/guide/en/elasticsearch/client/index.html[programming language client] or the https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html[REST API].
+
+From the `elastic-start-local` folder, check the connection to Elasticsearch using `curl`:
+
+[source,sh]
+----
+source .env
+curl $ES_LOCAL_URL -H "Authorization: ApiKey ${ES_LOCAL_API_KEY}"
+----
+
+To use the password for the `elastic` user, set and export the `ES_LOCAL_PASSWORD` environment variable. For example:
+
+[source,sh]
+----
+source .env
+export ES_LOCAL_PASSWORD
+----
+
+// NOTCONSOLE
+
+=== Send requests to Elasticsearch
+
+You send data and other requests to Elasticsearch through REST APIs.
+You can interact with Elasticsearch using any client that sends HTTP requests,
+such as the https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elasticsearch
+language clients] and https://curl.se[curl].
+
+==== Using curl
+
+Here's an example curl command to create a new Elasticsearch index, using basic auth:
+
+[source,sh]
+----
+curl -u elastic:$ES_LOCAL_PASSWORD \
+  -X PUT \
+  http://localhost:9200/my-new-index \
+  -H 'Content-Type: application/json'
+----
+
+// NOTCONSOLE
+
+==== Using a language client
+
+To connect to your local dev Elasticsearch cluster with a language client, you can use basic authentication with the `elastic` username and the password stored in the `ES_LOCAL_PASSWORD` environment variable.
+
+You'll use the following connection details:
+
+* **Elasticsearch endpoint**: `http://localhost:9200`
+* **Username**: `elastic`
+* **Password**: `$ES_LOCAL_PASSWORD` (Value you set in the environment variable)
+
+For example, to connect with the Python `elasticsearch` client:
+
+[source,python]
+----
+import os
+from elasticsearch import Elasticsearch
+
+username = 'elastic'
+password = os.getenv('ES_LOCAL_PASSWORD') # Value you set in the environment variable
+
+client = Elasticsearch(
+    "http://localhost:9200",
+    basic_auth=(username, password)
+)
+
+print(client.info())
+----
+
+==== Using the Dev Tools Console
+
+Kibana's developer console provides an easy way to experiment and test requests.
+To access the console, open Kibana, then go to **Management** > **Dev Tools**.
+
+**Add data**
+
+You index data into Elasticsearch by sending JSON objects (documents) through the REST APIs.
+Whether you have structured or unstructured text, numerical data, or geospatial data,
+Elasticsearch efficiently stores and indexes it in a way that supports fast searches.
+
+For timestamped data such as logs and metrics, you typically add documents to a
+data stream made up of multiple auto-generated backing indices.
+
+To add a single document to an index, submit an HTTP post request that targets the index.
+
+----
+POST /customer/_doc/1
+{
+  "firstname": "Jennifer",
+  "lastname": "Walters"
+}
+----
+
+This request automatically creates the `customer` index if it doesn't exist,
+adds a new document that has an ID of 1, and
+stores and indexes the `firstname` and `lastname` fields.
+
+The new document is available immediately from any node in the cluster.
+You can retrieve it with a GET request that specifies its document ID:
+
+----
+GET /customer/_doc/1
+----
+
+To add multiple documents in one request, use the `_bulk` API.
+Bulk data must be newline-delimited JSON (NDJSON).
+Each line must end in a newline character (`\n`), including the last line.
+
+----
+PUT customer/_bulk
+{ "create": { } }
+{ "firstname": "Monica","lastname":"Rambeau"}
+{ "create": { } }
+{ "firstname": "Carol","lastname":"Danvers"}
+{ "create": { } }
+{ "firstname": "Wanda","lastname":"Maximoff"}
+{ "create": { } }
+{ "firstname": "Jennifer","lastname":"Takeda"}
+----
+
+**Search**
+
+Indexed documents are available for search in near real-time.
+The following search matches all customers with a first name of _Jennifer_
+in the `customer` index.
+
+----
+GET customer/_search
+{
+  "query" : {
+    "match" : { "firstname": "Jennifer" }
+  }
+}
+----
+
+**Explore**
+
+You can use Discover in Kibana to interactively search and filter your data.
+From there, you can start creating visualizations and building and sharing dashboards.
+
+To get started, create a _data view_ that connects to one or more Elasticsearch indices,
+data streams, or index aliases.
+
+. Go to **Management > Stack Management > Kibana > Data Views**.
+. Select **Create data view**.
+. Enter a name for the data view and a pattern that matches one or more indices,
+such as _customer_.
+. Select **Save data view to Kibana**.
+
+To start exploring, go to **Analytics > Discover**.
+
+[[upgrade]]
+== Upgrade
+
+To upgrade from an earlier version of Elasticsearch, see the
+https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html[Elasticsearch upgrade
+documentation].
+
+[[build-source]]
+== Build from source
+
+Elasticsearch uses https://gradle.org[Gradle] for its build system.
+
+To build a distribution for your local OS and print its output location upon
+completion, run:
+----
+./gradlew localDistro
+----
+
+To build a distribution for another platform, run the related command:
+----
+./gradlew :distribution:archives:linux-tar:assemble
+./gradlew :distribution:archives:darwin-tar:assemble
+./gradlew :distribution:archives:windows-zip:assemble
+----
+
+Distributions are output to `distribution/archives`.
+
+To run the test suite, see xref:TESTING.asciidoc[TESTING].
+
+[[docs]]
+== Documentation
+
+For the complete Elasticsearch documentation visit
+https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[elastic.co].
+
+For information about our documentation processes, see the
+xref:https://github.com/elastic/elasticsearch/blob/main/docs/README.md[docs README].
+
+[[examples]]
+== Examples and guides
+
+The https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`] repo contains executable Python notebooks, sample apps, and resources to test out Elasticsearch for vector search, hybrid search and generative AI use cases.
+
+
+[[contribute]]
+== Contribute
+
+For contribution guidelines, see xref:CONTRIBUTING.md[CONTRIBUTING].
+
+[[questions]]
+== Questions? Problems? Suggestions?
+
+* To report a bug or request a feature, create a
+https://github.com/elastic/elasticsearch/issues/new/choose[GitHub Issue]. Please
+ensure someone else hasn't created an issue for the same topic.
+
+* Need help using Elasticsearch? Reach out on the
+https://discuss.elastic.co[Elastic Forum] or https://ela.st/slack[Slack]. A
+fellow community member or Elastic engineer will be happy to help you out.

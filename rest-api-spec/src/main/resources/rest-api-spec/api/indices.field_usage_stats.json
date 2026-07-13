@@ -1,0 +1,58 @@
+{
+  "indices.field_usage_stats": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-field-usage-stats",
+      "description": "Get field usage stats"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/{index}/_field_usage_stats",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "Comma-separated list or wildcard expression of index names used to limit the request."
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "fields": {
+        "type": "list",
+        "description": "A comma-separated list of fields to include in the stats if only a subset of fields should be returned (supports wildcards)"
+      },
+      "ignore_unavailable": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+      },
+      "allow_no_indices": {
+        "type": "boolean",
+        "description": "Whether to allow (1) wildcard index expressions that match no indices and (2) requests where the final resolved set is empty."
+      },
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "open",
+        "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      }
+    }
+  }
+}

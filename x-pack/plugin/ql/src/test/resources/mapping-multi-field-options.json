@@ -1,0 +1,15 @@
+{
+    "properties" : {
+        "text" : {
+            "type" : "text",
+            "fields" : {
+                "raw" : {
+                    "type" : "keyword"
+                },
+                "key" : {
+                    "type" : "keyword"
+                }
+            }
+        }
+    }
+}

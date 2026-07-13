@@ -1,0 +1,46 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.search.suggest.completion;
+
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+
+import java.io.IOException;
+
+public abstract class QueryContextTestCase<QC extends ToXContent> extends ESTestCase {
+    private static final int NUMBER_OF_RUNS = 20;
+
+    /**
+     * create random model that is put under test
+     */
+    protected abstract QC createTestModel();
+
+    /**
+     * read the context
+     */
+    protected abstract QC fromXContent(XContentParser parser) throws IOException;
+
+    public void testToXContext() throws IOException {
+        for (int i = 0; i < NUMBER_OF_RUNS; i++) {
+            QC toXContent = createTestModel();
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            try (XContentParser parser = createParser(builder)) {
+                parser.nextToken();
+                QC fromXContext = fromXContent(parser);
+                assertEquals(toXContent, fromXContext);
+                assertEquals(toXContent.hashCode(), fromXContext.hashCode());
+            }
+        }
+    }
+}

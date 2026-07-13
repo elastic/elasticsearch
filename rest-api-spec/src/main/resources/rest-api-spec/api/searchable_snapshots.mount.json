@@ -1,0 +1,59 @@
+{
+  "searchable_snapshots.mount": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-searchable-snapshots-mount",
+      "description": "Mount a snapshot"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_snapshot/{repository}/{snapshot}/_mount",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "repository": {
+              "type": "string",
+              "description": "The name of the repository containing the snapshot of the index to mount"
+            },
+            "snapshot": {
+              "type": "string",
+              "description": "The name of the snapshot of the index to mount"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
+      },
+      "wait_for_completion": {
+        "type": "boolean",
+        "description": "Should this request wait until the operation has completed before returning",
+        "default": false
+      },
+      "storage": {
+        "type": "string",
+        "description": "Selects the kind of local storage used to accelerate searches. Experimental, and defaults to `full_copy`",
+        "default": "full_copy"
+      }
+    },
+    "body": {
+      "description": "The restore configuration for mounting the snapshot as searchable",
+      "required": true
+    }
+  }
+}

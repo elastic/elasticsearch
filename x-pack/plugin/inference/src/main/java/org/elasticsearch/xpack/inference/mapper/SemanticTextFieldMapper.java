@@ -1,0 +1,788 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.mapper;
+
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS;
+import static org.elasticsearch.inference.TaskType.EMBEDDING;
+import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
+import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_JINA_V5_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_ELSER_ID;
+
+/**
+ * A {@link FieldMapper} for semantic text fields.
+ */
+public class SemanticTextFieldMapper extends SemanticFieldMapper {
+    private static final Logger logger = LogManager.getLogger(SemanticTextFieldMapper.class);
+
+    public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
+    public static final NodeFeature SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX = new NodeFeature("semantic_text.single_field_update_fix");
+    public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
+    public static final NodeFeature SEMANTIC_TEXT_ZERO_SIZE_FIX = new NodeFeature("semantic_text.zero_size_fix");
+    public static final NodeFeature SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX = new NodeFeature(
+        "semantic_text.always_emit_inference_id_fix"
+    );
+    public static final NodeFeature SEMANTIC_TEXT_HANDLE_EMPTY_INPUT = new NodeFeature("semantic_text.handle_empty_input");
+    public static final NodeFeature SEMANTIC_TEXT_SKIP_INFERENCE_FIELDS = new NodeFeature("semantic_text.skip_inference_fields");
+    public static final NodeFeature SEMANTIC_TEXT_BIT_VECTOR_SUPPORT = new NodeFeature("semantic_text.bit_vector_support");
+    public static final NodeFeature SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG = new NodeFeature("semantic_text.support_chunking_config");
+    public static final NodeFeature SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS = new NodeFeature(
+        "semantic_text.exclude_sub_fields_from_field_caps"
+    );
+    public static final NodeFeature SEMANTIC_TEXT_INDEX_OPTIONS = new NodeFeature("semantic_text.index_options");
+    public static final NodeFeature SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS = new NodeFeature(
+        "semantic_text.index_options_with_defaults"
+    );
+    public static final NodeFeature SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS = new NodeFeature(
+        "semantic_text.sparse_vector_index_options"
+    );
+    public static final NodeFeature SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID = new NodeFeature("semantic_text.updatable_inference_id");
+    public static final NodeFeature SEMANTIC_TEXT_AUTO_PREFILTERING = new NodeFeature("semantic_text.auto_prefiltering");
+    public static final NodeFeature SEMANTIC_TEXT_BFLOAT16_SUPPORT = new NodeFeature("semantic_text.bfloat16_support");
+    public static final NodeFeature SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS = new NodeFeature(
+        "semantic_text.element_type_in_index_options"
+    );
+    public static final NodeFeature SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES = new NodeFeature(
+        "semantic_text.prevent_legacy_format_new_indices"
+    );
+    public static final NodeFeature SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES = new NodeFeature(
+        "semantic_text.original_values_in_doc_values"
+    );
+
+    public static final String CONTENT_TYPE = "semantic_text";
+    public static final String DEFAULT_FALLBACK_ELSER_INFERENCE_ID = DEFAULT_ELSER_ID;
+    public static final String DEFAULT_EIS_ELSER_INFERENCE_ID = DEFAULT_ELSER_ENDPOINT_ID_V2;
+    public static final String DEFAULT_EIS_JINA_V5_INFERENCE_ID = DEFAULT_JINA_V5_ENDPOINT_ID;
+
+    public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
+
+    private static final DenseVectorMapperConfigurator DENSE_VECTOR_MAPPER_CONFIGURATOR = new DenseVectorMapperConfigurator(
+        (indexVersion, modelElementType) -> defaultElementTypeToBfloat16(indexVersion, modelElementType)
+            ? DenseVectorFieldMapper.ElementType.BFLOAT16
+            : modelElementType,
+        (indexVersion, modelSimilarity) -> {
+            // Skip setting similarity on pre 8.11 indices. It causes dense vector field creation to fail because similarity can only be set
+            // on indexed fields, which is not done by default prior to 8.11. The fact that the dense vector field is partially configured
+            // is moot because we will explicitly fail to index docs into this semantic text field anyways.
+            return indexVersion.onOrAfter(NEW_SPARSE_VECTOR) && modelSimilarity != null ? modelSimilarity.vectorSimilarity() : null;
+        },
+        SemanticTextFieldMapper::defaultDenseVectorIndexOptions
+    );
+
+    /**
+     * An index setting that allows users to pin the default inference ID for {@code semantic_text} fields that do not declare an explicit
+     * {@code inference_id}. Setting this in an index template insulates users from cluster-level default changes in the inference id.
+     * <p>
+     * The value is not validated against existing inference endpoints at index creation time; an invalid ID will only surface as an error
+     * when a document is indexed against a {@code semantic_text} field that uses this default.
+     */
+    public static final Setting<String> INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID = Setting.simpleString(
+        "index.semantic_text.default_inference_id",
+        new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (isPresent && Strings.isNullOrBlank(value)) {
+                    throw new IllegalArgumentException("[index.semantic_text.default_inference_id] must not be blank");
+                }
+            }
+        },
+        Setting.Property.IndexScope,
+        Setting.Property.Final,
+        Setting.Property.ServerlessPublic
+    );
+
+    public static final String UNSUPPORTED_INDEX_MESSAGE = "["
+        + CONTENT_TYPE
+        + "] is available on indices created with 8.11 or higher. Please create a new index to use ["
+        + CONTENT_TYPE
+        + "]";
+
+    /**
+     * Determines the default inference ID for {@code semantic_text} fields that do not declare an explicit {@code inference_id}.
+     * <p>
+     * Resolution order:
+     * <ol>
+     *   <li>If {@link #INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID} is set on the index, that value is returned directly.</li>
+     *   <li>For indices created on or after {@code SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5}, if the model registry is non-null and
+     *       {@link #DEFAULT_EIS_JINA_V5_INFERENCE_ID} is a registered preconfigured endpoint, that endpoint is returned.</li>
+     *   <li>If the model registry is non-null and {@link #DEFAULT_EIS_ELSER_INFERENCE_ID} is a registered preconfigured endpoint,
+     *       that endpoint is returned.</li>
+     *   <li>Otherwise, falls back to {@link #DEFAULT_FALLBACK_ELSER_INFERENCE_ID} (ML-node ELSER).</li>
+     * </ol>
+     */
+    private static String getDefaultInferenceId(ModelRegistry modelRegistry, IndexSettings indexSettings) {
+        if (INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.exists(indexSettings.getSettings())) {
+            return INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.get(indexSettings.getSettings());
+        }
+        if (modelRegistry != null) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)
+                && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_JINA_V5_INFERENCE_ID)) {
+                return DEFAULT_EIS_JINA_V5_INFERENCE_ID;
+            }
+            if (modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_ELSER_INFERENCE_ID)) {
+                return DEFAULT_EIS_ELSER_INFERENCE_ID;
+            }
+        }
+        return DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
+    }
+
+    public static TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
+        return new TypeParser(
+            (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings(), modelRegistry.get(), c.getVectorsFormatProviders()),
+            List.of(validateParserContext(CONTENT_TYPE))
+        );
+    }
+
+    public static BiConsumer<String, MappingParserContext> validateParserContext(String type) {
+        return (n, c) -> {
+            if (useLegacyFormat(c.getIndexSettings())) {
+                notInMultiFields(type).accept(n, c);
+            }
+            notFromDynamicTemplates(type).accept(n, c);
+        };
+    }
+
+    public static class Builder extends SemanticFieldMapper.Builder {
+        private final boolean useLegacyFormat;
+
+        public Builder(
+            String name,
+            Function<Query, BitSetProducer> bitSetProducer,
+            IndexSettings indexSettings,
+            ModelRegistry modelRegistry,
+            List<VectorsFormatProvider> vectorsFormatProviders
+        ) {
+            super(name, bitSetProducer, indexSettings, modelRegistry, vectorsFormatProviders);
+            this.useLegacyFormat = useLegacyFormat(indexSettings);
+        }
+
+        public Builder(SemanticTextFieldMapper mapper) {
+            super(mapper);
+            this.useLegacyFormat = useLegacyFormat(indexSettings);
+        }
+
+        @Override
+        public Builder setInferenceId(String id) {
+            return (SemanticTextFieldMapper.Builder) super.setInferenceId(id);
+        }
+
+        @Override
+        public Builder setModelSettings(MinimalServiceSettings value) {
+            return (SemanticTextFieldMapper.Builder) super.setModelSettings(value);
+        }
+
+        @Override
+        public Builder setChunkingSettings(ChunkingSettings value) {
+            return (SemanticTextFieldMapper.Builder) super.setChunkingSettings(value);
+        }
+
+        @Override
+        protected String getDefaultInferenceId() {
+            return SemanticTextFieldMapper.getDefaultInferenceId(modelRegistry, indexSettings);
+        }
+
+        @Override
+        protected Parameter<SemanticIndexOptions> configureIndexOptionsParam() {
+            return buildIndexOptionsParam(
+                resolvedModelSettings -> defaultIndexOptions(indexVersionCreated, resolvedModelSettings),
+                elementType -> defaultElementTypeToBfloat16(indexVersionCreated, elementType)
+            );
+        }
+
+        @Override
+        protected NestedObjectMapper.Builder createChunksField(@Nullable MinimalServiceSettings resolvedModelSettings) {
+            NestedObjectMapper.Builder chunksField = new NestedObjectMapper.Builder(
+                SemanticTextField.CHUNKS_FIELD,
+                indexVersionCreated,
+                bitSetProducer,
+                indexSettings
+            );
+            chunksField.dynamic(ObjectMapper.Dynamic.FALSE);
+            if (resolvedModelSettings != null) {
+                chunksField.add(createEmbeddingsField(resolvedModelSettings));
+            }
+            if (useLegacyFormat) {
+                var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexSettings).indexed(false).docValues(false);
+                chunksField.add(chunkTextField);
+            } else {
+                chunksField.add(new OffsetSourceFieldMapper.Builder(CHUNKED_OFFSET_FIELD));
+            }
+            return chunksField;
+        }
+
+        @Override
+        protected Mapper.Builder createEmbeddingsField(MinimalServiceSettings modelSettings) {
+            return switch (modelSettings.taskType()) {
+                case SPARSE_EMBEDDING -> {
+                    SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(
+                        CHUNKED_EMBEDDINGS_FIELD,
+                        indexVersionCreated,
+                        false
+                    ).setStored(useLegacyFormat == false);
+                    configureSparseVectorMapperBuilder(indexVersionCreated, sparseVectorMapperBuilder, indexOptions.get());
+                    yield sparseVectorMapperBuilder;
+                }
+                case TEXT_EMBEDDING, EMBEDDING -> {
+                    DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
+                        CHUNKED_EMBEDDINGS_FIELD,
+                        indexVersionCreated,
+                        indexSettings.getMode(),
+                        false,
+                        experimentalFeaturesEnabled,
+                        vectorsFormatProviders,
+                        false
+                    );
+                    ExtendedDenseVectorIndexOptions extendedIndexOptions = indexOptions.get() != null
+                        ? getExtendedDenseVectorIndexOptions(indexOptions.get())
+                        : null;
+                    DENSE_VECTOR_MAPPER_CONFIGURATOR.configure(
+                        denseVectorMapperBuilder,
+                        indexVersionCreated,
+                        modelSettings,
+                        extendedIndexOptions
+                    );
+                    yield denseVectorMapperBuilder;
+                }
+                default -> throw new IllegalArgumentException(
+                    "Invalid task_type in model_settings [" + modelSettings.taskType().name() + "]"
+                );
+            };
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        public SemanticTextFieldMapper build(MapperBuilderContext context) {
+            if (useLegacyFormat && copyTo.copyToFields().isEmpty() == false) {
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
+            }
+            if (useLegacyFormat && multiFieldsBuilder.hasMultiFields()) {
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
+            }
+
+            SemanticTextFieldMapper mapper = (SemanticTextFieldMapper) super.build(context);
+            if (mapper.storesOriginalValuesInDocValues()) {
+                // The original input is stored in an internal [<field>.input] binary doc values column, so a multi-field with that
+                // name would write to the same Lucene field. Reserve the name to prevent the collision. Gated on the doc values
+                // storage condition so existing indices that keep the input in _source remain valid.
+                for (FieldMapper multiField : mapper.multiFields()) {
+                    if (multiField.leafName().equals(SemanticTextField.INPUT_FIELD)) {
+                        throw new IllegalArgumentException(
+                            CONTENT_TYPE
+                                + " field ["
+                                + leafName()
+                                + "] cannot have a multi-field named ["
+                                + SemanticTextField.INPUT_FIELD
+                                + "]; that name is reserved for the field's internal doc values storage"
+                        );
+                    }
+                }
+            }
+            return mapper;
+        }
+
+        @Override
+        protected void validateTaskType(MinimalServiceSettings modelSettings) {
+            switch (modelSettings.taskType()) {
+                case SPARSE_EMBEDDING, TEXT_EMBEDDING, EMBEDDING -> {
+                }
+                default -> throw new IllegalArgumentException(
+                    "Wrong ["
+                        + MinimalServiceSettings.TASK_TYPE_FIELD
+                        + "], expected "
+                        + TEXT_EMBEDDING
+                        + ", "
+                        + EMBEDDING
+                        + ", or "
+                        + SPARSE_EMBEDDING
+                        + ", got "
+                        + modelSettings.taskType().name()
+                );
+            }
+        }
+
+        @Override
+        protected void validateIndexOptions(MinimalServiceSettings modelSettings) {
+            SemanticIndexOptions indexOptions = this.indexOptions.get();
+            String inferenceId = this.inferenceId.get();
+
+            if (indexOptions == null) {
+                return;
+            }
+
+            if (modelSettings == null) {
+                throw new IllegalArgumentException(
+                    "Model settings must be set to validate index options for inference ID [" + inferenceId + "]"
+                );
+            }
+
+            if (indexOptions.type() == SemanticIndexOptions.SupportedIndexOptions.SPARSE_VECTOR) {
+                if (modelSettings.taskType() != SPARSE_EMBEDDING) {
+                    throw new IllegalArgumentException(
+                        "Invalid task type for index options, required ["
+                            + SPARSE_EMBEDDING
+                            + "] but was ["
+                            + modelSettings.taskType()
+                            + "]"
+                    );
+                }
+                return;
+            }
+
+            if (indexOptions.type() == SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
+                if (modelSettings.taskType() != TEXT_EMBEDDING && modelSettings.taskType() != EMBEDDING) {
+                    throw new IllegalArgumentException(
+                        "Invalid task type for index options, required ["
+                            + TEXT_EMBEDDING
+                            + "] or ["
+                            + EMBEDDING
+                            + "] but was ["
+                            + modelSettings.taskType()
+                            + "]"
+                    );
+                }
+
+                DenseVectorFieldMapper.ElementType elementType = modelSettings.elementType();
+                ExtendedDenseVectorIndexOptions innerIndexOptions = getExtendedDenseVectorIndexOptions(indexOptions);
+                if (innerIndexOptions.getElementType() != null) {
+                    validateElementTypeOverride(elementType, innerIndexOptions.getElementType());
+                    elementType = innerIndexOptions.getElementType();
+                }
+
+                DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = innerIndexOptions.getBaseIndexOptions();
+                if (denseVectorIndexOptions != null) {
+                    int dims = modelSettings.dimensions() != null ? modelSettings.dimensions() : 0;
+                    denseVectorIndexOptions.validate(elementType, dims, true);
+                }
+            }
+        }
+
+        @Override
+        protected SemanticTextFieldMapper buildMapper(String fullName, ObjectMapper inferenceField, BuilderParams builderParams) {
+            return new SemanticTextFieldMapper(
+                leafName(),
+                new SemanticTextFieldType(
+                    fullName,
+                    inferenceId.getValue(),
+                    searchInferenceId.getValue(),
+                    modelSettings.getValue(),
+                    chunkingSettings.getValue(),
+                    indexOptions.getValue(),
+                    inferenceField,
+                    useLegacyFormat,
+                    storesOriginalValuesInDocValues(useLegacyFormat, indexVersionCreated, indexSettings.getMode()),
+                    meta.getValue()
+                ),
+                builderParams,
+                indexVersionCreated,
+                indexSettings.getMode(),
+                modelRegistry,
+                vectorsFormatProviders
+            );
+        }
+
+        @Override
+        protected Logger logger() {
+            return SemanticTextFieldMapper.logger;
+        }
+    }
+
+    private SemanticTextFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
+        IndexVersion indexCreatedVersion,
+        IndexMode indexMode,
+        ModelRegistry modelRegistry,
+        List<VectorsFormatProvider> vectorsFormatProviders
+    ) {
+        super(simpleName, mappedFieldType, builderParams, indexCreatedVersion, indexMode, modelRegistry, vectorsFormatProviders);
+    }
+
+    @Override
+    public SemanticTextFieldMapper.Builder getMergeBuilder() {
+        return new Builder(this);
+    }
+
+    @Override
+    protected String contentType() {
+        return CONTENT_TYPE;
+    }
+
+    @Override
+    public SemanticTextFieldType fieldType() {
+        return (SemanticTextFieldType) super.fieldType();
+    }
+
+    @Override
+    protected boolean supportsParsingObject() {
+        // semantic_text parses an object value only in the legacy format (where the value is the full {text, inference} object). The
+        // new format takes a plain text input, so under subobjects:false (columnar) the field must not be handed an object.
+        return fieldType().useLegacyFormat;
+    }
+
+    @Override
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
+        final XContentParser parser = context.parser();
+        final XContentLocation xContentLocation = parser.getTokenLocation();
+
+        if (fieldType().useLegacyFormat == false) {
+            // Detect if field value is an object, which we don't support parsing
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                throw new DocumentParsingException(
+                    xContentLocation,
+                    "[" + CONTENT_TYPE + "] field [" + fullPath() + "] does not support object values"
+                );
+            }
+
+            // When _source is reconstructed from doc values (synthetic / columnar), store the original input value so it can be
+            // rebuilt and retrieved without reading _source. Otherwise the original value is kept verbatim in the stored _source.
+            storeOriginalValueForSyntheticSource(context);
+
+            // ignore the rest of the field value
+            parser.skipChildren();
+            return;
+        }
+
+        final SemanticTextField field = parseSemanticTextField(context);
+        if (field != null) {
+            parseCreateFieldFromContext(context, field, xContentLocation);
+        }
+    }
+
+    @Override
+    protected boolean storesOriginalValuesInDocValues() {
+        // The legacy format keeps the original value in _source, so the doc values store is only used by the new format.
+        return storesOriginalValuesInDocValues(fieldType().useLegacyFormat(), indexCreatedVersion, indexMode);
+    }
+
+    static boolean storesOriginalValuesInDocValues(boolean useLegacyFormat, IndexVersion indexVersion, IndexMode indexMode) {
+        if (useLegacyFormat) {
+            return false;
+        }
+        return indexMode.isStrictColumnar() || indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES);
+    }
+
+    private void storeOriginalValueForSyntheticSource(DocumentParserContext context) throws IOException {
+        if (storesOriginalValuesInDocValues() == false) {
+            return;
+        }
+        // Only needed when _source is rebuilt from doc values; under stored _source the value is already kept verbatim.
+        if (context.mappingLookup().isSourceSynthetic() == false && context.mappingLookup().isSourceColumnarStored() == false) {
+            return;
+        }
+        final XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return;
+        }
+        // UNSORTED keeps the values in document order (and keeps duplicates), so multi-valued fields round-trip exactly.
+        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
+            context.doc(),
+            SemanticTextField.getOriginalValuesFieldName(fullPath()),
+            new BytesRef(parser.text()),
+            MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
+            indexCreatedVersion
+        );
+    }
+
+    @Override
+    protected void writeOriginalValue(XContentBuilder b, BytesRef value) throws IOException {
+        // semantic_text stores its input as raw UTF-8 text, so it is written back verbatim (no encoder decoding). _source is rebuilt
+        // from the original input column only; the inference sub-fields are sub-mappers (like multi-fields) and never part of synthetic
+        // source. See SemanticFieldMapper#syntheticSourceSupport.
+        b.utf8Value(value.bytes, value.offset, value.length);
+    }
+
+    @Override
+    protected SemanticTextField.ParserContext getParserContext(DocumentParserContext context) {
+        return new SemanticTextField.ParserContext(fieldType().useLegacyFormat, fullPath(), context.parser().contentType());
+    }
+
+    @Override
+    protected SemanticTextField parseSemanticTextField(DocumentParserContext context) throws IOException {
+        SemanticTextField semanticTextField = super.parseSemanticTextField(context);
+
+        IndexVersion indexCreatedVersion = context.indexSettings().getIndexVersionCreated();
+        if (semanticTextField != null
+            && semanticTextField.inference().modelSettings() != null
+            && indexCreatedVersion.before(NEW_SPARSE_VECTOR)) {
+            // Explicitly fail to parse semantic text fields that meet the following criteria:
+            // - Are in pre 8.11 indices
+            // - Have model settings, indicating that they have embeddings to be indexed
+            //
+            // We can't fail earlier than this because it causes pre 8.11 indices with semantic text fields to either be in red state or
+            // cause Elasticsearch to not launch.
+            throw new UnsupportedOperationException(UNSUPPORTED_INDEX_MESSAGE);
+        }
+
+        return semanticTextField;
+    }
+
+    @Override
+    protected void parseChunkValueReference(
+        DocumentParserContext context,
+        SemanticFieldType fieldType,
+        String fieldName,
+        SemanticTextField.Chunk chunk
+    ) throws IOException {
+        XContentLocation xContentLocation = context.parser().getTokenLocation();
+        if (chunk.inputIndex() != null) {
+            // Non-null input index means a non-text value, which in turn means an object value
+            throw new DocumentParsingException(
+                xContentLocation,
+                "[" + CONTENT_TYPE + "] field [" + fullPath() + "] does not support multimodal values"
+            );
+        }
+
+        SemanticTextFieldType semanticTextFieldType = (SemanticTextFieldType) fieldType;
+        if (semanticTextFieldType.useLegacyFormat() == false) {
+            super.parseChunkValueReference(context, fieldType, fieldName, chunk);
+        }
+    }
+
+    public static class SemanticTextFieldType extends SemanticFieldType {
+        private final boolean useLegacyFormat;
+
+        public SemanticTextFieldType(
+            String name,
+            String inferenceId,
+            String searchInferenceId,
+            MinimalServiceSettings modelSettings,
+            ChunkingSettings chunkingSettings,
+            SemanticIndexOptions indexOptions,
+            ObjectMapper inferenceField,
+            boolean useLegacyFormat,
+            boolean storesOriginalValuesInDocValues,
+            Map<String, String> meta
+        ) {
+            super(
+                name,
+                inferenceId,
+                searchInferenceId,
+                modelSettings,
+                chunkingSettings,
+                indexOptions,
+                inferenceField,
+                storesOriginalValuesInDocValues,
+                meta
+            );
+            this.useLegacyFormat = useLegacyFormat;
+        }
+
+        public boolean useLegacyFormat() {
+            return useLegacyFormat;
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        public String familyTypeName() {
+            return TextFieldMapper.CONTENT_TYPE;
+        }
+
+        @Override
+        protected ValueFetcher valueFetcher(SearchExecutionContext context) {
+            // The base class reads the original value from the binary doc values store (with this type's UTF-8 decoder) when _source
+            // is rebuilt from doc values; only the legacy text field, kept in _source, differs.
+            if (useLegacyFormat) {
+                return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, null);
+            }
+            return super.valueFetcher(context);
+        }
+
+        @Override
+        protected CheckedFunction<BytesRef, Object, IOException> inputDecoder() {
+            return BytesRef::utf8ToString; // semantic_text stores its input as raw UTF-8 text
+        }
+
+        @Override
+        protected ValueFetcher valueFetcher(BlockLoaderContext blContext) {
+            if (useLegacyFormat) {
+                return SourceValueFetcher.toString(blContext.sourcePaths(getOriginalTextFieldName(name())), blContext.indexSettings());
+            }
+
+            return super.valueFetcher(blContext);
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // When the index reconstructs _source from doc values, load the original value from its binary doc values store directly
+            // instead of reading it through _source (which would rebuild _source from doc values).
+            if (storesOriginalValuesInDocValues
+                && (blContext.mappingLookup().isSourceSynthetic() || blContext.mappingLookup().isSourceColumnarStored())) {
+                return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(SemanticTextField.getOriginalValuesFieldName(name()));
+            }
+            return super.blockLoader(blContext);
+        }
+    }
+
+    private static void configureSparseVectorMapperBuilder(
+        IndexVersion indexVersionCreated,
+        SparseVectorFieldMapper.Builder sparseVectorMapperBuilder,
+        SemanticIndexOptions indexOptions
+    ) {
+        if (indexOptions != null) {
+            SparseVectorFieldMapper.SparseVectorIndexOptions sparseVectorIndexOptions =
+                (SparseVectorFieldMapper.SparseVectorIndexOptions) indexOptions.indexOptions();
+
+            sparseVectorMapperBuilder.setIndexOptions(sparseVectorIndexOptions);
+        } else {
+            SparseVectorFieldMapper.SparseVectorIndexOptions defaultIndexOptions = SparseVectorFieldMapper.SparseVectorIndexOptions
+                .getDefaultIndexOptions(indexVersionCreated);
+            if (defaultIndexOptions != null) {
+                sparseVectorMapperBuilder.setIndexOptions(defaultIndexOptions);
+            }
+        }
+    }
+
+    static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions(
+        IndexVersion indexVersionCreated,
+        MinimalServiceSettings modelSettings
+    ) {
+        if (setExplicitIndexOptionsForSemanticText(indexVersionCreated) == false) {
+            return null;
+        }
+        if (modelSettings.dimensions() == null) {
+            return null; // Cannot determine default index options without dimensions
+        }
+
+        // As embedding models for text perform better with BBQ, we aggressively default semantic_text fields to use optimized index
+        // options
+        DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswIndexOptions = defaultBbqHnswDenseVectorIndexOptions();
+        return defaultBbqHnswIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), false)
+            ? defaultBbqHnswIndexOptions
+            : null;
+    }
+
+    static boolean setExplicitIndexOptionsForSemanticText(IndexVersion indexVersion) {
+        return indexVersion.between(SEMANTIC_TEXT_DEFAULTS_TO_BBQ, SEMANTIC_TEXT_USES_DENSE_VECTOR_DEFAULT_INDEX_OPTIONS)
+            || indexVersion.between(SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+    }
+
+    private static boolean defaultElementTypeToBfloat16(
+        IndexVersion indexVersionCreated,
+        DenseVectorFieldMapper.ElementType modelElementType
+    ) {
+        return indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16)
+            && modelElementType == DenseVectorFieldMapper.ElementType.FLOAT;
+    }
+
+    public static DenseVectorFieldMapper.DenseVectorIndexOptions defaultBbqHnswDenseVectorIndexOptions() {
+        int m = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+        int efConstruction = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+        DenseVectorFieldMapper.RescoreVector rescoreVector = new DenseVectorFieldMapper.RescoreVector(DEFAULT_RESCORE_OVERSAMPLE);
+        return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1);
+    }
+
+    static SemanticIndexOptions defaultIndexOptions(IndexVersion indexVersionCreated, MinimalServiceSettings modelSettings) {
+        if (modelSettings == null) {
+            return null;
+        }
+
+        if (modelSettings.taskType() == TEXT_EMBEDDING || modelSettings.taskType() == EMBEDDING) {
+            DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = defaultDenseVectorIndexOptions(
+                indexVersionCreated,
+                modelSettings
+            );
+            DenseVectorFieldMapper.ElementType elementType = defaultElementTypeToBfloat16(indexVersionCreated, modelSettings.elementType())
+                ? DenseVectorFieldMapper.ElementType.BFLOAT16
+                : null;
+
+            return denseVectorIndexOptions == null && elementType == null
+                ? null
+                : new SemanticIndexOptions(
+                    SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+                    new ExtendedDenseVectorIndexOptions(denseVectorIndexOptions, elementType)
+                );
+        }
+
+        if (modelSettings.taskType() == SPARSE_EMBEDDING) {
+            SparseVectorFieldMapper.SparseVectorIndexOptions sparseVectorIndexOptions = SparseVectorFieldMapper.SparseVectorIndexOptions
+                .getDefaultIndexOptions(indexVersionCreated);
+
+            return sparseVectorIndexOptions == null
+                ? null
+                : new SemanticIndexOptions(SemanticIndexOptions.SupportedIndexOptions.SPARSE_VECTOR, sparseVectorIndexOptions);
+        }
+
+        return null;
+    }
+
+    private static boolean useLegacyFormat(IndexSettings indexSettings) {
+        return InferenceMetadataFieldsMapper.isEnabled(indexSettings.getSettings()) == false;
+    }
+}

@@ -1,0 +1,33 @@
+{
+  "scripts_painless_execute": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/reference/scripting-languages/painless/painless-api-examples",
+      "description": "Run a script"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_scripts/painless/_execute",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The script to execute",
+      "required": true
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "cluster.get_settings": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-get-settings",
+      "description": "Get cluster-wide settings"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_cluster/settings",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "flat_settings": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return settings in flat format (default: false)"
+      },
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for waiting for new cluster state in case it is blocked"
+      },
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
+      },
+      "include_defaults": {
+        "type": "boolean",
+        "description": "Whether to return all default clusters setting.",
+        "default": false
+      }
+    }
+  }
+}

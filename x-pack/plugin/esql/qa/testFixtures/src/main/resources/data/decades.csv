@@ -1,0 +1,14 @@
+ date_range:date_range, decade:integer, description:keyword
+1900-01-01..1910-01-01,           1900, Edwardian Era
+1910-01-01..1920-01-01,           1910, Ragtime Era
+1920-01-01..1930-01-01,           1920, Roaring Twenties
+1930-01-01..1940-01-01,           1930, Dirty Thirties
+1940-01-01..1950-01-01,           1940, Fabulous Forties
+1950-01-01..1960-01-01,           1950, Nifty Fifties
+1960-01-01..1970-01-01,           1960, Swinging Sixties
+1970-01-01..1980-01-01,           1970, Groovy Seventies
+1980-01-01..1990-01-01,           1980, Radical Eighties
+1990-01-01..2000-01-01,           1990, Nineties Nostalgia
+2000-01-01..2010-01-01,           2000, Innovation Explosion Decade
+2010-01-01..2020-01-01,           2010, Renaissance Decade
+2020-01-01..2030-01-01,           2020, Empowerment Era

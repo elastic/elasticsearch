@@ -1,0 +1,32 @@
+{
+  "security.saml_authenticate": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-saml-authenticate",
+      "description": "Authenticate SAML"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/saml/authenticate",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The SAML response to authenticate",
+      "required": true
+    }
+  }
+}

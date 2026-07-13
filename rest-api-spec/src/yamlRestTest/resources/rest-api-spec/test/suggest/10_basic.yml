@@ -1,0 +1,25 @@
+setup:
+  - do:
+      index:
+        index: test
+        id:    testing_document
+        body:
+          body: Amsterdam meetup
+  - do:
+      indices.refresh: {}
+
+---
+"Basic tests for suggest API":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          suggest:
+            test_suggestion:
+              text: "The Amsterdma meetpu"
+              term:
+                field: body
+
+  - match: {suggest.test_suggestion.1.options.0.text: amsterdam}
+  - match: {suggest.test_suggestion.2.options.0.text: meetup}

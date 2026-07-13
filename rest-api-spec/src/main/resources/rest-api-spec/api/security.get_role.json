@@ -1,0 +1,44 @@
+{
+  "security.get_role": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-role",
+      "description": "Get roles"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/role/{name}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "name": {
+              "type": "list",
+              "description": "A comma-separated list of role names"
+            }
+          }
+        },
+        {
+          "path": "/_security/role",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "include_implicit": {
+        "type": "boolean",
+        "default": false,
+        "description": "If true, include privileges that are implicitly granted by registered ImplicitPrivilegesProviders alongside the explicitly configured privileges. These implicit privileges are computed for each role individually; for a user holding multiple roles, the privileges effectively granted at authorization time may therefore differ from the per-role view returned here."
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+---
+"Test delete forecast on missing forecast":
+  - do:
+      catch: /resource_not_found_exception/
+      ml.delete_forecast:
+        job_id: delete-forecast-job
+        forecast_id: this-is-a-bad-forecast
+---
+"Test delete on _all forecasts not allow no forecasts":
+  - do:
+      catch: /resource_not_found_exception/
+      ml.delete_forecast:
+        job_id: delete-forecast-job
+        forecast_id: _all
+        allow_no_forecasts: false
+---
+"Test delete on _all forecasts":
+  - do:
+      ml.delete_forecast:
+        job_id: delete-forecast-job
+        forecast_id: _all
+        allow_no_forecasts: true
+  - match: { acknowledged: true }
+---
+"Test delete all where no forecast_id is set":
+  - do:
+      ml.delete_forecast:
+        job_id: delete-forecast-job
+        allow_no_forecasts: true
+  - match: { acknowledged: true }

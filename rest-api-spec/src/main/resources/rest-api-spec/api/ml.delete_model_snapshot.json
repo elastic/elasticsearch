@@ -1,0 +1,35 @@
+{
+  "ml.delete_model_snapshot": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-model-snapshot",
+      "description": "Delete a model snapshot"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "job_id": {
+              "type": "string",
+              "description": "The ID of the job to fetch"
+            },
+            "snapshot_id": {
+              "type": "string",
+              "description": "The ID of the snapshot to delete"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,11 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[],[SUM(languages.long{f}#0,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS sum#1],FINAL,[$$sum$sum{r}#2, $$sum$seen{r}#3, $$sum$failed{r}#4],null]
+  \_ExchangeExec[[$$sum$sum{r}#2, $$sum$seen{r}#3, $$sum$failed{r}#4],true]
+    \_AggregateExec[[],[SUM(languages.long{f}#0,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS sum#1],INITIAL,[$$sum$sum{r}#5, $$sum$seen{r}#6, $$sum$failed{r}#7],8]
+      \_FieldExtractExec[languages.long{f}#0]<[],[],[]>
+        \_EsQueryExec[employees], indexMode[standard], [_doc{f}#8], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "exists" : {
+    "field" : "languages.long",
+    "boost" : 0.0
+  }
+}, tags=[]]]]

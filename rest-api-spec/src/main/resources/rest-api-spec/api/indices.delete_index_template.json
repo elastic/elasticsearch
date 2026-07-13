@@ -1,0 +1,43 @@
+{
+  "indices.delete_index_template": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-delete-index-template",
+      "description": "Delete an index template"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_index_template/{name}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "name": {
+              "type": "list",
+              "description": "Comma-separated list of index template names used to limit the request. Wildcard (*) expressions are supported."
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
+      },
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
+      }
+    }
+  }
+}

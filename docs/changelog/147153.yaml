@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 146380
+pr: 147153
+summary: Fix `DateRangeDocValuesReader` to `appendNull` for empty positions
+type: bug

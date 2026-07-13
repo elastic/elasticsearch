@@ -1,0 +1,45 @@
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              const:
+                type: constant_keyword
+                value: the_same_everywhere
+              const2:
+                type: constant_keyword
+                value: the_same_but_different
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "keyword": "abc" }
+          { "index": {"_id" : "2"} }
+          { "keyword": "def" }
+
+---
+"Constant Keyword Fields API":
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ { keyword: desc } ]
+          script_fields:
+            constOne:
+              script:
+                source: "field('const').get('doremi') + '_' + $('keyword', 'dne')"
+            constTwo:
+              script:
+                source: "field('const2').get(0, 'fasola') + '-' + $('keyword', 'dne')"
+
+  - match: { hits.hits.0.fields.constOne.0: "the_same_everywhere_def" }
+  - match: { hits.hits.0.fields.constTwo.0: "the_same_but_different-def" }
+  - match: { hits.hits.1.fields.constOne.0: "the_same_everywhere_abc" }
+  - match: { hits.hits.1.fields.constTwo.0: "the_same_but_different-abc" }

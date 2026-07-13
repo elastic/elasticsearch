@@ -1,0 +1,25 @@
+{
+  "pit_id" : "bG9uZy1waXQtaWQ",
+  "took" : 12,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 3,
+    "successful" : 3,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : 7,
+    "max_score" : null,
+    "hits" : [ {
+      "_index" : "other-index",
+      "_type" : "_doc",
+      "_id" : "BXUpNjD361EkKjCP4zK_",
+      "_version" : 2,
+      "_score" : null,
+      "_source" : {
+        "field" : "value"
+      },
+      "sort" : [ 4294967396, "sort-key" ]
+    } ]
+  }
+}

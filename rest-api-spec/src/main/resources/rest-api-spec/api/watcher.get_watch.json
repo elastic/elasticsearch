@@ -1,0 +1,31 @@
+{
+  "watcher.get_watch": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-get-watch",
+      "description": "Get a watch"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_watcher/watch/{id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "Watch ID"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

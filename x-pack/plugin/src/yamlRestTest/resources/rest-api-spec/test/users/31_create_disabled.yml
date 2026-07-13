@@ -1,0 +1,43 @@
+---
+setup:
+  - skip:
+      features: [headers, catch_unauthorized]
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "s3krit-password",
+              "roles" : [ "superuser" ],
+              "enabled": false
+            }
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe"
+        ignore: 404
+
+---
+"Test disable then enable user":
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
+      cluster.health: {}
+
+# enable
+  - do:
+      security.enable_user:
+        username: "joe"
+
+# validate user can login
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
+      cluster.health: {}
+  - match: { timed_out: false }

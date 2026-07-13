@@ -1,0 +1,37 @@
+"term vectors with payloads tests":
+  # Tests term vectors with payloads. This is in the analysis-common module
+  # because there are no token filters that support payloads in core.
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 1
+            analysis:
+              analyzer:
+                has_payloads:
+                  tokenizer: standard
+                  filter: [type_as_payload]
+          mappings:
+            properties:
+              text:
+                type: text
+                term_vector: with_positions_offsets_payloads
+                analyzer: has_payloads
+
+  - do:
+      index:
+        index: test
+        id:    "1"
+        refresh: true
+        body:
+          text: The quick brown fox is brown.
+
+  - do:
+      termvectors:
+        index: test
+        id:    "1"
+        payloads: true
+  - match: {term_vectors.text.field_statistics.sum_doc_freq: 5}
+  - match: {term_vectors.text.terms.brown.tokens.0.payload: PEFMUEhBTlVNPg==}

@@ -1,0 +1,85 @@
+{
+  "indices.get": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get",
+      "description": "Get index information"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/{index}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "local": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return local information, do not retrieve the state from master node (default: false)"
+      },
+      "ignore_unavailable": {
+        "type": "boolean",
+        "default": false,
+        "description": "Ignore unavailable indexes (default: false)"
+      },
+      "allow_no_indices": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to allow (1) wildcard index expressions that match no indices and (2) requests where the final resolved set is empty."
+      },
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "open",
+        "description": "Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+      },
+      "features": {
+        "type": "list",
+        "options": [
+          "aliases",
+          "mappings",
+          "settings"
+        ],
+        "default": "['aliases', 'mappings', 'settings']",
+        "description": "Return only information on specified index features"
+      },
+      "flat_settings": {
+        "type": "boolean",
+        "default": false,
+        "description": "Return settings in flat format (default: false)"
+      },
+      "include_defaults": {
+        "type": "boolean",
+        "description": "Whether to return all default setting for each of the indices.",
+        "default": false
+      },
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
+      }
+    }
+  }
+}

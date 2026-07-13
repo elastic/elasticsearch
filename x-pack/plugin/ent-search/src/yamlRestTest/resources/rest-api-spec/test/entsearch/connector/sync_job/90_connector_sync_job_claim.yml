@@ -1,0 +1,113 @@
+setup:
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: Introduced in 8.15.0
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-test
+          name: my-connector
+          language: de
+          is_native: false
+          service_type: super-connector
+
+
+---
+"Set only worker_hostname for a Connector Sync Job":
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+  - set: { id: id }
+
+  - do:
+      connector.sync_job_get:
+        connector_sync_job_id: $id
+  - match: { status: pending }
+
+  - do:
+      connector.sync_job_claim:
+        connector_sync_job_id: $id
+        body:
+          worker_hostname: "host-name"
+  - match: { result: updated }
+
+  - do:
+      connector.sync_job_get:
+        connector_sync_job_id: $id
+
+  - match: { worker_hostname: "host-name" }
+  - match: { status: in_progress }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { sync_cursor: null }
+
+
+---
+"Set both worker_hostname and sync_cursor for a Connector Sync Job":
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+  - set: { id: id }
+
+  - do:
+      connector.sync_job_get:
+        connector_sync_job_id: $id
+  - match: { status: pending }
+  - do:
+      connector.sync_job_claim:
+        connector_sync_job_id: $id
+        body:
+          worker_hostname: "host-name"
+          sync_cursor: { cursor: "cursor" }
+  - match: { result: updated }
+
+  - do:
+      connector.sync_job_get:
+        connector_sync_job_id: $id
+
+  - match: { worker_hostname: "host-name" }
+  - match: { status: in_progress }
+  - match: { connector.sync_cursor:  { cursor: "cursor" } }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { sync_cursor: null }
+
+---
+"Fail to claim a Connector Sync Job - Connector Sync Job does not exist":
+  - do:
+      catch: "missing"
+      connector.sync_job_claim:
+        connector_sync_job_id: non-existing-connector-sync-job-id
+        body:
+          worker_hostname: "host-name"
+
+---
+"Fail to claim a Connector Sync Job - worker_hostname is missing":
+  - do:
+      catch: "bad_request"
+      connector.sync_job_claim:
+        connector_sync_job_id: test-connector
+        body:
+          sync_cursor: { cursor: "cursor" }
+
+---
+"Fail to claim a Connector Sync Job - worker_hostname is null":
+  - do:
+      catch: "bad_request"
+      connector.sync_job_claim:
+        connector_sync_job_id: test-connector
+        body:
+          worker_hostname: null

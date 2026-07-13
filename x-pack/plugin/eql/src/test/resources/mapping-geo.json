@@ -1,0 +1,17 @@
+{
+    "properties" : {
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
+        },
+        "location" : {
+            "type" : "geo_point"
+        },
+        "site": {
+            "type" : "geo_shape"
+        }
+    }
+}

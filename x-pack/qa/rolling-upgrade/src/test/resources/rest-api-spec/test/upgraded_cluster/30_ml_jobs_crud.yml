@@ -1,0 +1,162 @@
+setup:
+ - do:
+     cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 3
+        # wait for long enough that we give delayed unassigned shards to stop being delayed
+        timeout: 70s
+
+---
+"Test open old jobs":
+  - do:
+      ml.open_job:
+        job_id: old-cluster-job
+
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-job
+  - match: { jobs.0.state: "opened" }
+  - match: { jobs.0.data_counts.processed_record_count: 2 }
+  - is_true: jobs.0.model_size_stats
+  - is_true: jobs.0.node
+  - is_true: jobs.0.open_time
+
+  - do:
+      ml.open_job:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-categorization-job
+  - match: { jobs.0.state: "opened" }
+  - match: { jobs.0.data_counts.processed_record_count: 2 }
+  - is_true: jobs.0.model_size_stats
+  - is_true: jobs.0.node
+  - is_true: jobs.0.open_time
+
+  - do:
+      ml.open_job:
+        job_id: mixed-cluster-job
+
+  - do:
+      ml.get_job_stats:
+        job_id: mixed-cluster-job
+  - match: { jobs.0.state: "opened" }
+  - match: { jobs.0.data_counts.processed_record_count: 2 }
+  - is_true: jobs.0.model_size_stats
+  - is_true: jobs.0.node
+  - is_true: jobs.0.open_time
+
+  - do:
+      ml.close_job:
+        job_id: old-cluster-job
+
+  - do:
+      ml.close_job:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.close_job:
+        job_id: mixed-cluster-job
+
+  - do:
+      ml.get_buckets:
+        job_id: old-cluster-job
+  - match: { count: 1 }
+
+  - do:
+      ml.get_categories:
+        job_id: old-cluster-categorization-job
+  - match: { count: 1 }
+
+  - do:
+      ml.get_buckets:
+        job_id: mixed-cluster-job
+  - match: { count: 1 }
+
+  - do:
+      ml.delete_job:
+        job_id: old-cluster-job
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: old-cluster-job
+
+  - do:
+      ml.delete_job:
+        job_id: old-cluster-categorization-job
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.delete_job:
+        job_id: mixed-cluster-job
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: mixed-cluster-job
+
+  - do:
+      indices.exists_alias:
+        name: ".ml-state-write"
+  - is_true: ''
+
+---
+"Test get old cluster job's timing stats":
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-job-with-ts
+  - match: { jobs.0.job_id: old-cluster-job-with-ts }
+  - match: { jobs.0.state: "closed" }
+  - match: { jobs.0.timing_stats.job_id: old-cluster-job-with-ts }
+  - match: { jobs.0.timing_stats.bucket_count: 1 }
+  - gte:   { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.exponential_average_bucket_processing_time_ms: 0.0 }
+
+  - do:
+      ml.delete_job:
+        job_id: old-cluster-job-with-ts
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: old-cluster-job-with-ts
+
+---
+"Test job with pre 6.4 rules":
+  - do:
+      ml.get_jobs:
+        job_id: job-with-old-rules
+  - match: { count: 1 }
+  - is_false: jobs.0.analysis_config.detectors.0.rules
+  - is_false: jobs.0.analysis_config.detectors.0.custom_rules
+
+---
+"Test get job with function shortcut should expand":
+  - do:
+      ml.get_jobs:
+        job_id: old-cluster-function-shortcut-expansion
+  - match: { count: 1 }
+  - match: { jobs.0.analysis_config.detectors.0.function: "non_zero_count" }
+
+---
+"Test annotation index mappings":
+
+  - do:
+      indices.get_mapping:
+        index: .ml-annotations-write
+
+  - match: { \.ml-annotations-000001.mappings.properties.type.type: "keyword" }
+  - match: { \.ml-annotations-000001.mappings.properties.event.type: "keyword" }
+  - match: { \.ml-annotations-000001.mappings.properties.detector_index.type: "integer" }

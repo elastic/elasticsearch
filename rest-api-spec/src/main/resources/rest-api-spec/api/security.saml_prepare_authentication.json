@@ -1,0 +1,32 @@
+{
+  "security.saml_prepare_authentication": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-saml-prepare-authentication",
+      "description": "Prepare SAML authentication"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/saml/prepare",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The realm for which to create the authentication request, identified by either its name or the ACS URL",
+      "required": true
+    }
+  }
+}

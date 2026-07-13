@@ -1,0 +1,10 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Fallback to ILM policy for logs-apm.app if data stream lifecycle not defined
+  managed: true
+template:
+  settings:
+    index:
+      lifecycle:
+        name: logs-apm.app_logs-default_policy

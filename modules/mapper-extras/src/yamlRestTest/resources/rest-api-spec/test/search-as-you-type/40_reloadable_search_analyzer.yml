@@ -1,0 +1,157 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.analyzer-wrapper.reloadable_search_analyzer"]
+      reason: "analyzer wrappers such as search_as_you_type must work with a reloadable analyzer"
+
+  - do:
+      synonyms.put_synonym:
+        id: set1
+        body:
+          synonyms_set:
+            - synonyms: "quick, fast"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+            analysis:
+              filter:
+                sayt_synonym_filter:
+                  type: synonym_graph
+                  synonyms_set: set1
+                  updateable: true
+              analyzer:
+                sayt_search_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, sayt_synonym_filter ]
+          mappings:
+            properties:
+              title:
+                type: search_as_you_type
+                search_analyzer: sayt_search_analyzer
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test
+              _id: "1"
+          - title: "quick brown fox"
+          - index:
+              _index: test
+              _id: "2"
+          - title: "the lazy dog"
+          - index:
+              _index: test
+              _id: "3"
+          - title: "swift red bird"
+
+---
+teardown:
+  - do:
+      synonyms.delete_synonym:
+        id: set1
+
+---
+"search_as_you_type with reloadable search_analyzer":
+  # RCA directly: sayt_search_analyzer is NamedAnalyzer(RCA), UPDATE_STRATEGY path.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              title:
+                query: "fast"
+                analyzer: sayt_search_analyzer
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # Both paths on the same thread: title uses NamedAnalyzer(RCA) (UPDATE_STRATEGY),
+  # title._2gram and title._3gram use NamedAnalyzer(SearchAsYouTypeAnalyzer(RCA)) (WRAPPER_REUSE_STRATEGY).
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "quick brown"
+              type: bool_prefix
+              fields: [ "title", "title._2gram", "title._3gram" ]
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  # RCA directly with an explicit analyzer override: UPDATE_STRATEGY path.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_bool_prefix:
+              title:
+                query: "fast br"
+                analyzer: sayt_search_analyzer
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"search_as_you_type with reloadable search_analyzer after synonym reload":
+  - do:
+      synonyms.put_synonym:
+        id: set1
+        body:
+          synonyms_set:
+            - synonyms: "quick, fast, swift"
+
+  # RCA directly: UPDATE_STRATEGY path — both doc 1 ("quick") and doc 3 ("swift") must match.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              title:
+                query: "fast"
+                analyzer: sayt_search_analyzer
+
+  - match: { hits.total: 2 }
+
+  # Both paths on the same thread: title (UPDATE_STRATEGY) and title._2gram/_3gram (WRAPPER_REUSE_STRATEGY).
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "quick red"
+              type: bool_prefix
+              fields: [ "title", "title._2gram", "title._3gram" ]
+
+  - match: { hits.total: 2 }
+
+  # RCA directly with explicit analyzer override: UPDATE_STRATEGY path.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_bool_prefix:
+              title:
+                query: "swift re"
+                analyzer: sayt_search_analyzer
+
+  - match: { hits.total: 2 }

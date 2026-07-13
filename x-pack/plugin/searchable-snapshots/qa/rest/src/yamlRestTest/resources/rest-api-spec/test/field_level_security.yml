@@ -1,0 +1,336 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "readall"
+        body:  >
+            {
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["read"]
+                }
+              ]
+            }
+
+  - do:
+      security.put_role:
+        name: "limitread"
+        body:  >
+            {
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["read"],
+                  "query": {"match": {"marker": "test_1"}},
+                  "field_security" : {
+                    "grant" : [ "*" ],
+                    "except" : [ "forbidden_field" ]
+                  }
+                }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "full"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "readall" ],
+            "full_name" : "user who can read all data"
+          }
+
+  - do:
+      security.put_user:
+        username: "limited"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "limitread" ],
+            "full_name" : "user who can read some data"
+          }
+
+  - do:
+      snapshot.create_repository:
+        repository: repository-fs
+        body:
+          type: fs
+          settings:
+            location: "repository-fs"
+
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      indices.create:
+        index: test_index1
+        body:
+          mappings:
+            properties:
+              location:
+                properties:
+                  city:
+                    type: "keyword"
+              created_at:
+                type: date # add date field to trigger can-match phase in searches
+                format: "yyyy-MM-dd"
+
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: test_index2
+        body:
+          mappings:
+            properties:
+              location:
+                properties:
+                  city:
+                    type: "keyword"
+              created_at:
+                type: date # add date field to trigger can-match phase in searches
+                format: "yyyy-MM-dd"
+
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index1"}}'
+          - '{"marker": "test_1", "location.city": "bos", "forbidden_field" : 1, "created_at": "2016-01-01"}'
+          - '{"index": {"_index": "test_index1"}}'
+          - '{"marker": "test_2", "location.city": "ams", "forbidden_field" : 2, "created_at": "2016-01-01"}'
+          - '{"index": {"_index": "test_index2"}}'
+          - '{"marker": "test_2", "location.city": "bos", "forbidden_field" : 1, "created_at": "2019-01-02"}'
+          - '{"index": {"_index": "test_index2"}}'
+          - '{"marker": "test_2", "location.city": "ams", "forbidden_field" : 2, "created_at": "2019-01-02"}'
+
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+
+  - do:
+      indices.delete:
+        index: test_index1
+
+  - do:
+      indices.delete:
+        index: test_index2
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "full"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "limited"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "readall"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "limitread"
+        ignore: 404
+
+---
+"Test doc level security with different users on full_copy index":
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: full_copy
+        body:
+          index: test_index1
+          renamed_index: test_index1
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: full_copy
+        body:
+          index: test_index2
+          renamed_index: test_index2
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      headers: { Authorization: "Basic ZnVsbDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # full - user
+      search:
+        rest_total_hits_as_int: true
+        index: test_index*
+        size: 0
+        from: 0
+        body:
+          query:
+            range:
+              created_at:
+                "gte": "2016-01-01"
+                "lt": "2018-02-01"
+          aggs:
+            cities:
+              terms:
+                field: location.city
+
+  - match: { _shards.total: 2 }
+  - match: { _shards.skipped: 1 }
+  - match: { hits.total: 2 }
+  - length: { aggregations.cities.buckets: 2 }
+  - match: { aggregations.cities.buckets.0.key: "ams" }
+  - match: { aggregations.cities.buckets.0.doc_count: 1 }
+  - match: { aggregations.cities.buckets.1.key: "bos" }
+  - match: { aggregations.cities.buckets.1.doc_count: 1 }
+
+  - do:
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
+      search:
+        rest_total_hits_as_int: true
+        index: test_index*
+        size: 0
+        from: 0
+        body:
+          query:
+            range:
+              created_at:
+                "gte": "2016-01-01"
+                "lt": "2018-02-01"
+          aggs:
+            cities:
+              terms:
+                field: location.city
+
+  - match: { _shards.total: 2 }
+  - match: { _shards.skipped: 1 }
+  - match: { hits.total: 1 }
+  - length: { aggregations.cities.buckets: 1 }
+  - match: { aggregations.cities.buckets.0.key: "bos" }
+  - match: { aggregations.cities.buckets.0.doc_count: 1 }
+
+  - do:
+      indices.delete:
+        index: test_index*
+
+---
+"Test doc level security with different users on shared_cache index":
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: shared_cache
+        body:
+          index: test_index1
+          renamed_index: test_index1
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: shared_cache
+        body:
+          index: test_index2
+          renamed_index: test_index2
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      headers: { Authorization: "Basic ZnVsbDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # full - user
+      search:
+        rest_total_hits_as_int: true
+        index: test_index*
+        size: 0
+        from: 0
+        body:
+          query:
+            range:
+              created_at:
+                "gte": "2016-01-01"
+                "lt": "2018-02-01"
+          aggs:
+            cities:
+              terms:
+                field: location.city
+
+  - match: { _shards.total: 2 }
+  - match: { _shards.skipped: 1 }
+  - match: { hits.total: 2 }
+  - length: { aggregations.cities.buckets: 2 }
+  - match: { aggregations.cities.buckets.0.key: "ams" }
+  - match: { aggregations.cities.buckets.0.doc_count: 1 }
+  - match: { aggregations.cities.buckets.1.key: "bos" }
+  - match: { aggregations.cities.buckets.1.doc_count: 1 }
+
+  - do:
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
+      search:
+        rest_total_hits_as_int: true
+        index: test_index*
+        size: 0
+        from: 0
+        body:
+          query:
+            range:
+              created_at:
+                "gte": "2016-01-01"
+                "lt": "2018-02-01"
+          aggs:
+            cities:
+              terms:
+                field: location.city
+
+  - match: { _shards.total: 2 }
+  - match: { _shards.skipped: 1 }
+  - match: { hits.total: 1 }
+  - length: { aggregations.cities.buckets: 1 }
+  - match: { aggregations.cities.buckets.0.key: "bos" }
+  - match: { aggregations.cities.buckets.0.doc_count: 1 }
+
+  - do:
+      indices.delete:
+        index: test_index*

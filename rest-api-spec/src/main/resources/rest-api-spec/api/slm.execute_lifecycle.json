@@ -1,0 +1,43 @@
+{
+  "slm.execute_lifecycle": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-slm-execute-lifecycle",
+      "description": "Run a policy"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_slm/policy/{policy_id}/_execute",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "policy_id": {
+              "type": "string",
+              "description": "The id of the snapshot lifecycle policy to be executed"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
+      },
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
+      }
+    }
+  }
+}

@@ -1,0 +1,773 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+package org.elasticsearch.index.engine;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.CodecProvider;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.seqno.RetentionLeases;
+import org.elasticsearch.index.shard.EngineResetLock;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.indices.IndexingMemoryController;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+
+/*
+ * Holds all the configuration that is used to create an {@link Engine}.
+ * Once {@link Engine} has been created with this object, changes to this
+ * object will affect the {@link Engine} instance.
+ */
+public final class EngineConfig {
+
+    public static EngineConfig.Builder builder() {
+        return new Builder();
+    }
+
+    public static EngineConfig.Builder builder(EngineConfig config) {
+        return new Builder(config);
+    }
+
+    private final ShardId shardId;
+    private final IndexSettings indexSettings;
+    private final ByteSizeValue indexingBufferSize;
+    private volatile boolean enableGcDeletes = true;
+    private final TimeValue flushMergesAfter;
+    private final String codecName;
+    private final MapperService mapperService;
+    private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
+    private final ThreadPool threadPool;
+    @Nullable
+    private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
+    private final Engine.Warmer warmer;
+    private final Store store;
+    private final MergePolicy mergePolicy;
+    private final Analyzer analyzer;
+    private final Similarity similarity;
+    private final CodecProvider codecProvider;
+    private final Engine.EventListener eventListener;
+    private final QueryCache queryCache;
+    private final QueryCachingPolicy queryCachingPolicy;
+    private final List<ReferenceManager.RefreshListener> externalRefreshListener;
+    private final List<ReferenceManager.RefreshListener> internalRefreshListener;
+    @Nullable
+    private final Sort indexSort;
+    @Nullable
+    private final CircuitBreakerService circuitBreakerService;
+    private final LongSupplier globalCheckpointSupplier;
+    private final Supplier<RetentionLeases> retentionLeasesSupplier;
+    private final Comparator<LeafReader> leafSorter;
+    private final boolean useCompoundFile;
+
+    /**
+     * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
+     * soft deleted should be retained.
+     *
+     * @return a supplier of outstanding retention leases
+     */
+    public Supplier<RetentionLeases> retentionLeasesSupplier() {
+        return retentionLeasesSupplier;
+    }
+
+    private final LongSupplier primaryTermSupplier;
+
+    /**
+     * Index setting to change the low level lucene codec used for writing new segments.
+     * This setting is <b>not</b> realtime updateable.
+     * This setting is also settable on the node and the index level, it's commonly used in hot/cold node archs where index is likely
+     * allocated on both `kind` of nodes.
+     */
+    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", settings -> {
+        IndexMode indexMode = IndexSettings.MODE.get(settings);
+        return indexMode.getDefaultCodec();
+    }, s -> {
+        switch (s) {
+            case CodecService.DEFAULT_CODEC:
+            case CodecService.LEGACY_DEFAULT_CODEC:
+            case CodecService.BEST_COMPRESSION_CODEC:
+            case CodecService.LEGACY_BEST_COMPRESSION_CODEC:
+            case CodecService.LUCENE_DEFAULT_CODEC:
+                return s;
+            default:
+                if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
+                    throw new IllegalArgumentException(
+                        "unknown value for [index.codec] must be one of [default, best_compression] but was: " + s
+                    );
+                }
+                return s;
+        }
+    }, Property.IndexScope, Property.NodeScope, Property.ServerlessPublic);
+
+    // don't convert to Setting<> and register... we only set this in tests and register via a test plugin
+    public static final String USE_COMPOUND_FILE = "index.use_compound_file";
+
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
+    public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting(
+        "index.optimize_auto_generated_id",
+        true,
+        Property.IndexScope,
+        Property.Dynamic,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
+
+    private final TranslogConfig translogConfig;
+
+    private final LongSupplier relativeTimeInNanosSupplier;
+
+    @Nullable
+    private final Engine.IndexCommitListener indexCommitListener;
+
+    private final boolean promotableToPrimary;
+
+    private final EngineResetLock engineResetLock;
+
+    private final MergeMetrics mergeMetrics;
+
+    /**
+     * Allows to pass an {@link ElasticsearchIndexDeletionPolicy} wrapper to egine implementations.
+     */
+    private final Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper;
+
+    private EngineConfig(
+        ShardId shardId,
+        ThreadPool threadPool,
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
+        IndexSettings indexSettings,
+        Engine.Warmer warmer,
+        Store store,
+        MergePolicy mergePolicy,
+        Analyzer analyzer,
+        Similarity similarity,
+        CodecProvider codecProvider,
+        Engine.EventListener eventListener,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        TranslogConfig translogConfig,
+        TimeValue flushMergesAfter,
+        List<ReferenceManager.RefreshListener> externalRefreshListener,
+        List<ReferenceManager.RefreshListener> internalRefreshListener,
+        Sort indexSort,
+        CircuitBreakerService circuitBreakerService,
+        LongSupplier globalCheckpointSupplier,
+        Supplier<RetentionLeases> retentionLeasesSupplier,
+        LongSupplier primaryTermSupplier,
+        IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
+        Comparator<LeafReader> leafSorter,
+        LongSupplier relativeTimeInNanosSupplier,
+        Engine.IndexCommitListener indexCommitListener,
+        boolean promotableToPrimary,
+        MapperService mapperService,
+        EngineResetLock engineResetLock,
+        MergeMetrics mergeMetrics,
+        Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
+    ) {
+        this.shardId = shardId;
+        this.indexSettings = indexSettings;
+        this.threadPool = threadPool;
+        this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
+        this.warmer = warmer == null ? (a) -> {} : warmer;
+        this.store = store;
+        this.mergePolicy = mergePolicy;
+        this.analyzer = analyzer;
+        this.similarity = similarity;
+        this.codecProvider = codecProvider;
+        this.eventListener = eventListener;
+        this.codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
+        this.mapperService = mapperService;
+        // We need to make the indexing buffer for this shard at least as large
+        // as the amount of memory that is available for all engines on the
+        // local node so that decisions to flush segments to disk are made by
+        // IndexingMemoryController rather than Lucene.
+        // Add an escape hatch in case this change proves problematic - it used
+        // to be a fixed amound of RAM: 256 MB.
+        // TODO: Remove this escape hatch in 8.x
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
+        final String escapeHatchProperty = "es.index.memory.max_index_buffer_size";
+        String maxBufferSize = System.getProperty(escapeHatchProperty);
+        if (maxBufferSize != null) {
+            indexingBufferSize = MemorySizeValue.parseBytesSizeValueOrHeapRatio(maxBufferSize, escapeHatchProperty);
+        } else {
+            indexingBufferSize = IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.get(indexSettings.getNodeSettings());
+        }
+        this.queryCache = queryCache;
+        this.queryCachingPolicy = queryCachingPolicy;
+        this.translogConfig = translogConfig;
+        this.flushMergesAfter = flushMergesAfter;
+        this.externalRefreshListener = externalRefreshListener;
+        this.internalRefreshListener = internalRefreshListener;
+        this.indexSort = indexSort;
+        this.circuitBreakerService = circuitBreakerService;
+        this.globalCheckpointSupplier = globalCheckpointSupplier;
+        this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
+        this.primaryTermSupplier = primaryTermSupplier;
+        this.snapshotCommitSupplier = snapshotCommitSupplier;
+        this.leafSorter = leafSorter;
+        this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.indexCommitListener = indexCommitListener;
+        this.promotableToPrimary = promotableToPrimary;
+        // always use compound on flush - reduces # of file-handles on refresh
+        this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, true);
+        this.engineResetLock = engineResetLock;
+        this.mergeMetrics = mergeMetrics;
+        this.indexDeletionPolicyWrapper = indexDeletionPolicyWrapper;
+    }
+
+    /**
+     * Enables / disables gc deletes
+     *
+     * @see #isEnableGcDeletes()
+     */
+    public void setEnableGcDeletes(boolean enableGcDeletes) {
+        this.enableGcDeletes = enableGcDeletes;
+    }
+
+    /**
+     * Returns the initial index buffer size. This setting is only read on startup and otherwise controlled
+     * by {@link IndexingMemoryController}
+     */
+    public ByteSizeValue getIndexingBufferSize() {
+        return indexingBufferSize;
+    }
+
+    /**
+     * Returns <code>true</code> iff delete garbage collection in the engine should be enabled. This setting is updateable
+     * in realtime and forces a volatile read. Consumers can safely read this value directly go fetch it's latest value.
+     * The default is <code>true</code>
+     * <p>
+     *     Engine GC deletion if enabled collects deleted documents from in-memory realtime data structures after a certain amount of
+     *     time ({@link IndexSettings#getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document
+     *     that was deleted to fail.
+     * </p>
+     */
+    public boolean isEnableGcDeletes() {
+        return enableGcDeletes;
+    }
+
+    /**
+     * Returns the {@link Codec} used in the engines {@link org.apache.lucene.index.IndexWriter}
+     * <p>
+     *     Note: this settings is only read on startup.
+     * </p>
+     */
+    public Codec getCodec() {
+        return codecProvider.codec(codecName);
+    }
+
+    /**
+     * @return the {@link CodecProvider}
+     */
+    public CodecProvider getCodecProvider() {
+        return codecProvider;
+    }
+
+    /**
+     * @return the {@link CodecProvider}
+     */
+    @Deprecated // to avoid breaking serverless, just temporary
+    public CodecProvider getCodecService() {
+        return codecProvider;
+    }
+
+    /**
+     * Returns a thread-pool mainly used to get estimated time stamps from
+     * {@link org.elasticsearch.threadpool.ThreadPool#relativeTimeInMillis()} and to schedule
+     * async force merge calls on the {@link org.elasticsearch.threadpool.ThreadPool.Names#FORCE_MERGE} thread-pool
+     */
+    public ThreadPool getThreadPool() {
+        return threadPool;
+    }
+
+    public @Nullable ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
+        return threadPoolMergeExecutorService;
+    }
+
+    /**
+     * Returns an {@link org.elasticsearch.index.engine.Engine.Warmer} used to warm new searchers before they are used for searching.
+     */
+    public Engine.Warmer getWarmer() {
+        return warmer;
+    }
+
+    /**
+     * Returns the {@link org.elasticsearch.index.store.Store} instance that provides access to the
+     * {@link org.apache.lucene.store.Directory} used for the engines {@link org.apache.lucene.index.IndexWriter} to write it's index files
+     * to.
+     * <p>
+     * Note: In order to use this instance the consumer needs to increment the stores reference before it's used the first time and hold
+     * it's reference until it's not needed anymore.
+     * </p>
+     */
+    public Store getStore() {
+        return store;
+    }
+
+    /**
+     * Returns the global checkpoint tracker
+     */
+    public LongSupplier getGlobalCheckpointSupplier() {
+        return globalCheckpointSupplier;
+    }
+
+    /**
+     * Returns the {@link org.apache.lucene.index.MergePolicy} for the engines {@link org.apache.lucene.index.IndexWriter}
+     */
+    public MergePolicy getMergePolicy() {
+        return mergePolicy;
+    }
+
+    /**
+     * Returns a listener that should be called on engine failure
+     */
+    public Engine.EventListener getEventListener() {
+        return eventListener;
+    }
+
+    /**
+     * Returns the index settings for this index.
+     */
+    public IndexSettings getIndexSettings() {
+        return indexSettings;
+    }
+
+    /**
+     * Returns the engines shard ID
+     */
+    public ShardId getShardId() {
+        return shardId;
+    }
+
+    /**
+     * Returns the analyzer as the default analyzer in the engines {@link org.apache.lucene.index.IndexWriter}
+     */
+    public Analyzer getAnalyzer() {
+        return analyzer;
+    }
+
+    /**
+     * Returns the {@link org.apache.lucene.search.similarities.Similarity} used for indexing and searching.
+     */
+    public Similarity getSimilarity() {
+        return similarity;
+    }
+
+    /**
+     * Return the cache to use for queries.
+     */
+    public QueryCache getQueryCache() {
+        return queryCache;
+    }
+
+    /**
+     * Return the policy to use when caching queries.
+     */
+    public QueryCachingPolicy getQueryCachingPolicy() {
+        return queryCachingPolicy;
+    }
+
+    /**
+     * Returns the translog config for this engine
+     */
+    public TranslogConfig getTranslogConfig() {
+        return translogConfig;
+    }
+
+    /**
+     * Returns a {@link TimeValue} at what time interval after the last write modification to the engine finished merges
+     * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
+     * are written after the engine became inactive from an indexing perspective.
+     */
+    public TimeValue getFlushMergesAfter() {
+        return flushMergesAfter;
+    }
+
+    /**
+     * The refresh listeners to add to Lucene for externally visible refreshes
+     */
+    public List<ReferenceManager.RefreshListener> getExternalRefreshListener() {
+        return externalRefreshListener;
+    }
+
+    /**
+     * The refresh listeners to add to Lucene for internally visible refreshes. These listeners will also be invoked on external refreshes
+     */
+    public List<ReferenceManager.RefreshListener> getInternalRefreshListener() {
+        return internalRefreshListener;
+    }
+
+    /**
+     * Return the sort order of this index, or null if the index has no sort.
+     */
+    public Sort getIndexSort() {
+        return indexSort;
+    }
+
+    /**
+     * Returns the circuit breaker service for this engine, or {@code null} if none is to be used.
+     */
+    @Nullable
+    public CircuitBreakerService getCircuitBreakerService() {
+        return this.circuitBreakerService;
+    }
+
+    /**
+     * Returns a supplier that supplies the latest primary term value of the associated shard.
+     */
+    public LongSupplier getPrimaryTermSupplier() {
+        return primaryTermSupplier;
+    }
+
+    public IndexStorePlugin.SnapshotCommitSupplier getSnapshotCommitSupplier() {
+        return snapshotCommitSupplier;
+    }
+
+    /**
+     * Returns how segments should be sorted for reading or @null if no sorting should be applied.
+     */
+    @Nullable
+    public Comparator<LeafReader> getLeafSorter() {
+        return leafSorter;
+    }
+
+    public LongSupplier getRelativeTimeInNanosSupplier() {
+        return relativeTimeInNanosSupplier;
+    }
+
+    @Nullable
+    public Engine.IndexCommitListener getIndexCommitListener() {
+        return indexCommitListener;
+    }
+
+    /**
+     * @return whether the engine should be configured so that it can be promoted to primary in future
+     */
+    public boolean isPromotableToPrimary() {
+        return promotableToPrimary;
+    }
+
+    /**
+     * @return whether the Engine's index writer should pack newly written segments in a compound file. Default is true.
+     */
+    public boolean getUseCompoundFile() {
+        return useCompoundFile;
+    }
+
+    public MapperService getMapperService() {
+        return mapperService;
+    }
+
+    public EngineResetLock getEngineResetLock() {
+        return engineResetLock;
+    }
+
+    public MergeMetrics getMergeMetrics() {
+        return mergeMetrics;
+    }
+
+    /**
+     * @return an {@link ElasticsearchIndexDeletionPolicy} wrapper, to be use by engine implementations.
+     */
+    public Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> getIndexDeletionPolicyWrapper() {
+        return indexDeletionPolicyWrapper;
+    }
+
+    public static final class Builder {
+        private ShardId shardId;
+        private ThreadPool threadPool;
+        private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
+        private IndexSettings indexSettings;
+        private Engine.Warmer warmer;
+        private Store store;
+        private MergePolicy mergePolicy;
+        private Analyzer analyzer;
+        private Similarity similarity;
+        private CodecProvider codecProvider;
+        private Engine.EventListener eventListener;
+        private QueryCache queryCache;
+        private QueryCachingPolicy queryCachingPolicy;
+        private TranslogConfig translogConfig;
+        private TimeValue flushMergesAfter;
+        private List<ReferenceManager.RefreshListener> externalRefreshListener = List.of();
+        private List<ReferenceManager.RefreshListener> internalRefreshListener = List.of();
+        private Sort indexSort;
+        private CircuitBreakerService circuitBreakerService;
+        private LongSupplier globalCheckpointSupplier;
+        private Supplier<RetentionLeases> retentionLeasesSupplier;
+        private LongSupplier primaryTermSupplier;
+        private IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
+        private Comparator<LeafReader> leafSorter;
+        private LongSupplier relativeTimeInNanosSupplier;
+        private Engine.IndexCommitListener indexCommitListener;
+        private boolean promotableToPrimary;
+        private MapperService mapperService;
+        private EngineResetLock engineResetLock;
+        private MergeMetrics mergeMetrics;
+        private Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper;
+
+        Builder() {}
+
+        Builder(EngineConfig config) {
+            this.shardId = config.shardId;
+            this.threadPool = config.threadPool;
+            this.threadPoolMergeExecutorService = config.threadPoolMergeExecutorService;
+            this.indexSettings = config.indexSettings;
+            this.warmer = config.warmer;
+            this.store = config.store;
+            this.mergePolicy = config.mergePolicy;
+            this.analyzer = config.analyzer;
+            this.similarity = config.similarity;
+            this.codecProvider = config.codecProvider;
+            this.eventListener = config.eventListener;
+            this.queryCache = config.queryCache;
+            this.queryCachingPolicy = config.queryCachingPolicy;
+            this.translogConfig = config.translogConfig;
+            this.flushMergesAfter = config.flushMergesAfter;
+            this.externalRefreshListener = config.externalRefreshListener;
+            this.internalRefreshListener = config.internalRefreshListener;
+            this.indexSort = config.indexSort;
+            this.circuitBreakerService = config.circuitBreakerService;
+            this.globalCheckpointSupplier = config.globalCheckpointSupplier;
+            this.retentionLeasesSupplier = config.retentionLeasesSupplier;
+            this.primaryTermSupplier = config.primaryTermSupplier;
+            this.snapshotCommitSupplier = config.snapshotCommitSupplier;
+            this.leafSorter = config.leafSorter;
+            this.relativeTimeInNanosSupplier = config.relativeTimeInNanosSupplier;
+            this.indexCommitListener = config.indexCommitListener;
+            this.promotableToPrimary = config.promotableToPrimary;
+            this.mapperService = config.mapperService;
+            this.engineResetLock = config.engineResetLock;
+            this.mergeMetrics = config.mergeMetrics;
+            this.indexDeletionPolicyWrapper = config.indexDeletionPolicyWrapper;
+        }
+
+        public Builder shardId(ShardId shardId) {
+            this.shardId = shardId;
+            return this;
+        }
+
+        public Builder threadPool(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+            return this;
+        }
+
+        public Builder threadPoolMergeExecutorService(ThreadPoolMergeExecutorService threadPoolMergeExecutorService) {
+            this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
+            return this;
+        }
+
+        public Builder indexSettings(IndexSettings indexSettings) {
+            this.indexSettings = indexSettings;
+            return this;
+        }
+
+        public Builder warmer(Engine.Warmer warmer) {
+            this.warmer = warmer;
+            return this;
+        }
+
+        public Builder store(Store store) {
+            this.store = store;
+            return this;
+        }
+
+        public Builder mergePolicy(MergePolicy mergePolicy) {
+            this.mergePolicy = mergePolicy;
+            return this;
+        }
+
+        public Builder analyzer(Analyzer analyzer) {
+            this.analyzer = analyzer;
+            return this;
+        }
+
+        public Builder similarity(Similarity similarity) {
+            this.similarity = similarity;
+            return this;
+        }
+
+        public Builder codecProvider(CodecProvider codecProvider) {
+            this.codecProvider = codecProvider;
+            return this;
+        }
+
+        public Builder eventListener(Engine.EventListener eventListener) {
+            this.eventListener = eventListener;
+            return this;
+        }
+
+        public Builder queryCache(QueryCache queryCache) {
+            this.queryCache = queryCache;
+            return this;
+        }
+
+        public Builder queryCachingPolicy(QueryCachingPolicy queryCachingPolicy) {
+            this.queryCachingPolicy = queryCachingPolicy;
+            return this;
+        }
+
+        public Builder translogConfig(TranslogConfig translogConfig) {
+            this.translogConfig = translogConfig;
+            return this;
+        }
+
+        public Builder flushMergesAfter(TimeValue flushMergesAfter) {
+            this.flushMergesAfter = flushMergesAfter;
+            return this;
+        }
+
+        public Builder externalRefreshListener(List<ReferenceManager.RefreshListener> externalRefreshListener) {
+            this.externalRefreshListener = Objects.requireNonNull(externalRefreshListener, "externalRefreshListener");
+            return this;
+        }
+
+        public Builder internalRefreshListener(List<ReferenceManager.RefreshListener> internalRefreshListener) {
+            this.internalRefreshListener = Objects.requireNonNull(internalRefreshListener, "internalRefreshListener");
+            return this;
+        }
+
+        public Builder indexSort(Sort indexSort) {
+            this.indexSort = indexSort;
+            return this;
+        }
+
+        public Builder circuitBreakerService(CircuitBreakerService circuitBreakerService) {
+            this.circuitBreakerService = circuitBreakerService;
+            return this;
+        }
+
+        public Builder globalCheckpointSupplier(LongSupplier globalCheckpointSupplier) {
+            this.globalCheckpointSupplier = globalCheckpointSupplier;
+            return this;
+        }
+
+        public Builder retentionLeasesSupplier(Supplier<RetentionLeases> retentionLeasesSupplier) {
+            this.retentionLeasesSupplier = retentionLeasesSupplier;
+            return this;
+        }
+
+        public Builder primaryTermSupplier(LongSupplier primaryTermSupplier) {
+            this.primaryTermSupplier = primaryTermSupplier;
+            return this;
+        }
+
+        public Builder snapshotCommitSupplier(IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier) {
+            this.snapshotCommitSupplier = snapshotCommitSupplier;
+            return this;
+        }
+
+        public Builder leafSorter(Comparator<LeafReader> leafSorter) {
+            this.leafSorter = leafSorter;
+            return this;
+        }
+
+        public Builder relativeTimeInNanosSupplier(LongSupplier relativeTimeInNanosSupplier) {
+            this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+            return this;
+        }
+
+        public Builder indexCommitListener(Engine.IndexCommitListener indexCommitListener) {
+            this.indexCommitListener = indexCommitListener;
+            return this;
+        }
+
+        public Builder promotableToPrimary(boolean promotableToPrimary) {
+            this.promotableToPrimary = promotableToPrimary;
+            return this;
+        }
+
+        public Builder mapperService(MapperService mapperService) {
+            this.mapperService = mapperService;
+            return this;
+        }
+
+        public Builder engineResetLock(EngineResetLock engineResetLock) {
+            this.engineResetLock = engineResetLock;
+            return this;
+        }
+
+        public Builder mergeMetrics(MergeMetrics mergeMetrics) {
+            this.mergeMetrics = mergeMetrics;
+            return this;
+        }
+
+        public Builder indexDeletionPolicyWrapper(
+            Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
+        ) {
+            this.indexDeletionPolicyWrapper = indexDeletionPolicyWrapper;
+            return this;
+        }
+
+        public EngineConfig build() {
+            return new EngineConfig(
+                shardId,
+                threadPool,
+                threadPoolMergeExecutorService,
+                indexSettings,
+                warmer,
+                store,
+                mergePolicy,
+                analyzer,
+                similarity,
+                codecProvider,
+                eventListener,
+                queryCache,
+                queryCachingPolicy,
+                translogConfig,
+                flushMergesAfter,
+                externalRefreshListener,
+                internalRefreshListener,
+                indexSort,
+                circuitBreakerService,
+                globalCheckpointSupplier,
+                retentionLeasesSupplier,
+                primaryTermSupplier,
+                snapshotCommitSupplier,
+                leafSorter,
+                relativeTimeInNanosSupplier,
+                indexCommitListener,
+                promotableToPrimary,
+                mapperService,
+                engineResetLock,
+                mergeMetrics,
+                indexDeletionPolicyWrapper
+            );
+        }
+    }
+}

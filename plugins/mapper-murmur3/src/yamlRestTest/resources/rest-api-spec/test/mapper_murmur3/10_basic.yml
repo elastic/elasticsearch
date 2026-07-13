@@ -1,0 +1,171 @@
+# Integration tests for Mapper Murmur3 components
+#
+
+setup:
+    - do:
+        indices.create:
+            index: test
+            body:
+                mappings:
+                    properties: { "foo": { "type": "text", "fields": { "hash": { "type": "murmur3" } } } }
+
+    - do:
+        index:
+            index: test
+            id: "0"
+            body: { "foo": null }
+
+    - do:
+        indices.refresh: {}
+
+---
+"Mapper Murmur3":
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body: { "aggs": { "foo_count": { "cardinality": { "field": "foo.hash" } } } }
+
+    - match: { aggregations.foo_count.value: 0 }
+
+    - do:
+        index:
+            index: test
+            id: "1"
+            body: { "foo": "bar" }
+
+    - do:
+        index:
+            index: test
+            id: "2"
+            body: { "foo": "baz" }
+
+    - do:
+        index:
+            index: test
+            id: "3"
+            body: { "foo": "quux" }
+
+    - do:
+        index:
+            index: test
+            id: "4"
+            body: { "foo": "bar" }
+
+    - do:
+        indices.refresh: {}
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body: { "aggs": { "foo_count": { "cardinality": { "field": "foo.hash" } } } }
+
+    - match: { aggregations.foo_count.value: 3 }
+
+---
+"Mumur3 script fields api":
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { "foo": "foo" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ { foo.hash: desc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('foo.hash').get(10L)"
+
+  - match: { hits.hits.0.fields.field.0: -2129773440516405919 }
+---
+"Murmur3 fields api":
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { "foo": "foo" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ { foo.hash: desc } ]
+          fields: [ foo.hash ]
+
+  - match: { hits.hits.0.fields: {foo.hash: ["foo"]} }
+
+---
+"Murmur3 docvalue_fields api":
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          foo: "a quick brown fox"
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ { foo.hash: desc } ]
+          docvalue_fields: [ foo.hash ]
+
+  - match:
+      hits.hits.0.fields:
+        foo.hash: [-3758089825743606896]
+
+---
+"Murmur3 docvalue_fields api with synthetic source":
+  - requires:
+      cluster_features: ["mapper.source.mode_from_index_setting"]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: test_synthetic_source
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: keyword
+                fields:
+                  hash:
+                    type: murmur3
+
+  - do:
+      index:
+        index: test_synthetic_source
+        id: "1"
+        refresh: true
+        body:
+          foo: "a quick brown fox"
+
+  - do:
+      search:
+        index: test_synthetic_source
+        body:
+          docvalue_fields: [ foo.hash ]
+
+  - match:
+      hits.hits.0._source:
+        foo: "a quick brown fox"
+  - match:
+      hits.hits.0.fields:
+        foo.hash: [-3758089825743606896]
+

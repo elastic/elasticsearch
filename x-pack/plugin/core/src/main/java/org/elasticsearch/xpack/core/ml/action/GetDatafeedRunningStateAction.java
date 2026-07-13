@@ -1,0 +1,237 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.core.ml.action;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.tasks.BaseTasksRequest;
+import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossClusterSearchStatsSnapshot;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
+
+/**
+ * Internal only action to get the current running state of a datafeed
+ */
+public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunningStateAction.Response> {
+
+    public static final GetDatafeedRunningStateAction INSTANCE = new GetDatafeedRunningStateAction();
+    public static final String NAME = "cluster:internal/xpack/ml/datafeed/running_state";
+
+    private GetDatafeedRunningStateAction() {
+        super(NAME);
+    }
+
+    public static class Request extends BaseTasksRequest<Request> {
+
+        private final Set<String> datafeedTaskIds;
+
+        public Request(List<String> datafeedIds) {
+            this.datafeedTaskIds = datafeedIds.stream().map(MlTasks::datafeedTaskId).collect(Collectors.toSet());
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.datafeedTaskIds = in.readCollectionAsSet(StreamInput::readString);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeStringCollection(datafeedTaskIds);
+        }
+
+        public Set<String> getDatafeedTaskIds() {
+            return datafeedTaskIds;
+        }
+
+        @Override
+        public boolean match(Task task) {
+            return task instanceof StartDatafeedAction.DatafeedTaskMatcher && datafeedTaskIds.contains(task.getDescription());
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_datafeed_running_state[%s]", datafeedTaskIds), parentTaskId, headers);
+        }
+    }
+
+    public static class Response extends BaseTasksResponse {
+
+        public static class RunningState implements Writeable, ToXContentObject {
+
+            private static final TransportVersion CROSS_CLUSTER_STATS_ADDED = TransportVersion.fromName("ml_datafeed_cross_cluster_stats");
+
+            private final boolean realTimeConfigured;
+            private final boolean realTimeRunning;
+
+            @Nullable
+            private final SearchInterval searchInterval;
+
+            @Nullable
+            private final CrossClusterSearchStatsSnapshot crossClusterStats;
+
+            public RunningState(boolean realTimeConfigured, boolean realTimeRunning, @Nullable SearchInterval searchInterval) {
+                this(realTimeConfigured, realTimeRunning, searchInterval, null);
+            }
+
+            public RunningState(
+                boolean realTimeConfigured,
+                boolean realTimeRunning,
+                @Nullable SearchInterval searchInterval,
+                @Nullable CrossClusterSearchStatsSnapshot crossClusterStats
+            ) {
+                this.realTimeConfigured = realTimeConfigured;
+                this.realTimeRunning = realTimeRunning;
+                this.searchInterval = searchInterval;
+                this.crossClusterStats = crossClusterStats;
+            }
+
+            public RunningState(StreamInput in) throws IOException {
+                this.realTimeConfigured = in.readBoolean();
+                this.realTimeRunning = in.readBoolean();
+                this.searchInterval = in.readOptionalWriteable(SearchInterval::new);
+                if (in.getTransportVersion().supports(CROSS_CLUSTER_STATS_ADDED)) {
+                    this.crossClusterStats = in.readOptionalWriteable(CrossClusterSearchStatsSnapshot::new);
+                } else {
+                    this.crossClusterStats = null;
+                }
+            }
+
+            @Nullable
+            public CrossClusterSearchStatsSnapshot getCrossClusterStats() {
+                return crossClusterStats;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                RunningState that = (RunningState) o;
+                return realTimeConfigured == that.realTimeConfigured
+                    && realTimeRunning == that.realTimeRunning
+                    && Objects.equals(searchInterval, that.searchInterval)
+                    && Objects.equals(crossClusterStats, that.crossClusterStats);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(realTimeConfigured, realTimeRunning, searchInterval, crossClusterStats);
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeBoolean(realTimeConfigured);
+                out.writeBoolean(realTimeRunning);
+                out.writeOptionalWriteable(searchInterval);
+                if (out.getTransportVersion().supports(CROSS_CLUSTER_STATS_ADDED)) {
+                    out.writeOptionalWriteable(crossClusterStats);
+                }
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                builder.field("real_time_configured", realTimeConfigured);
+                builder.field("real_time_running", realTimeRunning);
+                if (searchInterval != null) {
+                    builder.field("search_interval", searchInterval);
+                }
+                builder.endObject();
+                return builder;
+            }
+        }
+
+        private final Map<String, RunningState> datafeedRunningState;
+
+        private static RunningState selectMostRecentState(RunningState state1, RunningState state2) {
+
+            if (state1.searchInterval != null && state2.searchInterval != null) {
+                return state1.searchInterval.startMs() > state2.searchInterval.startMs() ? state1 : state2;
+            }
+
+            if (state1.searchInterval != null) {
+                return state1;
+            }
+            if (state2.searchInterval != null) {
+                return state2;
+            }
+
+            return state2;
+        }
+
+        public static Response fromResponses(List<Response> responses) {
+            return new Response(
+                responses.stream()
+                    .flatMap(r -> r.datafeedRunningState.entrySet().stream())
+                    .filter(entry -> entry.getValue() != null)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Response::selectMostRecentState))
+            );
+        }
+
+        public static Response fromTaskAndState(String datafeedId, RunningState runningState) {
+            return new Response(Map.of(datafeedId, runningState));
+        }
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            datafeedRunningState = in.readMap(RunningState::new);
+        }
+
+        public Response(Map<String, RunningState> runtimeStateMap) {
+            super(null, null);
+            this.datafeedRunningState = runtimeStateMap;
+        }
+
+        public Optional<RunningState> getRunningState(String datafeedId) {
+            return Optional.ofNullable(datafeedRunningState.get(datafeedId));
+        }
+
+        public Map<String, RunningState> getDatafeedRunningState() {
+            return datafeedRunningState;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeMap(datafeedRunningState, StreamOutput::writeWriteable);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return Objects.equals(this.datafeedRunningState, response.datafeedRunningState);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(datafeedRunningState);
+        }
+    }
+
+}

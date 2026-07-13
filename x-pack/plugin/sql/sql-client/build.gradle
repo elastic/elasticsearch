@@ -1,0 +1,40 @@
+/*
+ * The minimal dependencies REST-based SQL client that is used by CLI and JDBC
+ */
+
+apply plugin: 'elasticsearch.build'
+
+description = 'Code shared between jdbc and cli'
+
+dependencies {
+  api project(':x-pack:plugin:sql:sql-proto')
+  testImplementation project(":test:framework")
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+java {
+  targetCompatibility = JavaVersion.VERSION_1_8
+  sourceCompatibility = JavaVersion.VERSION_1_8
+}
+
+tasks.named("compileTestJava").configure {
+  targetCompatibility = buildParams.getMinimumRuntimeVersion()
+  sourceCompatibility = buildParams.getMinimumRuntimeVersion()
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // does not depend on core, so only jdk and http signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named('forbiddenApisTest').configure {
+  modifyBundledSignatures { bundledSignatures ->
+    bundledSignatures -= 'jdk-non-portable'
+    bundledSignatures += 'jdk-internal'
+    bundledSignatures
+  }
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.keystore'
+}

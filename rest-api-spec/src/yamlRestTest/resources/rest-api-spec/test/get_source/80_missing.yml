@@ -1,0 +1,23 @@
+---
+"Missing document with catch":
+
+  - skip:
+      features: warnings
+
+  - do:
+      catch:   missing
+      get_source:
+        index: test_1
+        id:    "1"
+
+---
+"Missing document with ignore":
+
+  - skip:
+      features: warnings
+
+  - do:
+      get_source:
+        index:  test_1
+        id:     "1"
+        ignore: 404

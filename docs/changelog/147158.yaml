@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 146715
+pr: 147158
+summary: Fix misleading error for missing external files
+type: bug

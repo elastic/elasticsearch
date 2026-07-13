@@ -1,0 +1,7 @@
+{
+  "match": {
+    "indices": "languages",
+    "match_field": "language_code",
+    "enrich_fields": ["language_name"]
+  }
+}

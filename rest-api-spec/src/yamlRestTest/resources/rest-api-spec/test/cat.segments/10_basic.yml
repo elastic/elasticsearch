@@ -1,0 +1,285 @@
+---
+"Help":
+  - do:
+      cat.segments:
+        help: true
+
+  - match:
+      $body: |
+               /^   index        .+   \n
+                    shard        .+   \n
+                    prirep       .+   \n
+                    ip           .+   \n
+                    id           .+   \n
+                    segment      .+   \n
+                    generation   .+   \n
+                    docs.count   .+   \n
+                    docs.deleted .+   \n
+                    size         .+   \n
+                    size.memory  .+   \n
+                    committed    .+   \n
+                    searchable   .+   \n
+                    version      .+   \n
+                    compound     .+   \n
+               $/
+---
+"Test cat segments output":
+
+  - do:
+      cat.segments: {}
+
+  - match:
+      $body: |
+               /^$/
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "3"
+            number_of_replicas: "0"
+  - do:
+      index:
+        index: index1
+        body: { foo: bar }
+        refresh: true
+  - do:
+      cat.segments: {}
+  - match:
+      $body: |
+                 /^(index1 \s+ \d \s+ (p|r) \s+ [0-9a-fA-F.:]+ \s+ _\d (\s\d){3} \s+
+                 (\d+|\d+[.]\d+)(kb|b) \s+ \d+ (\s+ (false|true)){2} \s+  \d+\.\d+(\.\d+)? \s+ (false|true) \s? \n?)$/
+
+  - do:
+      indices.create:
+        index: index2
+        body:
+          settings:
+            number_of_shards: "3"
+            number_of_replicas: "0"
+  - do:
+      index:
+        index: index2
+        body: { foo: bar }
+        refresh: true
+  - do:
+       cluster.health:
+         wait_for_status: green
+
+
+  - do:
+      cat.segments: {}
+  - match:
+      $body: |
+                  /^(index(1|2) .+ \n?){2}$/
+
+  - do:
+      cat.segments:
+        index: index2
+  - match:
+      $body: |
+                  /^(index2 .+ \n?)$/
+
+---
+"Test cat segments on closed index behaviour":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.close:
+        index: index1
+
+  - do:
+      catch: bad_request
+      cat.segments:
+        index: index1
+
+---
+"Test cat segments using wildcards":
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      index:
+        index: foo
+        body: { test: foo }
+        refresh: true
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      index:
+        index: bar
+        body: { test: bar }
+        refresh: true
+
+  - do:
+      indices.create:
+        index: baz
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      index:
+        index: baz
+        body: { test: baz }
+        refresh: true
+
+  - do:
+      cat.segments:
+        index: f*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(foo \n?)$/
+
+  - do:
+      cat.segments:
+        index: ba*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(ba(r|z) \n?){2}$/
+
+---
+tsdb:
+  - requires:
+      cluster_features: "gte_v8.5.0"
+      reason: "Serialization for segment stats fixed in 8.5.0"
+  - skip:
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.10.0"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+
+  - do:
+      indices.create:
+        index: tsdb
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: metricset
+          mappings:
+            properties:
+              metricset:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      index:
+        index: tsdb
+        refresh: true
+        body:
+          metricset: bar
+          "@timestamp": 2022-01-01T00:00:00Z
+
+  - do:
+      cat.segments: {}
+  - match:
+      $body: |
+        /^(tsdb \s+ 0 \s+ p \s+ [0-9a-fA-F.:]+ \s+ _\d (\s\d){3} \s+
+        (\d+|\d+[.]\d+)(kb|b) \s+ \d+ (\s+ (false|true)){2} \s+  \d+\.\d+(\.\d+)? \s+ (false|true) \s? \n?)$/
+
+---
+Wildcard Expansion Settings:
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cat/segments
+          capabilities: [ allow_closed ]
+      test_runner_features: [ capabilities ]
+      reason: Capability required to run test
+
+  - do:
+      indices.create:
+        index: basic-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      index:
+        index: basic-index
+        id: "1"
+        body:
+          field: "basic doc 1"
+
+  - do:
+      indices.create:
+        index: hidden-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index.hidden: true
+
+  - do:
+      index:
+        index: hidden-index
+        id: "1"
+        body:
+          field: "hidden doc 1"
+
+  - do:
+      indices.create:
+        index: closed-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      index:
+        index: closed-index
+        id: "1"
+        body:
+          field: "closed doc 1"
+
+  - do:
+      indices.refresh:
+        index: [ basic-index, closed-index, hidden-index ]
+
+  - do:
+      indices.close:
+        index: closed-index
+
+  - do:
+      cat.segments:
+        v: true
+        s: index
+        expand_wildcards: all
+        allow_closed: true
+  - match:
+      $body: |
+        /basic-index(\s)+0(\s)+p.*\nclosed-index(\s)+0(\s)+p.*\nhidden-index(\s)+0(\s)+p.*/

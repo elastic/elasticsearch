@@ -1,0 +1,407 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.common.lucene.uid;
+
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CloseableThreadLocal;
+import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
+
+import java.io.IOException;
+import java.util.Base64;
+import java.util.List;
+import java.util.concurrent.ConcurrentMap;
+
+/** Utility class to resolve the Lucene doc ID, version, seqNo and primaryTerms for a given uid. */
+public final class VersionsAndSeqNoResolver {
+
+    static final ConcurrentMap<IndexReader.CacheKey, CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]>> lookupStates =
+        ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+
+    // Evict this reader from lookupStates once it's closed:
+    private static final IndexReader.ClosedListener removeLookupState = key -> {
+        CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]> ctl = lookupStates.remove(key);
+        if (ctl != null) {
+            ctl.close();
+        }
+    };
+
+    private static PerThreadIDVersionAndSeqNoLookup[] getLookupState(IndexReader reader, boolean loadTimestampRange) throws IOException {
+        // We cache on the top level
+        // This means cache entries have a shorter lifetime, maybe as low as 1s with the
+        // default refresh interval and a steady indexing rate, but on the other hand it
+        // proved to be cheaper than having to perform a CHM and a TL get for every segment.
+        // See https://github.com/elastic/elasticsearch/pull/19856.
+        IndexReader.CacheHelper cacheHelper = reader.getReaderCacheHelper();
+        CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]> ctl = lookupStates.get(cacheHelper.getKey());
+        if (ctl == null) {
+            // First time we are seeing this reader's core; make a new CTL:
+            ctl = new CloseableThreadLocal<>();
+            CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]> other = lookupStates.putIfAbsent(cacheHelper.getKey(), ctl);
+            if (other == null) {
+                // Our CTL won, we must remove it when the reader is closed:
+                cacheHelper.addClosedListener(removeLookupState);
+            } else {
+                // Another thread beat us to it: just use their CTL:
+                ctl = other;
+            }
+        }
+
+        PerThreadIDVersionAndSeqNoLookup[] lookupState = ctl.get();
+        if (lookupState == null) {
+            lookupState = new PerThreadIDVersionAndSeqNoLookup[reader.leaves().size()];
+            for (LeafReaderContext leaf : reader.leaves()) {
+                lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), loadTimestampRange);
+            }
+            ctl.set(lookupState);
+        } else {
+            if (Assertions.ENABLED) {
+                // Ensure cached lookup instances have loaded timestamp range if that was requested
+                for (PerThreadIDVersionAndSeqNoLookup lookup : lookupState) {
+                    if (lookup.loadedTimestampRange != loadTimestampRange) {
+                        throw new AssertionError(
+                            "Mismatch between lookup.loadedTimestampRange ["
+                                + lookup.loadedTimestampRange
+                                + "] and loadTimestampRange ["
+                                + loadTimestampRange
+                                + "]"
+                        );
+                    }
+                }
+            }
+        }
+
+        if (lookupState.length != reader.leaves().size()) {
+            throw new AssertionError("Mismatched numbers of leaves: " + lookupState.length + " != " + reader.leaves().size());
+        }
+
+        return lookupState;
+    }
+
+    private VersionsAndSeqNoResolver() {}
+
+    /** Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a version. */
+    public static final class DocIdAndVersion {
+        public final int docId;
+        public final long version;
+        public final long seqNo;
+        public final long primaryTerm;
+        public final LeafReader reader;
+        public final int docBase;
+
+        DocIdAndVersion(int docId, long version, long seqNo, long primaryTerm, LeafReader reader, int docBase) {
+            this.docId = docId;
+            this.version = version;
+            this.seqNo = seqNo;
+            this.primaryTerm = primaryTerm;
+            this.reader = reader;
+            this.docBase = docBase;
+        }
+    }
+
+    /**
+     * Sentinel used by {@link PerThreadIDVersionAndSeqNoLookup#timeSeriesBatchLookupVersion} to mark
+     * a position as permanently not found (timestamp newer than all remaining segments) without
+     * producing an actual result. Callers replace it with {@code null} before returning to the user.
+     */
+    static final DocIdAndVersion PERMANENTLY_NOT_FOUND = new DocIdAndVersion(-1, -1L, -1L, -1L, null, -1);
+
+    /** Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a seqNo. */
+    public static final class DocIdAndSeqNo {
+        public final int docId;
+        public final long seqNo;
+        public final LeafReaderContext context;
+
+        DocIdAndSeqNo(int docId, long seqNo, LeafReaderContext context) {
+            this.docId = docId;
+            this.seqNo = seqNo;
+            this.context = context;
+        }
+    }
+
+    /**
+     * Load the internal doc ID and version for the uid from the reader, returning<ul>
+     * <li>null if the uid wasn't found,
+     * <li>a doc ID and a version otherwise
+     * </ul>
+     */
+    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, BytesRef term, boolean loadSeqNo) throws IOException {
+        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, false);
+        List<LeafReaderContext> leaves = reader.leaves();
+        // iterate backwards to optimize for the frequently updated documents
+        // which are likely to be in the last segments
+        for (int i = leaves.size() - 1; i >= 0; i--) {
+            final LeafReaderContext leaf = leaves.get(i);
+            PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
+            DocIdAndVersion result = lookup.lookupVersion(term, loadSeqNo, leaf);
+            if (result != null) {
+                return result;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Resolves doc ID and version for a batch of UIDs in a single forward pass through each segment's
+     * terms dictionary, amortizing seek overhead across the batch.
+     * <p>
+     * Results are written into {@code results[i]} for each {@code uids[i]}; a null entry means the UID
+     * was not found. UIDs need not be pre-sorted; sorting is done internally.
+     * <p>
+     * {@code results} is an out parameter rather than a return value so that it can be shared across
+     * per-segment calls to {@link PerThreadIDVersionAndSeqNoLookup#batchLookupVersion}: each call skips
+     * positions that are already non-null (resolved by a newer segment), giving "newest segment wins"
+     * without a separate merge pass.
+     * <p>
+     * This method uses {@code loadTimestampRange = false} and is intended for standard (non-time-series)
+     * indices. For time series indices use {@link #timeSeriesBatchLoadDocIdAndVersion} instead.
+     */
+    public static void batchLoadDocIdAndVersion(IndexReader reader, BytesRef[] uids, boolean[] loadSeqNo, DocIdAndVersion[] results)
+        throws IOException {
+        final int n = uids.length;
+        assert results.length == n && loadSeqNo.length == n;
+
+        // Sort by UID so each segment can be scanned with a single forward pass
+        final int[] order = sortByUid(uids);
+
+        final BytesRef[] sortedUids = new BytesRef[n];
+        final boolean[] sortedLoadSeqNo = new boolean[n];
+        for (int i = 0; i < n; i++) {
+            sortedUids[i] = uids[order[i]];
+            sortedLoadSeqNo[i] = loadSeqNo[order[i]];
+        }
+
+        final DocIdAndVersion[] sortedResults = new DocIdAndVersion[n];
+        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, false);
+        final List<LeafReaderContext> leaves = reader.leaves();
+        int remaining = n;
+
+        // Iterate backwards: the most recently written segment is most likely to contain the current version.
+        for (int s = leaves.size() - 1; s >= 0 && remaining > 0; s--) {
+            final LeafReaderContext leaf = leaves.get(s);
+            remaining -= lookups[leaf.ord].batchLookupVersion(leaf, sortedUids, sortedLoadSeqNo, sortedResults);
+        }
+
+        // Map sorted results back to the caller's original index order.
+        for (int i = 0; i < n; i++) {
+            results[order[i]] = sortedResults[i];
+        }
+    }
+
+    /**
+     * Resolves doc ID and version for a batch of time-series UIDs in a single forward pass through
+     * each segment's terms dictionary, amortizing seek overhead while exploiting per-segment
+     * timestamp ranges to skip segments that cannot contain a given UID.
+     * <p>
+     * Results are written into {@code results[i]} for each {@code uids[i]}; a null entry means the
+     * UID was not found. UIDs need not be pre-sorted; sorting is done internally.
+     * <p>
+     * Segments are iterated in {@link org.elasticsearch.cluster.metadata.DataStream#TIMESERIES_LEAF_READERS_SORTER}
+     * forward order (descending maxTimestamp). UIDs whose timestamps exceed a segment's maxTimestamp
+     * are marked permanently not found without a terms lookup, because subsequent segments have even
+     * lower maxTimestamps and also cannot contain them.
+     *
+     * @param uids          the UID terms to look up
+     * @param ids           the document IDs corresponding to each UID; used to extract timestamps
+     * @param useSyntheticId true if IDs are synthetic TSDB IDs (timestamp embedded in UID),
+     *                       false if they are standard base64-URL-encoded 20-byte IDs
+     * @param loadSeqNo     whether to populate seqNo/primaryTerm in each result
+     * @param results       out parameter; null entry means not found
+     */
+    public static void timeSeriesBatchLoadDocIdAndVersion(
+        IndexReader reader,
+        BytesRef[] uids,
+        String[] ids,
+        boolean useSyntheticId,
+        boolean[] loadSeqNo,
+        DocIdAndVersion[] results
+    ) throws IOException {
+        final int n = uids.length;
+        assert results.length == n && loadSeqNo.length == n && ids.length == n;
+
+        final long[] timestamps = new long[n];
+        for (int i = 0; i < n; i++) {
+            if (useSyntheticId) {
+                assert uids[i].equals(Uid.encodeId(ids[i]));
+                timestamps[i] = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uids[i]);
+            } else {
+                byte[] idAsBytes = Base64.getUrlDecoder().decode(ids[i]);
+                timestamps[i] = TsidExtractingIdFieldMapper.extractTimestampFromId(idAsBytes);
+            }
+        }
+
+        // Sort by UID so each segment can be scanned with a single forward pass.
+        final int[] order = sortByUid(uids);
+
+        final BytesRef[] sortedUids = new BytesRef[n];
+        final long[] sortedTimestamps = new long[n];
+        final boolean[] sortedLoadSeqNo = new boolean[n];
+        for (int i = 0; i < n; i++) {
+            sortedUids[i] = uids[order[i]];
+            sortedTimestamps[i] = timestamps[order[i]];
+            sortedLoadSeqNo[i] = loadSeqNo[order[i]];
+        }
+
+        final DocIdAndVersion[] sortedResults = new DocIdAndVersion[n];
+        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, true);
+        final List<LeafReaderContext> leaves = reader.leaves();
+        int remaining = n;
+
+        // Iterate in forward order: segments sorted by DataStream#TIMESERIES_LEAF_READERS_SORTER
+        // (descending maxTimestamp). For each segment, only process UIDs with timestamps in range.
+        long prevMaxTimestamp = Long.MAX_VALUE;
+        for (int s = 0; s < leaves.size() && remaining > 0; s++) {
+            final LeafReaderContext leaf = leaves.get(s);
+            assert prevMaxTimestamp >= lookups[leaf.ord].maxTimestamp;
+            prevMaxTimestamp = lookups[leaf.ord].maxTimestamp;
+            remaining -= lookups[leaf.ord].timeSeriesBatchLookupVersion(leaf, sortedUids, sortedTimestamps, sortedLoadSeqNo, sortedResults);
+        }
+
+        // Map sorted results back to the caller's original index order, replacing the
+        // PERMANENTLY_NOT_FOUND sentinel (timestamp too new for all segments) with null.
+        for (int i = 0; i < n; i++) {
+            final DocIdAndVersion r = sortedResults[i];
+            results[order[i]] = r == PERMANENTLY_NOT_FOUND ? null : r;
+        }
+    }
+
+    /**
+     * A special variant of loading docid and version in case of time series indices.
+     * <p>
+     * Makes use of the fact that timestamp is part of the id, the existence of @timestamp field and
+     * that segments are sorted by {@link org.elasticsearch.cluster.metadata.DataStream#TIMESERIES_LEAF_READERS_SORTER}.
+     * This allows this method to know whether there is no document with the specified id without loading the docid for
+     * the specified id.
+     *
+     * @param reader         The reader load docid, version and seqno from.
+     * @param uid            The term that describes the uid of the document to load docid, version and seqno for.
+     * @param id             The id that contains the encoded timestamp. The timestamp is used to skip checking the id for entire segments.
+     * @param loadSeqNo      Whether to load sequence number from _seq_no doc values field.
+     * @param useSyntheticId Whether the id is a synthetic (true) or standard (false ) document id.
+     * @return the internal doc ID and version for the specified term from the specified reader or
+     *         returning <code>null</code> if no document was found for the specified id
+     * @throws IOException In case of an i/o related failure
+     */
+    public static DocIdAndVersion timeSeriesLoadDocIdAndVersion(
+        IndexReader reader,
+        BytesRef uid,
+        String id,
+        boolean loadSeqNo,
+        boolean useSyntheticId
+    ) throws IOException {
+        final long timestamp;
+        if (useSyntheticId) {
+            assert uid.equals(Uid.encodeId(id));
+            timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
+        } else {
+            byte[] idAsBytes = Base64.getUrlDecoder().decode(id);
+            timestamp = TsidExtractingIdFieldMapper.extractTimestampFromId(idAsBytes);
+        }
+        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, true);
+        List<LeafReaderContext> leaves = reader.leaves();
+        // iterate in default order, the segments should be sorted by DataStream#TIMESERIES_LEAF_READERS_SORTER
+        long prevMaxTimestamp = Long.MAX_VALUE;
+        for (final LeafReaderContext leaf : leaves) {
+            PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
+            assert lookup.loadedTimestampRange;
+            assert prevMaxTimestamp >= lookup.maxTimestamp;
+            if (timestamp < lookup.minTimestamp) {
+                continue;
+            }
+            if (timestamp > lookup.maxTimestamp) {
+                return null;
+            }
+            DocIdAndVersion result = lookup.lookupVersion(uid, loadSeqNo, leaf);
+            if (result != null) {
+                return result;
+            }
+            prevMaxTimestamp = lookup.maxTimestamp;
+        }
+        return null;
+    }
+
+    public static DocIdAndVersion loadDocIdAndVersionUncached(IndexReader reader, BytesRef term, boolean loadSeqNo) throws IOException {
+        List<LeafReaderContext> leaves = reader.leaves();
+        for (int i = leaves.size() - 1; i >= 0; i--) {
+            final LeafReaderContext leaf = leaves.get(i);
+            PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), false, false);
+            DocIdAndVersion result = lookup.lookupVersion(term, loadSeqNo, leaf);
+            if (result != null) {
+                return result;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Loads the internal docId and sequence number of the latest copy for a given uid from the provided reader.
+     * The result is either null or the live and latest version of the given uid.
+     */
+    public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, BytesRef term) throws IOException {
+        return loadDocIdAndSeqNo(reader, term, true);
+    }
+
+    /**
+     * Loads the internal docId and sequence number of the latest copy for a given uid from the provided reader.
+     * When {@code loadSeqNo} is false, {@code UNASSIGNED_SEQ_NO} is returned instead of reading the doc value.
+     * The result is either null or the live and latest version of the given uid.
+     */
+    public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, BytesRef term, boolean loadSeqNo) throws IOException {
+        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, false);
+        final List<LeafReaderContext> leaves = reader.leaves();
+        // iterate backwards to optimize for the frequently updated documents
+        // which are likely to be in the last segments
+        for (int i = leaves.size() - 1; i >= 0; i--) {
+            final LeafReaderContext leaf = leaves.get(i);
+            final PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
+            final DocIdAndSeqNo result = lookup.lookupDocIdAndSeqNo(term, leaf, loadSeqNo);
+            if (result != null) {
+                return result;
+            }
+        }
+        return null;
+    }
+
+    /** Returns an {@code order[]} permutation such that {@code uids[order[i]]} is in ascending order. */
+    private static int[] sortByUid(BytesRef[] uids) {
+        final int n = uids.length;
+        final int[] order = new int[n];
+        for (int i = 0; i < n; i++) {
+            order[i] = i;
+        }
+        new IntroSorter() {
+            private int pivot;
+
+            @Override
+            protected void setPivot(int i) {
+                pivot = i;
+            }
+
+            @Override
+            protected int comparePivot(int j) {
+                return uids[order[pivot]].compareTo(uids[order[j]]);
+            }
+
+            @Override
+            protected void swap(int i, int j) {
+                int tmp = order[i];
+                order[i] = order[j];
+                order[j] = tmp;
+            }
+        }.sort(0, n);
+        return order;
+    }
+}

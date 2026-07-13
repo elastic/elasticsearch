@@ -1,0 +1,53 @@
+{
+  "watcher.execute_watch": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-watcher-execute-watch",
+      "description": "Run a watch"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_watcher/watch/{id}/_execute",
+          "methods": [
+            "PUT",
+            "POST"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "Watch ID"
+            }
+          }
+        },
+        {
+          "path": "/_watcher/watch/_execute",
+          "methods": [
+            "PUT",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "debug": {
+        "type": "boolean",
+        "default": false,
+        "description": "indicates whether the watch should execute in debug mode"
+      }
+    },
+    "body": {
+      "description": "Execution control",
+      "required": false
+    }
+  }
+}

@@ -1,0 +1,223 @@
+setup:
+  - do:
+      bulk:
+        index: no_gaps
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T00:00:00", "v": 1 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T01:00:00", "v": 2 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T02:00:00", "v": 1 }
+
+  - do:
+      bulk:
+        index: gaps
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T00:00:00", "v": -1 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T02:00:00", "v": -2 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T03:00:00", "v": -1 }
+
+---
+basic:
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              max_bucket:
+                buckets_path: "@timestamp>v"
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@timestamp.buckets: 3 }
+  - match: { aggregations.d.value: 2.0 }
+
+---
+format:
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              max_bucket:
+                buckets_path: "@timestamp>v"
+                format: "0.00"
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@timestamp.buckets: 3 }
+  - match: { aggregations.d.value: 2.0 }
+  - match: { aggregations.d.value_as_string: "2.00" }
+
+---
+gap_policy=skip:
+  - do:
+      search:
+        index: gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              max_bucket:
+                buckets_path: "@timestamp>v"
+                gap_policy: skip
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@timestamp.buckets: 4 }
+  - match: { aggregations.d.value: -1.0 }
+
+---
+gap_policy=insert_zeros:
+  - do:
+      search:
+        index: gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              max_bucket:
+                buckets_path: "@timestamp>v"
+                gap_policy: insert_zeros
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@timestamp.buckets: 4 }
+  - match: { aggregations.d.value: 0.0 }
+
+---
+gap_policy=keep_value:
+  - do:
+      search:
+        index: gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              max_bucket:
+                buckets_path: "@timestamp>v"
+                gap_policy: keep_values
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@timestamp.buckets: 4 }
+  - match: { aggregations.d.value: -1.0 }
+
+---
+dotted name:
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            "@time.stamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              max_bucket:
+                buckets_path: "@time.stamp>v"
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@time\.stamp.buckets: 3 }
+  - match: { aggregations.d.value: 2.0 }
+
+---
+dotted value:
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v:
+                  percentiles:
+                    field: v
+                    percents: [ 50, 99.9 ]
+            d:
+              max_bucket:
+                buckets_path: "@timestamp>v[99.9]"
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@timestamp.buckets: 3 }
+  - match: { aggregations.d.value: 2.0 }
+
+---
+no results:
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          query:
+            match:
+              missing_field: not_found
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              max_bucket:
+                buckets_path: "@timestamp>v"
+  - match: { hits.total.value: 0 }
+  - length: { aggregations.@timestamp.buckets: 0 }
+  - is_false: aggregations.d.value
+
+---
+bad path:
+  - do:
+      catch: '/Validation Failed: 1: No aggregation \[v\] found for path \[@timestamp>v\];/'
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          query:
+            match:
+              missing_field: not_found
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+            d:
+              max_bucket:
+                buckets_path: "@timestamp>v"

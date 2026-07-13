@@ -1,0 +1,48 @@
+{
+  "tasks.get": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-tasks",
+      "description": "Get task information"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_tasks/{task_id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "task_id": {
+              "type": "string",
+              "description": "Return the task with specified id (node_id:task_number)"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "wait_for_completion": {
+        "type": "boolean",
+        "default": false,
+        "description": "Wait for the matching tasks to complete (default: false)"
+      },
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
+      },
+      "follow_relocations": {
+        "type": "boolean",
+        "default": true,
+        "description": "Internal use only"
+      }
+    }
+  }
+}

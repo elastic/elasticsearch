@@ -1,0 +1,255 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.fielddata.plain;
+
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Objects;
+
+/**
+ * FieldData for integral types
+ * backed by {@link LeafReader#getSortedNumericDocValues(String)}
+ * @see DocValuesType#SORTED_NUMERIC
+ */
+public class SortedNumericIndexFieldData extends IndexNumericFieldData {
+    public static class Builder implements IndexFieldData.Builder {
+        private final String name;
+        private final NumericType numericType;
+        private final ValuesSourceType valuesSourceType;
+        protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
+        private final IndexType indexType;
+
+        public Builder(
+            String name,
+            NumericType numericType,
+            ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
+            IndexType indexType
+        ) {
+            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory, indexType);
+        }
+
+        public Builder(
+            String name,
+            NumericType numericType,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
+            IndexType indexType
+        ) {
+            this.name = name;
+            this.numericType = numericType;
+            this.valuesSourceType = valuesSourceType;
+            this.toScriptFieldFactory = toScriptFieldFactory;
+            this.indexType = indexType;
+        }
+
+        @Override
+        public SortedNumericIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
+        }
+    }
+
+    private final NumericType numericType;
+    protected final String fieldName;
+    protected final ValuesSourceType valuesSourceType;
+    protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
+    protected final IndexType indexType;
+
+    public SortedNumericIndexFieldData(
+        String fieldName,
+        NumericType numericType,
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
+        IndexType indexType
+    ) {
+        this.fieldName = fieldName;
+        this.numericType = Objects.requireNonNull(numericType);
+        assert this.numericType.isFloatingPoint() == false;
+        this.valuesSourceType = valuesSourceType;
+        this.toScriptFieldFactory = toScriptFieldFactory;
+        this.indexType = indexType;
+    }
+
+    @Override
+    public final String getFieldName() {
+        return fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
+    }
+
+    @Override
+    protected boolean sortRequiresCustomComparator() {
+        return false;
+    }
+
+    @Override
+    public IndexType indexType() {
+        return indexType;
+    }
+
+    @Override
+    protected XFieldComparatorSource dateComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
+        if (numericType == NumericType.DATE_NANOSECONDS) {
+            // converts date_nanos values to millisecond resolution
+            return new LongValuesComparatorSource(
+                this,
+                missingValue,
+                sortMode,
+                nested,
+                dvs -> convertNumeric(dvs, DateUtils::toMilliSeconds),
+                NumericType.DATE
+            );
+        }
+        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, NumericType.DATE);
+    }
+
+    @Override
+    protected XFieldComparatorSource dateNanosComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
+        if (numericType == NumericType.DATE) {
+            // converts date values to nanosecond resolution
+            return new LongValuesComparatorSource(
+                this,
+                missingValue,
+                sortMode,
+                nested,
+                dvs -> convertNumeric(dvs, DateUtils::toNanoSeconds),
+                NumericType.DATE_NANOSECONDS
+            );
+        }
+        return new LongValuesComparatorSource(this, missingValue, sortMode, nested, NumericType.DATE_NANOSECONDS);
+    }
+
+    @Override
+    public NumericType getNumericType() {
+        return numericType;
+    }
+
+    @Override
+    public LeafNumericFieldData loadDirect(LeafReaderContext context) {
+        return load(context);
+    }
+
+    @Override
+    public LeafNumericFieldData load(LeafReaderContext context) {
+        final LeafReader reader = context.reader();
+        final String field = fieldName;
+
+        if (numericType == NumericType.DATE_NANOSECONDS) {
+            return new NanoSecondFieldData(reader, field, toScriptFieldFactory);
+        }
+
+        return new SortedNumericLongFieldData(reader, field, toScriptFieldFactory);
+    }
+
+    /**
+     * A small helper class that can be configured to load nanosecond field data either in nanosecond resolution retaining the original
+     * values or in millisecond resolution converting the nanosecond values to milliseconds
+     */
+    public static final class NanoSecondFieldData extends LeafLongFieldData {
+
+        private final LeafReader reader;
+        private final String fieldName;
+        protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
+
+        NanoSecondFieldData(LeafReader reader, String fieldName, ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory) {
+            super(0L);
+            this.reader = reader;
+            this.fieldName = fieldName;
+            this.toScriptFieldFactory = toScriptFieldFactory;
+        }
+
+        @Override
+        public SortedNumericLongValues getLongValues() {
+            return convertNumeric(getLongValuesAsNanos(), DateUtils::toMilliSeconds);
+        }
+
+        public SortedNumericLongValues getLongValuesAsNanos() {
+            try {
+                return SortedNumericLongValues.getLongValues(fieldName, reader);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        @Override
+        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+            return toScriptFieldFactory.getScriptFieldFactory(getLongValuesAsNanos(), name);
+        }
+
+        @Override
+        public FormattedDocValues getFormattedValues(DocValueFormat format) {
+            return new FormattedSortedNumericDocValues(getLongValuesAsNanos(), DocValueFormat.withNanosecondResolution(format));
+        }
+
+    }
+
+    /**
+     * FieldData implementation for integral types.
+     * <p>
+     * Order of values within a document is consistent with
+     * {@link Long#compareTo(Long)}.
+     * <p>
+     * Although the API is multi-valued, most codecs in Lucene specialize
+     * for the case where documents have at most one value. In this case
+     * {@link DocValues#unwrapSingleton(SortedNumericDocValues)} will return
+     * the underlying single-valued NumericDocValues representation.
+     */
+    static final class SortedNumericLongFieldData extends LeafLongFieldData {
+        final LeafReader reader;
+        final String field;
+        protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
+
+        SortedNumericLongFieldData(LeafReader reader, String field, ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory) {
+            super(0L);
+            this.reader = reader;
+            this.field = field;
+            this.toScriptFieldFactory = toScriptFieldFactory;
+        }
+
+        @Override
+        public SortedNumericLongValues getLongValues() {
+            try {
+                return SortedNumericLongValues.getLongValues(field, reader);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        @Override
+        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+            return toScriptFieldFactory.getScriptFieldFactory(getLongValues(), name);
+        }
+    }
+
+}

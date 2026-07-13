@@ -1,0 +1,64 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+package org.elasticsearch.test;
+
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.tests.index.FieldFilterLeafReader;
+
+import java.io.IOException;
+import java.util.Set;
+
+public class FieldMaskingReader extends FilterDirectoryReader {
+    private final Set<String> fields;
+
+    public FieldMaskingReader(String field, DirectoryReader in) throws IOException {
+        this(Set.of(field), in);
+    }
+
+    public FieldMaskingReader(Set<String> fields, DirectoryReader in) throws IOException {
+        super(in, new FilterDirectoryReader.SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader reader) {
+                return new FilterLeafReader(new FieldFilterLeafReader(reader, fields, true)) {
+
+                    // FieldFilterLeafReader does not forward cache helpers
+                    // since it considers it is illegal because of the fact
+                    // that it changes the content of the index. However we
+                    // want this behavior for tests, and security plugins
+                    // are careful to only use the cache when it's valid
+
+                    @Override
+                    public CacheHelper getReaderCacheHelper() {
+                        return reader.getReaderCacheHelper();
+                    }
+
+                    @Override
+                    public CacheHelper getCoreCacheHelper() {
+                        return reader.getCoreCacheHelper();
+                    }
+                };
+            }
+        });
+        this.fields = fields;
+
+    }
+
+    @Override
+    protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+        return new FieldMaskingReader(fields, in);
+    }
+
+    @Override
+    public CacheHelper getReaderCacheHelper() {
+        return in.getReaderCacheHelper();
+    }
+}

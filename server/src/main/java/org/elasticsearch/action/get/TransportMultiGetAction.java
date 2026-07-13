@@ -1,0 +1,206 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.action.get;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DelegatingActionListener;
+import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.ReshardingActionHelper;
+import org.elasticsearch.action.support.replication.StaleRequestException;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.TransportService;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+
+public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequest, MultiGetResponse> {
+
+    public static final String NAME = "indices:data/read/mget";
+    public static final ActionType<MultiGetResponse> TYPE = new ActionType<>(NAME);
+    private final ClusterService clusterService;
+    private final NodeClient client;
+    private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ReshardingActionHelper reshardingActionHelper;
+
+    @Inject
+    public TransportMultiGetAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        NodeClient client,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver,
+        IndexNameExpressionResolver resolver,
+        IndicesService indicesService,
+        ReshardingActionHelper reshardingActionHelper
+    ) {
+        super(NAME, transportService, actionFilters, MultiGetRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.clusterService = clusterService;
+        this.client = client;
+        this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = resolver;
+        this.reshardingActionHelper = reshardingActionHelper;
+        // register the internal TransportGetFromTranslogAction
+        new TransportShardMultiGetFomTranslogAction(transportService, indicesService, actionFilters);
+    }
+
+    @Override
+    protected void doExecute(Task task, final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
+        executeOnce(request, listener.delegateFailure((delegate, response) -> {
+            // if the request succeeds overall but some shard requests are stale, then retry when index metadata has caught up
+            final HashMap<ShardId, StaleRequestException> staleRequestExceptions = new HashMap<>();
+            for (int i = 0; i < response.getResponses().length; i++) {
+                final var failure = response.getResponses()[i].getFailure();
+                if (failure != null && failure.getFailure() instanceof StaleRequestException sre) {
+                    // we just need one per shard, not one per item
+                    staleRequestExceptions.put(sre.getShardId(), sre);
+                }
+            }
+            if (staleRequestExceptions.isEmpty() == false) {
+                // todo: this retries the entire request on any StaleRequestException. It might be worth saving the other items
+                // and only retrying the ones that failed with StaleRequestException, then merging the results.
+                reshardingActionHelper.waitForRoutingUpdate(
+                    staleRequestExceptions,
+                    listener.delegateFailureAndWrap((l, unused) -> executeOnce(request, l))
+                );
+            } else {
+                listener.onResponse(response);
+            }
+        }));
+    }
+
+    private void executeOnce(final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
+        ClusterState clusterState = clusterService.state();
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
+        clusterState.blocks().globalBlockedRaiseException(project.id(), ClusterBlockLevel.READ);
+
+        final AtomicArray<MultiGetItemResponse> responses = new AtomicArray<>(request.items.size());
+        final Map<ShardId, MultiGetShardRequest> shardRequests = new HashMap<>();
+        // single item cache that maps the provided index name to the resolved one
+        Tuple<String, String> lastResolvedIndex = Tuple.tuple(null, null);
+
+        for (int i = 0; i < request.items.size(); i++) {
+            MultiGetRequest.Item item = request.items.get(i);
+
+            ShardId shardId;
+            try {
+                String concreteSingleIndex;
+                if (item.index().equals(lastResolvedIndex.v1())) {
+                    concreteSingleIndex = lastResolvedIndex.v2();
+                } else {
+                    concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(project, item).getName();
+                    lastResolvedIndex = Tuple.tuple(item.index(), concreteSingleIndex);
+                }
+                item.routing(project.resolveIndexRouting(item.routing(), item.index()));
+                final IndexMetadata concreteMetadata = project.index(concreteSingleIndex);
+                final boolean sliceEnabled = concreteMetadata != null && IndexSettings.SLICE_ENABLED.get(concreteMetadata.getSettings());
+                SliceIndexing.validateSliceRoutingRequirement(
+                    sliceEnabled,
+                    item.isRoutingFromSlice(),
+                    item.routing(),
+                    "mget request",
+                    item.index()
+                );
+                shardId = OperationRouting.shardId(project, concreteSingleIndex, item.id(), item.routing());
+            } catch (RoutingMissingException e) {
+                responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
+                continue;
+            } catch (SliceMissingException e) {
+                responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
+                continue;
+            } catch (Exception e) {
+                responses.set(i, newItemFailure(item.index(), item.id(), e));
+                continue;
+            }
+
+            MultiGetShardRequest shardRequest = shardRequests.get(shardId);
+            if (shardRequest == null) {
+                IndexMetadata indexMetadata = project.index(shardId.getIndex());
+                SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId.getId());
+                shardRequest = new MultiGetShardRequest(request, shardId.getIndexName(), shardId.getId(), splitShardCountSummary);
+                shardRequests.put(shardId, shardRequest);
+            }
+            shardRequest.add(i, item);
+        }
+
+        if (shardRequests.isEmpty()) {
+            // only failures..
+            listener.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
+        }
+
+        executeShardAction(listener, responses, shardRequests);
+    }
+
+    protected void executeShardAction(
+        ActionListener<MultiGetResponse> listener,
+        AtomicArray<MultiGetItemResponse> responses,
+        Map<ShardId, MultiGetShardRequest> shardRequests
+    ) {
+        final AtomicInteger counter = new AtomicInteger(shardRequests.size());
+
+        for (final MultiGetShardRequest shardRequest : shardRequests.values()) {
+            client.executeLocally(TransportShardMultiGetAction.TYPE, shardRequest, new DelegatingActionListener<>(listener) {
+                @Override
+                public void onResponse(MultiGetShardResponse response) {
+                    for (int i = 0; i < response.locations.size(); i++) {
+                        MultiGetItemResponse itemResponse = new MultiGetItemResponse(response.responses.get(i), response.failures.get(i));
+                        responses.set(response.locations.get(i), itemResponse);
+                    }
+                    if (counter.decrementAndGet() == 0) {
+                        finishHim();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // create failures for all relevant requests
+                    for (int i = 0; i < shardRequest.locations.size(); i++) {
+                        MultiGetRequest.Item item = shardRequest.items.get(i);
+                        responses.set(shardRequest.locations.get(i), newItemFailure(shardRequest.index(), item.id(), e));
+                    }
+                    if (counter.decrementAndGet() == 0) {
+                        finishHim();
+                    }
+                }
+
+                private void finishHim() {
+                    delegate.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
+                }
+            });
+        }
+    }
+
+    private static MultiGetItemResponse newItemFailure(String index, String id, Exception exception) {
+        return new MultiGetItemResponse(null, new MultiGetResponse.Failure(index, id, exception));
+    }
+}

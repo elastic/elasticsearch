@@ -1,0 +1,264 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.action.bulk;
+
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.Set;
+
+public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest>
+    implements
+        Accountable,
+        RawIndexingDataTransportRequest {
+
+    public static final TransportVersion BULK_SHARD_BATCH = TransportVersion.fromName("bulk_shard_batch");
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
+
+    private final BulkItemRequest[] items;
+    private final boolean isSimulated;
+    @Nullable
+    private BulkShardBatch bulkShardBatch = null;
+
+    private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = null;
+
+    public BulkShardRequest(StreamInput in) throws IOException {
+        super(in);
+        items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
+        isSimulated = in.readBoolean();
+        if (in.getTransportVersion().supports(BULK_SHARD_BATCH)) {
+            bulkShardBatch = in.readOptionalWriteable(BulkShardBatch::new);
+            if (bulkShardBatch != null) {
+                BulkShardBatch.attachBatchToItems(bulkShardBatch.getBatch(), items);
+            }
+        }
+    }
+
+    public BulkShardRequest(
+        ShardId shardId,
+        SplitShardCountSummary splitShardCountSummary,
+        RefreshPolicy refreshPolicy,
+        BulkItemRequest[] items
+    ) {
+        this(shardId, splitShardCountSummary, refreshPolicy, items, false);
+    }
+
+    public BulkShardRequest(
+        ShardId shardId,
+        SplitShardCountSummary splitShardCountSummary,
+        RefreshPolicy refreshPolicy,
+        BulkItemRequest[] items,
+        boolean isSimulated
+    ) {
+        super(shardId, splitShardCountSummary);
+        this.items = items;
+        setRefreshPolicy(refreshPolicy);
+        this.isSimulated = isSimulated;
+    }
+
+    /**
+     * Public for test
+     * Set the transient metadata indicating that this request requires running inference before proceeding.
+     */
+    public void setInferenceFieldMap(Map<String, InferenceFieldMetadata> fieldInferenceMap) {
+        this.inferenceFieldMap = fieldInferenceMap;
+    }
+
+    /**
+     * Consumes the inference metadata to execute inference on the bulk items just once.
+     */
+    public Map<String, InferenceFieldMetadata> consumeInferenceFieldMap() {
+        Map<String, InferenceFieldMetadata> ret = inferenceFieldMap;
+        inferenceFieldMap = null;
+        return ret;
+    }
+
+    /**
+     * Public for test
+     */
+    public Map<String, InferenceFieldMetadata> getInferenceFieldMap() {
+        return inferenceFieldMap;
+    }
+
+    /**
+     * Sets the batch for batch indexing. When non-null, the batch indexing path
+     * will be used instead of the standard per-document parsing path.
+     */
+    public void setBulkShardBatch(@Nullable BulkShardBatch bulkShardBatch) {
+        this.bulkShardBatch = bulkShardBatch;
+    }
+
+    @Nullable
+    public BulkShardBatch getBulkShardBatch() {
+        return bulkShardBatch;
+    }
+
+    public long totalSizeInBytes() {
+        long totalSizeInBytes = 0;
+        for (int i = 0; i < items.length; i++) {
+            DocWriteRequest<?> request = items[i].request();
+            if (request instanceof IndexRequest) {
+                totalSizeInBytes += ((IndexRequest) request).indexSource().byteLength();
+            } else if (request instanceof UpdateRequest) {
+                IndexRequest doc = ((UpdateRequest) request).doc();
+                if (doc != null) {
+                    totalSizeInBytes += ((UpdateRequest) request).doc().indexSource().byteLength();
+                }
+            }
+        }
+        return totalSizeInBytes;
+    }
+
+    public long maxOperationSizeInBytes() {
+        long maxOperationSizeInBytes = 0;
+        for (int i = 0; i < items.length; i++) {
+            DocWriteRequest<?> request = items[i].request();
+            if (request instanceof IndexRequest) {
+                maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((IndexRequest) request).indexSource().byteLength());
+            } else if (request instanceof UpdateRequest) {
+                IndexRequest doc = ((UpdateRequest) request).doc();
+                if (doc != null) {
+                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((UpdateRequest) request).doc().indexSource().byteLength());
+                }
+            }
+        }
+        return maxOperationSizeInBytes;
+    }
+
+    public BulkItemRequest[] items() {
+        return items;
+    }
+
+    @Override
+    public String[] indices() {
+        // A bulk shard request encapsulates items targeted at a specific shard of an index.
+        // However, items could be targeting aliases of the index, so the bulk request although
+        // targeting a single concrete index shard might do so using several alias names.
+        // These alias names have to be exposed by this method because authorization works with
+        // aliases too, specifically, the item's target alias can be authorized but the concrete
+        // index might not be.
+        Set<String> indices = Sets.newHashSetWithExpectedSize(1);
+        for (BulkItemRequest item : items) {
+            if (item != null) {
+                indices.add(item.index());
+            }
+        }
+        return indices.toArray(new String[0]);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (inferenceFieldMap != null) {
+            // Inferencing metadata should have been consumed as part of the ShardBulkInferenceActionFilter processing
+            throw new IllegalStateException("Inference metadata should have been consumed before writing to the stream");
+        }
+        boolean supportsBatch = out.getTransportVersion().supports(BULK_SHARD_BATCH);
+        if (supportsBatch == false && bulkShardBatch != null) {
+            throw new IllegalStateException("BulkShardBatch should not be set when transport version does not support it");
+        }
+        super.writeTo(out);
+        out.writeArray((o, item) -> o.writeOptional(BulkItemRequest.THIN_WRITER, item), items);
+        out.writeBoolean(isSimulated);
+        if (supportsBatch) {
+            out.writeOptionalWriteable(bulkShardBatch);
+        }
+    }
+
+    @Override
+    public String toString() {
+        // This is included in error messages so we'll try to make it somewhat user friendly.
+        StringBuilder b = new StringBuilder("BulkShardRequest [");
+        b.append(shardId).append("] containing [");
+        if (items.length > 1) {
+            b.append(items.length).append("] requests");
+        } else {
+            b.append(items[0].request()).append("]");
+        }
+
+        switch (getRefreshPolicy()) {
+            case IMMEDIATE:
+                b.append(" and a refresh");
+                break;
+            case WAIT_UNTIL:
+                b.append(" blocking until refresh");
+                break;
+            case NONE:
+                break;
+        }
+        if (isSimulated) {
+            b.append(", simulated");
+        }
+        return b.toString();
+    }
+
+    @Override
+    public String getDescription() {
+        final StringBuilder stringBuilder = new StringBuilder().append("requests[").append(items.length).append("], index").append(shardId);
+        final RefreshPolicy refreshPolicy = getRefreshPolicy();
+        if (refreshPolicy == RefreshPolicy.IMMEDIATE || refreshPolicy == RefreshPolicy.WAIT_UNTIL) {
+            stringBuilder.append(", refresh[").append(refreshPolicy).append(']');
+        }
+        return stringBuilder.toString();
+    }
+
+    @Override
+    protected BulkShardRequest routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
+        return super.routedBasedOnClusterVersion(routedBasedOnClusterVersion);
+    }
+
+    @Override
+    public void onRetry(boolean possiblyExecuted) {
+        for (BulkItemRequest item : items) {
+            if (item.request() instanceof ReplicationRequest) {
+                // all replication requests need to be notified here as well to ie. make sure that internal optimizations are
+                // disabled see IndexRequest#canHaveDuplicates()
+                ((ReplicationRequest<?>) item.request()).onRetry(possiblyExecuted);
+            }
+        }
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long sum = SHALLOW_SIZE;
+        for (BulkItemRequest item : items) {
+            sum += item.ramBytesUsed();
+        }
+        return sum;
+    }
+
+    public long largestOperationSize() {
+        long maxOperationSize = 0;
+        for (BulkItemRequest item : items) {
+            maxOperationSize = Math.max(maxOperationSize, item.ramBytesUsed());
+        }
+        return maxOperationSize;
+    }
+
+    public boolean isSimulated() {
+        return isSimulated;
+    }
+}

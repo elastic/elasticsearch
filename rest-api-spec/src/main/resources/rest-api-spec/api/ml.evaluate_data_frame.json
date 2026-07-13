@@ -1,0 +1,32 @@
+{
+  "ml.evaluate_data_frame": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-evaluate-data-frame",
+      "description": "Evaluate data frame analytics"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_ml/data_frame/_evaluate",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The evaluation definition",
+      "required": true
+    }
+  }
+}

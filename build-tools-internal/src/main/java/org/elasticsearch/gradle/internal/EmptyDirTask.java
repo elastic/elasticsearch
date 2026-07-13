@@ -1,0 +1,79 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+package org.elasticsearch.gradle.internal;
+
+import org.gradle.api.DefaultTask;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.TaskAction;
+import org.gradle.initialization.layout.BuildLayout;
+import org.gradle.internal.file.Chmod;
+
+import java.io.File;
+
+import javax.inject.Inject;
+
+/**
+ * Creates an empty directory.
+ */
+public class EmptyDirTask extends DefaultTask {
+
+    private File dir;
+    private int dirMode = 0755;
+
+    /**
+     * Creates an empty directory with the configured permissions.
+     */
+    @TaskAction
+    public void create() {
+        dir.mkdirs();
+        getChmod().chmod(dir, dirMode);
+    }
+
+    @Inject
+    public Chmod getChmod() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Inject
+    public BuildLayout getBuildLayout() {
+        throw new UnsupportedOperationException();
+    }
+
+    @OutputDirectory
+    public File getDir() {
+        return dir;
+    }
+
+    @Input
+    public String getDirPath() {
+        // ensure @Input is stable by returning path relative to root project
+        return getBuildLayout().getRootDirectory().toPath().relativize(dir.toPath()).toString();
+    }
+
+    /**
+     * @param dir The directory to create
+     */
+    public void setDir(File dir) {
+        this.dir = dir;
+    }
+
+    @Input
+    public int getDirMode() {
+        return dirMode;
+    }
+
+    /**
+     * @param dirMode The permissions to apply to the new directory
+     */
+    public void setDirMode(int dirMode) {
+        this.dirMode = dirMode;
+    }
+
+}

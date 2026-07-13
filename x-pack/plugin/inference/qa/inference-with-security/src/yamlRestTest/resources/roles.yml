@@ -1,0 +1,12 @@
+monitor_only_user:
+  cluster:
+    - monitor
+    - manage_inference
+  indices:
+    - names: [ 'test-index*' ]
+      privileges:
+        - all
+
+monitor_inference_only_user:
+  cluster:
+    - monitor_inference

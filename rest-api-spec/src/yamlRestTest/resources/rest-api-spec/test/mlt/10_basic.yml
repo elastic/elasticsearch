@@ -1,0 +1,35 @@
+---
+"Basic mlt":
+  - do:
+     indices.create:
+       index:    test_1
+       body:
+         mappings:
+           properties:
+             foo:
+               type : "text"
+             title:
+               type : "text"
+
+  - do:
+      index:
+          index:  test_1
+          id:     "1"
+          body:   { foo: bar, title: howdy }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index:   test_1
+          body:
+            query:
+              more_like_this:
+                like:
+                  -
+                    _id: "1"
+                fields: ["title"]
+
+  - match: {hits.total: 0}

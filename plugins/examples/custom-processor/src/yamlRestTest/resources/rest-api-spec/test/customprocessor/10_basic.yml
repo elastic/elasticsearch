@@ -1,0 +1,15 @@
+"Custom processor is present":
+  - do:
+      ingest.put_pipeline:
+        id: pipeline1
+        body:  >
+          {
+            "processors": [
+              {
+                "repeat" : {
+                  "field": "test"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }

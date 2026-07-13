@@ -1,0 +1,80 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.security.authz.interceptor;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
+
+/**
+ * Similar to {@link UpdateRequestInterceptor}, but checks if there are update requests embedded in a bulk request.
+ */
+public class BulkShardRequestInterceptor implements RequestInterceptor {
+
+    private static final Logger logger = LogManager.getLogger(BulkShardRequestInterceptor.class);
+
+    private final ThreadContext threadContext;
+
+    public BulkShardRequestInterceptor(ThreadPool threadPool) {
+        this.threadContext = threadPool.getThreadContext();
+    }
+
+    @Override
+    public SubscribableListener<Void> intercept(
+        RequestInfo requestInfo,
+        AuthorizationEngine authzEngine,
+        AuthorizationInfo authorizationInfo
+    ) {
+        if (requestInfo.getRequest() instanceof BulkShardRequest bulkShardRequest
+            && DlsFlsInterceptorUtils.isCurrentRoleNullOrHasDlsFlsPermissions(threadContext)) {
+            IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
+            // this uses the {@code BulkShardRequest#index()} because the {@code bulkItemRequest#index()}
+            // can still be an unresolved date math expression
+            IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(bulkShardRequest.index());
+            // TODO replace if condition with assertion
+            if (indexAccessControl != null
+                && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
+                    || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())) {
+                for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
+                    boolean found = false;
+                    if (bulkItemRequest.request() instanceof UpdateRequest) {
+                        found = true;
+                        logger.trace("aborting bulk item update request for index [{}]", bulkShardRequest.index());
+                        bulkItemRequest.abort(
+                            bulkItemRequest.index(),
+                            new ElasticsearchSecurityException(
+                                "Can't execute a bulk "
+                                    + "item request with update requests embedded if field or document level security is enabled",
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                    }
+                    if (found == false) {
+                        logger.trace(
+                            "intercepted bulk request for index [{}] without any update requests, continuing execution",
+                            bulkShardRequest.index()
+                        );
+                    }
+                }
+            }
+        }
+        return SubscribableListener.nullSuccess();
+    }
+}

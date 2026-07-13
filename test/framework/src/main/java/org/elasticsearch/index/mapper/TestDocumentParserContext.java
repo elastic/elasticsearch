@@ -1,0 +1,139 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.mapper;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.xcontent.XContentParser;
+
+import java.util.List;
+
+/**
+ * Simplified version of {@link DocumentParserContext} to be used in tests.
+ * Every non final method throws {@link UnsupportedOperationException} and can be implemented as needed.
+ * {@link #doc()} and {@link #path()} are defined and final, as their behaviour is standard and they
+ * are both needed in almost every situation.
+ * The methods defined final in {@link DocumentParserContext} depend on the provided constructor arguments.
+ */
+public class TestDocumentParserContext extends DocumentParserContext {
+    private final LuceneDocument document = new LuceneDocument();
+    private final ContentPath contentPath = new ContentPath();
+    private final XContentParser parser;
+
+    /**
+     * The shortest and easiest way to create a context, to be used when none of the constructor arguments are needed.
+     * Use with caution as it can cause {@link NullPointerException}s down the line.
+     */
+    public TestDocumentParserContext() {
+        this(MappingLookup.EMPTY, null);
+    }
+
+    public TestDocumentParserContext(Settings settings) {
+        this(MappingLookup.EMPTY, null, null, settings, IndexVersion.current());
+    }
+
+    public TestDocumentParserContext(XContentParser parser) {
+        this(MappingLookup.EMPTY, null, parser, Settings.EMPTY, IndexVersion.current());
+    }
+
+    /**
+     * More verbose way to create a context, to be used when one or more constructor arguments are needed as final methods
+     * that depend on them are called while executing tests.
+     */
+    public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source) {
+        this(mappingLookup, source, null, Settings.EMPTY, IndexVersion.current());
+    }
+
+    public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, XContentParser parser) {
+        this(mappingLookup, source, parser, Settings.EMPTY, IndexVersion.current());
+    }
+
+    public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, IndexVersion version) {
+        this(mappingLookup, source, null, Settings.EMPTY, version);
+    }
+
+    public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, Settings settings) {
+        this(mappingLookup, source, null, settings, IndexVersion.current());
+    }
+
+    private TestDocumentParserContext(
+        MappingLookup mappingLookup,
+        SourceToParse source,
+        XContentParser parser,
+        Settings settings,
+        IndexVersion version
+    ) {
+        super(
+            mappingLookup,
+            new MappingParserContext(
+                s -> null,
+                s -> null,
+                s -> null,
+                version,
+                () -> TransportVersion.current(),
+                () -> null,
+                null,
+                (type, name) -> Lucene.STANDARD_ANALYZER,
+                MapperTestCase.createIndexSettings(version, settings),
+                query -> {
+                    throw new UnsupportedOperationException();
+                },
+                null
+            ),
+            source,
+            mappingLookup.getMapping().getRoot(),
+            ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
+        );
+        this.parser = parser;
+    }
+
+    @Override
+    public final LuceneDocument doc() {
+        return document;
+    }
+
+    @Override
+    public final ContentPath path() {
+        return contentPath;
+    }
+
+    @Override
+    public Iterable<LuceneDocument> nonRootDocuments() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public XContentParser parser() {
+        return parser;
+    }
+
+    @Override
+    public LuceneDocument rootDoc() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected void addDoc(LuceneDocument doc) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public BytesRef getTsid() {
+        return null;
+    }
+
+    @Override
+    public List<LuceneDocument> luceneDocumentsInShardIndexOrder() {
+        throw new UnsupportedOperationException();
+    }
+}

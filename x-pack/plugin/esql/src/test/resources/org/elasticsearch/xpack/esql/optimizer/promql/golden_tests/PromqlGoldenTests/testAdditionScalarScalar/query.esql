@@ -1,0 +1,1 @@
+PROMQL index=k8s step=1h sum=(1+1)

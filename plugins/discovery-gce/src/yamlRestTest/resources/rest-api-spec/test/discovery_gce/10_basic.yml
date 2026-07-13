@@ -1,0 +1,28 @@
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 3
+---
+"Discovery GCE loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - contains:  { nodes.$master.plugins: { name: discovery-gce } }
+---
+"All nodes are correctly discovered":
+
+  - do:
+      nodes.info:
+        metric: [ transport ]
+
+  - match: { _nodes.total: 3 }

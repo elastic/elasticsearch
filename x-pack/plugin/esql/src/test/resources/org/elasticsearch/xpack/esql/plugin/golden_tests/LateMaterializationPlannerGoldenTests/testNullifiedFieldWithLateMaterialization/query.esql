@@ -1,0 +1,5 @@
+SET unmapped_fields="nullify";
+FROM employees
+| KEEP hire_date, salary, emp_no, does_not_exist
+| SORT hire_date
+| LIMIT 20

@@ -1,0 +1,79 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+/*
+ * This project is named sql-cli because it is in the "org.elasticsearch.plugin"
+ * group and it'd be super confusing for it to just be called "cli" there.
+ * Also, the jar we ultimately want to ship is sql-cli-VERSION.jar which is
+ * exactly what gradle makes by default when the project is named sql-cli.
+ */
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'com.gradleup.shadow'
+/* We don't use the 'application' plugin because it builds a zip and tgz which
+ * we don't want. */
+
+base {
+  archivesName = 'elasticsearch-sql-cli'
+}
+
+description = 'Command line interface to Elasticsearch that speaks SQL'
+
+def sqlVersions = project(':x-pack:plugin:sql').extensions.extraProperties.get('sqlVersions')
+
+dependencies {
+
+  // select just the parts of JLine that are needed
+  api "org.jline:jline-terminal:${sqlVersions.jline}"
+  api( "org.jline:jline-terminal-jna:${sqlVersions.jline}") {
+    exclude group: "net.java.dev.jna"
+  }
+  api "org.jline:jline-reader:${sqlVersions.jline}"
+  api "org.jline:jline-style:${sqlVersions.jline}"
+
+  api project(':x-pack:plugin:sql:sql-client')
+  api project(":libs:cli")
+  implementation "net.java.dev.jna:jna:${versions.jna}"
+  testImplementation project(":test:framework")
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jline-.*/, to: 'jline'
+}
+
+tasks.named("shadowJar").configure {
+  manifest {
+    attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
+  }
+  exclude '/org/apache/logging/log4j/core/lookup/JndiLookup.class'
+}
+
+tasks.named('forbiddenApisMain').configure {
+  //sql does not depend on server, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
+  signaturesFiles += files('src/forbidden/cli-signatures.txt')
+}
+
+tasks.register("runcli") {
+  description = 'Run the CLI and connect to elasticsearch running on 9200'
+  dependsOn "shadowJar"
+  doLast {
+    List command = ["${buildParams.runtimeJavaHome.get()}/bin/java"]
+    if ('true'.equals(providers.systemProperty('debug').orElse('false').get())) {
+      command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
+    }
+    command += ['-jar', shadowJar.archiveFile.get().asFile.absolutePath]
+    logger.info("running the cli with: ${command}")
+
+    new ProcessBuilder(command)
+      .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+      .redirectInput(ProcessBuilder.Redirect.INHERIT)
+      .redirectError(ProcessBuilder.Redirect.INHERIT)
+      .start()
+      .waitFor()
+  }
+}

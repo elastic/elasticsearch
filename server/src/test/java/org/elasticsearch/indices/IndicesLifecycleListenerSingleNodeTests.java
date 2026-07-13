@@ -1,0 +1,187 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+package org.elasticsearch.indices;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
+import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+
+import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
+
+import static java.util.Collections.emptySet;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
+
+public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCase {
+
+    public void testStartDeleteIndexEventCallback() throws Throwable {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
+        ensureGreen();
+        Index idx = resolveIndex("test");
+        IndexMetadata metadata = indicesService.indexService(idx).getMetadata();
+        ShardRouting shardRouting = indicesService.indexService(idx).getShard(0).routingEntry();
+        final AtomicInteger counter = new AtomicInteger(1);
+        IndexEventListener countingListener = new IndexEventListener() {
+
+            @Override
+            public void beforeIndexCreated(Index index, Settings indexSettings) {
+                assertEquals("test", index.getName());
+                assertEquals(1, counter.get());
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void afterIndexCreated(IndexService indexService) {
+                assertEquals("test", indexService.index().getName());
+                assertEquals(2, counter.get());
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void beforeIndexShardCreated(ShardRouting shardRouting, Settings indexSettings) {
+                assertEquals(3, counter.get());
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void afterIndexShardCreated(IndexShard indexShard) {
+                assertEquals(4, counter.get());
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void afterIndexShardStarted(IndexShard indexShard) {
+                assertEquals(5, counter.get());
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
+                assertEquals(DELETED, reason);
+                assertEquals(6, counter.get());
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void beforeIndexShardDeleted(ShardId shardId, Settings indexSettings) {
+                assertEquals(7, counter.get());
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {
+                assertEquals(8, counter.get());
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
+                assertEquals(DELETED, reason);
+                assertEquals(9, counter.get());
+                counter.incrementAndGet();
+            }
+        };
+        indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
+        try {
+            IndexService index = indicesService.createIndex(metadata, Arrays.asList(countingListener), false);
+            assertEquals(3, counter.get());
+            idx = index.index();
+            ShardRouting newRouting = shardRouting;
+            String nodeId = newRouting.currentNodeId();
+            UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom");
+            newRouting = newRouting.moveToUnassigned(unassignedInfo)
+                .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
+            newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
+            IndexShard shard = index.createShard(newRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            IndexShardTestCase.updateRoutingEntry(shard, newRouting);
+            assertEquals(5, counter.get());
+            final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+            shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
+            IndexShardTestCase.recoverFromStore(shard);
+            newRouting = ShardRoutingHelper.moveToStarted(newRouting);
+            IndexShardTestCase.updateRoutingEntry(shard, newRouting);
+            assertEquals(6, counter.get());
+        } catch (Exception ex) {
+            logger.warn("unexpected exception", ex);
+        } finally {
+            indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
+        }
+        assertEquals(10, counter.get());
+    }
+
+    public void testAfterRecoveryCallbackTriggeredWhileStillInRecoveryState() throws Throwable {
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
+        ensureGreen();
+        Index idx = resolveIndex("test");
+        IndexMetadata metadata = indicesService.indexService(idx).getMetadata();
+        ShardRouting shardRouting = indicesService.indexService(idx).getShard(0).routingEntry();
+        PlainActionFuture<Void> recoveryTriggered = new PlainActionFuture<>();
+        IndexEventListener recoveryListener = new IndexEventListener() {
+
+            @Override
+            public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+                // Pause to ensure we do not transition to post recovery until after the recovery is complete
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(30));
+                assertThat(indexShard.recoveryState().getStage(), equalTo(RecoveryState.Stage.DONE));
+                assertThat(indexShard.state(), equalTo(IndexShardState.RECOVERING));
+                recoveryTriggered.onResponse(null);
+                listener.onResponse(null);
+            }
+        };
+        indicesService.removeIndex(idx, DELETED, "delete", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
+        try {
+            IndexService index = indicesService.createIndex(metadata, Arrays.asList(recoveryListener), false);
+            idx = index.index();
+            ShardRouting newRouting = shardRouting;
+            String nodeId = newRouting.currentNodeId();
+            UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom");
+            newRouting = newRouting.moveToUnassigned(unassignedInfo)
+                .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
+            newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
+            IndexShard shard = index.createShard(newRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            IndexShardTestCase.updateRoutingEntry(shard, newRouting);
+            final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
+            shard.markAsRecovering("store", new RecoveryState(newRouting, localNode, null));
+            IndexShardTestCase.recoverFromStore(shard);
+            assertBusy(() -> assertThat(shard.state(), equalTo(IndexShardState.POST_RECOVERY)));
+            newRouting = ShardRoutingHelper.moveToStarted(newRouting);
+            IndexShardTestCase.updateRoutingEntry(shard, newRouting);
+            recoveryTriggered.actionGet();
+            assertBusy(() -> assertThat(shard.state(), equalTo(IndexShardState.STARTED)));
+        } finally {
+            indicesService.removeIndex(idx, DELETED, "simon says", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop());
+        }
+    }
+}

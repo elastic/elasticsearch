@@ -1,0 +1,927 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.core.ml.job.config;
+
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
+
+public class JobUpdate implements Writeable, ToXContentObject {
+    public static final ParseField DETECTORS = new ParseField("detectors");
+    public static final ParseField CLEAR_JOB_FINISH_TIME = new ParseField("clear_job_finish_time");
+
+    // For parsing REST requests
+    public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
+        "job_update",
+        args -> new Builder((String) args[0])
+    );
+
+    static {
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Job.ID);
+        PARSER.declareStringArray(Builder::setGroups, Job.GROUPS);
+        PARSER.declareStringOrNull(Builder::setDescription, Job.DESCRIPTION);
+        PARSER.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
+        PARSER.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.STRICT_PARSER, Job.MODEL_PLOT_CONFIG);
+        PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.STRICT_PARSER, Job.ANALYSIS_LIMITS);
+        PARSER.declareString(
+            (builder, val) -> builder.setBackgroundPersistInterval(
+                TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())
+            ),
+            Job.BACKGROUND_PERSIST_INTERVAL
+        );
+        PARSER.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
+        PARSER.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
+        PARSER.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
+        PARSER.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
+        PARSER.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
+        PARSER.declareObject(
+            Builder::setPerPartitionCategorizationConfig,
+            PerPartitionCategorizationConfig.STRICT_PARSER,
+            AnalysisConfig.PER_PARTITION_CATEGORIZATION
+        );
+        PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareBoolean(Builder::setAllowLazyOpen, Job.ALLOW_LAZY_OPEN);
+        PARSER.declareString(
+            (builder, val) -> builder.setModelPruneWindow(
+                TimeValue.parseTimeValue(val, AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName())
+            ),
+            AnalysisConfig.MODEL_PRUNE_WINDOW
+        );
+    }
+
+    private final String jobId;
+    private final List<String> groups;
+    private final String description;
+    private final List<DetectorUpdate> detectorUpdates;
+    private final ModelPlotConfig modelPlotConfig;
+    private final AnalysisLimits analysisLimits;
+    private final Long renormalizationWindowDays;
+    private final TimeValue backgroundPersistInterval;
+    private final Long modelSnapshotRetentionDays;
+    private final Long dailyModelSnapshotRetentionAfterDays;
+    private final Long resultsRetentionDays;
+    private final List<String> categorizationFilters;
+    private final PerPartitionCategorizationConfig perPartitionCategorizationConfig;
+    private final Map<String, Object> customSettings;
+    private final String modelSnapshotId;
+    private final MlConfigVersion modelSnapshotMinVersion;
+    private final MlConfigVersion jobVersion;
+    private final Boolean clearJobFinishTime;
+    private final Boolean allowLazyOpen;
+    private final Blocked blocked;
+    private final TimeValue modelPruneWindow;
+
+    private JobUpdate(
+        String jobId,
+        @Nullable List<String> groups,
+        @Nullable String description,
+        @Nullable List<DetectorUpdate> detectorUpdates,
+        @Nullable ModelPlotConfig modelPlotConfig,
+        @Nullable AnalysisLimits analysisLimits,
+        @Nullable TimeValue backgroundPersistInterval,
+        @Nullable Long renormalizationWindowDays,
+        @Nullable Long resultsRetentionDays,
+        @Nullable Long modelSnapshotRetentionDays,
+        @Nullable Long dailyModelSnapshotRetentionAfterDays,
+        @Nullable List<String> categorizationFilters,
+        @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
+        @Nullable Map<String, Object> customSettings,
+        @Nullable String modelSnapshotId,
+        @Nullable MlConfigVersion modelSnapshotMinVersion,
+        @Nullable MlConfigVersion jobVersion,
+        @Nullable Boolean clearJobFinishTime,
+        @Nullable Boolean allowLazyOpen,
+        @Nullable Blocked blocked,
+        @Nullable TimeValue modelPruneWindow
+    ) {
+        this.jobId = jobId;
+        this.groups = groups;
+        this.description = description;
+        this.detectorUpdates = detectorUpdates;
+        this.modelPlotConfig = modelPlotConfig;
+        this.analysisLimits = analysisLimits;
+        this.renormalizationWindowDays = renormalizationWindowDays;
+        this.backgroundPersistInterval = backgroundPersistInterval;
+        this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
+        this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
+        this.resultsRetentionDays = resultsRetentionDays;
+        this.categorizationFilters = categorizationFilters;
+        this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
+        this.customSettings = customSettings;
+        this.modelSnapshotId = modelSnapshotId;
+        this.modelSnapshotMinVersion = modelSnapshotMinVersion;
+        this.jobVersion = jobVersion;
+        this.clearJobFinishTime = clearJobFinishTime;
+        this.allowLazyOpen = allowLazyOpen;
+        this.blocked = blocked;
+        this.modelPruneWindow = modelPruneWindow;
+    }
+
+    public JobUpdate(StreamInput in) throws IOException {
+        jobId = in.readString();
+        String[] groupsArray = in.readOptionalStringArray();
+        groups = groupsArray == null ? null : Arrays.asList(groupsArray);
+        description = in.readOptionalString();
+        if (in.readBoolean()) {
+            detectorUpdates = in.readCollectionAsList(DetectorUpdate::new);
+        } else {
+            detectorUpdates = null;
+        }
+        modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
+        analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
+        renormalizationWindowDays = in.readOptionalLong();
+        backgroundPersistInterval = in.readOptionalTimeValue();
+        modelSnapshotRetentionDays = in.readOptionalLong();
+        dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
+        resultsRetentionDays = in.readOptionalLong();
+        if (in.readBoolean()) {
+            categorizationFilters = in.readStringCollectionAsList();
+        } else {
+            categorizationFilters = null;
+        }
+        perPartitionCategorizationConfig = in.readOptionalWriteable(PerPartitionCategorizationConfig::new);
+        customSettings = in.readGenericMap();
+        modelSnapshotId = in.readOptionalString();
+        if (in.readBoolean()) {
+            jobVersion = MlConfigVersion.readVersion(in);
+        } else {
+            jobVersion = null;
+        }
+        clearJobFinishTime = in.readOptionalBoolean();
+        if (in.readBoolean()) {
+            modelSnapshotMinVersion = MlConfigVersion.readVersion(in);
+        } else {
+            modelSnapshotMinVersion = null;
+        }
+        allowLazyOpen = in.readOptionalBoolean();
+        blocked = in.readOptionalWriteable(Blocked::new);
+
+        modelPruneWindow = in.readOptionalTimeValue();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(jobId);
+        String[] groupsArray = groups == null ? null : groups.toArray(new String[0]);
+        out.writeOptionalStringArray(groupsArray);
+        out.writeOptionalString(description);
+        out.writeBoolean(detectorUpdates != null);
+        if (detectorUpdates != null) {
+            out.writeCollection(detectorUpdates);
+        }
+        out.writeOptionalWriteable(modelPlotConfig);
+        out.writeOptionalWriteable(analysisLimits);
+        out.writeOptionalLong(renormalizationWindowDays);
+        out.writeOptionalTimeValue(backgroundPersistInterval);
+        out.writeOptionalLong(modelSnapshotRetentionDays);
+        out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
+        out.writeOptionalLong(resultsRetentionDays);
+        out.writeBoolean(categorizationFilters != null);
+        if (categorizationFilters != null) {
+            out.writeStringCollection(categorizationFilters);
+        }
+        out.writeOptionalWriteable(perPartitionCategorizationConfig);
+        out.writeGenericMap(customSettings);
+        out.writeOptionalString(modelSnapshotId);
+        if (jobVersion != null) {
+            out.writeBoolean(true);
+            MlConfigVersion.writeVersion(jobVersion, out);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.writeOptionalBoolean(clearJobFinishTime);
+        if (modelSnapshotMinVersion != null) {
+            out.writeBoolean(true);
+            MlConfigVersion.writeVersion(modelSnapshotMinVersion, out);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.writeOptionalBoolean(allowLazyOpen);
+        out.writeOptionalWriteable(blocked);
+
+        out.writeOptionalTimeValue(modelPruneWindow);
+    }
+
+    public String getJobId() {
+        return jobId;
+    }
+
+    public List<String> getGroups() {
+        return groups;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public List<DetectorUpdate> getDetectorUpdates() {
+        return detectorUpdates;
+    }
+
+    public ModelPlotConfig getModelPlotConfig() {
+        return modelPlotConfig;
+    }
+
+    public AnalysisLimits getAnalysisLimits() {
+        return analysisLimits;
+    }
+
+    public Long getRenormalizationWindowDays() {
+        return renormalizationWindowDays;
+    }
+
+    public TimeValue getBackgroundPersistInterval() {
+        return backgroundPersistInterval;
+    }
+
+    public Long getModelSnapshotRetentionDays() {
+        return modelSnapshotRetentionDays;
+    }
+
+    public Long getDailyModelSnapshotRetentionAfterDays() {
+        return dailyModelSnapshotRetentionAfterDays;
+    }
+
+    public Long getResultsRetentionDays() {
+        return resultsRetentionDays;
+    }
+
+    public List<String> getCategorizationFilters() {
+        return categorizationFilters;
+    }
+
+    public PerPartitionCategorizationConfig getPerPartitionCategorizationConfig() {
+        return perPartitionCategorizationConfig;
+    }
+
+    public Map<String, Object> getCustomSettings() {
+        return customSettings;
+    }
+
+    public String getModelSnapshotId() {
+        return modelSnapshotId;
+    }
+
+    public MlConfigVersion getModelSnapshotMinVersion() {
+        return modelSnapshotMinVersion;
+    }
+
+    public MlConfigVersion getJobVersion() {
+        return jobVersion;
+    }
+
+    public Boolean getClearJobFinishTime() {
+        return clearJobFinishTime;
+    }
+
+    public Boolean getAllowLazyOpen() {
+        return allowLazyOpen;
+    }
+
+    public boolean isAutodetectProcessUpdate() {
+        return modelPlotConfig != null || perPartitionCategorizationConfig != null || detectorUpdates != null || groups != null;
+    }
+
+    public Blocked getBlocked() {
+        return blocked;
+    }
+
+    public TimeValue getModelPruneWindow() {
+        return modelPruneWindow;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(Job.ID.getPreferredName(), jobId);
+        if (groups != null) {
+            builder.field(Job.GROUPS.getPreferredName(), groups);
+        }
+        if (description != null) {
+            builder.field(Job.DESCRIPTION.getPreferredName(), description);
+        }
+        if (detectorUpdates != null) {
+            builder.field(DETECTORS.getPreferredName(), detectorUpdates);
+        }
+        if (modelPlotConfig != null) {
+            builder.field(Job.MODEL_PLOT_CONFIG.getPreferredName(), modelPlotConfig);
+        }
+        if (analysisLimits != null) {
+            builder.field(Job.ANALYSIS_LIMITS.getPreferredName(), analysisLimits);
+        }
+        if (renormalizationWindowDays != null) {
+            builder.field(Job.RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
+        }
+        if (backgroundPersistInterval != null) {
+            builder.field(Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName(), backgroundPersistInterval);
+        }
+        if (modelSnapshotRetentionDays != null) {
+            builder.field(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
+        }
+        if (dailyModelSnapshotRetentionAfterDays != null) {
+            builder.field(Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(), dailyModelSnapshotRetentionAfterDays);
+        }
+        if (resultsRetentionDays != null) {
+            builder.field(Job.RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
+        }
+        if (categorizationFilters != null) {
+            builder.field(AnalysisConfig.CATEGORIZATION_FILTERS.getPreferredName(), categorizationFilters);
+        }
+        if (perPartitionCategorizationConfig != null) {
+            builder.field(AnalysisConfig.PER_PARTITION_CATEGORIZATION.getPreferredName(), perPartitionCategorizationConfig);
+        }
+        if (customSettings != null) {
+            builder.field(Job.CUSTOM_SETTINGS.getPreferredName(), customSettings);
+        }
+        if (modelSnapshotId != null) {
+            builder.field(Job.MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
+        }
+        if (modelSnapshotMinVersion != null) {
+            builder.field(Job.MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(), modelSnapshotMinVersion);
+        }
+        if (jobVersion != null) {
+            builder.field(Job.JOB_VERSION.getPreferredName(), jobVersion);
+        }
+        if (clearJobFinishTime != null) {
+            builder.field(CLEAR_JOB_FINISH_TIME.getPreferredName(), clearJobFinishTime);
+        }
+        if (allowLazyOpen != null) {
+            builder.field(Job.ALLOW_LAZY_OPEN.getPreferredName(), allowLazyOpen);
+        }
+        if (blocked != null) {
+            builder.field(Job.BLOCKED.getPreferredName(), blocked);
+        }
+        if (modelPruneWindow != null) {
+            builder.field(AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName(), modelPruneWindow);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    public Set<String> getUpdateFields() {
+        Set<String> updateFields = new TreeSet<>();
+        if (groups != null) {
+            updateFields.add(Job.GROUPS.getPreferredName());
+        }
+        if (description != null) {
+            updateFields.add(Job.DESCRIPTION.getPreferredName());
+        }
+        if (detectorUpdates != null) {
+            updateFields.add(DETECTORS.getPreferredName());
+        }
+        if (modelPlotConfig != null) {
+            updateFields.add(Job.MODEL_PLOT_CONFIG.getPreferredName());
+        }
+        if (analysisLimits != null) {
+            updateFields.add(Job.ANALYSIS_LIMITS.getPreferredName());
+        }
+        if (renormalizationWindowDays != null) {
+            updateFields.add(Job.RENORMALIZATION_WINDOW_DAYS.getPreferredName());
+        }
+        if (backgroundPersistInterval != null) {
+            updateFields.add(Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName());
+        }
+        if (modelSnapshotRetentionDays != null) {
+            updateFields.add(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName());
+        }
+        if (dailyModelSnapshotRetentionAfterDays != null) {
+            updateFields.add(Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName());
+        }
+        if (resultsRetentionDays != null) {
+            updateFields.add(Job.RESULTS_RETENTION_DAYS.getPreferredName());
+        }
+        if (categorizationFilters != null) {
+            updateFields.add(AnalysisConfig.CATEGORIZATION_FILTERS.getPreferredName());
+        }
+        if (perPartitionCategorizationConfig != null) {
+            updateFields.add(AnalysisConfig.PER_PARTITION_CATEGORIZATION.getPreferredName());
+        }
+        if (customSettings != null) {
+            updateFields.add(Job.CUSTOM_SETTINGS.getPreferredName());
+        }
+        if (modelSnapshotId != null) {
+            updateFields.add(Job.MODEL_SNAPSHOT_ID.getPreferredName());
+        }
+        if (modelSnapshotMinVersion != null) {
+            updateFields.add(Job.MODEL_SNAPSHOT_MIN_VERSION.getPreferredName());
+        }
+        if (jobVersion != null) {
+            updateFields.add(Job.JOB_VERSION.getPreferredName());
+        }
+        if (allowLazyOpen != null) {
+            updateFields.add(Job.ALLOW_LAZY_OPEN.getPreferredName());
+        }
+        if (modelPruneWindow != null) {
+            updateFields.add(AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName());
+        }
+        return updateFields;
+    }
+
+    /**
+     * Updates {@code source} with the new values in this object returning a new {@link Job}.
+     *
+     * @param source              Source job to be updated
+     * @param maxModelMemoryLimit The maximum model memory allowed
+     * @return A new job equivalent to {@code source} updated.
+     */
+    public Job mergeWithJob(Job source, ByteSizeValue maxModelMemoryLimit) {
+        Job.Builder builder = new Job.Builder(source);
+        AnalysisConfig currentAnalysisConfig = source.getAnalysisConfig();
+        AnalysisConfig.Builder newAnalysisConfig = new AnalysisConfig.Builder(currentAnalysisConfig);
+
+        if (groups != null) {
+            builder.setGroups(groups);
+        }
+        if (description != null) {
+            builder.setDescription(description);
+        }
+        if (detectorUpdates != null && detectorUpdates.isEmpty() == false) {
+            int numDetectors = currentAnalysisConfig.getDetectors().size();
+            for (DetectorUpdate dd : detectorUpdates) {
+                if (dd.getDetectorIndex() >= numDetectors) {
+                    throw ExceptionsHelper.badRequestException(
+                        "Supplied detector_index [{}] is >= the number of detectors [{}]",
+                        dd.getDetectorIndex(),
+                        numDetectors
+                    );
+                }
+
+                Detector.Builder detectorBuilder = new Detector.Builder(currentAnalysisConfig.getDetectors().get(dd.getDetectorIndex()));
+                if (dd.getDescription() != null) {
+                    detectorBuilder.setDetectorDescription(dd.getDescription());
+                }
+                if (dd.getRules() != null) {
+                    detectorBuilder.setRules(dd.getRules());
+                }
+
+                newAnalysisConfig.setDetector(dd.getDetectorIndex(), detectorBuilder.build());
+            }
+        }
+        if (modelPlotConfig != null) {
+            builder.setModelPlotConfig(modelPlotConfig);
+        }
+        if (analysisLimits != null) {
+            AnalysisLimits currentLimits = source.getAnalysisLimits();
+            AnalysisLimits limitsToValidate = currentLimits != null ? currentLimits.mergeWithUpdates(analysisLimits) : analysisLimits;
+
+            AnalysisLimits validatedLimits = AnalysisLimits.validateAndSetDefaults(
+                limitsToValidate,
+                maxModelMemoryLimit,
+                AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB
+            );
+            builder.setAnalysisLimits(validatedLimits);
+        }
+        if (renormalizationWindowDays != null) {
+            builder.setRenormalizationWindowDays(renormalizationWindowDays);
+        }
+        if (backgroundPersistInterval != null) {
+            builder.setBackgroundPersistInterval(backgroundPersistInterval);
+        }
+        if (modelSnapshotRetentionDays != null) {
+            builder.setModelSnapshotRetentionDays(modelSnapshotRetentionDays);
+        }
+        if (dailyModelSnapshotRetentionAfterDays != null) {
+            builder.setDailyModelSnapshotRetentionAfterDays(dailyModelSnapshotRetentionAfterDays);
+        }
+        if (resultsRetentionDays != null) {
+            builder.setResultsRetentionDays(resultsRetentionDays);
+        }
+        if (categorizationFilters != null) {
+            newAnalysisConfig.setCategorizationFilters(categorizationFilters);
+        }
+        if (perPartitionCategorizationConfig != null) {
+            // Whether per-partition categorization is enabled cannot be changed, only the lower level details
+            if (perPartitionCategorizationConfig.isEnabled() != currentAnalysisConfig.getPerPartitionCategorizationConfig().isEnabled()) {
+                throw ExceptionsHelper.badRequestException("analysis_config.per_partition_categorization.enabled cannot be updated");
+            }
+            newAnalysisConfig.setPerPartitionCategorizationConfig(perPartitionCategorizationConfig);
+        }
+        if (customSettings != null) {
+            builder.setCustomSettings(customSettings);
+        }
+        if (modelSnapshotId != null) {
+            builder.setModelSnapshotId(ModelSnapshot.isTheEmptySnapshot(modelSnapshotId) ? null : modelSnapshotId);
+        }
+        if (modelSnapshotMinVersion != null) {
+            builder.setModelSnapshotMinVersion(modelSnapshotMinVersion);
+        }
+        if (jobVersion != null) {
+            builder.setJobVersion(jobVersion);
+        }
+        if (clearJobFinishTime != null && clearJobFinishTime) {
+            builder.setFinishedTime(null);
+        }
+        if (allowLazyOpen != null) {
+            builder.setAllowLazyOpen(allowLazyOpen);
+        }
+        if (blocked != null) {
+            builder.setBlocked(blocked);
+        }
+        if (modelPruneWindow != null) {
+            newAnalysisConfig.setModelPruneWindow(modelPruneWindow);
+        }
+
+        builder.setAnalysisConfig(newAnalysisConfig);
+        return builder.build();
+    }
+
+    boolean isNoop(Job job) {
+        return (groups == null || Objects.equals(groups, job.getGroups()))
+            && (description == null || Objects.equals(description, job.getDescription()))
+            && (modelPlotConfig == null || Objects.equals(modelPlotConfig, job.getModelPlotConfig()))
+            && (analysisLimits == null || Objects.equals(analysisLimits, job.getAnalysisLimits()))
+            && updatesDetectors(job) == false
+            && (renormalizationWindowDays == null || Objects.equals(renormalizationWindowDays, job.getRenormalizationWindowDays()))
+            && (backgroundPersistInterval == null || Objects.equals(backgroundPersistInterval, job.getBackgroundPersistInterval()))
+            && (modelSnapshotRetentionDays == null || Objects.equals(modelSnapshotRetentionDays, job.getModelSnapshotRetentionDays()))
+            && (dailyModelSnapshotRetentionAfterDays == null
+                || Objects.equals(dailyModelSnapshotRetentionAfterDays, job.getDailyModelSnapshotRetentionAfterDays()))
+            && (resultsRetentionDays == null || Objects.equals(resultsRetentionDays, job.getResultsRetentionDays()))
+            && (categorizationFilters == null || Objects.equals(categorizationFilters, job.getAnalysisConfig().getCategorizationFilters()))
+            && (perPartitionCategorizationConfig == null
+                || Objects.equals(perPartitionCategorizationConfig, job.getAnalysisConfig().getPerPartitionCategorizationConfig()))
+            && (customSettings == null || Objects.equals(customSettings, job.getCustomSettings()))
+            && (modelSnapshotId == null || Objects.equals(modelSnapshotId, job.getModelSnapshotId()))
+            && (modelSnapshotMinVersion == null || Objects.equals(modelSnapshotMinVersion, job.getModelSnapshotMinVersion()))
+            && (jobVersion == null || Objects.equals(jobVersion, job.getJobVersion()))
+            && (clearJobFinishTime == null || clearJobFinishTime == false || job.getFinishedTime() == null)
+            && (allowLazyOpen == null || Objects.equals(allowLazyOpen, job.allowLazyOpen()))
+            && (blocked == null || Objects.equals(blocked, job.getBlocked()))
+            && (modelPruneWindow == null || Objects.equals(modelPruneWindow, job.getAnalysisConfig().getModelPruneWindow()));
+    }
+
+    boolean updatesDetectors(Job job) {
+        AnalysisConfig analysisConfig = job.getAnalysisConfig();
+        if (detectorUpdates == null) {
+            return false;
+        }
+        for (DetectorUpdate detectorUpdate : detectorUpdates) {
+            if (detectorUpdate.description == null && detectorUpdate.rules == null) {
+                continue;
+            }
+            Detector detector = analysisConfig.getDetectors().get(detectorUpdate.detectorIndex);
+            if (Objects.equals(detectorUpdate.description, detector.getDetectorDescription()) == false
+                || Objects.equals(detectorUpdate.rules, detector.getRules()) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+
+        if (other instanceof JobUpdate == false) {
+            return false;
+        }
+
+        JobUpdate that = (JobUpdate) other;
+
+        return Objects.equals(this.jobId, that.jobId)
+            && Objects.equals(this.groups, that.groups)
+            && Objects.equals(this.description, that.description)
+            && Objects.equals(this.detectorUpdates, that.detectorUpdates)
+            && Objects.equals(this.modelPlotConfig, that.modelPlotConfig)
+            && Objects.equals(this.analysisLimits, that.analysisLimits)
+            && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
+            && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
+            && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
+            && Objects.equals(this.dailyModelSnapshotRetentionAfterDays, that.dailyModelSnapshotRetentionAfterDays)
+            && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
+            && Objects.equals(this.categorizationFilters, that.categorizationFilters)
+            && Objects.equals(this.perPartitionCategorizationConfig, that.perPartitionCategorizationConfig)
+            && Objects.equals(this.customSettings, that.customSettings)
+            && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
+            && Objects.equals(this.modelSnapshotMinVersion, that.modelSnapshotMinVersion)
+            && Objects.equals(this.jobVersion, that.jobVersion)
+            && Objects.equals(this.clearJobFinishTime, that.clearJobFinishTime)
+            && Objects.equals(this.allowLazyOpen, that.allowLazyOpen)
+            && Objects.equals(this.blocked, that.blocked)
+            && Objects.equals(this.modelPruneWindow, that.modelPruneWindow);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            jobId,
+            groups,
+            description,
+            detectorUpdates,
+            modelPlotConfig,
+            analysisLimits,
+            renormalizationWindowDays,
+            backgroundPersistInterval,
+            modelSnapshotRetentionDays,
+            dailyModelSnapshotRetentionAfterDays,
+            resultsRetentionDays,
+            categorizationFilters,
+            perPartitionCategorizationConfig,
+            customSettings,
+            modelSnapshotId,
+            modelSnapshotMinVersion,
+            jobVersion,
+            clearJobFinishTime,
+            allowLazyOpen,
+            blocked,
+            modelPruneWindow
+        );
+    }
+
+    public static class DetectorUpdate implements Writeable, ToXContentObject {
+        @SuppressWarnings("unchecked")
+        public static final ConstructingObjectParser<DetectorUpdate, Void> PARSER = new ConstructingObjectParser<>(
+            "detector_update",
+            a -> new DetectorUpdate((int) a[0], (String) a[1], (List<DetectionRule>) a[2])
+        );
+
+        static {
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Detector.DETECTOR_INDEX);
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), Job.DESCRIPTION);
+            PARSER.declareObjectArray(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (parser, parseFieldMatcher) -> DetectionRule.STRICT_PARSER.apply(parser, parseFieldMatcher).build(),
+                Detector.CUSTOM_RULES_FIELD
+            );
+        }
+
+        private final int detectorIndex;
+        private final String description;
+        private final List<DetectionRule> rules;
+
+        public DetectorUpdate(int detectorIndex, String description, List<DetectionRule> rules) {
+            this.detectorIndex = detectorIndex;
+            this.description = description;
+            this.rules = rules;
+        }
+
+        public DetectorUpdate(StreamInput in) throws IOException {
+            detectorIndex = in.readInt();
+            description = in.readOptionalString();
+            if (in.readBoolean()) {
+                rules = in.readCollectionAsList(DetectionRule::new);
+            } else {
+                rules = null;
+            }
+        }
+
+        public int getDetectorIndex() {
+            return detectorIndex;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public List<DetectionRule> getRules() {
+            return rules;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(detectorIndex);
+            out.writeOptionalString(description);
+            out.writeBoolean(rules != null);
+            if (rules != null) {
+                out.writeCollection(rules);
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+
+            builder.field(Detector.DETECTOR_INDEX.getPreferredName(), detectorIndex);
+            if (description != null) {
+                builder.field(Job.DESCRIPTION.getPreferredName(), description);
+            }
+            if (rules != null) {
+                builder.field(Detector.CUSTOM_RULES_FIELD.getPreferredName(), rules);
+            }
+            builder.endObject();
+
+            return builder;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(detectorIndex, description, rules);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other instanceof DetectorUpdate == false) {
+                return false;
+            }
+
+            DetectorUpdate that = (DetectorUpdate) other;
+            return this.detectorIndex == that.detectorIndex
+                && Objects.equals(this.description, that.description)
+                && Objects.equals(this.rules, that.rules);
+        }
+    }
+
+    public static class Builder {
+
+        private String jobId;
+        private List<String> groups;
+        private String description;
+        private List<DetectorUpdate> detectorUpdates;
+        private ModelPlotConfig modelPlotConfig;
+        private AnalysisLimits analysisLimits;
+        private Long renormalizationWindowDays;
+        private TimeValue backgroundPersistInterval;
+        private Long modelSnapshotRetentionDays;
+        private Long dailyModelSnapshotRetentionAfterDays;
+        private Long resultsRetentionDays;
+        private List<String> categorizationFilters;
+        private PerPartitionCategorizationConfig perPartitionCategorizationConfig;
+        private Map<String, Object> customSettings;
+        private String modelSnapshotId;
+        private MlConfigVersion modelSnapshotMinVersion;
+        private MlConfigVersion jobVersion;
+        private Boolean clearJobFinishTime;
+        private Boolean allowLazyOpen;
+        private Blocked blocked;
+        private TimeValue modelPruneWindow;
+
+        public Builder(String jobId) {
+            this.jobId = jobId;
+        }
+
+        public Builder setJobId(String jobId) {
+            this.jobId = jobId;
+            return this;
+        }
+
+        public Builder setGroups(List<String> groups) {
+            this.groups = groups;
+            return this;
+        }
+
+        public Builder setDescription(String description) {
+            this.description = description;
+            return this;
+        }
+
+        public Builder setDetectorUpdates(List<DetectorUpdate> detectorUpdates) {
+            this.detectorUpdates = detectorUpdates;
+            return this;
+        }
+
+        public Builder setModelPlotConfig(ModelPlotConfig modelPlotConfig) {
+            this.modelPlotConfig = modelPlotConfig;
+            return this;
+        }
+
+        public Builder setAnalysisLimits(AnalysisLimits analysisLimits) {
+            this.analysisLimits = analysisLimits;
+            return this;
+        }
+
+        public Builder setRenormalizationWindowDays(Long renormalizationWindowDays) {
+            this.renormalizationWindowDays = renormalizationWindowDays;
+            return this;
+        }
+
+        public Builder setBackgroundPersistInterval(TimeValue backgroundPersistInterval) {
+            this.backgroundPersistInterval = backgroundPersistInterval;
+            return this;
+        }
+
+        public Builder setModelSnapshotRetentionDays(Long modelSnapshotRetentionDays) {
+            this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
+            return this;
+        }
+
+        public Builder setDailyModelSnapshotRetentionAfterDays(Long dailyModelSnapshotRetentionAfterDays) {
+            this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
+            return this;
+        }
+
+        public Builder setResultsRetentionDays(Long resultsRetentionDays) {
+            this.resultsRetentionDays = resultsRetentionDays;
+            return this;
+        }
+
+        public Builder setCategorizationFilters(List<String> categorizationFilters) {
+            this.categorizationFilters = categorizationFilters;
+            return this;
+        }
+
+        public Builder setPerPartitionCategorizationConfig(PerPartitionCategorizationConfig perPartitionCategorizationConfig) {
+            this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
+            return this;
+        }
+
+        public Builder setCustomSettings(Map<String, Object> customSettings) {
+            this.customSettings = customSettings;
+            return this;
+        }
+
+        public Builder setModelSnapshotId(String modelSnapshotId) {
+            this.modelSnapshotId = modelSnapshotId;
+            return this;
+        }
+
+        public Builder setModelSnapshotMinVersion(MlConfigVersion modelSnapshotMinVersion) {
+            this.modelSnapshotMinVersion = modelSnapshotMinVersion;
+            return this;
+        }
+
+        public Builder setModelSnapshotMinVersion(String modelSnapshotMinVersion) {
+            this.modelSnapshotMinVersion = MlConfigVersion.fromString(modelSnapshotMinVersion);
+            return this;
+        }
+
+        public Builder setJobVersion(MlConfigVersion version) {
+            this.jobVersion = version;
+            return this;
+        }
+
+        public Builder setJobVersion(String version) {
+            this.jobVersion = MlConfigVersion.fromString(version);
+            return this;
+        }
+
+        public Builder setAllowLazyOpen(boolean allowLazyOpen) {
+            this.allowLazyOpen = allowLazyOpen;
+            return this;
+        }
+
+        public Builder setClearFinishTime(boolean clearFinishTime) {
+            this.clearJobFinishTime = clearFinishTime;
+            return this;
+        }
+
+        public Builder setBlocked(Blocked blocked) {
+            this.blocked = blocked;
+            return this;
+        }
+
+        public Builder setModelPruneWindow(TimeValue modelPruneWindow) {
+            this.modelPruneWindow = modelPruneWindow;
+            return this;
+        }
+
+        public JobUpdate build() {
+            return new JobUpdate(
+                jobId,
+                groups,
+                description,
+                detectorUpdates,
+                modelPlotConfig,
+                analysisLimits,
+                backgroundPersistInterval,
+                renormalizationWindowDays,
+                resultsRetentionDays,
+                modelSnapshotRetentionDays,
+                dailyModelSnapshotRetentionAfterDays,
+                categorizationFilters,
+                perPartitionCategorizationConfig,
+                customSettings,
+                modelSnapshotId,
+                modelSnapshotMinVersion,
+                jobVersion,
+                clearJobFinishTime,
+                allowLazyOpen,
+                blocked,
+                modelPruneWindow
+            );
+        }
+    }
+}

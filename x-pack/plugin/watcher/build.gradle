@@ -1,0 +1,112 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+esplugin {
+  name = 'x-pack-watcher'
+  description = 'Elasticsearch Expanded Pack Plugin - Watcher'
+  classname = 'org.elasticsearch.xpack.watcher.Watcher'
+  hasNativeController = false
+  requiresKeystore = false
+  extendedPlugins = ['x-pack-core', 'lang-painless']
+  deploymentTarget = 'STATEFUL_ONLY'
+}
+
+base {
+  archivesName = 'x-pack-watcher'
+}
+
+ext.compactProfile = 'full'
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'index', 'indices', 'get', 'nodes', 'search', 'watcher', 'security', 'xpack',
+      'put_script', 'ingest', 'count', 'xpack'
+  }
+  restTests {
+    includeXpack 'watcher'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
+}
+
+dependencies {
+  compileOnly project(':server')
+  compileOnly project(':modules:lang-painless:spi')
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: ':modules:transport-netty4')
+
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('ilm'))
+  testImplementation project(':modules:data-streams')
+  testImplementation project(':modules:lang-mustache')
+
+  // watcher deps
+  api 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20211018.2'
+  runtimeOnly 'com.google.guava:guava:32.0.1-jre' // needed by watcher for the html sanitizer
+  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
+  api 'com.sun.mail:jakarta.mail:1.6.8'
+  api 'com.sun.activation:jakarta.activation:1.2.1'
+  compileOnly "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compileOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+
+  testImplementation 'org.subethamail:subethasmtp:3.1.7'
+  // needed for subethasmtp, has @GuardedBy annotation
+  testImplementation 'com.google.code.findbugs:jsr305:3.0.2'
+
+  internalClusterTestImplementation project(":modules:analysis-common")
+
+  javaRestTestImplementation project(':x-pack:qa')
+  yamlRestTestImplementation project(':x-pack:qa')
+
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:lang-mustache')
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(xpackModule('ilm'))
+}
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+// classes are missing, e.g. com.ibm.icu.lang.UCharacter
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+  )
+
+  ignoreViolations(
+    'com.sun.activation.registries.LineTokenizer',
+    'com.sun.activation.registries.LogSupport',
+    'com.sun.activation.registries.MailcapFile',
+    'com.sun.activation.registries.MailcapTokenizer',
+    'com.sun.activation.registries.MimeTypeEntry',
+    'com.sun.activation.registries.MimeTypeFile',
+    'javax.activation.MailcapCommandMap',
+    'javax.activation.MimetypesFileTypeMap'
+  )
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.p12'
+}
+
+addQaCheckDependencies(project)

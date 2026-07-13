@@ -1,0 +1,43 @@
+{
+  "ml.reset_job": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-reset-job",
+      "description": "Reset an anomaly detection job"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_ml/anomaly_detectors/{job_id}/_reset",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "job_id": {
+              "type": "string",
+              "description": "The ID of the job to reset"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "wait_for_completion": {
+        "type": "boolean",
+        "description": "Should this request wait until the operation has completed before returning",
+        "default": true
+      },
+      "delete_user_annotations": {
+        "type": "boolean",
+        "description": "Should annotations added by the user be deleted",
+        "default": false
+      }
+    }
+  }
+}

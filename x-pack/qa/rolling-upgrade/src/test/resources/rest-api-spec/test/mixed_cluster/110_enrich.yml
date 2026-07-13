@@ -1,0 +1,10 @@
+---
+"Enrich stats query smoke test for mixed cluster":
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
+      reason: "Privilege change of enrich stats is backported to 7.9.0"
+
+  - do:
+      enrich.stats: {}
+
+  - length: { coordinator_stats: 3 }

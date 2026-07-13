@@ -1,0 +1,128 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.LoggedExec
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  description = 'The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism'
+  classname ='org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin'
+}
+
+def localVersions = versions + [
+  'azure' : '0.9.3',
+  'jersey': '1.13'
+]
+
+dependencies {
+  api "com.microsoft.azure:azure-svc-mgmt-compute:${localVersions.azure}"
+  api "com.microsoft.azure:azure-core:${localVersions.azure}"
+  api "org.apache.httpcomponents:httpclient:${localVersions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${localVersions.httpcore}"
+  api "commons-logging:commons-logging:${localVersions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${localVersions.log4j}"
+  api "commons-codec:commons-codec:${localVersions.commonscodec}"
+  api "commons-lang:commons-lang:2.6"
+  api 'javax.mail:mail:1.4.5'
+  api 'javax.inject:javax.inject:1'
+  api "com.sun.jersey:jersey-client:${localVersions.jersey}"
+  api "com.sun.jersey:jersey-core:${localVersions.jersey}"
+  api 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
+
+  // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
+  // and whitelist this hack in JarHell
+  api 'javax.xml.bind:jaxb-api:2.2.2'
+
+  runtimeOnly "joda-time:joda-time:2.10.10"
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes'
+  }
+}
+
+// generate the keystore
+TaskProvider createKey = tasks.register("createKey", LoggedExec) {
+  // needed to be consistent with ssl host checking
+  String host = InetAddress.getLoopbackAddress().getHostAddress()
+
+  // location of keystore and files to generate it
+  File keystore = project.layout.buildDirectory.file('keystore/test-node.jks').get().asFile
+
+  doFirst {
+    delete(keystore.parentFile)
+    keystore.parentFile.mkdirs()
+  }
+  outputs.file(keystore).withPropertyName('keystoreFile')
+  executable = "${buildParams.runtimeJavaHome.get()}/bin/keytool"
+  getStandardInput().set('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n')
+  String keystorePath = projectDir.toPath().relativize(keystore.toPath()).toString()
+  args '-genkey',
+    '-alias', 'test-node',
+    '-keystore', keystorePath,
+    '-keyalg', 'RSA',
+    '-keysize', '2048',
+    '-validity', '712',
+    '-dname', 'CN=' + host,
+    '-keypass', 'keypass',
+    '-storepass', 'keypass'
+}
+
+// add keystore to test classpath: it expects it there
+tasks.named("processInternalClusterTestResources") {
+  from createKey
+}
+
+normalization {
+  runtimeClasspath {
+    ignore 'test-node.jks'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /azure-.*/, to: 'azure'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /jersey-.*/, to: 'jersey'
+  mapping from: /jaxb-.*/, to: 'jaxb'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          'javax.activation.ActivationDataFlavor',
+          'javax.activation.DataContentHandler',
+          'javax.activation.DataHandler',
+          'javax.activation.DataSource',
+          'javax.activation.FileDataSource',
+          'javax.activation.FileTypeMap',
+          'javax.activation.MimeType',
+          'javax.activation.MimeTypeParseException',
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener',
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          'javax.jms.Message',
+          'org.jvnet.fastinfoset.VocabularyApplicationData',
+          'org.jvnet.staxex.Base64Data',
+          'org.jvnet.staxex.XMLStreamReaderEx',
+          'org.jvnet.staxex.XMLStreamWriterEx',
+          'org.osgi.framework.Bundle',
+          'org.osgi.framework.BundleActivator',
+          'org.osgi.framework.BundleContext',
+          'org.osgi.framework.BundleEvent',
+          'org.osgi.framework.SynchronousBundleListener',
+          'com.sun.xml.fastinfoset.stax.StAXDocumentParser',
+          'com.sun.xml.fastinfoset.stax.StAXDocumentSerializer',
+          'org.codehaus.jackson.JsonNode',
+          'org.codehaus.jackson.map.ObjectMapper',
+  )
+}

@@ -1,0 +1,151 @@
+#
+# This script is executed in the post-installation phase
+#
+#   On Debian,
+#       $1=configure : is set to 'configure' and if $2 is set, it is an upgrade
+#
+#   On RedHat,
+#       $1=0         : indicates a removal
+#       $1=1         : indicates an upgrade
+
+set -e
+
+# source the default env file
+if [ -f "@path.env@" ]; then
+    . "@path.env@"
+fi
+
+export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
+
+IS_UPGRADE=false
+
+case "$1" in
+
+    # Debian ####################################################
+    configure)
+
+        # If $1=configure and $2 is set, this is an upgrade
+        if [ -n "$2" ]; then
+            IS_UPGRADE=true
+        fi
+        PACKAGE=deb
+    ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        PACKAGE=deb
+    ;;
+
+    # RedHat ####################################################
+    1)
+        # If $1=1 this is an install
+        IS_UPGRADE=false
+        PACKAGE=rpm
+    ;;
+    2)
+        # If $1=1 this is an upgrade
+        IS_UPGRADE=true
+        PACKAGE=rpm
+    ;;
+
+    *)
+        echo "post install script called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+# to pick up /usr/lib/sysctl.d/elasticsearch.conf
+if command -v systemctl > /dev/null; then
+    systemctl restart systemd-sysctl.service || true
+fi
+if [ "x$IS_UPGRADE" != "xtrue" ]; then
+    # Don't exit immediately on error, we want to hopefully print some helpful banners
+    set +e
+    # Attempt to auto-configure security, this seems to be an installation
+    if CLI_NAME="auto-configure-node" \
+    CLI_LIBS="modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli" \
+    /usr/share/elasticsearch/bin/elasticsearch-cli <<< ""; then
+        # Above command runs as root and TLS keystores are created group-owned by root. It's simple to correct the ownership here
+        chown root:elasticsearch "${ES_PATH_CONF}"/certs/http.p12
+        chown root:elasticsearch "${ES_PATH_CONF}"/certs/http_ca.crt
+        chown root:elasticsearch "${ES_PATH_CONF}"/certs/transport.p12
+        if INITIAL_PASSWORD=$(CLI_NAME=auto-config-gen-passwd \
+        CLI_LIBS="modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli" \
+        /usr/share/elasticsearch/bin/elasticsearch-cli); then
+            echo "--------------------------- Security autoconfiguration information ------------------------------"
+            echo
+            echo "Authentication and authorization are enabled."
+            echo "TLS for the transport and HTTP layers is enabled and configured."
+            echo
+            echo "The generated password for the elastic built-in superuser is : ${INITIAL_PASSWORD}"
+            echo
+            echo "If this node should join an existing cluster, you can reconfigure this with"
+            echo "'/usr/share/elasticsearch/bin/elasticsearch-reconfigure-node --enrollment-token <token-here>'"
+            echo "after creating an enrollment token on your existing cluster."
+            echo
+            echo "You can complete the following actions at any time:"
+            echo
+            echo "Reset the password of the elastic built-in superuser with "
+            echo "'/usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic'."
+            echo
+            echo "Generate an enrollment token for Kibana instances with "
+            echo " '/usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana'."
+            echo
+            echo "Generate an enrollment token for Elasticsearch nodes with "
+            echo "'/usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s node'."
+            echo
+            echo "-------------------------------------------------------------------------------------------------"
+        fi
+    else
+        if [ $? -eq 80 ]; then
+            # ExitCodes.NOOP
+            echo "--------------------------- Security autoconfiguration information ------------------------------"
+            echo
+            echo "Skipping auto-configuration because security features appear to be already configured."
+            echo
+            echo "-------------------------------------------------------------------------------------------------"
+        else
+            echo "--------------------------- Security autoconfiguration information ------------------------------"
+            echo
+            echo "Failed to auto-configure security features."
+            echo "However, authentication and authorization are still enabled."
+            echo
+            echo "You can reset the password of the elastic built-in superuser with "
+            echo "'/usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic' at any time."
+            echo "-------------------------------------------------------------------------------------------------"
+        fi
+    fi
+    if command -v systemctl >/dev/null; then
+        echo "### NOT starting on installation, please execute the following statements to configure elasticsearch service to start automatically using systemd"
+        echo " sudo systemctl daemon-reload"
+        echo " sudo systemctl enable elasticsearch.service"
+        echo "### You can start elasticsearch service by executing"
+        echo " sudo systemctl start elasticsearch.service"
+    fi
+    set -e
+fi
+
+# the equivalent code for rpm is in posttrans
+if [ "$PACKAGE" = "deb" ]; then
+    if [ ! -f "${ES_PATH_CONF}"/elasticsearch.keystore ]; then
+        /usr/share/elasticsearch/bin/elasticsearch-keystore create
+        chown root:elasticsearch "${ES_PATH_CONF}"/elasticsearch.keystore
+        chmod 660 "${ES_PATH_CONF}"/elasticsearch.keystore
+    else
+        if /usr/share/elasticsearch/bin/elasticsearch-keystore has-passwd --silent ; then
+          echo "### Warning: unable to upgrade encrypted keystore" 1>&2
+          echo " Please run elasticsearch-keystore upgrade and enter password" 1>&2
+        else
+          /usr/share/elasticsearch/bin/elasticsearch-keystore upgrade
+        fi
+    fi
+fi
+
+if [ "$RESTART_ON_UPGRADE" = "true" ]; then
+
+    echo -n "Restarting elasticsearch service..."
+    if command -v systemctl >/dev/null; then
+        systemctl daemon-reload
+        systemctl restart elasticsearch.service || true
+    fi
+    echo " OK"
+fi
+
+@scripts.footer@

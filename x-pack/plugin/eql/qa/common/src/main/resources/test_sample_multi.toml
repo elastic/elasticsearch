@@ -1,0 +1,367 @@
+# Test syntax:
+#
+# each test starts with a [[queries]] tag and has a set of mandatory attributes:
+#
+# - name: string, the test name, reported in the logs in case of failure
+# - query: string, the query to execute
+# - expected_event_ids: the expected result of the query. Can be one of the following:
+#    - an array of event IDs, (eg [1, 2, 3]): the expected event IDs returned by the query
+#    - an array of arrays of event IDs (eg. [[1, 2, 3], [1, 4, 5]]): each array of IDs is a possible valid result for the query;
+#      this is useful when the query is not deterministic, ie. it can return different valid results based on how the documents are indexed.
+#    - an empty array [], if the query is expected to return no results
+#   If the query returns multiple samples, the expected_event_ids will contain a flattened list of IDs for all the events
+#   in the returned samples, eg. if the query resturns sample1=[event1(id=1), event2(id=2)] and sample2=[event3(id=3), event4(id=4)],
+#   the expected_event_ids will be [1, 2, 3, 4]
+# - join_keys: array, a set of join keys returned in the results. This is flattened sequence of composite join keys for all the events returned
+#   eg. if the test returns two events (e1, e2) with two join keys each (eg. e1 with [joinkey1, joinkey2] and e2 with [joinkey3, joinkey4],
+#   the expected join_keys value will be [joinkey1, joinkey2, joinkey3, joinkey4]
+#
+# in addition, the spec syntax accepts the following optional attributes (currently ignored):
+# - note: string
+# - description: string
+# - tags: array of strings
+#
+# Strings can be delimited by single or double quotes. Triple single quotes can be used for multi-line strings
+
+[[queries]]
+name = "oneSamplePerKey"
+max_samples_per_key = 1
+query = '''
+  sample by os
+    [alert_1 where true]
+    [alert_2 where true]
+'''
+# non-deterministic, can return any of the following
+expected_event_ids  = [
+    [7, 6,
+     1, 3],
+    [7, 6,
+     2, 3],
+    [7, 6,
+     4, 3]
+]
+join_keys = ["redhat",
+             "win10"]
+
+[[queries]]
+name = "oneSamplePerKey_optional"
+max_samples_per_key = 1
+query = '''
+  sample by ?os
+    [alert_1 where true]
+    [alert_2 where true]
+'''
+# non-deterministic, can return any of the following
+expected_event_ids  = [
+    [8, 9,
+    7, 6,
+    1, 3],
+    [8, 9,
+    7, 6,
+    2, 3],
+    [8, 9,
+    7, 6,
+    4, 3],
+    [10, 9,
+    7, 6,
+    1, 3],
+    [10, 9,
+    7, 6,
+    2, 3],
+    [10, 9,
+    7, 6,
+    4, 3]
+]
+join_keys = ["null",
+             "redhat",
+             "win10"]
+
+
+[[queries]]
+name = "twoSamplesPerKeyOutOfThree"
+max_samples_per_key = 2
+query = '''
+  sample by os
+    [alert_1 where true]
+    [alert_2 where true]
+'''
+# non-deterministic, can return any of the following
+expected_event_ids  = [
+    [7, 6,
+     1, 3,
+     2, 3],
+    [7, 6,
+     1, 3,
+     4, 3],
+    [7, 6,
+     2, 3,
+     1, 3],
+    [7, 6,
+     2, 3,
+     4, 3],
+    [7, 6,
+     4, 3,
+     1, 3],
+    [7, 6,
+     4, 3,
+     2, 3]
+]
+join_keys = ["redhat",
+             "win10",
+             "win10"]
+
+
+
+[[queries]]
+name = "twoSamplesPerKeyOutOfThree_optional"
+max_samples_per_key = 2
+query = '''
+  sample by ?os
+    [alert_1 where true]
+    [alert_2 where true]
+'''
+# non-deterministic, can return any of the following
+expected_event_ids  = [
+    [8, 9,
+     10, 9,
+     7, 6,
+     1, 3,
+     2, 3],
+    [8, 9,
+     10, 9,
+     7, 6,
+     1, 3,
+     4, 3],
+    [8, 9,
+     10, 9,
+     7, 6,
+     2, 3,
+     1, 3],
+    [8, 9,
+     10, 9,
+     7, 6,
+     2, 3,
+     4, 3],
+    [8, 9,
+     10, 9,
+     7, 6,
+     4, 3,
+     1, 3],
+    [8, 9,
+     10, 9,
+     7, 6,
+     4, 3,
+     2, 3],
+    [10, 9,
+     8, 9,
+     7, 6,
+     1, 3,
+     2, 3],
+    [10, 9,
+     8, 9,
+     7, 6,
+     1, 3,
+     4, 3],
+    [10, 9,
+     8, 9,
+     7, 6,
+     2, 3,
+     1, 3],
+    [10, 9,
+     8, 9,
+     7, 6,
+     2, 3,
+     4, 3],
+    [10, 9,
+     8, 9,
+     7, 6,
+     4, 3,
+     1, 3],
+    [10, 9,
+     8, 9,
+     7, 6,
+     4, 3,
+     2, 3]
+]
+join_keys = ["null",
+             "null",
+             "redhat",
+             "win10",
+             "win10"]
+
+
+[[queries]]
+name = "twoSamplesPerKeyOutOfThree_withCondition"
+max_samples_per_key = 2
+query = '''
+  sample by os
+    [alert_1 where host != "farcry"]
+    [alert_2 where true]
+'''
+# non-deterministic, can return any of the following
+expected_event_ids  = [
+    [1, 3,
+     2, 3],
+    [1, 3,
+     4, 3],
+    [2, 3,
+     1, 3],
+    [2, 3,
+     4, 3],
+    [4, 3,
+     1, 3],
+    [4, 3,
+     2, 3]
+]
+join_keys = ["win10",
+             "win10"]
+
+
+[[queries]]
+name = "twoSamplesPerKeyOutOfThree2"
+max_samples_per_key = 2
+query = '''
+  sample by os
+    [alert_2 where true]
+    [alert_1 where true]
+'''
+# non-deterministic, can return any of the following
+expected_event_ids  = [
+    [6, 7,
+     3, 1,
+     3, 2],
+    [6, 7,
+     3, 1,
+     3, 4],
+    [6, 7,
+     3, 2,
+     3, 1],
+    [6, 7,
+     3, 2,
+     3, 4],
+    [6, 7,
+     3, 4,
+     3, 1],
+    [6, 7,
+     3, 4,
+     3, 2]
+]
+join_keys = ["redhat",
+             "win10",
+             "win10"]
+
+
+[[queries]]
+name = "threeSamplesPerKey"
+max_samples_per_key = 3
+query = '''
+  sample by os
+    [alert_1 where true]
+    [alert_2 where true]
+'''
+# non-deterministic, can return any of the following
+expected_event_ids  = [
+    [7, 6,
+     1, 3,
+     2, 3,
+     4, 3],
+    [7, 6,
+     1, 3,
+     4, 3,
+     2, 3],
+    [7, 6,
+     2, 3,
+     1, 3,
+     4, 3],
+    [7, 6,
+     2, 3,
+     4, 3,
+     1, 3],
+    [7, 6,
+     4, 3,
+     1, 3,
+     2, 3],
+    [7, 6,
+     4, 3,
+     2, 3,
+     1, 3]
+]
+join_keys = ["redhat",
+             "win10",
+             "win10",
+             "win10"]
+
+
+[[queries]]
+name = "moreSamplesPerKey"
+max_samples_per_key = 10
+query = '''
+  sample by os
+    [alert_1 where true]
+    [alert_2 where true]
+'''
+# non-deterministic, can return any of the following
+expected_event_ids  = [
+    [7, 6,
+     1, 3,
+     2, 3,
+     4, 3],
+    [7, 6,
+     1, 3,
+     4, 3,
+     2, 3],
+    [7, 6,
+     2, 3,
+     1, 3,
+     4, 3],
+    [7, 6,
+     2, 3,
+     4, 3,
+     1, 3],
+    [7, 6,
+     4, 3,
+     1, 3,
+     2, 3],
+    [7, 6,
+     4, 3,
+     2, 3,
+     1, 3]
+]
+join_keys = ["redhat",
+             "win10",
+             "win10",
+             "win10"]
+
+
+[[queries]]
+name = "twoSamplesPerKeyOutOfThree_inlineByKey"
+max_samples_per_key = 2
+query = '''
+  sample
+    [alert_1 where true] by os
+    [alert_2 where true] by os
+'''
+# non-deterministic, can return any of the following
+expected_event_ids  = [
+    [7, 6,
+     1, 3,
+     2, 3],
+    [7, 6,
+     1, 3,
+     4, 3],
+    [7, 6,
+     2, 3,
+     1, 3],
+    [7, 6,
+     2, 3,
+     4, 3],
+    [7, 6,
+     4, 3,
+     1, 3],
+    [7, 6,
+     4, 3,
+     2, 3]
+]
+join_keys = ["redhat",
+             "win10",
+             "win10"]

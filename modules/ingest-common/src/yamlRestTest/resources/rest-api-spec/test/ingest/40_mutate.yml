@@ -1,0 +1,160 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test mutate processors":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "new_field",
+                  "value": "new_value"
+                }
+              },
+              {
+                "append" : {
+                  "field" : "new_field",
+                  "value": ["item2", "item3", "item4"]
+                }
+              },
+              {
+                "rename" : {
+                  "field" : "field_to_rename",
+                  "target_field": "renamed_field"
+                }
+              },
+              {
+                "remove" : {
+                  "field" : "field_to_remove"
+                }
+              },
+              {
+                "lowercase" : {
+                  "field" : "field_to_lowercase"
+                }
+              },
+              {
+                "uppercase" : {
+                  "field" : "field_to_uppercase"
+                }
+              },
+              {
+                "trim" : {
+                  "field" : "field_to_trim"
+                }
+              },
+              {
+                "split" : {
+                  "field" : "field_to_split",
+                  "separator": "-"
+                }
+              },
+              {
+                "join" : {
+                  "field" : "field_to_join",
+                  "separator": "-"
+                }
+              },
+              {
+                "convert" : {
+                  "field" : "field_to_convert",
+                  "type": "integer"
+                }
+              },
+              {
+                "gsub" : {
+                  "field": "field_to_gsub",
+                  "pattern" : "-",
+                  "replacement" : "."
+                }
+              },
+              {
+                "html_strip" : {
+                  "field" : "field_to_html_strip"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body:  >
+          {
+            "field_to_rename": "value",
+            "field_to_remove": "old_value",
+            "field_to_lowercase": "LOWERCASE",
+            "field_to_uppercase": "uppercase",
+            "field_to_trim": "   trimmed   ",
+            "field_to_split": "127-0-0-1",
+            "field_to_join": ["127","0","0","1"],
+            "field_to_convert": ["127","0","0","1"],
+            "field_to_gsub": "127-0-0-1",
+            "field_to_html_strip": "<p>this <title>is</title> a <b>test</b>"
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - is_false: _source.field_to_rename
+  - is_false: _source.field_to_remove
+  - match: { _source.new_field: ["new_value", "item2", "item3", "item4"] }
+  - match: { _source.renamed_field: "value" }
+  - match: { _source.field_to_lowercase: "lowercase" }
+  - match: { _source.field_to_uppercase: "UPPERCASE" }
+  - match: { _source.field_to_trim: "trimmed" }
+  - match: { _source.field_to_split: ["127","0","0","1"] }
+  - match: { _source.field_to_join: "127-0-0-1" }
+  - match: { _source.field_to_convert: [127,0,0,1] }
+  - match: { _source.field_to_gsub: "127.0.0.1" }
+  - match: { _source.field_to_html_strip: "\nthis \nis\n a test" }
+
+---
+"Test metadata":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "_index",
+                  "value" : "surprise"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {field: "value"}
+
+  - do:
+      get:
+        index: surprise
+        id: "1"
+  - length: { _source: 1 }
+  - match: { _source.field: "value" }

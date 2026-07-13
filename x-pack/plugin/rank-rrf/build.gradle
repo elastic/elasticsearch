@@ -1,0 +1,36 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+esplugin {
+  name = 'rank-rrf'
+  description = 'Reciprocal rank fusion in search.'
+  classname ='org.elasticsearch.xpack.rank.rrf.RRFRankPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(':server')))
+
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(xpackModule('rank-rrf'))
+  clusterModules project(xpackModule('inference'))
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(xpackModule('search-business-rules'))
+
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+}
+
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution("Uses the inference API")
+}

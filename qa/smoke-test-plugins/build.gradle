@@ -1,0 +1,40 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.apache.tools.ant.filters.ReplaceTokens
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+ext.pluginPaths = []
+ext.pluginNames = []
+project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+  pluginPaths << pluginProject.path
+  pluginNames << pluginName
+}
+
+dependencies {
+  clusterModules project(":modules:lang-painless")
+  pluginPaths.each { pluginPath ->
+    clusterPlugins(project(pluginPath))
+  }
+}
+
+ext.expansions = [
+  'expected.plugins.count': pluginPaths.size()
+]
+
+tasks.named("processYamlRestTestResources") {
+  assert pluginPaths.size() > 0
+  inputs.properties(expansions)
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
+}
+
+tasks.named("yamlRestTest") {
+  systemProperty('tests.plugin.names', pluginNames.join(','))
+}

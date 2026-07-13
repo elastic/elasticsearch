@@ -1,0 +1,28 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+---
+"Test logs-apm.error-* error log fields":
+  - do:
+      bulk:
+        index: logs-apm.error-log-level-testing
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "log": {"level": "error"}, "error": {"log": {"message": "loglevel"}, "exception": [{"message": "exception_used"}]}}'
+
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "log": {"level": "warn"}, "error": {"log": {"message": "loglevel"}, "exception": [{"message": "exception_used"}]}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: logs-apm.error-log-level-testing
+        body:
+          fields: ["log.level"]
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields: { "log.level": ["error"] } }
+  - match: { hits.hits.1.fields: { "log.level": ["warn"] } }

@@ -1,0 +1,40 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test sort Processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "sort" : {
+                  "field" : "values"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "values": ["foo", "bar", "baz"]
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.values: ["bar", "baz", "foo"] }

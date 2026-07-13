@@ -1,0 +1,188 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0; you may not use this file except in compliance with the Elastic License
+# 2.0.
+#
+
+# This file contains a whitelist for SQL specific utilities and classes available inside SQL scripting
+
+#### Classes
+
+class org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape {
+}
+
+class org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime {
+}
+
+class org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth {
+}
+
+class java.time.OffsetTime {
+}
+
+class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils {
+#
+# Utilities
+#
+  def docValue(java.util.Map, String)
+  boolean nullSafeFilter(Boolean)
+  double nullSafeSortNumeric(Number)
+  String nullSafeSortString(Object)
+
+#
+# ASCII Functions
+#
+  Boolean startsWith(String, String, Boolean)
+
+#
+# Comparison
+#
+  Boolean eq(Object, Object)
+  Boolean nulleq(Object, Object)
+  Boolean neq(Object, Object)
+  Boolean lt(Object, Object)
+  Boolean lte(Object, Object)
+  Boolean gt(Object, Object)
+  Boolean gte(Object, Object)
+  Boolean in(Object, java.util.List)
+
+#
+# Logical
+#
+  Boolean and(Boolean, Boolean)
+  Boolean or(Boolean, Boolean)
+  Boolean not(Boolean)
+  Boolean isNull(Object)
+  Boolean isNotNull(Object)
+
+#
+# Regex
+#
+  Boolean regex(String, String)
+  Boolean regex(String, String, Boolean)
+
+#
+# Math
+#
+  Number neg(Number)
+
+}
+
+class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
+#
+# Conditional
+#
+  def coalesce(java.util.List)
+  def greatest(java.util.List)
+  def least(java.util.List)
+  def nullif(Object, Object)
+
+#
+# Math
+#
+  def add(Object, Object)
+  def sub(Object, Object)
+  def div(Object, Object)
+  def mod(Object, Object)
+  def mul(Object, Object)
+  Number atan2(Number, Number)
+  Number neg(Number)
+  Number power(Number, Number)
+  Number round(Number, Number)
+  Number truncate(Number, Number)
+
+  Number abs(Number)
+  Number acos(Number)
+  Number asin(Number)
+  Number atan(Number)
+  Number cbrt(Number)
+  Number ceil(Number)
+  Number cos(Number)
+  Number cosh(Number)
+  Number cot(Number)
+  Number degrees(Number)
+  Number e(Number)
+  Number exp(Number)
+  Number expm1(Number)
+  Number floor(Number)
+  Number log(Number)
+  Number log10(Number)
+  Number pi(Number)
+  Number radians(Number)
+  Number random(Number)
+  Number sign(Number)
+  Number sin(Number)
+  Number sinh(Number)
+  Number sqrt(Number)
+  Number tan(Number)
+
+#
+# Date/Time functions
+#
+  Integer dateTimeChrono(Object, String, String)
+  Integer dateTimeExtract(Object, String, String)
+  String  dayName(Object, String)
+  Integer dayOfWeek(Object, String)
+  String  monthName(Object, String)
+  Integer quarter(Object, String)
+  Integer weekOfYear(Object, String)
+  ZonedDateTime dateAdd(String, Integer, Object, String)
+  Integer dateDiff(String, Object, Object, String)
+  def dateTrunc(String, Object, String)
+  def dateParse(String, String, String)
+  Integer datePart(String, Object, String)
+  String dateFormat(Object, String, String)
+  String dateTimeFormat(Object, String, String)
+  String format(Object, String, String)
+  String toChar(Object, String, String)
+  def dateTimeParse(String, String, String)
+  def timeParse(String, String, String)
+  IntervalDayTime intervalDayTime(String, String)
+  IntervalYearMonth intervalYearMonth(String, String)
+  ZonedDateTime asDateTime(Object)
+  OffsetTime asTime(String)
+
+#
+# ASCII Functions
+#
+  Integer ascii(String)
+  Integer bitLength(String)
+  String  character(Number)
+  Integer charLength(String)
+  String  concat(String, String)
+  String  insert(String, Number, Number, String)
+  String  lcase(String)
+  String  left(String, Number)
+  Integer length(String)
+  Integer locate(String, String)
+  Integer locate(String, String, Number)
+  String  ltrim(String)
+  Integer octetLength(String)
+  Integer position(String, String)
+  String  repeat(String, Number)
+  String  replace(String, String, String)
+  String  right(String, Number)
+  String  rtrim(String)
+  String  space(Number)
+  String  substring(String, Number, Number)
+  String  trim(String)
+  String  ucase(String)
+
+#
+# Geo Functions
+#
+  GeoShape geoDocValue(java.util.Map, String)
+  String   stAswkt(Object)
+  Double   stDistance(Object, Object)
+  String   stGeometryType(Object)
+  GeoShape stWktToSql(String)
+  Double   stX(Object)
+  Double   stY(Object)
+  Double   stZ(Object)
+
+#
+# Casting
+#
+  def cast(Object, String)
+}

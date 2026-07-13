@@ -1,0 +1,12 @@
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(":x-pack:test:idp-fixture")
+  testImplementation "junit:junit:${versions.junit}"
+}
+
+tasks.named('test') {
+  // test suite uses jks which is not supported in fips mode
+}

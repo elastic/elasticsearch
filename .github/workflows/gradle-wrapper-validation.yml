@@ -1,0 +1,14 @@
+name: "Validate Gradle Wrapper"
+on: [push]
+
+permissions:
+  contents: read
+
+jobs:
+  validation:
+    name: "Validation"
+    if: github.repository == 'elastic/elasticsearch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gradle/actions/wrapper-validation@ac638b010cf58a27ee6c972d7336334ccaf61c96 # Release v4.4.1

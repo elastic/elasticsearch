@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 148493
+summary: Add max_field_bytes to attachment processor and ingest.attachment.max_field_size node setting
+type: enhancement

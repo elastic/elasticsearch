@@ -1,0 +1,509 @@
+jsonExtractString
+required_capability: fn_json_extract
+// tag::json_extract[]
+ROW log = """{"severity":"ERROR","body":"Payment processing failed"}"""
+| EVAL severity = JSON_EXTRACT(log, "severity")
+// end::json_extract[]
+;
+
+// tag::json_extract-result[]
+log:keyword                                                       | severity:keyword
+"{""severity"":""ERROR"",""body"":""Payment processing failed""}" | ERROR
+// end::json_extract-result[]
+;
+
+jsonExtractStringDollarPrefix
+required_capability: fn_json_extract
+// tag::json_extract_dollar[]
+ROW log = """{"severity":"ERROR","body":"Payment processing failed"}"""
+| EVAL severity = JSON_EXTRACT(log, "$.severity")
+// end::json_extract_dollar[]
+;
+
+// tag::json_extract_dollar-result[]
+log:keyword                                                       | severity:keyword
+"{""severity"":""ERROR"",""body"":""Payment processing failed""}" | ERROR
+// end::json_extract_dollar-result[]
+;
+
+jsonExtractNumber
+required_capability: fn_json_extract
+ROW json = """{"name":"Alice","age":30}"""
+| EVAL age = JSON_EXTRACT(json, "age")
+;
+
+json:keyword                             | age:keyword
+"{""name"":""Alice"",""age"":30}"        | 30
+;
+
+jsonExtractBoolean
+required_capability: fn_json_extract
+ROW json = """{"active":true}"""
+| EVAL active = JSON_EXTRACT(json, "active")
+;
+
+json:keyword            | active:keyword
+"{""active"":true}"     | true
+;
+
+jsonExtractNested
+required_capability: fn_json_extract
+// tag::json_extract_nested[]
+ROW log = """{"resource":{"service":{"name":"order-service"}}}"""
+| EVAL svc = JSON_EXTRACT(log, "resource.service.name")
+// end::json_extract_nested[]
+;
+
+// tag::json_extract_nested-result[]
+log:keyword                                                        | svc:keyword
+"{""resource"":{""service"":{""name"":""order-service""}}}"        | order-service
+// end::json_extract_nested-result[]
+;
+
+jsonExtractNestedBracketNotation
+required_capability: fn_json_extract
+ROW json = """{"user.name":{"first":"Alice"}}"""
+| EVAL val = JSON_EXTRACT(json, "['user.name'].first")
+;
+
+json:keyword                                  | val:keyword
+"{""user.name"":{""first"":""Alice""}}"       | Alice
+;
+
+jsonExtractBracketNotationSimple
+required_capability: fn_json_extract
+ROW json = """{"name":"Alice","age":30}"""
+| EVAL name = JSON_EXTRACT(json, "['name']")
+;
+
+json:keyword                             | name:keyword
+"{""name"":""Alice"",""age"":30}"        | Alice
+;
+
+jsonExtractBracketNotationKeyWithDot
+required_capability: fn_json_extract
+ROW json = """{"user.name":"Alice"}"""
+| EVAL val = JSON_EXTRACT(json, "['user.name']")
+;
+
+json:keyword                 | val:keyword
+"{""user.name"":""Alice""}" | Alice
+;
+
+jsonExtractMixedDotAndBracket
+required_capability: fn_json_extract
+ROW json = """{"user":{"address":{"city":"London"}}}"""
+| EVAL city = JSON_EXTRACT(json, "user['address'].city")
+;
+
+json:keyword                                             | city:keyword
+"{""user"":{""address"":{""city"":""London""}}}"         | London
+;
+
+jsonExtractArrayIndex
+required_capability: fn_json_extract
+ROW json = """{"tags":["a","b","c"]}"""
+| EVAL first_tag = JSON_EXTRACT(json, "tags[0]")
+;
+
+json:keyword                         | first_tag:keyword
+"{""tags"":[""a"",""b"",""c""]}"     | a
+;
+
+jsonExtractMixedNesting
+required_capability: fn_json_extract
+// tag::json_extract_array[]
+ROW log = """{"spans":[{"name":"auth","duration":12},{"name":"db-query","duration":45}]}"""
+| EVAL span = JSON_EXTRACT(log, "spans[1].name")
+// end::json_extract_array[]
+;
+
+// tag::json_extract_array-result[]
+log:keyword                                                                                   | span:keyword
+"{""spans"":[{""name"":""auth"",""duration"":12},{""name"":""db-query"",""duration"":45}]}"   | db-query
+// end::json_extract_array-result[]
+;
+
+jsonExtractDeepMixedNesting
+required_capability: fn_json_extract
+// tag::json_extract_deep_nesting[]
+ROW log = """{"trace":{"spans":[{"name":"auth","events":[{"type":"start"},{"type":"end"}]},{"name":"db","events":[{"type":"query"}]}]}}"""
+| EVAL event = JSON_EXTRACT(log, "trace.spans[0].events[1].type")
+| KEEP event
+// end::json_extract_deep_nesting[]
+;
+
+// tag::json_extract_deep_nesting-result[]
+event:keyword
+end
+// end::json_extract_deep_nesting-result[]
+;
+
+jsonExtractObject
+required_capability: fn_json_extract
+// tag::json_extract_object[]
+ROW log = """{"resource":{"service.name":"api-gateway","host.name":"api-server-03"},"severity":"INFO"}"""
+| EVAL resource = JSON_EXTRACT(log, "resource")
+// end::json_extract_object[]
+;
+
+// tag::json_extract_object-result[]
+log:keyword                                                                                                          | resource:keyword
+"{""resource"":{""service.name"":""api-gateway"",""host.name"":""api-server-03""},""severity"":""INFO""}"            | "{""service.name"":""api-gateway"",""host.name"":""api-server-03""}"
+// end::json_extract_object-result[]
+;
+
+jsonExtractMissing
+required_capability: fn_json_extract
+ROW json = """{"name":"Alice"}"""
+| EVAL missing = JSON_EXTRACT(json, "nonexistent")
+;
+warning:Line 2:18: evaluation of [JSON_EXTRACT(json, \"nonexistent\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:18: java.lang.IllegalArgumentException: path [nonexistent] does not exist
+
+json:keyword              | missing:keyword
+"{""name"":""Alice""}"    | null
+;
+
+jsonExtractJsonNull
+required_capability: fn_json_extract
+ROW json = """{"value":null}"""
+| EVAL val = JSON_EXTRACT(json, "value")
+;
+
+json:keyword           | val:keyword
+"{""value"":null}"     | null
+;
+
+jsonExtractInvalidJson
+required_capability: fn_json_extract
+ROW json = "not valid json"
+| EVAL result = JSON_EXTRACT(json, "field")
+;
+warning:Line 2:17: evaluation of [JSON_EXTRACT(json, \"field\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:17: java.lang.IllegalArgumentException: invalid JSON input
+
+json:keyword       | result:keyword
+not valid json     | null
+;
+
+jsonExtractNullInput
+required_capability: fn_json_extract
+ROW json = null
+| EVAL result = JSON_EXTRACT(json::keyword, "field")
+;
+
+json:null | result:keyword
+null      | null
+;
+
+jsonExtractNullPath
+required_capability: fn_json_extract
+ROW json = """{"name":"Alice"}"""
+| EVAL result = JSON_EXTRACT(json, null::keyword)
+;
+
+json:keyword              | result:keyword
+"{""name"":""Alice""}"    | null
+;
+
+jsonExtractArrayOutOfBounds
+required_capability: fn_json_extract
+ROW json = """{"tags":["a","b"]}"""
+| EVAL result = JSON_EXTRACT(json, "tags[5]")
+;
+warning:Line 2:17: evaluation of [JSON_EXTRACT(json, \"tags[5]\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:17: java.lang.IllegalArgumentException: array index out of bounds
+
+json:keyword                    | result:keyword
+"{""tags"":[""a"",""b""]}"     | null
+;
+
+jsonExtractDuplicateKeys
+required_capability: fn_json_extract
+// Duplicate keys: returns the first matching value (streaming parser stops at first match).
+// Note: jq and psql return the last value for duplicate keys; our behavior matches first-match semantics.
+ROW json = """{"foo":1,"foo":2}"""
+| EVAL val = JSON_EXTRACT(json, "foo")
+;
+
+json:keyword              | val:keyword
+"{""foo"":1,""foo"":2}"  | 1
+;
+
+jsonExtractDuplicateKeysNested
+required_capability: fn_json_extract
+ROW json = """{"a":{"b":1},"a":{"b":2}}"""
+| EVAL val = JSON_EXTRACT(json, "a.b")
+;
+
+json:keyword                              | val:keyword
+"{""a"":{""b"":1},""a"":{""b"":2}}"      | 1
+;
+
+jsonExtractNullInArray
+required_capability: fn_json_extract
+ROW json = """{"items":[1,null,3]}"""
+| EVAL val = JSON_EXTRACT(json, "items[1]")
+;
+
+json:keyword                     | val:keyword
+"{""items"":[1,null,3]}"        | null
+;
+
+jsonExtractNonObjectTraversal
+required_capability: fn_json_extract
+ROW json = """{"name":"Alice"}"""
+| EVAL result = JSON_EXTRACT(json, "name.nested")
+;
+warning:Line 2:17: evaluation of [JSON_EXTRACT(json, \"name.nested\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:17: java.lang.IllegalArgumentException: path [name.nested] does not exist
+
+json:keyword              | result:keyword
+"{""name"":""Alice""}"    | null
+;
+
+// Top-level arrays
+
+jsonExtractTopLevelArrayIndex
+required_capability: fn_json_extract
+// tag::json_extract_top_level_array[]
+ROW json = """["a","b","c"]"""
+| EVAL val = JSON_EXTRACT(json, "$[1]")
+| KEEP val
+// end::json_extract_top_level_array[]
+;
+
+// tag::json_extract_top_level_array-result[]
+val:keyword
+b
+// end::json_extract_top_level_array-result[]
+;
+
+jsonExtractTopLevelArrayIndexNoDollar
+required_capability: fn_json_extract
+ROW json = """["a","b","c"]"""
+| EVAL val = JSON_EXTRACT(json, "[1]")
+| KEEP val
+;
+
+val:keyword
+b
+;
+
+jsonExtractTopLevelArrayNestedObject
+required_capability: fn_json_extract
+ROW json = """[{"name":"Alice"},{"name":"Bob"}]"""
+| EVAL val = JSON_EXTRACT(json, "$[1].name")
+| KEEP val
+;
+
+val:keyword
+Bob
+;
+
+jsonExtractTopLevelArrayOutOfBounds
+required_capability: fn_json_extract
+ROW json = "[1,2,3]"
+| EVAL val = JSON_EXTRACT(json, "$[5]")
+| KEEP val
+;
+warning:Line 2:14: evaluation of [JSON_EXTRACT(json, \"$[5]\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:14: java.lang.IllegalArgumentException: array index out of bounds
+
+val:keyword
+null
+;
+
+jsonExtractTopLevelArrayExtractObject
+required_capability: fn_json_extract
+ROW json = """[{"id":1,"item":"book"},{"id":2,"item":"pen"}]"""
+| EVAL val = JSON_EXTRACT(json, "$[0]")
+| KEEP val
+;
+
+val:keyword
+"{""id"":1,""item"":""book""}"
+;
+
+jsonExtractTopLevelArrayFull
+required_capability: fn_json_extract
+ROW json = "[1,2,3]"
+| EVAL val = JSON_EXTRACT(json, "$")
+| KEEP val
+;
+
+val:keyword
+["[1\,2\,3]"]
+;
+
+jsonExtractTopLevelArrayExtractNestedArray
+required_capability: fn_json_extract
+ROW json = "[[1,2],[3,4]]"
+| EVAL val = JSON_EXTRACT(json, "$[0]")
+| KEEP val
+;
+
+val:keyword
+["[1\,2]"]
+;
+
+// Top-level scalars
+
+jsonExtractTopLevelString
+required_capability: fn_json_extract
+ROW json = """"hello""""
+| EVAL val = JSON_EXTRACT(json, "$")
+;
+
+json:keyword      | val:keyword
+"""hello"""       | hello
+;
+
+jsonExtractTopLevelNumber
+required_capability: fn_json_extract
+ROW json = "42"
+| EVAL val = JSON_EXTRACT(json, "$")
+;
+
+json:keyword | val:keyword
+42           | 42
+;
+
+jsonExtractTopLevelBoolean
+required_capability: fn_json_extract
+ROW json = "true"
+| EVAL val = JSON_EXTRACT(json, "$")
+;
+
+json:keyword | val:keyword
+true         | true
+;
+
+jsonExtractTopLevelNull
+required_capability: fn_json_extract
+ROW json = "null"
+| EVAL val = JSON_EXTRACT(json, "$")
+| KEEP val
+;
+
+val:keyword
+null
+;
+
+// =============================================================================
+// FROM index tests — structured logs with JSON payloads
+// =============================================================================
+
+jsonExtractFromIndexBracketDocs
+required_capability: fn_json_extract
+// tag::json_extract_bracket[]
+FROM json_logs
+| EVAL svc = JSON_EXTRACT(payload, "resource['service.name']")
+| KEEP @timestamp, source, svc
+| SORT @timestamp
+| LIMIT 3
+// end::json_extract_bracket[]
+;
+
+// tag::json_extract_bracket-result[]
+@timestamp:date              | source:keyword  | svc:keyword
+2024-10-01T12:00:00.000Z     | api-gateway     | api-gateway
+2024-10-01T12:01:00.000Z     | user-service    | user-service
+2024-10-01T12:02:00.000Z     | auth-service    | auth-service
+// end::json_extract_bracket-result[]
+;
+
+jsonExtractFromIndexFilterDocs
+required_capability: fn_json_extract
+FROM json_logs
+| EVAL exception = JSON_EXTRACT(payload, "attributes['exception.type']")
+| WHERE level == "ERROR"
+| SORT @timestamp
+| KEEP @timestamp, source, exception
+;
+
+@timestamp:date              | source:keyword  | exception:keyword
+2024-10-01T12:04:00.000Z     | order-service   | java.net.ConnectException
+2024-10-01T12:08:00.000Z     | api-gateway     | java.util.concurrent.TimeoutException
+;
+
+jsonExtractFromIndexBracketNotation
+required_capability: fn_json_extract
+FROM json_logs
+| EVAL method = JSON_EXTRACT(payload, "attributes['http.method']")
+| WHERE method == "POST"
+| SORT @timestamp
+| KEEP @timestamp, source, method
+;
+warning:Line 2:17: evaluation of [JSON_EXTRACT(payload, \"attributes['http.method']\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:17: java.lang.IllegalArgumentException: path [attributes['http.method']] does not exist
+
+@timestamp:date              | source:keyword  | method:keyword
+2024-10-01T12:00:00.000Z     | api-gateway     | POST
+2024-10-01T12:02:00.000Z     | auth-service    | POST
+2024-10-01T12:03:00.000Z     | auth-service    | POST
+2024-10-01T12:04:00.000Z     | order-service   | POST
+;
+
+jsonExtractFromIndexErrorLogs
+required_capability: fn_json_extract
+FROM json_logs
+| EVAL exception = JSON_EXTRACT(payload, "attributes['exception.type']")
+| WHERE level == "ERROR"
+| SORT @timestamp
+| KEEP @timestamp, source, exception
+;
+
+@timestamp:date              | source:keyword  | exception:keyword
+2024-10-01T12:04:00.000Z     | order-service   | java.net.ConnectException
+2024-10-01T12:08:00.000Z     | api-gateway     | java.util.concurrent.TimeoutException
+;
+
+jsonExtractFromIndexDynamicPath
+required_capability: fn_json_extract
+FROM json_logs
+| EVAL extracted = JSON_EXTRACT(payload, extract_path)
+| SORT @timestamp
+| KEEP @timestamp, source, extract_path, extracted
+;
+
+@timestamp:date              | source:keyword        | extract_path:keyword  | extracted:keyword
+2024-10-01T12:00:00.000Z     | api-gateway           | severity              | INFO
+2024-10-01T12:01:00.000Z     | user-service          | body                  | SELECT query executed
+2024-10-01T12:02:00.000Z     | auth-service          | traceId               | A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6
+2024-10-01T12:03:00.000Z     | auth-service          | severity              | WARN
+2024-10-01T12:04:00.000Z     | order-service         | severity              | ERROR
+2024-10-01T12:05:00.000Z     | recommendations       | body                  | Model inference completed
+2024-10-01T12:06:00.000Z     | api-gateway           | spanId                | D6E7F8A9B0C1D2E3
+2024-10-01T12:07:00.000Z     | inventory-service     | traceId               | F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8
+2024-10-01T12:08:00.000Z     | api-gateway           | body                  | Upstream service timeout
+;
+
+jsonExtractFromIndexServiceFilter
+required_capability: fn_json_extract
+FROM json_logs
+| EVAL svc = JSON_EXTRACT(payload, "resource['service.name']")
+| WHERE svc == "api-gateway"
+| SORT @timestamp DESC
+| LIMIT 1
+| KEEP @timestamp, svc
+;
+
+@timestamp:date              | svc:keyword
+2024-10-01T12:08:00.000Z     | api-gateway
+;
+
+jsonExtractFromEmployeesConcatRoundTrip
+required_capability: fn_json_extract
+FROM employees
+| EVAL json = CONCAT("{\"first\": \"", first_name, "\", \"last\": \"", last_name, "\"}")
+| KEEP json
+| EVAL fn = JSON_EXTRACT(json, "first"), ln = JSON_EXTRACT(json, "last")
+| WHERE fn == "Parto"
+;
+
+json:keyword                                                               | fn:keyword | ln:keyword
+"{""first"": ""Parto"", ""last"": ""Bamford""}"                            | Parto      | Bamford
+;
+

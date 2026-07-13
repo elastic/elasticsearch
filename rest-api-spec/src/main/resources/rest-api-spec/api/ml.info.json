@@ -1,0 +1,25 @@
+{
+  "ml.info": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-info",
+      "description": "Get machine learning information"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_ml/info",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

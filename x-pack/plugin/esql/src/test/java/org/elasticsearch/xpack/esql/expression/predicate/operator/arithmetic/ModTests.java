@@ -1,0 +1,232 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matcher;
+
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
+
+public class ModTests extends AbstractScalarFunctionTestCase {
+    public ModTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryWithWidening(
+                new TestCaseSupplier.NumericTypeTestConfigs<Number>(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
+                        (Integer.MIN_VALUE >> 1) - 1,
+                        (Integer.MAX_VALUE >> 1) - 1,
+                        (l, r) -> l.intValue() % r.intValue(),
+                        "ModIntsEvaluator"
+                    ),
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
+                        (Long.MIN_VALUE >> 1) - 1,
+                        (Long.MAX_VALUE >> 1) - 1,
+                        (l, r) -> l.longValue() % r.longValue(),
+                        "ModLongsEvaluator"
+                    ),
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
+                        Double.NEGATIVE_INFINITY,
+                        Double.POSITIVE_INFINITY,
+                        (l, r) -> l.doubleValue() % r.doubleValue(),
+                        "ModDoublesEvaluator"
+                    )
+                ),
+                "lhs",
+                "rhs",
+                (lhs, rhs) -> List.of(),
+                false
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "ModUnsignedLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> (((BigInteger) l).mod((BigInteger) r)),
+                DataType.UNSIGNED_LONG,
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
+                TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE), true),
+                List.of(),
+                false
+            )
+        );
+
+        // Divide by zero cases - all of these should warn and return null
+        TestCaseSupplier.NumericTypeTestConfigs<Number> typeStuff = new TestCaseSupplier.NumericTypeTestConfigs<>(
+            new TestCaseSupplier.NumericTypeTestConfig<>(
+                (Integer.MIN_VALUE >> 1) - 1,
+                (Integer.MAX_VALUE >> 1) - 1,
+                (l, r) -> null,
+                "ModIntsEvaluator"
+            ),
+            new TestCaseSupplier.NumericTypeTestConfig<>(
+                (Long.MIN_VALUE >> 1) - 1,
+                (Long.MAX_VALUE >> 1) - 1,
+                (l, r) -> null,
+                "ModLongsEvaluator"
+            ),
+            new TestCaseSupplier.NumericTypeTestConfig<>(
+                Double.NEGATIVE_INFINITY,
+                Double.POSITIVE_INFINITY,
+                (l, r) -> null,
+                "ModDoublesEvaluator"
+            )
+        );
+        List<DataType> numericTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE);
+
+        for (DataType lhsType : numericTypes) {
+            for (DataType rhsType : numericTypes) {
+                DataType expected = TestCaseSupplier.widen(lhsType, rhsType);
+                TestCaseSupplier.NumericTypeTestConfig<Number> expectedTypeStuff = typeStuff.get(expected);
+                BiFunction<DataType, DataType, Matcher<String>> evaluatorToString = (lhs, rhs) -> equalTo(
+                    expectedTypeStuff.evaluatorName()
+                        + "["
+                        + "lhs"
+                        + "="
+                        + TestCaseSupplier.getCastEvaluator("Attribute[channel=0]", lhs, expected)
+                        + ", "
+                        + "rhs"
+                        + "="
+                        + TestCaseSupplier.getCastEvaluator("Attribute[channel=1]", rhs, expected)
+                        + "]"
+                );
+                TestCaseSupplier.casesCrossProduct(
+                    (l1, r1) -> expectedTypeStuff.expected().apply((Number) l1, (Number) r1),
+                    TestCaseSupplier.getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),
+                    TestCaseSupplier.getSuppliersForNumericType(rhsType, 0, 0, true),
+                    evaluatorToString,
+                    (lhs, rhs) -> List.of(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: java.lang.ArithmeticException: / by zero"
+                    ),
+                    suppliers,
+                    expected,
+                    false
+                );
+            }
+        }
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "ModUnsignedLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> null,
+                DataType.UNSIGNED_LONG,
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.ZERO, true),
+                List.of(
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: / by zero"
+                ),
+                false
+            )
+        );
+
+        // Constant-divisor fast path: when the right-hand side is a foldable scalar,
+        // Mod#toEvaluator dispatches to ModXxxByConstantEvaluator instead of the binary
+        // evaluator. These cases verify the dispatch + Cast hookup for each numeric
+        // common type, including the two widening combinations.
+        suppliers.add(new TestCaseSupplier("Int % literal Int", List.of(DataType.INTEGER, DataType.INTEGER), () -> {
+            int lhs = randomInt();
+            int rhs = randomValueOtherThan(0, ESTestCase::randomInt);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs").forceLiteral()
+                ),
+                startsWith("ModIntsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]"),
+                DataType.INTEGER,
+                equalTo(lhs % rhs)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Long % literal Long", List.of(DataType.LONG, DataType.LONG), () -> {
+            long lhs = randomLong();
+            long rhs = randomValueOtherThan(0L, ESTestCase::randomLong);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.LONG, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.LONG, "rhs").forceLiteral()
+                ),
+                startsWith("ModLongsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]"),
+                DataType.LONG,
+                equalTo(lhs % rhs)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Long % literal Int", List.of(DataType.LONG, DataType.INTEGER), () -> {
+            long lhs = randomLong();
+            int rhs = randomValueOtherThan(0, ESTestCase::randomInt);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.LONG, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs").forceLiteral()
+                ),
+                startsWith("ModLongsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + (long) rhs + "]"),
+                DataType.LONG,
+                equalTo(lhs % (long) rhs)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Int % literal Long", List.of(DataType.INTEGER, DataType.LONG), () -> {
+            int lhs = randomInt();
+            long rhs = randomValueOtherThan(0L, ESTestCase::randomLong);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.LONG, "rhs").forceLiteral()
+                ),
+                startsWith("ModLongsByConstantEvaluator[lhs=CastIntToLongEvaluator[v=Attribute[channel=0]], rhs=" + rhs + "]"),
+                DataType.LONG,
+                equalTo((long) lhs % rhs)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Double % literal Double", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            double lhs = randomDoubleBetween(-1e9, 1e9, true);
+            double rhs = randomValueOtherThan(0.0d, () -> randomDoubleBetween(-1e6, 1e6, false));
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.DOUBLE, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.DOUBLE, "rhs").forceLiteral()
+                ),
+                startsWith("ModDoublesByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]"),
+                DataType.DOUBLE,
+                equalTo(lhs % rhs)
+            );
+        }));
+
+        suppliers = anyNullIsNull(true, suppliers);
+
+        // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
+        return parameterSuppliersFromTypedData(suppliers);
+    }
+
+    @Override
+    protected Expression build(Source source, List<Expression> args) {
+        return new Mod(source, args.get(0), args.get(1));
+    }
+}

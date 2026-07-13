@@ -1,0 +1,81 @@
+{
+  "indices.clear_cache": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-clear-cache",
+      "description": "Clear the cache"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_cache/clear",
+          "methods": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/{index}/_cache/clear",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index name to limit the operation"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "fielddata": {
+        "type": "boolean",
+        "description": "Clear field data"
+      },
+      "fields": {
+        "type": "list",
+        "description": "A comma-separated list of fields to clear when using the `fielddata` parameter (default: all)"
+      },
+      "query": {
+        "type": "boolean",
+        "description": "Clear query caches"
+      },
+      "ignore_unavailable": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+      },
+      "allow_no_indices": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to allow (1) wildcard index expressions that match no indices and (2) requests where the final resolved set is empty."
+      },
+      "expand_wildcards": {
+        "type": "list",
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "open",
+        "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "index": {
+        "type": "list",
+        "description": "A comma-separated list of index name to limit the operation"
+      },
+      "request": {
+        "type": "boolean",
+        "description": "Clear request cache"
+      }
+    }
+  }
+}

@@ -1,0 +1,236 @@
+---
+setup:
+  - requires:
+      cluster_features: [ "ingest.append.ignore_empty_values_fix" ]
+      reason: "These tests all verify that a bug in ignore_empty_values has been fixed"
+  - do:
+      ingest.put_pipeline:
+        id: "test-pipeline-1"
+        body: >
+          {
+            "processors": [
+              {
+                "append": {
+                  "if": "ctx?.templating != true",
+                  "field": "foo",
+                  "copy_from": "bar",
+                  "allow_duplicates": false,
+                  "ignore_empty_values": true
+                }
+              },
+              {
+                "append": {
+                  "if": "ctx?.templating == true",
+                  "field": "foo",
+                  "value": "{{bar}}",
+                  "allow_duplicates": true,
+                  "ignore_empty_values": true
+                }
+              },
+              {
+                "remove": {
+                  "field": "bar",
+                  "ignore_missing": true
+                }
+              },
+              {
+                "script": {
+                  "source": "def foo = ctx.foo; ctx.foo_is_null = (foo == null);"
+                }
+              }
+            ]
+          }
+  - do:
+      indices.create:
+        index: "test-some-index"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: "test-some-index"
+        ignore_unavailable: true
+  - do:
+      ingest.delete_pipeline:
+        id: "test-pipeline-1"
+        ignore: 404
+
+---
+"scalar values will become a list if necessary":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "foo": "2",
+            "bar": "3",
+            "templating": false
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.foo: ["2", "3"] }
+
+  - do:
+      index:
+        index: test-some-index
+        id: 2
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "foo": "2",
+            "bar": "2",
+            "templating": true
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "2"
+  - match: { _source.foo: ["2", "2"] }
+
+  - do:
+      index:
+        index: test-some-index
+        id: 3
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "foo": "2",
+            "bar": "3",
+            "templating": true
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "3"
+  - match: { _source.foo: ["2", "3"] }
+
+---
+"if a value doesn't change because of ignoring duplicates or empty values, it doesn't become a list":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "foo": "2",
+            "bar": "2",
+            "templating": false
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.foo: "2" }
+
+  - do:
+      index:
+        index: test-some-index
+        id: 2
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "foo": "2",
+            "bar": "",
+            "templating": false
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "2"
+  - match: { _source.foo: "2" }
+
+  - do:
+      index:
+        index: test-some-index
+        id: 3
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "foo": "2",
+            "bar": "",
+            "templating": true
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "3"
+  - match: { _source.foo: "2" }
+
+---
+"an absent value isn't added in the absence of change":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "bar": "",
+            "templating": false
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.foo_is_null: true }
+
+  - do:
+      index:
+        index: test-some-index
+        id: 2
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "bar": "",
+            "templating": true
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "2"
+  - match: { _source.foo_is_null: true }
+
+  - do:
+      index:
+        index: test-some-index
+        id: 3
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "templating": false
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "3"
+  - match: { _source.foo_is_null: true }
+
+  - do:
+      index:
+        index: test-some-index
+        id: 4
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "templating": true
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "4"
+  - match: { _source.foo_is_null: true }

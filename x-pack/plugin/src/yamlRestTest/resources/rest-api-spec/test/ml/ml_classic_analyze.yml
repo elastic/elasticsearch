@@ -1,0 +1,83 @@
+---
+"Test analyze API with an analyzer that does what we used to do in native code":
+  - do:
+      indices.analyze:
+        body:  >
+          {
+            "tokenizer" : "ml_classic",
+            "filter" : [
+              { "type" : "stop", "stopwords": [
+                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+                "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+                "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+                "GMT", "UTC"
+              ] }
+            ],
+            "text" : "[elasticsearch] [2017-12-13T10:46:30,816][INFO ][o.e.c.m.MetadataCreateIndexService] [node-0] [.watcher-history-7-2017.12.13] creating index, cause [auto(bulk api)], templates [.watch-history-7], shards [1]/[1], mappings [doc]"
+          }
+  - match: { tokens.0.token: "elasticsearch" }
+  - match: { tokens.0.start_offset: 1 }
+  - match: { tokens.0.end_offset: 14 }
+  - match: { tokens.0.position: 0 }
+  - match: { tokens.1.token: "INFO" }
+  - match: { tokens.1.start_offset: 42 }
+  - match: { tokens.1.end_offset: 46 }
+  - match: { tokens.1.position: 5 }
+  - match: { tokens.2.token: "o.e.c.m.MetadataCreateIndexService" }
+  - match: { tokens.2.start_offset: 49 }
+  - match: { tokens.2.end_offset: 83 }
+  - match: { tokens.2.position: 6 }
+  - match: { tokens.3.token: "node-0" }
+  - match: { tokens.3.start_offset: 86 }
+  - match: { tokens.3.end_offset: 92 }
+  - match: { tokens.3.position: 7 }
+  - match: { tokens.4.token: "watcher-history-7-2017.12.13" }
+  - match: { tokens.4.start_offset: 96 }
+  - match: { tokens.4.end_offset: 124 }
+  - match: { tokens.4.position: 8 }
+  - match: { tokens.5.token: "creating" }
+  - match: { tokens.5.start_offset: 126 }
+  - match: { tokens.5.end_offset: 134 }
+  - match: { tokens.5.position: 9 }
+  - match: { tokens.6.token: "index" }
+  - match: { tokens.6.start_offset: 135 }
+  - match: { tokens.6.end_offset: 140 }
+  - match: { tokens.6.position: 10 }
+  - match: { tokens.7.token: "cause" }
+  - match: { tokens.7.start_offset: 142 }
+  - match: { tokens.7.end_offset: 147 }
+  - match: { tokens.7.position: 11 }
+  - match: { tokens.8.token: "auto" }
+  - match: { tokens.8.start_offset: 149 }
+  - match: { tokens.8.end_offset: 153 }
+  - match: { tokens.8.position: 12 }
+  - match: { tokens.9.token: "bulk" }
+  - match: { tokens.9.start_offset: 154 }
+  - match: { tokens.9.end_offset: 158 }
+  - match: { tokens.9.position: 13 }
+  - match: { tokens.10.token: "api" }
+  - match: { tokens.10.start_offset: 159 }
+  - match: { tokens.10.end_offset: 162 }
+  - match: { tokens.10.position: 14 }
+  - match: { tokens.11.token: "templates" }
+  - match: { tokens.11.start_offset: 166 }
+  - match: { tokens.11.end_offset: 175 }
+  - match: { tokens.11.position: 15 }
+  - match: { tokens.12.token: "watch-history-7" }
+  - match: { tokens.12.start_offset: 178 }
+  - match: { tokens.12.end_offset: 193 }
+  - match: { tokens.12.position: 16 }
+  - match: { tokens.13.token: "shards" }
+  - match: { tokens.13.start_offset: 196 }
+  - match: { tokens.13.end_offset: 202 }
+  - match: { tokens.13.position: 17 }
+  - match: { tokens.14.token: "mappings" }
+  - match: { tokens.14.start_offset: 212 }
+  - match: { tokens.14.end_offset: 220 }
+  - match: { tokens.14.position: 20 }
+  - match: { tokens.15.token: "doc" }
+  - match: { tokens.15.start_offset: 222 }
+  - match: { tokens.15.end_offset: 225 }
+  - match: { tokens.15.position: 21 }
+

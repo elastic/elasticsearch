@@ -1,0 +1,26 @@
+# Example test using whitelisted members and methods
+
+"Whitelisted custom class":
+    - do:
+        index:
+            index: test
+            id: "1"
+            body: { "num1": 1.0 }
+    - do:
+        indices.refresh: {}
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            index: test
+            body:
+                query:
+                    match_all: {}
+                script_fields:
+                    sNum1:
+                        script:
+                            source: "def e = new ExampleWhitelistedClass(6, 42); ExampleWhitelistedClass.staticMethod(); return e.publicMember + e.privateMemberAccessor + ExampleWhitelistedClass.CONSTANT + '2'.toInt()"
+                            lang: painless
+
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0.fields.sNum1.0: 92 }

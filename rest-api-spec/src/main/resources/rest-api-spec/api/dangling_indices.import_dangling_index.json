@@ -1,0 +1,48 @@
+{
+  "dangling_indices.import_dangling_index": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-dangling-indices-import-dangling-index",
+      "description": "Import a dangling index"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_dangling/{index_uuid}",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "index_uuid": {
+              "type": "string",
+              "description": "The UUID of the dangling index"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "accept_data_loss": {
+        "type": "boolean",
+        "default": false,
+        "description": "Must be set to true in order to import the dangling index"
+      },
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
+      },
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+---
+"Realtime Refresh":
+
+
+ - do:
+     indices.create:
+       index:    test_1
+       wait_for_active_shards: all
+       body:
+         settings:
+           index:
+             refresh_interval: -1
+
+ - do:
+      index:
+          index:   test_1
+          id:      "1"
+          body:    { foo: bar }
+
+ - do:
+      exists:
+          index:    test_1
+          id:       "1"
+          realtime: false
+
+ - is_false: ''
+
+ - do:
+      exists:
+          index:    test_1
+          id:       "1"
+          realtime: true
+
+ - is_true: ''
+
+ - do:
+      exists:
+          index:    test_1
+          id:       "1"
+          realtime: false
+          refresh:  true
+
+ - is_true: ''

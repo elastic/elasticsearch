@@ -1,0 +1,89 @@
+setup:
+  - do:
+      indices.create:
+        index: test-1
+        body:
+          settings:
+            number_of_shards: "2"
+
+  - do:
+      indices.create:
+        index: test-2
+        body:
+          settings:
+            number_of_shards: "1"
+
+  - do:
+      indices.create:
+        index: test-3
+        body:
+          settings:
+            number_of_shards: "3"
+
+  - do:
+      index:
+        index:  test-2
+        body:   { max: 2 }
+
+  - do:
+      index:
+        index:  test-1
+        body:   { max: 1 }
+
+  - do:
+      index:
+        index:  test-3
+        body:   { max: 3 }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Submit async-search":
+  - skip:
+      features: "warnings"
+
+  - do:
+      async_search.submit:
+        index: test-*
+        wait_for_completion_timeout: 10s
+        keep_on_completion: true
+        body: { "query" : { "match_all" : {} } }
+
+  - set:    { id:                              id }
+  - match:  { is_partial:                   false }
+  - length: { response.hits.hits:               3 }
+
+  - do:
+      async_search.get:
+        id: "$id"
+        keep_alive: 1m
+  - match:  { is_partial:                       false }
+  - length: { response.hits.hits:                   3 }
+
+  - do:
+      async_search.get:
+        id: "$id"
+  - match:  { is_partial:                       false }
+  - length: { response.hits.hits:                   3 }
+
+  - do:
+      async_search.status:
+        id: "$id"
+        keep_alive: 1m
+
+  - match:  { is_running:                       false }
+  - match:  { is_partial:                       false }
+  - match:  { completion_status:                  200 }
+  - match:  { _shards.total:                        6 }
+  - match:  { _shards.successful:                   6 }
+
+  - do:
+      async_search.status:
+        id: "$id"
+
+  - match:  { is_running:                       false }
+  - match:  { is_partial:                       false }
+  - match:  { completion_status:                  200 }
+  - match:  { _shards.total:                        6 }
+  - match:  { _shards.successful:                   6 }

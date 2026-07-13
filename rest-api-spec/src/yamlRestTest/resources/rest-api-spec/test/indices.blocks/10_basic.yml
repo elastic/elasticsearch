@@ -1,0 +1,73 @@
+---
+"Basic test for index blocks":
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
+      reason:  "index block APIs have only been made available in 7.9.0"
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.add_block:
+        index: test_index
+        block: write
+  - is_true: acknowledged
+
+  - do:
+      catch: /cluster_block_exception/
+      index:
+        index:  test_index
+        body:   { foo: bar }
+
+  - do:
+      search:
+        index: test_index
+
+  - do:
+      indices.put_settings:
+        index: test_index
+        body:
+          index.blocks.write: false
+
+---
+"Test removing block via remove_block API":
+  - requires:
+      test_runner_features: [capabilities]
+      reason:  "index block APIs have only been made available in 9.1.0"
+      capabilities:
+        - method: DELETE
+          path: /{index}/_block/{block}
+  - do:
+      indices.create:
+        index: test_index_2
+
+  - do:
+      indices.add_block:
+        index: test_index_2
+        block: write
+  - is_true: acknowledged
+
+  - do:
+      catch: /cluster_block_exception/
+      index:
+        index:  test_index_2
+        body:   { foo: bar }
+
+  - do:
+      search:
+        index: test_index_2
+
+  - do:
+      indices.remove_block:
+        index: test_index_2
+        block: write
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index: test_index_2
+        body: { foo: bar }
+
+  - do:
+      search:
+        index: test_index_2

@@ -1,0 +1,32 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+dependencies {
+  yamlRestTestImplementation project(':x-pack:qa:third-party')
+
+  clusterModules project(xpackModule('watcher'))
+  clusterModules project(xpackModule('ilm'))
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'search', 'watcher'
+  }
+}
+
+String slackUrl = System.getenv('slack_url')
+
+if (!slackUrl) {
+  tasks.named("yamlRestTest").configure { enabled = false }
+}
+
+if (buildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("yamlRestTest").configure{enabled = false }
+}

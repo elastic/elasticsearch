@@ -1,0 +1,13 @@
+---
+_meta:
+  description: Default ILM policy for APM managed datastreams
+  managed: true
+phases:
+  hot:
+    actions:
+      rollover:
+        max_age: 1h
+  delete:
+    min_age: 1h
+    actions:
+      delete: {}

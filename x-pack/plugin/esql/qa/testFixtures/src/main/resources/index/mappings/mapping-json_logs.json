@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "level": {
+      "type": "keyword"
+    },
+    "source": {
+      "type": "keyword"
+    },
+    "payload": {
+      "type": "text"
+    },
+    "extract_path": {
+      "type": "keyword"
+    }
+  }
+}

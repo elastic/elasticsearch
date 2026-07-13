@@ -1,0 +1,2 @@
+FROM employees
+| LIMIT 1 BY emp_no

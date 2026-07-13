@@ -1,0 +1,85 @@
+#!/bin/bash
+#
+# This script is executed in the pre-installation phase
+#
+#   On Debian,
+#       $1=install : indicates an new install
+#       $1=upgrade : indicates an upgrade
+#
+#   On RedHat,
+#       $1=1       : indicates an new install
+#       $1=2       : indicates an upgrade
+
+set -e
+
+err_exit() {
+    echo "$@" >&2
+    exit 1
+}
+
+# source the default env file
+if [ -f "@path.env@" ]; then
+    . "@path.env@"
+fi
+
+export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
+
+case "$1" in
+
+    # Debian ####################################################
+    install|upgrade)
+
+        # Create elasticsearch group if not existing
+        if ! getent group elasticsearch > /dev/null 2>&1 ; then
+            echo -n "Creating elasticsearch group..."
+            addgroup --quiet --system elasticsearch
+            echo " OK"
+        fi
+
+        # Create elasticsearch user if not existing
+        if ! id elasticsearch > /dev/null 2>&1 ; then
+            echo -n "Creating elasticsearch user..."
+            adduser --quiet \
+                    --system \
+                    --no-create-home \
+                    --home /nonexistent \
+                    --ingroup elasticsearch \
+                    --disabled-password \
+                    --shell /bin/false \
+                    elasticsearch
+            echo " OK"
+        fi
+    ;;
+    abort-deconfigure|abort-upgrade|abort-remove)
+    ;;
+
+    # RedHat ####################################################
+    1|2)
+
+        # Create elasticsearch group if not existing
+        if ! getent group elasticsearch > /dev/null 2>&1 ; then
+            echo -n "Creating elasticsearch group..."
+            groupadd -r elasticsearch
+            echo " OK"
+        fi
+
+        # Create elasticsearch user if not existing
+        if ! id elasticsearch > /dev/null 2>&1 ; then
+            echo -n "Creating elasticsearch user..."
+            useradd --system \
+                    --no-create-home \
+                    --home-dir /nonexistent \
+                    --gid elasticsearch \
+                    --shell /sbin/nologin \
+                    --comment "elasticsearch user" \
+                    elasticsearch
+            echo " OK"
+        fi
+    ;;
+
+    *)
+        err_exit "pre install script called with unknown argument \`$1'"
+    ;;
+esac
+
+@scripts.footer@

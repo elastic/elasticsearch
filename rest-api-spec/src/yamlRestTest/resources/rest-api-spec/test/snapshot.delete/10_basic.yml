@@ -1,0 +1,77 @@
+---
+setup:
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_create_1
+        body:
+          type: fs
+          settings:
+            location: "test_repo_create_1_loc"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 1
+
+  - do:
+      snapshot.create:
+        repository: test_repo_create_1
+        snapshot: test_snapshot
+        wait_for_completion: true
+
+---
+"Delete a snapshot synchronously (default)":
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_create_1
+        snapshot: test_snapshot
+
+  - match: { acknowledged: true }
+
+---
+"Delete a snapshot synchronously (specified)":
+  - requires:
+      test_runner_features: capabilities
+      capabilities:
+        - method: DELETE
+          path: /_snapshot/{repository}/{snapshot}
+          parameters: [ wait_for_completion ]
+      reason: "wait_for_completion parameter was introduced in 8.15"
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_create_1
+        snapshot: test_snapshot
+        wait_for_completion: true
+
+  - match: { acknowledged: true }
+
+---
+"Delete a snapshot asynchronously":
+  - requires:
+      test_runner_features: capabilities
+      capabilities:
+        - method: DELETE
+          path: /_snapshot/{repository}/{snapshot}
+          parameters: [ wait_for_completion ]
+      reason: "wait_for_completion parameter was introduced in 8.15"
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_create_1
+        snapshot: test_snapshot
+        wait_for_completion: false
+
+  - match: { acknowledged: true }
+
+  # now create another snapshot just to ensure that the async delete finishes before the test cleanup runs:
+  - do:
+      snapshot.create:
+        repository: test_repo_create_1
+        snapshot: barrier_snapshot
+        wait_for_completion: true

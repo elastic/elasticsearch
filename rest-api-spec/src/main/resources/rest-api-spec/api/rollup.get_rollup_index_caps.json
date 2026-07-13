@@ -1,0 +1,35 @@
+{
+  "rollup.get_rollup_index_caps": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-rollup-get-rollup-index-caps",
+      "description": "Get the rollup index capabilities"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "deprecated": {
+      "version": "8.11.0",
+      "description": "Rollup APIs are deprecated, use downsampling with time series data stream instead"
+    },
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/{index}/_rollup/data",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "Comma-separated list of data streams or indices to check for rollup capabilities. Wildcard (`*`) expressions are supported."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

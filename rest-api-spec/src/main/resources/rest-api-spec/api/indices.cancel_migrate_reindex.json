@@ -1,0 +1,34 @@
+{
+  "indices.cancel_migrate_reindex": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-cancel-migrate-reindex",
+      "description": "Cancel a migration reindex operation"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_migration/reindex/{index}/_cancel",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "Comma-separated list of index or data stream names"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

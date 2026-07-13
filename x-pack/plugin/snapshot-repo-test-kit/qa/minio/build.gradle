@@ -1,0 +1,26 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
+  javaRestTestImplementation project(':test:fixtures:minio-fixture')
+}
+
+restResources {
+  restApi {
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'snapshot_repo_test_kit'
+  }
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("to be triaged")
+}

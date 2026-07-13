@@ -1,0 +1,51 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+}
+
+restResources {
+  restApi {
+    include 'indices', 'bulk', 'snapshot', 'nodes', '_common', 'repositories-metering-api'
+  }
+}
+
+boolean useFixture = false
+String s3AccessKey = System.getenv("amazon_s3_access_key")
+String s3SecretKey = System.getenv("amazon_s3_secret_key")
+String s3Bucket = System.getenv("amazon_s3_bucket")
+String s3BasePath = System.getenv("amazon_s3_base_path")
+
+if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
+  s3AccessKey = 's3_test_access_key'
+  s3SecretKey = 's3_test_secret_key'
+  s3Bucket = 'bucket'
+  s3BasePath = null
+  useFixture = true
+
+} else if (!s3AccessKey || !s3SecretKey || !s3Bucket || !s3BasePath) {
+  throw new IllegalArgumentException("not all options specified to run against external S3 service are present")
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("to be triaged")
+  systemProperty("tests.use.fixture", Boolean.toString(useFixture))
+  systemProperty 'test.s3.bucket', s3Bucket
+  systemProperty("s3AccessKey", s3AccessKey)
+  systemProperty("s3SecretKey", s3SecretKey)
+  nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_repositories_metering" + buildParams.testSeed : 'base_path_integration_tests'
+}
+tasks.register("s3ThirdPartyTest").configure {
+  dependsOn "javaRestTest"
+}

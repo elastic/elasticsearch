@@ -1,0 +1,36 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+esplugin {
+  name = 'x-pack-autoscaling'
+  description = 'Elasticsearch Expanded Pack Plugin - Autoscaling'
+  classname ='org.elasticsearch.xpack.autoscaling.Autoscaling'
+  extendedPlugins = ['x-pack-core']
+  hasNativeController =false
+  requiresKeystore =true
+}
+base {
+  archivesName = 'x-pack-autoscaling'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+
+  testImplementation testArtifact(project(':server'))
+  testImplementation testArtifact(project(xpackModule('core')))
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+
+  internalClusterTestImplementation project(':modules:data-streams')
+  internalClusterTestImplementation project(xpackModule('blob-cache'))
+  internalClusterTestImplementation project(xpackModule("searchable-snapshots"))
+  internalClusterTestImplementation project(xpackModule('ilm'))
+  internalClusterTestImplementation project(xpackModule('slm'))
+  internalClusterTestImplementation project(xpackModule('ccr'))
+}
+
+restResources {
+  restApi {
+    include '_common', 'autoscaling'
+  }
+}

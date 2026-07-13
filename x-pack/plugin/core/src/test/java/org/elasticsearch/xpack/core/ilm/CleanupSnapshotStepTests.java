@@ -1,0 +1,122 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.core.ilm;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+
+import java.util.Map;
+
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.is;
+
+public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapshotStep> {
+
+    @Override
+    public CleanupSnapshotStep createRandomInstance() {
+        StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
+        return new CleanupSnapshotStep(stepKey, nextStepKey, client);
+    }
+
+    @Override
+    protected CleanupSnapshotStep copyInstance(CleanupSnapshotStep instance) {
+        return new CleanupSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
+    }
+
+    @Override
+    public CleanupSnapshotStep mutateInstance(CleanupSnapshotStep instance) {
+        StepKey key = instance.getKey();
+        StepKey nextKey = instance.getNextStepKey();
+        switch (between(0, 1)) {
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new CleanupSnapshotStep(key, nextKey, instance.getClientWithoutProject());
+    }
+
+    public void testPerformActionDoesntFailIfSnapshotInfoIsMissing() throws Exception {
+        String indexName = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+
+        {
+            final var indexMetadata = IndexMetadata.builder(indexName)
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5))
+                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+
+            performActionAndWait(createRandomInstance(), indexMetadata, state, null);
+        }
+
+        {
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5));
+            Map<String, String> ilmCustom = Map.of("snapshot_repository", "repository_name");
+            indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
+
+            IndexMetadata indexMetadata = indexMetadataBuilder.build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+
+            performActionAndWait(createRandomInstance(), indexMetadata, state, null);
+        }
+    }
+
+    public void testPerformAction() {
+        String indexName = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+        String snapshotName = indexName + "-" + policyName;
+        Map<String, String> ilmCustom = Map.of("snapshot_name", snapshotName);
+
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
+
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+
+        try (var threadPool = createThreadPool()) {
+            final var client = getDeleteSnapshotRequestAssertingClient(threadPool, snapshotName);
+            CleanupSnapshotStep step = new CleanupSnapshotStep(randomStepKey(), randomStepKey(), client);
+            step.performAction(indexMetadata, state, null, ActionListener.noop());
+        }
+    }
+
+    private NoOpClient getDeleteSnapshotRequestAssertingClient(ThreadPool threadPool, String expectedSnapshotName) {
+        return new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                assertThat(action.name(), is(TransportDeleteSnapshotAction.TYPE.name()));
+                assertTrue(request instanceof DeleteSnapshotRequest);
+                assertThat(((DeleteSnapshotRequest) request).snapshots(), arrayContaining(expectedSnapshotName));
+            }
+        };
+    }
+}

@@ -1,0 +1,7 @@
+{
+  "match": {
+    "indices": "clientips",
+    "match_field": "client_ip",
+    "enrich_fields": ["env"]
+  }
+}

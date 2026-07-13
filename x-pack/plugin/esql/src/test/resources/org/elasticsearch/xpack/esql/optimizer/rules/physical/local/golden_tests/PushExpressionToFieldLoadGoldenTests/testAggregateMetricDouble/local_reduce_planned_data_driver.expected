@@ -1,0 +1,5 @@
+ExchangeSinkExec[[$$m$min{r}#0, $$m$seen{r}#1],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[MIN($$min(network.eth>$MIN$0{r$}#2,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#3]]
+\_Eval[[FROMAGGREGATEMETRICDOUBLE(network.eth0.tx{f}#4,0[INTEGER]) AS $$min(network.eth>$MIN$0#2]]
+  \_EsRelation[k8s-downsampled][@timestamp{f}#5, client.ip{f}#6, cluster{f}#7, event{f}#8, event_city{f}#9, event_city_boundary{f}#10, event_location{f}#11, event_log{f}#12, event_shape{f}#13, events_received{f}#14, network.bytes_in{f}#15, network.cost{f}#16, network.eth0.currently_connected_clients{f}#17, network.eth0.firmware_version{f}#18, network.eth0.last_up{f}#19, network.eth0.rx{f}#20, network.eth0.tx{f}#4, network.eth0.up{f}#21, network.total_bytes_in{f}#22, network.total_cost{f}#23, pod{f}#24]<>]]

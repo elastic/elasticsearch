@@ -1,0 +1,59 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.plugin.analysis.kuromoji;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.index.analysis.AnalyzerProvider;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.Plugin;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.singletonMap;
+
+public class AnalysisKuromojiPlugin extends Plugin implements AnalysisPlugin {
+    @Override
+    public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
+        return singletonMap("kuromoji_iteration_mark", KuromojiIterationMarkCharFilterFactory::new);
+    }
+
+    @Override
+    public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+        Map<String, AnalysisProvider<TokenFilterFactory>> extra = new HashMap<>();
+        extra.put("kuromoji_baseform", KuromojiBaseFormFilterFactory::new);
+        extra.put("kuromoji_part_of_speech", KuromojiPartOfSpeechFilterFactory::new);
+        extra.put("kuromoji_readingform", KuromojiReadingFormFilterFactory::new);
+        extra.put("kuromoji_stemmer", KuromojiKatakanaStemmerFactory::new);
+        extra.put("ja_stop", JapaneseStopTokenFilterFactory::new);
+        extra.put("kuromoji_number", KuromojiNumberFilterFactory::new);
+        extra.put("kuromoji_completion", KuromojiCompletionFilterFactory::new);
+        extra.put("hiragana_uppercase", HiraganaUppercaseFilterFactory::new);
+        extra.put("katakana_uppercase", KatakanaUppercaseFilterFactory::new);
+        return extra;
+    }
+
+    @Override
+    public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+        return singletonMap("kuromoji_tokenizer", KuromojiTokenizerFactory::new);
+    }
+
+    @Override
+    public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
+        Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> extra = new HashMap<>();
+        extra.put("kuromoji", KuromojiAnalyzerProvider::new);
+        extra.put("kuromoji_completion", KuromojiCompletionAnalyzerProvider::new);
+        return extra;
+    }
+}

@@ -1,0 +1,25 @@
+{
+  "info": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-info",
+      "description": "Get cluster info"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

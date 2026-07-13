@@ -1,0 +1,138 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.rest.action.search;
+
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
+
+@ServerlessScope(Scope.PUBLIC)
+public class RestCountAction extends BaseRestHandler {
+
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    public RestCountAction(CrossProjectModeDecider crossProjectModeDecider) {
+        this.crossProjectModeDecider = crossProjectModeDecider;
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_count"),
+            new Route(POST, "/_count"),
+            new Route(GET, "/{index}/_count"),
+            new Route(POST, "/{index}/_count")
+        );
+    }
+
+    @Override
+    public String getName() {
+        return "count_action";
+    }
+
+    @Override
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, countRequest.indicesOptions());
+        if (crossProjectModeDecider.crossProjectEnabled() && countRequest.allowsCrossProject()) {
+            indicesOptions = IndicesOptions.builder(indicesOptions)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+        }
+        countRequest.indicesOptions(indicesOptions);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
+        countRequest.source(searchSourceBuilder);
+        request.withContentOrSourceParamParserOrNull(parser -> {
+            if (parser == null) {
+                QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+                if (queryBuilder != null) {
+                    // since there is no request body, no need to pass in countRequest to handle project_routing param
+                    searchSourceBuilder.query(queryBuilder);
+                }
+            } else {
+                searchSourceBuilder.query(RestActions.getQueryContent(parser, countRequest));
+            }
+        });
+        applyRoutingOrSliceForCountRequest(request, countRequest);
+        float minScore = request.paramAsFloat("min_score", -1f);
+        if (minScore != -1f) {
+            searchSourceBuilder.minScore(minScore);
+        }
+
+        countRequest.preference(request.param("preference"));
+
+        String sStats = request.param("stats");
+        if (sStats != null) {
+            searchSourceBuilder.stats(Arrays.asList(Strings.splitStringByCommaToArray(sStats)));
+        }
+
+        final int terminateAfter = request.paramAsInt("terminate_after", DEFAULT_TERMINATE_AFTER);
+        searchSourceBuilder.terminateAfter(terminateAfter);
+        return channel -> client.search(countRequest, new RestBuilderListener<SearchResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(SearchResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
+                    builder.field("terminated_early", response.isTerminatedEarly());
+                }
+                builder.field("count", response.getHits().getTotalHits().value());
+                buildBroadcastShardsHeader(
+                    builder,
+                    request,
+                    response.getTotalShards(),
+                    response.getSuccessfulShards(),
+                    0,
+                    response.getFailedShards(),
+                    response.getShardFailures()
+                );
+
+                builder.endObject();
+                return new RestResponse(response.status(), builder);
+            }
+        });
+    }
+
+    /**
+     * Applies {@code routing} / {@code _slice} URL parameters. Matches {@link RestSearchAction#parseSearchRequest} slice handling.
+     * package private for testing
+     */
+    static void applyRoutingOrSliceForCountRequest(RestRequest request, SearchRequest searchRequest) {
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        searchRequest.routing(parsedRouting.routing());
+        searchRequest.searchSlice(
+            parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
+        );
+    }
+
+}

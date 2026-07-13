@@ -1,0 +1,157 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "fixed in 8.13"
+      test_runner_features: warnings
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              always_null:
+                type: long
+              sometimes_null:
+                type: long
+              never_null:
+                type: long
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "sometimes_null": 1, "never_null": 1 }
+          - { "index": {} }
+          - { "sometimes_null": 1, "never_null": 1 }
+          - { "index": {} }
+          - { "never_null": 2 }
+          - { "index": {} }
+          - { "never_null": 2 }
+
+---
+group on null:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS med=median(never_null) BY always_null | LIMIT 1'
+          columnar: true
+  - match: {columns.0.name: "med"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "always_null"}
+  - match: {columns.1.type: "long"}
+  - length: {values: 2}
+  - match: {values.0: [1.5]}
+  - match: {values.1: [null]}
+
+---
+group on null, long:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS med=median(sometimes_null) BY always_null, never_null | SORT always_null, never_null | LIMIT 10'
+          columnar: true
+  - match: {columns.0.name: "med"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "always_null"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "never_null"}
+  - match: {columns.2.type: "long"}
+  - length: {values: 3}
+  - match: {values.0: [1.0, null]}
+  - match: {values.1: [null, null]}
+  - match: {values.2: [1, 2]}
+
+---
+agg on null:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS med=median(always_null) | LIMIT 1'
+          columnar: true
+  - match: {columns.0.name: "med"}
+  - match: {columns.0.type: "double"}
+  - length: {values: 1}
+  - match: {values.0: [null]}
+
+---
+agg on missing:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test | STATS med=median(missing) | LIMIT 1'
+          columnar: true
+
+---
+group on missing:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test | STATS med=median(never_null) BY missing | LIMIT 1'
+          columnar: true
+
+---
+agg on half missing:
+  - do:
+      indices.create:
+        index:  test2
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              always_null:
+                type: long
+              sometimes_null:
+                type: long
+              never_null:
+                type: long
+              missing:
+                type: long
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test* | STATS med=median(missing) | LIMIT 1'
+          columnar: true
+  - match: {columns.0.name: "med"}
+  - match: {columns.0.type: "double"}
+  - length: {values: 1}
+  - match: {values.0: [null]}
+
+---
+group on half missing:
+  - do:
+      indices.create:
+        index:  test2
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              always_null:
+                type: long
+              sometimes_null:
+                type: long
+              never_null:
+                type: long
+              missing:
+                type: long
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test,test2 | STATS med=median(never_null) BY missing | LIMIT 1'
+          columnar: true
+  - match: {columns.0.name: "med"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "missing"}
+  - match: {columns.1.type: "long"}
+  - length: {values: 2}
+  - match: {values.0: [1.5]}
+  - match: {values.1: [null]}

@@ -1,0 +1,27 @@
+config:
+  skip-labels:
+    - ">test-mute"
+    - ":Delivery/Packaging"
+steps:
+  - group: packaging-tests-windows-sample
+    steps:
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-windows-sample"
+        key: "packaging-tests-windows-sample"
+        command: .\.buildkite\scripts\run-script.ps1 .\.ci\scripts\packaging-test.ps1 -GradleTasks destructiveDistroTest.{{matrix.PACKAGING_TASK}}
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - windows-2022
+            PACKAGING_TASK:
+              - default-windows-archive
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
+          diskSizeGb: 350
+          preemptible: true
+          spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
+        env:
+          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"

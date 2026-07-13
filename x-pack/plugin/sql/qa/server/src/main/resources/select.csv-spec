@@ -1,0 +1,252 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// SELECT with = and !=
+//
+// Need to CAST as STRING since for boolean types jdbc CSV translates null -> false
+equalsSelectClause
+SELECT CAST(4 = 4 AS STRING), CAST(NOT 4 = 4 AS STRING), CAST(3 = 4 AS STRING), CAST(NOT 3 = 4 AS STRING), CAST(1 = null AS STRING), CAST(NOT null = 1 AS STRING);
+
+CAST(4 = 4 AS STRING):s|CAST(NOT 4 = 4 AS STRING):s|CAST(3 = 4 AS STRING):s|CAST(NOT 3 = 4 AS STRING):s|CAST(1 = null AS STRING):s|CAST(NOT null = 1 AS STRING):s
+-----------------------+---------------------------+-----------------------+---------------------------+--------------------------+----------------------------
+true                   |false                      |false                  |true                       |null                      |null                        
+;
+
+notEqualsSelectClause
+SELECT CAST(4 != 4 AS STRING), CAST(NOT 4 != 4 AS STRING), CAST(3 != 4 AS STRING), CAST(NOT 3 != 4 AS STRING), CAST(1 != null AS STRING), CAST(NOT 1 != null AS STRING);
+
+CAST(4 != 4 AS STRING):s|CAST(NOT 4 != 4 AS STRING):s|CAST(3 != 4 AS STRING):s|CAST(NOT 3 != 4 AS STRING):s|CAST(1 != null AS STRING):s|CAST(NOT 1 != null AS STRING):s
+------------------------+----------------------------+------------------------+----------------------------+---------------------------+-------------------------------
+false                   |true                        |true                    |false                       |null                       |null    
+;
+
+equalSelectClauseWithTableColumns
+SELECT CAST(languages = 2 AS STRING), CAST(NOT languages = 2 AS STRING), CAST(languages = null AS STRING), CAST(NOT languages = null AS STRING)
+FROM "test_emp" WHERE emp_no IN(10018, 10019, 10020) ORDER BY emp_no;
+
+CAST(languages = 2 AS STRING):s|CAST(NOT languages = 2 AS STRING):s|CAST(languages = null AS STRING):s|CAST(NOT languages = null AS STRING):s
+-------------------------------+-----------------------------------+----------------------------------+--------------------------------------
+true                           |false                              |null                              |null                                
+false                          |true                               |null                              |null                                
+null                           |null                               |null                              |null  
+;
+
+notEqualsAndNotEqualsSelectClauseWithTableColumns
+SELECT CAST(languages != 2 AS STRING), CAST(NOT languages != 2 AS STRING), CAST(languages != null AS STRING), CAST(NOT languages != null AS STRING)
+FROM "test_emp" WHERE emp_no IN(10018, 10019, 10020) ORDER BY emp_no;
+
+CAST(languages != 2 AS STRING):s|CAST(NOT languages != 2 AS STRING):s|CAST(languages != null AS STRING):s|CAST(NOT languages != null AS STRING):s
+--------------------------------+------------------------------------+-----------------------------------+---------------------------------------
+false                           |true                                |null                               |null                                 
+true                            |false                               |null                               |null                                 
+null                            |null                                |null                               |null   
+;
+
+
+//
+// SELECT with OR and AND and NULL handling
+//
+// Need to CAST as STRING since for boolean types jdbc CSV translates null -> false
+selectWithOrAndNullHandling
+SELECT CAST(true OR null AS STRING), CAST(null OR true AS STRING), CAST(false OR null AS STRING), CAST(null OR false AS STRING), CAST(null OR null AS STRING);
+
+CAST(true OR null AS STRING):s|CAST(null OR true AS STRING):s|CAST(false OR null AS STRING):s|CAST(null OR false AS STRING):s|CAST(null OR null AS STRING):s
+------------------------------+------------------------------+-------------------------------+-------------------------------+----------------------------
+true                          |true                          |null                           |null                           |null    
+;
+
+selectWithAndAndNullHandling
+SELECT CAST(true AND null AS STRING), CAST(null AND true AS STRING), CAST(false AND null AS STRING), CAST(null AND false AS STRING), CAST(null AND null AS STRING);
+
+CAST(true AND null AS STRING):s|CAST(null AND true AS STRING):s|CAST(false AND null AS STRING):s|CAST(null AND false AS STRING):s|CAST(null AND null AS STRING):s
+-------------------------------+-------------------------------+--------------------------------+--------------------------------+-----------------------------
+null                           |null                           |false                           |false                           |null   
+;
+
+selectWithOrAndAndAndNullHandling_WithTableColumns
+SELECT CAST(languages = 2 OR null AS STRING), CAST(languages = 2 AND null AS STRING) FROM test_emp WHERE emp_no BETWEEN 10018 AND 10020 ORDER BY emp_no;
+
+CAST(languages = 2 OR null AS STRING):s|CAST(languages = 2 AND null AS STRING):s
+---------------------------------------+----------------------------------------
+true                                   |null                                  
+null                                   |false                                 
+null                                   |null       
+;
+
+
+//
+// SELECT with IN
+//
+inWithLiterals
+SELECT 1 IN (1,2,  3), 1 IN (2, 3);
+
+1 IN (1,2,  3) |  1 IN (2, 3)  
+---------------+---------------
+true           |false     
+;
+
+inWithLiteralsAndFunctions
+SELECT 1 IN (2 - 1, 2, 3), abs(-1) IN (2, 3, abs(4 - 5));
+
+1 IN (2 - 1, 2, 3)|abs(-1) IN (2, 3, abs(4 - 5))
+------------------+-----------------------------
+true              |true 
+;
+
+
+inWithLiteralsAndNegation
+SELECT 1 NOT IN (1, 1 + 1, 3), 1 NOT IN (2, 3);
+
+1 NOT IN (1, 1 + 1, 3)|1 NOT IN (2, 3)
+----------------------+---------------
+false                 |true  
+;
+
+// Need to CAST as STRING since for boolean types the jdbc CSV translates null -> false
+inWithNullHandling
+SELECT CAST(2 IN (1, null, 3) AS STRING), CAST(3 IN (1, null, 3) AS STRING), CAST(null IN (1, null, 3) AS STRING), CAST(null IN (1, 2, 3) AS STRING);
+
+CAST(2 IN (1, null, 3) AS STRING):s|CAST(3 IN (1, null, 3) AS STRING):s|CAST(null IN (1, null, 3) AS STRING):s|CAST(null IN (1, 2, 3) AS STRING):s
+-----------------------------------+-----------------------------------+--------------------------------------+-----------------------------------
+null                               |true                               |null                                  |null   
+;
+
+inWithNullHandlingAndNegation
+SELECT CAST(NOT 2 IN (1, null, 3) AS STRING), CAST(3 NOT IN (1, null, 3) AS STRING), CAST(NOT null IN (1, null, 3) AS STRING), CAST(null NOT IN (1, 2, 3) AS STRING);
+
+CAST(NOT 2 IN (1, null, 3) AS STRING):s|CAST(3 NOT IN (1, null, 3) AS STRING):s|CAST(NOT null IN (1, null, 3) AS STRING):s|CAST(null NOT IN (1, 2, 3) AS STRING):s
+---------------------------------------+---------------------------------------+------------------------------------------+---------------------------------------
+null                                   |false                                  |null                                      |null 
+;
+
+//
+// SELECT with IN and table columns
+//
+inWithTableColumn
+SELECT emp_no IN (10000, 10001, 10002) FROM test_emp WHERE emp_no BETWEEN 10001 AND 10004 ORDER BY emp_no;
+
+ emp_no IN (10000, 10001, 10002):b
+----------------------------------
+true
+true
+false
+false
+;
+
+inWithTableColumnAndFunction
+SELECT emp_no IN (10000, 10000 + 1, abs(-10000 - 2)) FROM test_emp WHERE emp_no BETWEEN 10001 AND 10004 ORDER BY emp_no;
+
+emp_no IN (10000, 10000 + 1, abs(-10000 - 2))
+---------------------------------------------
+true                                  
+true                                  
+false                                 
+false 
+;
+
+inWithTableColumnAndNegation
+SELECT emp_no NOT IN (10000, 10000 + 1, 10002) FROM test_emp WHERE emp_no BETWEEN 10001 AND 10004 ORDER BY emp_no;
+
+emp_no NOT IN (10000, 10000 + 1, 10002)
+---------------------------------------
+false                           
+false                           
+true                            
+true 
+;
+
+inWithTableColumnAndComplexFunctions
+SELECT emp_no IN (1, abs(1 - 10002), 3) OR emp_no NOT IN (10000, 10000 + 2, 10003) FROM test_emp WHERE emp_no BETWEEN 10001 AND 10004 ORDER BY emp_no;
+
+emp_no IN (1, abs(1 - 10002), 3) OR emp_no NOT IN (10000, 10000 + 2, 10003)
+---------------------------------------------------------------------------
+true                                                                       
+false                                                                      
+false                                                                      
+true 
+;
+
+
+// Need to CAST as STRING since for boolean types the jdbc CSV translates null -> false
+inWithTableColumnAndNullHandling
+SELECT emp_no, CAST(languages IN (2, 3) AS STRING), CAST(languages IN (2, null, 3) AS STRING) FROM test_emp WHERE emp_no BETWEEN 10018 AND 10020 ORDER BY emp_no;
+
+    emp_no:i   |CAST(languages IN (2, 3) AS STRING):s|CAST(languages IN (2, null, 3) AS STRING):s
+---------------+-------------------------------------+-------------------------------------------
+10018          |true                                 |true                                     
+10019          |false                                |null                                     
+10020          |null                                 |null    
+;
+
+inWithTableColumnAndNullHandlingAndNegation
+SELECT emp_no, CAST(languages NOT IN (2, 3) AS STRING), CAST(NOT languages IN (2, null, 3) AS STRING) FROM test_emp WHERE emp_no BETWEEN 10018 AND 10020 ORDER BY emp_no;
+
+    emp_no:i   |CAST(languages NOT IN (2, 3) AS STRING):s|CAST(NOT languages IN (2, null, 3) AS STRING):s
+---------------+-----------------------------------------+-----------------------------------------------
+10018          |false                                    |false                                        
+10019          |true                                     |null                                         
+10020          |null                                     |null  
+;
+
+topWithWildCard
+schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|languages:byte|last_name:s|name:s|salary:i
+SELECT TOP 5 * FROM test_emp ORDER BY emp_no;
+
+       birth_date       |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |      name       |    salary     
+------------------------+---------------+---------------+---------------+------------------------+---------------+---------------+-----------------+---------------
+1953-09-02T00:00:00.000Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |Georgi Facello   |57305          
+1964-06-02T00:00:00.000Z|10002          |Bezalel        |F              |1985-11-21T00:00:00.000Z|5              |Simmel         |Bezalel Simmel   |56371          
+1959-12-03T00:00:00.000Z|10003          |Parto          |M              |1986-08-28T00:00:00.000Z|4              |Bamford        |Parto Bamford    |61805          
+1954-05-01T00:00:00.000Z|10004          |Chirstian      |M              |1986-12-01T00:00:00.000Z|5              |Koblick        |Chirstian Koblick|36174          
+1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |1989-09-12T00:00:00.000Z|1              |Maliniak       |Kyoichi Maliniak |63528
+;
+
+topWithColumnNames
+SELECT TOP 7 emp_no, first_name, last_name FROM test_emp ORDER BY emp_no DESC;
+
+    emp_no     |  first_name   |   last_name
+---------------+---------------+---------------
+10100          |Hironobu       |Haraldson
+10099          |Valter         |Sullins
+10098          |Sreekrishna    |Servieres
+10097          |Remzi          |Waschkowski
+10096          |Jayson         |Mandell
+10095          |Hilari         |Morton
+10094          |Arumugam       |Ossenbruggen
+;
+
+topWithAggregations
+schema::cnt:l|emp_no % languages:i
+SELECT TOP 3 count(*) AS cnt, emp_no % languages FROM test_emp GROUP BY 2 ORDER BY 1 DESC;
+
+   cnt    | emp_no % languages
+----------+-------------------
+37        |0
+24        |1
+16        |2
+;
+
+runtimeFieldWithFunctions
+SELECT first_name, UCASE(SUBSTRING(name, 0, LOCATE(' ', name) - 1)) ucase FROM test_emp ORDER BY ucase DESC LIMIT 10;
+
+  first_name   |     ucase     
+---------------+---------------
+Zvonko         |ZVONKO         
+Zhongwei       |ZHONGWEI       
+Yongqiao       |YONGQIAO       
+Yishay         |YISHAY         
+Yinghua        |YINGHUA        
+Xinglin        |XINGLIN        
+Weiyi          |WEIYI          
+Vishv          |VISHV          
+Valter         |VALTER         
+Valdiodio      |VALDIODIO
+;
+
+ambiguousReferenceInWhereClause
+SELECT gender, gender emp_no, emp_no e FROM test_emp WHERE e > 10099;
+
+    gender     |    emp_no     |       e
+---------------+---------------+---------------
+F              |F              |10100
+;

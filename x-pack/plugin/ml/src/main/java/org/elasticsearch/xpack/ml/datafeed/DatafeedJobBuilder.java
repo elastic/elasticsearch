@@ -1,0 +1,229 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.ml.datafeed;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.ml.MachineLearning.CCS_STABILIZATION_CYCLES;
+import static org.elasticsearch.xpack.ml.MachineLearning.CCS_STABILIZATION_FLOOR;
+import static org.elasticsearch.xpack.ml.MachineLearning.DELAYED_DATA_CHECK_FREQ;
+
+public class DatafeedJobBuilder {
+
+    private final Client client;
+    private final NamedXContentRegistry xContentRegistry;
+    private final AnomalyDetectionAuditor auditor;
+    private final AnnotationPersister annotationPersister;
+    private final Supplier<Long> currentTimeSupplier;
+    private final JobResultsPersister jobResultsPersister;
+    private final boolean remoteClusterClient;
+    private final ClusterService clusterService;
+    private final CrossProjectModeDecider crossProjectModeDecider;
+    // Supplied lazily because the real serverless CloudCredentialManager is installed via SPI
+    // after MachineLearning.createComponents() runs. Eager capture would freeze a Noop value
+    // here and silently strip the cloud token from the datafeed runner's field_caps probe.
+    private final Supplier<CloudCredentialManager> cloudCredentialManagerSupplier;
+
+    private volatile long delayedDataCheckFreq;
+    private volatile int ccsStabilizationCycles;
+    private volatile long ccsStabilizationFloorMs;
+
+    public DatafeedJobBuilder(
+        Client client,
+        NamedXContentRegistry xContentRegistry,
+        AnomalyDetectionAuditor auditor,
+        AnnotationPersister annotationPersister,
+        Supplier<Long> currentTimeSupplier,
+        JobResultsPersister jobResultsPersister,
+        Settings settings,
+        ClusterService clusterService,
+        Supplier<CloudCredentialManager> cloudCredentialManagerSupplier
+    ) {
+        this.client = client;
+        this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
+        this.auditor = Objects.requireNonNull(auditor);
+        this.annotationPersister = Objects.requireNonNull(annotationPersister);
+        this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
+        this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
+        this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
+        this.delayedDataCheckFreq = DELAYED_DATA_CHECK_FREQ.get(settings).millis();
+        this.ccsStabilizationCycles = CCS_STABILIZATION_CYCLES.get(settings);
+        this.ccsStabilizationFloorMs = CCS_STABILIZATION_FLOOR.get(settings).millis();
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.cloudCredentialManagerSupplier = Objects.requireNonNull(cloudCredentialManagerSupplier);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DELAYED_DATA_CHECK_FREQ, this::setDelayedDataCheckFreq);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CCS_STABILIZATION_CYCLES, v -> this.ccsStabilizationCycles = v);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(CCS_STABILIZATION_FLOOR, v -> this.ccsStabilizationFloorMs = v.millis());
+    }
+
+    private void setDelayedDataCheckFreq(TimeValue value) {
+        this.delayedDataCheckFreq = value.millis();
+    }
+
+    void build(TransportStartDatafeedAction.DatafeedTask task, DatafeedContext context, ActionListener<DatafeedJob> listener) {
+        final ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
+        final DatafeedConfig datafeedConfig = context.datafeedConfig();
+        final Job job = context.job();
+        final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
+            ? -1
+            : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
+        final long latestRecordTimeMs = context.restartTimeInfo().getLatestRecordTimeMs() == null
+            ? -1
+            : context.restartTimeInfo().getLatestRecordTimeMs();
+        final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
+            context.timingStats(),
+            jobResultsPersister::persistDatafeedTimingStats
+        );
+
+        // Validate remote indices are available and get the job
+        try {
+            checkRemoteIndicesAreAvailable(datafeedConfig);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        // Re-validation is required as the config has been re-read since
+        // the previous validation
+        try {
+            DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        // if we had created a datafeed when the feature flag was enabled, but we disabled the feature flag
+        // then verify that this datafeed does not use CPS features
+        var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(
+            crossProjectModeDecider,
+            (org.elasticsearch.action.ActionRequestValidationException) null
+        );
+
+        if (validationException != null) {
+            listener.onFailure(validationException);
+            return;
+        }
+
+        ActionListener<DataExtractorFactory> dataExtractorFactoryHandler = ActionListener.wrap(dataExtractorFactory -> {
+            TimeValue frequency = getFrequencyOrDefault(datafeedConfig, job, xContentRegistry);
+            TimeValue queryDelay = datafeedConfig.getQueryDelay();
+            DelayedDataDetector delayedDataDetector = DelayedDataDetectorFactory.buildDetector(
+                job,
+                datafeedConfig,
+                parentTaskAssigningClient,
+                xContentRegistry
+            );
+            CrossClusterSearchStats crossClusterSearchStats = new CrossClusterSearchStats(
+                () -> java.time.Instant.ofEpochMilli(currentTimeSupplier.get()),
+                ccsStabilizationCycles,
+                java.time.Duration.ofMillis(ccsStabilizationFloorMs)
+            );
+            DatafeedJob datafeedJob = new DatafeedJob(
+                job.getId(),
+                buildDataDescription(job),
+                frequency.millis(),
+                queryDelay.millis(),
+                dataExtractorFactory,
+                timingStatsReporter,
+                parentTaskAssigningClient,
+                auditor,
+                annotationPersister,
+                currentTimeSupplier,
+                delayedDataDetector,
+                datafeedConfig.getMaxEmptySearches(),
+                latestFinalBucketEndMs,
+                latestRecordTimeMs,
+                context.restartTimeInfo().haveSeenDataPreviously(),
+                delayedDataCheckFreq,
+                crossClusterSearchStats
+            );
+
+            listener.onResponse(datafeedJob);
+        }, e -> {
+            auditor.error(job.getId(), e.getMessage());
+            listener.onFailure(e);
+        });
+
+        // Apply cross-project search mode to IndicesOptions before creating the factory
+        DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(datafeedConfig, crossProjectModeDecider);
+
+        DataExtractorFactory.create(
+            parentTaskAssigningClient,
+            cloudCredentialManagerSupplier.get(),
+            effectiveDatafeedConfig,
+            null,
+            job,
+            xContentRegistry,
+            timingStatsReporter,
+            dataExtractorFactoryHandler
+        );
+    }
+
+    private void checkRemoteIndicesAreAvailable(DatafeedConfig datafeedConfig) {
+        if (remoteClusterClient == false) {
+            List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(datafeedConfig.getIndices());
+            if (remoteIndices.isEmpty() == false) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(
+                        Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
+                        datafeedConfig.getId(),
+                        remoteIndices,
+                        clusterService.getNodeName()
+                    )
+                );
+            }
+        }
+    }
+
+    private static TimeValue getFrequencyOrDefault(DatafeedConfig datafeed, Job job, NamedXContentRegistry xContentRegistry) {
+        TimeValue frequency = datafeed.getFrequency();
+        if (frequency == null) {
+            TimeValue bucketSpan = job.getAnalysisConfig().getBucketSpan();
+            return datafeed.defaultFrequency(bucketSpan, xContentRegistry);
+        }
+        return frequency;
+    }
+
+    private static DataDescription buildDataDescription(Job job) {
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        if (job.getDataDescription() != null) {
+            dataDescription.setTimeField(job.getDataDescription().getTimeField());
+        }
+        dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
+        return dataDescription.build();
+    }
+
+}

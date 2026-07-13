@@ -1,0 +1,74 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+"Test Deprecations":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_migration/deprecations
+          capabilities: [ data_streams, ilm_policies, templates ]
+      test_runner_features: [capabilities, allowed_warnings]
+      reason: "Support for data streams, ILM policies and templates"
+  - do:
+      allowed_warnings:
+        - "this request accesses system indices: [.security-7], but in a future major version, direct access to system indices will be prevented by default"
+      migration.deprecations:
+        index: "*"
+  - length: { cluster_settings: 0 }
+  - length: { node_settings: 0 }
+  - length: { index_settings: 0 }
+  - length: { ml_settings: 0 }
+  - length: { data_streams: 0 }
+  - length: { templates: 0 }
+  - length: { ilm_policies: 0 }
+
+---
+"Test ml":
+  - skip:
+      cluster_features: ["gte_v7.0.0"]
+      reason: this test needs adjusting to contain syntax deprecated in 7.x and removed in 8.0
+  - requires:
+      test_runner_features: ["headers", "warnings"]
+
+# Index the config directly to prevent the deprecated
+# use_dis_max field being rewritten by the parser. This
+# simulates the config being created in an older version
+# of elasticsearch
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+        index: .ml-config
+        type: doc
+        id: deprecation-datafeed-datafeed
+        body:  >
+          {
+            "datafeed_id" : "deprecation-datafeed",
+            "config_type" : "datafeed",
+            "job_id" : "deprecation-job",
+            "indices" : ["index-foo"],
+            "query" : {
+              "query_string" : {
+                "query" : "foo",
+                "use_dis_max" : true
+              }
+            }
+          }
+
+  - do:
+      indices.refresh:
+        index: [.ml-config]
+
+# TODO: change the query and expected warnings to one that makes sense for 7.x
+  - do:
+      warnings:
+        - Deprecated field [use_dis_max] used, replaced by [Set [tie_breaker] to 1 instead]
+      migration.deprecations:
+        index: "*"
+  - length: { ml_settings: 1 }
+  - match: { ml_settings.0.level : warning }
+  - match: { ml_settings.0.message : "Datafeed [deprecation-datafeed] uses deprecated query options" }

@@ -1,0 +1,10 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation project(path: xpackModule('security'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution("security features require default distribution")
+}

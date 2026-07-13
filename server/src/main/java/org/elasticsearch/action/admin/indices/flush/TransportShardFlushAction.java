@@ -1,0 +1,123 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.action.admin.indices.flush;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.BroadcastRequestSplitHelper;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
+import java.util.Map;
+
+public class TransportShardFlushAction extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
+
+    public static final String NAME = FlushAction.NAME + "[s]";
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME);
+
+    private final ProjectResolver projectResolver;
+
+    @Inject
+    public TransportShardFlushAction(
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
+    ) {
+        super(
+            settings,
+            NAME,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            ShardFlushRequest::new,
+            ShardFlushRequest::new,
+            threadPool.executor(ThreadPool.Names.FLUSH),
+            SyncGlobalCheckpointAfterOperation.DoNotSync,
+            PrimaryActionExecution.RejectOnOverload,
+            ReplicaActionExecution.SubjectToCircuitBreaker
+        );
+        this.projectResolver = projectResolver;
+    }
+
+    @Override
+    protected ReplicationResponse newResponseInstance(StreamInput in) throws IOException {
+        return new ReplicationResponse(in);
+    }
+
+    @Override
+    protected void shardOperationOnPrimary(
+        ShardFlushRequest shardRequest,
+        IndexShard primary,
+        ActionListener<PrimaryResult<ShardFlushRequest, ReplicationResponse>> listener
+    ) {
+        primary.flush(shardRequest.getRequest(), listener.map(flushed -> {
+            logger.trace("{} flush request executed on primary", primary.shardId());
+            return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+        }));
+    }
+
+    /**
+     * We are here because there was mismatch between the SplitShardCountSummary in the request
+     * and that on the primary shard node. In other words, the primary shard has moved ahead due to a split reshard
+     * operation after the request was created by the coordinator.
+     * We can assume that the request is exactly 1 reshard split behind the current state of the primary shard.
+     * This is because requests that are more than 1 reshard operation behind are rejected in
+     * {@link org.elasticsearch.action.support.replication.ReplicationSplitHelper
+     * #needsSplitCoordination(org.apache.logging.log4j.Logger, ReplicationRequest, IndexMetadata)}
+     */
+    @Override
+    protected Map<ShardId, ShardFlushRequest> splitRequestOnPrimary(ShardFlushRequest request, ProjectMetadata project) {
+        return BroadcastRequestSplitHelper.splitRequest(
+            request,
+            project,
+            (targetShard, shardCountSummary) -> new ShardFlushRequest(request.getRequest(), targetShard, shardCountSummary)
+        );
+    }
+
+    @Override
+    protected Tuple<ReplicationResponse, Exception> combineSplitResponses(
+        ShardFlushRequest originalRequest,
+        Map<ShardId, ShardFlushRequest> splitRequests,
+        Map<ShardId, Tuple<ReplicationResponse, Exception>> responses
+    ) {
+        return BroadcastRequestSplitHelper.combineSplitResponses(originalRequest, splitRequests, responses);
+    }
+
+    @Override
+    protected void shardOperationOnReplica(ShardFlushRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        replica.flush(request.getRequest(), listener.map(flushed -> {
+            logger.trace("{} flush request executed on replica", replica.shardId());
+            return new ReplicaResult();
+        }));
+    }
+}

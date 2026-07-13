@@ -1,0 +1,14 @@
+{
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "auto_expand_replicas": "0-1"
+    }
+  },
+  "_meta": {
+    "description": "default kibana reporting settings installed by elasticsearch",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

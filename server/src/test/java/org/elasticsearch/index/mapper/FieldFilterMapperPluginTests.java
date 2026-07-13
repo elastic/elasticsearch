@@ -1,0 +1,361 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.mapper;
+
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.FieldPredicate;
+import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentType;
+import org.junit.Before;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+
+import static org.elasticsearch.cluster.metadata.ProjectMetadataTests.assertLeafs;
+import static org.elasticsearch.cluster.metadata.ProjectMetadataTests.assertMultiField;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+
+public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Arrays.asList(FieldFilterPlugin.class);
+    }
+
+    @Before
+    public void putMappings() {
+        assertAcked(indicesAdmin().prepareCreate("index1"));
+        assertAcked(indicesAdmin().prepareCreate("filtered"));
+        assertAcked(indicesAdmin().preparePutMapping("index1", "filtered").setSource(TEST_ITEM, XContentType.JSON));
+    }
+
+    public void testGetMappings() {
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT).get();
+        assertExpectedMappings(getMappingsResponse.mappings());
+    }
+
+    public void testGetIndex() {
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setFeatures(GetIndexRequest.Feature.MAPPINGS)
+            .get();
+        assertExpectedMappings(getIndexResponse.mappings());
+    }
+
+    public void testGetFieldMappings() {
+        GetFieldMappingsResponse getFieldMappingsResponse = indicesAdmin().prepareGetFieldMappings().setFields("*").get();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings = getFieldMappingsResponse.mappings();
+        assertEquals(2, mappings.size());
+        assertFieldMappings(mappings.get("index1"), ALL_FLAT_FIELDS);
+        assertFieldMappings(mappings.get("filtered"), FILTERED_FLAT_FIELDS);
+        // double check that submitting the filtered mappings to an unfiltered index leads to the same get field mappings output
+        // as the one coming from a filtered index with same mappings
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "filtered").get();
+        MappingMetadata filtered = getMappingsResponse.getMappings().get("filtered");
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(filtered.getSourceAsMap()));
+        GetFieldMappingsResponse response = indicesAdmin().prepareGetFieldMappings("test").setFields("*").get();
+        assertEquals(1, response.mappings().size());
+        assertFieldMappings(response.mappings().get("test"), FILTERED_FLAT_FIELDS);
+    }
+
+    public void testGetNonExistentFieldMapping() {
+        GetFieldMappingsResponse response = indicesAdmin().prepareGetFieldMappings("index1").setFields("non-existent").get();
+        Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings = response.mappings();
+        assertEquals(1, mappings.size());
+        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fieldmapping = mappings.get("index1");
+        assertEquals(0, fieldmapping.size());
+    }
+
+    public void testFieldCapabilities() {
+        List<String> allFields = new ArrayList<>(ALL_FLAT_FIELDS);
+        allFields.addAll(ALL_OBJECT_FIELDS);
+        FieldCapabilitiesResponse index1 = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("index1")).actionGet();
+        assertFieldCaps(index1, allFields);
+        FieldCapabilitiesResponse filtered = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("filtered")).actionGet();
+        List<String> filteredFields = new ArrayList<>(FILTERED_FLAT_FIELDS);
+        filteredFields.addAll(ALL_OBJECT_FIELDS);
+        assertFieldCaps(filtered, filteredFields);
+        // double check that submitting the filtered mappings to an unfiltered index leads to the same field_caps output
+        // as the one coming from a filtered index with same mappings
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "filtered").get();
+        MappingMetadata filteredMapping = getMappingsResponse.getMappings().get("filtered");
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(filteredMapping.getSourceAsMap()));
+        FieldCapabilitiesResponse test = client().fieldCaps(new FieldCapabilitiesRequest().fields("*").indices("test")).actionGet();
+        // properties.value is an object field in the new mapping
+        filteredFields.add("properties.value");
+        assertFieldCaps(test, filteredFields);
+    }
+
+    private static void assertFieldCaps(FieldCapabilitiesResponse fieldCapabilitiesResponse, Collection<String> expectedFields) {
+        Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>(fieldCapabilitiesResponse.get());
+        for (String field : builtInMetadataFields()) {
+            Map<String, FieldCapabilities> remove = responseMap.remove(field);
+            assertNotNull(" expected field [" + field + "] not found", remove);
+        }
+        for (String field : expectedFields) {
+            Map<String, FieldCapabilities> remove = responseMap.remove(field);
+            assertNotNull(" expected field [" + field + "] not found", remove);
+        }
+        assertEquals("Some unexpected fields were returned: " + responseMap.keySet(), 0, responseMap.size());
+    }
+
+    private static Set<String> builtInMetadataFields() {
+        Set<String> builtInMetadataFields = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
+        // Index is not a time-series index, and it will not contain _tsid and _ts_routing_hash fields.
+        builtInMetadataFields.remove(TimeSeriesIdFieldMapper.NAME);
+        builtInMetadataFields.remove(TimeSeriesRoutingHashFieldMapper.NAME);
+        return builtInMetadataFields;
+    }
+
+    private static void assertFieldMappings(
+        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> actual,
+        Collection<String> expectedFields
+    ) {
+        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fields = new HashMap<>(actual);
+        for (String field : builtInMetadataFields()) {
+            GetFieldMappingsResponse.FieldMappingMetadata fieldMappingMetadata = fields.remove(field);
+            assertNotNull(" expected field [" + field + "] not found", fieldMappingMetadata);
+        }
+        for (String field : expectedFields) {
+            GetFieldMappingsResponse.FieldMappingMetadata fieldMappingMetadata = fields.remove(field);
+            assertNotNull("expected field [" + field + "] not found", fieldMappingMetadata);
+        }
+        assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
+    }
+
+    private void assertExpectedMappings(Map<String, MappingMetadata> mappings) {
+        assertEquals(2, mappings.size());
+        assertNotFiltered(mappings.get("index1"));
+        MappingMetadata filtered = mappings.get("filtered");
+        assertFiltered(filtered);
+        assertMappingsAreValid(filtered.getSourceAsMap());
+    }
+
+    private void assertMappingsAreValid(Map<String, Object> sourceAsMap) {
+        // check that the returned filtered mappings are still valid mappings by submitting them and retrieving them back
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(sourceAsMap));
+        GetMappingsResponse testMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
+        assertEquals(1, testMappingsResponse.getMappings().size());
+        // the mappings are returned unfiltered for this index, yet they are the same as the previous ones that were returned filtered
+        assertFiltered(testMappingsResponse.getMappings().get("test"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertFiltered(MappingMetadata mappingMetadata) {
+        assertNotNull(mappingMetadata);
+        Map<String, Object> sourceAsMap = mappingMetadata.getSourceAsMap();
+        assertEquals(4, sourceAsMap.size());
+        assertTrue(sourceAsMap.containsKey("_meta"));
+        assertTrue(sourceAsMap.containsKey("_routing"));
+        assertTrue(sourceAsMap.containsKey("_source"));
+        Map<String, Object> typeProperties = (Map<String, Object>) sourceAsMap.get("properties");
+        assertEquals(4, typeProperties.size());
+
+        Map<String, Object> name = (Map<String, Object>) typeProperties.get("name");
+        assertEquals(1, name.size());
+        Map<String, Object> nameProperties = (Map<String, Object>) name.get("properties");
+        assertEquals(1, nameProperties.size());
+        assertLeafs(nameProperties, "last_visible");
+
+        assertLeafs(typeProperties, "age_visible");
+
+        Map<String, Object> address = (Map<String, Object>) typeProperties.get("address");
+        assertNotNull(address);
+        assertEquals(1, address.size());
+        Map<String, Object> addressProperties = (Map<String, Object>) address.get("properties");
+        assertNotNull(addressProperties);
+        assertEquals(1, addressProperties.size());
+        assertLeafs(addressProperties, "location_visible");
+
+        Map<String, Object> properties = (Map<String, Object>) typeProperties.get("properties");
+        assertNotNull(properties);
+        assertEquals(2, properties.size());
+        assertEquals("nested", properties.get("type"));
+        Map<String, Object> propertiesProperties = (Map<String, Object>) properties.get("properties");
+        assertNotNull(propertiesProperties);
+        assertEquals(2, propertiesProperties.size());
+        assertLeafs(propertiesProperties, "key_visible");
+
+        Map<String, Object> value = (Map<String, Object>) propertiesProperties.get("value");
+        assertNotNull(value);
+        assertEquals(1, value.size());
+        Map<String, Object> valueProperties = (Map<String, Object>) value.get("properties");
+        assertNotNull(valueProperties);
+        assertEquals(1, valueProperties.size());
+        assertLeafs(valueProperties, "keyword_visible");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertNotFiltered(MappingMetadata mappingMetadata) {
+        assertNotNull(mappingMetadata);
+        Map<String, Object> sourceAsMap = mappingMetadata.getSourceAsMap();
+        assertEquals(4, sourceAsMap.size());
+        assertTrue(sourceAsMap.containsKey("_meta"));
+        assertTrue(sourceAsMap.containsKey("_routing"));
+        assertTrue(sourceAsMap.containsKey("_source"));
+        Map<String, Object> typeProperties = (Map<String, Object>) sourceAsMap.get("properties");
+        assertEquals(5, typeProperties.size());
+
+        Map<String, Object> name = (Map<String, Object>) typeProperties.get("name");
+        assertEquals(1, name.size());
+        Map<String, Object> nameProperties = (Map<String, Object>) name.get("properties");
+        assertEquals(2, nameProperties.size());
+        assertLeafs(nameProperties, "first", "last_visible");
+
+        assertLeafs(typeProperties, "birth", "age_visible");
+
+        Map<String, Object> address = (Map<String, Object>) typeProperties.get("address");
+        assertNotNull(address);
+        assertEquals(1, address.size());
+        Map<String, Object> addressProperties = (Map<String, Object>) address.get("properties");
+        assertNotNull(addressProperties);
+        assertEquals(3, addressProperties.size());
+        assertLeafs(addressProperties, "street", "location", "location_visible");
+
+        Map<String, Object> properties = (Map<String, Object>) typeProperties.get("properties");
+        assertNotNull(properties);
+        assertEquals(2, properties.size());
+        assertTrue(properties.containsKey("type"));
+        Map<String, Object> propertiesProperties = (Map<String, Object>) properties.get("properties");
+        assertNotNull(propertiesProperties);
+        assertEquals(2, propertiesProperties.size());
+        assertMultiField(propertiesProperties, "key_visible", "keyword");
+        assertMultiField(propertiesProperties, "value", "keyword_visible");
+    }
+
+    public static class FieldFilterPlugin extends Plugin implements MapperPlugin {
+
+        @Override
+        public Function<String, FieldPredicate> getFieldFilter() {
+            return index -> false == index.equals("filtered") ? FieldPredicate.ACCEPT_ALL : new FieldPredicate() {
+                @Override
+                public boolean test(String field) {
+                    return field.endsWith("visible");
+                }
+
+                @Override
+                public String modifyHash(String hash) {
+                    return "only-visible:" + hash;
+                }
+
+                @Override
+                public long ramBytesUsed() {
+                    return 0;
+                }
+            };
+        }
+    }
+
+    private static final Collection<String> ALL_FLAT_FIELDS = Arrays.asList(
+        "name.first",
+        "name.last_visible",
+        "birth",
+        "age_visible",
+        "address.street",
+        "address.location",
+        "address.location_visible",
+        "properties.key_visible",
+        "properties.key_visible.keyword",
+        "properties.value",
+        "properties.value.keyword_visible"
+    );
+
+    private static final Collection<String> ALL_OBJECT_FIELDS = Arrays.asList("name", "address", "properties");
+
+    private static final Collection<String> FILTERED_FLAT_FIELDS = Arrays.asList(
+        "name.last_visible",
+        "age_visible",
+        "address.location_visible",
+        "properties.key_visible",
+        "properties.value.keyword_visible"
+    );
+
+    private static final String TEST_ITEM = """
+        {
+          "_doc": {
+              "_meta": {
+                "version":0.19
+              },      "_routing": {
+                "required":true
+              },      "_source": {
+                "enabled":false
+              },      "properties": {
+                "name": {
+                  "properties": {
+                    "first": {
+                      "type": "keyword"
+                    },
+                    "last_visible": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "birth": {
+                  "type": "date"
+                },
+                "age_visible": {
+                  "type": "integer"
+                },
+                "address": {
+                  "type": "object",
+                  "properties": {
+                    "street": {
+                      "type": "keyword"
+                    },
+                    "location": {
+                      "type": "geo_point"
+                    },
+                    "location_visible": {
+                      "type": "geo_point"
+                    }
+                  }
+                },
+                "properties": {
+                  "type": "nested",
+                  "properties": {
+                    "key_visible" : {
+                      "type": "text",
+                      "fields": {
+                        "keyword" : {
+                          "type" : "keyword"
+                        }
+                      }
+                    },
+                    "value" : {
+                      "type": "text",
+                      "fields": {
+                        "keyword_visible" : {
+                          "type" : "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }""";
+}

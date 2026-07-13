@@ -1,0 +1,115 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.monitoring.collector.indices;
+
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.NotMultiProjectCapable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.monitoring.collector.Collector;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
+import static org.elasticsearch.xpack.monitoring.collector.TimeoutUtils.ensureNoTimeouts;
+
+/**
+ * Collector for indices and singular index statistics.
+ * <p>
+ * This collector runs on the master node only and collect a single {@link IndicesStatsMonitoringDoc} for the cluster and a
+ * {@link IndexStatsMonitoringDoc} document for each existing index in the cluster.
+ */
+public class IndexStatsCollector extends Collector {
+
+    /**
+     * Timeout value when collecting index statistics (default to 10s)
+     */
+    public static final Setting<TimeValue> INDEX_STATS_TIMEOUT = collectionTimeoutSetting("index.stats.timeout");
+
+    private final Client client;
+
+    public IndexStatsCollector(final ClusterService clusterService, final XPackLicenseState licenseState, final Client client) {
+        super("index-stats", clusterService, INDEX_STATS_TIMEOUT, licenseState);
+        this.client = client;
+    }
+
+    @Override
+    protected boolean shouldCollect(final boolean isElectedMaster) {
+        return isElectedMaster && super.shouldCollect(isElectedMaster);
+    }
+
+    @Override
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState) {
+        final List<MonitoringDoc> results = new ArrayList<>();
+        final IndicesStatsResponse indicesStatsResponse = client.admin()
+            .indices()
+            .prepareStats()
+            .setIndices(getCollectionIndices())
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .clear()
+            .setDocs(true)
+            .setFieldData(true)
+            .setIndexing(true)
+            .setMerge(true)
+            .setSearch(true)
+            .setSegments(true)
+            .setStore(true)
+            .setRefresh(true)
+            .setQueryCache(true)
+            .setRequestCache(true)
+            .setBulk(true)
+            .setTimeout(getCollectionTimeout())
+            .get();
+
+        ensureNoTimeouts(getCollectionTimeout(), indicesStatsResponse);
+
+        final long timestamp = timestamp();
+        final String clusterUuid = clusterUuid(clusterState);
+        @NotMultiProjectCapable(description = "Monitoring is not available in serverless and will thus not be made project-aware")
+        final var projectId = ProjectId.DEFAULT;
+        final ProjectMetadata metadata = clusterState.metadata().getProject(projectId);
+        final RoutingTable routingTable = clusterState.routingTable(projectId);
+
+        // Filters the indices stats to only return the statistics for the indices known by the collector's
+        // local cluster state. This way indices/index/shards stats all share a common view of indices state.
+        final List<IndexStats> indicesStats = new ArrayList<>();
+        for (final String indexName : metadata.getConcreteAllIndices()) {
+            final IndexStats indexStats = indicesStatsResponse.getIndex(indexName);
+            if (indexStats != null) {
+                // The index appears both in the local cluster state and indices stats response
+                indicesStats.add(indexStats);
+
+                results.add(
+                    new IndexStatsMonitoringDoc(
+                        clusterUuid,
+                        timestamp,
+                        interval,
+                        node,
+                        indexStats,
+                        metadata.index(indexName),
+                        routingTable.index(indexName)
+                    )
+                );
+            }
+        }
+        results.add(new IndicesStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indicesStats));
+
+        return Collections.unmodifiableCollection(results);
+    }
+}

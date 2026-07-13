@@ -1,0 +1,1603 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.search.nested;
+
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.NestedSortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortMode;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
+
+public class SimpleNestedIT extends ESIntegTestCase {
+
+    public void testSimpleNested() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("nested1", "type=nested"));
+        ensureGreen();
+
+        // check on no data, see it works
+        assertHitCount(prepareSearch("test"), 0L);
+        assertHitCount(prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")), 0L);
+
+        prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", "value1")
+                    .startArray("nested1")
+                    .startObject()
+                    .field("n_field1", "n_value1_1")
+                    .field("n_field2", "n_value2_1")
+                    .endObject()
+                    .startObject()
+                    .field("n_field1", "n_value1_2")
+                    .field("n_field2", "n_value2_2")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        GetResponse getResponse = client().prepareGet("test", "1").get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getSourceAsBytesRef(), notNullValue());
+        refresh();
+        // check the numDocs
+        assertDocumentCount("test", 3);
+
+        assertHitCount(
+            0L,
+            prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")),
+            prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1"))
+        );
+
+        assertHitCount(
+            1L,
+            // search for something that matches the nested doc, and see that we don't find the nested doc
+            prepareSearch("test"),
+            // now, do a nested query
+            prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg)),
+            prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg))
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+        );
+
+        // add another doc, one that would match if it was not nested...
+
+        prepareIndex("test").setId("2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", "value1")
+                    .startArray("nested1")
+                    .startObject()
+                    .field("n_field1", "n_value1_1")
+                    .field("n_field2", "n_value2_2")
+                    .endObject()
+                    .startObject()
+                    .field("n_field1", "n_value1_2")
+                    .field("n_field2", "n_value2_1")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        refresh();
+        assertDocumentCount("test", 6);
+
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(
+                nestedQuery(
+                    "nested1",
+                    boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")),
+                    ScoreMode.Avg
+                )
+            ),
+            1L
+        );
+        ;
+
+        // filter
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(
+                boolQuery().must(matchAllQuery())
+                    .mustNot(
+                        nestedQuery(
+                            "nested1",
+                            boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")),
+                            ScoreMode.Avg
+                        )
+                    )
+            ),
+            1L
+        );
+
+        // check with type prefix
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(
+                nestedQuery(
+                    "nested1",
+                    boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")),
+                    ScoreMode.Avg
+                )
+            ),
+            1L
+        );
+
+        // check delete, so all is gone...
+        DeleteResponse deleteResponse = client().prepareDelete("test", "2").get();
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+
+        refresh();
+        assertDocumentCount("test", 3);
+
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"), ScoreMode.Avg)),
+            1L
+        );
+    }
+
+    public void testMultiNested() throws Exception {
+        assertAcked(
+            prepareCreate("test").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("nested1")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("nested2")
+                    .field("type", "nested")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        ensureGreen();
+        prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field", "value")
+                    .startArray("nested1")
+                    .startObject()
+                    .field("field1", "1")
+                    .startArray("nested2")
+                    .startObject()
+                    .field("field2", "2")
+                    .endObject()
+                    .startObject()
+                    .field("field2", "3")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("field1", "4")
+                    .startArray("nested2")
+                    .startObject()
+                    .field("field2", "5")
+                    .endObject()
+                    .startObject()
+                    .field("field2", "6")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+
+        GetResponse getResponse = client().prepareGet("test", "1").get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        refresh();
+        // check the numDocs
+        assertDocumentCount("test", 7);
+
+        // do some multi nested queries
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.field1", "1"), ScoreMode.Avg)),
+            1L
+        );
+
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2", "2"), ScoreMode.Avg)),
+            1L
+        );
+
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(
+                nestedQuery(
+                    "nested1",
+                    boolQuery().must(termQuery("nested1.field1", "1"))
+                        .must(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2", "2"), ScoreMode.Avg)),
+                    ScoreMode.Avg
+                )
+            ),
+            1L
+        );
+
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(
+                nestedQuery(
+                    "nested1",
+                    boolQuery().must(termQuery("nested1.field1", "1"))
+                        .must(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2", "3"), ScoreMode.Avg)),
+                    ScoreMode.Avg
+                )
+            ),
+            1L
+        );
+
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(
+                nestedQuery(
+                    "nested1",
+                    boolQuery().must(termQuery("nested1.field1", "1"))
+                        .must(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2", "4"), ScoreMode.Avg)),
+                    ScoreMode.Avg
+                )
+            ),
+            0L
+        );
+
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(
+                nestedQuery(
+                    "nested1",
+                    boolQuery().must(termQuery("nested1.field1", "1"))
+                        .must(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2", "5"), ScoreMode.Avg)),
+                    ScoreMode.Avg
+                )
+            ),
+            0L
+        );
+
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(
+                nestedQuery(
+                    "nested1",
+                    boolQuery().must(termQuery("nested1.field1", "4"))
+                        .must(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2", "5"), ScoreMode.Avg)),
+                    ScoreMode.Avg
+                )
+            ),
+            1L
+        );
+
+        assertHitCountAndNoFailures(
+            prepareSearch("test").setQuery(
+                nestedQuery(
+                    "nested1",
+                    boolQuery().must(termQuery("nested1.field1", "4"))
+                        .must(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2", "2"), ScoreMode.Avg)),
+                    ScoreMode.Avg
+                )
+            ),
+            0L
+        );
+    }
+
+    // When IncludeNestedDocsQuery is wrapped in a FilteredQuery then a in-finite loop occurs b/c of a bug in
+    // IncludeNestedDocsQuery#advance()
+    // This IncludeNestedDocsQuery also needs to be aware of the filter from alias
+    public void testDeleteNestedDocsWithAlias() throws Exception {
+        assertAcked(
+            prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1).build())
+                .setMapping(
+                    jsonBuilder().startObject()
+                        .startObject("_doc")
+                        .startObject("properties")
+                        .startObject("field1")
+                        .field("type", "text")
+                        .endObject()
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+        );
+
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test", "alias1", QueryBuilders.termQuery("field1", "value1"))
+            .get();
+
+        ensureGreen();
+
+        prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", "value1")
+                    .startArray("nested1")
+                    .startObject()
+                    .field("n_field1", "n_value1_1")
+                    .field("n_field2", "n_value2_1")
+                    .endObject()
+                    .startObject()
+                    .field("n_field1", "n_value1_2")
+                    .field("n_field2", "n_value2_2")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+
+        prepareIndex("test").setId("2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", "value2")
+                    .startArray("nested1")
+                    .startObject()
+                    .field("n_field1", "n_value1_1")
+                    .field("n_field2", "n_value2_1")
+                    .endObject()
+                    .startObject()
+                    .field("n_field1", "n_value1_2")
+                    .field("n_field2", "n_value2_2")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+
+        flush();
+        refresh();
+        assertDocumentCount("test", 6);
+    }
+
+    public void testExplain() throws Exception {
+        assertAcked(
+            prepareCreate("test").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("nested1")
+                    .field("type", "nested")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        ensureGreen();
+
+        prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", "value1")
+                    .startArray("nested1")
+                    .startObject()
+                    .field("n_field1", "n_value1")
+                    .endObject()
+                    .startObject()
+                    .field("n_field1", "n_value1")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1"), ScoreMode.Total))
+                .setExplain(true),
+            response -> {
+                assertNoFailures(response);
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
+                Explanation explanation = response.getHits().getHits()[0].getExplanation();
+                assertThat(explanation.getValue(), equalTo(response.getHits().getHits()[0].getScore()));
+                assertThat(explanation.toString(), startsWith("0.36464313 = Score based on 2 child docs in range from 0 to 1"));
+            }
+        );
+    }
+
+    public void testSimpleNestedSorting() throws Exception {
+        assertAcked(
+            prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1))
+                .setMapping(
+                    jsonBuilder().startObject()
+                        .startObject("_doc")
+                        .startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("field1")
+                        .field("type", "long")
+                        .field("store", true)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+        );
+        ensureGreen();
+
+        prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", 1)
+                    .startArray("nested1")
+                    .startObject()
+                    .field("field1", 5)
+                    .endObject()
+                    .startObject()
+                    .field("field1", 4)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        prepareIndex("test").setId("2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", 2)
+                    .startArray("nested1")
+                    .startObject()
+                    .field("field1", 1)
+                    .endObject()
+                    .startObject()
+                    .field("field1", 2)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        prepareIndex("test").setId("3")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", 3)
+                    .startArray("nested1")
+                    .startObject()
+                    .field("field1", 3)
+                    .endObject()
+                    .startObject()
+                    .field("field1", 4)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        refresh();
+
+        assertResponse(
+            prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.ASC).setNestedSort(new NestedSortBuilder("nested1"))),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("1"));
+                assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
+                assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("3"));
+                assertThat(response.getHits().getHits()[2].getId(), equalTo("1"));
+                assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("4"));
+            }
+        );
+        assertResponse(
+            prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.DESC).setNestedSort(new NestedSortBuilder("nested1"))),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
+                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("5"));
+                assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
+                assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("4"));
+                assertThat(response.getHits().getHits()[2].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("2"));
+            }
+        );
+    }
+
+    public void testSimpleNestedSortingWithNestedFilterMissing() throws Exception {
+        assertAcked(
+            prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.refresh_interval", -1))
+                .setMapping(
+                    jsonBuilder().startObject()
+                        .startObject("_doc")
+                        .startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("field1")
+                        .field("type", "long")
+                        .endObject()
+                        .startObject("field2")
+                        .field("type", "boolean")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+        );
+        ensureGreen();
+
+        prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", 1)
+                    .startArray("nested1")
+                    .startObject()
+                    .field("field1", 5)
+                    .field("field2", true)
+                    .endObject()
+                    .startObject()
+                    .field("field1", 4)
+                    .field("field2", true)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        prepareIndex("test").setId("2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", 2)
+                    .startArray("nested1")
+                    .startObject()
+                    .field("field1", 1)
+                    .field("field2", true)
+                    .endObject()
+                    .startObject()
+                    .field("field1", 2)
+                    .field("field2", true)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        // Doc with missing nested docs if nested filter is used
+        refresh();
+        prepareIndex("test").setId("3")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", 3)
+                    .startArray("nested1")
+                    .startObject()
+                    .field("field1", 3)
+                    .field("field2", false)
+                    .endObject()
+                    .startObject()
+                    .field("field1", 4)
+                    .field("field2", false)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        refresh();
+
+        SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+            .addSort(
+                SortBuilders.fieldSort("nested1.field1")
+                    .setNestedSort(new NestedSortBuilder("nested1").setFilter(termQuery("nested1.field2", true)))
+                    .missing(10)
+                    .order(SortOrder.ASC)
+            );
+
+        if (randomBoolean()) {
+            searchRequestBuilder.setScroll(TimeValue.timeValueMinutes(10));
+        }
+
+        assertResponse(searchRequestBuilder, response -> {
+            assertHitCount(response, 3);
+            assertThat(response.getHits().getHits()[0].getId(), equalTo("2"));
+            assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("1"));
+            assertThat(response.getHits().getHits()[1].getId(), equalTo("1"));
+            assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("4"));
+            assertThat(response.getHits().getHits()[2].getId(), equalTo("3"));
+            assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("10"));
+        });
+        searchRequestBuilder = prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+            .addSort(
+                SortBuilders.fieldSort("nested1.field1")
+                    .setNestedSort(new NestedSortBuilder("nested1").setFilter(termQuery("nested1.field2", true)))
+                    .missing(10)
+                    .order(SortOrder.DESC)
+            );
+
+        if (randomBoolean()) {
+            searchRequestBuilder.setScroll(TimeValue.timeValueMinutes(10));
+        }
+
+        assertResponse(searchRequestBuilder, response -> {
+            assertHitCount(response, 3);
+            assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
+            assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("10"));
+            assertThat(response.getHits().getHits()[1].getId(), equalTo("1"));
+            assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("5"));
+            assertThat(response.getHits().getHits()[2].getId(), equalTo("2"));
+            assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("2"));
+            client().prepareClearScroll().addScrollId("_all").get();
+        });
+    }
+
+    public void testNestedSortWithMultiLevelFiltering() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("""
+            {
+                "properties": {
+                  "acl": {
+                    "type": "nested",
+                    "properties": {
+                      "access_id": {"type": "keyword"},
+                      "operation": {
+                        "type": "nested",
+                        "properties": {
+                          "name": {"type": "keyword"},
+                          "user": {
+                            "type": "nested",
+                            "properties": {
+                              "username": {"type": "keyword"},
+                              "id": {"type": "integer"}
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+            }"""));
+        ensureGreen();
+
+        prepareIndex("test").setId("1").setSource("""
+            {
+              "acl": [
+                {
+                  "access_id": 1,
+                  "operation": [
+                    {
+                      "name": "read",
+                      "user": [
+                        {"username": "matt", "id": 1},
+                        {"username": "shay", "id": 2},
+                        {"username": "adrien", "id": 3}
+                      ]
+                    },
+                    {
+                      "name": "write",
+                      "user": [
+                        {"username": "shay", "id": 2},
+                        {"username": "adrien", "id": 3}
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "access_id": 2,
+                  "operation": [
+                    {
+                      "name": "read",
+                      "user": [
+                        {"username": "jim", "id": 4},
+                        {"username": "shay", "id": 2}
+                      ]
+                    },
+                    {
+                      "name": "write",
+                      "user": [
+                        {"username": "shay", "id": 2}
+                      ]
+                    },
+                    {
+                      "name": "execute",
+                      "user": [
+                        {"username": "shay", "id": 2}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }""", XContentType.JSON).get();
+
+        prepareIndex("test").setId("2").setSource("""
+            {
+              "acl": [
+                {
+                  "access_id": 1,
+                  "operation": [
+                    {
+                      "name": "read",
+                      "user": [
+                        {"username": "matt", "id": 1},
+                        {"username": "luca", "id": 5}
+                      ]
+                    },
+                    {
+                      "name": "execute",
+                      "user": [
+                        {"username": "luca", "id": 5}
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "access_id": 3,
+                  "operation": [
+                    {
+                      "name": "read",
+                      "user": [
+                        {"username": "matt", "id": 1}
+                      ]
+                    },
+                    {
+                      "name": "write",
+                      "user": [
+                        {"username": "matt", "id": 1}
+                      ]
+                    },
+                    {
+                      "name": "execute",
+                      "user": [
+                        {"username": "matt", "id": 1}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }""", XContentType.JSON).get();
+        refresh();
+
+        // access id = 1, read, max value, asc, should use matt and shay
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("acl.operation.user.username")
+                        .setNestedSort(
+                            new NestedSortBuilder("acl").setFilter(QueryBuilders.termQuery("acl.access_id", "1"))
+                                .setNestedSort(
+                                    new NestedSortBuilder("acl.operation").setFilter(QueryBuilders.termQuery("acl.operation.name", "read"))
+                                        .setNestedSort(new NestedSortBuilder("acl.operation.user"))
+                                )
+                        )
+                        .sortMode(SortMode.MAX)
+                        .order(SortOrder.ASC)
+                ),
+            response -> {
+                assertHitCount(response, 2);
+                assertThat(response.getHits().getHits().length, equalTo(2));
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("matt"));
+                assertThat(response.getHits().getHits()[1].getId(), equalTo("1"));
+                assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("shay"));
+            }
+        );
+        // access id = 1, read, min value, asc, should now use adrien and luca
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("acl.operation.user.username")
+                        .setNestedSort(
+                            new NestedSortBuilder("acl").setFilter(QueryBuilders.termQuery("acl.access_id", "1"))
+                                .setNestedSort(
+                                    new NestedSortBuilder("acl.operation").setFilter(QueryBuilders.termQuery("acl.operation.name", "read"))
+                                        .setNestedSort(new NestedSortBuilder("acl.operation.user"))
+                                )
+                        )
+                        .sortMode(SortMode.MIN)
+                        .order(SortOrder.ASC)
+                ),
+            response -> {
+                assertHitCount(response, 2);
+                assertThat(response.getHits().getHits().length, equalTo(2));
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
+                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("adrien"));
+                assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("luca"));
+            }
+        );
+        // execute, by matt or luca, by user id, sort missing first
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("acl.operation.user.id")
+                        .setNestedSort(
+                            new NestedSortBuilder("acl").setNestedSort(
+                                new NestedSortBuilder("acl.operation").setFilter(QueryBuilders.termQuery("acl.operation.name", "execute"))
+                                    .setNestedSort(
+                                        new NestedSortBuilder("acl.operation.user").setFilter(
+                                            QueryBuilders.termsQuery("acl.operation.user.username", "matt", "luca")
+                                        )
+                                    )
+                            )
+                        )
+                        .missing("_first")
+                        .sortMode(SortMode.MIN)
+                        .order(SortOrder.DESC)
+                ),
+            response -> {
+                assertHitCount(response, 2);
+                assertThat(response.getHits().getHits().length, equalTo(2));
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("1")); // missing first
+                assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("1"));
+            }
+        );
+        // execute, by matt or luca, by username, sort missing last (default)
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("acl.operation.user.username")
+                        .setNestedSort(
+                            new NestedSortBuilder("acl").setNestedSort(
+                                new NestedSortBuilder("acl.operation").setFilter(QueryBuilders.termQuery("acl.operation.name", "execute"))
+                                    .setNestedSort(
+                                        new NestedSortBuilder("acl.operation.user").setFilter(
+                                            QueryBuilders.termsQuery("acl.operation.user.username", "matt", "luca")
+                                        )
+                                    )
+                            )
+                        )
+                        .sortMode(SortMode.MIN)
+                        .order(SortOrder.DESC)
+                ),
+            response -> {
+                assertHitCount(response, 2);
+                assertThat(response.getHits().getHits().length, equalTo(2));
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("luca"));
+                assertThat(response.getHits().getHits()[1].getId(), equalTo("1")); // missing last
+            }
+        );
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/31554
+    public void testLeakingSortValues() throws Exception {
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1)).setMapping("""
+            {
+              "_doc": {
+                "dynamic": "strict",
+                "properties": {
+                  "nested1": {
+                    "type": "nested",
+                    "properties": {
+                      "nested2": {
+                        "type": "nested",
+                        "properties": {
+                          "nested2_keyword": {
+                            "type": "keyword"
+                          },
+                          "sortVal": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """));
+        ensureGreen();
+
+        prepareIndex("test").setId("1").setSource("""
+            {
+              "nested1": [
+                {
+                  "nested2": [
+                    {
+                      "nested2_keyword": "nested2_bar",
+                      "sortVal": 1
+                    }
+                  ]
+                }
+             ]
+            }""", XContentType.JSON).get();
+
+        prepareIndex("test").setId("2").setSource("""
+            {
+              "nested1": [
+                {
+                  "nested2": [
+                    {
+                      "nested2_keyword": "nested2_bar",
+                      "sortVal": 2
+                    }
+                  ]
+                }
+              ]
+            }""", XContentType.JSON).get();
+
+        refresh();
+
+        assertResponse(
+            prepareSearch().setQuery(termQuery("_id", 2))
+                .addSort(
+                    SortBuilders.fieldSort("nested1.nested2.sortVal")
+                        .setNestedSort(
+                            new NestedSortBuilder("nested1").setNestedSort(
+                                new NestedSortBuilder("nested1.nested2").setFilter(
+                                    termQuery("nested1.nested2.nested2_keyword", "nested2_bar")
+                                )
+                            )
+                        )
+                ),
+            response -> {
+                assertHitCount(response, 1);
+                assertThat(response.getHits().getHits().length, equalTo(1));
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("2"));
+            }
+        );
+    }
+
+    public void testSortNestedWithNestedFilter() throws Exception {
+        assertAcked(
+            prepareCreate("test").setMapping(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("grand_parent_values")
+                    .field("type", "long")
+                    .endObject()
+                    .startObject("parent")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("parent_values")
+                    .field("type", "long")
+                    .endObject()
+                    .startObject("child")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("child_values")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ensureGreen();
+
+        // sum: 11
+        prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("grand_parent_values", 1L)
+                    .startArray("parent")
+                    .startObject()
+                    .field("filter", false)
+                    .field("parent_values", 1L)
+                    .startArray("child")
+                    .startObject()
+                    .field("filter", true)
+                    .field("child_values", 1L)
+                    .startObject("child_obj")
+                    .field("value", 1L)
+                    .endObject()
+                    .endObject()
+                    .startObject()
+                    .field("filter", false)
+                    .field("child_values", 6L)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("filter", true)
+                    .field("parent_values", 2L)
+                    .startArray("child")
+                    .startObject()
+                    .field("filter", false)
+                    .field("child_values", -1L)
+                    .endObject()
+                    .startObject()
+                    .field("filter", false)
+                    .field("child_values", 5L)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+
+        // sum: 7
+        prepareIndex("test").setId("2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("grand_parent_values", 2L)
+                    .startArray("parent")
+                    .startObject()
+                    .field("filter", false)
+                    .field("parent_values", 2L)
+                    .startArray("child")
+                    .startObject()
+                    .field("filter", true)
+                    .field("child_values", 2L)
+                    .startObject("child_obj")
+                    .field("value", 2L)
+                    .endObject()
+                    .endObject()
+                    .startObject()
+                    .field("filter", false)
+                    .field("child_values", 4L)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("parent_values", 3L)
+                    .field("filter", true)
+                    .startArray("child")
+                    .startObject()
+                    .field("child_values", -2L)
+                    .field("filter", false)
+                    .endObject()
+                    .startObject()
+                    .field("filter", false)
+                    .field("child_values", 3L)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+
+        // sum: 2
+        prepareIndex("test").setId("3")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("grand_parent_values", 3L)
+                    .startArray("parent")
+                    .startObject()
+                    .field("parent_values", 3L)
+                    .field("filter", false)
+                    .startArray("child")
+                    .startObject()
+                    .field("filter", true)
+                    .field("child_values", 3L)
+                    .startObject("child_obj")
+                    .field("value", 3L)
+                    .endObject()
+                    .endObject()
+                    .startObject()
+                    .field("filter", false)
+                    .field("child_values", 1L)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("parent_values", 4L)
+                    .field("filter", true)
+                    .startArray("child")
+                    .startObject()
+                    .field("filter", false)
+                    .field("child_values", -3L)
+                    .endObject()
+                    .startObject()
+                    .field("filter", false)
+                    .field("child_values", 1L)
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        refresh();
+
+        // Without nested filter
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("parent.child.child_values")
+                        .setNestedSort(new NestedSortBuilder("parent.child"))
+                        .order(SortOrder.ASC)
+                ),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getHits().length, equalTo(3));
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
+                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("-3"));
+                assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("-2"));
+                assertThat(response.getHits().getHits()[2].getId(), equalTo("1"));
+                assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("-1"));
+            }
+        );
+        // With nested filter
+        NestedSortBuilder nestedSort = new NestedSortBuilder("parent.child");
+        nestedSort.setFilter(QueryBuilders.termQuery("parent.child.filter", true));
+        assertResponses(response -> {
+            assertHitCount(response, 3);
+            assertThat(response.getHits().getHits().length, equalTo(3));
+            assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
+            assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("1"));
+            assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
+            assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("2"));
+            assertThat(response.getHits().getHits()[2].getId(), equalTo("3"));
+            assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("3"));
+        },
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(SortBuilders.fieldSort("parent.child.child_values").setNestedSort(nestedSort).order(SortOrder.ASC)),
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("parent.child.child_obj.value")
+                        .setNestedSort(
+                            new NestedSortBuilder("parent.child").setFilter(QueryBuilders.termQuery("parent.child.filter", true))
+                        )
+                        .order(SortOrder.ASC)
+                ),
+            // Sort mode: sum with filter
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("parent.child.child_values")
+                        .setNestedSort(
+                            new NestedSortBuilder("parent.child").setFilter(QueryBuilders.termQuery("parent.child.filter", true))
+                        )
+                        .sortMode(SortMode.SUM)
+                        .order(SortOrder.ASC)
+                ),
+            // Sort mode: avg with filter
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("parent.child.child_values")
+                        .setNestedSort(
+                            new NestedSortBuilder("parent.child").setFilter(QueryBuilders.termQuery("parent.child.filter", true))
+                        )
+                        .sortMode(SortMode.AVG)
+                        .order(SortOrder.ASC)
+                )
+        );
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("parent.parent_values")
+                        .setNestedSort(nestedSort.setFilter(QueryBuilders.termQuery("parent.filter", false)))
+                        .order(SortOrder.ASC)
+                ),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getHits().length, equalTo(3));
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
+                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("1"));
+                assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("2"));
+                assertThat(response.getHits().getHits()[2].getId(), equalTo("3"));
+                assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("3"));
+            }
+        );
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("parent.child.child_values")
+                        .setNestedSort(
+                            new NestedSortBuilder("parent").setFilter(QueryBuilders.termQuery("parent.filter", false))
+                                .setNestedSort(new NestedSortBuilder("parent.child"))
+                        )
+                        .sortMode(SortMode.MAX)
+                        .order(SortOrder.ASC)
+                ),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getHits().length, equalTo(3));
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
+                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("3"));
+                assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("4"));
+                assertThat(response.getHits().getHits()[2].getId(), equalTo("1"));
+                assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("6"));
+            }
+        );
+        // Sort mode: sum
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("parent.child.child_values")
+                        .setNestedSort(new NestedSortBuilder("parent.child"))
+                        .sortMode(SortMode.SUM)
+                        .order(SortOrder.ASC)
+                ),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getHits().length, equalTo(3));
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
+                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("2"));
+                assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("7"));
+                assertThat(response.getHits().getHits()[2].getId(), equalTo("1"));
+                assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("11"));
+            }
+        );
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("parent.child.child_values")
+                        .setNestedSort(new NestedSortBuilder("parent.child"))
+                        .sortMode(SortMode.SUM)
+                        .order(SortOrder.DESC)
+                ),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getHits().length, equalTo(3));
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
+                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("11"));
+                assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("7"));
+                assertThat(response.getHits().getHits()[2].getId(), equalTo("3"));
+                assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("2"));
+            }
+        );
+        // Sort mode: avg
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("parent.child.child_values")
+                        .setNestedSort(new NestedSortBuilder("parent.child"))
+                        .sortMode(SortMode.AVG)
+                        .order(SortOrder.ASC)
+                ),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getHits().length, equalTo(3));
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
+                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("1"));
+                assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("2"));
+                assertThat(response.getHits().getHits()[2].getId(), equalTo("1"));
+                assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("3"));
+            }
+        );
+        assertResponse(
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("parent.child.child_values")
+                        .setNestedSort(new NestedSortBuilder("parent.child"))
+                        .sortMode(SortMode.AVG)
+                        .order(SortOrder.DESC)
+                ),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getHits().length, equalTo(3));
+                assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
+                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("3"));
+                assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
+                assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("2"));
+                assertThat(response.getHits().getHits()[2].getId(), equalTo("3"));
+                assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("1"));
+            }
+        );
+    }
+
+    // Issue #9305
+    public void testNestedSortingWithNestedFilterAsFilter() throws Exception {
+        assertAcked(
+            prepareCreate("test").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("officelocation")
+                    .field("type", "text")
+                    .endObject()
+                    .startObject("users")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("first")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("last")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("workstations")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("stationid")
+                    .field("type", "text")
+                    .endObject()
+                    .startObject("phoneid")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        DocWriteResponse indexResponse1 = prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("officelocation", "gendale")
+                    .startArray("users")
+                    .startObject()
+                    .field("first", "fname1")
+                    .field("last", "lname1")
+                    .startArray("workstations")
+                    .startObject()
+                    .field("stationid", "s1")
+                    .field("phoneid", "p1")
+                    .endObject()
+                    .startObject()
+                    .field("stationid", "s2")
+                    .field("phoneid", "p2")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("first", "fname2")
+                    .field("last", "lname2")
+                    .startArray("workstations")
+                    .startObject()
+                    .field("stationid", "s3")
+                    .field("phoneid", "p3")
+                    .endObject()
+                    .startObject()
+                    .field("stationid", "s4")
+                    .field("phoneid", "p4")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("first", "fname3")
+                    .field("last", "lname3")
+                    .startArray("workstations")
+                    .startObject()
+                    .field("stationid", "s5")
+                    .field("phoneid", "p5")
+                    .endObject()
+                    .startObject()
+                    .field("stationid", "s6")
+                    .field("phoneid", "p6")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        assertTrue(indexResponse1.getShardInfo().getSuccessful() > 0);
+
+        DocWriteResponse indexResponse2 = prepareIndex("test").setId("2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("officelocation", "gendale")
+                    .startArray("users")
+                    .startObject()
+                    .field("first", "fname4")
+                    .field("last", "lname4")
+                    .startArray("workstations")
+                    .startObject()
+                    .field("stationid", "s1")
+                    .field("phoneid", "p1")
+                    .endObject()
+                    .startObject()
+                    .field("stationid", "s2")
+                    .field("phoneid", "p2")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("first", "fname5")
+                    .field("last", "lname5")
+                    .startArray("workstations")
+                    .startObject()
+                    .field("stationid", "s3")
+                    .field("phoneid", "p3")
+                    .endObject()
+                    .startObject()
+                    .field("stationid", "s4")
+                    .field("phoneid", "p4")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("first", "fname1")
+                    .field("last", "lname1")
+                    .startArray("workstations")
+                    .startObject()
+                    .field("stationid", "s5")
+                    .field("phoneid", "p5")
+                    .endObject()
+                    .startObject()
+                    .field("stationid", "s6")
+                    .field("phoneid", "p6")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        assertTrue(indexResponse2.getShardInfo().getSuccessful() > 0);
+        refresh();
+
+        assertNoFailuresAndResponse(
+            prepareSearch("test").addSort(
+                SortBuilders.fieldSort("users.first").setNestedSort(new NestedSortBuilder("users")).order(SortOrder.ASC)
+            )
+                .addSort(
+                    SortBuilders.fieldSort("users.first")
+                        .order(SortOrder.ASC)
+                        .setNestedSort(
+                            new NestedSortBuilder("users").setFilter(
+                                nestedQuery("users.workstations", termQuery("users.workstations.stationid", "s5"), ScoreMode.Avg)
+                            )
+                        )
+                ),
+            response -> {
+                assertNoFailures(response);
+                assertHitCount(response, 2);
+                assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+                assertThat(response.getHits().getAt(0).getSortValues()[0].toString(), equalTo("fname1"));
+                assertThat(response.getHits().getAt(0).getSortValues()[1].toString(), equalTo("fname1"));
+                assertThat(response.getHits().getAt(1).getId(), equalTo("1"));
+                assertThat(response.getHits().getAt(1).getSortValues()[0].toString(), equalTo("fname1"));
+                assertThat(response.getHits().getAt(1).getSortValues()[1].toString(), equalTo("fname3"));
+            }
+        );
+    }
+
+    public void testCheckFixedBitSetCache() throws Exception {
+        boolean loadFixedBitSeLazily = randomBoolean();
+        Settings.Builder settingsBuilder = Settings.builder().put(indexSettings()).put("index.refresh_interval", -1);
+        if (loadFixedBitSeLazily) {
+            settingsBuilder.put("index.load_fixed_bitset_filters_eagerly", false);
+        }
+        assertAcked(prepareCreate("test").setSettings(settingsBuilder));
+
+        prepareIndex("test").setId("0").setSource("field", "value").get();
+        prepareIndex("test").setId("1").setSource("field", "value").get();
+        refresh();
+        ensureSearchable("test");
+
+        // No nested mapping yet, there shouldn't be anything in the fixed bit set cache
+        ClusterStatsResponse clusterStatsResponse = clusterAdmin().prepareClusterStats().get();
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
+
+        // Now add nested mapping
+        assertAcked(indicesAdmin().preparePutMapping("test").setSource("array1", "type=nested"));
+
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startArray("array1")
+            .startObject()
+            .field("field1", "value1")
+            .endObject()
+            .endArray()
+            .endObject();
+        // index simple data
+        prepareIndex("test").setId("2").setSource(builder).get();
+        prepareIndex("test").setId("3").setSource(builder).get();
+        prepareIndex("test").setId("4").setSource(builder).get();
+        prepareIndex("test").setId("5").setSource(builder).get();
+        prepareIndex("test").setId("6").setSource(builder).get();
+        refresh();
+        ensureSearchable("test");
+
+        if (loadFixedBitSeLazily) {
+            clusterStatsResponse = clusterAdmin().prepareClusterStats().get();
+            assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
+
+            // only when querying with nested the fixed bitsets are loaded
+            assertHitCountAndNoFailures(
+                prepareSearch("test").setQuery(nestedQuery("array1", termQuery("array1.field1", "value1"), ScoreMode.Avg)),
+                5L
+            );
+        }
+        clusterStatsResponse = clusterAdmin().prepareClusterStats().get();
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), greaterThan(0L));
+
+        assertAcked(indicesAdmin().prepareDelete("test"));
+        clusterStatsResponse = clusterAdmin().prepareClusterStats().get();
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
+    }
+
+    public void testSkipNestedInnerHits() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("nested1", "type=nested"));
+        ensureGreen();
+
+        prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("field1", "value1")
+                    .startArray("nested1")
+                    .startObject()
+                    .field("n_field1", "foo")
+                    .field("n_field2", "bar")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+
+        waitForRelocation(ClusterHealthStatus.GREEN);
+        GetResponse getResponse = client().prepareGet("test", "1").get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getSourceAsBytesRef(), notNullValue());
+        refresh();
+
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setSource(
+                new SearchSourceBuilder().query(
+                    QueryBuilders.nestedQuery("nested1", QueryBuilders.termQuery("nested1.n_field1", "foo"), ScoreMode.Avg)
+                        .innerHit(new InnerHitBuilder())
+                )
+            ),
+            res -> {
+                assertNotNull(res.getHits());
+                assertHitCount(res, 1);
+                assertThat(res.getHits().getHits().length, equalTo(1));
+                // by default we should get inner hits
+                assertNotNull(res.getHits().getHits()[0].getInnerHits());
+                assertNotNull(res.getHits().getHits()[0].getInnerHits().get("nested1"));
+            }
+        );
+
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setSource(
+                new SearchSourceBuilder().query(
+                    QueryBuilders.nestedQuery("nested1", QueryBuilders.termQuery("nested1.n_field1", "foo"), ScoreMode.Avg)
+                        .innerHit(new InnerHitBuilder())
+                ).skipInnerHits(true)
+            ),
+            res -> {
+                assertNotNull(res.getHits());
+                assertHitCount(res, 1);
+                assertThat(res.getHits().getHits().length, equalTo(1));
+                // if we explicitly say to ignore inner hits, then this should now be null
+                assertNull(res.getHits().getHits()[0].getInnerHits());
+            }
+        );
+    }
+
+    private void assertDocumentCount(String index, long numdocs) {
+        IndicesStatsResponse stats = indicesAdmin().prepareStats(index).clear().setDocs(true).get();
+        assertNoFailures(stats);
+        assertThat(stats.getIndex(index).getPrimaries().docs.getCount(), is(numdocs));
+    }
+
+}

@@ -1,0 +1,153 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.8.0"
+      reason: 'rank added in 8.8'
+      test_runner_features: "close_to"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 5
+            number_of_replicas: 0
+          mappings:
+            properties:
+              text:
+                type: text
+              vector:
+                type: dense_vector
+                dims: 1
+                index: true
+                similarity: l2_norm
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          text: "term term"
+          vector: [0.0]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          text: "other"
+          vector: [1.0]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          text: "term"
+          vector: [2.0]
+
+  - do:
+      indices.refresh: {}
+
+---
+"rrf invalid license":
+
+  - do:
+      catch: forbidden
+      search:
+        index: test
+        body:
+          track_total_hits: false
+          fields: [ "text" ]
+          knn:
+            field: vector
+            query_vector: [0.0]
+            k: 3
+            num_candidates: 3
+          query:
+            term:
+              text: term
+          rank:
+            rrf:
+              window_size: 100
+              rank_constant: 1
+          size: 10
+
+  - match: { status: 403 }
+  - match: { error.type: security_exception }
+  - match: { error.reason: "current license is non-compliant for [Reciprocal Rank Fusion (RRF)]" }
+
+---
+"rrf retriever invalid license":
+
+  - do:
+      catch: forbidden
+      search:
+        index: test
+        body:
+          track_total_hits: false
+          fields: [ "text" ]
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  knn: {
+                    field: vector,
+                    query_vector: [ 0.0 ],
+                    k: 3,
+                    num_candidates: 3
+                  }
+                },
+                {
+                  standard: {
+                    query: {
+                      term: {
+                        text: term
+                      }
+                    }
+                  }
+                }
+              ]
+
+  - match: { status: 403 }
+  - match: { error.type: security_exception }
+  - match: { error.reason: "current license is non-compliant for [Reciprocal Rank Fusion (RRF)]" }
+
+
+---
+"linear retriever invalid license":
+  - requires:
+      cluster_features: [ "linear_retriever_supported" ]
+      reason: "Support for linear retriever"
+
+  - do:
+      catch: forbidden
+      search:
+        index: test
+        body:
+          track_total_hits: false
+          fields: [ "text" ]
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  knn: {
+                    field: vector,
+                    query_vector: [ 0.0 ],
+                    k: 3,
+                    num_candidates: 3
+                  }
+                },
+                {
+                  standard: {
+                    query: {
+                      term: {
+                        text: term
+                      }
+                    }
+                  }
+                }
+              ]
+
+  - match: { status: 403 }
+  - match: { error.type: security_exception }
+  - match: { error.reason: "current license is non-compliant for [linear retriever]" }

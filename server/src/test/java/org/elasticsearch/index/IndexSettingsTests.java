@@ -1,0 +1,1609 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index;
+
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
+import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.hamcrest.Matchers;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
+import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
+import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
+import static org.elasticsearch.index.IndexSettings.DEFAULT_REFRESH_INTERVAL;
+import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
+import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
+import static org.elasticsearch.index.IndexSettings.STATELESS_MIN_NON_FAST_REFRESH_INTERVAL;
+import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
+import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
+import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPER_DYNAMIC_SETTING;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.StringContains.containsString;
+import static org.hamcrest.object.HasToString.hasToString;
+
+public class IndexSettingsTests extends ESTestCase {
+
+    public void testRunListener() {
+        IndexVersion version = IndexVersionUtils.getPreviousVersion();
+        Settings theSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "0xdeadbeef")
+            .build();
+        final AtomicInteger integer = new AtomicInteger(0);
+        Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1, Property.Dynamic, Property.IndexScope);
+        IndexMetadata metadata = newIndexMeta("index", theSettings);
+        IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY, integerSetting);
+        settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, integer::set);
+
+        assertEquals(version, settings.getIndexVersionCreated());
+        assertEquals("0xdeadbeef", settings.getUUID());
+
+        assertFalse(settings.updateIndexMetadata(metadata));
+        assertEquals(metadata.getSettings(), settings.getSettings());
+        assertEquals(0, integer.get());
+        assertTrue(
+            settings.updateIndexMetadata(
+                newIndexMeta("index", Settings.builder().put(theSettings).put("index.test.setting.int", 42).build())
+            )
+        );
+        assertEquals(42, integer.get());
+    }
+
+    public void testSettingsUpdateValidator() {
+        IndexVersion version = IndexVersionUtils.getPreviousVersion();
+        Settings theSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "0xdeadbeef")
+            .build();
+        final AtomicInteger integer = new AtomicInteger(0);
+        Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1, Property.Dynamic, Property.IndexScope);
+        IndexMetadata metadata = newIndexMeta("index", theSettings);
+        IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY, integerSetting);
+        settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, integer::set, (i) -> {
+            if (i == 42) {
+                throw randomBoolean() ? new RuntimeException("anything") : new IllegalArgumentException("illegal");
+            }
+        });
+
+        assertEquals(version, settings.getIndexVersionCreated());
+        assertEquals("0xdeadbeef", settings.getUUID());
+
+        assertFalse(settings.updateIndexMetadata(metadata));
+        assertEquals(metadata.getSettings(), settings.getSettings());
+        assertEquals(0, integer.get());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.updateIndexMetadata(
+                newIndexMeta("index", Settings.builder().put(theSettings).put("index.test.setting.int", 42).build())
+            )
+        );
+        assertTrue(
+            settings.updateIndexMetadata(
+                newIndexMeta("index", Settings.builder().put(theSettings).put("index.test.setting.int", 41).build())
+            )
+        );
+        assertEquals(41, integer.get());
+    }
+
+    public void testMergedSettingsArePassed() {
+        IndexVersion version = IndexVersionUtils.getPreviousVersion();
+        Settings theSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "0xdeadbeef")
+            .build();
+        final AtomicInteger integer = new AtomicInteger(0);
+        final StringBuilder builder = new StringBuilder();
+        Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1, Property.Dynamic, Property.IndexScope);
+        Setting<String> notUpdated = new Setting<>("index.not.updated", "", Function.identity(), Property.Dynamic, Property.IndexScope);
+
+        IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY, integerSetting, notUpdated);
+        settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, integer::set);
+        settings.getScopedSettings().addSettingsUpdateConsumer(notUpdated, builder::append);
+        assertEquals(0, integer.get());
+        assertEquals("", builder.toString());
+        IndexMetadata newMetadata = newIndexMeta(
+            "index",
+            Settings.builder().put(settings.getIndexMetadata().getSettings()).put("index.test.setting.int", 42).build()
+        );
+        assertTrue(settings.updateIndexMetadata(newMetadata));
+        assertSame(settings.getIndexMetadata(), newMetadata);
+        assertEquals(42, integer.get());
+        assertEquals("", builder.toString());
+        integer.set(0);
+        assertTrue(
+            settings.updateIndexMetadata(
+                newIndexMeta(
+                    "index",
+                    Settings.builder().put(settings.getIndexMetadata().getSettings()).put("index.not.updated", "boom").build()
+                )
+            )
+        );
+        assertEquals("boom", builder.toString());
+        assertEquals("not updated - we preserve the old settings", 0, integer.get());
+
+    }
+
+    public void testSettingsConsistency() {
+        IndexVersion version = IndexVersionUtils.getPreviousVersion();
+        IndexMetadata metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build());
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(version, settings.getIndexVersionCreated());
+        assertEquals("_na_", settings.getUUID());
+        try {
+            settings.updateIndexMetadata(
+                newIndexMeta(
+                    "index",
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put("index.test.setting.int", 42)
+                        .build()
+                )
+            );
+            fail("version has changed");
+        } catch (IllegalArgumentException ex) {
+            assertTrue(ex.getMessage(), ex.getMessage().startsWith("version mismatch on settings update expected: "));
+        }
+
+        try {
+            settings.updateIndexMetadata(
+                newIndexMeta(
+                    "index",
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersion.current())
+                        .put("index.test.setting.int", 42)
+                        .build()
+                )
+            );
+            fail("version has changed");
+        } catch (IllegalArgumentException ex) {
+            assertTrue(ex.getMessage(), ex.getMessage().startsWith("compatibility version mismatch on settings update expected: "));
+        }
+
+        // use version number that is unknown
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.fromId(999999)).build()
+        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(IndexVersion.fromId(999999), settings.getIndexVersionCreated());
+        assertEquals("_na_", settings.getUUID());
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.fromId(999999))
+                    .put("index.test.setting.int", 42)
+                    .build()
+            )
+        );
+
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.SETTING_INDEX_UUID, "0xdeadbeef")
+                .build()
+        );
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        try {
+            settings.updateIndexMetadata(
+                newIndexMeta(
+                    "index",
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put("index.test.setting.int", 42)
+                        .build()
+                )
+            );
+            fail("uuid missing/change");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("uuid mismatch on settings update expected: 0xdeadbeef but was: _na_", ex.getMessage());
+        }
+        assertEquals(metadata.getSettings(), settings.getSettings());
+    }
+
+    public void testDenseVectorExperimentalFeaturesDefaultsFromBuildType() {
+        assertEquals(Build.current().isSnapshot(), IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(Settings.EMPTY));
+    }
+
+    public void testSliceEnabledSettingRequiresFeatureFlag() {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                newIndexMeta("index", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build()),
+                Settings.EMPTY
+            )
+        );
+        assertThat(exception.getMessage(), containsString("unknown setting [index.slice.enabled]"));
+    }
+
+    public void testSliceEnabledSettingRejectedForTimeSeriesMode() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                newIndexMeta(
+                    "index",
+                    Settings.builder()
+                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+                        .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+                        .build()
+                ),
+                Settings.EMPTY
+            )
+        );
+        assertThat(exception.getMessage(), containsString("index.slice.enabled"));
+        assertThat(exception.getMessage(), containsString("index.mode"));
+        assertThat(exception.getMessage(), containsString("time_series"));
+    }
+
+    @TestLogging(reason = "testing warning logging", value = "org.elasticsearch.index.IndexSettings:WARN")
+    public void testDenseVectorExperimentalFeaturesWarnsWhenExplicitlyEnabled() {
+        MockLog.assertThatLogger(() -> {
+            Settings settings = Settings.builder().put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true).build();
+            new IndexSettings(newIndexMeta("index", settings), Settings.EMPTY);
+        },
+            IndexSettings.class,
+            new MockLog.SeenEventExpectation(
+                "dense vector warning",
+                IndexSettings.class.getCanonicalName(),
+                Level.WARN,
+                "*The setting [index.dense_vector.experimental_features] is enabled; "
+                    + "backwards compatibility is not guaranteed for index [index]*"
+            )
+        );
+    }
+
+    public IndexSettings newIndexSettings(IndexMetadata metadata, Settings nodeSettings, Setting<?>... settings) {
+        Set<Setting<?>> settingSet = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        if (settings.length > 0) {
+            settingSet.addAll(Arrays.asList(settings));
+        }
+        return new IndexSettings(metadata, nodeSettings, new IndexScopedSettings(Settings.EMPTY, settingSet));
+    }
+
+    public void testNodeSettingsAreContained() {
+        final int numShards = randomIntBetween(1, 10);
+        final int numReplicas = randomIntBetween(0, 10);
+        Settings theSettings = indexSettings(numShards, numReplicas).put("index.foo.bar", 0).build();
+
+        Settings nodeSettings = Settings.builder().put("index.foo.bar", 43).build();
+        final AtomicInteger indexValue = new AtomicInteger(0);
+        Setting<Integer> integerSetting = Setting.intSetting("index.foo.bar", -1, Property.Dynamic, Property.IndexScope);
+        IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), nodeSettings, integerSetting);
+        settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, indexValue::set);
+        assertEquals(numReplicas, settings.getNumberOfReplicas());
+        assertEquals(numShards, settings.getNumberOfShards());
+        assertEquals(0, indexValue.get());
+
+        assertTrue(
+            settings.updateIndexMetadata(newIndexMeta("index", indexSettings(numShards, numReplicas + 1).put("index.foo.bar", 42).build()))
+        );
+
+        assertEquals(42, indexValue.get());
+        assertSame(nodeSettings, settings.getNodeSettings());
+
+        assertTrue(settings.updateIndexMetadata(newIndexMeta("index", indexSettings(numShards, numReplicas + 1).build())));
+        assertEquals(43, indexValue.get());
+    }
+
+    public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
+        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1).put(indexSettings)).build();
+    }
+
+    public static IndexMetadata newIndexMeta(String name, Settings indexSettings, IndexVersion indexVersion) {
+        return IndexMetadata.builder(name).settings(indexSettings(indexVersion, 1, 1).put(indexSettings)).build();
+    }
+
+    public void testUpdateDurability() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async")
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(Translog.Durability.ASYNC, settings.getTranslogDurability());
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "request").build())
+        );
+        assertEquals(Translog.Durability.REQUEST, settings.getTranslogDurability());
+
+        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(Translog.Durability.REQUEST, settings.getTranslogDurability()); // test default
+    }
+
+    public void testIsWarmerEnabled() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.INDEX_WARMER_ENABLED_SETTING.getKey(), false)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isWarmerEnabled());
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_WARMER_ENABLED_SETTING.getKey(), "true").build())
+        );
+        assertTrue(settings.isWarmerEnabled());
+        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isWarmerEnabled());
+    }
+
+    public void testRefreshInterval() {
+        String refreshInterval = getRandomTimeString();
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(
+            TimeValue.parseTimeValue(
+                refreshInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRefreshInterval()
+        );
+        String newRefreshInterval = getRandomTimeString();
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), newRefreshInterval).build())
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                newRefreshInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRefreshInterval()
+        );
+    }
+
+    public void testDefaultRefreshInterval() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(DEFAULT_REFRESH_INTERVAL, settings.getRefreshInterval());
+    }
+
+    public void testDisableRefreshInterval() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(TimeValue.MINUS_ONE, settings.getRefreshInterval());
+    }
+
+    public void testNegativeRefreshInterval() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-10s")
+                .build()
+        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        assertThat(e, hasToString(containsString("negative durations are not supported")));
+    }
+
+    public void testStatelessDefaultRefreshInterval() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(STATELESS_DEFAULT_REFRESH_INTERVAL, settings.getRefreshInterval());
+    }
+
+    public void testStatelessMinRefreshInterval() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "2s")
+                .put(SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.V_8_10_0.id() + 1)
+                .build()
+        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        String expectedMessage = "[index.refresh_interval=2s] should be either -1 or equal to or greater than "
+            + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL.toString();
+        assertThat(e, hasToString(containsString(expectedMessage)));
+    }
+
+    public void testStatelessDisableRefreshInterval() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(TimeValue.MINUS_ONE, settings.getRefreshInterval());
+    }
+
+    public void testStatelessFastRefreshDefaultRefreshInterval() {
+        IndexMetadata metadata = IndexMetadata.builder("index")
+            .system(true)
+            .settings(
+                indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
+                    .put(INDEX_FAST_REFRESH_SETTING.getKey(), true)
+                    .build()
+            )
+            .build();
+        IndexSettings settings = new IndexSettings(metadata, Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build());
+        assertEquals(DEFAULT_REFRESH_INTERVAL, settings.getRefreshInterval());
+    }
+
+    public void testStatelessFastRefreshDisableRefreshInterval() {
+        IndexMetadata metadata = IndexMetadata.builder("index")
+            .system(true)
+            .settings(
+                indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
+                    .put(INDEX_FAST_REFRESH_SETTING.getKey(), true)
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                    .build()
+            )
+            .build();
+        IndexSettings settings = new IndexSettings(metadata, Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build());
+        assertEquals(TimeValue.MINUS_ONE, settings.getRefreshInterval());
+    }
+
+    private String getRandomTimeString() {
+        int refreshIntervalInt = randomFrom(-1, Math.abs(randomInt()));
+        String refreshInterval = Integer.toString(refreshIntervalInt);
+        if (refreshIntervalInt >= 0) {
+            refreshInterval += randomFrom("s", "ms", "h");
+        }
+        return refreshInterval;
+    }
+
+    public void testMaxResultWindow() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), 15)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(15, settings.getMaxResultWindow());
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), 42).build())
+        );
+        assertEquals(42, settings.getMaxResultWindow());
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxResultWindow());
+
+        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxResultWindow());
+    }
+
+    public void testMaxInnerResultWindow() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 200)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(200, settings.getMaxInnerResultWindow());
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 50).build())
+        );
+        assertEquals(50, settings.getMaxInnerResultWindow());
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxInnerResultWindow());
+
+        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxInnerResultWindow());
+    }
+
+    public void testMaxDocvalueFields() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey(), 200)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(200, settings.getMaxDocvalueFields());
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey(), 50).build())
+        );
+        assertEquals(50, settings.getMaxDocvalueFields());
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxDocvalueFields());
+
+        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxDocvalueFields());
+    }
+
+    public void testMaxScriptFields() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey(), 100)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(100, settings.getMaxScriptFields());
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey(), 20).build())
+        );
+        assertEquals(20, settings.getMaxScriptFields());
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxScriptFields());
+
+        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxScriptFields());
+    }
+
+    public void testMaxRegexLengthSetting() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey(), 99)
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(99, settings.getMaxRegexLength());
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey(), 101).build())
+        );
+        assertEquals(101, settings.getMaxRegexLength());
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxRegexLength());
+
+        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxRegexLength());
+    }
+
+    public void testGCDeletesSetting() {
+        TimeValue gcDeleteSetting = new TimeValue(Math.abs(randomInt()), TimeUnit.MILLISECONDS);
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), gcDeleteSetting.getStringRep())
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(
+            TimeValue.parseTimeValue(
+                gcDeleteSetting.getStringRep(),
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_GC_DELETES_SETTING.getKey()
+            ).getMillis(),
+            settings.getGcDeletesInMillis()
+        );
+        TimeValue newGCDeleteSetting = new TimeValue(Math.abs(randomInt()), TimeUnit.MILLISECONDS);
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder().put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), newGCDeleteSetting.getStringRep()).build()
+            )
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                newGCDeleteSetting.getStringRep(),
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_GC_DELETES_SETTING.getKey()
+            ).getMillis(),
+            settings.getGcDeletesInMillis()
+        );
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(
+                        IndexSettings.INDEX_GC_DELETES_SETTING.getKey(),
+                        (randomBoolean() ? -1 : new TimeValue(-1, TimeUnit.MILLISECONDS)).toString()
+                    )
+                    .build()
+            )
+        );
+        assertEquals(-1, settings.getGcDeletesInMillis());
+    }
+
+    public void testTranslogFlushSizeThreshold() {
+        ByteSizeValue translogFlushThresholdSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
+        ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(
+            translogFlushThresholdSize.getBytes() + "B",
+            IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey()
+        );
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), translogFlushThresholdSize.getBytes() + "B")
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(actualValue, settings.getFlushThresholdSize(ByteSizeValue.ofTb(1)));
+        ByteSizeValue newTranslogFlushThresholdSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
+        ByteSizeValue actualNewTranslogFlushThresholdSize = ByteSizeValue.parseBytesSizeValue(
+            newTranslogFlushThresholdSize.getBytes() + "B",
+            IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey()
+        );
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), newTranslogFlushThresholdSize.getBytes() + "B")
+                    .build()
+            )
+        );
+        assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize(ByteSizeValue.ofTb(1)));
+    }
+
+    public void testTranslogGenerationSizeThreshold() {
+        final ByteSizeValue size = ByteSizeValue.ofBytes(Math.abs(randomInt()));
+        final String key = IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey();
+        final ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(size.getBytes() + "B", key);
+        final IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).put(key, size.getBytes() + "B").build()
+        );
+        final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(actualValue, settings.getGenerationThresholdSize());
+        final ByteSizeValue newSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
+        final ByteSizeValue actual = ByteSizeValue.parseBytesSizeValue(newSize.getBytes() + "B", key);
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, newSize.getBytes() + "B").build()));
+        assertEquals(actual, settings.getGenerationThresholdSize());
+    }
+
+    public void testPrivateSettingsValidation() {
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_CREATION_DATE, System.currentTimeMillis()).build();
+        final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+
+        {
+            // validation should fail since we are not ignoring private settings
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> indexScopedSettings.validate(settings, randomBoolean())
+            );
+            assertThat(e, hasToString(containsString("unknown setting [index.creation_date]")));
+        }
+
+        {
+            // validation should fail since we are not ignoring private settings
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> indexScopedSettings.validate(settings, randomBoolean(), false, randomBoolean())
+            );
+            assertThat(e, hasToString(containsString("unknown setting [index.creation_date]")));
+        }
+
+        // nothing should happen since we are ignoring private settings
+        indexScopedSettings.validate(settings, randomBoolean(), true, randomBoolean());
+    }
+
+    public void testArchivedSettingsValidation() {
+        final Settings settings = Settings.builder()
+            .put(AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX + "foo", System.currentTimeMillis())
+            .build();
+        final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+
+        {
+            // validation should fail since we are not ignoring archived settings
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> indexScopedSettings.validate(settings, randomBoolean())
+            );
+            assertThat(e, hasToString(containsString("unknown setting [archived.foo]")));
+        }
+
+        {
+            // validation should fail since we are not ignoring archived settings
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> indexScopedSettings.validate(settings, randomBoolean(), randomBoolean(), false)
+            );
+            assertThat(e, hasToString(containsString("unknown setting [archived.foo]")));
+        }
+
+        // nothing should happen since we are ignoring archived settings
+        indexScopedSettings.validate(settings, randomBoolean(), randomBoolean(), true);
+    }
+
+    public void testArchiveBrokenIndexSettings() {
+        Settings settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(Settings.EMPTY, e -> {
+            assert false : "should not have been invoked, no unknown settings";
+        }, (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; });
+        assertSame(settings, Settings.EMPTY);
+        settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
+            Settings.builder().put("index.refresh_interval", "-200").build(),
+            e -> {
+                assert false : "should not have been invoked, no invalid settings";
+            },
+            (e, ex) -> {
+                assertThat(e.getKey(), equalTo("index.refresh_interval"));
+                assertThat(e.getValue(), equalTo("-200"));
+                assertThat(ex, hasToString(containsString("failed to parse setting [index.refresh_interval] with value [-200]")));
+            }
+        );
+        assertEquals("-200", settings.get("archived.index.refresh_interval"));
+        assertNull(settings.get("index.refresh_interval"));
+
+        Settings prevSettings = settings; // no double archive
+        settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(prevSettings, e -> {
+            assert false : "should not have been invoked, no unknown settings";
+        }, (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; });
+        assertSame(prevSettings, settings);
+
+        settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()) // private setting
+                .put("index.unknown", "foo")
+                .put("index.refresh_interval", "2s")
+                .build(),
+            e -> {
+                assertThat(e.getKey(), equalTo("index.unknown"));
+                assertThat(e.getValue(), equalTo("foo"));
+            },
+            (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; }
+        );
+
+        assertEquals("foo", settings.get("archived.index.unknown"));
+        assertEquals(IndexVersion.current().toString(), settings.get(IndexMetadata.SETTING_VERSION_CREATED));
+        assertEquals("2s", settings.get("index.refresh_interval"));
+    }
+
+    public void testQueryDefaultField() {
+        IndexSettings index = newIndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
+        assertThat(index.getDefaultFields(), equalTo(Collections.singletonList("*")));
+        index = newIndexSettings(
+            newIndexMeta("index", Settings.EMPTY),
+            Settings.builder().put("index.query.default_field", "body").build()
+        );
+        assertThat(index.getDefaultFields(), equalTo(Collections.singletonList("body")));
+        index.updateIndexMetadata(newIndexMeta("index", Settings.builder().putList("index.query.default_field", "body", "title").build()));
+        assertThat(index.getDefaultFields(), equalTo(Arrays.asList("body", "title")));
+    }
+
+    public void testUpdateSoftDeletesFails() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.updateSettings(
+                Settings.builder().put("index.soft_deletes.enabled", randomBoolean()).build(),
+                Settings.builder(),
+                Settings.builder(),
+                "index"
+            )
+        );
+        assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
+    }
+
+    public void testSoftDeletesDefaultSetting() {
+        // enabled by default on 7.0+ or later
+        IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
+        assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
+    }
+
+    public void testCustomDataPathDeprecated() {
+        final Settings settings = Settings.builder().put(IndexMetadata.INDEX_DATA_PATH_SETTING.getKey(), "my-custom-dir").build();
+        IndexMetadata metadata = newIndexMeta("test", settings);
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(indexSettings.hasCustomDataPath(), is(true));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexMetadata.INDEX_DATA_PATH_SETTING });
+    }
+
+    public void testNoTimeRange() {
+        final Settings originalSettings = Settings.builder().build();
+        IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", originalSettings), Settings.EMPTY);
+        assertNull(indexSettings.getTimestampBounds());
+    }
+
+    public void testUpdateTimeSeriesTimeRange() {
+        long endTime = System.currentTimeMillis();
+        long startTime = endTime - TimeUnit.DAYS.toMillis(1);
+        final Settings originalSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .put(TIME_SERIES_START_TIME.getKey(), startTime)
+            .put(TIME_SERIES_END_TIME.getKey(), endTime)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", originalSettings), Settings.EMPTY);
+        assertEquals(startTime, indexSettings.getTimestampBounds().startTime());
+        assertEquals(endTime, indexSettings.getTimestampBounds().endTime());
+
+        Settings endTimeBackwards = Settings.builder()
+            .put(originalSettings)
+            .put(TIME_SERIES_END_TIME.getKey(), endTime - randomLongBetween(1, 1000))
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexSettings.updateIndexMetadata(newIndexMeta("test", endTimeBackwards))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than current value"));
+
+        long newEndTime = endTime + randomLongBetween(1, 1000);
+        Settings endTimeForwards = Settings.builder().put(originalSettings).put(TIME_SERIES_END_TIME.getKey(), newEndTime).build();
+        indexSettings.updateIndexMetadata(newIndexMeta("test", endTimeForwards));
+
+        assertEquals(startTime, indexSettings.getTimestampBounds().startTime());
+        assertEquals(newEndTime, indexSettings.getTimestampBounds().endTime());
+    }
+
+    public void testTimeSeriesTimeBoundary() {
+        long startTime = System.currentTimeMillis();
+        long endTime = startTime - randomLongBetween(1, 1000);
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .put(TIME_SERIES_START_TIME.getKey(), startTime)
+            .put(TIME_SERIES_END_TIME.getKey(), endTime)
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newIndexMeta("test", settings));
+        assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than index.time_series.start_time"));
+    }
+
+    public void testIndexMapperDynamic() {
+        Settings settings = Settings.builder().put(INDEX_MAPPER_DYNAMIC_SETTING.getKey(), randomBoolean()).build();
+
+        INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
+        assertWarnings(
+            "[index.mapper.dynamic] setting was deprecated in the previous Elasticsearch release and is removed in this release."
+        );
+
+        IndexMetadata idxMetaData = newIndexMeta("test", settings);
+        IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
+            Settings.EMPTY,
+            null,
+            xContentRegistry(),
+            new MapperRegistry(
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                MapperPlugin.NOOP_FIELD_FILTER,
+                null
+            ),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            null,
+            MapperMetrics.NOOP
+        );
+        IndexMetadata verifiedMetaData = indexMetadataVerifier.verifyIndexMetadata(
+            idxMetaData,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE
+        );
+        assertEquals(idxMetaData, verifiedMetaData);
+        assertWarnings(
+            "[index.mapper.dynamic] setting was deprecated in the previous Elasticsearch release and is removed in this release."
+        );
+    }
+
+    public void testSame() {
+        final var indexSettingKey = "index.example.setting";
+        final var archivedSettingKey = "archived.example.setting";
+        final var otherSettingKey = "other.example.setting";
+
+        final var builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put(indexSettingKey, randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            builder.put(archivedSettingKey, randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            builder.put(otherSettingKey, randomAlphaOfLength(10));
+        }
+        final var settings = builder.build();
+        assertTrue(IndexSettings.same(settings, Settings.builder().put(settings).build()));
+
+        final var differentIndexSettingBuilder = Settings.builder().put(settings);
+        if (settings.hasValue(indexSettingKey) && randomBoolean()) {
+            differentIndexSettingBuilder.putNull(indexSettingKey);
+        } else {
+            differentIndexSettingBuilder.put(indexSettingKey, randomAlphaOfLength(11));
+        }
+        assertFalse(IndexSettings.same(settings, differentIndexSettingBuilder.build()));
+
+        final var differentArchivedSettingBuilder = Settings.builder().put(settings);
+        if (settings.hasValue(archivedSettingKey) && randomBoolean()) {
+            differentArchivedSettingBuilder.putNull(archivedSettingKey);
+        } else {
+            differentArchivedSettingBuilder.put(archivedSettingKey, randomAlphaOfLength(11));
+        }
+        assertFalse(IndexSettings.same(settings, differentArchivedSettingBuilder.build()));
+
+        final var differentOtherSettingBuilder = Settings.builder().put(settings);
+        if (settings.hasValue(otherSettingKey) && randomBoolean()) {
+            differentOtherSettingBuilder.putNull(otherSettingKey);
+        } else {
+            differentOtherSettingBuilder.put(otherSettingKey, randomAlphaOfLength(11));
+        }
+        assertTrue(IndexSettings.same(settings, differentOtherSettingBuilder.build()));
+    }
+
+    public void testSyntheticIdCorrectSettings() {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersion.current()
+        );
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION)
+            ? randomBoolean() ? CodecService.DEFAULT_CODEC : CodecService.BEST_COMPRESSION_CODEC
+            : CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertTrue(indexSettings.useTimeSeriesSyntheticId());
+        assertTrue(indexMetadata.useTimeSeriesSyntheticId());
+    }
+
+    public void testSyntheticIdDefaultValueTrue() {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD,
+            IndexVersion.current()
+        );
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION)
+            ? randomBoolean() ? CodecService.DEFAULT_CODEC : CodecService.BEST_COMPRESSION_CODEC
+            : CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertTrue(indexSettings.useTimeSeriesSyntheticId());
+        assertTrue(indexMetadata.useTimeSeriesSyntheticId());
+    }
+
+    public void testSyntheticIdDefaultValueFalse() {
+        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertFalse(indexSettings.useTimeSeriesSyntheticId());
+        assertFalse(indexMetadata.useTimeSeriesSyntheticId());
+    }
+
+    public void testSyntheticIdBadVersion() {
+        IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, badVersion);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+                    IndexSettings.SYNTHETIC_ID.getKey(),
+                    IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+                    badVersion
+                )
+            )
+        );
+    }
+
+    public void testSyntheticIdBadCodec() {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersion.current()
+        );
+        IndexMode mode = IndexMode.TIME_SERIES;
+
+        ArrayList<String> badCodecs = new ArrayList<>(
+            Arrays.asList(CodecService.LEGACY_BEST_COMPRESSION_CODEC, CodecService.LEGACY_DEFAULT_CODEC, CodecService.LUCENE_DEFAULT_CODEC)
+        );
+        if (version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_BEST_COMPRESSION) == false) {
+            badCodecs.add(CodecService.BEST_COMPRESSION_CODEC);
+        }
+        String badCodec = randomFrom(badCodecs);
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), badCodec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s] or [%s]. Current mode: [%s].",
+                    IndexSettings.SYNTHETIC_ID.getKey(),
+                    INDEX_CODEC_SETTING.getKey(),
+                    CodecService.DEFAULT_CODEC,
+                    CodecService.BEST_COMPRESSION_CODEC,
+                    badCodec
+                )
+            )
+        );
+    }
+
+    public void testSyntheticIdBadMode() {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersion.current()
+        );
+        IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()));
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), badMode)
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                    IndexSettings.SYNTHETIC_ID.getKey(),
+                    IndexSettings.MODE.getKey(),
+                    IndexMode.TIME_SERIES.name(),
+                    badMode.name()
+                )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersSetting() {
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        var disabled = randomBoolean();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disabled)
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, indexVersion);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertThat(indexSettings.sequenceNumbersDisabled(), is(equalTo(disabled)));
+    }
+
+    public void testDisableSequenceNumbersImpliesDocValuesOnly() {
+        final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        var indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
+
+        assertThat(
+            IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.get(indexMetadata.getSettings()),
+            equalTo(SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+        );
+    }
+
+    public void testDisableSequenceNumbersRequiresDocValuesOnly() {
+        final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES);
+        var indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
+        var e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current value: [%s].",
+                    IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+                    IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
+                    SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
+                    SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+                )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersRequiresDocValuesOnlyForNonStandardModes() {
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.LOGSDB));
+        modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
+        IndexMode mode = randomFrom(modes);
+        Settings.Builder builder = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), mode.getName())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES)
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        if (mode == IndexMode.TIME_SERIES) {
+            builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+        }
+        IndexMetadata indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current value: [%s].",
+                    IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+                    IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
+                    SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
+                    SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+                )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersValidationWithInvalidVersion() {
+        IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISABLE_SEQUENCE_NUMBERS);
+
+        Settings settings = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, badVersion);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+                    IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+                    IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+                    badVersion
+                )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersDefaultForColumnarModes() {
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        // Test COLUMNAR mode
+        Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        IndexMetadata columnarMetadata = newIndexMeta("columnar-index", columnarSettings, indexVersion);
+        IndexSettings columnarIndexSettings = new IndexSettings(columnarMetadata, Settings.EMPTY);
+        assertThat("DISABLE_SEQUENCE_NUMBERS should be true for COLUMNAR mode", columnarIndexSettings.sequenceNumbersDisabled(), is(true));
+
+        // Test LOGSDB_COLUMNAR mode
+        Settings columnarLogsdbSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
+        IndexMetadata columnarLogsdbMetadata = newIndexMeta("columnar-logsdb-index", columnarLogsdbSettings, indexVersion);
+        IndexSettings columnarLogsdbIndexSettings = new IndexSettings(columnarLogsdbMetadata, Settings.EMPTY);
+        assertThat(
+            "DISABLE_SEQUENCE_NUMBERS should be true for LOGSDB_COLUMNAR mode",
+            columnarLogsdbIndexSettings.sequenceNumbersDisabled(),
+            is(true)
+        );
+
+        // Test that STANDARD mode does not have sequence numbers disabled by default
+        Settings standardSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build();
+        IndexMetadata standardMetadata = newIndexMeta("standard-index", standardSettings, indexVersion);
+        IndexSettings standardIndexSettings = new IndexSettings(standardMetadata, Settings.EMPTY);
+        assertThat(
+            "DISABLE_SEQUENCE_NUMBERS should be false for STANDARD mode",
+            standardIndexSettings.sequenceNumbersDisabled(),
+            is(false)
+        );
+    }
+
+    public void testDynamicStringsAutoTextDefaultByIndexMode() {
+        // COLUMNAR and LOGSDB_COLUMNAR default to false (keyword, high-cardinality)
+        for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(columnarMode.getName() + "-index", settings), Settings.EMPTY);
+            assertFalse(
+                "dynamic_strings.auto_text should default to false for " + columnarMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoText()
+            );
+        }
+
+        // All other modes default to true (text + keyword subfield)
+        for (IndexMode otherMode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES)) {
+            Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), otherMode.getName());
+            if (otherMode == IndexMode.TIME_SERIES) {
+                builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+            }
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(otherMode.getName() + "-index", builder.build()), Settings.EMPTY);
+            assertTrue(
+                "dynamic_strings.auto_text should default to true for " + otherMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoText()
+            );
+        }
+    }
+
+    public void testBloomFilterSettingsFromScopedSettings() {
+        int numHashFunctions = randomIntBetween(1, ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS);
+        int smallMaxDocs = randomIntBetween(1, 999);
+        int largeMinDocs = randomIntBetween(1000, 10_000);
+        double lowBits = randomDoubleBetween(ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC, 32.0, true);
+        double highBits = randomDoubleBetween(64.0, ES94BloomFilterDocValuesFormat.MAX_BITS_PER_DOC, true);
+        ByteSizeValue maxSize = ByteSizeValue.ofKb(randomIntBetween(64, 8192));
+        boolean optimizedMerge = randomBoolean();
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.getKey(), numHashFunctions)
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), smallMaxDocs)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), largeMinDocs)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), highBits)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), lowBits)
+            .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), maxSize.getStringRep())
+            .put(SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE.getKey(), optimizedMerge)
+            .build();
+
+        var syntheticIdBloomFilterSettings = SyntheticIdBloomFilterSettings.fromScopedSettings(
+            new IndexScopedSettings(
+                settings,
+                Set.of(
+                    IndexSettings.SYNTHETIC_ID,
+                    SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS,
+                    SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS,
+                    SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS,
+                    SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC,
+                    SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC,
+                    SyntheticIdBloomFilterSettings.MAX_SIZE,
+                    SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE
+                )
+            )
+        );
+        assertThat(syntheticIdBloomFilterSettings.numHashFunctions(), equalTo(numHashFunctions));
+        assertThat(syntheticIdBloomFilterSettings.smallSegmentMaxDocs(), equalTo(smallMaxDocs));
+        assertThat(syntheticIdBloomFilterSettings.largeSegmentMinDocs(), equalTo(largeMinDocs));
+        assertThat(syntheticIdBloomFilterSettings.highBitsPerDoc(), equalTo(highBits));
+        assertThat(syntheticIdBloomFilterSettings.lowBitsPerDoc(), equalTo(lowBits));
+        assertThat(syntheticIdBloomFilterSettings.maxSize(), equalTo(maxSize));
+        assertThat(syntheticIdBloomFilterSettings.optimizedMerge(), equalTo(optimizedMerge));
+    }
+
+    public void testBloomFilterSegmentDocCountsMinBoundary() {
+        // min=1 passes for both
+        Settings valid = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), 1)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), 2)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.get(valid), equalTo(1));
+        assertThat(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.get(valid), equalTo(2));
+
+        // 0 fails (below min=1)
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), 0)
+                    .build()
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), 0)
+                    .build()
+            )
+        );
+    }
+
+    public void testBloomFilterSmallSegmentMaxDocsGreaterThanLargeSegmentMinDocsFails() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), 500)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), 100)
+            .build();
+        var e = expectThrows(IllegalArgumentException.class, () -> SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.get(settings));
+        assertThat(e.getMessage(), containsString("small_segment_max_docs"));
+        assertThat(e.getMessage(), containsString("large_segment_min_docs"));
+    }
+
+    public void testBloomFilterSmallSegmentMaxDocsEqualToLargeSegmentMinDocsPasses() {
+        // Equal values are valid: segments with < N docs are "small", >= N docs are "large" — no gap or overlap.
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), 100)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), 100)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.get(settings), equalTo(100));
+        assertThat(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.get(settings), equalTo(100));
+    }
+
+    public void testBloomFilterLargeSegmentMinDocsLessThanSmallSegmentMaxDocsFails() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), 500)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), 100)
+            .build();
+        var e = expectThrows(IllegalArgumentException.class, () -> SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.get(settings));
+        assertThat(e.getMessage(), containsString("large_segment_min_docs"));
+        assertThat(e.getMessage(), containsString("small_segment_max_docs"));
+    }
+
+    public void testBloomFilterSmallAndLargeSegmentDocCountsValidCombinationPasses() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.getKey(), 100)
+            .put(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.getKey(), 200)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.get(settings), equalTo(100));
+        assertThat(SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.get(settings), equalTo(200));
+    }
+
+    public void testBloomFilterHighBitsPerDocLessThanLowBitsPerDocFails() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), 8.0)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), 16.0)
+            .build();
+        var e = expectThrows(IllegalArgumentException.class, () -> SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.get(settings));
+        assertThat(e.getMessage(), containsString("high_bits_per_doc"));
+        assertThat(e.getMessage(), containsString("low_bits_per_doc"));
+    }
+
+    public void testBloomFilterLowBitsPerDocGreaterThanHighBitsPerDocFails() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), 8.0)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), 16.0)
+            .build();
+        var e = expectThrows(IllegalArgumentException.class, () -> SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.get(settings));
+        assertThat(e.getMessage(), containsString("low_bits_per_doc"));
+        assertThat(e.getMessage(), containsString("high_bits_per_doc"));
+    }
+
+    public void testBloomFilterHighBitsPerDocEqualToLowBitsPerDocPasses() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), 16.0)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), 16.0)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.get(settings), equalTo(16.0));
+        assertThat(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.get(settings), equalTo(16.0));
+    }
+
+    public void testBloomFilterSettingsRequireSyntheticIdEnabled() {
+        var settingsUnderTest = new Object[][] {
+            { SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS, "5" },
+            { SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS, "100" },
+            { SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS, "1000000" },
+            { SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC, "64.0" },
+            { SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC, "16.0" },
+            { SyntheticIdBloomFilterSettings.MAX_SIZE, "1mb" },
+            { SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE, "true" }, };
+        for (var entry : settingsUnderTest) {
+            @SuppressWarnings("unchecked")
+            Setting<Object> setting = (Setting<Object>) entry[0];
+            Settings settings = Settings.builder()
+                .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+                .put(setting.getKey(), (String) entry[1])
+                .build();
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                "expected failure for setting " + setting.getKey(),
+                () -> setting.get(settings)
+            );
+            assertThat(e.getMessage(), containsString(IndexSettings.SYNTHETIC_ID.getKey()));
+        }
+    }
+
+    public void testBloomFilterSettingsDefaultsDoNotRequireSyntheticIdEnabled() {
+        // When a bloom filter setting is not explicitly set (isPresent=false), no synthetic_id check fires.
+        Settings settings = Settings.builder().put(IndexSettings.SYNTHETIC_ID.getKey(), false).build();
+        SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.get(settings);
+        SyntheticIdBloomFilterSettings.SMALL_SEGMENT_MAX_DOCS.get(settings);
+        SyntheticIdBloomFilterSettings.LARGE_SEGMENT_MIN_DOCS.get(settings);
+        SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.get(settings);
+        SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.get(settings);
+        SyntheticIdBloomFilterSettings.MAX_SIZE.get(settings);
+        SyntheticIdBloomFilterSettings.OPTIMIZED_MERGE.get(settings);
+    }
+
+    public void testBloomFilterNumHashFunctionsBoundaries() {
+        Settings min = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.getKey(), 1)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.get(min), equalTo(1));
+
+        Settings max = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.getKey(), ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS)
+            .build();
+        assertThat(
+            SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.get(max),
+            equalTo(ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS)
+        );
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.getKey(), 0)
+                    .build()
+            )
+        );
+
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(
+                        SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS.getKey(),
+                        ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS + 1
+                    )
+                    .build()
+            )
+        );
+        assertThat(e.getMessage(), containsString("num_hash_functions"));
+    }
+
+    public void testBloomFilterBitsPerDocBoundaries() {
+        Settings atMin = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.get(atMin), equalTo(ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC));
+        assertThat(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.get(atMin), equalTo(ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC));
+
+        Settings atMax = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC)
+            .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MAX_BITS_PER_DOC)
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.get(atMax), equalTo(ES94BloomFilterDocValuesFormat.MIN_BITS_PER_DOC));
+        assertThat(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.get(atMax), equalTo(ES94BloomFilterDocValuesFormat.MAX_BITS_PER_DOC));
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.LOW_BITS_PER_DOC.getKey(), 7.9)
+                    .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), ES94BloomFilterDocValuesFormat.MAX_BITS_PER_DOC)
+                    .build()
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.HIGH_BITS_PER_DOC.getKey(), 256.1)
+                    .build()
+            )
+        );
+    }
+
+    public void testBloomFilterMaxSizeBoundaries() {
+        Settings atMin = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), ES94BloomFilterDocValuesFormat.MIN_BLOOM_FILTER_SIZE.getStringRep())
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.MAX_SIZE.get(atMin), equalTo(ES94BloomFilterDocValuesFormat.MIN_BLOOM_FILTER_SIZE));
+
+        Settings atMax = Settings.builder()
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), ES94BloomFilterDocValuesFormat.MAX_BLOOM_FILTER_SIZE.getStringRep())
+            .build();
+        assertThat(SyntheticIdBloomFilterSettings.MAX_SIZE.get(atMax), equalTo(ES94BloomFilterDocValuesFormat.MAX_BLOOM_FILTER_SIZE));
+
+        // below minimum fails
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.MAX_SIZE.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), "32kb")
+                    .build()
+            )
+        );
+        // above maximum fails
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SyntheticIdBloomFilterSettings.MAX_SIZE.get(
+                Settings.builder()
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(SyntheticIdBloomFilterSettings.MAX_SIZE.getKey(), "16mb")
+                    .build()
+            )
+        );
+    }
+}

@@ -1,0 +1,17 @@
+[[java-rest-overview]]
+== Overview
+
+removed[8.0.0, The High Level REST Client has been removed in favour of the {java-api-client}/index.html[Java API Client].]
+
+The Java REST Client comes in 2 flavors:
+
+* The official low-level client for Elasticsearch.
+It allows to communicate with an Elasticsearch cluster through http.
+Leaves requests marshalling and responses un-marshalling to users.
+It is compatible with all Elasticsearch versions.
+
+* <<java-rest-high>>: the official high-level client for Elasticsearch.
+Based on the low-level client, it exposes API specific methods and takes care
+of requests marshalling and responses un-marshalling. This Java High Level
+REST Client was deprecated since 7.15.0 and is no longer available from 8.0.0.
+The new {java-api-client}/index.html[Java API Client] should be used instead.

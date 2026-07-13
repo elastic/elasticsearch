@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 145990
+summary: Add primary encryption key generation and distribution
+type: enhancement

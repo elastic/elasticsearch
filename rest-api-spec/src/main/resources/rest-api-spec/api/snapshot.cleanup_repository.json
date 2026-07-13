@@ -1,0 +1,43 @@
+{
+  "snapshot.cleanup_repository": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-cleanup-repository",
+      "description": "Clean up the snapshot repository"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_snapshot/{repository}/_cleanup",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "repository": {
+              "type": "string",
+              "description": "A repository name"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
+      },
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout"
+      }
+    }
+  }
+}

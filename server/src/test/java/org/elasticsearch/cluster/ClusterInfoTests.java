@@ -1,0 +1,257 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+package org.elasticsearch.cluster;
+
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
+
+public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInfo> {
+
+    public void testShardHeapUsageIsDefaultedForMissingShards() {
+        ShardAndIndexHeapUsage defaultHeapUsage = new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong());
+        ClusterInfo clusterInfo = ClusterInfo.builder()
+            .estimatedShardHeapUsages(Map.of())
+            .defaultShardHeapUsageForShardsWithoutMetrics(defaultHeapUsage)
+            .build();
+
+        assertThat(
+            clusterInfo.getEstimatedShardHeapUsage(new ShardId(new Index(randomIndexName(), "_na_"), randomNonNegativeInt())),
+            equalTo(defaultHeapUsage)
+        );
+    }
+
+    public void testInvalidateNodeMaxShardWriteLoadProportion() {
+        ClusterInfo clusterInfo = ClusterInfo.builder().build();
+        String invalidatedNodeId = randomIdentifier();
+        String otherNodeId = randomValueOtherThan(invalidatedNodeId, ESTestCase::randomIdentifier);
+        double initialInvalidatedValue = randomWriteLoadProportion();
+        double otherValue = randomWriteLoadProportion();
+        double recomputedValue = randomValueOtherThan(initialInvalidatedValue, ClusterInfoTests::randomWriteLoadProportion);
+
+        // prime cache for two nodes
+        clusterInfo.nodeMaxShardWriteLoadProportion(invalidatedNodeId, () -> initialInvalidatedValue);
+        clusterInfo.nodeMaxShardWriteLoadProportion(otherNodeId, () -> otherValue);
+        assertTrue(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(invalidatedNodeId));
+        assertTrue(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(otherNodeId));
+
+        clusterInfo.invalidateNodeMaxShardWriteLoadProportion(invalidatedNodeId);
+
+        assertFalse(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(invalidatedNodeId));
+        assertTrue(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(otherNodeId));
+
+        // Re-priming the invalidated entry with a different value succeeds (no assertion fires
+        // because the prior cached value has been removed).
+        assertThat(clusterInfo.nodeMaxShardWriteLoadProportion(invalidatedNodeId, () -> recomputedValue), equalTo(recomputedValue));
+    }
+
+    public void testInvalidateNodeMaxShardWriteLoadProportionForUnknownNodeIsNoop() {
+        ClusterInfo clusterInfo = ClusterInfo.builder().build();
+        String cachedNodeId = randomIdentifier();
+        String unknownNodeId = randomValueOtherThan(cachedNodeId, ESTestCase::randomIdentifier);
+        clusterInfo.nodeMaxShardWriteLoadProportion(cachedNodeId, ClusterInfoTests::randomWriteLoadProportion);
+
+        clusterInfo.invalidateNodeMaxShardWriteLoadProportion(unknownNodeId);
+
+        assertTrue(clusterInfo.nodeMaxShardWriteLoadProportion.containsKey(cachedNodeId));
+    }
+
+    private static double randomWriteLoadProportion() {
+        return randomDoubleBetween(0.0, 1.0, true);
+    }
+
+    @Override
+    protected Writeable.Reader<ClusterInfo> instanceReader() {
+        return ClusterInfo::new;
+    }
+
+    @Override
+    protected ClusterInfo createTestInstance() {
+        return randomClusterInfo();
+    }
+
+    @Override
+    protected ClusterInfo mutateInstance(ClusterInfo instance) {
+        return randomClusterInfo();
+    }
+
+    public static ClusterInfo randomClusterInfo() {
+        return new ClusterInfo(
+            randomDiskUsage(),
+            randomDiskUsage(),
+            randomShardSizes(),
+            randomDataSetSizes(),
+            randomRoutingToDataPath(),
+            randomReservedSpace(),
+            randomNodeHeapUsage(),
+            randomShardHeapUsages(),
+            new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong()),
+            randomNodeUsageStatsForThreadPools(),
+            randomShardWriteLoad(),
+            randomMaxHeapSizes(),
+            randomNodeIdsWriteLoadHotspottingSet()
+        );
+    }
+
+    private static Map<ShardId, Double> randomShardWriteLoad() {
+        final int numEntries = randomIntBetween(0, 128);
+        final Map<ShardId, Double> builder = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            builder.put(randomShardId(), randomDouble());
+        }
+        return builder;
+    }
+
+    private static Map<String, ByteSizeValue> randomMaxHeapSizes() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, ByteSizeValue> nodeMaxHeapSizes = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            nodeMaxHeapSizes.put(randomAlphaOfLength(32), randomByteSizeValue());
+        }
+        return nodeMaxHeapSizes;
+    }
+
+    private static Map<ShardId, ShardAndIndexHeapUsage> randomShardHeapUsages() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<ShardId, ShardAndIndexHeapUsage> shardHeapUsageBuilder = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            shardHeapUsageBuilder.put(randomShardId(), new ShardAndIndexHeapUsage(randomNonNegativeLong(), randomNonNegativeLong()));
+        }
+        return shardHeapUsageBuilder;
+    }
+
+    private static Map<String, EstimatedHeapUsage> randomNodeHeapUsage() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, EstimatedHeapUsage> nodeHeapUsage = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String key = randomAlphaOfLength(32);
+            final int totalBytes = randomIntBetween(0, Integer.MAX_VALUE);
+            final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(
+                randomAlphaOfLength(4),
+                totalBytes,
+                randomIntBetween(0, totalBytes)
+            );
+            nodeHeapUsage.put(key, estimatedHeapUsage);
+        }
+        return nodeHeapUsage;
+    }
+
+    private static Map<String, NodeUsageStatsForThreadPools> randomNodeUsageStatsForThreadPools() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String nodeIdKey = randomAlphaOfLength(32);
+            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolUsageStats =
+                new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(/* totalThreadPoolThreads= */ randomIntBetween(1, 16),
+                    /* averageThreadPoolUtilization= */ randomFloat(),
+                    /* maxThreadPoolQueueLatencyMillis= */ randomLongBetween(0, 50000)
+                );
+            Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> usageStatsForThreadPools = new HashMap<>();
+            usageStatsForThreadPools.put(ThreadPool.Names.WRITE, writeThreadPoolUsageStats);
+            nodeUsageStatsForThreadPools.put(ThreadPool.Names.WRITE, new NodeUsageStatsForThreadPools(nodeIdKey, usageStatsForThreadPools));
+        }
+        return nodeUsageStatsForThreadPools;
+    }
+
+    private static Set<String> randomNodeIdsWriteLoadHotspottingSet() {
+        int numEntries = randomIntBetween(0, 128);
+        Set<String> nodeIdsWriteLoadHotspotting = new HashSet<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String nodeId = randomAlphaOfLength(32);
+            nodeIdsWriteLoadHotspotting.add(nodeId);
+        }
+        return nodeIdsWriteLoadHotspotting;
+    }
+
+    private static Map<String, DiskUsage> randomDiskUsage() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, DiskUsage> builder = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String key = randomAlphaOfLength(32);
+            final int totalBytes = randomIntBetween(0, Integer.MAX_VALUE);
+            DiskUsage diskUsage = new DiskUsage(
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
+                totalBytes,
+                randomIntBetween(0, totalBytes)
+            );
+            builder.put(key, diskUsage);
+        }
+        return builder;
+    }
+
+    private static Map<String, Long> randomShardSizes() {
+        int numEntries = randomIntBetween(0, 128);
+        var builder = Maps.<String, Long>newMapWithExpectedSize(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            builder.put(ClusterInfo.shardIdentifierFromRouting(randomShardId(), randomBoolean()), randomLongBetween(0, Integer.MAX_VALUE));
+        }
+        return builder;
+    }
+
+    private static Map<ShardId, Long> randomDataSetSizes() {
+        int numEntries = randomIntBetween(0, 128);
+        var builder = Maps.<ShardId, Long>newMapWithExpectedSize(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            builder.put(randomShardId(), randomLongBetween(0, Integer.MAX_VALUE));
+        }
+        return builder;
+    }
+
+    private static ShardId randomShardId() {
+        return new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), between(0, Integer.MAX_VALUE));
+    }
+
+    private static Map<ClusterInfo.NodeAndShard, String> randomRoutingToDataPath() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<ClusterInfo.NodeAndShard, String> builder = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            ShardId shardId = new ShardId(randomAlphaOfLength(32), randomAlphaOfLength(32), randomIntBetween(0, Integer.MAX_VALUE));
+            builder.put(new ClusterInfo.NodeAndShard(randomAlphaOfLength(10), shardId), randomAlphaOfLength(32));
+        }
+        return builder;
+    }
+
+    private static Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> randomReservedSpace() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> builder = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            final ClusterInfo.ReservedSpace.Builder valueBuilder = new ClusterInfo.ReservedSpace.Builder();
+            for (int j = between(0, 10); j > 0; j--) {
+                ShardId shardId = new ShardId(randomAlphaOfLength(32), randomAlphaOfLength(32), randomIntBetween(0, Integer.MAX_VALUE));
+                valueBuilder.add(shardId, between(0, Integer.MAX_VALUE));
+            }
+            builder.put(new ClusterInfo.NodeAndPath(randomAlphaOfLength(10), randomAlphaOfLength(10)), valueBuilder.build());
+        }
+        return builder;
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), ClusterInfoTests::getChunkCount);
+    }
+
+    // exposing this to tests in other packages
+    public static int getChunkCount(ClusterInfo clusterInfo) {
+        return clusterInfo.getChunkCount();
+    }
+}

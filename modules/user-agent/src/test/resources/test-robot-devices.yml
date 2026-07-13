@@ -1,0 +1,123 @@
+# Apache License, Version 2.0
+# ===========================
+#
+# Copyright 2009 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+robot_devices:
+  - type: Robot
+    os: CentOS
+    browser: AdsBot-Naver
+  - type: Robot
+    browser: iSec_Bot
+    os: Cloud
+  - type: Robot
+    browser: moatbot
+    os: Cloud
+  - type: Robot
+    browser: Baiduspider-render
+    os: Cloud
+  - type: Robot
+    browser: AhrefsBot
+    os: Cloud
+  - type: Robot
+    browser: Applebot
+    os: Cloud
+  - type: Robot
+    browser: Seekport Crawler
+    os: Cloud
+  - type: Robot
+    browser: Linespider
+    os: Cloud
+  - type: Robot
+    browser: pingbot
+    os: Cloud
+  - type: Robot
+    browser: YisouSpider
+    os: Cloud
+  - type: Robot
+    browser: HubSpot Crawler
+    os: Cloud
+  - type: Robot
+    browser: AdsBot
+    os: Cloud
+  - type: Robot
+    browser: net/bot
+    os: Cloud
+  - type: Robot
+    browser: Investment Crawler
+    os: Cloud
+  - type: Robot
+    browser: Bytespider
+    os: Cloud
+  - type: Robot
+    browser: IBM-Crawler
+    os: Cloud
+  - type: Robot
+    browser: BublupBot
+    os: Cloud
+  - type: Robot
+    browser: AppEngine-Google
+    os: Google Cloud
+  - type: Robot
+    browser: YandexBot
+    os: Cloud
+  - type: Robot
+    browser: Slackbot-LinkExpanding
+    os: Cloud
+  - type: Robot
+    browser: WebPageTest.org bot
+    os: Cloud
+  - type: Robot
+    browser: Baiduspider-image
+    os: Cloud
+  - type: Robot
+    browser: Pinterestbot
+    os: Cloud
+  - type: Robot
+    browser: YandexAccessibilityBot
+    os: Cloud
+  - type: Robot
+    browser: FacebookBot
+    os: Cloud
+  - type: Robot
+    browser: BLEXBot
+    os: Cloud
+  - type: Robot
+    browser: SuperBot
+    os: Cloud
+  - type: Robot
+    browser: Googlebot-News
+    os: Cloud
+  - type: Robot
+    browser: SMTBot
+    os: Cloud
+  - type: Robot
+    browser: GooglePlusBot
+    os: Cloud
+  - type: Robot
+    browser: niocBot
+    os: Cloud
+  - type: Robot
+    browser: SpiderWeb
+    os: Cloud
+  - type: Robot
+    browser: facebot
+    os: Cloud
+  - type: Robot
+    browser: MJ12bot
+    os: Cloud
+  - type: Robot
+    browser: ethical-bugbot
+    os: Linux

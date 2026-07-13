@@ -1,0 +1,42 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+package org.elasticsearch.index.mapper;
+
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
+import org.elasticsearch.test.ESTestCase;
+
+public class FieldNamesFieldTypeTests extends ESTestCase {
+
+    public void testTermQuery() {
+        FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field_name");
+
+        Settings settings = settings(IndexVersion.current()).build();
+        IndexSettings indexSettings = new IndexSettings(
+            new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
+            settings
+        );
+        SearchExecutionContext searchExecutionContext = SearchExecutionContextHelper.createSimple(indexSettings, null, null);
+        Query termQuery = fieldNamesFieldType.termQuery("field_name", searchExecutionContext);
+        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);
+        assertWarnings("terms query on the _field_names field is deprecated and will be removed, use exists query instead");
+
+        FieldNamesFieldMapper.FieldNamesFieldType unsearchable = FieldNamesFieldMapper.FieldNamesFieldType.get(false);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> unsearchable.termQuery("field_name", null));
+        assertEquals("Cannot run [exists] queries if the [_field_names] field is disabled", e.getMessage());
+    }
+}

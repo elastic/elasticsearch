@@ -1,0 +1,6 @@
+Cryptacular Java Library
+Copyright (C) 2003-2020 Virginia Tech.
+All rights reserved.
+
+This product includes software developed at
+Virginia Tech (http://www.vt.edu).

@@ -1,0 +1,138 @@
+---
+"Testing require_data_stream in index creation":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "require_data_stream was introduced in 8.13.0"
+      test_runner_features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [ds-template] has index patterns [ds-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [ds-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: ds-template
+        body:
+          index_patterns: ds-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: keyword
+          data_stream: {}
+          allow_auto_create: true
+
+  - do:
+      index:
+        index:  ds-test
+        require_data_stream: true
+        body:
+          '@timestamp': '2022-12-12'
+          foo: bar
+
+  - do:
+      catch: /no matching index template with data stream template was found for it/
+      index:
+        index:  index-test
+        require_data_stream: true
+        body:
+          '@timestamp': '2022-12-12'
+          foo: bar
+
+  - do:
+      index:
+        index:  other-index
+        require_data_stream: false
+        body:
+          '@timestamp': '2022-12-12'
+          foo: bar
+
+  - do:
+      catch: /is not a data stream/
+      index:
+        index:  other-index
+        require_data_stream: true
+        body:
+          '@timestamp': '2022-12-12'
+          foo: bar
+
+---
+"Testing require_data_stream in bulk requests":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "require_data_stream was introduced in 8.13.0"
+      test_runner_features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [ds-template] has index patterns [ds-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [ds-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: ds-template
+        body:
+          index_patterns: ds-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: keyword
+          data_stream: {}
+          allow_auto_create: true
+
+  - do:
+      bulk:
+        refresh: true
+        require_data_stream: true
+        body:
+          - index:
+              _index: new_index_not_created
+          - f: 1
+          - index:
+              _index: new_index_created
+              require_data_stream: false
+          - f: 2
+          - index:
+              _index: ds-other
+              op_type: create
+          - "@timestamp": "2024-01-01"
+  - match: { errors: true }
+  - match: { items.0.index.status: 404 }
+  - match: { items.0.index.error.type: index_not_found_exception }
+  - match: { items.0.index.error.reason: "no such index [new_index_not_created] and the index creation request requires a data stream, but no matching index template with data stream template was found for it" }
+  - match: { items.1.index.result: created }
+  - match: { items.2.create.result: created }
+
+  - do:
+      allowed_warnings:
+        - "index template [other-template] has index patterns [other-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [other-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: other-template
+        body:
+          index_patterns: other-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: keyword
+          allow_auto_create: true
+
+  - do:
+      bulk:
+        refresh: true
+        require_data_stream: false
+        body:
+          - index:
+              _index: other-myindex
+              require_data_stream: true
+              op_type: create
+          - "@timestamp": "2024-01-01"
+  - match: { errors: true }
+  - match: { items.0.create.status: 404 }
+  - match: { items.0.create.error.type: index_not_found_exception }
+  - match: { items.0.create.error.reason: "no such index [other-myindex] and the index creation request requires a data stream, but no matching index template with data stream template was found for it" }

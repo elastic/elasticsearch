@@ -1,0 +1,178 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.engine;
+
+import org.apache.lucene.search.Query;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeases;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.translog.Translog;
+
+import java.util.Objects;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+
+/**
+ * A policy that controls how many soft-deleted documents should be retained for peer-recovery and querying history changes purpose.
+ */
+final class SoftDeletesPolicy {
+    private final LongSupplier globalCheckpointSupplier;
+    private long localCheckpointOfSafeCommit;
+    // This lock count is used to prevent `minRetainedSeqNo` from advancing.
+    private int retentionLockCount;
+    // The extra number of operations before the global checkpoint are retained
+    private long retentionOperations;
+    // The min seq_no value that is retained - ops after this seq# should exist in the Lucene index.
+    private long minRetainedSeqNo;
+    // provides the retention leases used to calculate the minimum sequence number to retain
+    private final Supplier<RetentionLeases> retentionLeasesSupplier;
+    // When true, the policy retains operations needed for peer recovery: it considers the local checkpoint of the safe commit,
+    // retention leases, and the retention operations setting. When false, the min retained sequence number is based solely on
+    // the global checkpoint, allowing soft-deleted documents to be reclaimed as aggressively as possible.
+    private final boolean retainForPeerRecovery;
+
+    SoftDeletesPolicy(
+        final LongSupplier globalCheckpointSupplier,
+        final long minRetainedSeqNo,
+        final long retentionOperations,
+        final Supplier<RetentionLeases> retentionLeasesSupplier
+    ) {
+        this(globalCheckpointSupplier, minRetainedSeqNo, retentionOperations, retentionLeasesSupplier, true);
+    }
+
+    SoftDeletesPolicy(
+        final LongSupplier globalCheckpointSupplier,
+        final long minRetainedSeqNo,
+        final long retentionOperations,
+        final Supplier<RetentionLeases> retentionLeasesSupplier,
+        final boolean retainForPeerRecovery
+    ) {
+        this.globalCheckpointSupplier = globalCheckpointSupplier;
+        this.retentionOperations = retentionOperations;
+        this.minRetainedSeqNo = minRetainedSeqNo;
+        this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
+        this.localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
+        this.retentionLockCount = 0;
+        this.retainForPeerRecovery = retainForPeerRecovery;
+    }
+
+    /**
+     * Updates the number of soft-deleted documents prior to the global checkpoint to be retained
+     * See {@link org.elasticsearch.index.IndexSettings#INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING}
+     */
+    synchronized void setRetentionOperations(long retentionOperations) {
+        this.retentionOperations = retentionOperations;
+    }
+
+    /**
+     * Sets the local checkpoint of the current safe commit
+     */
+    synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
+        if (newCheckpoint < this.localCheckpointOfSafeCommit) {
+            throw new IllegalArgumentException(
+                "Local checkpoint can't go backwards; "
+                    + "new checkpoint ["
+                    + newCheckpoint
+                    + "],"
+                    + "current checkpoint ["
+                    + localCheckpointOfSafeCommit
+                    + "]"
+            );
+        }
+        this.localCheckpointOfSafeCommit = newCheckpoint;
+    }
+
+    /**
+     * Acquires a lock on soft-deleted documents to prevent them from cleaning up in merge processes. This is necessary to
+     * make sure that all operations that are being retained will be retained until the lock is released.
+     * This is a analogy to the translog's retention lock; see {@link Translog#acquireRetentionLock()}
+     */
+    synchronized Releasable acquireRetentionLock() {
+        assert retentionLockCount >= 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
+        retentionLockCount++;
+        return Releasables.releaseOnce(this::releaseRetentionLock);
+    }
+
+    private synchronized void releaseRetentionLock() {
+        assert retentionLockCount > 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
+        retentionLockCount--;
+    }
+
+    /**
+     * Returns the min seqno that is retained in the Lucene index.
+     * Operations whose seq# is least this value should exist in the Lucene index.
+     */
+    synchronized long getMinRetainedSeqNo() {
+        /*
+         * When an engine is flushed, we need to provide it the latest collection of retention leases even when the soft deletes policy is
+         * locked for peer recovery.
+         */
+        final RetentionLeases retentionLeases = retentionLeasesSupplier.get();
+        // do not advance if the retention lock is held
+        if (retentionLockCount == 0) {
+            /*
+             * When retainForPeerRecovery is true, this policy retains operations for two purposes:
+             *  - Peer-recovery: driven by the local checkpoint of the safe commit. In peer-recovery, the primary transfers a safe
+             *    commit, then sends operations after the local checkpoint of that commit. This requires keeping all ops after
+             *    localCheckpointOfSafeCommit. Retention leases (synced periodically, see RETENTION_LEASE_SYNC_INTERVAL_SETTING)
+             *    further constrain the minimum retained sequence number.
+             *  - Changes APIs: driven by a combination of the global checkpoint, retention operations, and retention leases. Here we
+             *    prefer using the global checkpoint instead of the maximum sequence number because only operations up to the global
+             *    checkpoint are exposed in the changes APIs.
+             *
+             * When retainForPeerRecovery is false, the policy only retains operations above the global checkpoint. This is the most
+             * aggressive reclamation strategy: retention leases, retention operations, and the local checkpoint of the safe commit are
+             * all ignored.
+             */
+
+            final long minSeqNoToRetain;
+            if (retainForPeerRecovery) {
+                // calculate the minimum sequence number to retain based on retention leases
+                final long minimumRetainingSequenceNumber = retentionLeases.leases()
+                    .stream()
+                    .mapToLong(RetentionLease::retainingSequenceNumber)
+                    .min()
+                    .orElse(Long.MAX_VALUE);
+                /*
+                 * The minimum sequence number to retain is the minimum of the minimum based on retention leases, and the number of
+                 * operations below the global checkpoint to retain (index.soft_deletes.retention.operations). The additional increments
+                 * on the global checkpoint and the local checkpoint of the safe commit are due to the fact that we want to retain all
+                 * operations above those checkpoints.
+                 */
+                final long minSeqNoForQueryingChanges = Math.min(
+                    1 + globalCheckpointSupplier.getAsLong() - retentionOperations,
+                    minimumRetainingSequenceNumber
+                );
+                minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, 1 + localCheckpointOfSafeCommit);
+            } else {
+                minSeqNoToRetain = 1 + globalCheckpointSupplier.getAsLong();
+            }
+
+            /*
+             * We take the maximum as minSeqNoToRetain can go backward as the retention operations value can be changed in settings, or from
+             * the addition of leases with a retaining sequence number lower than previous retaining sequence numbers.
+             */
+            minRetainedSeqNo = Math.max(minRetainedSeqNo, minSeqNoToRetain);
+        }
+        return minRetainedSeqNo;
+    }
+
+    /**
+     * Returns a soft-deletes retention query that will be used in {@link org.apache.lucene.index.SoftDeletesRetentionMergePolicy}
+     * Documents including tombstones are soft-deleted and matched this query will be retained and won't cleaned up by merges.
+     */
+    Query getRetentionQuery(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions) {
+        return SeqNoFieldMapper.rangeQueryForSeqNo(seqNoIndexOptions, getMinRetainedSeqNo(), Long.MAX_VALUE);
+    }
+
+}

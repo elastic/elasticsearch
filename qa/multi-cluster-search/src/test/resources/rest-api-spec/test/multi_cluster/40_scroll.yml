@@ -1,0 +1,49 @@
+---
+"Scroll on the mixed cluster":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: my_remote_cluster:test_index
+        size: 4
+        scroll: 1m
+        sort: filter_field
+        body:
+          query:
+            match_all: {}
+
+  - is_false: num_reduce_phases
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - set: {_scroll_id: scroll_id}
+  - match: {hits.total:      6    }
+  - length: {hits.hits:      4    }
+  - match: {hits.hits.0._source.filter_field: 0 }
+  - match: {hits.hits.1._source.filter_field: 0 }
+  - match: {hits.hits.2._source.filter_field: 0 }
+  - match: {hits.hits.3._source.filter_field: 0 }
+
+  - do:
+      scroll:
+        rest_total_hits_as_int: true
+        body: { "scroll_id": "$scroll_id", "scroll": "1m"}
+
+  - is_false: num_reduce_phases
+  - is_false: _clusters
+  - match: {hits.total:      6    }
+  - length: {hits.hits:      2    }
+  - match: {hits.hits.0._source.filter_field: 1 }
+  - match: {hits.hits.1._source.filter_field: 1 }
+  - do:
+      scroll:
+        rest_total_hits_as_int: true
+        scroll_id: $scroll_id
+        scroll: 1m
+
+  - match: {hits.total:      6    }
+  - length: {hits.hits:      0    }
+
+  - do:
+      clear_scroll:
+        scroll_id: $scroll_id

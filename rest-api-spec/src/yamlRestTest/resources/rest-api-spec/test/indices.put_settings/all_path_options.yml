@@ -1,0 +1,94 @@
+setup:
+  - do:
+      indices.create:
+        index: test_index1
+  - do:
+      indices.create:
+        index: test_index2
+  - do:
+      indices.create:
+        index: foo
+
+
+---
+"put settings per index":
+  - do:
+      indices.put_settings:
+        index: test_index1
+        body:
+          refresh_interval: 10s
+
+  - do:
+      indices.put_settings:
+        index: test_index2
+        body:
+          refresh_interval: 10s
+
+
+  - do:
+      indices.get_settings: {}
+
+  - match: {test_index1.settings.index.refresh_interval:     10s}
+  - match: {test_index2.settings.index.refresh_interval:     10s}
+  - is_false: foo.settings.index.refresh_interval
+
+---
+"put settings in _all index":
+  - do:
+      indices.put_settings:
+        index: _all
+        body:
+          refresh_interval: 10s
+
+  - do:
+      indices.get_settings: {}
+
+  - match: {test_index1.settings.index.refresh_interval:     10s}
+  - match: {test_index2.settings.index.refresh_interval:     10s}
+  - match: {foo.settings.index.refresh_interval:     10s}
+
+---
+"put settings in * index":
+  - do:
+      indices.put_settings:
+        index: '*'
+        body:
+          refresh_interval: 10s
+
+  - do:
+      indices.get_settings: {}
+
+  - match: {test_index1.settings.index.refresh_interval:     10s}
+  - match: {test_index2.settings.index.refresh_interval:     10s}
+  - match: {foo.settings.index.refresh_interval:     10s}
+
+
+---
+"put settings in prefix* index":
+  - do:
+      indices.put_settings:
+        index: 'test*'
+        body:
+          refresh_interval: 10s
+
+  - do:
+      indices.get_settings: {}
+
+  - match: {test_index1.settings.index.refresh_interval:     10s}
+  - match: {test_index2.settings.index.refresh_interval:     10s}
+  - is_false: foo.settings.index.refresh_interval
+
+---
+"put settings in blank index":
+  - do:
+      indices.put_settings:
+        body:
+          refresh_interval: 10s
+
+  - do:
+      indices.get_settings: {}
+
+  - match: {test_index1.settings.index.refresh_interval:     10s}
+  - match: {test_index2.settings.index.refresh_interval:     10s}
+  - match: {foo.settings.index.refresh_interval:     10s}
+

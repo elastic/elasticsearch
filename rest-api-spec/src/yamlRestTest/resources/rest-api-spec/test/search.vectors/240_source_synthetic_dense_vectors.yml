@@ -1,0 +1,392 @@
+setup:
+  - requires:
+      reason: 'synthetic vectors are required'
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ exclude_source_vectors_setting ]
+  - skip:
+      features: "headers"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 3
+                similarity: l2_norm
+
+              nested:
+                type: nested
+                properties:
+                  paragraph_id:
+                    type: keyword
+                  vector:
+                    type: dense_vector
+                    dims: 3
+                    similarity: l2_norm
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [1, 2, 3]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: moose.jpg
+          nested:
+          - paragraph_id: 0
+            vector: [1, 2, 3]
+          - paragraph_id: 2
+            vector: [4, 5, 6]
+          - paragraph_id: 3
+            vector: [7, 8, 9]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [10, 11, 12]
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          name: zoolander.jpg
+          nested:
+            - paragraph_id: 0
+              vector: [ 13, 14, 15 ]
+            - paragraph_id: 1
+            - paragraph_id: 2
+              vector: [ 16, 17, 18 ]
+
+  - do:
+      indices.refresh: {}
+
+---
+"exclude synthetic vectors":
+  - do:
+      search:
+        index: test
+        body:
+          sort: ["name"]
+
+  - match:      { hits.hits.0._id: "1"}
+  - match:      { hits.hits.0._source.name: "cow.jpg"}
+  - not_exists:   hits.hits.0._source.vector
+
+  - match:      { hits.hits.1._id: "2"}
+  - match:      { hits.hits.1._source.name: "moose.jpg"}
+  - length:     { hits.hits.1._source.nested: 3 }
+  - not_exists:   hits.hits.1._source.nested.0.vector
+  - match:      { hits.hits.1._source.nested.0.paragraph_id: 0 }
+  - not_exists:   hits.hits.1._source.nested.1.vector
+  - match:      { hits.hits.1._source.nested.1.paragraph_id: 2 }
+  - not_exists:   hits.hits.1._source.nested.2.vector
+  - match:      { hits.hits.1._source.nested.2.paragraph_id: 3 }
+
+  - match:      { hits.hits.2._id: "3" }
+  - match:      { hits.hits.2._source.name: "rabbit.jpg" }
+  - not_exists:   hits.hits.2._source.vector
+
+  - match:      { hits.hits.3._id: "4" }
+  - match:      { hits.hits.3._source.name: "zoolander.jpg" }
+  - length:     { hits.hits.3._source.nested: 3 }
+  - not_exists:   hits.hits.3._source.nested.0.vector
+  - match:      { hits.hits.3._source.nested.0.paragraph_id: 0 }
+  - match:      { hits.hits.3._source.nested.1.paragraph_id: 1 }
+  - not_exists:   hits.hits.3._source.nested.2.vector
+  - match:      { hits.hits.3._source.nested.2.paragraph_id: 2 }
+
+---
+"include synthetic vectors":
+  - do:
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: false
+          sort: ["name"]
+
+  - match:      { hits.hits.0._id: "1"}
+  - match:      { hits.hits.0._source.name: "cow.jpg"}
+  - exists:       hits.hits.0._source.vector
+
+  - match:      { hits.hits.1._id: "2"}
+  - match:      { hits.hits.1._source.name: "moose.jpg"}
+  - length:     { hits.hits.1._source.nested: 3 }
+  - exists:       hits.hits.1._source.nested.0.vector
+  - match:      { hits.hits.1._source.nested.0.paragraph_id: 0 }
+  - exists:       hits.hits.1._source.nested.1.vector
+  - match:      { hits.hits.1._source.nested.1.paragraph_id: 2 }
+  - exists:       hits.hits.1._source.nested.2.vector
+  - match:      { hits.hits.1._source.nested.2.paragraph_id: 3 }
+
+  - match:      { hits.hits.2._id: "3" }
+  - match:      { hits.hits.2._source.name: "rabbit.jpg" }
+  - exists:       hits.hits.2._source.vector
+
+  - match:      { hits.hits.3._id: "4" }
+  - match:      { hits.hits.3._source.name: "zoolander.jpg" }
+  - length:     { hits.hits.3._source.nested: 3 }
+  - exists:       hits.hits.3._source.nested.0.vector
+  - length:      { hits.hits.3._source.nested.0.vector: 3 }
+  - match:      { hits.hits.3._source.nested.0.paragraph_id: 0 }
+
+  - do:
+      search:
+        index: test
+        body:
+          _source:
+            includes: nested.vector
+          sort: ["name"]
+
+  - match:           { hits.hits.0._id: "1"}
+  - length:          { hits.hits.0._source: 0}
+
+  - match:           { hits.hits.1._id: "2"}
+  - length:          { hits.hits.3._source: 1 }
+  - length:          { hits.hits.1._source.nested: 3 }
+  - exists:            hits.hits.1._source.nested.0.vector
+  - not_exists:        hits.hits.1._source.nested.0.paragraph_id
+  - exists:            hits.hits.1._source.nested.1.vector
+  - not_exists:        hits.hits.1._source.nested.1.paragraph_id
+  - exists:            hits.hits.1._source.nested.2.vector
+  - not_exists:        hits.hits.1._source.nested.2.paragraph_id
+
+  - match:           { hits.hits.2._id: "3" }
+  - length:          { hits.hits.2._source: 0}
+
+  - match:           { hits.hits.3._id: "4" }
+  - length:          { hits.hits.3._source: 1 }
+  - length:          { hits.hits.3._source.nested: 2 }
+  - exists:            hits.hits.3._source.nested.0.vector
+  - length:          { hits.hits.3._source.nested.0.vector: 3 }
+  - not_exists:        hits.hits.3._source.nested.0.paragraph_id
+  - exists:            hits.hits.3._source.nested.1.vector
+  - length:          { hits.hits.3._source.nested.1.vector: 3 }
+  - not_exists:        hits.hits.3._source.nested.1.paragraph_id
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: true
+          sort: ["name"]
+          fields: ["vector"]
+
+  - match:      { hits.hits.0._id: "1"}
+  - match:      { hits.hits.0._source.name: "cow.jpg"}
+  - not_exists:   hits.hits.0._source.vector
+  - match:      { hits.hits.0.fields.vector: [1.0, 2.0, 3.0]}
+
+  - match:      { hits.hits.1._id: "2"}
+  - match:      { hits.hits.1._source.name: "moose.jpg"}
+  - length:     { hits.hits.1._source.nested: 3 }
+  - not_exists:   hits.hits.1._source.nested.0.vector
+
+  - match:      { hits.hits.2._id: "3" }
+  - match:      { hits.hits.2._source.name: "rabbit.jpg" }
+  - match:      { hits.hits.2.fields.vector: [10.0, 11.0, 12.0]}
+
+  - match:      { hits.hits.3._id: "4" }
+  - match:      { hits.hits.3._source.name: "zoolander.jpg" }
+  - length:     { hits.hits.3._source.nested: 3 }
+  - not_exists:   hits.hits.3._source.nested.0.vector
+
+---
+"Bulk partial update with synthetic vectors":
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
+      bulk:
+        index: test
+        _source: true
+        body:
+          - '{"update": {"_id": "4"}}'
+          - >
+            {
+              "doc": {
+                "name": "zoolander2.jpg",
+                "vector": [1, 2, 4]
+              }
+            }
+
+  - match:      { items.0.update.get._source.vector: [1, 2, 4] }
+  - exists:       items.0.update.get._source.nested
+  - length:     { items.0.update.get._source.nested: 3}
+  - exists:       items.0.update.get._source.nested.0.vector
+  - match:      { items.0.update.get._source.nested.0.paragraph_id: 0 }
+  - length:     { items.0.update.get._source.nested.0.vector: 3 }
+  - not_exists:   items.0.update.get._source.nested.1.vector
+  - match:      { items.0.update.get._source.nested.1.paragraph_id: 1 }
+  - exists:       items.0.update.get._source.nested.2.vector
+  - length:     { items.0.update.get._source.nested.2.vector: 3 }
+  - match:      { items.0.update.get._source.nested.2.paragraph_id: 2 }
+  - set:        { items.0.update.get._source.nested: original_nested }
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
+      get:
+        _source_exclude_vectors: false
+        index: test
+        id: "4"
+
+  - match: { _source.vector: [1.0, 2.0, 4.0] }
+  - match: { _source.name: zoolander2.jpg }
+  - match: { _source.nested: $original_nested }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
+      search:
+        index: test
+        body:
+          _source:
+            "exclude_vectors": false
+          query:
+            term:
+              _id: 4
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._source.name: zoolander2.jpg }
+  - match: { hits.hits.0._source.nested: $original_nested }
+
+---
+"Partial update with synthetic vectors":
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the vectors as doubles
+        Content-Type: application/json
+      update:
+        index: test
+        id: "4"
+        body:
+          _source: true
+          doc: {
+            "name": "zoolander3.jpg",
+            "vector": [6, 8, 9]
+          }
+
+  - match:      { get._source.vector: [6, 8, 9] }
+  - exists:       get._source.nested
+  - length:     { get._source.nested: 3}
+  - exists:       get._source.nested.0.vector
+  - match:      { get._source.nested.0.paragraph_id: 0 }
+  - length:     { get._source.nested.0.vector: 3 }
+  - not_exists:   get._source.nested.1.vector
+  - match:      { get._source.nested.1.paragraph_id: 1 }
+  - exists:       get._source.nested.2.vector
+  - length:     { get._source.nested.2.vector: 3 }
+  - match:      { get._source.nested.2.paragraph_id: 2 }
+  - set:        { get._source.nested: original_nested }
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the vectors as doubles
+        Content-Type: application/json
+      get:
+        _source_exclude_vectors: false
+        index: test
+        id: "4"
+
+  - match: { _source.vector: [6.0, 8.0, 9.0] }
+  - match: { _source.name: zoolander3.jpg }
+  - match: { _source.nested: $original_nested }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the vectors as doubles
+        Content-Type: application/json
+      search:
+        index: test
+        body:
+          _source:
+            "exclude_vectors": false
+          query:
+            term:
+              _id: 4
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._source.name: zoolander3.jpg }
+  - match: { hits.hits.0._source.nested: $original_nested }
+
+---
+"Ensure both fields and docvalue_fields are supported":
+  - requires:
+      cluster_features: ["mapper.exclude_vectors_docvalue_bugfix"]
+      reason: "Bugfix for issue #136545"
+  - do:
+      headers:
+        Content-Type: application/json
+      indices.create:
+        index: just_vectors
+        body:
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                dims: 5
+                index: true
+                element_type: float
+                similarity: cosine
+              vector2:
+                type: dense_vector
+                dims: 5
+                element_type: float
+                index: false
+          settings:
+            index:
+              mapping:
+                exclude_source_vectors: true
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+        refresh: true
+        index: just_vectors
+        id: "1"
+        body:
+          vector1: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          vector2: [230.0, 300.33, -34.8988, 15.555, -200.0]
+  # shouldn't throw
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: just_vectors
+        body:
+          _source: false
+          fields: ["vector1"]
+          docvalue_fields: ["vector2"]

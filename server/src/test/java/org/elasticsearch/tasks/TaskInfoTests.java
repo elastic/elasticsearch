@@ -1,0 +1,419 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.tasks;
+
+import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
+
+public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo> {
+
+    @Override
+    protected TaskInfo doParseInstance(XContentParser parser) {
+        return TaskInfo.fromXContent(parser);
+    }
+
+    @Override
+    protected TaskInfo createTestInstance() {
+        return randomTaskInfo();
+    }
+
+    @Override
+    protected Writeable.Reader<TaskInfo> instanceReader() {
+        return TaskInfo::from;
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(
+            Collections.singletonList(new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new))
+        );
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // status and headers hold arbitrary content, we can't inject random fields in them
+        return field -> "status".equals(field) || "headers".equals(field);
+    }
+
+    @Override
+    protected TaskInfo mutateInstance(TaskInfo info) {
+        boolean isTaskRelocated = !info.originalTaskId().equals(info.taskId());
+        switch (between(0, 11)) {
+            case 0:
+                TaskId taskId = new TaskId(info.taskId().getNodeId() + randomAlphaOfLength(5), info.taskId().getId() + between(1, 10));
+                return new TaskInfo(
+                    taskId,
+                    info.type(),
+                    info.node(),
+                    info.action(),
+                    info.description(),
+                    info.status(),
+                    info.startTime(),
+                    info.runningTimeNanos(),
+                    info.cancellable(),
+                    info.cancelled(),
+                    info.parentTaskId(),
+                    info.headers(),
+                    // if this was a relocated task, preserve the original task ID; otherwise, update it:
+                    isTaskRelocated ? info.originalTaskId() : taskId,
+                    info.startTime()
+                );
+            case 1:
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type() + randomAlphaOfLength(5),
+                    info.node(),
+                    info.action(),
+                    info.description(),
+                    info.status(),
+                    info.startTime(),
+                    info.runningTimeNanos(),
+                    info.cancellable(),
+                    info.cancelled(),
+                    info.parentTaskId(),
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
+                );
+            case 2:
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type(),
+                    info.node(),
+                    info.action() + randomAlphaOfLength(5),
+                    info.description(),
+                    info.status(),
+                    info.startTime(),
+                    info.runningTimeNanos(),
+                    info.cancellable(),
+                    info.cancelled(),
+                    info.parentTaskId(),
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
+                );
+            case 3:
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type(),
+                    info.node(),
+                    info.action(),
+                    info.description() + randomAlphaOfLength(5),
+                    info.status(),
+                    info.startTime(),
+                    info.runningTimeNanos(),
+                    info.cancellable(),
+                    info.cancelled(),
+                    info.parentTaskId(),
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
+                );
+            case 4:
+                Task.Status newStatus = randomValueOtherThan(info.status(), TaskInfoTests::randomRawTaskStatus);
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type(),
+                    info.node(),
+                    info.action(),
+                    info.description(),
+                    newStatus,
+                    info.startTime(),
+                    info.runningTimeNanos(),
+                    info.cancellable(),
+                    info.cancelled(),
+                    info.parentTaskId(),
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
+                );
+            case 5:
+                long startTime = info.startTime() + between(1, 100);
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type(),
+                    info.node(),
+                    info.action(),
+                    info.description(),
+                    info.status(),
+                    startTime,
+                    info.runningTimeNanos(),
+                    info.cancellable(),
+                    info.cancelled(),
+                    info.parentTaskId(),
+                    info.headers(),
+                    info.taskId(),
+                    // if this was a relocated task, preserve the original start time; otherwise, update it
+                    isTaskRelocated ? info.originalStartTimeMillis() : startTime
+                );
+            case 6:
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type(),
+                    info.node(),
+                    info.action(),
+                    info.description(),
+                    info.status(),
+                    info.startTime(),
+                    info.runningTimeNanos() + between(1, 100),
+                    info.cancellable(),
+                    info.cancelled(),
+                    info.parentTaskId(),
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
+                );
+            case 7:
+                // if not cancellable then mutate cancellable flag but leave cancelled flag unset
+                // if cancelled then mutate cancelled flag but leave cancellable flag set
+                // if cancellable but not cancelled then mutate exactly one of the flags
+                //
+                // cancellable | cancelled | random | cancellable == cancelled | isNowCancellable | isNowCancelled
+                // false | false | - | true | true | false
+                // true | true | - | true | true | false
+                // true | false | false | false | false | false
+                // true | false | true | false | true | true
+                boolean isNowCancellable = info.cancellable() == info.cancelled() || randomBoolean();
+                boolean isNowCancelled = isNowCancellable != (info.cancellable() == info.cancelled());
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type(),
+                    info.node(),
+                    info.action(),
+                    info.description(),
+                    info.status(),
+                    info.startTime(),
+                    info.runningTimeNanos(),
+                    isNowCancellable,
+                    isNowCancelled,
+                    info.parentTaskId(),
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
+                );
+            case 8:
+                TaskId parentId = new TaskId(info.parentTaskId().getNodeId() + randomAlphaOfLength(5), info.parentTaskId().getId());
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type(),
+                    info.node(),
+                    info.action(),
+                    info.description(),
+                    info.status(),
+                    info.startTime(),
+                    info.runningTimeNanos(),
+                    info.cancellable(),
+                    info.cancelled(),
+                    parentId,
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
+                );
+            case 9:
+                Map<String, String> headers = info.headers();
+                if (headers == null) {
+                    headers = Maps.newMapWithExpectedSize(1);
+                } else {
+                    headers = new HashMap<>(info.headers());
+                }
+                headers.put(randomAlphaOfLength(15), randomAlphaOfLength(15));
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type(),
+                    info.node(),
+                    info.action(),
+                    info.description(),
+                    info.status(),
+                    info.startTime(),
+                    info.runningTimeNanos(),
+                    info.cancellable(),
+                    info.cancelled(),
+                    info.parentTaskId(),
+                    headers,
+                    info.taskId(),
+                    info.startTime()
+                );
+            case 10:
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type(),
+                    randomAlphaOfLength(10),
+                    info.action(),
+                    info.description(),
+                    info.status(),
+                    info.startTime(),
+                    info.runningTimeNanos(),
+                    info.cancellable(),
+                    info.cancelled(),
+                    info.parentTaskId(),
+                    info.headers(),
+                    info.taskId(),
+                    info.startTime()
+                );
+            case 11:
+                // if this is a relocated task (originalTaskId != taskId), make it a regular task
+                // if it is a regular task, make it relocated
+                return new TaskInfo(
+                    info.taskId(),
+                    info.type(),
+                    randomAlphaOfLength(10),
+                    info.action(),
+                    info.description(),
+                    info.status(),
+                    info.startTime(),
+                    info.runningTimeNanos(),
+                    info.cancellable(),
+                    info.cancelled(),
+                    info.parentTaskId(),
+                    info.headers(),
+                    isTaskRelocated
+                        ? info.taskId()
+                        : new TaskId(info.taskId().getNodeId() + randomAlphaOfLength(5), info.taskId().getId() + between(1, 10)),
+                    isTaskRelocated ? info.startTime() : info.startTime() + between(1, 100)
+                );
+
+            default:
+                throw new IllegalStateException();
+        }
+    }
+
+    public void testWithOriginalRelocationIdentity_relocated() {
+        String nodeB = randomAlphaOfLength(8);
+        String nodeA = randomValueOtherThan(nodeB, () -> randomAlphaOfLength(8));
+        TaskId originalId = new TaskId(nodeA, randomNonNegativeLong());
+        TaskId currentId = new TaskId(nodeB, randomNonNegativeLong());
+        long originalStart = between(0, 1_000);
+        long currentStart = originalStart + between(1, 1_000);
+        long runningNanos = randomLongBetween(0, TimeUnit.SECONDS.toNanos(between(1, 5)));
+        final boolean cancellable = randomBoolean();
+        TaskInfo relocated = new TaskInfo(
+            currentId,
+            randomAlphaOfLength(5),
+            nodeB,
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
+            null,
+            currentStart,
+            runningNanos,
+            cancellable,
+            cancellable && randomBoolean(),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            originalId,
+            originalStart
+        );
+        TaskInfo adjusted = relocated.withOriginalRelocationIdentity();
+        assertSame(originalId, adjusted.taskId());
+        assertEquals(originalId.getNodeId(), adjusted.node());
+        assertEquals(originalStart, adjusted.startTime());
+        assertEquals(runningNanos + TimeUnit.MILLISECONDS.toNanos(currentStart - originalStart), adjusted.runningTimeNanos());
+        assertSame(originalId, adjusted.originalTaskId());
+        assertEquals(originalStart, adjusted.originalStartTimeMillis());
+    }
+
+    public void testWithOriginalRelocationIdentity_notRelocated() {
+        TaskInfo info = randomTaskInfo();
+        if (info.originalTaskId().equals(info.taskId()) == false) {
+            info = new TaskInfo(
+                info.taskId(),
+                info.type(),
+                info.node(),
+                info.action(),
+                info.description(),
+                info.status(),
+                info.startTime(),
+                info.runningTimeNanos(),
+                info.cancellable(),
+                info.cancelled(),
+                info.parentTaskId(),
+                info.headers()
+            );
+        }
+        TaskInfo same = info.withOriginalRelocationIdentity();
+        assertEquals(info.taskId(), same.taskId());
+        assertEquals(info.node(), same.node());
+        assertEquals(info.startTime(), same.startTime());
+        assertEquals(info.runningTimeNanos(), same.runningTimeNanos());
+        assertEquals(info.originalTaskId(), same.originalTaskId());
+        assertEquals(info.originalStartTimeMillis(), same.originalStartTimeMillis());
+    }
+
+    public static TaskInfo randomTaskInfo() {
+        String nodeId = randomAlphaOfLength(5);
+        TaskId taskId = randomTaskId(nodeId);
+        String type = randomAlphaOfLength(5);
+        String action = randomAlphaOfLength(5);
+        Task.Status status = randomBoolean() ? randomRawTaskStatus() : null;
+        String description = randomBoolean() ? randomAlphaOfLength(5) : null;
+        long startTime = randomLong();
+        long runningTimeNanos = randomNonNegativeLong();
+        boolean cancellable = randomBoolean();
+        boolean cancelled = cancellable && randomBoolean();
+        TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId(randomAlphaOfLength(5));
+        Map<String, String> headers = randomBoolean()
+            ? Collections.emptyMap()
+            : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        boolean isTaskRelocated = randomBoolean();
+        TaskId originalTaskId = isTaskRelocated ? randomValueOtherThan(taskId, () -> randomTaskId(nodeId)) : taskId;
+        long originalStartTimeMillis = isTaskRelocated ? randomLong() : startTime;
+        return new TaskInfo(
+            taskId,
+            type,
+            nodeId,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers,
+            originalTaskId,
+            originalStartTimeMillis
+        );
+    }
+
+    private static TaskId randomTaskId(String nodeId) {
+        return new TaskId(nodeId, randomLong());
+    }
+
+    private static RawTaskStatus randomRawTaskStatus() {
+        try (XContentBuilder builder = XContentBuilder.builder(Requests.INDEX_CONTENT_TYPE.xContent())) {
+            builder.startObject();
+            int fields = between(0, 10);
+            for (int f = 0; f < fields; f++) {
+                builder.field(randomAlphaOfLength(5), randomAlphaOfLength(5));
+            }
+            builder.endObject();
+            return new RawTaskStatus(BytesReference.bytes(builder));
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+}

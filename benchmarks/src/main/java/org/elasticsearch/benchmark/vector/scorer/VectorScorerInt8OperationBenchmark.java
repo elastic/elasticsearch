@@ -1,0 +1,129 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+package org.elasticsearch.benchmark.vector.scorer;
+
+import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.VectorSimilarityType;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
+import org.openjdk.jmh.annotations.Warmup;
+
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+
+@Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.NANOSECONDS)
+@State(Scope.Benchmark)
+@Warmup(iterations = 3, time = 1)
+@Measurement(iterations = 5, time = 1)
+public class VectorScorerInt8OperationBenchmark {
+
+    static {
+        Utils.configureBenchmarkLogging();
+    }
+
+    byte[] bytesA;
+    byte[] bytesB;
+    byte[] scratch;
+    MemorySegment heapSegA, heapSegB;
+    MemorySegment nativeSegA, nativeSegB;
+
+    Arena arena;
+
+    @Param({ "1", "128", "207", "256", "300", "512", "702", "1024", "1536", "2048" })
+    public int size;
+
+    @Param({ "COSINE", "DOT_PRODUCT", "EUCLIDEAN" })
+    public VectorSimilarityType function;
+
+    private LuceneFunction<byte[]> luceneImpl;
+
+    @Setup(Level.Iteration)
+    public void init() {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+
+        bytesA = new byte[size];
+        bytesB = new byte[size];
+        scratch = new byte[size];
+        random.nextBytes(bytesA);
+        random.nextBytes(bytesB);
+        heapSegA = MemorySegment.ofArray(bytesA);
+        heapSegB = MemorySegment.ofArray(bytesB);
+
+        arena = Arena.ofConfined();
+        nativeSegA = arena.allocate(bytesA.length);
+        MemorySegment.copy(bytesA, 0, nativeSegA, JAVA_BYTE, 0L, bytesA.length);
+        nativeSegB = arena.allocate(bytesB.length);
+        MemorySegment.copy(bytesB, 0, nativeSegB, JAVA_BYTE, 0L, bytesB.length);
+
+        luceneImpl = switch (function) {
+            case COSINE -> VectorUtil::cosine;
+            case DOT_PRODUCT -> VectorUtil::dotProduct;
+            case EUCLIDEAN -> VectorUtil::squareDistance;
+            default -> throw new UnsupportedOperationException("Not used");
+        };
+    }
+
+    @TearDown
+    public void teardown() {
+        arena.close();
+    }
+
+    @Benchmark
+    public float lucene() {
+        return luceneImpl.run(bytesA, bytesB);
+    }
+
+    @Benchmark
+    public float luceneWithCopy() {
+        // add a copy to better reflect what Lucene has to do to get the target vector on-heap
+        MemorySegment.copy(nativeSegB, JAVA_BYTE, 0L, scratch, 0, scratch.length);
+        return luceneImpl.run(bytesA, scratch);
+    }
+
+    @Benchmark
+    public float nativeWithNativeSeg() {
+        return switch (function) {
+            case COSINE -> vectorSimilarityFunctions.cosineI8(nativeSegA, nativeSegB, size);
+            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductI8(nativeSegA, nativeSegB, size);
+            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceI8(nativeSegA, nativeSegB, size);
+            default -> throw new IllegalArgumentException(function.toString());
+        };
+    }
+
+    @Benchmark
+    public float nativeWithHeapSeg() {
+        return switch (function) {
+            case COSINE -> vectorSimilarityFunctions.cosineI8(heapSegA, heapSegB, size);
+            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductI8(heapSegA, heapSegB, size);
+            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceI8(heapSegA, heapSegB, size);
+            default -> throw new IllegalArgumentException(function.toString());
+        };
+    }
+
+    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
+}

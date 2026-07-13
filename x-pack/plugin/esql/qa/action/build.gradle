@@ -1,0 +1,19 @@
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.esql-release'
+
+description = 'Tests for requests made through the Node Client request API'
+
+dependencies {
+    api project(":test:framework")
+    api project(':server')
+    compileOnly project(path: xpackModule('core'))
+
+    testImplementation(testArtifact(project(xpackModule('core'))))
+    // runtime only - since the test source should not explicitly depend
+    // upon any types from ES|QL (only xpack core)
+    testImplementation project(':x-pack:plugin:esql-core')
+    testImplementation project(':x-pack:plugin:esql')
+    internalClusterTestImplementation project(':x-pack:plugin:encryption')
+    internalClusterTestImplementation project(':x-pack:plugin:encryption:spi')
+}

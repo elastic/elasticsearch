@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 113489
+pr: 147566
+summary: Include index and shard id in shard failure exception message
+type: enhancement

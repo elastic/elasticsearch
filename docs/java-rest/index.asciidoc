@@ -1,0 +1,8 @@
+[[java-rest]]
+= Java REST Client
+
+include::{asciidoc-dir}/../../shared/attributes.asciidoc[]
+
+include::../Versions.asciidoc[]
+
+include::overview.asciidoc[]

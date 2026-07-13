@@ -1,0 +1,341 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+//  Nested documents
+//
+// CsvJdbc has issues with foo.bar so most fields are aliases or wrapped inside a function
+
+describeParent
+DESCRIBE test_emp;
+
+       column       |     type      |    mapping    
+--------------------+---------------+---------------
+birth_date          |TIMESTAMP      |datetime       
+dep                 |STRUCT         |nested         
+dep.dep_id          |VARCHAR        |keyword        
+dep.dep_name        |VARCHAR        |text           
+dep.dep_name.keyword|VARCHAR        |keyword        
+dep.from_date       |TIMESTAMP      |datetime       
+dep.to_date         |TIMESTAMP      |datetime       
+emp_no              |INTEGER        |integer        
+first_name          |VARCHAR        |text           
+first_name.keyword  |VARCHAR        |keyword        
+gender              |VARCHAR        |keyword        
+hire_date           |TIMESTAMP      |datetime       
+languages           |TINYINT        |byte           
+last_name           |VARCHAR        |text           
+last_name.keyword   |VARCHAR        |keyword        
+name                |VARCHAR        |keyword        
+salary              |INTEGER        |integer
+;
+
+nestedStar
+SELECT dep.* FROM test_emp ORDER BY dep.dep_id LIMIT 5;
+
+  dep.dep_id:s   | dep.dep_name:s |    dep.from_date:ts    |     dep.to_date:ts
+
+d001             |Marketing       |1993-08-03T00:00:00.000Z|9999-01-01T00:00:00.000Z
+d001             |Marketing       |1992-04-27T00:00:00.000Z|1995-07-22T00:00:00.000Z
+d001             |Marketing       |1988-04-25T00:00:00.000Z|9999-01-01T00:00:00.000Z
+d002             |Finance         |1993-03-21T00:00:00.000Z|2000-08-10T00:00:00.000Z
+d002             |Finance         |1990-12-25T00:00:00.000Z|1992-11-05T00:00:00.000Z
+;
+
+// Test for https://github.com/elastic/elasticsearch/issues/30054
+nestedSingleFieldSelect
+SELECT dep.dep_id FROM test_emp LIMIT 5;
+
+ dep.dep_id:s   
+
+d005           
+d007           
+d004           
+d004           
+d003           
+;
+
+filterPerNestedWithOrderByTopLevel
+SELECT first_name f, last_name l, YEAR(dep.from_date) d FROM test_emp WHERE dep.dep_name = 'Production' ORDER BY f LIMIT 5;
+
+f:s                  | l:s                  | d:i
+
+Chirstian            |Koblick               |1986           
+Duangkaew            |Piveteau              |1996           
+Gino                 |Leonhardt             |1989           
+Hidefumi             |Caine                 |1992           
+Jayson               |Mandell               |1999    
+;
+
+filterPerNestedWithOrderByNested
+SELECT first_name f, last_name l, YEAR(dep.from_date) d FROM test_emp WHERE dep.dep_name = 'Production' ORDER BY dep.from_date LIMIT 5;
+
+f:s                  | l:s                  | d:i
+
+Sreekrishna          |Servieres             |1985           
+Zhongwei             |Rosen                 |1986           
+Chirstian            |Koblick               |1986           
+Vishv                |Zockler               |1987           
+null                 |Chappelet             |1988    
+;
+
+filterPerNestedWithOrderByNestedWithAlias
+SELECT first_name f, dep.dep_id i, MONTH(dep.from_date) d FROM test_emp WHERE dep.dep_name = 'Production' ORDER BY i LIMIT 5;
+
+f:s                  | i:s                  | d:i
+
+Parto                | d004                 | 12
+Chirstian            | d004                 | 12
+Duangkaew            | d004                 | 11
+Kazuhide             | d004                 | 7
+Mayuko               | d004                 | 12
+;
+
+filterPerNestedWithOrderByNestedWithoutProjection
+SELECT first_name f, MONTH(dep.from_date) d FROM test_emp WHERE dep.dep_name = 'Production' ORDER BY dep.dep_id LIMIT 5;
+
+f:s        | d:i
+
+Parto      | 12
+Chirstian  | 12
+Duangkaew  | 11
+Kazuhide   | 7
+Mayuko     | 12
+;
+
+selectWithScalarOnNested
+SELECT first_name f, last_name l, YEAR(dep.from_date) start FROM test_emp WHERE dep.dep_name = 'Production' AND languages > 1 ORDER BY dep.from_date LIMIT 5;
+
+f:s                  | l:s           | start:i
+
+Sreekrishna          |Servieres      |1985
+Zhongwei             |Rosen          |1986
+Chirstian            |Koblick        |1986
+null                 |Chappelet      |1988
+Zvonko               |Nyanchama      |1989
+;
+
+//
+// Tests for bug https://github.com/elastic/elasticsearch/issues/32951 fix
+//
+
+selectNestedFieldFirst
+SELECT dep.dep_id, last_name FROM test_emp ORDER BY last_name LIMIT 5;
+
+dep.dep_id:s   |   last_name:s   
+
+d005           |Awdeh
+d003           |Azuma
+d002           |Baek
+d003           |Baek
+d004           |Bamford
+;
+
+selectNestedFieldLast
+SELECT first_name, dep.dep_id FROM test_emp ORDER BY first_name LIMIT 5;
+
+first_name:s   |  dep.dep_id:s
+---------------+---------------
+Alejandro      |d002           
+Amabile        |d005           
+Anneke         |d005           
+Anoosh         |d005           
+Arumugam       |d008           
+;
+
+selectNestedFieldInTheMiddle
+SELECT first_name, dep.dep_name, last_name FROM test_emp ORDER BY first_name LIMIT 5;
+
+first_name:s   |dep.dep_name:s |last_name:s
+
+Alejandro      |Finance        |McAlpine
+Amabile        |Development    |Gomatam
+Anneke         |Development    |Preusig
+Anoosh         |Development    |Peyn
+Arumugam       |Research       |Ossenbruggen
+;
+
+selectNestedFieldInTheMiddleAndAtTheEnd
+SELECT first_name, dep.dep_name, last_name, dep.dep_id FROM test_emp ORDER BY first_name LIMIT 5;
+
+ first_name:s  |dep.dep_name:s | last_name:s   |  dep.dep_id:s
+
+Alejandro      |Finance        |McAlpine       |d002
+Amabile        |Development    |Gomatam        |d005
+Anneke         |Development    |Preusig        |d005
+Anoosh         |Development    |Peyn           |d005
+Arumugam       |Research       |Ossenbruggen   |d008
+;
+
+selectNestedFieldInTheMiddleAndAtBeggining
+SELECT dep.dep_id, first_name, dep.dep_name, last_name FROM test_emp ORDER BY first_name LIMIT 5;
+
+ dep.dep_id:s  | first_name:s  |dep.dep_name:s | last_name:s
+
+d002           |Alejandro      |Finance        |McAlpine
+d005           |Amabile        |Development    |Gomatam
+d005           |Anneke         |Development    |Preusig
+d005           |Anoosh         |Development    |Peyn
+d008           |Arumugam       |Research       |Ossenbruggen
+;
+
+selectNestedFieldWithWildcardAtBeggining
+SELECT dep.*, first_name FROM test_emp ORDER BY first_name LIMIT 5;
+
+ dep.dep_id:s  |dep.dep_name:s |   dep.from_date:ts     |    dep.to_date:ts      |  first_name:s
+
+d002           |Finance        |1991-06-26T00:00:00.000Z|9999-01-01T00:00:00.000Z|Alejandro
+d005           |Development    |1992-11-18T00:00:00.000Z|9999-01-01T00:00:00.000Z|Amabile
+d005           |Development    |1990-08-05T00:00:00.000Z|9999-01-01T00:00:00.000Z|Anneke
+d005           |Development    |1991-08-30T00:00:00.000Z|9999-01-01T00:00:00.000Z|Anoosh
+d008           |Research       |1987-04-18T00:00:00.000Z|1997-11-08T00:00:00.000Z|Arumugam
+;
+
+selectNestedFieldWithWildcardAtTheEnd
+SELECT first_name, dep.* FROM test_emp ORDER BY first_name LIMIT 5;
+
+ first_name:s  | dep.dep_id:s  |dep.dep_name:s |   dep.from_date:ts     |     dep.to_date:ts
+
+Alejandro      |d002           |Finance        |1991-06-26T00:00:00.000Z|9999-01-01T00:00:00.000Z
+Amabile        |d005           |Development    |1992-11-18T00:00:00.000Z|9999-01-01T00:00:00.000Z
+Anneke         |d005           |Development    |1990-08-05T00:00:00.000Z|9999-01-01T00:00:00.000Z
+Anoosh         |d005           |Development    |1991-08-30T00:00:00.000Z|9999-01-01T00:00:00.000Z
+Arumugam       |d008           |Research       |1987-04-18T00:00:00.000Z|1997-11-08T00:00:00.000Z
+;
+
+selectNestedFieldWithWildcardInTheMiddle
+SELECT first_name, dep.*, last_name FROM test_emp ORDER BY first_name LIMIT 5;
+
+ first_name:s  | dep.dep_id:s  |dep.dep_name:s |   dep.from_date:ts     |    dep.to_date:ts      |   last_name:s
+
+Alejandro      |d002           |Finance        |1991-06-26T00:00:00.000Z|9999-01-01T00:00:00.000Z|McAlpine
+Amabile        |d005           |Development    |1992-11-18T00:00:00.000Z|9999-01-01T00:00:00.000Z|Gomatam
+Anneke         |d005           |Development    |1990-08-05T00:00:00.000Z|9999-01-01T00:00:00.000Z|Preusig
+Anoosh         |d005           |Development    |1991-08-30T00:00:00.000Z|9999-01-01T00:00:00.000Z|Peyn
+Arumugam       |d008           |Research       |1987-04-18T00:00:00.000Z|1997-11-08T00:00:00.000Z|Ossenbruggen
+;
+
+//
+// Nested documents tests more targetted for JdbcCsvNestedDocsIT class (with specific fetch_size value)
+//
+
+// employee 10098 has 4 departments
+
+selectNestedFieldWithFourInnerHitsAndLimitOne
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10098 LIMIT 1;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d004           |Production      |Sreekrishna    |10098
+;
+
+selectNestedFieldWithFourInnerHitsAndLimitTwo
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10098 LIMIT 2;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d004           |Production      |Sreekrishna    |10098
+d009           |Customer Service|Sreekrishna    |10098
+;
+
+selectNestedFieldWithFourInnerHitsAndLimitThree
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10098 LIMIT 3;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d004           |Production      |Sreekrishna    |10098
+d009           |Customer Service|Sreekrishna    |10098
+d008           |Research        |Sreekrishna    |10098
+;
+
+selectNestedFieldWithFourInnerHitsAndLimitFour
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10098 LIMIT 4;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d004           |Production      |Sreekrishna    |10098
+d009           |Customer Service|Sreekrishna    |10098
+d008           |Research        |Sreekrishna    |10098
+d007           |Sales           |Sreekrishna    |10098
+;
+
+selectNestedFieldWithFourInnerHitsAndLimitFive
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10098 LIMIT 5;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d004           |Production      |Sreekrishna    |10098
+d009           |Customer Service|Sreekrishna    |10098
+d008           |Research        |Sreekrishna    |10098
+d007           |Sales           |Sreekrishna    |10098
+;
+
+selectNestedFieldFromTwoDocumentsWithFourInnerHitsAndLimitFive
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10098 OR emp_no=10099 LIMIT 5;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d004           |Production      |Sreekrishna    |10098
+d009           |Customer Service|Sreekrishna    |10098
+d008           |Research        |Sreekrishna    |10098
+d007           |Sales           |Sreekrishna    |10098
+d007           |Sales           |Valter         |10099
+;
+
+selectNestedFieldFromDocumentWithOneInnerHitAndLimitOne
+SELECT dep.dep_id, dep.dep_name, first_name, emp_no FROM test_emp WHERE emp_no=10099 LIMIT 1;
+
+ dep.dep_id:s  | dep.dep_name:s | first_name:s  |   emp_no:i
+---------------+----------------+---------------+---------------
+d007           |Sales           |Valter         |10099
+;
+
+selectNestedFieldsWithTwoNestedConditions
+SELECT CONCAT(CONCAT(first_name, ' '), last_name) AS name, dep.dep_name, dep.dep_id, dep.from_date FROM test_emp WHERE dep.dep_name = 'Production' AND dep.from_date > '1990-01-01' AND first_name IS NOT NULL;
+
+
+      name:s         |  dep.dep_name:s  | dep.dep_id:s  |    dep.from_date:ts      
+---------------------+------------------+---------------+------------------------
+Parto Bamford        |Production        |d004           |1995-12-03T00:00:00.000Z
+Duangkaew Piveteau   |Production        |d004           |1996-11-24T00:00:00.000Z
+Duangkaew Piveteau   |Quality Management|d006           |2000-06-26T00:00:00.000Z
+Kazuhide Peha        |Production        |d004           |1992-07-29T00:00:00.000Z
+Mayuko Warwick       |Production        |d004           |1997-12-30T00:00:00.000Z
+Suzette Pettey       |Production        |d004           |1998-06-14T00:00:00.000Z
+Yongqiao Berztiss    |Production        |d004           |1995-03-20T00:00:00.000Z
+Otmar Herbst         |Production        |d004           |1991-09-18T00:00:00.000Z
+Otmar Herbst         |Quality Management|d006           |1999-07-08T00:00:00.000Z
+Mingsen Casley       |Production        |d004           |1994-05-21T00:00:00.000Z
+Moss Shanbhogue      |Production        |d004           |1996-11-16T00:00:00.000Z
+Hidefumi Caine       |Production        |d004           |1992-10-15T00:00:00.000Z
+Margareta Bierman    |Production        |d004           |1992-06-14T00:00:00.000Z
+Tuval Kalloufi       |Production        |d004           |1995-12-15T00:00:00.000Z
+Kenroku Malabarba    |Production        |d004           |1994-04-09T00:00:00.000Z
+Jayson Mandell       |Production        |d004           |1999-01-23T00:00:00.000Z
+Sreekrishna Servieres|Production        |d004           |1985-05-13T00:00:00.000Z
+Sreekrishna Servieres|Research          |d008           |1992-12-11T00:00:00.000Z
+Sreekrishna Servieres|Sales             |d007           |1993-05-05T00:00:00.000Z
+;
+
+selectNestedAndRootDocument_WithTwoNestedConditions_AndOneRootCondition
+SELECT last_name AS name, dep.dep_name, dep.dep_id, dep.from_date FROM test_emp WHERE dep.dep_name = 'Production' AND dep.from_date > '1990-01-01' AND last_name LIKE 'M%' ORDER BY last_name DESC;
+
+    name:s     | dep.dep_name:s | dep.dep_id:s  |    dep.from_date:ts      
+---------------+----------------+---------------+------------------------
+Mandell        |Production      |d004           |1999-01-23T00:00:00.000Z
+Malabarba      |Production      |d004           |1994-04-09T00:00:00.000Z
+;
+
+selectNestedAndRootDocument_WithMultipleConditions_AndNestedSorting
+SELECT CONCAT(CONCAT(first_name, ' '), last_name) AS name, dep.dep_name, dep.dep_id, dep.from_date, dep.to_date FROM test_emp WHERE dep.from_date > '1990-01-01' AND dep.dep_name='Production' AND dep.to_date < '2000-01-01' ORDER BY dep.dep_id, dep.from_date, name;
+
+       name:s        |  dep.dep_name:s  | dep.dep_id:s  |    dep.from_date:ts    |    dep.to_date:ts       
+---------------------+------------------+---------------+------------------------+------------------------
+Otmar Herbst         |Production        |d004           |1991-09-18T00:00:00.000Z|1999-07-08T00:00:00.000Z
+Otmar Herbst         |Quality Management|d006           |1999-07-08T00:00:00.000Z|9999-01-01T00:00:00.000Z
+Kazuhide Peha        |Production        |d004           |1992-07-29T00:00:00.000Z|9999-01-01T00:00:00.000Z
+Kazuhide Peha        |Development       |d005           |1987-04-03T00:00:00.000Z|1992-07-29T00:00:00.000Z
+Sreekrishna Servieres|Production        |d004           |1985-05-13T00:00:00.000Z|1989-06-29T00:00:00.000Z
+Sreekrishna Servieres|Customer Service  |d009           |1989-06-29T00:00:00.000Z|1992-12-11T00:00:00.000Z
+Sreekrishna Servieres|Research          |d008           |1992-12-11T00:00:00.000Z|1993-05-05T00:00:00.000Z
+Sreekrishna Servieres|Sales             |d007           |1993-05-05T00:00:00.000Z|1994-02-01T00:00:00.000Z
+;

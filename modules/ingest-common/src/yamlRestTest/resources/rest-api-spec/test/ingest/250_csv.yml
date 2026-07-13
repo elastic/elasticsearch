@@ -1,0 +1,164 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test CSV Processor defaults":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "csv": {
+                  "field": "value",
+                  "target_fields":["a","b","c"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "value": "aa,bb,cc"
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.a: "aa" }
+  - match: { _source.b: "bb" }
+  - match: { _source.c: "cc" }
+
+---
+"Test CSV Processor quote and separator":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "csv": {
+                  "field": "value",
+                  "target_fields":["a","b","c","d","e"],
+                  "quote": "'",
+                  "separator": ";"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "value": "'aa';'b;b';'cc';d,d;'ee''ee'"
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.a: "aa" }
+  - match: { _source.b: "b;b" }
+  - match: { _source.c: "cc" }
+  - match: { _source.d: "d,d" }
+  - match: { _source.e: "ee'ee" }
+
+---
+"Test CSV Processor trim":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "csv": {
+                  "field": "value",
+                  "target_fields":["a","b","c"],
+                  "trim": true,
+                  "quote": "'"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "value": "    aa,  bb  ,    'cc'"
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.a: "aa" }
+  - match: { _source.b: "bb" }
+  - match: { _source.c: "cc" }
+
+---
+"Test CSV Processor trim log":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "csv": {
+                  "field": "value",
+                  "target_fields":["date","level","server","id","msg"],
+                  "trim": true,
+                  "separator": "|"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "value": "2018-01-06 16:56:14.295748|INFO    |VirtualServer |1  |listening on 0.0.0.0:9987, :::9987"
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.date: "2018-01-06 16:56:14.295748" }
+  - match: { _source.level: "INFO" }
+  - match: { _source.server: "VirtualServer" }
+  - match: { _source.id: "1" }
+  - match: { _source.msg: "listening on 0.0.0.0:9987, :::9987" }

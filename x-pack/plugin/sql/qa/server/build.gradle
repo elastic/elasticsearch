@@ -1,0 +1,110 @@
+apply plugin: 'elasticsearch.java'
+
+description = 'Integration tests for SQL'
+
+def sqlVersions = project(':x-pack:plugin:sql').extensions.extraProperties.get('sqlVersions')
+
+dependencies {
+  api project(":test:framework")
+
+  // JDBC testing dependencies
+  api project(path: xpackModule('sql:jdbc'))
+  // Common utilities from QL
+  api project(xpackModule('ql:test-fixtures'))
+
+  api "net.sourceforge.csvjdbc:csvjdbc:${sqlVersions.csvjdbc}"
+
+  // CLI testing dependencies
+  api project(path: xpackModule('sql:sql-cli'))
+
+  // H2GIS testing dependencies
+  api("org.orbisgis:h2gis:${sqlVersions.h2gis}") {
+    exclude group: "org.locationtech.jts"
+  }
+
+  // select just the parts of JLine that are needed
+  api("org.jline:jline-terminal-jna:${sqlVersions.jline}") {
+    exclude group: "net.java.dev.jna"
+  }
+  api "org.jline:jline-terminal:${sqlVersions.jline}"
+  api "org.jline:jline-reader:${sqlVersions.jline}"
+  api "org.jline:jline-style:${sqlVersions.jline}"
+
+  testRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
+}
+
+subprojects {
+  if (subprojects.isEmpty()) {
+    // leaf project
+  } else {
+    apply plugin: 'elasticsearch.java'
+  }
+
+  if (project.name != 'security') {
+    // The security project just configures its subprojects
+    apply plugin: 'elasticsearch.internal-java-rest-test'
+
+    if (project.parent.name != 'security') {
+      tasks.named('javaRestTest') {
+        usesDefaultDistribution("to be triaged")
+      }
+    }
+
+    dependencies {
+      configurations.javaRestTestRuntimeClasspath {
+        resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+      }
+      configurations.javaRestTestRuntimeOnly {
+        // This is also required to make resolveAllDependencies work
+        resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+      }
+
+      /* Since we're a standalone rest test we actually get transitive
+       * dependencies but we don't really want them because they cause
+       * all kinds of trouble with the jar hell checks. So we suppress
+       * them explicitly for non-es projects. */
+      javaRestTestImplementation(project(':x-pack:plugin:sql:qa:server')) {
+        transitive = false
+      }
+      javaRestTestImplementation project(":test:framework")
+      javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
+
+      // JDBC testing dependencies
+      javaRestTestRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${sqlVersions.csvjdbc}"
+      javaRestTestRuntimeOnly "com.h2database:h2:${sqlVersions.h2}"
+
+      // H2GIS testing dependencies
+      javaRestTestRuntimeOnly("org.orbisgis:h2gis:${sqlVersions.h2gis}")
+      javaRestTestRuntimeOnly("org.orbisgis:h2gis-api:${sqlVersions.h2gis}")
+      javaRestTestRuntimeOnly("org.orbisgis:h2gis-utilities:${sqlVersions.h2gis}")
+      javaRestTestRuntimeOnly("org.orbisgis:cts:1.5.2")
+
+
+      javaRestTestRuntimeOnly project(path: xpackModule('sql:jdbc'))
+      javaRestTestRuntimeOnly project(':x-pack:plugin:sql:sql-client')
+
+      // CLI testing dependencies
+      javaRestTestRuntimeOnly project(path: xpackModule('sql:sql-cli'))
+      javaRestTestRuntimeOnly(project(':x-pack:plugin:sql:sql-action')) {
+        transitive = false
+      }
+
+      javaRestTestRuntimeOnly("org.jline:jline-terminal-jna:${sqlVersions.jline}") {
+        exclude group: "net.java.dev.jna"
+      }
+      javaRestTestRuntimeOnly "org.jline:jline-terminal:${sqlVersions.jline}"
+      javaRestTestRuntimeOnly "org.jline:jline-reader:${sqlVersions.jline}"
+      javaRestTestRuntimeOnly "org.jline:jline-style:${sqlVersions.jline}"
+
+      javaRestTestRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
+
+      // spatial dependency
+      javaRestTestRuntimeOnly project(path: xpackModule('spatial'))
+      javaRestTestRuntimeOnly project(path: ':modules:legacy-geo')
+
+      javaRestTestRuntimeOnly project(path: ':modules:rest-root')
+
+      javaRestTestRuntimeOnly "org.slf4j:slf4j-api:1.7.25"
+    }
+  }
+}

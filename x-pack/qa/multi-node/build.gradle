@@ -1,0 +1,6 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation project(':x-pack:qa')
+  clusterModules project(xpackModule('rollup'))
+}

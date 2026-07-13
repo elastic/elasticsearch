@@ -1,0 +1,14 @@
+---
+"Test with unknown model id":
+  - do:
+      catch: missing
+      ml.update_trained_model_deployment:
+        model_id: "missing-model"
+        body: >
+          {
+            "adaptive_allocations": {
+              "enabled": true,
+              "min_number_of_allocations": 0,
+              "max_number_of_allocations": 1
+            }
+          }

@@ -1,0 +1,39 @@
+ # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ # or more contributor license agreements. Licensed under the "Elastic License
+ # 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ # Public License v 1"; you may not use this file except in compliance with, at
+ # your election, the "Elastic License 2.0", the "GNU Affero General Public
+ # License v3.0 only", or the "Server Side Public License, v 1".
+
+[libdefaults]
+    spake_preauth_groups = edwards25519
+    default_realm = ${REALM_NAME}
+    dns_canonicalize_hostname = false
+    dns_lookup_kdc = false
+    dns_lookup_realm = false
+    dns_uri_lookup = false
+    forwardable = true
+    ignore_acceptor_hostname = true
+    rdns = false
+    # des3-cbc-sha1-kd is the only enctype available in fips 140-2
+    default_tgs_enctypes = aes256-cts-hmac-sha1-96
+    default_tkt_enctypes = aes256-cts-hmac-sha1-96
+    permitted_enctypes = aes256-cts-hmac-sha1-96
+    # udp_preference_limit = 1
+    kdc_timeout = 3000
+    allow_weak_enctypes = false
+
+[realms]
+    ${REALM_NAME} = {
+        kdc = 127.0.0.1:88
+        #KDC_DOCKER_HOST
+        admin_server = ${KDC_NAME}:749
+        default_domain = ${BUILD_ZONE}
+    }
+
+[domain_realm]
+    ${BUILD_ZONE} = ${REALM_NAME}
+    .${BUILD_ZONE} = ${REALM_NAME}
+    ${ELASTIC_ZONE} = ${REALM_NAME}
+    .${ELASTIC_ZONE} = ${REALM_NAME}
+

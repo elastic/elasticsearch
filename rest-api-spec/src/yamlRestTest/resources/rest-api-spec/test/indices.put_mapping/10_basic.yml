@@ -1,0 +1,276 @@
+---
+"Test Create and update mapping":
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            text1:
+              type:     text
+              analyzer: whitespace
+            text2:
+              type:     text
+              analyzer: whitespace
+            subfield.text3:
+              type:     text
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: {test_index.mappings.properties.text1.type:     text}
+  - match: {test_index.mappings.properties.text1.analyzer: whitespace}
+  - match: {test_index.mappings.properties.text2.type:     text}
+  - match: {test_index.mappings.properties.text2.analyzer: whitespace}
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            text1:
+              type:     text
+              analyzer: whitespace
+              fields:
+                text_raw:
+                  type:     keyword
+
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: {test_index.mappings.properties.text1.type:     text}
+  - match: {test_index.mappings.properties.subfield.properties.text3.type:     text}
+  - match: {test_index.mappings.properties.text1.fields.text_raw.type: keyword}
+
+---
+"Create index with invalid mappings":
+  - do:
+      indices.create:
+        index: test_index
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            "":
+              type:     keyword
+
+---
+"Put mappings with explicit _doc type":
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
+      reason: "deprecation message changed in 8.0"
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_index
+        body:
+          _doc:
+            properties:
+              field:
+                type: keyword
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Types cannot be provided in put mapping requests" }
+
+---
+"Update per-field metadata":
+
+  - requires:
+      cluster_features:     ["gte_v7.6.0"]
+      reason:      "Per-field meta was introduced in 7.6"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+                meta:
+                  bar: baz
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            foo:
+              type: keyword
+              meta:
+                baz: quux
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - is_false: test_index.mappings.properties.foo.meta.bar
+  - match: { test_index.mappings.properties.foo.meta.baz: "quux" }
+
+---
+"enabling synthetic source from explicit succeeds":
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mapping.source.mode: stored
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          _source:
+            mode: synthetic
+
+---
+"enabling synthetic source succeeds":
+  - requires:
+      cluster_features: [ "gte_v8.4.0" ]
+      reason:      "Added in 8.4.0"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  # Index a document to cause the default mapping to be created
+  - do:
+      index:
+        index:   test_index
+        id:      1
+        refresh: true
+        body:
+          value: 4
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          _source:
+            mode: synthetic
+
+---
+"enabling synthetic source when no mapping succeeds":
+  - requires:
+      cluster_features: [ "gte_v8.4.0" ]
+      reason:      "Added in 8.4.0"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  # At this point there isn't a mapping in the index at all. So we can
+  # put the synthetic source mapping and it won't conflict. It's also safe
+  # because the mapping is entirely empty.
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          _source:
+            mode: synthetic
+
+---
+"modify field type with subobjects:false":
+  - requires:
+      cluster_features: [ "mapper.subobjects_false_mapping_update_fix" ]
+      reason: requires fix for mapping updates when [subobjects:false] is set
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            subobjects: false
+            properties:
+              user.id:
+                type: long
+              user.name:
+                type: text
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            user.id:
+              type: keyword
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "mapper [user.id] cannot be changed from type [long] to [keyword]" }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            user.name:
+              type: text
+              fields:
+                raw:
+                  type: keyword
+
+  - is_true: acknowledged
+
+
+---
+"modify nested field type with subobjects:false":
+  - requires:
+      cluster_features: [ "mapper.subobjects_false_mapping_update_fix" ]
+      reason: requires fix for mapping updates when [subobjects:false] is set
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              path:
+                properties:
+                  to:
+                    subobjects: false
+                    properties:
+                      user.id:
+                        type: long
+                      user.name:
+                        type: text
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            path.to.user.id:
+              type: keyword
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "mapper [path.to.user.id] cannot be changed from type [long] to [keyword]" }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            path.to.user.name:
+              type: text
+              fields:
+                raw:
+                  type: keyword
+
+  - is_true: acknowledged

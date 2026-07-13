@@ -1,0 +1,224 @@
+---
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              data:
+                type: long
+              data_d:
+                type: double
+              count:
+                type: long
+              count_d:
+                type: double
+              time:
+                type: long
+              color:
+                type: keyword
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275187, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275188, "color": "blue" }
+
+---
+basic:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [tables_types]
+      reason: "uses LOOKUP"
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | SORT time | KEEP color | LOOKUP colors ON color | LIMIT 2'
+          columnar: true
+          tables:
+            colors:
+              color: { keyword:  ["red", "green", "blue"] }
+              rgb: { integer: [16711680,   65280,    255] }
+
+  - match: {columns.0.name: "color"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "rgb"}
+  - match: {columns.1.type: "integer"}
+  - match: {values.0: ["red", "blue"]}
+  - match: {values.1: [16711680, 255]}
+
+---
+read multivalue keyword:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [tables_types]
+      reason: "uses LOOKUP"
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | SORT time | KEEP color | LOOKUP color_associations ON color | LIMIT 2'
+          columnar: true
+          tables:
+            color_associations:
+              color: {keyword: ["red", "green", "blue"] }
+              association:
+                keyword:
+                  - ["love", "passion", "blood", "happiness"]
+                  - ["nature", "healing", "health", "youth"]
+                  - ["serenity", "wisdom", "ocean", "sky"]
+
+  - match: {columns.0.name: "color"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "association"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0: ["red", "blue"]}
+  - match: {values.1: [["love", "passion", "blood", "happiness"], ["serenity", "wisdom", "ocean", "sky"]]}
+
+---
+keyword matches text:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [tables_types]
+      reason: "uses LOOKUP"
+
+  - do:
+      indices.create:
+        index:  test_text
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              color:
+                type: text
+  - do:
+      bulk:
+        index: test_text
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "red" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test_text | LOOKUP colors ON color | LIMIT 1'
+          columnar: true
+          tables:
+            colors:
+              color: { keyword:   ["red", "green", "blue"] }
+              rgb: { integer:  [16711680,   65280,    255] }
+
+  - match: {columns.0.name: "color"}
+  - match: {columns.0.type: "text"}
+  - match: {columns.1.name: "rgb"}
+  - match: {columns.1.type: "integer"}
+  - match: {values.0: ["red"]}
+  - match: {values.1: [16711680]}
+
+---
+duplicate keys:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [tables_types]
+      reason: "uses LOOKUP"
+
+  - do:
+      # TODO improve this error message
+      catch: /found a duplicate row/
+      esql.query:
+        body:
+          query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
+          columnar: true
+          tables:
+            colors:
+              color: {keyword:  ["red",   "red", "blue"] }
+              rgb: {integer: [16711680,   65280,    255] }
+
+---
+multivalued keys:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [tables_types]
+      reason: "uses LOOKUP"
+
+  - do:
+      # TODO improve this error message
+      catch: /only single valued keys are supported/
+      esql.query:
+        body:
+          query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
+          columnar: true
+          tables:
+            colors:
+              color: { keyword: [["red", "blue"],   "white", "blue"] }
+              rgb: { integer:          [16711680,     65280,    255] }
+
+---
+index named lookup still works:
+  - do:
+      bulk:
+        index: lookup
+        refresh: true
+        body:
+          - { index: { } }
+          - { f: 1 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM lookup | LIMIT 1'
+  - match: { columns.0.name: f }
+  - match: { columns.0.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: 1 }
+
+---
+on function:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [tables_types]
+      reason: "uses LOOKUP"
+
+  - do:
+      catch: "/token recognition error at: '\\('/"
+      esql.query:
+        body:
+          query: 'FROM test | SORT time | KEEP color | LOOKUP colors ON CONCAT(color, "foo") | LIMIT 2'
+          columnar: true
+          tables:
+            colors:
+              color:  { keyword: ["red", "green", "blue"] }
+              rgb: { integer: [16711680,   65280,    255] }

@@ -1,0 +1,21 @@
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
+  javaRestTestImplementation project(':test:test-clusters')
+  javaRestTestImplementation project(":test:framework")
+  javaRestTestImplementation project(':test:fixtures:minio-fixture')
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("to be triaged")
+}
+
+restResources {
+  restApi {
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots'
+  }
+}

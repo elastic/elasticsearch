@@ -1,0 +1,260 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.repositories.azure;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.repositories.azure.AzureStorageService.MAX_CHUNK_SIZE;
+import static org.elasticsearch.repositories.azure.AzureStorageService.MIN_CHUNK_SIZE;
+
+/**
+ * Azure file system implementation of the BlobStoreRepository
+ * <p>
+ * Azure file system repository supports the following settings:
+ * <dl>
+ * <dt>{@code container}</dt><dd>Azure container name. Defaults to elasticsearch-snapshots</dd>
+ * <dt>{@code base_path}</dt><dd>Specifies the path within bucket to repository data. Defaults to root directory.</dd>
+ * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to 64mb.</dd>
+ * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
+ * </dl>
+ */
+public class AzureRepository extends MeteredBlobStoreRepository {
+    private static final Logger logger = LogManager.getLogger(AzureRepository.class);
+
+    public static final String TYPE = "azure";
+
+    public static final class Repository {
+        @Deprecated // Replaced by client
+        public static final Setting<String> ACCOUNT_SETTING = Setting.simpleString(
+            "account",
+            "default",
+            Property.NodeScope,
+            Property.DeprecatedWarning
+        );
+        public static final Setting<String> CLIENT_NAME = new Setting<>("client", ACCOUNT_SETTING, Function.identity());
+        public static final Setting<String> CONTAINER_SETTING = Setting.simpleString(
+            "container",
+            "elasticsearch-snapshots",
+            Property.NodeScope
+        );
+        public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", Property.NodeScope);
+        public static final Setting<LocationMode> LOCATION_MODE_SETTING = new Setting<>(
+            "location_mode",
+            LocationMode.PRIMARY_ONLY.toString(),
+            s -> LocationMode.valueOf(s.toUpperCase(Locale.ROOT)),
+            Property.NodeScope
+        );
+        public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
+            "chunk_size",
+            MAX_CHUNK_SIZE,
+            MIN_CHUNK_SIZE,
+            MAX_CHUNK_SIZE,
+            Property.NodeScope
+        );
+        public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting(READONLY_SETTING_KEY, false, Property.NodeScope);
+        // see ModelHelper.BLOB_DEFAULT_MAX_SINGLE_UPLOAD_SIZE
+        private static final ByteSizeValue DEFAULT_MAX_SINGLE_UPLOAD_SIZE = ByteSizeValue.of(256, ByteSizeUnit.MB);
+        public static final Setting<ByteSizeValue> MAX_SINGLE_PART_UPLOAD_SIZE_SETTING = Setting.byteSizeSetting(
+            "max_single_part_upload_size",
+            DEFAULT_MAX_SINGLE_UPLOAD_SIZE,
+            Property.NodeScope
+        );
+
+        /**
+         * The batch size for batched delete requests
+         */
+        static final Setting<Integer> DELETION_BATCH_SIZE_SETTING = Setting.intSetting(
+            "delete_objects_max_size",
+            AzureBlobStore.MAX_ELEMENTS_PER_BATCH,
+            1,
+            AzureBlobStore.MAX_ELEMENTS_PER_BATCH
+        );
+
+        /**
+         * The maximum number of concurrent batch deletes
+         */
+        static final Setting<Integer> MAX_CONCURRENT_BATCH_DELETES_SETTING = Setting.intSetting("max_concurrent_batch_deletes", 10, 1, 100);
+
+        /**
+         * Duration between each poll for the copy status during a copy operation
+         */
+        static final Setting<TimeValue> COPY_POLL_INTERVAL = Setting.timeSetting(
+            "copy_poll_interval",
+            TimeValue.timeValueSeconds(1),
+            Property.NodeScope
+        );
+
+        /**
+         * Access tier applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_DATA}.
+         */
+        static final Setting<String> DATA_ACCESS_TIER_SETTING = Setting.simpleString("data_access_tier");
+
+        /**
+         * Access tier applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_METADATA}.
+         */
+        static final Setting<String> METADATA_ACCESS_TIER_SETTING = Setting.simpleString("metadata_access_tier");
+    }
+
+    private final ByteSizeValue chunkSize;
+    private final AzureStorageService storageService;
+    private final boolean readonly;
+    private final RepositoriesMetrics repositoriesMetrics;
+    private final String dataAccessTier;
+    private final String metadataAccessTier;
+
+    public AzureRepository(
+        @Nullable final ProjectId projectId,
+        final RepositoryMetadata metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final AzureStorageService storageService,
+        final ClusterService clusterService,
+        final BigArrays bigArrays,
+        final RecoverySettings recoverySettings,
+        final RepositoriesMetrics repositoriesMetrics,
+        final SnapshotMetrics snapshotMetrics
+    ) {
+        super(
+            projectId,
+            metadata,
+            namedXContentRegistry,
+            clusterService,
+            bigArrays,
+            recoverySettings,
+            buildBasePath(metadata),
+            buildLocation(metadata),
+            snapshotMetrics
+        );
+        this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
+        this.storageService = storageService;
+        this.repositoriesMetrics = repositoriesMetrics;
+        this.dataAccessTier = Repository.DATA_ACCESS_TIER_SETTING.get(metadata.settings());
+        this.metadataAccessTier = Repository.METADATA_ACCESS_TIER_SETTING.get(metadata.settings());
+        validateAccessTierIfSpecified(metadata.name(), Repository.DATA_ACCESS_TIER_SETTING.getKey(), this.dataAccessTier);
+        validateAccessTierIfSpecified(metadata.name(), Repository.METADATA_ACCESS_TIER_SETTING.getKey(), this.metadataAccessTier);
+
+        // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
+        // For secondary_only setting, the repository should be read only
+        final LocationMode locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
+        if (Repository.READONLY_SETTING.exists(metadata.settings())) {
+            this.readonly = Repository.READONLY_SETTING.get(metadata.settings());
+        } else {
+            this.readonly = locationMode.isSecondary();
+        }
+    }
+
+    /**
+     * Validates explicit {@link Repository#DATA_ACCESS_TIER_SETTING} / {@link Repository#METADATA_ACCESS_TIER_SETTING} values during
+     * repository construction so misconfiguration surfaces when the repository is registered rather than on first blob store access.
+     */
+    private static void validateAccessTierIfSpecified(String repositoryName, String settingKey, String value) {
+        if (Strings.hasText(value) == false) {
+            return;
+        }
+        try {
+            AzureBlobStore.initAccessTier(value);
+        } catch (BlobStoreException e) {
+            throw new RepositoryException(repositoryName, settingKey + ": " + e.getMessage(), e);
+        }
+    }
+
+    private static BlobPath buildBasePath(RepositoryMetadata metadata) {
+        final String basePath = Strings.trimLeadingCharacter(Repository.BASE_PATH_SETTING.get(metadata.settings()), '/');
+        if (Strings.hasLength(basePath)) {
+            // Remove starting / if any
+            BlobPath path = BlobPath.EMPTY;
+            for (final String elem : basePath.split("/")) {
+                path = path.add(elem);
+            }
+            return path;
+        } else {
+            return BlobPath.EMPTY;
+        }
+    }
+
+    private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
+        return Map.of(
+            "base_path",
+            Repository.BASE_PATH_SETTING.get(metadata.settings()),
+            "container",
+            Repository.CONTAINER_SETTING.get(metadata.settings())
+        );
+    }
+
+    @Override
+    protected BlobStore getBlobStore() {
+        return super.getBlobStore();
+    }
+
+    @Override
+    protected AzureBlobStore createBlobStore() {
+        final AzureBlobStore blobStore = new AzureBlobStore(
+            getProjectId(),
+            metadata,
+            storageService,
+            bigArrays,
+            repositoriesMetrics,
+            dataAccessTier,
+            metadataAccessTier
+        );
+
+        logger.debug(
+            () -> format(
+                "using container [%s], chunk_size [%s], compress [%s], base_path [%s]",
+                blobStore,
+                chunkSize,
+                isCompress(),
+                basePath()
+            )
+        );
+        return blobStore;
+    }
+
+    @Override
+    protected ByteSizeValue chunkSize() {
+        return chunkSize;
+    }
+
+    @Override
+    public boolean isReadOnly() {
+        return readonly;
+    }
+
+    @Override
+    protected Set<String> getExtraUsageFeatures() {
+        return storageService.getExtraUsageFeatures(getProjectId(), Repository.CLIENT_NAME.get(getMetadata().settings()));
+    }
+}

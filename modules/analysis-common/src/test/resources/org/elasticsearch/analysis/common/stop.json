@@ -1,0 +1,18 @@
+{
+    "index":{
+        "number_of_shards":1,
+        "number_of_replicas":0,
+        "analysis":{
+            "analyzer":{
+                "analyzer1":{
+                    "type":"stop",
+                    "stopwords":["_english_"]
+                },
+                "analyzer2":{
+                    "type":"stop",
+                    "stopwords":"_english_"
+                }
+            }
+        }
+    }
+}

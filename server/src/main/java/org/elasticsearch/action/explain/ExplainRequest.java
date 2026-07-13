@@ -1,0 +1,218 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.action.explain;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.RetryableSplitAwareRequest;
+import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+/**
+ * Explain request encapsulating the explain query and document identifier to get an explanation for.
+ */
+public class ExplainRequest extends SingleShardRequest<ExplainRequest> implements ToXContentObject, RetryableSplitAwareRequest {
+    private static final TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("explain_split_shard_count_summary");
+    public static final TransportVersion EXPLAIN_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName("explain_slice_routing_state");
+
+    private static final ParseField QUERY_FIELD = new ParseField("query");
+
+    private String id;
+    private String routing;
+    private boolean routingFromSlice;
+    private String preference;
+    private QueryBuilder query;
+    private String[] storedFields;
+    private FetchSourceContext fetchSourceContext;
+
+    private AliasFilter filteringAlias = AliasFilter.EMPTY;
+
+    long nowInMillis;
+    private SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.UNSET;
+
+    public ExplainRequest() {}
+
+    public ExplainRequest(String index, String id) {
+        this.index = index;
+        this.id = id;
+    }
+
+    ExplainRequest(StreamInput in) throws IOException {
+        super(in);
+        id = in.readString();
+        routing = in.readOptionalString();
+        preference = in.readOptionalString();
+        query = in.readNamedWriteable(QueryBuilder.class);
+        filteringAlias = AliasFilter.readFrom(in);
+        storedFields = in.readOptionalStringArray();
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
+        nowInMillis = in.readVLong();
+        if (in.getTransportVersion().supports(EXPLAIN_SLICE_ROUTING_STATE_VERSION)) {
+            routingFromSlice = in.readBoolean();
+        } else {
+            routingFromSlice = false;
+        }
+        if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            this.splitShardCountSummary = new SplitShardCountSummary(in);
+        }
+    }
+
+    public String id() {
+        return id;
+    }
+
+    public ExplainRequest id(String id) {
+        this.id = id;
+        return this;
+    }
+
+    public String routing() {
+        return routing;
+    }
+
+    public ExplainRequest routing(String routing) {
+        this.routing = routing;
+        return this;
+    }
+
+    public ExplainRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
+    }
+
+    /**
+     * Simple sets the routing. Since the parent is only used to get to the right shard.
+     */
+    public ExplainRequest parent(String parent) {
+        this.routing = parent;
+        return this;
+    }
+
+    public String preference() {
+        return preference;
+    }
+
+    public ExplainRequest preference(String preference) {
+        this.preference = preference;
+        return this;
+    }
+
+    public QueryBuilder query() {
+        return query;
+    }
+
+    public ExplainRequest query(QueryBuilder query) {
+        this.query = query;
+        return this;
+    }
+
+    /**
+     * Allows setting the {@link FetchSourceContext} for this request, controlling if and how _source should be returned.
+     */
+    public ExplainRequest fetchSourceContext(FetchSourceContext context) {
+        this.fetchSourceContext = context;
+        return this;
+    }
+
+    public FetchSourceContext fetchSourceContext() {
+        return fetchSourceContext;
+    }
+
+    public String[] storedFields() {
+        return storedFields;
+    }
+
+    public ExplainRequest storedFields(String[] fields) {
+        this.storedFields = fields;
+        return this;
+    }
+
+    public AliasFilter filteringAlias() {
+        return filteringAlias;
+    }
+
+    public ExplainRequest filteringAlias(AliasFilter filteringAlias) {
+        if (filteringAlias != null) {
+            this.filteringAlias = filteringAlias;
+        }
+
+        return this;
+    }
+
+    public SplitShardCountSummary getSplitShardCountSummary() {
+        return splitShardCountSummary;
+    }
+
+    public void setSplitShardCountSummary(ProjectMetadata projectMetadata, String index) {
+        final var indexMetadata = projectMetadata.index(index);
+        final var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        final var shardId = indexRouting.getShard(id(), routing());
+        this.splitShardCountSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId);
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationException = super.validateNonNullIndex();
+        if (Strings.isEmpty(id)) {
+            validationException = addValidationError("id is missing", validationException);
+        }
+        if (query == null) {
+            validationException = ValidateActions.addValidationError("query is missing", validationException);
+        }
+        return validationException;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(id);
+        out.writeOptionalString(routing);
+        out.writeOptionalString(preference);
+        out.writeNamedWriteable(query);
+        filteringAlias.writeTo(out);
+        out.writeOptionalStringArray(storedFields);
+        out.writeOptionalWriteable(fetchSourceContext);
+        out.writeVLong(nowInMillis);
+        if (out.getTransportVersion().supports(EXPLAIN_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeBoolean(routingFromSlice);
+        }
+        if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            splitShardCountSummary.writeTo(out);
+        }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(QUERY_FIELD.getPreferredName(), query);
+        builder.endObject();
+        return builder;
+    }
+}

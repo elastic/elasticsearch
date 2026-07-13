@@ -1,0 +1,313 @@
+countDistinctOfLong
+from employees | stats l = count_distinct(languages.long);
+
+l:long
+5
+;
+
+countDistinctOfInteger
+from employees | stats l = count_distinct(languages);
+
+l:long
+5
+;
+
+countDistinctOfShort
+// short becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats l = count_distinct(languages.short);
+
+l:long
+5
+;
+
+countDistinctOfByte
+// byte becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats l = count_distinct(languages.byte);
+
+l:long
+5
+;
+
+countDistinctOfDouble
+from employees | stats h = count_distinct(height, 100);
+
+h:long
+54
+;
+
+countDistinctOfFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = count_distinct(height.float);
+
+h:long
+54
+;
+
+countDistinctOfHalfFloat
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = count_distinct(height.half_float);
+
+h:long
+54
+;
+
+countDistinctOfScaledFloat
+required_capability: fix_precision_of_scaled_float_fields
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats h = count_distinct(height.scaled_float);
+
+h:long
+54
+;
+
+countDistinctOfBoolean
+// float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
+from employees | stats c = count_distinct(still_hired);
+
+c:long
+2
+;
+
+countDistinctOfKeywords
+from employees | eval hire_year_str = date_format("yyyy", hire_date) | stats g = count_distinct(gender), h = count_distinct(hire_year_str);
+
+g:long | h:long
+2      | 14
+;
+
+countDistinctOfIp
+// tag::count-distinct[]
+FROM hosts
+| STATS COUNT_DISTINCT(ip0), COUNT_DISTINCT(ip1)
+// end::count-distinct[]
+;
+
+// tag::count-distinct-result[]
+COUNT_DISTINCT(ip0):long | COUNT_DISTINCT(ip1):long
+7                        | 8
+// end::count-distinct-result[]
+;
+
+countDistinctOfIpPrecision
+// tag::count-distinct-precision[]
+FROM hosts
+| STATS COUNT_DISTINCT(ip0, 80000), COUNT_DISTINCT(ip1, 5)
+// end::count-distinct-precision[]
+;
+
+// tag::count-distinct-precision-result[]
+COUNT_DISTINCT(ip0, 80000):long | COUNT_DISTINCT(ip1, 5):long
+7                              | 9
+// end::count-distinct-precision-result[]
+;
+
+countDistinctOfDates
+from employees | eval d = date_trunc(1 year, hire_date) | stats h = count_distinct(d);  
+
+h:long
+14
+;
+
+countDistinctWithGroup
+from employees | stats m = count_distinct(height, 9876) by languages | sort languages;
+
+m:long  | languages:i
+13   | 1
+16   | 2
+14   | 3
+15   | 4
+20   | 5
+10   | null
+;
+
+countDistinctOfIpGroupByKeyword
+from hosts | stats h0 = count_distinct(ip0), h1 = count_distinct(ip1)  by host | sort host;
+
+h0:long | h1:long | host:keyword
+2       | 2       | alpha
+1       | 3       | beta
+5       | 6       | epsilon
+1       | 2       | gamma
+;
+
+countDistinctWithPrecisionExpression
+from employees | stats m = count_distinct(height, 9875+1) by languages | sort languages;
+
+m:long  | languages:i
+13   | 1
+16   | 2
+14   | 3
+15   | 4
+20   | 5
+10   | null
+;
+
+countDistinctWithComplexPrecisionExpression
+from employees | stats m = count_distinct(height, 9876*3+(-9876*2)) by languages | sort languages;
+
+m:long  | languages:i
+13   | 1
+16   | 2
+14   | 3
+15   | 4
+20   | 5
+10   | null
+;
+
+docsCountDistinctWithExpression
+// tag::docsCountDistinctWithExpression[]
+ROW words="foo;bar;baz;qux;quux;foo"
+| STATS distinct_word_count = COUNT_DISTINCT(SPLIT(words, ";"))
+// end::docsCountDistinctWithExpression[]
+;
+
+// tag::docsCountDistinctWithExpression-result[]
+distinct_word_count:long
+5
+// end::docsCountDistinctWithExpression-result[]
+;
+
+countDistinctWithGroupPrecisionAndNestedExpression
+from employees | stats m = count_distinct(height + 5, 9876) by languages | sort languages;
+
+m:long  | languages:i
+13   | 1
+16   | 2
+14   | 3
+15   | 4
+20   | 5
+10   | null
+;
+
+countDistinctOfCaseResult
+FROM employees
+| EVAL foo = CASE(languages > 1, languages)
+| STATS COUNT_DISTINCT(foo);
+
+COUNT_DISTINCT(foo):long
+4
+;
+
+countDistinctOfCaseWithLiteralFalse
+FROM employees
+| EVAL foo = CASE(false, languages)
+| STATS COUNT_DISTINCT(foo);
+
+COUNT_DISTINCT(foo):long
+0
+;
+
+countDistinctOfCaseWithDataNodeFold
+FROM employees, sample_data
+| EVAL foo = CASE(event_duration > 0, languages)
+| STATS COUNT_DISTINCT(foo);
+
+COUNT_DISTINCT(foo):long
+0
+;
+
+countDistinctOfCaseWithConstantKeywordFold
+FROM event_alerts, event_logs
+| EVAL alert_severity = CASE(event_type == "alert", severity)
+| STATS COUNT_DISTINCT(alert_severity);
+
+COUNT_DISTINCT(alert_severity):long
+3
+;
+
+countDistinctOfCaseResultExplicitNull
+FROM employees
+| EVAL foo = CASE(languages > 1, languages, null)
+| STATS COUNT_DISTINCT(foo);
+
+COUNT_DISTINCT(foo):long
+4
+;
+
+countDistinctOfCaseWithLiteralFalseExplicitNull
+FROM employees
+| EVAL foo = CASE(false, languages, null)
+| STATS COUNT_DISTINCT(foo);
+
+COUNT_DISTINCT(foo):long
+0
+;
+
+countDistinctOfCaseWithDataNodeFoldExplicitNull
+FROM employees, sample_data
+| EVAL foo = CASE(event_duration > 0, languages, null)
+| STATS COUNT_DISTINCT(foo);
+
+COUNT_DISTINCT(foo):long
+0
+;
+
+countDistinctOfCaseWithConstantKeywordFoldExplicitNull
+FROM event_alerts, event_logs
+| EVAL alert_severity = CASE(event_type == "alert", severity, null)
+| STATS COUNT_DISTINCT(alert_severity);
+
+COUNT_DISTINCT(alert_severity):long
+3
+;
+
+countDistinctOfEmptyConstantKeyword
+FROM event_empty
+| STATS COUNT_DISTINCT(severity);
+
+COUNT_DISTINCT(severity):long
+0
+;
+
+countDistinctOfCaseFoldableAnd
+FROM event_alerts, event_logs
+| EVAL foo = CASE(event_type == "alert" AND severity > 0, username)
+| STATS COUNT_DISTINCT(foo);
+
+COUNT_DISTINCT(foo):long
+0
+;
+
+countDistinctOfCaseFoldableAndExplicitNull
+FROM event_alerts, event_logs
+| EVAL foo = CASE(event_type == "alert" AND severity > 0, username, null)
+| STATS COUNT_DISTINCT(foo);
+
+COUNT_DISTINCT(foo):long
+0
+;
+
+countDistinctOfCaseNotInCondition
+FROM event_alerts, event_logs
+| EVAL foo = CASE(NOT event_type IN ("login", "other"), username, null)
+| STATS COUNT_DISTINCT(foo);
+
+COUNT_DISTINCT(foo):long
+0
+;
+
+countDistinctOfMultipleCasesWithByExpression
+FROM event_alerts, event_logs
+| EVAL severity_case = CASE(event_type == "alert", severity, null),
+       username_case = CASE(event_type == "login", username, null)
+| STATS COUNT_DISTINCT(severity_case), COUNT_DISTINCT(username_case)
+  BY ts_month = DATE_TRUNC(1 month, @timestamp)
+| SORT ts_month;
+
+COUNT_DISTINCT(severity_case):long | COUNT_DISTINCT(username_case):long | ts_month:datetime
+3                                   | 0                                   | 2024-01-01T00:00:00.000Z
+0                                   | 3                                   | 2024-02-01T00:00:00.000Z
+;
+
+countDistinctOfProductionLikePatternAndNotIn
+FROM event_alerts, event_logs
+| EVAL case1 = CASE(event_type == "alert" AND severity > 0, username, null),
+       case2 = CASE(NOT event_type IN ("alert", "other"), username, null)
+| STATS COUNT_DISTINCT(case1), COUNT_DISTINCT(case2)
+  BY ts_month = DATE_TRUNC(1 month, @timestamp)
+| SORT ts_month;
+
+COUNT_DISTINCT(case1):long | COUNT_DISTINCT(case2):long | ts_month:datetime
+0                           | 0                           | 2024-01-01T00:00:00.000Z
+0                           | 3                           | 2024-02-01T00:00:00.000Z
+;

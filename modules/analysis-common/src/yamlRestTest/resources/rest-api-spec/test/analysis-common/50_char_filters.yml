@@ -1,0 +1,85 @@
+## Smoke tests for char filters included in the analysis-common module
+
+"html_strip":
+    - do:
+        indices.analyze:
+          body:
+            text: <html>test<yyy>foo</yyy></html>
+            tokenizer: keyword
+            char_filter:
+              - type: html_strip
+                escaped_tags: ["xxx", "yyy"]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: "\ntest<yyy>foo</yyy>\n" }
+
+---
+"pattern_replace":
+    - do:
+        indices.analyze:
+          body:
+            text: sample6 sample1
+            tokenizer: keyword
+            char_filter:
+              - type: pattern_replace
+                pattern: sample(.*)
+                replacement: replacedSample $1
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: "replacedSample 6 sample1" }
+
+---
+"pattern_replace error handling (too complex pattern)":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_too_complex_regex_pattern
+        body:
+          settings:
+            index:
+              analysis:
+                analyzer:
+                  my_analyzer:
+                    tokenizer: standard
+                    char_filter:
+                      - my_char_filter
+                char_filter:
+                  my_char_filter:
+                    type: "pattern_replace"
+                    # This pattern intentionally uses special characters designed to throw an error.
+                    # It's expected that the pattern may not render correctly.
+                    pattern: "(\\d+)-(?=\\d\nͭͭͭͭͭͭͭͭͭͭͭͭͭͭͭ"
+                    flags: CASE_INSENSITIVE|MULTILINE|DOTALL|UNICODE_CASE|CANON_EQ
+                    replacement: "_$1"
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Too complex regex pattern" }
+
+---
+"mapping":
+    - do:
+        indices.analyze:
+          body:
+            text: jeff quit phish
+            tokenizer: keyword
+            char_filter:
+              - type: mapping
+                mappings: ["ph => f", "qu => q"]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: "jeff qit fish" }
+
+    - do:
+        indices.analyze:
+          body:
+            text: jeff quit phish
+            explain: true
+            tokenizer: keyword
+            char_filter:
+              - type: mapping
+                mappings: ["ph => f", "qu => q"]
+    - match:  { detail.custom_analyzer: true }
+    - length: { detail.charfilters.0.filtered_text: 1 }
+    - match:  { detail.charfilters.0.filtered_text.0: "jeff qit fish" }
+    - length: { detail.tokenizer.tokens: 1 }
+    - match:  { detail.tokenizer.tokens.0.token: "jeff qit fish" }
+    - match:  { detail.tokenizer.tokens.0.start_offset: 0 }
+    - match:  { detail.tokenizer.tokens.0.end_offset: 15 }
+    - match:  { detail.tokenizer.tokens.0.position: 0 }

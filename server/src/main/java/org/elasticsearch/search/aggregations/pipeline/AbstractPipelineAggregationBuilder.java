@@ -1,0 +1,132 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+package org.elasticsearch.search.aggregations.pipeline;
+
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Objects;
+
+/**
+ * Base implementation of a {@link PipelineAggregationBuilder}.
+ */
+public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPipelineAggregationBuilder<PAB>> extends
+    PipelineAggregationBuilder {
+
+    /**
+     * Field shared by many parsers.
+     */
+    public static final ParseField BUCKETS_PATH_FIELD = new ParseField("buckets_path");
+
+    protected final String type;
+    protected Map<String, Object> metadata;
+
+    protected AbstractPipelineAggregationBuilder(String name, String type, String[] bucketsPaths) {
+        super(name, bucketsPaths);
+        if (type == null) {
+            throw new IllegalArgumentException("[type] must not be null: [" + name + "]");
+        }
+        this.type = type;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected AbstractPipelineAggregationBuilder(StreamInput in, String type) throws IOException {
+        this(in.readString(), type, in.readStringArray());
+        metadata = in.readGenericMap();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeStringArray(bucketsPaths);
+        out.writeGenericMap(metadata);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
+    protected abstract PipelineAggregator createInternal(Map<String, Object> metadata);
+
+    /**
+     * Creates the pipeline aggregator
+     *
+     * @return The created aggregator
+     */
+    @Override
+    public final PipelineAggregator create() {
+        return createInternal(this.metadata);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public PAB setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+        return (PAB) this;
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(getName());
+
+        if (this.metadata != null) {
+            builder.field("meta", this.metadata);
+        }
+        builder.startObject(type);
+
+        if (overrideBucketsPath() == false && bucketsPaths != null) {
+            builder.array(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName(), bucketsPaths);
+        }
+
+        internalXContent(builder, params);
+
+        builder.endObject();
+
+        return builder.endObject();
+    }
+
+    /**
+     * @return <code>true</code> if the {@link AbstractPipelineAggregationBuilder}
+     *         overrides the XContent rendering of the bucketPath option.
+     */
+    protected boolean overrideBucketsPath() {
+        return false;
+    }
+
+    protected abstract XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException;
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(Arrays.hashCode(bucketsPaths), metadata, name, type);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        AbstractPipelineAggregationBuilder<PAB> other = (AbstractPipelineAggregationBuilder<PAB>) obj;
+        return Objects.equals(type, other.type)
+            && Objects.equals(name, other.name)
+            && Objects.equals(metadata, other.metadata)
+            && Objects.deepEquals(bucketsPaths, other.bucketsPaths);
+    }
+
+    @Override
+    public String getType() {
+        return type;
+    }
+}

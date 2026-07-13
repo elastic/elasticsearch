@@ -1,0 +1,295 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.common.io.stream;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
+
+import java.io.IOException;
+import java.util.Objects;
+
+import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
+
+public class DelayableWriteableTests extends ESTestCase {
+    // NOTE: we don't use AbstractWireSerializingTestCase because we don't implement equals and hashCode.
+    private static class Example implements NamedWriteable {
+        private final String s;
+
+        Example(String s) {
+            this.s = s;
+        }
+
+        Example(StreamInput in) throws IOException {
+            s = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(s);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "example";
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            Example other = (Example) obj;
+            return s.equals(other.s);
+        }
+
+        @Override
+        public int hashCode() {
+            return s.hashCode();
+        }
+    }
+
+    private static class NamedHolder implements Writeable {
+        private final Example e1;
+        private final Example e2;
+
+        NamedHolder(Example e) {
+            this.e1 = e;
+            this.e2 = e;
+        }
+
+        NamedHolder(StreamInput in) throws IOException {
+            e1 = ((DelayableWriteable.Deduplicator) in).deduplicate(in.readNamedWriteable(Example.class));
+            e2 = ((DelayableWriteable.Deduplicator) in).deduplicate(in.readNamedWriteable(Example.class));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeNamedWriteable(e1);
+            out.writeNamedWriteable(e2);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            NamedHolder other = (NamedHolder) obj;
+            return e1.equals(other.e1) && e2.equals(other.e2);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(e1, e2);
+        }
+    }
+
+    private static class SneakOtherSideVersionOnWire implements Writeable {
+        private final TransportVersion version;
+
+        SneakOtherSideVersionOnWire() {
+            version = TransportVersion.current();
+        }
+
+        SneakOtherSideVersionOnWire(StreamInput in) throws IOException {
+            version = TransportVersion.readVersion(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            TransportVersion.writeVersion(out.getTransportVersion(), out);
+        }
+    }
+
+    public void testRoundTripFromReferencing() throws IOException {
+        Example e = new Example(randomAlphaOfLength(5));
+        DelayableWriteable<Example> original = DelayableWriteable.referencing(e);
+        assertFalse(original.isSerialized());
+        roundTripTestCase(original, Example::new);
+    }
+
+    public void testRoundTripFromReferencingWithNamedWriteable() throws IOException {
+        NamedHolder n = new NamedHolder(new Example(randomAlphaOfLength(5)));
+        DelayableWriteable<NamedHolder> original = DelayableWriteable.referencing(n);
+        assertFalse(original.isSerialized());
+        roundTripTestCase(original, NamedHolder::new);
+    }
+
+    public void testRoundTripFromDelayed() throws IOException {
+        Example e = new Example(randomAlphaOfLength(5));
+        DelayableWriteable<Example> original = DelayableWriteable.referencing(e).asSerialized(Example::new, writableRegistry());
+        assertTrue(original.isSerialized());
+        roundTripTestCase(original, Example::new);
+    }
+
+    public void testRoundTripFromDelayedWithNamedWriteable() throws IOException {
+        NamedHolder n = new NamedHolder(new Example(randomAlphaOfLength(5)));
+        DelayableWriteable<NamedHolder> original = DelayableWriteable.referencing(n).asSerialized(NamedHolder::new, writableRegistry());
+        assertTrue(original.isSerialized());
+        roundTripTestCase(original, NamedHolder::new);
+        NamedHolder copy = original.expand();
+        // objects have been deduplicated
+        assertSame(copy.e1, copy.e2);
+    }
+
+    public void testRoundTripFromDelayedFromOldVersion() throws IOException {
+        Example e = new Example(randomAlphaOfLength(5));
+        DelayableWriteable<Example> original = roundTrip(DelayableWriteable.referencing(e), Example::new, randomOldVersion());
+        roundTripTestCase(original, Example::new);
+    }
+
+    public void testRoundTripFromDelayedFromOldVersionWithNamedWriteable() throws IOException {
+        NamedHolder n = new NamedHolder(new Example(randomAlphaOfLength(5)));
+        DelayableWriteable<NamedHolder> original = roundTrip(DelayableWriteable.referencing(n), NamedHolder::new, randomOldVersion());
+        roundTripTestCase(original, NamedHolder::new);
+    }
+
+    public void testSerializesWithRemoteVersion() throws IOException {
+        TransportVersion remoteVersion = TransportVersionUtils.randomCompatibleVersion();
+        DelayableWriteable<SneakOtherSideVersionOnWire> original = DelayableWriteable.referencing(new SneakOtherSideVersionOnWire());
+        assertThat(roundTrip(original, SneakOtherSideVersionOnWire::new, remoteVersion).expand().version, equalTo(remoteVersion));
+    }
+
+    public void testAsSerializedIsNoopOnSerialized() throws IOException {
+        Example e = new Example(randomAlphaOfLength(5));
+        DelayableWriteable<Example> d = DelayableWriteable.referencing(e).asSerialized(Example::new, writableRegistry());
+        assertTrue(d.isSerialized());
+        assertSame(d, d.asSerialized(Example::new, writableRegistry()));
+    }
+
+    /**
+     * {@link DelayableWriteable#compressToBytes} must report pre-compression size via {@link StreamOutput#position()}
+     * on the compressor, and a smaller on-the-wire blob.
+     */
+    public void testCompressToBytes() throws IOException {
+        Example e = new Example("a".repeat(1024));
+        TransportVersion version = TransportVersionUtils.randomVersionSupporting(DelayableWriteable.DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE);
+
+        // Verify the helper returns compressed bytes and the pre-compression size.
+        DelayableWriteable.CompressedBytes compressed = DelayableWriteable.compressToBytes(e, version);
+
+        long expectedUncompressed;
+        try (CountingStreamOutput counting = new CountingStreamOutput()) {
+            counting.setTransportVersion(version);
+            e.writeTo(counting);
+            expectedUncompressed = counting.position();
+        }
+        assertThat(compressed.uncompressedSize(), equalTo(expectedUncompressed));
+        assertThat((long) compressed.bytes().length(), lessThan(compressed.uncompressedSize()));
+
+        try (StreamInput in = CompressorFactory.COMPRESSOR.threadLocalStreamInput(compressed.bytes().streamInput())) {
+            in.setTransportVersion(version);
+            assertThat(new Example(in), equalTo(e));
+        }
+    }
+
+    public void testGetUncompressedSerializedSizeReferencing() throws IOException {
+        Example e = new Example(randomAlphaOfLength(64));
+        DelayableWriteable<Example> referencing = DelayableWriteable.referencing(e);
+        long expected;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            e.writeTo(out);
+            expected = out.size();
+        }
+        assertThat(referencing.getUncompressedSerializedSize(), equalTo(expected));
+    }
+
+    public void testGetUncompressedSerializedSizeSerialized() throws IOException {
+        // Use a long, highly compressible string so the compressed payload is much smaller than the uncompressed one.
+        Example e = new Example("a".repeat(1024));
+        DelayableWriteable<Example> serialized = DelayableWriteable.referencing(e).asSerialized(Example::new, writableRegistry());
+        long expectedUncompressed;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            e.writeTo(out);
+            expectedUncompressed = out.size();
+        }
+        assertThat(serialized.getUncompressedSerializedSize(), equalTo(expectedUncompressed));
+    }
+
+    public void testGetUncompressedSerializedSizeFallsBackOnOlderTransportVersion() throws IOException {
+        Example e = new Example("a".repeat(1024));
+        TransportVersion compressNoSize = randomVersionWithCompressionButNoUncompressedSize();
+        DelayableWriteable<Example> serialized = copyInstance(
+            DelayableWriteable.referencing(e),
+            writableRegistry(),
+            StreamOutput::writeWriteable,
+            in -> DelayableWriteable.delayed(Example::new, in),
+            compressNoSize
+        );
+        assertTrue(serialized.isSerialized());
+        long expectedUncompressed;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(compressNoSize);
+            e.writeTo(out);
+            expectedUncompressed = out.size();
+        }
+        // Falls back to decompress-and-count: the peer didn't transmit the uncompressed length, so the
+        // first call to getUncompressedSerializedSize() drains the decompressor to compute it.
+        assertThat(serialized.getUncompressedSerializedSize(), equalTo(expectedUncompressed));
+        // Subsequent calls hit the cached value.
+        assertThat(serialized.getUncompressedSerializedSize(), equalTo(expectedUncompressed));
+    }
+
+    private <T extends Writeable> void roundTripTestCase(DelayableWriteable<T> original, Writeable.Reader<T> reader) throws IOException {
+        DelayableWriteable<T> roundTripped = roundTrip(original, reader, TransportVersion.current());
+        assertThat(roundTripped.expand(), equalTo(original.expand()));
+    }
+
+    private <T extends Writeable> DelayableWriteable<T> roundTrip(
+        DelayableWriteable<T> original,
+        Writeable.Reader<T> reader,
+        TransportVersion version
+    ) throws IOException {
+        DelayableWriteable<T> delayed = copyInstance(
+            original,
+            writableRegistry(),
+            StreamOutput::writeWriteable,
+            in -> DelayableWriteable.delayed(reader, in),
+            version
+        );
+        assertTrue(delayed.isSerialized());
+
+        DelayableWriteable<T> referencing = copyInstance(
+            original,
+            writableRegistry(),
+            StreamOutput::writeWriteable,
+            in -> DelayableWriteable.referencing(reader, in),
+            version
+        );
+        assertFalse(referencing.isSerialized());
+
+        return randomFrom(delayed, referencing);
+    }
+
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        return new NamedWriteableRegistry(singletonList(new NamedWriteableRegistry.Entry(Example.class, "example", Example::new)));
+    }
+
+    private static TransportVersion randomOldVersion() {
+        return TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
+    }
+
+    private static TransportVersion randomVersionWithCompressionButNoUncompressedSize() {
+        TransportVersion compress = TransportVersion.fromName("compress_delayable_writeable");
+        TransportVersion uncompressedSize = TransportVersion.fromName("delayable_writeable_uncompressed_size");
+        return ESTestCase.randomFrom(
+            TransportVersionUtils.allReleasedVersions()
+                .stream()
+                .filter(v -> v.supports(compress) && v.supports(uncompressedSize) == false)
+                .toList()
+        );
+    }
+}

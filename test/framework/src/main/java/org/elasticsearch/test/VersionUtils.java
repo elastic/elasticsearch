@@ -1,0 +1,120 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.test;
+
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
+import org.elasticsearch.Build;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.VersionId;
+import org.elasticsearch.core.Nullable;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.NavigableSet;
+import java.util.TreeSet;
+
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
+
+/** Utilities for selecting versions in tests */
+public class VersionUtils {
+
+    private static final NavigableSet<Version> ALL_VERSIONS = Collections.unmodifiableNavigableSet(
+        new TreeSet<>(Version.getDeclaredVersions(Version.class))
+    );
+
+    /**
+     * Returns an immutable, sorted list containing all versions, both released and unreleased.
+     */
+    public static NavigableSet<Version> allVersions() {
+        return ALL_VERSIONS;
+    }
+
+    /**
+     * Get the version before {@code version}.
+     */
+    public static Version getPreviousVersion(Version version) {
+        var versions = ALL_VERSIONS.headSet(version, false);
+        if (versions.isEmpty()) {
+            throw new IllegalArgumentException("couldn't find any versions before [" + version + "]");
+        }
+        return versions.getLast();
+    }
+
+    /**
+     * Get the released version before {@link Version#CURRENT}.
+     */
+    public static Version getPreviousVersion() {
+        Version version = getPreviousVersion(Version.CURRENT);
+        assert version.before(Version.CURRENT);
+        return version;
+    }
+
+    /**
+     * Returns the {@link Version} before the {@link Version#CURRENT}
+     * where the minor version is less than the currents minor version.
+     */
+    public static Version getPreviousMinorVersion() {
+        for (Version v : ALL_VERSIONS.descendingSet()) {
+            if (v.minor < Version.CURRENT.minor || v.major < Version.CURRENT.major) {
+                return v;
+            }
+        }
+        throw new IllegalArgumentException("couldn't find any versions of the minor before [" + Build.current().version() + "]");
+    }
+
+    /** Returns the oldest {@link Version} */
+    public static Version getFirstVersion() {
+        return ALL_VERSIONS.getFirst();
+    }
+
+    /** Returns a random {@link Version} from all available versions. */
+    public static Version randomVersion() {
+        return randomFrom(ALL_VERSIONS);
+    }
+
+    /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
+    public static Version randomCompatibleVersion(Version version) {
+        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).toList();
+        return compatible.get(random().nextInt(compatible.size()));
+    }
+
+    /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
+    public static Version randomVersionBetween(@Nullable Version minVersion, @Nullable Version maxVersion) {
+        if (minVersion != null && maxVersion != null && maxVersion.before(minVersion)) {
+            throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
+        }
+
+        NavigableSet<Version> versions = ALL_VERSIONS;
+        if (minVersion != null) {
+            if (versions.contains(minVersion) == false) {
+                throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
+            }
+            versions = versions.tailSet(minVersion, true);
+        }
+        if (maxVersion != null) {
+            if (versions.contains(maxVersion) == false) {
+                throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
+            }
+            versions = versions.headSet(maxVersion, true);
+        }
+
+        return randomFrom(versions);
+    }
+
+    /** Returns the maximum {@link Version} that is compatible with the given version. */
+    public static Version maxCompatibleVersion(Version version) {
+        return ALL_VERSIONS.tailSet(version, true).descendingSet().stream().filter(version::isCompatible).findFirst().orElseThrow();
+    }
+
+    public static <T extends VersionId<T>> T randomFrom(NavigableSet<T> set) {
+        return RandomPicks.randomFrom(random(), set);
+    }
+}

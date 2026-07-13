@@ -1,0 +1,107 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.cluster.metadata;
+
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.equalTo;
+
+public class ManifestTests extends ESTestCase {
+
+    private Manifest copyState(Manifest state, boolean introduceErrors) {
+        long currentTerm = state.currentTerm();
+        long clusterStateVersion = state.clusterStateVersion();
+        long generation = state.globalGeneration();
+        Map<Index, Long> indices = new HashMap<>(state.indexGenerations());
+        if (introduceErrors) {
+            switch (randomInt(3)) {
+                case 0 -> {
+                    currentTerm = randomValueOtherThan(currentTerm, () -> randomNonNegativeLong());
+                }
+                case 1 -> {
+                    clusterStateVersion = randomValueOtherThan(clusterStateVersion, () -> randomNonNegativeLong());
+                }
+                case 2 -> {
+                    generation = randomValueOtherThan(generation, () -> randomNonNegativeLong());
+                }
+                case 3 -> {
+                    switch (randomInt(2)) {
+                        case 0 -> {
+                            indices.remove(randomFrom(indices.keySet()));
+                        }
+                        case 1 -> {
+                            Tuple<Index, Long> indexEntry = randomIndexEntry();
+                            indices.put(indexEntry.v1(), indexEntry.v2());
+                        }
+                        case 2 -> {
+                            Index index = randomFrom(indices.keySet());
+                            indices.compute(index, (i, g) -> randomValueOtherThan(g, () -> randomNonNegativeLong()));
+                        }
+                    }
+                }
+            }
+        }
+        return new Manifest(currentTerm, clusterStateVersion, generation, indices);
+    }
+
+    private Tuple<Index, Long> randomIndexEntry() {
+        final String name = randomAlphaOfLengthBetween(4, 15);
+        final String uuid = UUIDs.randomBase64UUID();
+        final Index index = new Index(name, uuid);
+        final long indexGeneration = randomNonNegativeLong();
+        return Tuple.tuple(index, indexGeneration);
+    }
+
+    private Manifest randomManifest() {
+        long currentTerm = randomNonNegativeLong();
+        long clusterStateVersion = randomNonNegativeLong();
+        long generation = randomNonNegativeLong();
+        Map<Index, Long> indices = new HashMap<>();
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            Tuple<Index, Long> indexEntry = randomIndexEntry();
+            indices.put(indexEntry.v1(), indexEntry.v2());
+        }
+        return new Manifest(currentTerm, clusterStateVersion, generation, indices);
+    }
+
+    public void testEqualsAndHashCode() {
+        checkEqualsAndHashCode(randomManifest(), org -> copyState(org, false), org -> copyState(org, true));
+    }
+
+    public void testXContent() throws IOException {
+        Manifest state = randomManifest();
+
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        Manifest.FORMAT.toXContent(builder, state);
+        builder.endObject();
+        BytesReference bytes = BytesReference.bytes(builder);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
+            assertThat(Manifest.fromXContent(parser), equalTo(state));
+        }
+    }
+
+    public void testEmptyManifest() {
+        assertTrue(Manifest.empty().isEmpty());
+        assertFalse(randomManifest().isEmpty());
+    }
+}

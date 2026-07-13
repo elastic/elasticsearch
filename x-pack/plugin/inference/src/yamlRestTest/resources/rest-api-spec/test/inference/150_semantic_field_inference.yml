@@ -312,8 +312,8 @@ setup:
   # Stored source holds only the reference value, not the data URI
   - match:      { hits.hits.0._source.semantic_field.type: "image" }
   - match:      { hits.hits.0._source.semantic_field.format: "reference" }
-  - match:      { hits.hits.0._source.semantic_field.value: "a cat" }
-  - not_exists: hits.hits.0._source.semantic_field.reference_value
+  - not_exists: hits.hits.0._source.semantic_field.value
+  - match:      { hits.hits.0._source.semantic_field.reference_value: "a cat" }
 
 ---
 "Indexing a list mixing text and reference-value images replaces each image with its own reference":
@@ -384,15 +384,15 @@ setup:
 
   - match:      { hits.hits.0._source.semantic_field.1.type: "image" }
   - match:      { hits.hits.0._source.semantic_field.1.format: "reference" }
-  - match:      { hits.hits.0._source.semantic_field.1.value: "a cat" }
-  - not_exists: hits.hits.0._source.semantic_field.1.reference_value
+  - not_exists: hits.hits.0._source.semantic_field.1.value
+  - match:      { hits.hits.0._source.semantic_field.1.reference_value: "a cat" }
 
   - match:      { hits.hits.0._source.semantic_field.2: "jumps over the lazy dog" }
 
   - match:      { hits.hits.0._source.semantic_field.3.type: "image" }
   - match:      { hits.hits.0._source.semantic_field.3.format: "reference" }
-  - match:      { hits.hits.0._source.semantic_field.3.value: "a dog" }
-  - not_exists: hits.hits.0._source.semantic_field.3.reference_value
+  - not_exists: hits.hits.0._source.semantic_field.3.value
+  - match:      { hits.hits.0._source.semantic_field.3.reference_value: "a dog" }
 
 ---
 "Indexing a reference-value image is rejected when use_reference_values is not enabled":

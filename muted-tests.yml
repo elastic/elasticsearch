@@ -682,9 +682,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats_sparkline.sparklineInInlineStatsByMvField}
   issue: https://github.com/elastic/elasticsearch/issues/153184
-- class: org.elasticsearch.xpack.esql.action.FromDatasetIT
-  method: testColumnarBadDateTokenNullsCellEagerAndDeferred
-  issue: https://github.com/elastic/elasticsearch/issues/153187
 - class: org.elasticsearch.xpack.esql.ccq.AllSupportedFieldsIT
   method: testFetchAll {pref=null mode=logsdb}
   issue: https://github.com/elastic/elasticsearch/issues/153189

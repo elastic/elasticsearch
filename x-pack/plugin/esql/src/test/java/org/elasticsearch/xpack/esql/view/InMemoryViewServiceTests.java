@@ -1086,10 +1086,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalVerifier.INSTANCE.checkPlanConsistency(result, failures, depFailures);
         assertTrue("Expected nested branching-view failure", failures.hasFailures());
         for (Failure failure : failures.failures()) {
-            assertThat(
-                failure.failMessage(),
-                containsString("A pattern that matches a view together with other indices or views cannot be combined with subqueries")
-            );
+            assertThat(failure.failMessage(), containsString("cannot be combined with subqueries"));
         }
     }
 
@@ -1896,13 +1893,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                                 // Each nested ViewUnionAll failure should reference the view that created it.
                                 // The ViewUnionAlls at depths 2..N have view names v_2_1..v_N_1.
                                 for (Failure failure : failures.failures()) {
-                                    assertThat(
-                                        failure.failMessage(),
-                                        containsString(
-                                            "A pattern that matches a view together with other indices or views cannot be combined "
-                                                + "with subqueries"
-                                        )
-                                    );
+                                    assertThat(failure.failMessage(), containsString("cannot be combined with subqueries"));
                                     assertThat(failure.failMessage(), containsString("(in view [v_"));
                                 }
                             } else {

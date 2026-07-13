@@ -42,8 +42,8 @@ import static org.hamcrest.Matchers.equalTo;
  *     <li>Analysis-time rejections: a {@code FROM} pattern that matches <b>both a view and a real index</b> (e.g. the wildcard
  *         {@code airports*} matching the view {@code airports_view} and the index {@code airports}) resolves to a {@code ViewUnionAll}
  *         with a view branch and a concrete-index branch. Combined with a sibling subquery this nests a {@code UnionAll} under the
- *         subquery {@code UnionAll}, which the planner rejects with a message naming the real cause (a pattern matching a view
- *         alongside other sources) rather than the (misleading) generic "Nested subqueries are not supported".
+ *         subquery {@code UnionAll}, which the planner rejects with a message that names the offending pattern and its real cause (a
+ *         pattern or view that expands to multiple sources) rather than the (misleading) generic "Nested subqueries are not supported".
  * </ul>
  */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
@@ -377,10 +377,12 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assumeViewBranchingSupported();
         setupWildcardMatchingViewAndIndices();
         try {
-            VerificationException e = expectThrows(VerificationException.class, () -> run("FROM airports*, (FROM employees)"));
+            VerificationException e = expectThrows(VerificationException.class, () -> run("FROM airports*, (FROM employees)").close());
             assertThat(
                 e.getMessage(),
-                containsString("A pattern that matches a view together with other indices or views cannot be combined with subqueries")
+                containsString(
+                    "a pattern that expands to multiple sources, [FROM airports*, (FROM employees)], cannot be combined with subqueries"
+                )
             );
         } finally {
             deleteViews("airports_view");
@@ -395,10 +397,10 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assumeViewBranchingSupported();
         setupWildcardMatchingViewAndIndices();
         try {
-            VerificationException e = expectThrows(VerificationException.class, () -> run("FROM employees, (FROM airports*)"));
+            VerificationException e = expectThrows(VerificationException.class, () -> run("FROM employees, (FROM airports*)").close());
             assertThat(
                 e.getMessage(),
-                containsString("A pattern that matches a view together with other indices or views cannot be combined with subqueries")
+                containsString("a pattern that expands to multiple sources, [FROM airports*], cannot be combined with subqueries")
             );
         } finally {
             deleteViews("airports_view");
@@ -413,10 +415,13 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assumeViewBranchingSupported();
         setupWildcardMatchingViewAndIndices();
         try {
-            VerificationException e = expectThrows(VerificationException.class, () -> run("FROM (FROM airports*), (FROM employees)"));
+            VerificationException e = expectThrows(
+                VerificationException.class,
+                () -> run("FROM (FROM airports*), (FROM employees)").close()
+            );
             assertThat(
                 e.getMessage(),
-                containsString("A pattern that matches a view together with other indices or views cannot be combined with subqueries")
+                containsString("a pattern that expands to multiple sources, [FROM airports*], cannot be combined with subqueries")
             );
         } finally {
             deleteViews("airports_view");

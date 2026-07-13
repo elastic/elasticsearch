@@ -1337,6 +1337,11 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "MATCH_OPERATOR:query is missing",
         "MAX_OVER_TIME:field is missing",
         "MIN_OVER_TIME:field is missing",
+        // mv_in_range's bounds are literals in the csv-specs (like the comparison operators below), so its
+        // keyword/text parameters are not exercised via flattened-keyword field extraction.
+        "MV_IN_RANGE:field is missing",
+        "MV_IN_RANGE:lower is missing",
+        "MV_IN_RANGE:upper is missing",
         // MV_SORT's order argument is now marked as a CONSTANT hint in the function's docs
         // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
         // check below) and never appears here as missing.

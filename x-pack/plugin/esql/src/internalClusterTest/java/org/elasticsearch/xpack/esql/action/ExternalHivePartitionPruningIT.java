@@ -33,27 +33,27 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Coverage for elastic/elasticsearch#153618: partition pruning never fired on a Hive-partitioned external dataset, so
- * every query full-scanned every partition folder.
+ * Verifies that filtering a Hive-partitioned external dataset on a partition column reads only the matching partition
+ * folders, and returns exactly the matching rows.
  *
- * <p><b>Pruning was dead on every production query.</b> Since #143696 every {@code FROM <dataset>} is wrapped in a
- * {@code FragmentExec}, so the coordinator physical-plan walk ({@code ComputeService.discoverSplits}) never reaches a
- * top-level {@code ExternalSourceExec}; discovery runs on the <em>fragment</em> path
- * ({@code discoverSplitsFromFragments}), which lowered each {@code ExternalRelation} in isolation and dropped the
- * {@code Filter} ancestor — so {@code FileSplitProvider.matchesPartitionFilters} never saw the partition conjunct, on
- * single-node runs as well as distributed ones. Most tests here force distribution
- * ({@code external_distribution=round_robin} across {@code >=2} data nodes) and assert that the external scan ran on a
- * data node, so the fragment path is genuinely exercised rather than a coordinator-local warm-fold; a control
- * ({@link #testCsvYearPrunesUndistributed}) checks pruning still happens without forcing distribution.
+ * <p>A {@code FROM <dataset>} is wrapped in a {@code FragmentExec}, so the coordinator physical-plan walk never reaches
+ * a top-level {@code ExternalSourceExec}; discovery runs on the <em>fragment</em> path
+ * ({@code discoverSplitsFromFragments}), which lowers each {@code ExternalRelation} in isolation and would drop the
+ * {@code Filter} ancestor. {@code SplitDiscoveryPhase.guardedRelations} recovers the partition conjunct before that
+ * lowering so {@code FileSplitProvider.matchesPartitionFilters} can prune. Most tests here force distribution
+ * ({@code external_distribution=round_robin} across {@code >=2} data nodes) and assert the external scan ran on a data
+ * node, so the fragment path is genuinely exercised rather than a coordinator-local warm-fold; a control
+ * ({@link #testCsvYearPrunesUndistributed}) checks pruning without forcing distribution.
  *
- * <p><b>Wiring the filter through is necessary but not sufficient.</b> Once the conjunct reaches the split provider,
- * two latent defects in the matcher become reachable — and both return <em>wrong rows</em>, not merely slow ones:
- * a keyword partition value (a Java {@code String}) compared against an ES|QL literal (a Lucene {@code BytesRef}) never
- * matched, so {@code region == "US"} pruned every file and returned nothing; and a filter over a downstream-generated
- * column that merely shares a partition column's name (an {@code EVAL year = ...} shadowing the path's {@code year})
- * was matched by name, pruning on the path value and silently dropping matching rows. A numeric {@code year/month/day}
- * matrix dodges both, which is why {@link #testCsvKeywordPartitionEqualityPrunes} and
- * {@link #testCsvEvalShadowsPartitionColumnNoWrongPrune} carry the weight here.
+ * <p>Routing the conjunct to the matcher is necessary but not sufficient — the matcher itself has to compare partition
+ * values correctly, and two cases return <em>wrong rows</em> rather than merely slow ones:
+ * a keyword partition value (a Java {@code String}) compared against an ES|QL literal (a Lucene {@code BytesRef}) must
+ * normalize through {@code BytesRefs.toString}, or {@code region == "US"} prunes every file and returns nothing; and a
+ * filter over a downstream-generated column that merely shares a partition column's name (an {@code EVAL year = ...}
+ * shadowing the path's {@code year}) must be bound by {@code NameId}, or it prunes on the path value and silently drops
+ * matching rows. A numeric {@code year/month/day} matrix exercises neither, which is why
+ * {@link #testCsvKeywordPartitionEqualityPrunes} and {@link #testCsvEvalShadowsPartitionColumnNoWrongPrune} carry the
+ * weight here.
  *
  * <p><b>Fixture.</b> A three-dimension Hive tree {@code year=YYYY/month=MM/day=DD/f.<ext>}, over
  * years {@code {2024,2025}} × months {@code {01,06}} × days {@code {01,15}} = <b>8 single-row files</b>. Each file
@@ -63,15 +63,13 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * 3-part spec spans 1.
  *
  * <p><b>Every case is asserted in both directions</b> (see {@link #assertPrune}): the exact surviving rows, against a
- * Java oracle over the fixture — which is what catches a file wrongly pruned away — <em>and</em> {@code files_scanned}
- * from the profile, which is what catches pruning that silently stopped happening. Neither alone is enough: a row count
- * cannot tell a dropped row from a never-matching one, and a file count cannot tell a correct answer from a lucky one.
+ * Java oracle over the fixture — which catches a file wrongly pruned away — <em>and</em> {@code files_scanned} from the
+ * profile, which catches a filter that does not prune when it should. Neither alone is enough: a row count cannot tell a
+ * dropped row from a never-matching one, and a file count cannot tell a correct answer from a lucky one.
  *
- * <p>The cases that expect <em>fewer</em> files than the fixture holds are the ones red on the parent commit, where the
- * count is always the full set. The cases that expect the full count are the opposite kind of guard — they pin that a
- * data-column filter, an un-evaluable {@code OR} arm, or a row-derived column does <em>not</em> prune, and they are
- * green on the parent precisely because nothing pruned there. They earn their place by failing if pruning is ever drawn
- * too wide.
+ * <p>Cases that expect <em>fewer</em> files than the fixture holds assert that pruning fired. Cases that expect the full
+ * count are the opposite guard — they pin that a data-column filter, an un-evaluable {@code OR} arm, or a row-derived
+ * column does <em>not</em> prune, so they fail if pruning is ever drawn too wide.
  */
 public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT {
 
@@ -350,10 +348,9 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
      * <p><b>What this test does and does not prove.</b> It pins the user-visible answer; it does <em>not</em>
      * discriminate {@code SplitDiscoveryPhase}'s seed guard, and passes with that guard removed. {@code LIMIT} is a
      * pipeline breaker, so the fragment ends beneath it and the filter never enters the fragment body that split
-     * discovery walks — the seed cannot leak here today. The guard is defence in depth against that boundary moving
-     * (which is precisely what #143696 did); the unit test {@code testGuardedRelationsDoesNotSeedPastLimit} is what
-     * actually holds it in place. This test is here so that if the boundary ever does move, the wrong answer is caught
-     * at the query level rather than shipped.
+     * discovery walks — the seed cannot leak here today. The guard is defence in depth against that boundary moving;
+     * the unit test {@code testGuardedRelationsDoesNotSeedPastLimit} is what actually holds it in place. This test is
+     * here so that if the boundary ever does move, the wrong answer is caught at the query level rather than shipped.
      */
     public void testFilterAboveLimitMustNotPrune() throws Exception {
         String dataset = registerTree("csv_limit", "csv");
@@ -431,9 +428,7 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
      * files, and the counters survive all the way out to the {@code profile} block of the response body a client
      * actually receives. Every other test here reads the profile as an in-process object, which never exercises the
      * XContent rendering — so a counter that is collected correctly but never serialized would pass all of them.
-     *
-     * <p>Before this fix {@code files_scanned} was always the full file count, so the number a client saw was the
-     * proof that pruning was dead. It is the number asserted here.
+     * {@code files_scanned} in the rendered body is the number a client sees, and it is the number asserted here.
      */
     public void testPruningIsVisibleInRenderedProfileJson() throws Exception {
         String dataset = registerTree("csv_profile_e2e", "csv");
@@ -453,7 +448,7 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
             // The profile a client sees. 4 of the 8 files opened, the other 4 skipped without being read.
             String json = Strings.toString(wrapAsToXContent(response), true, false);
             assertThat(
-                "the rendered profile must show only the 4 matching files were opened — it reported all 8 before this fix",
+                "the rendered profile must show only the 4 matching files were opened",
                 json,
                 containsString("\"files_scanned\" : 4")
             );
@@ -463,8 +458,8 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     // -- Control: the SAME filter must prune without the round_robin pragma forcing distribution --
 
     /**
-     * Not a different code path — since #143696 every {@code FROM <dataset>} goes through the fragment path. This just
-     * drops the {@code round_robin} pragma the other tests use, pinning that pruning does not depend on it.
+     * Not a different code path — every {@code FROM <dataset>} goes through the fragment path. This just drops the
+     * {@code round_robin} pragma the other tests use, pinning that pruning does not depend on it.
      */
     public void testCsvYearPrunesUndistributed() throws Exception {
         String dataset = registerTree("csv_coord", "csv");
@@ -496,7 +491,7 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
      *       independently of ES|QL. This is what catches pruning that drops a file it should have kept: a row-count
      *       check cannot, because a lost row and a never-matching row produce the same number.</li>
      *   <li><b>Files (the optimization).</b> Exactly {@code expectedFilesScanned} of the fixture's {@code totalFiles}
-     *       may be opened. On the parent commit this number is always the full count, whatever the filter says.</li>
+     *       may be opened — the filter must narrow the scan to the matching partitions.</li>
      * </ul>
      *
      * <p>Both are asserted on <b>both plan shapes</b>: the projection path ({@code KEEP id | SORT id}) and the aggregate
@@ -532,8 +527,7 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
      */
     private List<List<Object>> runPruned(String dataset, String tail, int totalFiles, int expectedFilesScanned) {
         // round_robin distributes every surviving split to a data node regardless of plan shape, so the read lowers
-        // through a FragmentExec and split discovery runs on the fragment path (discoverSplitsFromFragments) — the
-        // #153618-buggy path.
+        // through a FragmentExec and split discovery runs on the fragment path (discoverSplitsFromFragments).
         QueryPragmas pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build());
 
         String query = "FROM " + dataset + " | " + tail;

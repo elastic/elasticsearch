@@ -83,6 +83,11 @@ public final class PartitionFilterHintExtractor {
         // it. `FROM ds | FORK (WHERE year == 2025) (WHERE ...)` reaches the same relation twice; letting one branch's
         // hint narrow the shared listing would starve the other. An unguarded occurrence contributes no hints and so
         // vetoes the rewrite outright.
+        //
+        // The intersection is by exact hint equality (column, operator, values), so it keeps only hints two branches
+        // spell identically. It does not reason about subsumption: `year == 2025` in one branch and `year >= 2020` in
+        // another share no common hint even though the first implies the second, so the rewrite is skipped and the full
+        // set is listed. That is conservative — correct, only wider — and semantic subsumption is left as a follow-up.
         Map<String, List<PartitionFilterHint>> result = new LinkedHashMap<>();
         perOccurrence.forEach((path, occurrences) -> {
             List<PartitionFilterHint> common = new ArrayList<>(occurrences.get(0));

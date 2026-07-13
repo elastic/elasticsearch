@@ -45,15 +45,16 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.split
  * <p><b>Two trees, one rule.</b> Which filters guard a given {@link ExternalSourceExec} is decided here for both shapes
  * the relation can arrive in: the physical plan (walked by {@code resolveRecursive}, collecting {@link FilterExec}) and
  * a fragment's logical plan (walked by {@link #guardedRelations}, collecting {@link Filter}). Both exist because a
- * {@code FROM <dataset>} lowers through a {@code FragmentExec} whose body is still a {@link LogicalPlan}; they are kept
- * adjacent so the rule cannot drift apart between them, which is exactly how partition pruning silently died in
- * #143696 — the fragment path was added without the filter ever being re-threaded.
+ * {@code FROM <dataset>} lowers through a {@code FragmentExec} whose body is still a {@link LogicalPlan}. Keeping the two
+ * walks adjacent, sharing one rule, is what stops them drifting apart: a filter recovered on one path and not the other
+ * would prune inconsistently, and on the fragment path the relation arrives stripped of the {@code Filter} that stood
+ * above it, so the conjuncts have to be recovered here or the matcher never sees the predicate at all.
  *
  * <p>This decides which files are <em>read</em>. It is not the only place a partition filter is consulted:
- * {@link PartitionFilterHintExtractor} runs far earlier, pre-resolution, and lets {@code GlobExpander} skip
- * <em>listing</em> whole folders. Nothing here can compensate for a file that was never listed, so both layers obey the
- * rules in {@link PartitionPruningRule} — with the pre-resolution layer held to a stricter one, since it has only names
- * to go on where this side binds by {@code NameId}.
+ * {@link PartitionFilterHintExtractor} runs earlier, pre-resolution, and lets {@code GlobExpander} skip <em>listing</em>
+ * whole folders. Nothing here can compensate for a file that was never listed, so both layers obey the rules in
+ * {@link PartitionPruningRule} — the pre-resolution layer held to a stricter one, since it has only names to go on where
+ * this side binds by {@code NameId}.
  */
 public final class SplitDiscoveryPhase {
 
@@ -77,8 +78,8 @@ public final class SplitDiscoveryPhase {
      * <p>Split discovery lowers each relation to a standalone {@link ExternalSourceExec} via
      * {@code ExternalRelation.toPhysicalExec()}, which drops the surrounding plan — and with it the {@code Filter} that
      * was sitting above the relation. Recovering the conjuncts here, before that lowering, is what lets partition
-     * pruning see the predicate at all; without it {@code FileSplitProvider.matchesPartitionFilters} runs on an empty
-     * filter set and every partition folder is read (elastic/elasticsearch#153618).
+     * pruning see the predicate at all; without them {@code FileSplitProvider.matchesPartitionFilters} runs on an empty
+     * filter set and every partition folder is read.
      *
      * <p>The conjuncts are <em>candidates</em>, not commands: {@link #resolveExternalSource} binds each one to the
      * relation's own output by {@code NameId} before it may prune, so a filter over a downstream-generated column that
@@ -174,11 +175,10 @@ public final class SplitDiscoveryPhase {
      * walk with {@code seedFilters} — conjuncts that guard this sub-plan from <em>above</em> and so cannot be recovered
      * from the tree itself, as produced by {@link #guardedRelations}.
      *
-     * <p>Needed because since #143696 every {@code FROM <dataset>} is wrapped in a {@code FragmentExec}: the coordinator
-     * physical-plan walk never reaches a top-level {@link ExternalSourceExec}, discovery runs on the fragment path, and
-     * the relation arrives there stripped of its {@code Filter} ancestor. Without the seed, partition pruning was dead
-     * on <em>every</em> production query — single-node included, not only distributed ones
-     * (elastic/elasticsearch#153618).
+     * <p>Needed because every {@code FROM <dataset>} is wrapped in a {@code FragmentExec}: the coordinator physical-plan
+     * walk never reaches a top-level {@link ExternalSourceExec}, discovery runs on the fragment path, and the relation
+     * arrives there stripped of its {@code Filter} ancestor. Without the seed, partition pruning would not fire on any
+     * production query — single-node included, not only distributed ones.
      *
      * <p>The seed is not blindly trusted: {@link #resolveExternalSource} binds each conjunct to the relation's output by
      * {@link NameId} before it may prune, so a filter over a downstream-generated column that merely shares a partition
@@ -269,7 +269,7 @@ public final class SplitDiscoveryPhase {
         // `PushDownAndCombineFilters` may leave above the generating node and thus in ancestorFilters. Pruning by the
         // path partition value for such a row-derived column produces silently wrong answers. Keeping only conjuncts
         // whose every attribute reference resolves by id into exec.output() drops those shadowing filters; the split
-        // provider's per-file matcher then sees only genuine partition/data-column predicates. See #153618.
+        // provider's per-file matcher then sees only genuine partition/data-column predicates.
         List<Expression> boundFilters = filtersBoundToOutput(ancestorFilters, exec.output());
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(

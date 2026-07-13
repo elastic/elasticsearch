@@ -95,9 +95,9 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     }
 
     /**
-     * The fragment path's seed derivation (#153618). A {@code Filter} above an {@code ExternalRelation} inside a
-     * fragment must be recovered as that relation's pruning seed — this is the step whose absence made partition
-     * pruning dead on every query, because lowering the relation to an {@code ExternalSourceExec} discards the
+     * The fragment path's seed derivation. A {@code Filter} above an {@code ExternalRelation} inside a fragment must be
+     * recovered as that relation's pruning seed — without this step there is no pruning at all, because lowering the
+     * relation to an {@code ExternalSourceExec} discards the
      * {@code Filter} that stood above it.
      */
     public void testGuardedRelationsCollectsFilterAncestorsInFragment() {
@@ -238,9 +238,9 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     }
 
     /**
-     * Fragment-path regression (elastic/elasticsearch#153618): when the {@code ExternalSourceExec} is lowered from an
-     * isolated {@code ExternalRelation} — no surviving {@code FilterExec} ancestor — the coordinator must seed the
-     * recursive walk with the fragment's partition-column filter conjuncts, or L1 partition pruning never sees them.
+     * Fragment-path seeding: when the {@code ExternalSourceExec} is lowered from an isolated {@code ExternalRelation}
+     * — no surviving {@code FilterExec} ancestor — the coordinator must seed the recursive walk with the fragment's
+     * partition-column filter conjuncts, or L1 partition pruning never sees them.
      * Asserts the seed overload plumbs {@code seedFilters} through to {@link SplitDiscoveryContext#filterHints()}.
      */
     public void testSeedFiltersReachContextWithoutFilterExec() {
@@ -270,9 +270,9 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
     }
 
     /**
-     * Blocker guard (elastic/elasticsearch#153618): a seed conjunct that references an attribute NOT in the relation's
-     * output — e.g. a downstream {@code EVAL year = ...} that shadows the partition column with a fresh {@code NameId} —
-     * must be dropped before pruning, so the split provider never prunes files by the path partition value for a
+     * Shadowing guard: a seed conjunct that references an attribute NOT in the relation's output — e.g. a downstream
+     * {@code EVAL year = ...} that shadows the partition column with a fresh {@code NameId} — must be dropped before
+     * pruning, so the split provider never prunes files by the path partition value for a
      * row-derived column. Binding is by id, not name: a same-named attribute with a different id is not kept.
      */
     public void testSeedFilterOverShadowingAttributeIsDropped() {

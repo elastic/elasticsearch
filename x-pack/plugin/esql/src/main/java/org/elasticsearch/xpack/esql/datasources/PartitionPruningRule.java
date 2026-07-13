@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
+import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -70,11 +71,25 @@ final class PartitionPruningRule {
 
     /**
      * The physical twin of {@link #rowPreserving(LogicalPlan)} — same rule, other tree. There is no physical
-     * {@code Streaming} marker to lean on, so the row-preserving nodes are named. Note the absence of an order node: a
-     * sort lowers to {@link TopNExec}, which carries a limit and so is cardinality-sensitive.
+     * {@code Streaming} marker to lean on, so the row-preserving execs are named explicitly. Each corresponds to a
+     * {@code Streaming} logical node: {@link FilterExec}, {@link EvalExec}, {@link ProjectExec} (the lowered form of
+     * {@code Keep}/{@code Drop}/{@code Rename}/{@code Insist}), {@link RegexExtractExec} ({@code DISSECT}/{@code GROK}),
+     * and {@link EnrichExec}. An order node is deliberately absent: a sort lowers to {@link TopNExec}, which carries a
+     * limit and so is cardinality-sensitive.
+     *
+     * <p>This is an allowlist rather than a marker interface on purpose. It fails closed — an exec that is not listed
+     * stops the seed, which costs a wider scan but can never invent an answer. A marker would invert that: it would
+     * pressure every new node to be classified, and a node wrongly marked row-preserving is a wrong result. For a
+     * correctness gate the explicit, conservative list is the safer shape. If a new row-preserving exec is added and
+     * not listed here, the only cost is that pruning stops crossing it — a missed optimization, caught by a perf
+     * regression, not by wrong rows.
      */
     static boolean rowPreserving(PhysicalPlan plan) {
-        return plan instanceof FilterExec || plan instanceof EvalExec || plan instanceof ProjectExec || plan instanceof RegexExtractExec;
+        return plan instanceof FilterExec
+            || plan instanceof EvalExec
+            || plan instanceof ProjectExec
+            || plan instanceof RegexExtractExec
+            || plan instanceof EnrichExec;
     }
 
     /**

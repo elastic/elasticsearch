@@ -519,7 +519,7 @@ public class ComputeService {
         plan.forEachDown(FragmentExec.class, fragment -> {
             // Each relation is discovered with the Filter conjuncts that guard it inside the fragment. Lowering a
             // relation to a standalone ExternalSourceExec drops the surrounding plan, so those conjuncts have to be
-            // recovered before the lowering or partition pruning never sees the predicate at all (#153618).
+            // recovered before the lowering or partition pruning never sees the predicate at all.
             for (SplitDiscoveryPhase.GuardedRelation guarded : SplitDiscoveryPhase.guardedRelations(fragment.fragment())) {
                 SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
                     guarded.relation().toPhysicalExec(),

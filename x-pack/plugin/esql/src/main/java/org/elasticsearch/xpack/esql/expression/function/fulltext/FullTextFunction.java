@@ -679,16 +679,23 @@ public abstract class FullTextFunction extends Function
     }
 
     /**
-     * Whether {@code field} originates - possibly through one or more {@code RENAME}/{@code Project} aliases or a
-     * {@code MV_EXPAND} - from an output attribute of an {@link ExternalRelation} in {@code plan}, i.e. the field is
-     * backed by a federated (non-Lucene) data source rather than a genuinely unmapped/computed expression on a real
-     * index. Matches by attribute identity ({@code NameId}), mirroring the alias-chasing {@link #resolveToFieldAttribute}
-     * does for real index fields, so a rename to an unrelated name is still tracked back to its origin. The chain
-     * stops (returning {@code false}) as soon as it passes through a genuinely computed expression (e.g. an EVAL),
-     * since that's no longer a direct reference to the federated field - consistent with such fields never resolving
-     * to a {@link FieldAttribute} either. {@code FORK} branches aren't tracked here (their own output only exposes
-     * attributes matchable by name, see {@link #resolveToFieldAttribute}), so a field reached through FORK is
-     * conservatively reported as not federated rather than risking a false positive.
+     * Whether {@code field} originates - possibly through one or more {@code RENAME}/{@code Project} aliases -
+     * from an output attribute of an {@link ExternalRelation} in {@code plan}, i.e. the field is backed by a
+     * federated (non-Lucene) data source rather than a genuinely unmapped/computed expression on a real index.
+     * <p>
+     * This is only reachable for {@link MatchPhrase} and {@link org.elasticsearch.xpack.esql.expression.function.vector.Knn}
+     * - the {@link SingleFieldFullTextFunction}s whose {@link #isRuntimeSearch()} is {@code false}; {@link Match} returns
+     * from {@link #fieldVerifier} before this is ever called.
+     * <p>
+     * Only {@code RENAME}/{@code Project} chains are followed here; {@code MV_EXPAND} and {@code FORK} are deliberately
+     * not chased. For {@code MatchPhrase}/{@code Knn}, both commands are already unconditionally rejected by the
+     * general position check in {@link #checkCommandsBeforeExpression} - neither function overrides
+     * {@link #isRuntimeSearch()}, so no exemption applies to either. A query that reaches this method through an
+     * intervening {@code MV_EXPAND} or {@code FORK} is therefore already guaranteed to fail on that unrelated,
+     * always-present error; chasing through them would only cosmetically enrich an already-doomed second message,
+     * never change whether the query is accepted. {@code RENAME} is different: it's allowed to precede these
+     * functions, so it's the only chain that determines whether the sole failure message correctly names the
+     * federation limitation on an otherwise-valid query.
      */
     private static boolean isFieldFromFederatedSource(LogicalPlan plan, Expression field) {
         Expression fieldExpression = field;

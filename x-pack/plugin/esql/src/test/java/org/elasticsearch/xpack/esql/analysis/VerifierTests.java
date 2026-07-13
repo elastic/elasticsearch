@@ -2021,6 +2021,21 @@ public class VerifierTests extends ESTestCase {
             "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match_phrase(title, \"data\")",
             containsString("[MatchPhrase] function cannot be used after FORK")
         );
+        // No KEEP here: unlike the general per-command check above, KQL/QSTR's own stricter allow-list also
+        // rejects Project (i.e. RENAME/KEEP), and since Failure equality is keyed on the failing node - not the
+        // message - that nearer failure would otherwise shadow the FORK one we're asserting on.
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | where kql(\"field_name: Meditation\")",
+            containsString("[KQL] function cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | where qstr(\"field_name: Meditation\")",
+            containsString("[QSTR] function cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep vector | where knn(vector, [1, 2, 3])",
+            containsString("[KNN] function cannot be used after FORK")
+        );
         fullText().stripErrorPrefix(false)
             .error(
                 "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",

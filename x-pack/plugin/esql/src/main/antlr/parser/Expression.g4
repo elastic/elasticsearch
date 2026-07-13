@@ -61,7 +61,7 @@ functionName
 
 functionParam
     : booleanExpression
-    | {this.isDevVersion()}? lambda
+    | lambda
     ;
 
 lambda

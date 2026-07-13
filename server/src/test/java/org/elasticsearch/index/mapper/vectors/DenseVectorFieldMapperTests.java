@@ -1879,6 +1879,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 ElementType.FLOAT
             )
         );
+        // the default similarity function is raw scoring: never apply the NORMALIZE_COSINE optimization
+        assertEquals(VectorSimilarityFunction.COSINE, VectorSimilarity.COSINE.defaultVectorSimilarityFunction());
         assertEquals(
             VectorSimilarityFunction.EUCLIDEAN,
             VectorSimilarity.L2_NORM.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.BYTE)
@@ -1887,6 +1889,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             VectorSimilarityFunction.EUCLIDEAN,
             VectorSimilarity.L2_NORM.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.FLOAT)
         );
+        assertEquals(VectorSimilarityFunction.EUCLIDEAN, VectorSimilarity.L2_NORM.defaultVectorSimilarityFunction());
         assertEquals(
             VectorSimilarityFunction.DOT_PRODUCT,
             VectorSimilarity.DOT_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.BYTE)
@@ -1895,6 +1898,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             VectorSimilarityFunction.DOT_PRODUCT,
             VectorSimilarity.DOT_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.FLOAT)
         );
+        assertEquals(VectorSimilarityFunction.DOT_PRODUCT, VectorSimilarity.DOT_PRODUCT.defaultVectorSimilarityFunction());
+        assertEquals(
+            VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT,
+            VectorSimilarity.MAX_INNER_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.BYTE)
+        );
+        assertEquals(
+            VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT,
+            VectorSimilarity.MAX_INNER_PRODUCT.vectorSimilarityFunction(IndexVersionUtils.randomVersion(), ElementType.FLOAT)
+        );
+        assertEquals(VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT, VectorSimilarity.MAX_INNER_PRODUCT.defaultVectorSimilarityFunction());
     }
 
     @Override

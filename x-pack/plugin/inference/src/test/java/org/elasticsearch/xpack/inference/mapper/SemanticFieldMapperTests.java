@@ -333,6 +333,22 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
         assertSemanticFieldMapper(mapperService, "my_field");
     }
 
+    public void testUseReferenceValuesRoundTrips() throws IOException {
+        var mapperService = createMapperService(mapping(b -> {
+            b.startObject("my_field");
+            b.field("type", SemanticFieldMapper.CONTENT_TYPE);
+            b.field("inference_id", INFERENCE_ID);
+            b.field("use_reference_values", true);
+            b.endObject();
+        }));
+
+        Mapper mapper = mapperService.mappingLookup().getMapper("my_field");
+        assertThat(mapper, instanceOf(SemanticFieldMapper.class));
+        SemanticFieldMapper semanticFieldMapper = (SemanticFieldMapper) mapper;
+        assertTrue(semanticFieldMapper.fieldType().useReferenceValues());
+        assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"use_reference_values\":true"));
+    }
+
     public void testSemanticFieldMappingUpdateNotSupportedOnOldIndices() throws IOException {
         IndexVersion oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SEMANTIC_FIELD_TYPE);
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), oldVersion).build();

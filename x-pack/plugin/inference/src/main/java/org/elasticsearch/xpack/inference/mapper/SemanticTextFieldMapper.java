@@ -318,6 +318,11 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { inferenceId, searchInferenceId, modelSettings, chunkingSettings, indexOptions, meta };
+        }
+
+        @Override
         public String contentType() {
             return CONTENT_TYPE;
         }
@@ -635,6 +640,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 indexOptions,
                 inferenceField,
                 storesOriginalValuesInDocValues,
+                false,
                 meta
             );
             this.useLegacyFormat = useLegacyFormat;

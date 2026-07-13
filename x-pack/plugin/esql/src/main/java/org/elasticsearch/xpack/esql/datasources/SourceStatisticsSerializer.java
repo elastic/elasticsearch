@@ -14,7 +14,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -81,8 +83,15 @@ public final class SourceStatisticsSerializer {
      * fileList sees an empty set there. Every node-agnostic consumer reads partition identity through this
      * method (usually via the {@code partitionColumnNames()} accessor on {@code ExternalSourceExec} /
      * {@code ExternalRelation}), never off the fileList. Returns an empty set when the source is not
-     * partitioned. Every consumer reads the result by membership ({@code contains} / {@code isEmpty}), so the
-     * set is unordered.
+     * partitioned, and otherwise preserves the stamped order (the partition nesting, e.g. {@code region} then
+     * {@code tier}).
+     * <p>
+     * Deliberately a {@link LinkedHashSet} rather than {@code Set.copyOf}: no consumer reads this set by
+     * iteration today (they all use {@code contains} / {@code isEmpty}), but {@code Set.copyOf} randomizes
+     * iteration order <em>per JVM</em>, so a coordinator and a data node would order it differently. The day
+     * these names surface anywhere user-visible — an error message, a plan string, debug output — that would be
+     * nondeterministic and divergent across nodes. Ordering a handful of strings once per plan costs nothing and
+     * removes the failure mode.
      */
     @SuppressWarnings("unchecked")
     public static Set<String> partitionColumnNames(Map<String, Object> sourceMetadata) {
@@ -91,8 +100,8 @@ public final class SourceStatisticsSerializer {
         }
         Object names = sourceMetadata.get(PARTITION_COLUMNS_KEY);
         if (names instanceof Collection<?> collection) {
-            // The stamp is written as List.copyOf(names), which rejects nulls, so copyOf cannot NPE here.
-            return Set.copyOf((Collection<String>) collection);
+            // The stamp is written as List.copyOf(names), which rejects nulls, so the copy cannot NPE here.
+            return Collections.unmodifiableSet(new LinkedHashSet<>((Collection<String>) collection));
         }
         return Set.of();
     }

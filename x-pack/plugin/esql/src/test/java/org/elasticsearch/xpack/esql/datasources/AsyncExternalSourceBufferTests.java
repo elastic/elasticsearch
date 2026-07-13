@@ -503,6 +503,8 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
             "a cancelled read must surface as TaskCancelledException, got " + thrown.get(),
             thrown.get() instanceof TaskCancelledException
         );
+        producer.join(TimeUnit.SECONDS.toMillis(10));
+        assertFalse("the producer thread must have exited", producer.isAlive());
     }
 
     /**
@@ -542,5 +544,7 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
 
         assertTrue("the read completes its own backoff under STOP", done.await(10, TimeUnit.SECONDS));
         assertNull("STOP must not surface the read as a cancellation failure", thrown.get());
+        producer.join(TimeUnit.SECONDS.toMillis(10));
+        assertFalse("the producer thread must have exited", producer.isAlive());
     }
 }

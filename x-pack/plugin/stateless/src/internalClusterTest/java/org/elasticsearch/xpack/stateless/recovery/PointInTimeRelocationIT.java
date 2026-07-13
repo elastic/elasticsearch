@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
@@ -57,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -80,6 +82,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction.START_HANDOFF_ACTION_NAME;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -185,6 +188,181 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         .put(disableIndexingDiskAndMemoryControllersNodeSettings())
         .build();
 
+    /**
+     * Verifies that PIT contexts opened against an unflushed index state (where the backing
+     * BCC has not been uploaded to the object store) are correctly relocated to a new search node.
+     * Multiple refreshes open PITs at different VBCC positions, and updates/deletes are interleaved
+     * to exercise tombstone and version-conflict handling during relocation.
+     */
+    public void testPointInTimeRelocationPitOnUnflushedIndexState() throws Exception {
+        assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
+
+        var testNodeSettings = Settings.builder().put(nodeSettings).put(STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1)).build();
+
+        var indexNode = startMasterAndIndexNode(testNodeSettings);
+        var searchNodeA = startSearchNode(testNodeSettings);
+
+        var indexName = randomIdentifier();
+        int numberOfShards = 6;
+        createIndex(indexName, indexSettings(numberOfShards, 1).build());
+        ensureGreen(indexName);
+
+        var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+
+        record PitSnapshot(BytesReference pitId, int expectedDocs, int expectedUpdatedDocs) {}
+        List<PitSnapshot> pits = new ArrayList<>();
+        List<String> allDocIds = new ArrayList<>();
+        Set<String> updatedDocIds = new HashSet<>();
+        AtomicInteger currentDocCount = new AtomicInteger(0);
+
+        // Runs an index-only round: indexes new docs, refreshes, opens a PIT
+        Runnable indexOnlyRound = () -> {
+            int newDocs = randomIntBetween(10, 50);
+            var bulk = indexDocs(indexName, newDocs);
+            allDocIds.addAll(Arrays.stream(bulk.getItems()).map(BulkItemResponse::getId).toList());
+            refresh(indexName);
+            int totalDocs = currentDocCount.addAndGet(newDocs);
+
+            var vbcc = commitService.getCurrentVirtualBcc(shardId);
+            awaitUntilSearchNodeGetsCommit(indexName, vbcc.getMaxGeneration());
+            var pitId = openPointInTime(indexName, TimeValue.timeValueMinutes(5)).getPointInTimeId();
+            pits.add(new PitSnapshot(pitId, totalDocs, updatedDocIds.size()));
+        };
+
+        // Runs a mutating round: updates + deletes + new docs, refreshes, opens a PIT
+        Runnable mutatingRound = () -> {
+            int updateCount = randomIntBetween(1, Math.max(1, allDocIds.size() / 4));
+            List<String> idsToUpdate = randomSubsetOf(updateCount, allDocIds);
+            var updateBulk = client().prepareBulk();
+            for (String id : idsToUpdate) {
+                updateBulk.add(client().prepareIndex(indexName).setId(id).setSource(Map.of("value", "updated")));
+            }
+            assertNoFailures(updateBulk.get());
+            updatedDocIds.addAll(idsToUpdate);
+
+            List<String> deleteCandidates = new ArrayList<>(allDocIds);
+            deleteCandidates.removeAll(idsToUpdate);
+            int deleteCount = randomIntBetween(1, Math.max(1, deleteCandidates.size() / 4));
+            List<String> idsToDelete = randomSubsetOf(deleteCount, deleteCandidates);
+            var deleteBulk = client().prepareBulk();
+            for (String id : idsToDelete) {
+                deleteBulk.add(client().prepareDelete(indexName, id));
+            }
+            assertNoFailures(deleteBulk.get());
+            allDocIds.removeAll(idsToDelete);
+            updatedDocIds.removeAll(idsToDelete);
+            currentDocCount.addAndGet(-idsToDelete.size());
+
+            int newDocs = randomIntBetween(1, 50);
+            var bulk = indexDocs(indexName, newDocs);
+            allDocIds.addAll(Arrays.stream(bulk.getItems()).map(BulkItemResponse::getId).toList());
+            refresh(indexName);
+            int totalDocs = currentDocCount.addAndGet(newDocs);
+
+            var vbcc = commitService.getCurrentVirtualBcc(shardId);
+            awaitUntilSearchNodeGetsCommit(indexName, vbcc.getMaxGeneration());
+            var pitId = openPointInTime(indexName, TimeValue.timeValueMinutes(5)).getPointInTimeId();
+            pits.add(new PitSnapshot(pitId, totalDocs, updatedDocIds.size()));
+        };
+
+        // always run at least one indexing-only and mutation round first
+        indexOnlyRound.run();
+        mutatingRound.run();
+        int numberOfRounds = randomIntBetween(0, 10);
+        for (int i = 0; i < numberOfRounds; i++) {
+            if (randomBoolean()) {
+                indexOnlyRound.run();
+            } else {
+                mutatingRound.run();
+            }
+        }
+
+        int totalPits = pits.size();
+        int latestDocCount = pits.getLast().expectedDocs;
+
+        // Verify all PITs before relocation
+        for (int i = 0; i < totalPits; i++) {
+            var pit = pits.get(i);
+            int idx = i;
+            assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pit.pitId)), resp -> {
+                assertThat("pit[" + idx + "] id should not change before relocation", resp.pointInTimeId(), equalTo(pit.pitId));
+                assertHitCount(resp, pit.expectedDocs);
+            });
+            if (pit.expectedUpdatedDocs > 0) {
+                assertResponse(
+                    prepareSearch().setPointInTime(new PointInTimeBuilder(pit.pitId)).setQuery(termQuery("value", "updated")),
+                    resp -> assertHitCount(resp, pit.expectedUpdatedDocs)
+                );
+            }
+        }
+        assertResponse(prepareSearch(), resp -> { assertHitCount(resp, latestDocCount); });
+
+        // Relocate shards to a new search node
+        var searchNodeB = startSearchNode(testNodeSettings);
+        SearchService searchService1 = internalCluster().getInstance(SearchService.class, searchNodeA);
+        SearchService searchService2 = internalCluster().getInstance(SearchService.class, searchNodeB);
+
+        var startHandOffSent = new CountDownLatch(1);
+        MockTransportService.getInstance(searchNodeB).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(START_HANDOFF_ACTION_NAME)) {
+                startHandOffSent.countDown();
+                assertThat(connection.getNode().getName(), is(equalTo(searchNodeA)));
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA));
+        safeAwait(startHandOffSent);
+        ensureGreen(indexName);
+        assertBusy(
+            () -> { assertEquals("Open contexts after shard relocation.", 0, searchService1.getActivePITContexts()); },
+            15,
+            TimeUnit.SECONDS
+        );
+
+        internalCluster().stopNode(searchNodeA);
+        logger.info("Search node " + searchNodeA + " stopped.");
+        assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeA)));
+        assertThat(internalCluster().nodesInclude(indexName), hasItem(searchNodeB));
+
+        assertBusy(
+            () -> assertEquals(
+                "Expected all PIT contexts to be relocated.",
+                totalPits * numberOfShards,
+                searchService2.getActivePITContexts()
+            ),
+            15,
+            TimeUnit.SECONDS
+        );
+
+        // Regular search should still work
+        assertResponse(prepareSearch(), resp -> { assertHitCount(resp, latestDocCount); });
+
+        // PIT searches should still work after relocation
+        List<BytesReference> updatedPitIds = new ArrayList<>();
+        for (int i = 0; i < totalPits; i++) {
+            var pit = pits.get(i);
+            int idx = i;
+            assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pit.pitId)), resp -> {
+                assertFalse("pit[" + idx + "] should have changed after relocation.", isEquivalentId(resp.pointInTimeId(), pit.pitId));
+                assertHitCount(resp, pit.expectedDocs);
+                updatedPitIds.add(resp.pointInTimeId());
+            });
+            if (pit.expectedUpdatedDocs > 0) {
+                var relocatedPitId = updatedPitIds.getLast();
+                assertResponse(
+                    prepareSearch().setPointInTime(new PointInTimeBuilder(relocatedPitId)).setQuery(termQuery("value", "updated")),
+                    resp -> assertHitCount(resp, pit.expectedUpdatedDocs)
+                );
+            }
+        }
+
+        for (BytesReference updatedPitId : updatedPitIds) {
+            assertClosePit(updatedPitId, numberOfShards);
+        }
+    }
+
     public void testPointInTimeRelocation() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);
@@ -241,11 +419,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeCurrent));
         safeAwait(startHandOffSent);
         ensureGreen(indexName);
-        assertBusy(
-            () -> { assertEquals("Open contexts after shard relocation.", 0, searchService1.getActivePITContexts()); },
-            5,
-            TimeUnit.SECONDS
-        );
+        waitForNoPITContextOnNode(searchNodeCurrent, 5);
 
         // stop the current search node in some cases, this i.e. checks that we close contexts after relocation and don't leak open contexts
         boolean stopFirstNode = randomBoolean();
@@ -591,10 +765,11 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         ensureGreen(indexName);
         logger.info("Search node " + searchNodeCurrent + " excluded.");
 
-        safeSleep(new TimeValue(2, TimeUnit.SECONDS));
-        // PIT id should have changed at some point, and all contexts on the source node should be closed
-        assertEquals("Open contexts on node " + searchNodeCurrent + ".", 0L, searchService1.getActivePITContexts());
-        assertFalse("pit1 should have changed.", isEquivalentId(pitId1.get(), testDataSetup.pitId1));
+        // All contexts on the source node should be closed once the shard has relocated away.
+        waitForNoPITContextOnNode(searchNodeCurrent, 5);
+        // pitId1 is updated asynchronously by the search threads, so it can briefly still hold the
+        // pre-relocation id even after the source node's contexts are gone; retry until it catches up.
+        assertBusy(() -> assertFalse("pit1 should have changed.", isEquivalentId(pitId1.get(), testDataSetup.pitId1)), 5, TimeUnit.SECONDS);
 
         thread1Running.set(false);
         thread2Running.set(false);
@@ -1207,7 +1382,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
      * transferred during shard relocation. Three rounds of indexing with refresh-only (no flush)
      * accumulate three CCs in a single VBCC. Each PIT is matched to its CC entry when building the handoff.
      */
-    public void testPointInTimeRelocationPitPositionsInBcc() {
+    public void testPointInTimeRelocationPitPositionsInBcc() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         // ensure three refresh cycles do not trigger a count-based VBCC upload before relocation
         var nodeSettings = Settings.builder()
@@ -1275,6 +1450,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), hasItem(searchNodeB));
+        waitForNoPITContextOnNode(searchNodeA, 5);
 
         AtomicReference<BytesReference> updatedPitFirst = new AtomicReference<>(pitFirst);
         AtomicReference<BytesReference> updatedPitMiddle = new AtomicReference<>(pitMiddle);
@@ -1284,6 +1460,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitFirst)), resp -> {
             // To account for the marker document
             assertHitCount(resp, numDocsFirst + 1);
+            assertFalse("pit should have changed.", isEquivalentId(resp.pointInTimeId(), pitFirst));
             updatedPitFirst.set(resp.pointInTimeId());
         });
         assertResponse(
@@ -1294,6 +1471,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitMiddle)).setSize(1000), resp -> {
             // To account for the marker documents
             assertHitCount(resp, numDocsFirst + numDocsMiddle + 2);
+            assertFalse("pit should have changed.", isEquivalentId(resp.pointInTimeId(), pitMiddle));
             updatedPitMiddle.set(resp.pointInTimeId());
         });
         assertResponse(
@@ -1305,6 +1483,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitLast)).setSize(1000), resp -> {
             // To account for the marker documents
             assertHitCount(resp, numDocsFirst + numDocsMiddle + numDocsLast + 3);
+            assertFalse("pit should have changed.", isEquivalentId(resp.pointInTimeId(), pitLast));
             updatedPitLast.set(resp.pointInTimeId());
         });
         assertResponse(
@@ -1355,15 +1534,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         // Relocate all shards from searchNodeA to searchNodeB.
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
         ensureGreen(indexName);
-        assertBusy(
-            () -> assertEquals(
-                "Source node should have no active PIT contexts after handoff.",
-                0,
-                internalCluster().getInstance(SearchService.class, searchNodeA).getActivePITContexts()
-            ),
-            5,
-            TimeUnit.SECONDS
-        );
+        waitForNoPITContextOnNode(searchNodeA, 5);
 
         getTelemetryPlugin(searchNodeA).collect();
         getTelemetryPlugin(searchNodeB).collect();
@@ -1402,6 +1573,18 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         );
         assertClosePit(updatedPit1.get(), numberOfShards);
         assertClosePit(updatedPit2.get(), numberOfShards);
+    }
+
+    private void waitForNoPITContextOnNode(String searchNodeName, long maxWaitTimeSeconds) throws Exception {
+        assertBusy(
+            () -> assertEquals(
+                "Node " + searchNodeName + " should have no active PIT contexts.",
+                0,
+                internalCluster().getInstance(SearchService.class, searchNodeName).getActivePITContexts()
+            ),
+            maxWaitTimeSeconds,
+            TimeUnit.SECONDS
+        );
     }
 
     private void assertClosePit(BytesReference pitId, int expectedFreedContexts) {

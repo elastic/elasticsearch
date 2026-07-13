@@ -16,12 +16,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingExtractor;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfEncoder;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceBatchEncoder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
@@ -66,11 +67,11 @@ final class BulkBatchEncoders implements Releasable {
     static final int NOT_BATCHABLE = -1;
 
     private static final class IndexState {
-        final EirfEncoder encoder;
+        final SourceBatchEncoder encoder;
         final RoutingExtractor extractor;
         final Map<ShardId, List<PendingAttachment>> pendingByShard = new HashMap<>();
 
-        IndexState(EirfEncoder encoder, RoutingExtractor extractor) {
+        IndexState(SourceBatchEncoder encoder, RoutingExtractor extractor) {
             this.encoder = encoder;
             this.extractor = extractor;
         }
@@ -138,7 +139,7 @@ final class BulkBatchEncoders implements Releasable {
         }
         IndexState state = indexStates.computeIfAbsent(
             concreteIndex,
-            idx -> new IndexState(new EirfEncoder(), indexRouting.newRoutingExtractor())
+            idx -> new IndexState(new EscfEncoder(), indexRouting.newRoutingExtractor())
         );
         if (state.extractor != null) {
             state.extractor.reset();
@@ -190,7 +191,7 @@ final class BulkBatchEncoders implements Releasable {
                     continue;
                 }
                 ShardId shardId = entry.getKey();
-                EirfBatch batch = state.encoder.buildPartition(shardId.getId());
+                SourceBatch batch = state.encoder.buildPartition(shardId.getId());
                 batchesByShard.put(shardId, batch);
                 for (PendingAttachment attachment : pending) {
                     attachment.indexRequest.indexSource().setSourceRow(batch, attachment.rowIndex);

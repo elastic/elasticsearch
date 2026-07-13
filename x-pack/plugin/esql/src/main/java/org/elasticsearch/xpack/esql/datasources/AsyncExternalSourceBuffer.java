@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -62,6 +63,22 @@ public final class AsyncExternalSourceBuffer {
     private volatile Throwable failure = null;
 
     /**
+     * Set when a live producer is cut by a hard stop — i.e. {@link #finish(boolean) finish(true)} performs the
+     * running→finishing transition (task cancel / async DELETE tearing the operator down, or a LIMIT teardown
+     * closing the source while the producer is still reading). Unlike {@link #noMoreInputs}, this is <em>not</em>
+     * set by async STOP ({@code finish(false)}, which keeps buffered pages for a partial response) nor by natural
+     * EOF (where the producer's own {@code finish(false)} wins the transition, so the driver's later
+     * {@code finish(true)} on close no longer transitions). It is consulted as the ambient
+     * {@link StorageRetryCancellation} signal installed around the runtime producer read so an in-flight storage
+     * retry/throttle backoff aborts promptly instead of sleeping through its budget while the query is already
+     * cancelled. See {@link StorageRetryCancellation} for why STOP must not trip this, and for the
+     * degenerate-query case this does <em>not</em> fix: a read wedged in a genuinely uncancellable operation off
+     * the scoped thread (a parallel-parse worker, a native reader) still unwinds only on its own timeout, so the
+     * driver's completion and final resource release wait for it even though the task is already marked cancelled.
+     */
+    private volatile boolean readCancelled = false;
+
+    /**
      * Per-file captured source metadata contributions, populated by the background reader thread as
      * iterators close. Each path's value is a list of flat {@code _stats.*} maps — one per chunk for
      * parallel parsing, one per split for macro-splits, one for whole-file reads. The coordinator
@@ -87,6 +104,21 @@ public final class AsyncExternalSourceBuffer {
      * back into the response — so the warning would be invisible to the client.
      */
     private final Queue<String> pendingWarnings = new ConcurrentLinkedQueue<>();
+
+    /**
+     * Cap on informational warning lines a single query may emit via {@link #recordInformationalWarning}
+     * across every concurrently-parsed segment/chunk. Each {@code SkipWarnings} instance already caps its
+     * own detail count at {@link SkipWarnings#MAX_ADDED_WARNINGS}, but that cap is per reader instance, not
+     * per query — a parallel or macro-split read constructs one instance per chunk/segment, so without a
+     * cap here a single read could add far more than that to {@link #pendingWarnings}, multiplying response
+     * header count by chunk/segment count. The {@code +2} mirrors the 1 summary + 1 overflow line a single
+     * {@code SkipWarnings} instance adds around its own cap.
+     */
+    private static final int MAX_INFORMATIONAL_WARNINGS = SkipWarnings.MAX_ADDED_WARNINGS + 2;
+
+    // Each caller gets a unique count, so exactly one caller ever sees count == MAX_INFORMATIONAL_WARNINGS
+    // and adds the overflow line — no separate overflow flag needed.
+    private final AtomicInteger informationalWarningsAdded = new AtomicInteger();
 
     /**
      * Set when the background reader path drops data under a lenient policy — currently a streaming
@@ -157,12 +189,19 @@ public final class AsyncExternalSourceBuffer {
      * <p>
      * Each {@code SkipWarnings} instance caps its own per-event details at
      * {@code SkipWarnings.MAX_ADDED_WARNINGS} (20), but that cap is per reader instance, not per query:
-     * a parallel or macro-split read constructs one {@code SkipWarnings} per chunk/segment, so a single
-     * read can add well more than 20 entries to {@link #pendingWarnings} here — this queue itself is
-     * unbounded.
+     * a parallel or macro-split read constructs one {@code SkipWarnings} per chunk/segment. This method
+     * applies {@link #MAX_INFORMATIONAL_WARNINGS} as a single cap across every caller so that a read
+     * split into many chunks/segments cannot multiply {@link #pendingWarnings}'s size by chunk/segment
+     * count — otherwise a large enough split count can grow response headers past what the client (or
+     * an intermediate proxy) is willing to accept.
      */
     public void recordInformationalWarning(String warning) {
-        pendingWarnings.add(warning);
+        int count = informationalWarningsAdded.incrementAndGet();
+        if (count < MAX_INFORMATIONAL_WARNINGS) {
+            pendingWarnings.add(warning);
+        } else if (count == MAX_INFORMATIONAL_WARNINGS) {
+            pendingWarnings.add("... further reader warnings suppressed (more than " + (MAX_INFORMATIONAL_WARNINGS - 1) + " recorded)");
+        }
     }
 
     /** Removes and returns the next recorded warning, or {@code null} if none remain. */
@@ -367,6 +406,16 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Mark the buffer as finished. Called when reading is done or an error occurs.
+     * <p>
+     * {@code drainingPages} is honored regardless of whether this call wins the {@code noMoreInputs}
+     * transition: {@link AsyncExternalSourceOperator#close()} always calls {@code finish(true)}, and
+     * by the time a driver closes its operator {@code noMoreInputs} has very often already been set
+     * by the producer's own {@link #onFailure} or an earlier {@code finish(false)} — e.g. the producer
+     * reached natural EOF, or the read failed, before the driver got a chance to drain every page via
+     * {@code getOutput()}/{@link #pollPage()}. Gating {@link #discardPages()} behind the transition
+     * used to skip it entirely in that (common) case, leaking whatever the producer had already
+     * buffered when the driver's close is not preceded by a full drain (e.g. cross-driver task
+     * cancellation cutting this operator before its own poll loop ever ran).
      *
      * @return {@code true} if this call performed the running→finishing transition; {@code false} if the buffer had
      *         already been finished (e.g. producer reached natural EOF, or a concurrent {@code finish}/{@code onFailure}
@@ -375,9 +424,15 @@ public final class AsyncExternalSourceBuffer {
      *         (honestly complete result).
      */
     public boolean finish(boolean drainingPages) {
-        if (noMoreInputs.compareAndSet(false, true) == false) {
-            return false;
+        boolean transitioned = noMoreInputs.compareAndSet(false, true);
+        // A draining finish that actually made the transition is a hard cut of a still-running producer
+        // (cancel / DELETE / LIMIT teardown), never natural EOF (producer's own finish(false) wins first) nor
+        // STOP (drainingPages == false). Only then arm the read-cancellation signal so an in-flight storage
+        // backoff aborts; see the readCancelled javadoc.
+        if (drainingPages && transitioned) {
+            readCancelled = true;
         }
+        // See the javadoc above for why this must not be gated on `transitioned`.
         if (drainingPages) {
             discardPages();
         }
@@ -385,7 +440,7 @@ public final class AsyncExternalSourceBuffer {
         notifyNotFull(); // wake producers so they observe noMoreInputs and exit
         signalCompletionIfDrained();
         assert invariantsHold() : "buffer invariants violated after finish";
-        return true;
+        return transitioned;
     }
 
     /**
@@ -409,6 +464,15 @@ public final class AsyncExternalSourceBuffer {
 
     public boolean noMoreInputs() {
         return noMoreInputs.get();
+    }
+
+    /**
+     * Whether a live producer was hard-cut (see {@link #readCancelled}). Used as the ambient
+     * {@link StorageRetryCancellation} signal around the runtime producer read so a parked storage
+     * retry/throttle backoff aborts on cancel rather than sleeping out its budget.
+     */
+    public boolean readCancelled() {
+        return readCancelled;
     }
 
     public int size() {

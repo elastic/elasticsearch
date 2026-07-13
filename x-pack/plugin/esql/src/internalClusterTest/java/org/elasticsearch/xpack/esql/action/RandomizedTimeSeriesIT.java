@@ -503,24 +503,31 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         assert values.size() >= 2 : "At least two points are required for extrapolation";
 
         double increase = computeCounterIncreaseBetween(values, temporality);
-        long firstTs = values.getFirst().timestamp().toEpochMilli();
-        long lastTs = values.getLast().timestamp().toEpochMilli();
 
-        final long sampleTs = lastTs - firstTs;
-        final double averageSampleInterval = sampleTs * 1.0 / values.size();
-        final double slope = increase / sampleTs;
+        // Use seconds-based double arithmetic to match the production code in
+        // RateDoubleGroupingAggregatorFunction#extrapolateToBoundary, where timestamps are converted
+        // to seconds via epoch_ms / 1000.0. This matters for the gap clamping comparison
+        // (gap > averageSampleInterval * 1.1) which can evaluate differently under double precision.
+        long firstTsMs = values.getFirst().timestamp().toEpochMilli();
+        long lastTsMs = values.getLast().timestamp().toEpochMilli();
+        assert firstTsMs != lastTsMs;
 
-        assert firstTs != lastTs;
+        double firstTsSec = firstTsMs / 1000.0;
+        double lastTsSec = lastTsMs / 1000.0;
+        final double sampleTsSec = lastTsSec - firstTsSec;
+        final double averageSampleInterval = sampleTsSec / values.size();
+        final double slope = increase / sampleTsSec;
 
         long millisInWindow = secondsInWindow * 1000L;
-        long tbucketStart = firstTs / millisInWindow * millisInWindow;
-        long tbucketEnd = tbucketStart + millisInWindow;
+        long tbucketStartMs = firstTsMs / millisInWindow * millisInWindow;
+        double tbucketStartSec = tbucketStartMs / 1000.0;
+        double tbucketEndSec = (tbucketStartMs + millisInWindow) / 1000.0;
 
         double gap;
         if (isLowerBoundary) {
-            gap = firstTs - tbucketStart;
+            gap = firstTsSec - tbucketStartSec;
         } else {
-            gap = tbucketEnd - lastTs;
+            gap = tbucketEndSec - lastTsSec;
         }
         if (gap > 0) {
             if (gap > averageSampleInterval * 1.1) {

@@ -262,7 +262,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
                     prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId())).setQuery(
                         QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(job.getId()))
                     ).setSize(0).setTrackTotalHits(true),
-                    response -> assertThat(response.getHits().getTotalHits().value(), equalTo(0L))
+                    response -> assertThat(response.getHits().getTotalHits().value, equalTo(0L))
                 );
             }, 30, TimeUnit.SECONDS);
 

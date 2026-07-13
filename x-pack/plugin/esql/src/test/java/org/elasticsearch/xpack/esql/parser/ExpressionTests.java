@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -373,6 +374,51 @@ public class ExpressionTests extends ESTestCase {
         );
         assertEqualsIgnoringIds(whereExpression("(invoke((a + b)))"), whereExpression("invoke(a+b)"));
         assertEqualsIgnoringIds(whereExpression("((fn()) + fn(fn()))"), whereExpression("fn() + fn(fn())"));
+    }
+
+    public void testLambdaExpressions() {
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(
+                EMPTY,
+                "invoke",
+                new ArrayList<>(
+                    List.of(
+                        new UnresolvedAttribute(EMPTY, "a"),
+                        new Lambda(EMPTY, List.of(new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "x")))
+                    )
+                )
+            ),
+            whereExpression("invoke(a, x -> x)")
+        );
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(
+                EMPTY,
+                "invoke",
+                new ArrayList<>(
+                    List.of(
+                        new UnresolvedAttribute(EMPTY, "a"),
+                        new Lambda(
+                            EMPTY,
+                            List.of(
+                                new UnresolvedAttribute(EMPTY, "x"),
+                                new UnresolvedAttribute(EMPTY, "y"),
+                                new Add(
+                                    EMPTY,
+                                    new UnresolvedAttribute(EMPTY, "x"),
+                                    new UnresolvedAttribute(EMPTY, "y"),
+                                    ConfigurationAware.CONFIGURATION_MARKER
+                                )
+                            )
+                        )
+                    )
+                )
+            ),
+            whereExpression("invoke(a, (x, y) -> x + y)")
+        );
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(EMPTY, "invoke", new ArrayList<>(List.of(new Lambda(EMPTY, List.of(Literal.TRUE))))),
+            whereExpression("invoke(() -> true)")
+        );
     }
 
     public void testUnquotedIdentifiers() {

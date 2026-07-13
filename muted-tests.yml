@@ -49,10 +49,10 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/142819
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:METRICS}
-  issue: https://github.com/elastic/elasticsearch/issues/143697
+  issue: https://github.com/elastic/elasticsearch/issues/153507
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:METRICS}
-  issue: https://github.com/elastic/elasticsearch/issues/143697
+  issue: https://github.com/elastic/elasticsearch/issues/153507
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testClusterState {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143800

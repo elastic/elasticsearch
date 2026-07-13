@@ -515,7 +515,16 @@ public class EsqlQueryGenerator {
                 if (sampleField == null) sampleField = anyName;
                 yield "sample(" + sampleField + ", " + randomIntBetween(1, 10) + ")";
             }
-            default -> "first(" + anyName + ", " + randomDateField(previousOutput) + ")";
+            default -> {
+                String dateField = randomDateField(previousOutput);
+                if (dateField == null) yield "count(*)";
+                // In a TS pipeline, first(field, datetime) is implicitly converted to FirstOverTime which requires
+                // numeric. Null previousCommands means we're in TimeSeriesStatsGenerator (always TS).
+                boolean isTimeSeries = previousCommands == null || previousCommands.stream().anyMatch(c -> "ts".equals(c.commandName()));
+                String firstField = isTimeSeries ? randomNumericField(previousOutput) : anyName;
+                if (firstField == null) firstField = anyName;
+                yield "first(" + firstField + ", " + dateField + ")";
+            }
         };
     }
 

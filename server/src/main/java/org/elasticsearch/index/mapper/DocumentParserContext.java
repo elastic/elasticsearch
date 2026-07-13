@@ -417,8 +417,7 @@ public abstract class DocumentParserContext {
      * per-field failure column (see {@link OnFailureStoredValues}) and the field is marked ignored, so indexing continues without the
      * value ever reaching the field's own doc values.
      * <p>
-     * {@code IGNORE} only redirects scalar values. {@code START_OBJECT}/{@code START_ARRAY} still throw regardless of
-     * {@code onFailure}, since redirecting one would require consuming the whole structure from the parser.
+     * {@code IGNORE} redirects fields that fail validation to a failure column and proceeds.
      *
      * @return {@code true} if this value was redirected to the failure column and the caller must skip normal parsing (including
      * multi-fields) for it; {@code false} if the caller should parse and index this value normally.
@@ -427,15 +426,6 @@ public abstract class DocumentParserContext {
         throws IOException {
         if (singleValuedFields.add(fieldName)) {
             return false;
-        }
-        XContentParser.Token token = parser().currentToken();
-        if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
-            throw new IllegalArgumentException(
-                "Field ["
-                    + fieldName
-                    + "] is configured with [multi_value=false] and encountered an object or array as its second value,"
-                    + " which is not supported regardless of [on_failure]"
-            );
         }
         if (onFailure == FieldMapper.DocValuesParameter.Values.OnFailure.FAIL) {
             throw new IllegalArgumentException(

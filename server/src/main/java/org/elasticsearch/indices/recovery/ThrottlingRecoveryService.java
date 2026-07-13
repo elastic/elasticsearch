@@ -253,6 +253,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
     @Override
     protected void doStop() {
+        assert isClosed(); // state change happens-before this line: all recoveries are discarded here or rejected during enqueue, no leaks
         final List<PendingRecovery> recoveriesToAbort;
         synchronized (this) {
             recoveriesToAbort = new ArrayList<>(pendingRecoveries);

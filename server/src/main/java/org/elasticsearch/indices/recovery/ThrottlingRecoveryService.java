@@ -197,32 +197,32 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
             if (closed) {
                 return;
             }
-            // This node has left the cluster's data nodes entirely (e.g. it's shutting down)
             if (localNode == null) {
-                cancelledAllocationIds.clear();
-                staleRecoveries.addAll(pendingRecoveries);
-                pendingRecoveries.clear();
-            } else {
-                cancelledAllocationIds.entrySet()
-                    .removeIf((cancellation) -> allocationIdIsOutdated(localNode, cancellation.getValue(), cancellation.getKey()));
-                final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
-                while (it.hasNext()) {
-                    final PendingRecovery pending = it.next();
-                    final RecoveryState recoveryState = pending.recoveryState();
-                    if (allocationIdIsOutdated(localNode, recoveryState.getShardId(), pending.allocationId())) {
-                        it.remove();
-                        staleRecoveries.add(pending);
-                    }
+                assert clusterService.localNode().canContainData() == false
+                    && pendingRecoveries.isEmpty()
+                    && cancelledAllocationIds.isEmpty()
+                    : "this node received the cluster state update so it's either a data node and its RoutingNode "
+                        + "entry must be non-null or it's not a data node and it should not have any recoveries";
+                return;
+            }
+            cancelledAllocationIds.entrySet()
+                .removeIf((cancellation) -> allocationIdIsOutdated(localNode, cancellation.getValue(), cancellation.getKey()));
+            final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
+            while (it.hasNext()) {
+                final PendingRecovery pending = it.next();
+                final RecoveryState recoveryState = pending.recoveryState();
+                if (allocationIdIsOutdated(localNode, recoveryState.getShardId(), pending.allocationId())) {
+                    it.remove();
+                    staleRecoveries.add(pending);
+                    // Note that updating RecoveryStats is not strictly necessary here and just done out of completeness sake +
+                    // easier testing. Indeed, a pending recovery never started, and if its allocation ID has changed or localNode
+                    // became `null`, the old IndexShard object those stats belong to would have already been closed.
+                    pending.stats().targetQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType());
                 }
             }
         }
         for (PendingRecovery stale : staleRecoveries) {
             final RecoveryState state = stale.recoveryState();
-            // Note that updating RecoveryStats is not strictly necessary here and just done out of completeness sake +
-            // easier testing. Indeed, a pending recovery never started, and if its allocation ID has changed or localNode
-            // became `null`, the old IndexShard objects those stats belong would have already been closed.
-            stale.stats().targetQueuedRecoveryDiscarded(stale.recoveryState().getRecoverySource().getType());
-
             // Get off the cluster applier thread. Generic executor has unbounded queue and thread shutdown happens
             // after service close so this runnable should never get rejected.
             logger.debug("cancelling stale queued recovery {}", state);

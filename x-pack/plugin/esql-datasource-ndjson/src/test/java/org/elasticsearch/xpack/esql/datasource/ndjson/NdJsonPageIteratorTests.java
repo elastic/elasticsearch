@@ -1149,6 +1149,74 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 }
             });
             assertThat(e.getMessage(), Matchers.containsString("could not be coerced to type [long]"));
+            // The recovery hint must name the dataset setting, not a query clause: FROM <dataset> has no
+            // WITH options clause, so a user who followed a "in WITH options" hint would get a parse error.
+            assertThat(
+                e.getMessage(),
+                Matchers.containsString("set error_mode=null_field (or skip_row) to null-fill/skip and warn instead of failing")
+            );
+            assertThat(e.getMessage(), Matchers.not(Matchers.containsString("WITH options")));
+        }
+    }
+
+    /**
+     * {@code testDeclaredNumericBadStringFailsUnderStrict} advertises {@code error_mode=null_field} as the recovery.
+     * Honour that advice: the offending cell nulls, its neighbours decode, and the failure surfaces as a warning
+     * rather than vanishing silently.
+     */
+    public void testDeclaredCoercionFailureNullFieldWarnsAndNulls() throws IOException {
+        String ndjson = """
+            {"n": "1"}
+            {"n": "notanumber"}
+            {"n": "3"}
+            """;
+        var object = new BytesStorageObject("file:///bad.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG));
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("n")).batchSize(100).errorPolicy(nullField).readSchema(schema).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock n = page.getBlock(0);
+            assertEquals(1L, n.getLong(n.getFirstValueIndex(0)));
+            assertTrue("the uncoercible token must null its cell", n.isNull(1));
+            assertEquals(3L, n.getLong(n.getFirstValueIndex(2)));
+        }
+        assertFalse("null_field must warn about the coercion failure", drainWarnings().isEmpty());
+    }
+
+    /** A declared {@code double} preserves the non-finite string tokens NaN/Infinity/-Infinity (IEEE passthrough). */
+    public void testDeclaredDoubleNaNInfinityStringTokens() throws IOException {
+        String ndjson = """
+            {"d": "NaN"}
+            {"d": "Infinity"}
+            {"d": "-Infinity"}
+            """;
+        var object = new BytesStorageObject("file:///nf.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "d", DataType.DOUBLE));
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("d"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            var page = iterator.next();
+            DoubleBlock d = page.getBlock(0);
+            assertTrue(Double.isNaN(d.getDouble(0)));
+            assertEquals(Double.POSITIVE_INFINITY, d.getDouble(1), 0.0);
+            assertEquals(Double.NEGATIVE_INFINITY, d.getDouble(2), 0.0);
         }
     }
 

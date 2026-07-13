@@ -1,5 +1,11 @@
 // This test file covers type conflict resolution with unmapped fields, which is similar to union types.
 
+// Some tests below have "- old data node" / "- old coordinator" siblings to prove that auto-casting a two-legged
+// PUNK is decided solely by the coordinating node's own version and even works with 9.4 remote clusters.
+// "METADATA _index" requires required_capability: metadata_fields_remote_test to avoid skipping in MultiClusterSpecIT.
+// EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), ...) normalized the index name in MultiClusterSpecIT,
+// which generally places indices randomly on the remote or local cluster.
+
 ######################################
 # Mapped and unmapped conflict tests #
 ######################################
@@ -28,6 +34,65 @@ ignoreOrder:true
 2024-10-23T13:33:34.937Z     | 173.21.0.5   | 1232381             | 42                     | no_mapping_sample_data
 2024-10-23T12:27:28.948Z     | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | no_mapping_sample_data
 2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
+;
+
+typeConflictWithUnmappedJustFrom - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+;
+ignoreOrder:true
+
+@timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+2023-10-23T13:55:01.543Z     | 172.21.3.15  | 1756467             | Connected to 10.1.0.1  | sample_data
+2023-10-23T13:53:55.832Z     | 172.21.3.15  | 5033755             | Connection error       | sample_data
+2023-10-23T13:52:55.015Z     | 172.21.3.15  | 8268153             | Connection error       | sample_data
+2023-10-23T13:51:54.732Z     | 172.21.3.15  | 725448              | Connection error       | sample_data
+2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | sample_data
+2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | sample_data
+2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | sample_data
+2024-10-23T13:55:01.543Z     | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | no_mapping_sample_data
+2024-10-23T13:51:54.732Z     | 173.21.3.15  | 725447              | Connection error?      | no_mapping_sample_data
+2024-10-23T13:52:55.015Z     | 173.21.3.15  | 8268152             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:53:55.832Z     | 173.21.3.15  | 5033754             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:33:34.937Z     | 173.21.0.5   | 1232381             | 42                     | no_mapping_sample_data
+2024-10-23T12:27:28.948Z     | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | no_mapping_sample_data
+2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
+;
+
+typeConflictWithUnmappedJustFrom - old coordinator
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+;
+ignoreOrder:true
+
+@timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+2023-10-23T13:55:01.543Z     | 172.21.3.15  | 1756467             | Connected to 10.1.0.1  | sample_data
+2023-10-23T13:53:55.832Z     | 172.21.3.15  | 5033755             | Connection error       | sample_data
+2023-10-23T13:52:55.015Z     | 172.21.3.15  | 8268153             | Connection error       | sample_data
+2023-10-23T13:51:54.732Z     | 172.21.3.15  | 725448              | Connection error       | sample_data
+2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | sample_data
+2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | sample_data
+2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | sample_data
+null                         | null         | null                | Connected to 10.1.0.1! | no_mapping_sample_data
+null                         | null         | null                | Connection error?      | no_mapping_sample_data
+null                         | null         | null                | Connection error?      | no_mapping_sample_data
+null                         | null         | null                | Connection error?      | no_mapping_sample_data
+null                         | null         | null                | 42                     | no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.2! | no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.3! | no_mapping_sample_data
 ;
 
 // message is keyword-mapped in sample_data and unmapped in no_mapping_sample_data.
@@ -62,7 +127,6 @@ no_mapping_sample_data  | Connected to 10.1.0.2!  | Connected to 10.1.0.2!
 no_mapping_sample_data  | Connected to 10.1.0.3!  | Connected to 10.1.0.3!
 ;
 
-
 typeConflictWithUnmappedJustKeepWildcard
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
@@ -90,6 +154,66 @@ ignoreOrder:true
 2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
 ;
 
+typeConflictWithUnmappedJustKeepWildcard - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| KEEP *
+;
+ignoreOrder:true
+
+@timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+2023-10-23T13:55:01.543Z     | 172.21.3.15  | 1756467             | Connected to 10.1.0.1  | sample_data
+2023-10-23T13:53:55.832Z     | 172.21.3.15  | 5033755             | Connection error       | sample_data
+2023-10-23T13:52:55.015Z     | 172.21.3.15  | 8268153             | Connection error       | sample_data
+2023-10-23T13:51:54.732Z     | 172.21.3.15  | 725448              | Connection error       | sample_data
+2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | sample_data
+2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | sample_data
+2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | sample_data
+2024-10-23T13:55:01.543Z     | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | no_mapping_sample_data
+2024-10-23T13:51:54.732Z     | 173.21.3.15  | 725447              | Connection error?      | no_mapping_sample_data
+2024-10-23T13:52:55.015Z     | 173.21.3.15  | 8268152             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:53:55.832Z     | 173.21.3.15  | 5033754             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:33:34.937Z     | 173.21.0.5   | 1232381             | 42                     | no_mapping_sample_data
+2024-10-23T12:27:28.948Z     | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | no_mapping_sample_data
+2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
+;
+
+typeConflictWithUnmappedJustKeepWildcard - old coordinator
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| KEEP *
+;
+ignoreOrder:true
+
+@timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+2023-10-23T13:55:01.543Z     | 172.21.3.15  | 1756467             | Connected to 10.1.0.1  | sample_data
+2023-10-23T13:53:55.832Z     | 172.21.3.15  | 5033755             | Connection error       | sample_data
+2023-10-23T13:52:55.015Z     | 172.21.3.15  | 8268153             | Connection error       | sample_data
+2023-10-23T13:51:54.732Z     | 172.21.3.15  | 725448              | Connection error       | sample_data
+2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | sample_data
+2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | sample_data
+2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | sample_data
+null                         | null         | null                | Connected to 10.1.0.1! | no_mapping_sample_data
+null                         | null         | null                | Connection error?      | no_mapping_sample_data
+null                         | null         | null                | Connection error?      | no_mapping_sample_data
+null                         | null         | null                | Connection error?      | no_mapping_sample_data
+null                         | null         | null                | 42                     | no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.2! | no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.3! | no_mapping_sample_data
+;
 
 typeConflictWithUnmappedJustKeepWildcardPrefix
 required_capability: optional_fields_v5
@@ -116,6 +240,67 @@ ignoreOrder:true
 2024-10-23T13:33:34.937Z     | 173.21.0.5   | 1232381             | 42                     | no_mapping_sample_data
 2024-10-23T12:27:28.948Z     | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | no_mapping_sample_data
 2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
+;
+
+typeConflictWithUnmappedJustKeepWildcardPrefix - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| KEEP @t*, cli*, ev*, me*, _in*
+;
+ignoreOrder:true
+
+@timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+2023-10-23T13:55:01.543Z     | 172.21.3.15  | 1756467             | Connected to 10.1.0.1  | sample_data
+2023-10-23T13:53:55.832Z     | 172.21.3.15  | 5033755             | Connection error       | sample_data
+2023-10-23T13:52:55.015Z     | 172.21.3.15  | 8268153             | Connection error       | sample_data
+2023-10-23T13:51:54.732Z     | 172.21.3.15  | 725448              | Connection error       | sample_data
+2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | sample_data
+2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | sample_data
+2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | sample_data
+2024-10-23T13:55:01.543Z     | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | no_mapping_sample_data
+2024-10-23T13:51:54.732Z     | 173.21.3.15  | 725447              | Connection error?      | no_mapping_sample_data
+2024-10-23T13:52:55.015Z     | 173.21.3.15  | 8268152             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:53:55.832Z     | 173.21.3.15  | 5033754             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:33:34.937Z     | 173.21.0.5   | 1232381             | 42                     | no_mapping_sample_data
+2024-10-23T12:27:28.948Z     | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | no_mapping_sample_data
+2024-10-23T12:15:03.360Z     | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
+;
+
+typeConflictWithUnmappedJustKeepWildcardPrefix - old coordinator
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| KEEP @t*, cli*, ev*, me*, _in*
+;
+ignoreOrder:true
+
+@timestamp:date              | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+2023-10-23T13:55:01.543Z     | 172.21.3.15  | 1756467             | Connected to 10.1.0.1  | sample_data
+2023-10-23T13:53:55.832Z     | 172.21.3.15  | 5033755             | Connection error       | sample_data
+2023-10-23T13:52:55.015Z     | 172.21.3.15  | 8268153             | Connection error       | sample_data
+2023-10-23T13:51:54.732Z     | 172.21.3.15  | 725448              | Connection error       | sample_data
+2023-10-23T13:33:34.937Z     | 172.21.0.5   | 1232382             | Disconnected           | sample_data
+2023-10-23T12:27:28.948Z     | 172.21.2.113 | 2764889             | Connected to 10.1.0.2  | sample_data
+2023-10-23T12:15:03.360Z     | 172.21.2.162 | 3450233             | Connected to 10.1.0.3  | sample_data
+null                         | null         | null                | Connected to 10.1.0.1! | no_mapping_sample_data
+null                         | null         | null                | Connection error?      | no_mapping_sample_data
+null                         | null         | null                | Connection error?      | no_mapping_sample_data
+null                         | null         | null                | Connection error?      | no_mapping_sample_data
+null                         | null         | null                | 42                     | no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.2! | no_mapping_sample_data
+null                         | null         | null                | Connected to 10.1.0.3! | no_mapping_sample_data
 ;
 
 noTypeConflictKeywordUnmappedCastToKeyword
@@ -563,6 +748,53 @@ ignoreOrder:true
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | no_mapping_sample_data
 ;
 
+typeConflictPartiallyUnmappedNonKeywordFieldsNotLoadedWithoutExplicitMention - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| SORT _index, message DESC
+| LIMIT 6
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+2024-10-23T13:51:54.732Z | 173.21.3.15  | 725447              | Connection error?      | no_mapping_sample_data
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | no_mapping_sample_data
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | no_mapping_sample_data
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | no_mapping_sample_data
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | no_mapping_sample_data
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | no_mapping_sample_data
+;
+
+typeConflictPartiallyUnmappedNonKeywordFieldsNotLoadedWithoutExplicitMention - old coordinator
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| SORT _index, message DESC
+| LIMIT 6
+;
+ignoreOrder:true
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword        | _index:keyword
+null                     | null         | null                | Connection error?      | no_mapping_sample_data
+null                     | null         | null                | Connection error?      | no_mapping_sample_data
+null                     | null         | null                | Connection error?      | no_mapping_sample_data
+null                     | null         | null                | Connected to 10.1.0.3! | no_mapping_sample_data
+null                     | null         | null                | Connected to 10.1.0.2! | no_mapping_sample_data
+null                     | null         | null                | Connected to 10.1.0.1! | no_mapping_sample_data
+;
+
 // https://github.com/elastic/elasticsearch/issues/141994
 // A partially-mapped keyword field (message, mapped in sample_data but not in no_mapping_sample_data) should be loaded
 // from _source even when not explicitly referenced in a downstream expression like KEEP.
@@ -736,25 +968,86 @@ required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
-| KEEP event_duration
+| KEEP _index, event_duration
 ;
 ignoreOrder:true
 
-event_duration:long
-1756467
-5033755
-8268153
-725448
-1232382
-2764889
-3450233
-725447
-1232381
-1756466
-2764888
-3450232
-5033754
-8268152
+_index:keyword         | event_duration:long
+sample_data            | 1756467
+sample_data            | 5033755
+sample_data            | 8268153
+sample_data            | 725448
+sample_data            | 1232382
+sample_data            | 2764889
+sample_data            | 3450233
+no_mapping_sample_data | 725447
+no_mapping_sample_data | 1232381
+no_mapping_sample_data | 1756466
+no_mapping_sample_data | 2764888
+no_mapping_sample_data | 3450232
+no_mapping_sample_data | 5033754
+no_mapping_sample_data | 8268152
+;
+
+typeConflictPartiallyUnmappedKeywordFieldKept - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| KEEP _index, event_duration
+;
+ignoreOrder:true
+
+_index:keyword         | event_duration:long
+sample_data            | 1756467
+sample_data            | 5033755
+sample_data            | 8268153
+sample_data            | 725448
+sample_data            | 1232382
+sample_data            | 2764889
+sample_data            | 3450233
+no_mapping_sample_data | 725447
+no_mapping_sample_data | 1232381
+no_mapping_sample_data | 1756466
+no_mapping_sample_data | 2764888
+no_mapping_sample_data | 3450232
+no_mapping_sample_data | 5033754
+no_mapping_sample_data | 8268152
+;
+
+typeConflictPartiallyUnmappedKeywordFieldKept - old coordinator
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| KEEP _index, event_duration
+;
+ignoreOrder:true
+
+_index:keyword         | event_duration:long
+sample_data            | 1756467
+sample_data            | 5033755
+sample_data            | 8268153
+sample_data            | 725448
+sample_data            | 1232382
+sample_data            | 2764889
+sample_data            | 3450233
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
+no_mapping_sample_data | null
 ;
 
 ###########################
@@ -763,7 +1056,6 @@ event_duration:long
 
 noTypeConflictKeywordNonExistentNoCast
 required_capability: optional_fields_v5
-required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM sample_data, colors METADATA _index
@@ -2171,6 +2463,67 @@ no_mapping_sample_data | 8268152
 sample_data            | 8268153
 ;
 
+typeConflictLongUnmappedSortWithCastToLong - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| SORT event_duration::long, _index
+| KEEP _index, event_duration
+;
+
+_index:keyword         | event_duration:long
+no_mapping_sample_data | 725447
+sample_data            | 725448
+no_mapping_sample_data | 1232381
+sample_data            | 1232382
+no_mapping_sample_data | 1756466
+sample_data            | 1756467
+no_mapping_sample_data | 2764888
+sample_data            | 2764889
+no_mapping_sample_data | 3450232
+sample_data            | 3450233
+no_mapping_sample_data | 5033754
+sample_data            | 5033755
+no_mapping_sample_data | 8268152
+sample_data            | 8268153
+;
+
+typeConflictLongUnmappedSortWithCastToLong - old coordinator
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| SORT event_duration::long, _index
+| KEEP _index, event_duration
+;
+
+_index:keyword         | event_duration:long
+no_mapping_sample_data | null
+sample_data            | 725448
+no_mapping_sample_data | null
+sample_data            | 1232382
+no_mapping_sample_data | null
+sample_data            | 1756467
+no_mapping_sample_data | null
+sample_data            | 2764889
+no_mapping_sample_data | null
+sample_data            | 3450233
+no_mapping_sample_data | null
+sample_data            | 5033755
+no_mapping_sample_data | null
+sample_data            | 8268153
+;
+
 typeConflictLongUnmappedSortWithCastToKeyword
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
@@ -2195,6 +2548,67 @@ sample_data            | 5033755
 no_mapping_sample_data | 725447
 sample_data            | 725448
 no_mapping_sample_data | 8268152
+sample_data            | 8268153
+;
+
+typeConflictLongUnmappedSortWithCastToKeyword - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| SORT event_duration::keyword, _index
+| KEEP _index, event_duration
+;
+
+_index:keyword         | event_duration:long
+no_mapping_sample_data | 1232381
+sample_data            | 1232382
+no_mapping_sample_data | 1756466
+sample_data            | 1756467
+no_mapping_sample_data | 2764888
+sample_data            | 2764889
+no_mapping_sample_data | 3450232
+sample_data            | 3450233
+no_mapping_sample_data | 5033754
+sample_data            | 5033755
+no_mapping_sample_data | 725447
+sample_data            | 725448
+no_mapping_sample_data | 8268152
+sample_data            | 8268153
+;
+
+typeConflictLongUnmappedSortWithCastToKeyword - old coordinator
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| SORT event_duration::keyword, _index
+| KEEP _index, event_duration
+;
+
+_index:keyword         | event_duration:long
+no_mapping_sample_data | null
+sample_data            | 1232382
+no_mapping_sample_data | null
+sample_data            | 1756467
+no_mapping_sample_data | null
+sample_data            | 2764889
+no_mapping_sample_data | null
+sample_data            | 3450233
+no_mapping_sample_data | null
+sample_data            | 5033755
+no_mapping_sample_data | null
+sample_data            | 725448
+no_mapping_sample_data | null
 sample_data            | 8268153
 ;
 
@@ -2616,6 +3030,61 @@ k8s            | 1006
 k8s_unmapped   | 1006
 ;
 
+typeConflictLongUnmappedTimeseriesSortWithCast - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| SORT network.bytes_in::long DESC, _index
+| KEEP _index, network.bytes_in
+| LIMIT 10
+;
+
+_index:keyword | network.bytes_in:long
+k8s            | 1021
+k8s_unmapped   | 1021
+k8s            | 1018
+k8s_unmapped   | 1018
+k8s            | 1009
+k8s_unmapped   | 1009
+k8s            | 1007
+k8s_unmapped   | 1007
+k8s            | 1006
+k8s_unmapped   | 1006
+;
+
+typeConflictLongUnmappedTimeseriesSortWithCast - old coordinator
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+missing_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| SORT network.bytes_in::long DESC, _index
+| KEEP _index, network.bytes_in
+| LIMIT 10
+;
+
+_index:keyword | network.bytes_in:long
+k8s            | 1021
+k8s_unmapped   | null
+k8s            | 1018
+k8s_unmapped   | null
+k8s            | 1009
+k8s_unmapped   | null
+k8s            | 1007
+k8s_unmapped   | null
+k8s            | 1006
+k8s_unmapped   | null
+;
+
 typeConflictLongUnmappedTimeseriesChainedCast
 required_capability: optional_fields_v5
 
@@ -2899,6 +3368,15 @@ addresses_text           | North America
 # auto-casting of two-legged PUNKS  #
 #####################################
 
+// The tests below use a two-legged PUNK bare (uncast) inside a function, operator, or aggregate
+// (e.g. sqrt(field), field >= 1, field + 1, AVG(field)) rather than a bare projection or an
+// explicit ::cast. Before #148800, this was disallowed outright by the Verifier ("Using partially
+// unmapped non-KEYWORD field [...] is not supported with unmapped_fields=\"load\""), so on a
+// genuinely old coordinator these queries fail verification rather than falling back to null.
+// Confirmed against a real 9.4.4 cluster (v9.4.4#oldToNew). Since the csv-spec test format has no
+// way to assert an expected verification error, these tests only have an "- old data node"
+// sibling, not an "- old coordinator" one.
+
 autocast two-legged long punk
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
@@ -2907,7 +3385,7 @@ SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s_retyped METADATA _index
 # for determinism and keeping output size in check
 | SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
-| EVAL 
+| EVAL
     x = network.cost::double,
     y = sqrt(network.cost)
 ;
@@ -2915,9 +3393,35 @@ FROM k8s_unmapped, k8s_retyped METADATA _index
 # notes
 # network.cost: A free floating two-legged PUNK is always auto-cast to the mapped typed (LONG in this case).
 #            x: A two-legged PUNKs inside a convert function is never auto-cast. It is read directly from _source. This
-#                   is why some [x] values show more decimal points; no loss of precision! 
-#            y: A two-legged PUNKs inside a non-convert function (math in this case) is always auto-cast to the mapped 
+#                   is why some [x] values show more decimal points; no loss of precision!
+#            y: A two-legged PUNKs inside a non-convert function (math in this case) is always auto-cast to the mapped
 #                   type, but sqrt(LONG) is always a DOUBLE, hence the column type.
+network.cost:long | x:double | y:double
+9                 | 9.0      | 3.0
+9                 | 9.375    | 3.0
+1                 | 1.0      | 1.0
+1                 | 1.25     | 1.0
+9                 | 9.0      | 3.0
+;
+
+autocast two-legged long punk - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM k8s_unmapped, k8s_retyped METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+# for determinism and keeping output size in check
+| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
+| EVAL
+    x = network.cost::double,
+    y = sqrt(network.cost)
+;
+
 network.cost:long | x:double | y:double
 9                 | 9.0      | 3.0
 9                 | 9.375    | 3.0
@@ -2934,7 +3438,7 @@ SET unmapped_fields="load"\;
 FROM k8s_unmapped, k8s METADATA _index
 # for determinism and keeping output size in check
 | SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
-| EVAL 
+| EVAL
     x = network.cost::double,
     y = sqrt(network.cost)
 ;
@@ -2942,13 +3446,39 @@ FROM k8s_unmapped, k8s METADATA _index
 # notes
 # network.cost: A free floating two-legged PUNK is always auto-cast to the mapped typed (LONG in this case).
 #            x: A two-legged PUNKs inside a convert function is never auto-cast. It is read directly from _source.
-#            y: A two-legged PUNKs inside a non-convert function (math in this case) is always auto-cast to the mapped 
+#            y: A two-legged PUNKs inside a non-convert function (math in this case) is always auto-cast to the mapped
 #               type, but sqrt(LONG) is always a DOUBLE, hence the column type.
 network.cost:double | x:double | y:double
 9.375               | 9.375    | 3.0618621784789726
 9.375               | 9.375    | 3.0618621784789726
-1.25                | 1.25     | 1.118033988749895 
-1.25                | 1.25     | 1.118033988749895 
+1.25                | 1.25     | 1.118033988749895
+1.25                | 1.25     | 1.118033988749895
+9.25                | 9.25     | 3.0413812651491097
+;
+
+autocast two-legged double punk - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM k8s_unmapped, k8s METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+# for determinism and keeping output size in check
+| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
+| EVAL
+    x = network.cost::double,
+    y = sqrt(network.cost)
+;
+
+network.cost:double | x:double | y:double
+9.375               | 9.375    | 3.0618621784789726
+9.375               | 9.375    | 3.0618621784789726
+1.25                | 1.25     | 1.118033988749895
+1.25                | 1.25     | 1.118033988749895
 9.25                | 9.25     | 3.0413812651491097
 ;
 
@@ -2964,6 +3494,30 @@ FROM k8s_unmapped, k8s_retyped METADATA _index
 ;
 
 # [network.cost] is LONG in k8s_retyped, unmapped in k8s_unmapped
+network.cost:long
+9
+9
+1
+1
+9
+;
+
+autocast two-legged punk in WHERE - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM k8s_unmapped, k8s_retyped METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+| WHERE network.cost >= 1
+# for determinism and keeping output size in check
+| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
+;
+
 network.cost:long
 9
 9
@@ -2992,6 +3546,30 @@ network.cost:long | x:long
 9                 | 10
 ;
 
+autocast two-legged punk in EVAL - old data node
+required_capability: metadata_fields_remote_test
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM k8s_unmapped, k8s_retyped METADATA _index
+| EVAL _index = CASE(STARTS_WITH(_index, "remote_cluster:"), SUBSTRING(_index, 16), _index)
+# for determinism and keeping output size in check
+| SORT @timestamp, _index | LIMIT 5 | KEEP network.cost
+| EVAL x = network.cost + 1
+;
+
+network.cost:long | x:long
+9                 | 10
+9                 | 10
+1                 | 2
+1                 | 2
+9                 | 10
+;
+
 autocast two-legged punk in STATS
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
@@ -3002,6 +3580,22 @@ FROM k8s_unmapped, k8s_retyped
 ;
 
 # [network.cost] is LONG in k8s_retyped, unmapped in k8s_unmapped
+avg_cost:double | max_cost:long | min_cost:long
+6.245           | 13            | 0
+;
+
+autocast two-legged punk in STATS - old data node
+required_capability: optional_fields_v5
+required_capability_coordinator: optional_fields_unmapped_load_auto_cast_two_legged_punks
+// Technically, required_capability_coordinator is enough, as the data node shouldn't matter;
+// leaving this in place to clarify the intent to run in multi cluster bwc tests, specifically.
+missing_capability_data_node: optional_fields_unmapped_load_auto_cast_two_legged_punks
+
+SET unmapped_fields="load"\;
+FROM k8s_unmapped, k8s_retyped
+| STATS avg_cost = AVG(network.cost), max_cost = MAX(network.cost), min_cost = MIN(network.cost)
+;
+
 avg_cost:double | max_cost:long | min_cost:long
 6.245           | 13            | 0
 ;

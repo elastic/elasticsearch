@@ -643,9 +643,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testMultiTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/150101
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:inlinestats.doubleShadowingWithEval}
-  issue: https://github.com/elastic/elasticsearch/issues/153096
 - class: org.elasticsearch.search.telemetry.SearchCoordinatorPhaseShardBytesMetricsIT
   method: testBatchedQueryPhaseShardErrorRecordsBothRequestAndResultBytes
   issue: https://github.com/elastic/elasticsearch/issues/153109

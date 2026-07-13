@@ -9,4 +9,26 @@
 
 package org.elasticsearch.cluster;
 
-public record NodeHeapEstimate(long totalHeapUsage, long shardsOnlyHeapUsage) {}
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+
+/**
+ * The estimated heap in use by a node
+ *
+ * @param totalHeapUsage The total estimated heap usage, including things like index metadata, hosted shards, indexing infrastructure, etc.
+ * @param hostedShardsHeapUsage The estimated heap usage attributable to hosted shards only
+ */
+public record NodeHeapEstimate(long totalHeapUsage, long hostedShardsHeapUsage) implements Writeable {
+    public NodeHeapEstimate(StreamInput in) throws IOException {
+        this(in.readVLong(), in.readVLong());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(totalHeapUsage);
+        out.writeVLong(hostedShardsHeapUsage);
+    }
+}

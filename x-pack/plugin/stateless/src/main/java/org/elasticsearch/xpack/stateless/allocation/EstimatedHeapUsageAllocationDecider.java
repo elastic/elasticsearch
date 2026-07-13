@@ -185,7 +185,7 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
                         + "percentage from [%.2f] to [%.2f], which exceeds low watermark [%.2f]",
                     node.nodeId(),
                     shardRouting.shardId(),
-                    newNodeHeapUsageForNode.estimatedUsageBytes().totalHeapUsage() - nodeHeapUsageForNode.estimatedUsageBytes()
+                    newNodeHeapUsageForNode.nodeHeapEstimate().totalHeapUsage() - nodeHeapUsageForNode.nodeHeapEstimate()
                         .totalHeapUsage(),
                     heapUsedPercentageForNode,
                     newNodeHeapUsageForNode.estimatedUsageAsPercentage(),

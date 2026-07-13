@@ -169,10 +169,7 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
         final long generation = randomNonZeroPositiveLong();
         final var cc = getCommitWithInternalFilesReplicatedRanges(
             randomShardId(),
-            new BlobFile(
-                StatelessCompoundCommit.PREFIX + generation,
-                new PrimaryTermAndGeneration(primaryTerm, generation)
-            ),
+            new BlobFile(StatelessCompoundCommit.PREFIX + generation, new PrimaryTermAndGeneration(primaryTerm, generation)),
             "_na_",
             0,
             ByteSizeValue.ofKb(4).getBytes()

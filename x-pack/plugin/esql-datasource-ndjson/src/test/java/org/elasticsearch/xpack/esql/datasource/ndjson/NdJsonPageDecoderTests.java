@@ -38,7 +38,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Targeted unit tests for {@link NdJsonPageDecoder}'s keyword-decode path. Sibling
@@ -317,12 +316,12 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * Same conflict as {@link #testScalarWhereNestedObjectExpectedStrictFails}, but under a non-strict policy: the
-     * conflicting field is null-filled and a client warning is surfaced, while the row's other columns (and other
-     * rows) still decode normally. This is a per-field null-fill, not a whole-row skip — elastic/esql-planning#1028
-     * notes the conflict path already decodes the rest of the record, so there is no need to drop it wholesale.
+     * Same conflict as {@link #testScalarWhereNestedObjectExpectedStrictFails}, but under skip_row: the conflicting
+     * record is dropped whole and a client warning is surfaced, while the other records still decode. error_mode
+     * governs the outcome the same for a bound/declared or an inferred schema; null_field keeps the record and nulls
+     * the conflicting field instead (see the NdJsonPageIteratorTests null_field pin). See elastic/esql-planning#1028.
      */
-    public void testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills() throws IOException {
+    public void testScalarWhereNestedObjectExpectedSkipRowDropsRecordAndWarns() throws IOException {
         String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}, \"id\": 1}\n"
             + "{\"address\": \"unstructured\", \"id\": 2}\n"
             + "{\"address\": {\"city\": \"London\", \"zip\": \"SW1A\"}, \"id\": 3}\n";
@@ -339,18 +338,17 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             )
         ) {
             assertNotNull(page);
-            assertEquals(3, page.getPositionCount());
+            // The scalar-where-object record is dropped whole under skip_row; the two structured records survive.
+            assertEquals(2, page.getPositionCount());
             BytesRefBlock city = page.getBlock(0);
             BytesRefBlock zip = page.getBlock(1);
             IntBlock id = page.getBlock(2);
             BytesRef scratch = new BytesRef();
             assertEquals(new BytesRef("NYC"), BytesRef.deepCopyOf(city.getBytesRef(0, scratch)));
-            assertTrue("scalar-where-object row -> city null", city.isNull(1));
-            assertTrue("scalar-where-object row -> zip null", zip.isNull(1));
-            assertFalse("scalar-where-object row's sibling column must still decode", id.isNull(1));
-            assertEquals(2, id.getInt(id.getFirstValueIndex(1)));
-            assertEquals(new BytesRef("London"), BytesRef.deepCopyOf(city.getBytesRef(2, scratch)));
-            assertEquals(new BytesRef("SW1A"), BytesRef.deepCopyOf(zip.getBytesRef(2, scratch)));
+            assertEquals(1, id.getInt(id.getFirstValueIndex(0)));
+            assertEquals(new BytesRef("London"), BytesRef.deepCopyOf(city.getBytesRef(1, scratch)));
+            assertEquals(new BytesRef("SW1A"), BytesRef.deepCopyOf(zip.getBytesRef(1, scratch)));
+            assertEquals(3, id.getInt(id.getFirstValueIndex(1)));
         }
 
         List<String> warnings = drainWarnings();
@@ -359,7 +357,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * Same shape conflict as {@link #testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills}, but with a
+     * Same shape conflict as {@link #testScalarWhereNestedObjectExpectedSkipRowDropsRecordAndWarns}, but with a
      * {@code warningSink} supplied: the decoder must route every emitted message through the sink instead of
      * {@link HeaderWarning}, since {@link NdJsonPageDecoder}'s decode loop can run on a background reader thread
      * whose thread-local response headers never reach the client (see {@link SkipWarnings}).
@@ -541,8 +539,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 "test://declared-date",
                 new NdJsonReaderCounters(),
-                Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"),
-                Set.of()
+                Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z")
             )
         ) {
             try (Page page = decoder.decodePage()) {

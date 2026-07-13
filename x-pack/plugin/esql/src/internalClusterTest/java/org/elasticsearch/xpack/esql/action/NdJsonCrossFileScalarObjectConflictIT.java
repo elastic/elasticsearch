@@ -47,7 +47,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end reproduction of elastic/esql-planning#1050, the cross-file completion of #1028: a
@@ -200,15 +199,14 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
     }
 
     /**
-     * Non-strict policy ({@code error_mode: skip_row}, set on {@code lenient_ds}): {@code
-     * b.ndjson}'s {@code user} column is null-filled — not the row or the whole file dropped —
-     * {@code a.ndjson}'s row is unaffected, and the client receives a {@code Warning} naming the
-     * conflict. Nothing silently vanishes, end to end, not just at the reconciliation-unit level.
-     * The query runs through a chosen coordinator and we read that node's accumulated response
-     * {@code Warning} headers, proving the warning recorded by the reader propagates all the way
-     * to the client.
+     * Non-strict policy ({@code error_mode: skip_row}, set on {@code lenient_ds}): {@code b.ndjson}'s conflicting
+     * record is dropped whole — not null-filled — while {@code a.ndjson}'s row is unaffected, and the client
+     * receives a {@code Warning} naming the conflict. Nothing silently vanishes, end to end. error_mode governs the
+     * outcome the same for an inferred or a declared schema; {@code null_field} would keep the record and null the
+     * cell instead. The query runs through a chosen coordinator and we read that node's accumulated response
+     * {@code Warning} headers, proving the warning recorded by the reader propagates all the way to the client.
      */
-    public void testSkipRowPolicyNullFillsAndWarnsClient() throws Exception {
+    public void testSkipRowPolicyDropsRecordAndWarnsClient() throws Exception {
         EsqlQueryRequest request = syncEsqlQueryRequest("FROM lenient_ds | KEEP event, user | SORT event");
 
         DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
@@ -245,11 +243,9 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
         assertThat(columns.get().get(1).name(), equalTo("user"));
 
         List<List<Object>> rows = values.get();
-        assertThat("both files' rows must still return, just [user] is null for the conflicting one", rows.size(), equalTo(2));
+        assertThat("b.ndjson's object-valued record is dropped whole under skip_row; only a.ndjson's row remains", rows.size(), equalTo(1));
         assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
         assertThat(rows.get(0).get(1), equalTo("alice"));
-        assertThat("b.ndjson's [event] sibling column must survive", ((Number) rows.get(1).get(0)).intValue(), equalTo(2));
-        assertThat("b.ndjson's [user] must be null-filled, not the whole row dropped", rows.get(1).get(1), nullValue());
 
         assertTrue(
             "client must receive a Warning naming the conflicting field, got: " + warnings,

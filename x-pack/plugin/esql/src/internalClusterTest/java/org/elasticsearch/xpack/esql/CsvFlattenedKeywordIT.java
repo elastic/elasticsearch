@@ -1330,6 +1330,13 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "LAST_OVER_TIME:field is missing",
         "LEAST:first is missing",
         "LEAST:rest is missing",
+        // LIKE/RLIKE's pattern is grammar-locked to a string literal or a `?` parameter
+        // (Expression.g4's `stringOrParameter` rule); it is never a general `valueExpression`, so a
+        // keyword field reference can't even parse there. On top of that, WildcardLike/RLike (both
+        // extend the single-child UnaryScalarFunction RegexMatch) never expose the pattern as an
+        // Expression child in the first place - only the matched value (str) is walked by the
+        // rewriter. field_extract() can therefore never reach this argument, regardless of what the
+        // csv-spec query contains.
         "LIKE:pattern is missing",
         "MATCH:query is missing",
         "MATCH_OPERATOR:field is missing",
@@ -1345,6 +1352,17 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
         // check below) and never appears here as missing.
         "NETWORK_DIRECTION:internal_networks is missing",
+        // "NOT LIKE"/"NOT RLIKE" parse to Not(WildcardLike(...))/Not(RLike(...)) (see
+        // ExpressionBuilder#visitLikeExpression / #visitRlikeExpression) - there is no distinct
+        // NOT_LIKE/NOT_RLIKE AST node, and DocsV3Support.OPERATORS has no entry mapping one to a
+        // display name either. The rewriter's argument-tracking context is therefore always
+        // "LIKE:<i>"/"RLIKE:<i>" for these expressions, never "NOT_LIKE:<i>"/"NOT_RLIKE:<i>", so the
+        // docs-only "not_like"/"not_rlike" candidate names (from the kibana operator jsons) can never
+        // be marked covered no matter what a csv-spec query contains. Reaching parity would require
+        // teaching AstKeywordFieldRewriter about the Not(WildcardLike|RLike) shape, which is out of
+        // scope for a csv-spec-only change. NOT_LIKE:pattern/NOT_RLIKE:pattern are additionally
+        // covered by the LIKE:pattern/RLIKE:pattern reasoning above (pattern is never a traversed
+        // Expression child at all).
         "NOT_LIKE:pattern is missing",
         "NOT_LIKE:str is missing",
         "NOT_RLIKE:pattern is missing",

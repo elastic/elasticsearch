@@ -168,23 +168,23 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
     /// [org.elasticsearch.xpack.stateless.lucene.SearchDirectory]'s pinned entry and the commit the PIT was opened at,
     /// the wire payload stamps the file with the CC's own timestamp — not the old pinned one.
     ///
-    /// Scenario (UPLOAD\_MAX=1, every explicit flush → its own single-commit BCC blob):
+    /// Scenario (UPLOAD_MAX=1, every explicit flush → its own single-commit BCC blob):
     ///
     ///   1. Flush A: initial docs with `tsA` → segment `_0`, all files internal to
-    ///     BCC\_A. SearchDirectory entries for all files carry `tsA`.
+    ///     BCC_A. SearchDirectory entries for all files carry `tsA`.
     ///   2. Flush B: re-index one doc with `tsB`. Lucene soft-deletes the old version via a
     ///     generational live-docs file (e.g. `_0_1.liv`) and writes the new version into a
-    ///     new segment `_1`. Because BCC\_B is a single-commit VBCC, `_0_1.liv` is
-    ///     written as an _internal_ file into BCC\_B. SearchDirectory pins it at BCC\_B's
+    ///     new segment `_1`. Because BCC_B is a single-commit VBCC, `_0_1.liv` is
+    ///     written as an _internal_ file into BCC_B. SearchDirectory pins it at BCC_B's
     ///     offset with timestamp `tsB`.
     ///   3. Flush C: add one new doc with `tsC` → new segment `_2`. Commit C still
     ///     references `_0_1.liv` (segment `_0` has not been merged away). Because
-    ///     CC\_C is again the first (and only) commit in VBCC\_C, `_0_1.liv` is re-copied
-    ///     into BCC\_C at a _new_ offset. SearchDirectory's `putIfAbsent` keeps the
-    ///     BCC\_B pin.
+    ///     CC_C is again the first (and only) commit in VBCC_C, `_0_1.liv` is re-copied
+    ///     into BCC_C at a _new_ offset. SearchDirectory's `putIfAbsent` keeps the
+    ///     BCC_B pin.
     ///   4. PIT opened at commit C. `overrideBlobFileRangesTimestamp` detects the location
-    ///     mismatch for `_0_1.liv` (BCC\_B in SearchDirectory vs BCC\_C in CC\_C) and stamps
-    ///     the wire payload entry with CC\_C's timestamp range `[tsC, tsC]`.
+    ///     mismatch for `_0_1.liv` (BCC_B in SearchDirectory vs BCC_C in CC_C) and stamps
+    ///     the wire payload entry with CC_C's timestamp range `[tsC, tsC]`.
     public void testPitRelocationTransfersTimestampForGenerationalFileWithChangedBlobLocation() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         final var indexNode = startMasterAndIndexNode(nodeSettings);

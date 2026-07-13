@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -91,9 +92,7 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        FileList expanded = path.indexOf(',') >= 0
-            ? doExpandCommaSeparated(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion)
-            : doExpandGlob(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion);
+        FileList expanded = expand(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
         if (expanded.isResolved() == false || expanded.fileCount() == 0) {
             return expanded;
         }
@@ -102,6 +101,67 @@ public final class GlobExpander {
             return FileListCompactor.compact(basePath, raw);
         }
         return expanded;
+    }
+
+    /**
+     * Expands a whole path — glob or comma-separated list — applying the filter hints, and falls back to the
+     * un-hinted listing if the hints pruned it to nothing.
+     *
+     * <p>Hint-based pruning is only an optimisation: the query's filter is still evaluated on the rows, so
+     * listing a superset of the files is always correct, while listing a subset is a wrong answer. When the
+     * hinted listing comes back empty we therefore re-list the original pattern rather than report "matched no
+     * files", because the hint's value may simply be spelled differently on disk than
+     * {@link #rewriteSegment} spells it — {@code WHERE month == 6} narrows the glob to {@code month=6}, but the
+     * Hive convention writes a zero-padded {@code month=06}. Reporting empty there would turn an ordinary query
+     * into silent zero rows. If the un-hinted listing is empty too, the pattern genuinely matches nothing and
+     * the caller's error stands.
+     */
+    public static FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion
+    ) throws IOException {
+        if (hintsAffectListing(path, hints, hivePartitioning) == false) {
+            return doExpand(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+        }
+
+        FileList expanded;
+        try {
+            expanded = doExpand(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+        } catch (IOException e) {
+            // A hint narrows the pattern's prefix to a folder that need not exist. Providers disagree on what that
+            // means: object stores list a missing prefix as empty, the local filesystem throws. Both say the same
+            // thing — the hints, not the dataset, emptied the listing — so retry un-hinted either way.
+            logger.debug(() -> "Hinted listing of [" + path + "] failed; retrying without hints", e);
+            try {
+                return doExpand(path, provider, null, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+            } catch (IOException retryFailure) {
+                retryFailure.addSuppressed(e);
+                throw retryFailure;
+            }
+        }
+
+        if (expanded.isResolved() && expanded.fileCount() == 0) {
+            logger.debug("Hints pruned the listing of [{}] to nothing; re-listing without hints", path);
+            return doExpand(path, provider, null, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+        }
+        return expanded;
+    }
+
+    private static FileList doExpand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion
+    ) throws IOException {
+        return path.indexOf(',') >= 0
+            ? doExpandCommaSeparated(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion)
+            : doExpandGlob(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion);
     }
 
     public static PartitionDetector resolveDetector(PartitionConfig config) {
@@ -201,10 +261,7 @@ public final class GlobExpander {
         Check.notNull(pattern, "pattern cannot be null");
         Check.notNull(provider, "provider cannot be null");
 
-        String effectivePattern = pattern;
-        if (hints != null && hints.isEmpty() == false && hivePartitioning) {
-            effectivePattern = rewriteGlobWithHints(pattern, hints, partitionConfig);
-        }
+        String effectivePattern = effectivePattern(pattern, hints, hivePartitioning, partitionConfig);
 
         StoragePath storagePath = StoragePath.of(effectivePattern);
 
@@ -370,15 +427,9 @@ public final class GlobExpander {
         Check.notNull(pathList, "pathList cannot be null");
         Check.notNull(provider, "provider cannot be null");
 
-        String[] segments = pathList.split(",");
         List<StorageEntry> allEntries = new ArrayList<>();
 
-        for (String segment : segments) {
-            String trimmed = segment.trim();
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-
+        for (String trimmed : commaSegments(pathList)) {
             StoragePath segmentPath = StoragePath.of(trimmed);
             if (segmentPath.isPattern()) {
                 int remainingBudget = maxDiscoveredFiles - allEntries.size();
@@ -413,6 +464,175 @@ public final class GlobExpander {
         PartitionMetadata partitionMetadata = detectPartitions(allEntries, hivePartitioning, partitionConfig, config);
 
         return new GenericFileList(allEntries, pathList, partitionMetadata);
+    }
+
+    /**
+     * The pattern an expansion will actually list once the hints have narrowed it. The one place that decides
+     * whether a hint reaches the glob at all; {@link #doExpandGlob} and {@link #listingCacheDiscriminator} both
+     * route through it so that the listing cache key cannot drift from the listing it names.
+     */
+    static String effectivePattern(
+        String pattern,
+        @Nullable List<PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        @Nullable PartitionConfig partitionConfig
+    ) {
+        if (hints == null || hints.isEmpty() || hivePartitioning == false) {
+            return pattern;
+        }
+        return rewriteGlobWithHints(pattern, hints, partitionConfig);
+    }
+
+    /**
+     * Everything about a query that determines which files a {@code path} lists: the {@code hivePartitioning} flag,
+     * the effective (post-rewrite) glob pattern, and the {@code _file.*} metadata filters. These are the inputs
+     * {@link #doExpandGlob} consults beyond the storage contents themselves — the rewrite via {@link #effectivePattern}
+     * and the file filters via {@link #applyFileMetadataFilters} — and this value shares those same helpers, so the
+     * cache key and the fallback gate (its only two consumers) can never disagree with each other about what a hint
+     * does. Note this binds the key and the gate, not the expansion: a new hint channel added to {@link #doExpandGlob}
+     * must be added here by hand, or that channel silently reintroduces the poisoning bug.
+     *
+     * <p>{@link #encode} is injective — every variable-length piece is length-prefixed, so no user-controlled filter
+     * literal (which may hold any character, including the delimiters) can forge a field boundary and collide two
+     * different filters onto one key. Equal encodings therefore genuinely mean equal listings. A new field added to
+     * this record joins {@code equals} for free but must be added to {@code encode} by hand to stay in the key.
+     */
+    private record ListingIdentity(boolean hivePartitioning, String effectivePattern, List<String> encodedFileHints) {
+
+        static ListingIdentity of(String path, @Nullable List<PartitionFilterHint> hints, boolean hivePartitioning) {
+            return new ListingIdentity(
+                hivePartitioning,
+                effectiveWholePathPattern(path, hints, hivePartitioning),
+                encodedFileMetadataHints(hints)
+            );
+        }
+
+        String encode() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(hivePartitioning ? '1' : '0');
+            appendLengthPrefixed(sb, effectivePattern);
+            sb.append(encodedFileHints.size()).append(':');
+            for (String encodedHint : encodedFileHints) {
+                appendLengthPrefixed(sb, encodedHint);
+            }
+            return sb.toString();
+        }
+    }
+
+    /** Appends {@code <charLength>':'<value>}, an injective framing that no value content can forge a boundary in. */
+    private static void appendLengthPrefixed(StringBuilder sb, String value) {
+        sb.append(value.length()).append(':').append(value);
+    }
+
+    /**
+     * A string that identifies the listing a given set of hints produces for a given path: equal discriminators
+     * guarantee equal listings, so it is safe to key the listing cache on it. See {@link ListingIdentity} for the
+     * inputs it captures and why they are exhaustive; hints that reach none of them (an ordinary data column, say)
+     * leave the discriminator untouched, so an incidentally-filtered query still shares the un-filtered entry.
+     */
+    public static String listingCacheDiscriminator(String path, @Nullable List<PartitionFilterHint> hints, boolean hivePartitioning) {
+        return ListingIdentity.of(path, hints, hivePartitioning).encode();
+    }
+
+    /**
+     * Whether the hints narrow the listing at all — i.e. whether dropping them would change the files discovered.
+     * Compares the {@link ListingIdentity} with and without the hints rather than re-deciding it, so the fallback in
+     * {@link #expand} cannot disagree with the cache key about what a hint does.
+     */
+    static boolean hintsAffectListing(String path, @Nullable List<PartitionFilterHint> hints, boolean hivePartitioning) {
+        if (hints == null || hints.isEmpty()) {
+            return false;
+        }
+        return ListingIdentity.of(path, hints, hivePartitioning).equals(ListingIdentity.of(path, null, hivePartitioning)) == false;
+    }
+
+    /**
+     * Mirrors {@link #doExpand}'s glob/comma dispatch: in a comma list only the pattern segments are rewritten, over
+     * the same {@link #commaSegments} decomposition the expansion walks. {@code partitionConfig} is fixed null to
+     * match {@link #expand}'s signature — the production listing paths carry no {@link PartitionConfig} (see
+     * {@link #expandAndCompact}), so neither does the identity that names their result.
+     */
+    private static String effectiveWholePathPattern(String path, @Nullable List<PartitionFilterHint> hints, boolean hive) {
+        if (path.indexOf(',') < 0) {
+            return effectivePattern(path, hints, hive, null);
+        }
+        List<String> segments = commaSegments(path);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < segments.size(); i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            String segment = segments.get(i);
+            sb.append(isPattern(segment) ? effectivePattern(segment, hints, hive, null) : segment);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * The non-empty, trimmed segments of a comma-separated path list. The one decomposition shared by the expansion
+     * ({@link #doExpandCommaSeparated}) and the identity that names its result ({@link #effectiveWholePathPattern}),
+     * so the two cannot disagree on which segments a path has.
+     */
+    private static List<String> commaSegments(String pathList) {
+        String[] raw = pathList.split(",");
+        List<String> segments = new ArrayList<>(raw.length);
+        for (String segment : raw) {
+            String trimmed = segment.trim();
+            if (trimmed.isEmpty() == false) {
+                segments.add(trimmed);
+            }
+        }
+        return segments;
+    }
+
+    /**
+     * Whether a comma-list segment is a glob, matching {@link #doExpandCommaSeparated}'s test. An unparseable
+     * segment is reported as a non-pattern so that building a cache key never fails: the expansion that follows
+     * raises the parse error, exactly as it does today.
+     */
+    private static boolean isPattern(String segment) {
+        try {
+            return StoragePath.of(segment).isPattern();
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /** The hints {@link #applyFileMetadataFilters} acts on, each encoded injectively (length-prefixed) and ordered. */
+    private static List<String> encodedFileMetadataHints(@Nullable List<PartitionFilterHint> hints) {
+        List<PartitionFilterHint> fileHints = fileMetadataHints(hints);
+        if (fileHints.isEmpty()) {
+            return List.of();
+        }
+        List<String> encoded = new ArrayList<>(fileHints.size());
+        for (PartitionFilterHint hint : fileHints) {
+            StringBuilder sb = new StringBuilder();
+            appendLengthPrefixed(sb, hint.columnName());
+            appendLengthPrefixed(sb, hint.operator().name());
+            sb.append(hint.values().size()).append(':');
+            for (Object value : hint.values()) {
+                // The value's type is part of its identity: _file.name == "6" and _file.name == 6 filter differently.
+                appendLengthPrefixed(sb, value == null ? "\0null" : value.getClass().getName());
+                appendLengthPrefixed(sb, value == null ? "\0null" : value.toString());
+            }
+            encoded.add(sb.toString());
+        }
+        Collections.sort(encoded);
+        return encoded;
+    }
+
+    /** The subset of hints that {@link #applyFileMetadataFilters} prunes the listing with. */
+    static List<PartitionFilterHint> fileMetadataHints(@Nullable List<PartitionFilterHint> hints) {
+        if (hints == null || hints.isEmpty()) {
+            return List.of();
+        }
+        List<PartitionFilterHint> fileHints = new ArrayList<>();
+        for (PartitionFilterHint hint : hints) {
+            if (FileMetadataColumns.isFileMetadataColumn(hint.columnName())) {
+                fileHints.add(hint);
+            }
+        }
+        return fileHints;
     }
 
     public static String rewriteGlobWithHints(String pattern, List<PartitionFilterHint> hints) {
@@ -561,12 +781,7 @@ public final class GlobExpander {
     }
 
     public static List<StorageEntry> applyFileMetadataFilters(List<StorageEntry> entries, List<PartitionFilterHint> hints) {
-        List<PartitionFilterHint> fileHints = new ArrayList<>();
-        for (PartitionFilterHint hint : hints) {
-            if (FileMetadataColumns.isFileMetadataColumn(hint.columnName())) {
-                fileHints.add(hint);
-            }
-        }
+        List<PartitionFilterHint> fileHints = fileMetadataHints(hints);
         if (fileHints.isEmpty()) {
             return entries;
         }

@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -480,7 +481,228 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(2, result.fileCount());
     }
 
+    // -- hints that prune the listing to nothing fall back to the un-hinted listing --
+
+    /**
+     * The rewritten glob names a folder that does not exist. Listing a superset of the files is always correct —
+     * the row filter still runs — so the expansion must fall back to the original glob rather than report that the
+     * pattern matched nothing, which the resolver turns into an error.
+     */
+    public void testHintPruningListingToEmptyFallsBackToUnhintedListing() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)))
+        );
+
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
+        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/year=2024/a.parquet", result.path(0).toString());
+    }
+
+    /**
+     * The trap this fix exists to avoid. {@code rewriteSegment} spells the hint's value with {@code String.valueOf},
+     * so {@code WHERE month == 6} narrows the glob to {@code month=6} — but Hive writes a zero-padded {@code month=06}.
+     * Reporting "matched no files" (or empty) there would turn an ordinary dataset into silent zero rows.
+     */
+    public void testZeroPaddedFolderAgainstUnpaddedHintFallsBack() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/month=06/a.parquet", 100)))
+        );
+
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertEquals("the zero-padded folder must still be listed", 1, result.fileCount());
+        assertEquals("s3://bucket/data/month=06/a.parquet", result.path(0).toString());
+    }
+
+    /**
+     * The local filesystem provider throws when a directory does not exist, where an object store lists the missing
+     * prefix as empty. A hint that narrows the prefix to a folder that was never created must behave the same on both.
+     */
+    public void testHintNarrowedPrefixThatThrowsFallsBackToUnhintedListing() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)))
+        );
+        provider.throwOnUnknownPrefix = true;
+
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
+        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertEquals(1, result.fileCount());
+    }
+
+    /** The file-metadata channel prunes any multi-file path, so a plain glob needs the same fallback. */
+    public void testFileMetadataHintPruningToEmptyFallsBack() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200)))
+        );
+
+        var hints = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "nope.parquet"));
+        FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertEquals(2, result.fileCount());
+    }
+
+    /** A pattern that genuinely matches nothing still comes back empty — the caller's loud error is preserved. */
+    public void testUnhintedListingAlsoEmptyStaysEmpty() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(Map.of("s3://bucket/data/", List.of()));
+
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
+        FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertTrue(result.isResolved());
+        assertEquals(0, result.fileCount());
+    }
+
+    /** A hint that narrows nothing must not trigger a second listing pass. */
+    public void testUnhintedEmptyListingIsNotRetried() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(Map.of("s3://bucket/data/", List.of()));
+
+        FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, null, true, MAX, MAX);
+
+        assertEquals(0, result.fileCount());
+        assertEquals("no hints, so no fallback listing", 1, provider.listCallCount);
+    }
+
+    // -- listing cache discriminator --
+
+    /**
+     * The property the listing cache key rests on: equal discriminators must mean equal listings. Hints reach the
+     * listing through the glob rewrite and the {@code _file.*} filters, and nothing else. This catches a new listing
+     * channel added to the expansion but not the discriminator — <b>only for the hint shapes below</b>, so extend
+     * {@code hintSets} whenever a new channel or hint kind is introduced, or it can slip through.
+     */
+    public void testDiscriminatorDeterminesTheListing() throws IOException {
+        Map<String, List<StorageEntry>> tree = Map.of(
+            "s3://bucket/data/",
+            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2025/b.parquet", 200)),
+            "s3://bucket/data/year=2024/",
+            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)),
+            "s3://bucket/data/year=2025/",
+            List.of(entry("s3://bucket/data/year=2025/b.parquet", 200))
+        );
+        String pattern = "s3://bucket/data/year=*/*.parquet";
+
+        List<List<PartitionFilterHintExtractor.PartitionFilterHint>> hintSets = List.of(
+            List.of(),
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024)),
+            List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025)),
+            List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us")),
+            List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "a.parquet")),
+            List.of(hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 150))
+        );
+
+        Map<String, List<String>> listingByDiscriminator = new HashMap<>();
+        for (var hints : hintSets) {
+            for (boolean hive : List.of(true, false)) {
+                String discriminator = GlobExpander.listingCacheDiscriminator(pattern, hints, hive);
+                List<String> files = new ArrayList<>();
+                FileList expanded = GlobExpander.expand(pattern, new PrefixAwareStubProvider(tree), hints, hive, MAX, MAX);
+                for (int i = 0; i < expanded.fileCount(); i++) {
+                    files.add(expanded.path(i).toString());
+                }
+                List<String> previous = listingByDiscriminator.putIfAbsent(discriminator, files);
+                if (previous != null) {
+                    assertEquals("same discriminator must mean the same listing", previous, files);
+                }
+            }
+        }
+    }
+
+    /**
+     * A hint on an ordinary data column reaches neither channel, so it must leave the discriminator alone —
+     * otherwise every distinct WHERE literal would get its own cache entry and the listing cache would stop
+     * hitting for filtered queries.
+     */
+    public void testDiscriminatorIgnoresHintsThatCannotNarrowTheListing() {
+        String pattern = "s3://bucket/data/*.parquet";
+        String unhinted = GlobExpander.listingCacheDiscriminator(pattern, null, true);
+
+        var dataColumnHint = List.of(hint("user_id", PartitionFilterHintExtractor.Operator.EQUALS, 42));
+        assertEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, dataColumnHint, true));
+
+        // A `year=*` segment is absent from this pattern, so even a rewritable hint cannot narrow it.
+        var absentPartitionHint = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        assertEquals(unhinted, GlobExpander.listingCacheDiscriminator(pattern, absentPartitionHint, true));
+    }
+
+    /** Every input that changes the listing must change the discriminator. */
+    public void testDiscriminatorSeparatesHintsThatNarrowTheListing() {
+        String keyed = "s3://bucket/data/year=*/*.parquet";
+        String plain = "s3://bucket/data/*.parquet";
+        String unhintedKeyed = GlobExpander.listingCacheDiscriminator(keyed, null, true);
+
+        var year2024 = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        var year2025 = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025));
+        assertNotEquals(unhintedKeyed, GlobExpander.listingCacheDiscriminator(keyed, year2024, true));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(keyed, year2024, true),
+            GlobExpander.listingCacheDiscriminator(keyed, year2025, true)
+        );
+
+        // hive_partitioning gates the rewrite and selects the partition metadata carried by the cached listing.
+        assertNotEquals(unhintedKeyed, GlobExpander.listingCacheDiscriminator(keyed, null, false));
+
+        var fileName = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "a.parquet"));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(plain, null, true),
+            GlobExpander.listingCacheDiscriminator(plain, fileName, true)
+        );
+
+        // A value's type is part of its identity: _file.name == "6" and _file.name == 6 do not filter alike.
+        var nameSix = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "6"));
+        var nameSixInt = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, 6));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(plain, nameSix, true),
+            GlobExpander.listingCacheDiscriminator(plain, nameSixInt, true)
+        );
+    }
+
+    /** In a comma-separated list only the pattern segments are rewritten, so only they may move the discriminator. */
+    public void testDiscriminatorHandlesCommaSeparatedPaths() {
+        String paths = "s3://bucket/a/year=*/*.parquet,s3://bucket/b/plain.parquet";
+        var year2024 = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+
+        String unhinted = GlobExpander.listingCacheDiscriminator(paths, null, true);
+        String hinted = GlobExpander.listingCacheDiscriminator(paths, year2024, true);
+
+        assertNotEquals(unhinted, hinted);
+        assertThat(hinted, containsString("s3://bucket/a/year=2024/*.parquet"));
+        assertThat(hinted, containsString("s3://bucket/b/plain.parquet"));
+    }
+
+    /**
+     * Filter literals carry arbitrary characters, including whatever delimiters the encoding uses. Two distinct
+     * filters must never encode to the same discriminator — a collision would serve one filter's narrowed listing to
+     * the other. Exercises values holding the control characters a naive separator-joined encoding would break on.
+     */
+    public void testDiscriminatorDoesNotCollideOnValuesContainingDelimiters() {
+        String pattern = "s3://bucket/data/*.parquet";
+
+        // A single value that splices in what would be a second value under separator-joining.
+        var oneSplicedValue = List.of(
+            hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.IN, "a\u0001java.lang.String:b")
+        );
+        var twoValues = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.IN, "a", "b"));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(pattern, oneSplicedValue, true),
+            GlobExpander.listingCacheDiscriminator(pattern, twoValues, true)
+        );
+
+        // A value carrying the top-level joiner must not fake the pattern/hints boundary.
+        var nullByteValue = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "x\u0000y"));
+        var plainValue = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "xy"));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(pattern, nullByteValue, true),
+            GlobExpander.listingCacheDiscriminator(pattern, plainValue, true)
+        );
+    }
+
     // -- helpers --
+
+    private static final int MAX = Integer.MAX_VALUE;
 
     private static PartitionFilterHintExtractor.PartitionFilterHint hint(
         String column,
@@ -488,6 +710,84 @@ public class GlobExpanderTests extends ESTestCase {
         Object... values
     ) {
         return new PartitionFilterHintExtractor.PartitionFilterHint(column, op, List.of(values));
+    }
+
+    /**
+     * Lists only the entries under the requested prefix, as a real provider does. {@link StubProvider} returns its
+     * whole listing whatever the prefix, which makes a glob narrowed onto a missing folder indistinguishable from an
+     * un-narrowed one — the reason the listing layer's pruning bugs never surfaced in these tests.
+     *
+     * <p>{@code throwOnUnknownPrefix} models {@code LocalStorageProvider}, which throws on a missing directory where
+     * an object store returns an empty listing.
+     */
+    private static class PrefixAwareStubProvider implements StorageProvider {
+        private final Map<String, List<StorageEntry>> listingsByPrefix;
+        boolean throwOnUnknownPrefix = false;
+        int listCallCount = 0;
+
+        PrefixAwareStubProvider(Map<String, List<StorageEntry>> listingsByPrefix) {
+            this.listingsByPrefix = listingsByPrefix;
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return new StubStorageObject(path, 0, false);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return new StubStorageObject(path, length, true);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return new StubStorageObject(path, length, true);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+            listCallCount++;
+            List<StorageEntry> entries = listingsByPrefix.get(prefix.toString());
+            if (entries == null) {
+                if (throwOnUnknownPrefix) {
+                    throw new IOException("Directory does not exist: " + prefix);
+                }
+                entries = List.of();
+            }
+            List<StorageEntry> snapshot = entries;
+            return new StorageIterator() {
+                private final Iterator<StorageEntry> it = snapshot.iterator();
+
+                @Override
+                public boolean hasNext() {
+                    return it.hasNext();
+                }
+
+                @Override
+                public StorageEntry next() {
+                    if (it.hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    return it.next();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return false;
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("s3");
+        }
+
+        @Override
+        public void close() {}
     }
 
     private static StorageEntry entry(String path, long length) {

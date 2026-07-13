@@ -32,6 +32,11 @@ import java.util.function.BooleanSupplier;
  * to {@code AsyncExternalSourceBuffer.readCancelled()} — a hard cut of a still-running producer (task cancel /
  * async DELETE / LIMIT teardown), but <em>not</em> async STOP, which keeps buffered pages for a partial
  * response and must therefore let an in-flight read complete cooperatively rather than abort it mid-backoff.
+ * This means a STOP arriving while a read is parked in backoff can lag by up to that read's remaining retry
+ * budget before the producer observes {@code noMoreInputs} between pages and exits — sub-second for a transient
+ * backoff, up to the per-attempt throttle ceiling (tens of seconds) for a throttled read. That bounded lag is
+ * an accepted cost of the STOP contract: arming {@code readCancelled} on STOP would abort the read and degrade
+ * a graceful partial-result stop into a hard failure, so STOP deliberately waits the backoff out.
  * Between pages the runtime producer already exits on {@code noMoreInputs}; the runtime scope adds the missing
  * in-read coverage so a page pull parked in retry/throttle backoff aborts promptly on a hard cancel instead of
  * sleeping out its budget (the cause of long-lived post-cancel reads on slow/throttling object stores).

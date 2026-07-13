@@ -16,12 +16,14 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -449,5 +451,96 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         buffer.onFailure(new RuntimeException("boom"));
         assertFalse("close after a producer failure does not transition", buffer.finish(true));
         assertFalse("a producer's own failure is not a read cancellation", buffer.readCancelled());
+    }
+
+    /**
+     * End-to-end coverage of the runtime producer read wiring. {@code AsyncExternalSourceOperatorFactory}'s
+     * {@code openUnitThenDrain} / {@code drainCurrentUnit} / {@code startSyncWrapperRead} all install the buffer's
+     * hard-cancel signal as the ambient {@link StorageRetryCancellation} scope exactly this way —
+     * {@code callWithCancellation(buffer::readCancelled, <read>)} — so the read work is what this test reproduces
+     * (the real factory adds only the two-executor producer loop around the same seam). A read parked in
+     * retry/throttle backoff is modeled by {@link StorageRetryCancellation#sleepWithCancellationChecks}. A hard-cut
+     * {@code finish(true)} (task cancel / async DELETE / LIMIT teardown) must arm {@code readCancelled()} so the
+     * scoped backoff aborts promptly with {@link TaskCancelledException} instead of sleeping out its budget — the
+     * long-lived post-cancel read this change fixes. The scope is the only thing that cuts a backoff already
+     * entered; cooperative {@code noMoreInputs} only fires between pulls.
+     */
+    public void testHardCancelAbortsScopedReadBackoff() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        CountDownLatch readParked = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<Throwable> thrown = new AtomicReference<>();
+        long backoffMillis = TimeUnit.SECONDS.toMillis(60);
+        long startNanos = System.nanoTime();
+
+        Thread producer = new Thread(() -> {
+            try {
+                // Mirrors the factory: the read runs inside a scope keyed to buffer::readCancelled.
+                StorageRetryCancellation.runWithCancellation(buffer::readCancelled, () -> {
+                    readParked.countDown();
+                    StorageRetryCancellation.sleepWithCancellationChecks(backoffMillis);
+                });
+            } catch (Throwable t) {
+                thrown.set(t);
+            } finally {
+                done.countDown();
+            }
+        }, "async-buffer-read-backoff-hard-cancel");
+        producer.setDaemon(true);
+        producer.start();
+
+        assertTrue("the read must have parked in backoff", readParked.await(10, TimeUnit.SECONDS));
+        // Hard cut while the producer is parked in backoff.
+        assertTrue("hard cancel wins the running->finishing transition", buffer.finish(true));
+
+        assertTrue("the scoped backoff must abort after a hard cancel", done.await(10, TimeUnit.SECONDS));
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+        assertTrue(
+            "abort must not wait out the backoff budget (took " + elapsedMillis + "ms of " + backoffMillis + "ms)",
+            elapsedMillis < backoffMillis / 2
+        );
+        assertTrue(
+            "a cancelled read must surface as TaskCancelledException, got " + thrown.get(),
+            thrown.get() instanceof TaskCancelledException
+        );
+    }
+
+    /**
+     * Companion to {@link #testHardCancelAbortsScopedReadBackoff} proving the runtime scope is keyed to the
+     * hard-cut signal only. Async STOP is {@code finish(false)}: it leaves {@code readCancelled()} disarmed, so the
+     * same scoped read runs its backoff to completion rather than aborting mid-flight. Arming on STOP would turn a
+     * graceful partial-result stop into a {@link TaskCancelledException}; the accepted cost is that STOP waits out
+     * the in-flight backoff (bounded by the retry budget) before the producer exits on {@code noMoreInputs}.
+     */
+    public void testStopDoesNotAbortScopedReadBackoff() throws Exception {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        CountDownLatch readParked = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(1);
+        AtomicReference<Throwable> thrown = new AtomicReference<>();
+        // A short real backoff the read is expected to sleep out: STOP must not cut it short.
+        long backoffMillis = 200;
+
+        Thread producer = new Thread(() -> {
+            try {
+                StorageRetryCancellation.runWithCancellation(buffer::readCancelled, () -> {
+                    readParked.countDown();
+                    StorageRetryCancellation.sleepWithCancellationChecks(backoffMillis);
+                });
+            } catch (Throwable t) {
+                thrown.set(t);
+            } finally {
+                done.countDown();
+            }
+        }, "async-buffer-read-backoff-stop");
+        producer.setDaemon(true);
+        producer.start();
+
+        assertTrue("the read must have parked in backoff", readParked.await(10, TimeUnit.SECONDS));
+        // Graceful STOP: keeps buffered pages, must not arm read cancellation.
+        assertTrue("STOP wins the running->finishing transition", buffer.finish(false));
+        assertFalse("STOP must not arm read cancellation", buffer.readCancelled());
+
+        assertTrue("the read completes its own backoff under STOP", done.await(10, TimeUnit.SECONDS));
+        assertNull("STOP must not surface the read as a cancellation failure", thrown.get());
     }
 }

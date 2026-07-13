@@ -64,8 +64,8 @@ public final class ExternalSourceDrainUtils {
 
     /**
      * Overload without an ambient cancellation signal, preserving the pre-existing behaviour for callers
-     * (e.g. connector sources and tests) that do not thread a hard-cancel signal into the drain. Equivalent to
-     * passing a supplier that never reports cancelled: cooperative {@code noMoreInputs} cancellation still applies.
+     * (currently tests) that do not thread a hard-cancel signal into the drain. Equivalent to passing a
+     * supplier that never reports cancelled: cooperative {@code noMoreInputs} cancellation still applies.
      */
     public static void drainPagesAsync(
         CloseableIterator<Page> pages,

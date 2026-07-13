@@ -92,7 +92,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
     }
 
     @After
-    public void verifyRecoveryStatsAndMetrics() {
+    public void verifyNoOutstandingRecoveriesInStatsAndMetrics() {
         awaitNoRecoveriesInStatsAndMetrics();
     }
 

@@ -88,7 +88,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
     }
 
     @After
-    public void verifyRecoveryStatsAndMetrics() {
+    public void verifyNoOutstandingRecoveriesInStatsAndMetrics() {
         final var nodes = internalCluster().getNodeNames();
         final Predicate<RecoveryStats> noMoreRecoveriesInStats = RecoveryStats::noCurrentRecoveries;
         awaitRecoveryCountStats(Arrays.stream(nodes).collect(Collectors.toMap(node -> node, ignored -> noMoreRecoveriesInStats)));
@@ -185,6 +185,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
 
         safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
         TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
         disableAllocation();
         waitNoPendingTasksOnAll();
 
@@ -401,32 +402,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         waitNoPendingTasksOnAll();
         ensureYellow(indexName);
 
-        awaitClusterState(state -> {
-            final var indexShardRoutingTable = state.routingTable().shardRoutingTable(shardId);
-            assertTrue("Primary shard should be active", indexShardRoutingTable.primaryShard().active());
-
-            final var unassignedShards = indexShardRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED);
-            if (unassignedShards.isEmpty()) {
-                return false;
-            }
-            assertThat(unassignedShards, hasSize(1));
-            final var unassignedInfo = unassignedShards.getFirst().unassignedInfo();
-            assertNotNull("Replica should have non-null unassigned info", unassignedInfo);
-            assertThat(
-                "Expected unassignment reason to be ALLOCATION_FAILED",
-                unassignedInfo.reason(),
-                equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED)
-            );
-
-            final var failure = unassignedInfo.failure();
-            assertNotNull("Unassigned info should have failure details", failure);
-            assertThat(
-                "Failure should be RecoveryCancelledException",
-                ExceptionsHelper.unwrap(failure, RecoveryCancelledException.class),
-                notNullValue()
-            );
-            return true;
-        });
+        awaitReplicaUnassignedDueToCancellation(shardId);
         awaitDirectCancellationMetric(replicaNode, 1L);
     }
 
@@ -484,32 +460,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
         waitNoPendingTasksOnAll();
         ensureYellow(indexName);
 
-        awaitClusterState(state -> {
-            final var indexShardRoutingTable = state.routingTable().shardRoutingTable(shardId);
-            assertTrue("Primary shard should be active", indexShardRoutingTable.primaryShard().active());
-
-            final var unassignedShards = indexShardRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED);
-            if (unassignedShards.isEmpty()) {
-                return false;
-            }
-            assertThat(unassignedShards, hasSize(1));
-            final var unassignedInfo = unassignedShards.getFirst().unassignedInfo();
-            assertNotNull("Replica should have non-null unassigned info", unassignedInfo);
-            assertThat(
-                "Expected unassignment reason to be ALLOCATION_FAILED",
-                unassignedInfo.reason(),
-                equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED)
-            );
-
-            final var failure = unassignedInfo.failure();
-            assertNotNull("Unassigned info should have failure details", failure);
-            assertThat(
-                "Failure should be RecoveryCancelledException",
-                ExceptionsHelper.unwrap(failure, RecoveryCancelledException.class),
-                notNullValue()
-            );
-            return true;
-        });
+        awaitReplicaUnassignedDueToCancellation(shardId);
         awaitDirectCancellationMetric(replicaNode, 1L);
     }
 
@@ -746,6 +697,35 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             .stream()
             .mapToLong(Measurement::getLong)
             .sum();
+    }
+
+    private void awaitReplicaUnassignedDueToCancellation(ShardId shardId) {
+        awaitClusterState(state -> {
+            final var indexShardRoutingTable = state.routingTable().shardRoutingTable(shardId);
+            assertTrue("Primary shard should be active", indexShardRoutingTable.primaryShard().active());
+
+            final var unassignedShards = indexShardRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED);
+            if (unassignedShards.isEmpty()) {
+                return false;
+            }
+            assertThat(unassignedShards, hasSize(1));
+            final var unassignedInfo = unassignedShards.getFirst().unassignedInfo();
+            assertNotNull("Replica should have non-null unassigned info", unassignedInfo);
+            assertThat(
+                "Expected unassignment reason to be ALLOCATION_FAILED",
+                unassignedInfo.reason(),
+                equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED)
+            );
+
+            final var failure = unassignedInfo.failure();
+            assertNotNull("Unassigned info should have failure details", failure);
+            assertThat(
+                "Failure should be RecoveryCancelledException",
+                ExceptionsHelper.unwrap(failure, RecoveryCancelledException.class),
+                notNullValue()
+            );
+            return true;
+        });
     }
 
     private static CountDownLatch shardCancelledFailureReceivedLatch(String node, ShardId shardId) {

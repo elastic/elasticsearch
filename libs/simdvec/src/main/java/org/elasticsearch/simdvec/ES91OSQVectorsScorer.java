@@ -58,17 +58,16 @@ public class ES91OSQVectorsScorer {
      */
     public long quantizeScore(byte[] q) throws IOException {
         assert q.length == length * 4;
-        final int size = length;
         long subRet0 = 0;
         long subRet1 = 0;
         long subRet2 = 0;
         long subRet3 = 0;
-        for (int r = 0; r < size; r += Long.BYTES) {
+        for (int r = 0; r < length; r += Long.BYTES) {
             final long value = in.readLong();
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r) & value);
-            subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + size) & value);
-            subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 2 * size) & value);
-            subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 3 * size) & value);
+            subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + length) & value);
+            subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 2 * length) & value);
+            subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, r + 3 * length) & value);
         }
         return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
     }

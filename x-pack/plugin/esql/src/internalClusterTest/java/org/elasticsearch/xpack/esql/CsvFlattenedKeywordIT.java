@@ -1324,7 +1324,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "FROM_BASE64:string is missing",
         "GREATEST:first is missing",
         "GREATEST:rest is missing",
-        "IN:field is missing",
         "JSON_EXTRACT:string is missing",
         "KNN:field is missing",
         "KQL:query is missing",
@@ -1341,8 +1340,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
         // check below) and never appears here as missing.
         "NETWORK_DIRECTION:internal_networks is missing",
-        "NOT_IN:field is missing",
-        "NOT_IN:inlist is missing",
         "NOT_LIKE:pattern is missing",
         "NOT_LIKE:str is missing",
         "NOT_RLIKE:pattern is missing",
@@ -1416,6 +1413,14 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         // argument, never NOT_EQUALS:lhs/NOT_EQUALS:rhs, so the whole operator is excluded from
                         // candidates here rather than left as a permanent EXPECTED_ERRORS entry.
                         if ("NOT_EQUALS".equals(name)) return;
+                        // NOT_IN can never be exercised by this variant either, for the identical structural reason:
+                        // ExpressionBuilder#visitLogicalIn desugars "NOT ... IN (...)" to Not(In(lhs, list)) (or
+                        // Not(Equals(...)) for a single-candidate list) at parse time, so the pre-analysis AST this
+                        // variant walks never contains a distinct NotIn node - only Not wrapping In. A keyword field
+                        // reference anywhere in a NOT IN expression is therefore tracked and wrapped as an IN:0/IN:1
+                        // argument, never NOT_IN:0/NOT_IN:1, so the whole operator is excluded from candidates here
+                        // rather than left as a permanent EXPECTED_ERRORS entry.
+                        if ("NOT_IN".equals(name)) return;
 
                         List<Map<String, Object>> signatures = (List<Map<String, Object>>) map.get("signatures");
                         if (signatures == null) return;

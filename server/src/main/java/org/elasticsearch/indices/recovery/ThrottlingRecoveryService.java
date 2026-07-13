@@ -335,7 +335,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             previousLimit = this.maxConcurrentRecoveries;
             this.maxConcurrentRecoveries = newMaxConcurrentRecoveries;
         }
-        if (previousLimit < newMaxConcurrentRecoveries && lifecycle.started()) {
+        if (previousLimit < newMaxConcurrentRecoveries && lifecycle.started() /* calls before start can (must) be ignored */) {
             fillSlots();
         }
     }

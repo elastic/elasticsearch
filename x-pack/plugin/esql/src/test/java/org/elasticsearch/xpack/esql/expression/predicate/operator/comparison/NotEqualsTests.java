@@ -359,12 +359,8 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                     var histo = randomExponentialHistogram();
                     return new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(histo, DataType.EXPONENTIAL_HISTOGRAM, "lhs").withAppliesTo(
-                                histogramAppliesTo
-                            ),
-                            new TestCaseSupplier.TypedData(histo, DataType.EXPONENTIAL_HISTOGRAM, "rhs").withAppliesTo(
-                                histogramAppliesTo
-                            )
+                            new TestCaseSupplier.TypedData(histo, DataType.EXPONENTIAL_HISTOGRAM, "lhs").withAppliesTo(histogramAppliesTo),
+                            new TestCaseSupplier.TypedData(histo, DataType.EXPONENTIAL_HISTOGRAM, "rhs").withAppliesTo(histogramAppliesTo)
                         ),
                         "NotEqualsExponentialHistogramEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                         DataType.BOOLEAN,
@@ -382,12 +378,8 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                     var right = randomValueOtherThan(left, () -> randomExponentialHistogram());
                     return new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(left, DataType.EXPONENTIAL_HISTOGRAM, "lhs").withAppliesTo(
-                                histogramAppliesTo
-                            ),
-                            new TestCaseSupplier.TypedData(right, DataType.EXPONENTIAL_HISTOGRAM, "rhs").withAppliesTo(
-                                histogramAppliesTo
-                            )
+                            new TestCaseSupplier.TypedData(left, DataType.EXPONENTIAL_HISTOGRAM, "lhs").withAppliesTo(histogramAppliesTo),
+                            new TestCaseSupplier.TypedData(right, DataType.EXPONENTIAL_HISTOGRAM, "rhs").withAppliesTo(histogramAppliesTo)
                         ),
                         "NotEqualsExponentialHistogramEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                         DataType.BOOLEAN,
@@ -410,21 +402,19 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                 org.hamcrest.Matchers.equalTo(false)
             );
         }));
-        suppliers.add(
-            new TestCaseSupplier("<histogram>, <different histogram>", List.of(DataType.HISTOGRAM, DataType.HISTOGRAM), () -> {
-                var left = randomHistogram();
-                var right = randomValueOtherThan(left, () -> randomHistogram());
-                return new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(left, DataType.HISTOGRAM, "lhs").withAppliesTo(histogramAppliesTo),
-                        new TestCaseSupplier.TypedData(right, DataType.HISTOGRAM, "rhs").withAppliesTo(histogramAppliesTo)
-                    ),
-                    "NotEqualsBytesRefEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                    DataType.BOOLEAN,
-                    org.hamcrest.Matchers.equalTo(true)
-                );
-            })
-        );
+        suppliers.add(new TestCaseSupplier("<histogram>, <different histogram>", List.of(DataType.HISTOGRAM, DataType.HISTOGRAM), () -> {
+            var left = randomHistogram();
+            var right = randomValueOtherThan(left, () -> randomHistogram());
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(left, DataType.HISTOGRAM, "lhs").withAppliesTo(histogramAppliesTo),
+                    new TestCaseSupplier.TypedData(right, DataType.HISTOGRAM, "rhs").withAppliesTo(histogramAppliesTo)
+                ),
+                "NotEqualsBytesRefEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataType.BOOLEAN,
+                org.hamcrest.Matchers.equalTo(true)
+            );
+        }));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }

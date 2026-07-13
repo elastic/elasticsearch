@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -69,5 +70,38 @@ public record RemoteFetchHandle(String nodeId, String retainedSessionId, int sha
         } catch (IOException e) {
             throw new UncheckedIOException("failed to decode remote fetch handle", e);
         }
+    }
+
+    /**
+     * Encodes just the (nodeId, retainedSessionId) prefix of the serialized handle form.
+     * <p>
+     * The serialization is deterministic and length-prefixed, so batch consumers that require all handles to share one
+     * target session can compare this prefix byte-for-byte against each serialized handle instead of materializing the
+     * two strings for every row.
+     */
+    public static BytesRef encodeTargetSessionPrefix(String nodeId, String retainedSessionId) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeString(nodeId);
+            out.writeString(retainedSessionId);
+            return BytesRef.deepCopyOf(out.bytes().toBytesRef());
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to encode remote fetch handle prefix", e);
+        }
+    }
+
+    /**
+     * Returns {@code true} when the serialized {@code handleBytes} starts with the given target-session prefix
+     * produced by {@link #encodeTargetSessionPrefix}.
+     */
+    public static boolean startsWithTargetSessionPrefix(BytesRef handleBytes, BytesRef prefix) {
+        return handleBytes.length >= prefix.length
+            && Arrays.equals(
+                handleBytes.bytes,
+                handleBytes.offset,
+                handleBytes.offset + prefix.length,
+                prefix.bytes,
+                prefix.offset,
+                prefix.offset + prefix.length
+            );
     }
 }

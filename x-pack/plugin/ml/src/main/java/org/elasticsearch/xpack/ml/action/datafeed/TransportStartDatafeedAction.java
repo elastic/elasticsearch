@@ -587,8 +587,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 datafeedTask.completeOrFailIfRequired(null);
                 return;
             }
+            // DatafeedState has no allocation id: null state means a fresh user start (fail-fast path),
+            // STARTED means the task was already running and this is a system reassignment (retry path).
+            boolean isReassignment = DatafeedState.STARTED.equals(datafeedState);
             switch (datafeedTask.setDatafeedRunner(datafeedRunner)) {
-                case NEITHER -> datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
+                case NEITHER -> datafeedRunner.run(datafeedTask, isReassignment, datafeedTask::completeOrFailIfRequired);
                 case ISOLATED -> logger.info("[{}] datafeed isolated immediately after reassignment.", params.getDatafeedId());
                 case STOPPED -> {
                     logger.info("[{}] datafeed stopped immediately after reassignment. Marking as completed", params.getDatafeedId());

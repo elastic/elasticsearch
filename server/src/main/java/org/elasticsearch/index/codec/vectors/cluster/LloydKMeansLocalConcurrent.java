@@ -11,10 +11,9 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
-import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 
 import java.io.IOException;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Concurrent implementation of Lloyd's k-means.
@@ -25,20 +24,11 @@ class LloydKMeansLocalConcurrent<V> extends LloydKMeansLocal<V> {
 
     final TaskExecutor executor;
     final int numWorkers;
-    final Soar<V> soar;
 
-    LloydKMeansLocalConcurrent(
-        CentroidOps<V> ops,
-        TaskExecutor executor,
-        int numWorkers,
-        int sampleSize,
-        int maxIterations,
-        float soarLambda
-    ) {
+    LloydKMeansLocalConcurrent(CentroidOps<V> ops, TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
         super(ops, sampleSize, maxIterations);
         this.executor = executor;
         this.numWorkers = numWorkers;
-        this.soar = soarLambda < 0 ? Soar.none() : Soar.ofConcurrent(executor, numWorkers, ops, soarLambda);
     }
 
     @Override
@@ -49,7 +39,7 @@ class LloydKMeansLocalConcurrent<V> extends LloydKMeansLocal<V> {
     @Override
     protected boolean stepLloyd(
         ClusteringVectorValues<V> vectors,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
@@ -66,15 +56,6 @@ class LloydKMeansLocalConcurrent<V> extends LloydKMeansLocal<V> {
             assignments,
             neighborHoods
         );
-    }
-
-    @Override
-    protected OverspillAssignments assignSpilled(
-        ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kMeansIntermediate,
-        NeighborHood[] neighborhoods
-    ) throws IOException {
-        return soar.assignSpilled(vectors, kMeansIntermediate, neighborhoods);
     }
 
     @Override

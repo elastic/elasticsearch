@@ -11,7 +11,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.core.WelfordVariance;
-import org.elasticsearch.index.codec.vectors.diskbbq.SoarAssignments;
+import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -54,7 +54,6 @@ public class HierarchicalKMeans<V> {
     final int maxIterations;
     final int samplesPerCluster;
     final int clustersPerNeighborhood;
-    final float soarLambda;
     final CentroidOps<V> ops;
 
     private final TaskExecutor executor;
@@ -67,8 +66,7 @@ public class HierarchicalKMeans<V> {
         int numWorkers,
         int maxIterations,
         int samplesPerCluster,
-        int clustersPerNeighborhood,
-        float soarLambda
+        int clustersPerNeighborhood
     ) {
         this.ops = ops;
         this.dimension = dimension;
@@ -77,11 +75,10 @@ public class HierarchicalKMeans<V> {
         this.maxIterations = maxIterations;
         this.samplesPerCluster = samplesPerCluster;
         this.clustersPerNeighborhood = clustersPerNeighborhood;
-        this.soarLambda = soarLambda;
     }
 
     public static <V> HierarchicalKMeans<V> ofSerial(CentroidOps<V> ops, int dimension) {
-        return ofSerial(ops, dimension, MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK, DEFAULT_SOAR_LAMBDA);
+        return ofSerial(ops, dimension, MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK);
     }
 
     public static <V> HierarchicalKMeans<V> ofSerial(
@@ -89,23 +86,13 @@ public class HierarchicalKMeans<V> {
         int dimension,
         int maxIterations,
         int samplesPerCluster,
-        int clustersPerNeighborhood,
-        float soarLambda
+        int clustersPerNeighborhood
     ) {
-        return new HierarchicalKMeans<>(ops, dimension, null, 1, maxIterations, samplesPerCluster, clustersPerNeighborhood, soarLambda);
+        return new HierarchicalKMeans<>(ops, dimension, null, 1, maxIterations, samplesPerCluster, clustersPerNeighborhood);
     }
 
     public static <V> HierarchicalKMeans<V> ofConcurrent(CentroidOps<V> ops, int dimension, TaskExecutor executor, int numWorkers) {
-        return ofConcurrent(
-            ops,
-            dimension,
-            executor,
-            numWorkers,
-            MAX_ITERATIONS_DEFAULT,
-            SAMPLES_PER_CLUSTER_DEFAULT,
-            MAXK,
-            DEFAULT_SOAR_LAMBDA
-        );
+        return ofConcurrent(ops, dimension, executor, numWorkers, MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK);
     }
 
     public static <V> HierarchicalKMeans<V> ofConcurrent(
@@ -115,19 +102,9 @@ public class HierarchicalKMeans<V> {
         int numWorkers,
         int maxIterations,
         int samplesPerCluster,
-        int clustersPerNeighborhood,
-        float soarLambda
+        int clustersPerNeighborhood
     ) {
-        return new HierarchicalKMeans<>(
-            ops,
-            dimension,
-            executor,
-            numWorkers,
-            maxIterations,
-            samplesPerCluster,
-            clustersPerNeighborhood,
-            soarLambda
-        );
+        return new HierarchicalKMeans<>(ops, dimension, executor, numWorkers, maxIterations, samplesPerCluster, clustersPerNeighborhood);
     }
 
     /**
@@ -139,7 +116,7 @@ public class HierarchicalKMeans<V> {
      * @return the centroids and the vectors assignments and SOAR (spilled from nearby neighborhoods) assignments
      * @throws IOException is thrown if vectors is inaccessible
      */
-    public KMeansWithOverspill<V> cluster(ClusteringVectorValues<V> vectors, int targetSize) throws IOException {
+    public KMeansNeighbors<V> cluster(ClusteringVectorValues<V> vectors, int targetSize) throws IOException {
         return cluster(vectors, targetSize, null);
     }
 
@@ -150,9 +127,9 @@ public class HierarchicalKMeans<V> {
      * centroids are picked from {@code vectors}; when it is larger, only the first {@code k}
      * centroids are used. The caller's {@code warmStartCentroids} arrays are never mutated.
      */
-    public KMeansWithOverspill<V> cluster(ClusteringVectorValues<V> vectors, int targetSize, V[] warmStartCentroids) throws IOException {
+    public KMeansNeighbors<V> cluster(ClusteringVectorValues<V> vectors, int targetSize, V[] warmStartCentroids) throws IOException {
         if (vectors.size() == 0) {
-            return new KMeansWithOverspill<>(KMeansIntermediate.empty(ops), null);
+            return new KMeansNeighbors<>(KMeansResult.empty(ops), null);
         }
 
         // if we have a small number of vectors calculate the centroid directly
@@ -160,33 +137,52 @@ public class HierarchicalKMeans<V> {
             V centroid = ops.computeMeanCentroid(vectors, dimension);
             V[] centroids = ops.newCentroidArrayShallow(1);
             centroids[0] = centroid;
-            KMeansIntermediate<V> result = new KMeansIntermediate<>(centroids, new int[vectors.size()]);
+            KMeansResult<V> result = new KMeansResult<>(centroids, new int[vectors.size()]);
             // All vectors are assigned to the single centroid (index 0)
             result.setCentroids(centroids, new int[] { vectors.size() });
-            return new KMeansWithOverspill<>(result, null);
+            return new KMeansNeighbors<>(result, null);
         }
 
         // partition the space
-        KMeansIntermediate<V> kMeansIntermediate = clusterAndSplit(vectors, targetSize, warmStartCentroids);
+        KMeansResult<V> kMeansResult = clusterAndSplit(vectors, targetSize, warmStartCentroids);
 
         if (logger.isDebugEnabled()) {
             logger.debug("Hierarchical clustering stats (pre-SOAR):");
-            logClusterQualityStatistics(vectors, kMeansIntermediate);
+            logClusterQualityStatistics(vectors, kMeansResult);
         }
 
-        if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
-            int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
+        if (kMeansResult.centroids().length > 1 && kMeansResult.centroids().length < vectors.size()) {
+            int localSampleSize = Math.min(kMeansResult.centroids().length * samplesPerCluster / 2, vectors.size());
             KMeansLocal<V> kMeansLocal = buildKmeansLocalFinal(vectors.size(), localSampleSize);
-            KMeansWithOverspill<V> res = kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood);
+            NeighborHood[] neighborHoods = kMeansLocal.cluster(vectors, kMeansResult, clustersPerNeighborhood);
 
             if (logger.isDebugEnabled()) {
                 logger.debug("Refinement clustering stats (pre-SOAR):");
-                logClusterQualityStatistics(vectors, kMeansIntermediate);
+                logClusterQualityStatistics(vectors, kMeansResult);
             }
-            return res;
+            return new KMeansNeighbors<>(kMeansResult, neighborHoods);
         }
 
-        return new KMeansWithOverspill<>(kMeansIntermediate, null);
+        return new KMeansNeighbors<>(kMeansResult, null);
+    }
+
+    public OverspillAssignments computeSoar(ClusteringVectorValues<V> vectors, KMeansResult<V> kMeans, NeighborHood[] neighborhoods)
+        throws IOException {
+        return computeSoar(vectors, kMeans, neighborhoods, DEFAULT_SOAR_LAMBDA);
+    }
+
+    public OverspillAssignments computeSoar(
+        ClusteringVectorValues<V> vectors,
+        KMeansResult<V> kMeans,
+        NeighborHood[] neighborhoods,
+        float soarLambda
+    ) throws IOException {
+        Soar<V> soar = buildSoar(vectors.size(), soarLambda);
+        OverspillAssignments overspill = OverspillAssignments.NONE;
+        if (kMeans.centroids().length > 1) {
+            overspill = soar.assignSpilled(vectors, kMeans, neighborhoods);
+        }
+        return overspill;
     }
 
     /**
@@ -275,12 +271,12 @@ public class HierarchicalKMeans<V> {
         // if there is no executor or there is no enough vectors for more than one thread, use the serial version
         if (USE_BALANCING) {
             return executor == null || numWorkers <= 1
-                ? new BalancedOTKMeansLocalSerial<>(ops, localSampleSize, iterations, soarLambda)
-                : new BalancedOTKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, iterations, soarLambda);
+                ? new BalancedOTKMeansLocalSerial<>(ops, localSampleSize, iterations)
+                : new BalancedOTKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, iterations);
         } else {
             return executor == null || numWorkers <= 1
-                ? new LloydKMeansLocalSerial<>(ops, localSampleSize, iterations, soarLambda)
-                : new LloydKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, iterations, soarLambda);
+                ? new LloydKMeansLocalSerial<>(ops, localSampleSize, iterations)
+                : new LloydKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, iterations);
         }
     }
 
@@ -289,13 +285,22 @@ public class HierarchicalKMeans<V> {
         // if there is no executor or there is no enough vectors for more than one thread, use the serial version
         if (USE_BALANCING) {
             return executor == null || numWorkers <= 1
-                ? new BalancedASKMeansLocalSerial<>(ops, localSampleSize, maxIterations, soarLambda)
-                : new BalancedASKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, maxIterations, soarLambda);
+                ? new BalancedASKMeansLocalSerial<>(ops, localSampleSize, maxIterations)
+                : new BalancedASKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, maxIterations);
         } else {
             return executor == null || numWorkers <= 1
-                ? new LloydKMeansLocalSerial<>(ops, localSampleSize, maxIterations, soarLambda)
-                : new LloydKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, maxIterations, soarLambda);
+                ? new LloydKMeansLocalSerial<>(ops, localSampleSize, maxIterations)
+                : new LloydKMeansLocalConcurrent<>(ops, executor, numWorkers, localSampleSize, maxIterations);
         }
+    }
+
+    private Soar<V> buildSoar(int numVectors, float soarLambda) {
+        assert soarLambda >= 0;
+
+        int numWorkers = Math.min(this.numWorkers, numVectors / MIN_VECTORS_PER_THREAD);
+        return executor == null || numWorkers <= 1
+            ? Soar.ofSerial(ops, soarLambda)
+            : Soar.ofConcurrent(executor, numWorkers, ops, soarLambda);
     }
 
     static <V> ClusteringVectorValues<V> createClusterSlice(
@@ -319,15 +324,15 @@ public class HierarchicalKMeans<V> {
     }
 
     /**
-     * Builds a {@link KMeansIntermediate} with a single centroid equal to the mean of all vectors.
+     * Builds a {@link KMeansResult} with a single centroid equal to the mean of all vectors.
      * Used by the small-corpus early-return path in {@link #cluster}, {@link #clusterByInsertion},
      * and {@link #clusterByConcatenation}.
      */
-    private KMeansIntermediate<V> singleCentroidResult(ClusteringVectorValues<V> vectors) throws IOException {
+    private KMeansResult<V> singleCentroidResult(ClusteringVectorValues<V> vectors) throws IOException {
         V centroid = ops.computeMeanCentroid(vectors, dimension);
         V[] centroids = ops.newCentroidArrayShallow(1);
         centroids[0] = centroid;
-        return new KMeansIntermediate<>(centroids, new int[vectors.size()]);
+        return new KMeansResult<>(centroids, new int[vectors.size()]);
     }
 
     /**
@@ -336,10 +341,9 @@ public class HierarchicalKMeans<V> {
      * (shifting following assignment indices). The {@code centroidIndexOffset} accumulates
      * insertions so each iteration addresses the correct (shifted) centroid slot.
      */
-    @SuppressWarnings("unchecked")
     private void splitOversizedClusters(
         ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kMeansIntermediate,
+        KMeansResult<V> kMeansResult,
         int[] centroidVectorCount,
         int[] assignments,
         int targetSize
@@ -351,7 +355,7 @@ public class HierarchicalKMeans<V> {
             if (count > targetSize) {
                 final ClusteringVectorValues<V> sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
                 KMeansIntermediate<V> subPartitions = clusterAndSplit(sample, targetSize, null);
-                centroidIndexOffset += updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, subPartitions);
+                centroidIndexOffset += updateAssignmentsWithRecursiveSplit(kMeansResult, adjustedCentroid, subPartitions);
             }
         }
     }
@@ -435,10 +439,10 @@ public class HierarchicalKMeans<V> {
         int n = centroids.size();
         V[] reduced = KMeansLocal.pickInitialCentroids(centroids, targetCount, ops);
         // Run a few Lloyd iterations to refine
-        KMeansIntermediate<V> intermediate = new KMeansIntermediate<>(reduced, new int[n], centroids::ordToDoc);
-        KMeansLocal<V> kMeansLocal = new LloydKMeansLocalSerial<>(ops, n, 3, -1);
-        kMeansLocal.cluster(centroids, intermediate);
-        return intermediate.centroids();
+        KMeansResult<V> result = new KMeansResult<>(reduced, new int[n]);
+        KMeansLocal<V> kMeansLocal = new LloydKMeansLocalSerial<>(ops, n, 3);
+        kMeansLocal.cluster(centroids, result);
+        return result.centroids();
     }
 
     /**
@@ -679,27 +683,16 @@ public class HierarchicalKMeans<V> {
         return assignments;
     }
 
-    private SoarAssignments assignSoarOnly(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate) throws IOException {
-        if (soarLambda < 0) {
-            return null;
-        }
-
+    private OverspillAssignments assignSoarOnly(ClusteringVectorValues<V> vectors, KMeansResult<V> kMeansResult) throws IOException {
         NeighborHood[] neighborhoods = null;
-        V[] centroids = kMeansIntermediate.centroids();
+        V[] centroids = kMeansResult.centroids();
         if (centroids.length > clustersPerNeighborhood) {
             neighborhoods = executor == null || numWorkers < 2
                 ? NeighborHood.computeNeighborhoods(ops, centroids, clustersPerNeighborhood)
                 : NeighborHood.computeNeighborhoods(ops, executor, numWorkers, centroids, clustersPerNeighborhood);
         }
 
-        int effectiveWorkers = Math.min(numWorkers, vectors.size() / MIN_VECTORS_PER_THREAD);
-        if (executor != null && effectiveWorkers >= 2) {
-            return new SoarAssignments(
-                Soar.assignSpilledConcurrent(executor, effectiveWorkers, vectors, ops, kMeansIntermediate, neighborhoods, soarLambda)
-            );
-        } else {
-            return new SoarAssignments(Soar.assignSpilledSlice(vectors, ops, kMeansIntermediate, neighborhoods, soarLambda));
-        }
+        return buildSoar(vectors.size(), DEFAULT_SOAR_LAMBDA).assignSpilled(vectors, kMeansResult, neighborhoods);
     }
 
     /**
@@ -730,7 +723,8 @@ public class HierarchicalKMeans<V> {
 
         Random random = new Random(42L);
         int n = vectors.size();
-        int sampleSize = (int) Math.min(n, Math.max(needed * 64L, 4096L));
+        // select a minimum of 4096 vectors (n may be smaller than 4096)
+        int sampleSize = Math.clamp(needed * 64L, Math.min(4096, n), n);
 
         // Reservoir-sample sampleSize vector indices, deterministic with seed 42.
         int[] sample = new int[sampleSize];
@@ -832,18 +826,17 @@ public class HierarchicalKMeans<V> {
      * @param targetSize       target number of vectors per cluster
      * @return clustering result with assignments and SOAR assignments
      */
-    @SuppressWarnings({ "rawtypes", "unchecked", "cast" })
     public KMeansWithOverspill<V> clusterByInsertion(
         ClusteringVectorValues<V> vectors,
         ClusteringVectorValues<V> initialCentroids,
         int targetSize
     ) throws IOException {
         if (vectors.size() == 0) {
-            return new KMeansWithOverspill<>(KMeansIntermediate.empty(ops), null);
+            return new KMeansWithOverspill<>(KMeansResult.empty(ops), OverspillAssignments.NONE);
         }
 
         if (vectors.size() <= targetSize) {
-            return new KMeansWithOverspill<>(singleCentroidResult(vectors), null);
+            return new KMeansWithOverspill<>(singleCentroidResult(vectors), OverspillAssignments.NONE);
         }
 
         int k = Math.clamp((int) ((vectors.size() + targetSize / 2.0f) / (float) targetSize), 2, MAXK);
@@ -863,9 +856,9 @@ public class HierarchicalKMeans<V> {
         // a sampled pass followed by a final full pass.
         int[] assignments = new int[vectors.size()];
         Arrays.fill(assignments, -1);
-        KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(seedCentroids, assignments, vectors::ordToDoc);
+        KMeansResult<V> kMeansResult = new KMeansResult<>(seedCentroids, assignments);
         KMeansLocal<V> kMeansLocal = buildKmeansLocal(vectors.size(), vectors.size(), 1);
-        kMeansLocal.cluster(vectors, kMeansIntermediate);
+        kMeansLocal.cluster(vectors, kMeansResult);
 
         // Handle oversized clusters by recursive splitting, same as clusterAndSplit
         int[] centroidVectorCount = new int[seedCentroids.length];
@@ -879,19 +872,23 @@ public class HierarchicalKMeans<V> {
         // distribution. Mirrors the guard in clusterByConcatenation.
         if (concatClusteringIsDegenerate(centroidVectorCount)) {
             logger.debug("clusterByInsertion: post-assignment distribution is degenerate, falling back to full rebuild");
-            return cluster(vectors, targetSize);
+            KMeansNeighbors<V> kMeansNeighbors = cluster(vectors, targetSize);
+            OverspillAssignments soar = computeSoar(vectors, kMeansNeighbors.result(), kMeansNeighbors.neighborHoods());
+            return new KMeansWithOverspill<>(kMeansNeighbors.result(), soar);
         }
 
-        splitOversizedClusters(vectors, kMeansIntermediate, centroidVectorCount, assignments, targetSize);
+        splitOversizedClusters(vectors, kMeansResult, centroidVectorCount, assignments, targetSize);
 
         // Neighborhood-aware refinement + SOAR with minimal iteration.
         // One pass is sufficient since the initial assignment is already good.
-        if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
+        if (kMeansResult.centroids().length > 1 && kMeansResult.centroids().length < vectors.size()) {
             KMeansLocal<V> refinementKMeans = buildKmeansLocal(vectors.size(), vectors.size(), 1);
-            return refinementKMeans.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood);
+            NeighborHood[] neighborhoods = refinementKMeans.cluster(vectors, kMeansResult, clustersPerNeighborhood);
+            OverspillAssignments overspill = computeSoar(vectors, kMeansResult, neighborhoods);
+            return new KMeansWithOverspill<>(kMeansResult, overspill);
         }
 
-        return new KMeansWithOverspill<>(kMeansIntermediate, null);
+        return new KMeansWithOverspill<>(kMeansResult, OverspillAssignments.NONE);
     }
 
     /**
@@ -925,10 +922,10 @@ public class HierarchicalKMeans<V> {
         int targetSize
     ) throws IOException {
         if (vectors.size() == 0) {
-            return new KMeansWithOverspill<>(KMeansIntermediate.empty(ops), null);
+            return new KMeansWithOverspill<>(KMeansResult.empty(ops), OverspillAssignments.NONE);
         }
         if (vectors.size() <= targetSize) {
-            return new KMeansWithOverspill<>(singleCentroidResult(vectors), null);
+            return new KMeansWithOverspill<>(singleCentroidResult(vectors), OverspillAssignments.NONE);
         }
 
         int k = Math.clamp((int) ((vectors.size() + targetSize / 2.0f) / (float) targetSize), 2, MAXK);
@@ -963,7 +960,9 @@ public class HierarchicalKMeans<V> {
         int coverageScaledK = (int) Math.ceil((double) k * effectiveCovered / vectors.size());
         if (priorIsDegenerate(priorCount, clusterSizes, coverageScaledK)) {
             logger.debug("clusterByConcatenation: prior is degenerate, falling back to full rebuild");
-            return cluster(vectors, targetSize);
+            KMeansNeighbors<V> kMeansNeighbors = cluster(vectors, targetSize);
+            OverspillAssignments soar = computeSoar(vectors, kMeansNeighbors.result(), kMeansNeighbors.neighborHoods());
+            return new KMeansWithOverspill<>(kMeansNeighbors.result(), soar);
         }
 
         // Fit prior centroids to target K using variance-aware reduction
@@ -979,10 +978,10 @@ public class HierarchicalKMeans<V> {
         // Single assignment pass with NO iterative convergence (0 sampled iterations).
         int[] assignments = new int[vectors.size()];
         Arrays.fill(assignments, -1);
-        KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(seedCentroids, assignments, vectors::ordToDoc);
+        KMeansResult<V> kMeansResult = new KMeansResult<>(seedCentroids, assignments);
         // maxIterations=0 means only the final full-pass assignment (no sampled iterations)
         KMeansLocal<V> kMeansLocal = buildKmeansLocal(vectors.size(), vectors.size(), 0);
-        kMeansLocal.cluster(vectors, kMeansIntermediate);
+        kMeansLocal.cluster(vectors, kMeansResult);
 
         // Handle oversized clusters
         int[] centroidVectorCount = new int[seedCentroids.length];
@@ -997,17 +996,19 @@ public class HierarchicalKMeans<V> {
         // run the full rebuild so the merge isn't ruined.
         if (concatClusteringIsDegenerate(centroidVectorCount)) {
             logger.debug("clusterByConcatenation: post-assignment distribution is degenerate, falling back to full rebuild");
-            return cluster(vectors, targetSize);
+            KMeansNeighbors<V> kMeansNeighbors = cluster(vectors, targetSize);
+            OverspillAssignments soar = computeSoar(vectors, kMeansNeighbors.result(), kMeansNeighbors.neighborHoods());
+            return new KMeansWithOverspill<>(kMeansNeighbors.result(), soar);
         }
 
-        splitOversizedClusters(vectors, kMeansIntermediate, centroidVectorCount, assignments, targetSize);
+        splitOversizedClusters(vectors, kMeansResult, centroidVectorCount, assignments, targetSize);
 
         // SOAR assignment only — benchmarks showed refinement pass never justifies its cost
-        if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
-            return new KMeansWithOverspill<>(kMeansIntermediate, assignSoarOnly(vectors, kMeansIntermediate));
+        if (kMeansResult.centroids().length > 1 && kMeansResult.centroids().length < vectors.size()) {
+            return new KMeansWithOverspill<>(kMeansResult, assignSoarOnly(vectors, kMeansResult));
         }
 
-        return new KMeansWithOverspill<>(kMeansIntermediate, null);
+        return new KMeansWithOverspill<>(kMeansResult, OverspillAssignments.NONE);
     }
 
     /**
@@ -1079,7 +1080,7 @@ public class HierarchicalKMeans<V> {
      * @param subPartitions The new centroids resulting from the split
      * @return The number of centroids added excluding the one that is replaced
      */
-    int updateAssignmentsWithRecursiveSplit(KMeansIntermediate<V> current, int cluster, KMeansIntermediate<V> subPartitions) {
+    int updateAssignmentsWithRecursiveSplit(KMeansResult<V> current, int cluster, KMeansIntermediate<V> subPartitions) {
         if (subPartitions.centroids().length == 0) {
             return 0; // nothing to do, sub-partitions is empty
         }
@@ -1133,11 +1134,10 @@ public class HierarchicalKMeans<V> {
         return subPartitions.centroids().length - 1;
     }
 
-    private void logClusterQualityStatistics(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate)
-        throws IOException {
+    private void logClusterQualityStatistics(ClusteringVectorValues<V> vectors, KMeansResult<V> kMeansResult) throws IOException {
         // We assume that kMeansIntermediate.centroids().length > 0.
-        float inertia = kMeansMeanInertia(vectors, kMeansIntermediate);
-        int[] clusterSizes = kMeansIntermediate.clusterCounts();
+        float inertia = kMeansMeanInertia(vectors, kMeansResult);
+        int[] clusterSizes = kMeansResult.clusterCounts();
 
         int minClusterSize = Integer.MAX_VALUE;
         int maxClusterSize = Integer.MIN_VALUE;
@@ -1163,9 +1163,9 @@ public class HierarchicalKMeans<V> {
         );
     }
 
-    private float kMeansMeanInertia(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate) throws IOException {
-        int[] assignments = kMeansIntermediate.assignments();
-        V[] centroids = kMeansIntermediate.centroids();
+    private float kMeansMeanInertia(ClusteringVectorValues<V> vectors, KMeansResult<V> kMeansResult) throws IOException {
+        int[] assignments = kMeansResult.assignments();
+        V[] centroids = kMeansResult.centroids();
 
         float mse = 0;
         for (int i = 0; i < vectors.size(); i++) {

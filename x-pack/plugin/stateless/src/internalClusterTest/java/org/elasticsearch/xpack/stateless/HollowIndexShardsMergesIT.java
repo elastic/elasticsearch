@@ -12,6 +12,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -35,9 +36,11 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
@@ -52,6 +55,14 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestCase {
+
+    /**
+     * How long a merge that the test has deliberately blocked will wait to be released before giving up. This must be
+     * generous enough to comfortably outlast a healthy shard relocation under CI load (the previous 10s bound, inherited
+     * from {@code safeAwait}, was not, which caused a rare hang -- see #152723), but still bounded so a genuine stall
+     * fails the test in reasonable time rather than hanging until the suite timeout.
+     */
+    private static final long MERGE_BLOCK_TIMEOUT_SECONDS = 60;
 
     @Override
     protected boolean addMockFsRepository() {
@@ -149,6 +160,10 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
 
         var mergesRunningLatch = new CountDownLatch(maxNumberOfMergeThreads);
         var blockRunningMergesLatch = new CountDownLatch(1);
+        // Holds the failure detail (cause + diagnostics) if a deliberately-blocked merge is not released within
+        // MERGE_BLOCK_TIMEOUT_SECONDS, or is interrupted while waiting. It must stay null in a healthy run and is asserted
+        // at the end of the test.
+        var blockFailureDetail = new AtomicReference<String>();
         setNodeRepositoryStrategy(indexNodeA, new StatelessMockRepositoryStrategy() {
             @Override
             public InputStream blobContainerReadBlob(
@@ -160,7 +175,31 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
             ) throws IOException {
                 if (Thread.currentThread().getName().contains(ThreadPool.Names.MERGE)) {
                     mergesRunningLatch.countDown();
-                    safeAwait(blockRunningMergesLatch);
+                    // Deliberately NOT safeAwait: this runs on the thread executing a Lucene merge, which the test holds
+                    // blocked until the relocation below releases blockRunningMergesLatch. safeAwait's 10s bound is too
+                    // short for a relocation under CI load and, on timeout, throws an AssertionError that escapes up
+                    // through the Lucene merge and tragic-closes the IndexWriter -- turning a clean failure into a
+                    // 20-minute suite-timeout hang (see #152723). Instead, wait with a generous bound and, if it does not
+                    // release in time, capture diagnostics and let the read proceed so the merge completes cleanly; the
+                    // test then fails on the assertion at the end with those diagnostics attached. Failing here would
+                    // cause the test to hang.
+                    String failureCause = null;
+                    try {
+                        if (blockRunningMergesLatch.await(MERGE_BLOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS) == false) {
+                            failureCause = "was not released within [" + MERGE_BLOCK_TIMEOUT_SECONDS + "]s";
+                        }
+                    } catch (InterruptedException e) {
+                        // Intentionally do NOT restore the interrupt flag: this thread is about to continue the Lucene
+                        // merge via the read below, and an interrupted thread performing NIO would throw and tragic-close
+                        // the IndexWriter -- the exact failure mode this block exists to avoid. Swallowing the interrupt
+                        // lets the merge finish cleanly; the test still fails via the assertion at the end.
+                        failureCause = "was interrupted while waiting";
+                    }
+                    if (failureCause != null) {
+                        var detail = "blocked merge " + failureCause + "; see #152723:\n" + mergeBlockDiagnostics(indexNodeA, indexName);
+                        logger.error(detail);
+                        blockFailureDetail.compareAndSet(null, detail);
+                    }
                 }
                 return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
             }
@@ -229,6 +268,15 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
             unblockMergePoolLatch.countDown();
         } else {
             blockRunningMergesLatch.countDown();
+        }
+
+        // If a blocked merge failed to release above (timed out or was interrupted), the relocation/indexing took far
+        // longer than expected (see #152723). Fail here with the diagnostics captured at that moment, rather than relying
+        // on a downstream assertion. We intentionally wait to fail here rather than where the failure is detected, because
+        // it is detected inside of a lucene merge thread, and failing there would cause the test to hang.
+        var blockFailure = blockFailureDetail.get();
+        if (blockFailure != null) {
+            fail(blockFailure);
         }
 
         assertShardEngineIsInstanceOf(indexName, 0, indexNodeB, IndexEngine.class);
@@ -334,6 +382,103 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
     private static void assertShardEngineIsInstanceOf(String indexName, int shardId, String node, Class<?> engineType) {
         var indexShard = findIndexShard(resolveIndex(indexName), shardId, node);
         assertThat(indexShard.getEngineOrNull(), instanceOf(engineType));
+    }
+
+    /**
+     * TODO: This is code to diagnose #152723. Remove this method once the root cause is found.
+     * Builds a diagnostic snapshot for the case where a merge the test deliberately blocked is not released within
+     * {@link #MERGE_BLOCK_TIMEOUT_SECONDS} (or is interrupted while waiting). Captures the blocked (merge) thread's name,
+     * the node's queued merge size, its merge/write/generic/refresh thread-pool stats, the index's routing/relocation
+     * state, and the stacks of the merge/write/generic/refresh/test threads, so a future failure can be attributed to slow
+     * relocation versus a genuine stall (e.g. merge work occupying write-pool threads) -- see #152723.
+     * <p>
+     * All reads are local (no cluster API round-trips) so this won't hang, and every section is guarded with a try/catch,
+     * so a problem gathering diagnostics won't mask the real failure. It only runs on the failure path, so the volume is fine.
+     */
+    private String mergeBlockDiagnostics(String node, String indexName) {
+        var sb = new StringBuilder();
+        sb.append("blocked hook thread: ").append(Thread.currentThread().getName()).append('\n');
+        try {
+            var queuedMergeBytes = internalCluster().getInstance(MergeMetrics.class, node).getQueuedMergeSizeInBytes();
+            sb.append("queued merge size on [").append(node).append("]: ").append(queuedMergeBytes).append(" bytes\n");
+        } catch (Exception e) {
+            logger.warn("could not read MergeMetrics", e);
+            sb.append("could not read MergeMetrics for [").append(node).append("]: ").append(e).append('\n');
+        }
+        // Thread-pool stats quantify whether a pool is saturated (e.g. write threads all active with a non-empty queue),
+        // which is the direct signal for the merge-work-on-write-threads / write-pool-exhaustion hypothesis.
+        try {
+            sb.append("thread pool stats on [").append(node).append("]:\n");
+            for (var stats : internalCluster().getInstance(ThreadPool.class, node).stats()) {
+                var poolName = stats.name();
+                if (poolName.equals(ThreadPool.Names.MERGE)
+                    || poolName.equals(ThreadPool.Names.WRITE)
+                    || poolName.equals(ThreadPool.Names.GENERIC)
+                    || poolName.equals(ThreadPool.Names.REFRESH)) {
+                    sb.append("  ")
+                        .append(poolName)
+                        .append(": threads=")
+                        .append(stats.threads())
+                        .append(" active=")
+                        .append(stats.active())
+                        .append(" queue=")
+                        .append(stats.queue())
+                        .append(" completed=")
+                        .append(stats.completed())
+                        .append(" rejected=")
+                        .append(stats.rejected())
+                        .append(" largest=")
+                        .append(stats.largest())
+                        .append('\n');
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("could not read thread pool stats", e);
+            sb.append("could not read thread pool stats for [").append(node).append("]: ").append(e).append('\n');
+        }
+        // Routing state distinguishes "relocation in flight but slow" from "relocation never progressed / stuck".
+        try {
+            var clusterState = internalCluster().getInstance(ClusterService.class, node).state();
+            var indexRoutingTable = clusterState.projectState(ProjectId.DEFAULT).routingTable().index(indexName);
+            sb.append("routing table for [").append(indexName).append("]:\n");
+            if (indexRoutingTable == null) {
+                sb.append("  <no routing table entry>\n");
+            } else {
+                for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                    for (var shardRouting : indexRoutingTable.shard(shardId).assignedShards()) {
+                        sb.append("  ").append(shardRouting).append('\n');
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("could not read routing table", e);
+            sb.append("could not read routing table for [").append(indexName).append("]: ").append(e).append('\n');
+        }
+        // Use ThreadMXBean rather than Thread#getAllStackTraces(), which is a forbidden API (needs special permission).
+        sb.append("relevant thread stacks:\n");
+        try {
+            var threadBean = ManagementFactory.getThreadMXBean();
+            for (var threadInfo : threadBean.getThreadInfo(threadBean.getAllThreadIds(), Integer.MAX_VALUE)) {
+                if (threadInfo == null) {
+                    continue;
+                }
+                var name = threadInfo.getThreadName();
+                if (name.contains(ThreadPool.Names.MERGE)
+                    || name.contains(ThreadPool.Names.WRITE)
+                    || name.contains(ThreadPool.Names.GENERIC)
+                    || name.contains(ThreadPool.Names.REFRESH)
+                    || name.contains("TEST-")) {
+                    sb.append("  \"").append(name).append("\" ").append(threadInfo.getThreadState()).append('\n');
+                    for (var frame : threadInfo.getStackTrace()) {
+                        sb.append("    at ").append(frame).append('\n');
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("could not read thread stacks", e);
+            sb.append("could not read thread stacks: ").append(e).append('\n');
+        }
+        return sb.toString();
     }
 
     private static void assertMergesAreEnqueued(String indexNode) throws Exception {

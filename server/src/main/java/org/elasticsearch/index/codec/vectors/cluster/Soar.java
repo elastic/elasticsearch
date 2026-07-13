@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 import org.elasticsearch.index.codec.vectors.diskbbq.SoarAssignments;
 
 import java.io.IOException;
@@ -19,26 +20,14 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
- * Holds serial and concurrent implementations of the SOAR overspill algorithm
+ * Holds serial and concurrent implementations of the
+ * <a href="https://research.google/blog/soar-new-algorithms-for-even-faster-vector-search-with-scann/">SOAR overspill algorithm</a>
  */
 public abstract class Soar<V> {
 
     // the minimum distance that is considered to be "far enough" to a centroid in order to compute the soar distance.
     private static final float SOAR_MIN_DISTANCE = 1e-16f;
     public static final int NO_SOAR_ASSIGNMENT = -1;
-
-    @SuppressWarnings("rawtypes")
-    private static final Soar NONE = new Soar<>(null, 0) {
-        @Override
-        protected SoarAssignments assignSpilled(ClusteringVectorValues vectors, KMeansResult kmeansResult, NeighborHood[] neighborhoods) {
-            return null;
-        }
-    };
-
-    @SuppressWarnings("unchecked")
-    static <V> Soar<V> none() {
-        return NONE;
-    }
 
     static <V> Soar<V> ofSerial(CentroidOps<V> ops, float soarLambda) {
         return new Serial<>(ops, soarLambda);
@@ -58,7 +47,7 @@ public abstract class Soar<V> {
     }
 
     /** assign to each vector the soar assignment */
-    protected abstract SoarAssignments assignSpilled(
+    protected abstract OverspillAssignments assignSpilled(
         ClusteringVectorValues<V> vectors,
         KMeansResult<V> kmeansResult,
         NeighborHood[] neighborhoods
@@ -120,7 +109,7 @@ public abstract class Soar<V> {
         int numWorkers,
         ClusteringVectorValues<V> vectors,
         CentroidOps<V> ops,
-        KMeansResult<V> kmeansIntermediate,
+        KMeansResult<V> kMeansResult,
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException {
@@ -131,7 +120,7 @@ public abstract class Soar<V> {
             final int start = i * len;
             final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
             runners.add(() -> {
-                assignSpilledSlice(vectors.copy(), ops, kmeansIntermediate, neighborhoods, soarLambda, start, end, assignments);
+                assignSpilledSlice(vectors.copy(), ops, kMeansResult, neighborhoods, soarLambda, start, end, assignments);
                 return null;
             });
         }

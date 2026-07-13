@@ -117,7 +117,20 @@ public final class SchemaReconciliation {
      * @param mapping column mapping from unified schema to file schema, null for identity mapping
      * @param statistics optional statistics from file metadata
      */
-    public record FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {}
+    public record FileSchemaInfo(
+        ExternalSchema fileSchema,
+        @Nullable ColumnMapping mapping,
+        @Nullable SourceStatistics statistics,
+        // PRE-overlay file types, physical-keyed; null means fileSchema IS the inferred schema (no declared overlay ran),
+        // so callers fall back to the fileSchema attributes' types (today's behavior). Populated only where the declared
+        // overlay rebuilds this info (ExternalSourceResolver.applyNonStrictOverlay) so the split-level stats boundary can
+        // normalize footer stats with the file's real inferred types instead of the overlaid declared types.
+        @Nullable Map<String, DataType> inferredTypes
+    ) {
+        public FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {
+            this(fileSchema, mapping, statistics, null);
+        }
+    }
 
     /**
      * Safe type widening for schema reconciliation.
@@ -398,12 +411,30 @@ public final class SchemaReconciliation {
      * {@code NdJsonPageDecoder#hasDottedPrefixConflict}), so only those unrelated dotted columns
      * are excluded from the family; see {@link #resolveFamily} for why exempting the file's leaf
      * contribution too would silently reopen the conflict.
+     * <p>
+     * Only files whose {@link SourceMetadata#sourceType()} is {@link #supportsShapeConflictResolution
+     * shape-conflict-capable} ever enter this family vote — see that method for why. A file from
+     * any other format that happens to carry a name matching {@code root} or {@code root.*} is
+     * therefore never touched here, however it looks lexically: e.g. a CSV file with a literal
+     * {@code user.tag} header alongside another (CSV or NDJSON) file's scalar {@code user} column
+     * is not a shape conflict — both are ordinary, independent columns and both survive in the
+     * unified schema, one NULL-filled in whichever file lacks it, exactly like any other pair of
+     * unrelated column names would.
      */
     private static Map<StoragePath, List<Attribute>> resolveShapeConflicts(
         LinkedHashMap<String, MergeEntry> unified,
         Map<StoragePath, SourceMetadata> fileMetadata
     ) {
-        List<String> familyRoots = findFamilyRoots(unified.keySet());
+        Set<String> namesFromCapableFiles = new LinkedHashSet<>();
+        for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
+            if (supportsShapeConflictResolution(entry.getValue().sourceType()) == false) {
+                continue;
+            }
+            for (Attribute attr : entry.getValue().schema()) {
+                namesFromCapableFiles.add(attr.name());
+            }
+        }
+        List<String> familyRoots = findFamilyRoots(namesFromCapableFiles);
         if (familyRoots.isEmpty()) {
             return Map.of();
         }
@@ -433,6 +464,38 @@ public final class SchemaReconciliation {
         }
         emitShapeConflictWarnings(conflicts);
         return overrides;
+    }
+
+    /**
+     * Whether {@code sourceType} may participate in {@link #resolveShapeConflicts}: its reader
+     * must both (a) genuinely flatten nested objects into dotted attribute names, so a
+     * {@code root}/{@code root.*} pair can actually mean "scalar in one file, object in another"
+     * rather than two unrelated literal names, and (b) have a per-file, read-time mechanism that
+     * routes a pinned-shape mismatch through {@link org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy}
+     * once this pass overrides a losing file's {@code readSchema} — see {@link #resolveShapeConflicts}'s
+     * javadoc for how that override is used downstream.
+     * <p>
+     * Today only NDJSON satisfies both: {@code NdJsonSchemaInferrer} flattens
+     * {@code {"user": {"id": ...}}} into {@code user.id}, and {@code NdJsonPageDecoder}'s
+     * {@code shapeConflict} handling (elastic/esql-planning#1028) is exactly the read-time fallback
+     * (a) needs. Every other format fails at least one requirement, and enabling it there would
+     * silently drop <em>valid</em> UBN columns instead of resolving a real conflict:
+     * <ul>
+     *   <li>CSV/TSV headers are always literal — a {@code "."} never means nesting, so
+     *       {@code user} and {@code user.tag} in two CSV files are simply two unrelated columns,
+     *       not a shape conflict.</li>
+     *   <li>Iceberg never flattens structs (they're skipped as {@code UNSUPPORTED}), so any dotted
+     *       name it does surface is, like CSV, always a literal top-level column name.</li>
+     *   <li>Parquet and ORC <em>do</em> flatten nested structs into dotted names (satisfying (a)),
+     *       but neither reader has an equivalent of NDJSON's {@code shapeConflict} fallback for a
+     *       column pinned to a shape that disagrees with the file's actual footer-declared type
+     *       (failing (b)) — so overriding a losing Parquet/ORC file's {@code readSchema} here would
+     *       misfire (e.g. a read-time type error) instead of gracefully degrading through
+     *       {@code ErrorPolicy}.</li>
+     * </ul>
+     */
+    private static boolean supportsShapeConflictResolution(String sourceType) {
+        return "ndjson".equals(sourceType);
     }
 
     private static int dotDepth(String name) {
@@ -485,6 +548,11 @@ public final class SchemaReconciliation {
      * version of this method did) let such a file's scalar {@code root} silently keep coexisting
      * with a winning nested shape from another file, reopening the exact ambiguity this method
      * exists to close.
+     * <p>
+     * A file whose format is not {@link #supportsShapeConflictResolution shape-conflict-capable}
+     * (e.g. CSV, Iceberg, Parquet, ORC) is skipped outright, regardless of whether it happens to
+     * carry {@code root} or a {@code root.*} name — see {@link #resolveShapeConflicts} for why
+     * such names there are always literal/independent, never a genuine shape conflict.
      */
     @Nullable
     private static FamilyConflict resolveFamily(
@@ -507,6 +575,9 @@ public final class SchemaReconciliation {
         LinkedHashMap<StoragePath, List<String>> losingFileNames = new LinkedHashMap<>();
 
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
+            if (supportsShapeConflictResolution(entry.getValue().sourceType()) == false) {
+                continue;
+            }
             boolean hasLeaf = false;
             List<String> dottedNames = new ArrayList<>();
             for (Attribute attr : entry.getValue().schema()) {

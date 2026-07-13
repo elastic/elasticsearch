@@ -10,14 +10,15 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
@@ -100,14 +101,24 @@ public class NdJsonCrossFileScalarObjectConflictIT extends AbstractEsqlIntegTest
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(HttpDataSourcePlugin.class);
         plugins.add(NdJsonDataSourcePlugin.class);
         plugins.add(TestDataSourcePlugin.class);
         return plugins;
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .putList(ExternalSourceSettings.LOCAL_ALLOWED_PATHS.getKey(), createTempDir().getParent().toString())
+            .build();
+    }
+
     @Before
     public void requireFeatureFlag() {
-        assumeTrue("requires external data sources feature flag", DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires dataset-in-from-command capability", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 
     /**

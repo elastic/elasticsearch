@@ -70,11 +70,10 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
         final int sampleSize = nClusters * 64;
         int dims = 256;
         int maxIterations = 20;
-        float soarLambda = -1;
 
         var methods = List.of(
-            new LloydKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations, soarLambda), // reference method
-            new BalancedOTKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations, soarLambda)
+            new LloydKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations), // reference method
+            new BalancedOTKMeansLocalSerial<>(CentroidOps.FLOAT, sampleSize, maxIterations)
         );
 
         float[] inertias = new float[methods.size()];
@@ -91,11 +90,11 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
             for (int j = 0; j < methods.size(); j++) {
                 float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, CentroidOps.FLOAT);
                 int[] assignments = new int[vectors.size()];
-                KMeansIntermediate<float[]> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments);
-                methods.get(j).cluster(vectors, kMeansIntermediate, nClusters);
+                KMeansResult<float[]> kMeansResult = new KMeansResult<>(centroids, assignments);
+                methods.get(j).cluster(vectors, kMeansResult, nClusters);
 
-                inertias[j] = kMeansMeanInertia(vectors, kMeansIntermediate);
-                int[] clusterSizes = clusterSizes(kMeansIntermediate);
+                inertias[j] = kMeansMeanInertia(vectors, kMeansResult);
+                int[] clusterSizes = clusterSizes(kMeansResult);
                 stdClusterSizes[j] = clusterSizesStandardDeviation(clusterSizes);
             }
 
@@ -120,7 +119,6 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
         final int nSamples = nClusters * 256;
         final int dims = 1024;
         final int maxIterations = 10;
-        final float soarLambda = -1;
         final int numThreads = randomIntBetween(2, 8);
 
         KMeansFloatVectorValues vectors = KMeansTestData.generateFloatDataWithStdDev(nVectors, dims, 1, 0.2f);
@@ -129,8 +127,8 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
             TaskExecutor taskExecutor = new TaskExecutor(executorService);
 
             var methods = List.of(
-                new BalancedOTKMeansLocalSerial<>(CentroidOps.FLOAT, nSamples / 2, maxIterations, soarLambda),
-                new BalancedOTKMeansLocalConcurrent<>(CentroidOps.FLOAT, taskExecutor, numThreads, nSamples / 2, maxIterations, soarLambda)
+                new BalancedOTKMeansLocalSerial<>(CentroidOps.FLOAT, nSamples / 2, maxIterations),
+                new BalancedOTKMeansLocalConcurrent<>(CentroidOps.FLOAT, taskExecutor, numThreads, nSamples / 2, maxIterations)
             );
 
             double[] inertias = new double[methods.size()];
@@ -140,11 +138,11 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
             for (int j = 0; j < methods.size(); j++) {
                 float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, CentroidOps.FLOAT);
                 int[] assignments = new int[vectors.size()];
-                KMeansIntermediate<float[]> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments);
-                methods.get(j).cluster(vectors, kMeansIntermediate, nClusters);
+                KMeansResult<float[]> kMeansResult = new KMeansResult<>(centroids, assignments);
+                methods.get(j).cluster(vectors, kMeansResult, nClusters);
 
-                inertias[j] = kMeansMeanInertia(vectors, kMeansIntermediate);
-                int[] clusterSizesArr = clusterSizes(kMeansIntermediate);
+                inertias[j] = kMeansMeanInertia(vectors, kMeansResult);
+                int[] clusterSizesArr = clusterSizes(kMeansResult);
 
                 stdClusterSizesArr[j] = clusterSizesStandardDeviation(clusterSizesArr);
                 minClusterSizes[j] = Arrays.stream(clusterSizesArr).min().getAsInt();
@@ -158,9 +156,9 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
 
     // ---- Helpers ----
 
-    static float kMeansMeanInertia(KMeansFloatVectorValues vectors, KMeansIntermediate<float[]> kMeansIntermediate) throws IOException {
-        int[] assignments = kMeansIntermediate.assignments();
-        float[][] centroids = kMeansIntermediate.centroids();
+    static float kMeansMeanInertia(KMeansFloatVectorValues vectors, KMeansResult<float[]> kMeansResult) throws IOException {
+        int[] assignments = kMeansResult.assignments();
+        float[][] centroids = kMeansResult.centroids();
 
         float mse = 0;
         for (int i = 0; i < vectors.size(); i++) {
@@ -172,13 +170,13 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
         return mse;
     }
 
-    static int[] clusterSizes(KMeansIntermediate<float[]> kMeansIntermediate) {
-        int[] assignments = kMeansIntermediate.assignments();
-        float[][] centroids = kMeansIntermediate.centroids();
+    static int[] clusterSizes(KMeansResult<float[]> kMeansResult) {
+        int[] assignments = kMeansResult.assignments();
+        float[][] centroids = kMeansResult.centroids();
 
         int[] clusterSizes = new int[centroids.length];
-        for (int i = 0; i < assignments.length; i++) {
-            clusterSizes[assignments[i]]++;
+        for (int assignment : assignments) {
+            clusterSizes[assignment]++;
         }
         return clusterSizes;
     }

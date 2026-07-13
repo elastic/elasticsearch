@@ -54,6 +54,7 @@ toc:
       - file: query-dsl/vector-queries.md
         children:
           - file: query-dsl/query-dsl-knn-query.md
+          - file: query-dsl/query-dsl-dense-vector-query.md
           - file: query-dsl/query-dsl-sparse-vector-query.md
           - file: query-dsl/query-dsl-semantic-query.md
           - file: query-dsl/query-dsl-text-expansion-query.md
@@ -213,11 +214,11 @@ toc:
                   - file: esql/functions-operators/date-time-functions/day_name.md
                   - file: esql/functions-operators/date-time-functions/month_name.md
                   - file: esql/functions-operators/date-time-functions/now.md
-                  - hidden: esql/functions-operators/date-time-functions/range_max.md
-                  - hidden: esql/functions-operators/date-time-functions/range_min.md
-                  - hidden: esql/functions-operators/date-time-functions/range_within.md
-                  - hidden: esql/functions-operators/date-time-functions/range_contains.md
-                  - hidden: esql/functions-operators/date-time-functions/range_intersects.md
+                  - file: esql/functions-operators/date-time-functions/range_max.md
+                  - file: esql/functions-operators/date-time-functions/range_min.md
+                  - file: esql/functions-operators/date-time-functions/range_within.md
+                  - file: esql/functions-operators/date-time-functions/range_contains.md
+                  - file: esql/functions-operators/date-time-functions/range_intersects.md
                   - file: esql/functions-operators/date-time-functions/trange.md
               - file: esql/functions-operators/ip-functions.md
                 children:
@@ -301,6 +302,7 @@ toc:
                   - file: esql/functions-operators/string-functions/concat.md
                   - file: esql/functions-operators/string-functions/contains.md
                   - file: esql/functions-operators/string-functions/ends_with.md
+                  - file: esql/functions-operators/string-functions/field_extract.md
                   - file: esql/functions-operators/string-functions/from_base64.md
                   - file: esql/functions-operators/string-functions/hash.md
                   - file: esql/functions-operators/string-functions/json_extract.md
@@ -348,6 +350,7 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_dateperiod.md
                   - file: esql/functions-operators/type-conversion-functions/to_datetime.md
                   - file: esql/functions-operators/type-conversion-functions/to_date_nanos.md
+                  - file: esql/functions-operators/type-conversion-functions/to_date_range.md
                   - file: esql/functions-operators/type-conversion-functions/to_degrees.md
                   - file: esql/functions-operators/type-conversion-functions/to_dense_vector.md
                   - file: esql/functions-operators/type-conversion-functions/to_double.md
@@ -362,6 +365,7 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_ip.md
                   - file: esql/functions-operators/type-conversion-functions/to_long.md
                   - file: esql/functions-operators/type-conversion-functions/to_radians.md
+                  - file: esql/functions-operators/type-conversion-functions/to_range.md
                   - file: esql/functions-operators/type-conversion-functions/to_string.md
                   - file: esql/functions-operators/type-conversion-functions/to_tdigest.md
                   - file: esql/functions-operators/type-conversion-functions/to_text.md
@@ -403,7 +407,8 @@ toc:
           - file: esql/esql-cross-serverless-projects.md
           - file: esql/esql-subquery.md
           - file: esql/esql-views.md
-      - hidden: esql/esql-federated-data.md
+      - hidden: esql/esql-data-federation.md
+      - hidden: esql/esql-data-federation-sources.md
       - file: esql/esql-advanced.md
         children:
           - file: esql/esql-process-data-with-dissect-grok.md
@@ -415,6 +420,7 @@ toc:
           - file: esql/esql-time-spans.md
           - file: esql/esql-metadata-fields.md
           - file: esql/esql-multivalued-fields.md
+          - file: esql/esql-unmapped-fields.md
       - file: esql/esql-examples.md
         children:
           - file: esql/esql-search-tutorial.md

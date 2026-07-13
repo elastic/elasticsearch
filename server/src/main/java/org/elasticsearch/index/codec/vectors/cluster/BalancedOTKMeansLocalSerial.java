@@ -10,10 +10,9 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.IntToIntFunction;
-import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 
 import java.io.IOException;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Single threaded implementation of mini-batch optimal transport k-means.
@@ -22,11 +21,8 @@ import java.io.IOException;
  */
 class BalancedOTKMeansLocalSerial<V> extends BalancedOTKMeansLocal<V> {
 
-    private final Soar<V> soar;
-
-    BalancedOTKMeansLocalSerial(CentroidOps<V> ops, int sampleSize, int maxIterations, float soarLambda) {
+    BalancedOTKMeansLocalSerial(CentroidOps<V> ops, int sampleSize, int maxIterations) {
         super(ops, sampleSize, maxIterations);
-        soar = soarLambda < 0 ? Soar.none() : Soar.ofSerial(ops, soarLambda);
     }
 
     @Override
@@ -37,7 +33,7 @@ class BalancedOTKMeansLocalSerial<V> extends BalancedOTKMeansLocal<V> {
     @Override
     protected void assign(
         ClusteringVectorValues<V> vectors,
-        IntToIntFunction ordTranslator,
+        IntUnaryOperator ordTranslator,
         V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
@@ -45,15 +41,6 @@ class BalancedOTKMeansLocalSerial<V> extends BalancedOTKMeansLocal<V> {
     ) throws IOException {
         assert centroidChangedSlices.length == 1;
         stepLloydSlice(vectors, ops, ordTranslator, centroids, centroidChangedSlices[0], assignments, neighborHoods, 0, vectors.size());
-    }
-
-    @Override
-    protected OverspillAssignments assignSpilled(
-        ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kMeansIntermediate,
-        NeighborHood[] neighborhoods
-    ) throws IOException {
-        return soar.assignSpilled(vectors, kMeansIntermediate, neighborhoods);
     }
 
     @Override

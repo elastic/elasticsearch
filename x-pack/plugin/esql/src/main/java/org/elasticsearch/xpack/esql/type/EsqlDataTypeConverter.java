@@ -29,6 +29,7 @@ import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.geometry.utils.Geohash;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -137,6 +139,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGN
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -272,13 +275,13 @@ public class EsqlDataTypeConverter {
             if (to == DataType.DATETIME) {
                 return l -> EsqlDataTypeConverter.dateTimeToLong(
                     BytesRefs.toString(l),
-                    DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId())
+                    DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                 );
             }
             if (to == DATE_NANOS) {
                 return l -> EsqlDataTypeConverter.dateNanosToLong(
                     BytesRefs.toString(l),
-                    DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                    DEFAULT_DATE_NANOS_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()))
                 );
             }
             if (to == DataType.IP) {
@@ -646,8 +649,12 @@ public class EsqlDataTypeConverter {
         return GEO.wktToWkb(field);
     }
 
+    /**
+     * Anything spatial that isn't geo (i.e. anything not caught by {@link DataType#isSpatialGeo}) is assumed
+     * to be cartesian.
+     */
     public static BytesRef stringToSpatial(String field) {
-        return UNSPECIFIED.wktToWkb(field);
+        return CARTESIAN.wktToWkb(field);
     }
 
     public static long dateTimeToLong(String dateTime) {
@@ -666,9 +673,15 @@ public class EsqlDataTypeConverter {
         return dateNanosToLong(dateNano, DEFAULT_DATE_NANOS_FORMATTER);
     }
 
-    public static long dateNanosToLong(String dateNano, DateFormatter formatter) {
+    /**
+     * Null {@code formatter} means ISO-8601 ({@link #DEFAULT_DATE_NANOS_FORMATTER}), matching
+     * {@link #dateTimeToLong(String, DateFormatter)}. The two sibling converters must agree on the null contract:
+     * a caller that threads an optional declared format through cannot be made to null-check one and not the other.
+     */
+    public static long dateNanosToLong(String dateNano, @Nullable DateFormatter formatter) {
         try {
-            Instant parsed = DateFormatters.from(formatter.parse(dateNano)).toInstant();
+            DateFormatter effective = formatter == null ? DEFAULT_DATE_NANOS_FORMATTER : formatter;
+            Instant parsed = DateFormatters.from(effective.parse(dateNano)).toInstant();
             return DateUtils.toLong(parsed);
         } catch (DateTimeException e) {
             throw new IllegalArgumentException(e.getMessage(), e);

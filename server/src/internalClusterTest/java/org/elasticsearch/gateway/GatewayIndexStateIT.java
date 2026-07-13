@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
@@ -41,7 +40,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -50,7 +48,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -521,7 +518,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 if (shardRoutingTable.primaryShard().assignedToNode()) {
                     return false;
                 }
-                if (shardRoutingTable.primaryShard().unassignedInfo().lastAllocationStatus() != UnassignedInfo.AllocationStatus.DECIDERS_NO) {
+                if (shardRoutingTable.primaryShard()
+                    .unassignedInfo()
+                    .lastAllocationStatus() != UnassignedInfo.AllocationStatus.DECIDERS_NO) {
                     return false;
                 }
                 if (shardRoutingTable.primaryShard().unassignedInfo().failedAllocations() <= 0) {

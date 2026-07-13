@@ -54,21 +54,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 /**
  * Returns {@code true} when a multivalue field has at least one value inside the inclusive range
- * {@code [lower, upper]}, comparing with the natural order of the type, and {@code false} otherwise —
- * including when the field is null or empty, or when a bound is null.
+ * {@code [lower, upper]} (natural order of the type), else {@code false} — including a null/empty field or a null bound.
  *
- * <p>Two properties make this function more than sugar over comparison operators:
- * <ul>
- *   <li><b>Any-value (existential) semantics.</b> The result is an existential over the field's values:
- *       {@code true} iff <em>some</em> value is in range. This is not the same as testing the field's
- *       envelope — {@code [0,100]} is not in {@code [40,60]} even though the envelope overlaps — so a
- *       {@code mv_min}/{@code mv_max} composition cannot express it. It matches how the query DSL
- *       {@code range} filter treats a multivalued field (a document matches if any value is in range).</li>
- *   <li><b>Two-valued (never null).</b> Unlike {@code <}/{@code <=} on a multivalued field, which return
- *       null, this returns only {@code true} or {@code false}. That lets it compose under {@code AND}/{@code OR}/
- *       {@code NOT} without a null bridge: a range over a field that a source does not have (a null field) is
- *       {@code false}, so {@code NOT} of it is {@code true}.</li>
- * </ul>
+ * <p>Two properties set it apart from comparison operators: any-value (existential) semantics, so {@code [0,100]} is
+ * not in {@code [40,60]} and an {@code mv_min}/{@code mv_max} composition cannot express it; and two-valued (never
+ * null), so it composes under {@code AND}/{@code OR}/{@code NOT} — the negation of a range over a missing field is
+ * {@code true}.
  */
 public class MvInRange extends EsqlScalarFunction implements TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -171,9 +162,8 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
         if (resolution.unresolved()) {
             return resolution;
         }
-        // A null field folds to a constant false, so we don't constrain the bounds against it — just check they are
-        // themselves range-able. Otherwise the bounds must share the field's type, so a single evaluator (chosen on the
-        // field type) can read all three without a cast mismatch, exactly as MvContains requires of its subset.
+        // A null field folds to constant false, so the bounds only need to be range-able themselves; otherwise they must
+        // share the field's type, so one evaluator (chosen on the field type) reads all three without a cast mismatch.
         if (field.dataType() == DataType.NULL) {
             resolution = isType(lower, MvInRange::isSupportedRangeType, sourceText(), SECOND, SUPPORTED_TYPES);
             if (resolution.unresolved()) {
@@ -206,10 +196,9 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
         return isType(upper, t -> t.noText() == fieldType, sourceText(), THIRD, fieldType.typeName());
     }
 
-    // The ordered types this function ranges over. It must stay in lockstep with the @Param type lists, the
-    // toEvaluator switch, and the test cases (unit + MvInRangeErrorTests): the function test framework fails if any of
-    // them disagree, which is how we guarantee no supported type is silently missing and no unsupported type slips
-    // through. boolean is deliberately excluded — a range over booleans is not a meaningful query.
+    // Must stay in lockstep with the @Param type lists, the toEvaluator switch, and the tests (unit + MvInRangeErrorTests):
+    // the function-test framework fails if they disagree, so no supported type is silently missing. boolean is excluded —
+    // a range over booleans is not meaningful.
     private static boolean isSupportedRangeType(DataType dt) {
         return dt == DataType.INTEGER
             || dt == DataType.LONG
@@ -329,25 +318,17 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        // We only push when the range is a faithful stand-in for this evaluator:
-        // - text is excluded: its range query matches the analyzed tokens, not the whole string, so it is not even a
-        // superset of what this evaluator compares;
-        // - the bounds must be single-valued, non-null literals: a null bound would push an unbounded range (the
-        // evaluator treats it as matching nothing) and a multivalued bound is unsupported — the same gate Equals and
-        // the binary comparisons apply.
+        // Push only where the range faithfully stands in for this evaluator: text is excluded (its range matches analyzed
+        // tokens, not the whole value), and the bounds must be single-valued non-null literals (the same gate the
+        // comparison operators apply).
         if (field.dataType() == DataType.TEXT) {
             return Translatable.NO;
         }
         if (pushdownPredicates.isPushableFieldAttribute(field) && isPushableBound(lower) && isPushableBound(upper)) {
-            // For integral fields (integer, long, date, date_nanos, unsigned_long) the pushed RangeQuery matches exactly
-            // what this evaluator computes, so the filter can be dropped (YES) and the range is the whole answer, like
-            // Range and the comparison operators. Everything else stays RECHECK — the range still pre-filters the scan,
-            // but the evaluator remains the final authority — for two reasons:
-            // - double: float/half_float/scaled_float all widen to DataType.DOUBLE here, so a DOUBLE attribute can be a
-            // reduced-precision mapper whose range rounds the bound to float/scaled precision while the evaluator compares
-            // full doubles; and even a true double sorts -0.0 below +0.0 in Lucene but treats them equal in the evaluator.
-            // - bytes_ref (ip/version/keyword): a keyword normalizer can make the indexed, normalized values diverge from
-            // the evaluator's raw-bound comparison.
+            // Integral types push an exact range, so drop the filter (YES). Everything else stays RECHECK: the range
+            // pre-filters and the retained evaluator re-checks the surfaced rows to drop false positives. That needs the
+            // range to be a superset — true for double (its roundings only over-match; see widenZeroBound for the signed-
+            // zero exception) and for keyword (whose normalizer divergence the comparison operators tolerate the same way).
             var elementType = PlannerUtils.toElementType(field.dataType());
             boolean exact = elementType == ElementType.INT || elementType == ElementType.LONG;
             return exact ? Translatable.YES : Translatable.RECHECK;
@@ -361,11 +342,25 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        // Reuse Range's per-type bound formatting (dates, ip, version, unsigned_long) instead of duplicating it. Range
-        // is SingleValueTranslationAware, but for a plain field attribute (not a keyed FieldExtract) its asQuery returns
-        // the bare RangeQuery here — the single-value wrap is the framework's job for Range itself, not ours — which is
-        // exactly the any-value range semantics we want over a multivalue field.
-        return new Range(source(), field, lower, true, upper, true, null).asQuery(pushdownPredicates, handler);
+        // Reuse Range's per-type bound formatting (dates, ip, version, unsigned_long). For a plain field attribute Range
+        // returns the bare RangeQuery (its single-value wrap is the framework's job, not ours) — exactly the any-value
+        // range semantics we want over a multivalue field.
+        return new Range(source(), field, widenZeroBound(lower, true), true, widenZeroBound(upper, false), true, null).asQuery(
+            pushdownPredicates,
+            handler
+        );
+    }
+
+    /**
+     * Lucene sorts {@code -0.0} below {@code +0.0}, but this evaluator treats them equal, so a {@code [0.0, ...]} range
+     * would miss a {@code -0.0} document. Widen a {@code 0.0} bound to the signed zero that keeps the pushed range a
+     * superset ({@code -0.0} as lower, {@code +0.0} as upper); only doubles have a signed zero.
+     */
+    private Expression widenZeroBound(Expression bound, boolean isLower) {
+        if (field.dataType() == DataType.DOUBLE && bound instanceof Literal literal && literal.value() instanceof Double d && d == 0.0) {
+            return Literal.of(literal, isLower ? -0.0 : 0.0);
+        }
+        return bound;
     }
 
     @Override

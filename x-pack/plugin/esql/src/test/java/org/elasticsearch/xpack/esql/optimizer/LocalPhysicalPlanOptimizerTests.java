@@ -638,9 +638,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
-     * mv_in_range over a keyword field pushes the range as a pre-filter but keeps the FilterExec for a row-level recheck
-     * (RECHECK): a keyword normalizer can make the indexed, normalized values diverge from the evaluator's raw-bound
-     * comparison, so the evaluator stays authoritative. Contrast the numeric YES cases above, which drop the FilterExec.
+     * mv_in_range over a keyword field pushes the range as a pre-filter but keeps the FilterExec (RECHECK): the range
+     * surfaces candidate documents and the retained evaluator re-checks them, discarding false positives (a keyword
+     * normalizer can make the indexed, normalized values differ from the evaluator's raw-bound comparison, the same
+     * divergence the comparison operators tolerate). Contrast the numeric YES cases above, which drop the FilterExec.
      */
     public void testMvInRangeKeywordRecheck() {
         var plan = plannerOptimizer.plan("from test | where mv_in_range(first_name, \"a\", \"m\")");
@@ -689,9 +690,35 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     /**
      * Double-family fields stay RECHECK, never YES: float/half_float/scaled_float all widen to DataType.DOUBLE, so the
      * pushed range can be evaluated at reduced precision (the mapper rounds the bound to float/scaled precision) while the
-     * evaluator compares full doubles — and even a true double sorts -0.0 below +0.0 in Lucene but treats them equal in
-     * the evaluator. RECHECK keeps the evaluator authoritative: the range still pre-filters, but the FilterExec stays.
+     * evaluator compares full doubles. Those roundings only over-match, so the range stays a superset and the retained
+     * evaluator re-checks the surfaced documents to drop the false positives — the FilterExec stays for exactly that.
      */
+    /** date_nanos and unsigned_long are YES types with no recheck net, so pin their per-type pushed-range formatting. */
+    public void testMvInRangeYesTypeFormatting() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var dn = plannerOptimizer.plan(
+            "from test | where mv_in_range(date_nanos, \"2020-01-01\"::date_nanos, \"2021-01-01\"::date_nanos)",
+            IS_SV_STATS,
+            analyzer
+        );
+        assertThat(dn.anyMatch(FilterExec.class::isInstance), is(false));
+        var expectedDn = unscore(
+            rangeQuery("date_nanos").from("2020-01-01T00:00:00.000Z", true)
+                .to("2021-01-01T00:00:00.000Z", true)
+                .format("strict_date_optional_time_nanos")
+        );
+        assertThat(mvInRangeQuery(dn).toString(), equalTo(expectedDn.toString()));
+
+        var ul = plannerOptimizer.plan(
+            "from test | where mv_in_range(unsigned_long, 10::unsigned_long, 20::unsigned_long)",
+            IS_SV_STATS,
+            analyzer
+        );
+        assertThat(ul.anyMatch(FilterExec.class::isInstance), is(false));
+        var expectedUl = unscore(rangeQuery("unsigned_long").from(10, true).to(20, true));
+        assertThat(mvInRangeQuery(ul).toString(), equalTo(expectedUl.toString()));
+    }
+
     public void testMvInRangeDoubleRecheck() {
         var analyzer = makeAnalyzer("mapping-all-types.json");
         for (var field : List.of("double", "float", "scaled_float")) {

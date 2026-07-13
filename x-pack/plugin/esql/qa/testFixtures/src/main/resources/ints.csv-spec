@@ -1640,6 +1640,17 @@ values:integer | in_range:boolean
 [1, 2, 3]      | false
 ;
 
+mvInRangeMultivaluedBoundIsFalse
+required_capability: fn_mv_in_range
+// a multivalued bound has no single range endpoint, so the evaluator returns false
+ROW values = [1, 2, 3]
+| EVAL in_range = mv_in_range(values, [1, 2], 5)
+;
+
+values:integer | in_range:boolean
+[1, 2, 3]      | false
+;
+
 mvInRangeKeyword
 required_capability: fn_mv_in_range
 // tag::mv_in_range_keyword[]

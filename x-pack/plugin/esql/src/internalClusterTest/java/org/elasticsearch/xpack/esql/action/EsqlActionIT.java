@@ -1439,13 +1439,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * End-to-end proof that mv_in_range is correct when it is pushed to Lucene and trusted without a row-level recheck.
-     * For a numeric field mv_in_range returns YES, so the FilterExec is dropped and the surviving rows come straight from
-     * the pushed range query — a wrong range (exclusive bounds, or a single-value wrapper that hid multivalued docs) would
-     * silently return the wrong rows with nothing to catch it. The docs are chosen to exercise the load-bearing cases:
-     * any one value in range wins (b), both bounds are inclusive (c, d), just-outside on either side loses (a, e, f), and
-     * a single-valued doc still matches (g). The NOT query then pins must_not(range) as the exact complement — the
-     * negation soundness that any-value pushdown hinges on.
+     * End-to-end proof that YES pushdown is correct with no recheck: for an integer field the FilterExec is dropped, so
+     * rows come straight from the pushed range. The docs cover any-one-value-in-range (b), inclusive bounds (c, d),
+     * just-outside (a, e, f), single-valued (g), and no/empty values (h, i). The NOT query pins must_not(range) as the
+     * exact complement, including the valueless docs — mv_in_range never nulls, so their negation is true.
      */
     public void testMvInRangePushdownEndToEnd() {
         String index = "mv_in_range_e2e";
@@ -1458,25 +1455,39 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         docs.put("e", List.of(31, 40));  // just above the upper bound
         docs.put("f", List.of(19));      // just below the lower bound
         docs.put("g", List.of(22));      // single-valued, in range
+        docs.put("i", List.of());        // field present, zero values
         for (var doc : docs.entrySet()) {
             prepareIndex(index).setSource("id", doc.getKey(), "v", doc.getValue()).get();
         }
+        prepareIndex(index).setSource("id", "h").get();  // field absent
         client().admin().indices().prepareRefresh(index).get();
 
         try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(v, 20, 30) | keep id | sort id")) {
             assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("b", "c", "d", "g"));
         }
         try (EsqlQueryResponse results = run("from " + index + " | where not mv_in_range(v, 20, 30) | keep id | sort id")) {
-            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("a", "e", "f"));
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("a", "e", "f", "h", "i"));
         }
     }
 
     /**
-     * Regression pin for the double-family RECHECK gate. A float field widens to double in ES|QL, and its Lucene range
-     * rounds the bound to float precision — so trusting the pushed range (YES) would return rows the full-double evaluator
-     * rejects. Here 1.00000001 rounds down to 1.0f, so the pushed float range [1.0f, 2.0f] matches the doc {f: 1.0}, but
-     * the evaluator computes 1.0 &gt;= 1.00000001 = false. Because double stays RECHECK, the retained evaluator excludes the
-     * row and the result is empty; a naive YES would wrongly return it.
+     * mv_in_range treats -0.0 as equal to 0.0, but Lucene sorts -0.0 below +0.0. widenZeroBound keeps the pushed double
+     * range a superset, so a -0.0 document still matches [0.0, 1.0] instead of being silently dropped by the pre-filter.
+     */
+    public void testMvInRangeNegativeZeroEndToEnd() {
+        String index = "mv_in_range_negzero_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "d", "type=double").get());
+        prepareIndex(index).setSource("id", "x", "d", -0.0).get();
+        client().admin().indices().prepareRefresh(index).get();
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(d, 0.0, 1.0) | keep id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("x"));
+        }
+    }
+
+    /**
+     * A float field widens to double, and its Lucene range rounds the bound to float precision — so a naive YES would
+     * return rows the full-double evaluator rejects. 1.00000001 rounds to 1.0f, matching the {f: 1.0} doc in the pushed
+     * range, but the evaluator's 1.0 &gt;= 1.00000001 is false; double stays RECHECK, so the retained evaluator drops it.
      */
     public void testMvInRangeFloatPrecisionRecheckEndToEnd() {
         String index = "mv_in_range_float_e2e";

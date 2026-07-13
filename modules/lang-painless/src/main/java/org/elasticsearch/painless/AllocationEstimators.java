@@ -9,6 +9,9 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+
 import java.util.Collection;
 import java.util.Locale;
 
@@ -100,6 +103,22 @@ public final class AllocationEstimators {
     public static long linkedListCopyBytes(Collection<?> source) {
         long size = source == null ? 0 : source.size();
         return 32 + AllocSizes.mulSat(size, 40);
+    }
+
+    /**
+     * Cost of {@code BytesRef.utf8ToString()}: a new {@link String}. Its UTF-16 character count is at most the ref's UTF-8
+     * byte length, so charging by the byte length is a safe upper bound.
+     */
+    public static long utf8ToStringBytes(BytesRef receiver) {
+        return newStringBytes(receiver == null ? 0 : receiver.length);
+    }
+
+    /**
+     * Cost of {@code ScriptDocValues.GeoPoints.getLats()}/{@code getLons()}: a new {@code double[]} sized to the number of
+     * points in the field value.
+     */
+    public static long geoPointsDoublesBytes(ScriptDocValues.GeoPoints receiver) {
+        return AllocSizes.arrayBytes(receiver == null ? 0 : receiver.size(), 8);
     }
 
     /** Cost of {@code Collection.toArray()}: a new {@code Object[]} sized to the collection. */

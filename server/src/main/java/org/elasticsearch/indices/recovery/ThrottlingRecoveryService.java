@@ -274,6 +274,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     @Override
     protected void doClose() {}
 
+    /// Is the service closed, and therefore rejecting further recoveries? It closes in a single step (there's no separate `stop()` call
+    /// first) so we count both [org.elasticsearch.common.component.Lifecycle.State#STOPPED] and
+    /// [org.elasticsearch.common.component.Lifecycle.State#CLOSED] as "closed".
     private boolean isClosed() {
         assert lifecycle.initialized() == false : "service accessed before start";
         return lifecycle.stoppedOrClosed();

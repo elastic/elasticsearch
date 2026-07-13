@@ -667,9 +667,14 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMvInRangeDatePushdown() {
         var plan = plannerOptimizer.plan("from test | where mv_in_range(hire_date, \"2020-01-01\"::datetime, \"2021-01-01\"::datetime)");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
-        var pushed = mvInRangeQuery(plan).toString();
-        assertThat(pushed, containsString("range"));
-        assertThat(pushed, containsString("hire_date"));
+        var expected = boolQuery().filter(
+            unscore(
+                rangeQuery("hire_date").from("2020-01-01T00:00:00.000Z", true)
+                    .to("2021-01-01T00:00:00.000Z", true)
+                    .format("strict_date_optional_time")
+            )
+        );
+        assertThat(mvInRangeQuery(plan).toString(), equalTo(expected.toString()));
     }
 
     private static QueryBuilder mvInRangeQuery(PhysicalPlan plan) {

@@ -14,9 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -83,7 +81,8 @@ public final class SourceStatisticsSerializer {
      * fileList sees an empty set there. Every node-agnostic consumer reads partition identity through this
      * method (usually via the {@code partitionColumnNames()} accessor on {@code ExternalSourceExec} /
      * {@code ExternalRelation}), never off the fileList. Returns an empty set when the source is not
-     * partitioned. The returned set preserves the stamped order.
+     * partitioned. Every consumer reads the result by membership ({@code contains} / {@code isEmpty}), so the
+     * set is unordered.
      */
     @SuppressWarnings("unchecked")
     public static Set<String> partitionColumnNames(Map<String, Object> sourceMetadata) {
@@ -91,8 +90,9 @@ public final class SourceStatisticsSerializer {
             return Set.of();
         }
         Object names = sourceMetadata.get(PARTITION_COLUMNS_KEY);
-        if (names instanceof Collection<?> collection && collection.isEmpty() == false) {
-            return Collections.unmodifiableSet(new LinkedHashSet<>((Collection<String>) collection));
+        if (names instanceof Collection<?> collection) {
+            // The stamp is written as List.copyOf(names), which rejects nulls, so copyOf cannot NPE here.
+            return Set.copyOf((Collection<String>) collection);
         }
         return Set.of();
     }

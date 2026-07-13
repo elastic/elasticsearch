@@ -59,7 +59,7 @@ public class HighlightQueryTranslatorTests extends ESTestCase {
     }
 
     private static Match match(String field, String text, MapExpression options) {
-        return new Match(EMPTY, getFieldAttribute(field, KEYWORD), of(text), options, TEST_CFG);
+        return new Match(EMPTY, getFieldAttribute(field, KEYWORD), of(text), options);
     }
 
     private static MatchPhrase matchPhrase(String field, String text, MapExpression options) {

@@ -749,7 +749,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         chunkingSettings,
                         order,
                         values,
-                        requests
+                        requests,
+                        entry.isReferenceValuesRequired()
                     );
                     order += values.size();
                 }
@@ -775,7 +776,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             ChunkingSettings chunkingSettings,
             int startOrder,
             List<?> values,
-            List<FieldInferenceRequest> requests
+            List<FieldInferenceRequest> requests,
+            boolean referenceValuesRequired
         ) {
             int order = startOrder;
             int offsetAdjustment = 0;
@@ -800,7 +802,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         offsetAdjustment,
                         chunkingSettings
                     );
-                    case InferenceString is -> addInferenceStringRequest(requests, itemIndex, field, sourceField, is, order, inputIndex);
+                    case InferenceString is -> addInferenceStringRequest(
+                        requests,
+                        itemIndex,
+                        field,
+                        sourceField,
+                        is,
+                        order,
+                        inputIndex,
+                        referenceValuesRequired
+                    );
                     default -> {
                         setInferenceResponseFailure(
                             itemIndex,
@@ -872,8 +883,25 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             String sourceField,
             InferenceString input,
             int order,
-            int sourceFieldInputIndex
+            int sourceFieldInputIndex,
+            boolean referenceValuesRequired
         ) {
+            boolean hasReferenceValue = input instanceof ReferenceValueInferenceString;
+            if (hasReferenceValue != referenceValuesRequired) {
+                setInferenceResponseFailure(
+                    itemIndex,
+                    new ElasticsearchStatusException(
+                        referenceValuesRequired
+                            ? "Input for field [{}] from source field [{}] requires a [reference_value] to be set"
+                            : "Input for field [{}] from source field [{}] does not accept a [reference_value]",
+                        RestStatus.BAD_REQUEST,
+                        field,
+                        sourceField
+                    )
+                );
+                return -1;
+            }
+
             if (input.dataFormat() == DataFormat.BASE64) {
                 long decodedSize = base64BinarySize(input.value());
                 if (decodedSize == 0) {

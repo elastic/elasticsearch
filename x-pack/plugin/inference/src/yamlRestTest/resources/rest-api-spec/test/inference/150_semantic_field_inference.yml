@@ -271,8 +271,19 @@ setup:
       reason: "reference value inference strings need to be available"
 
   - do:
+      indices.create:
+        index: test-semantic-field-use-reference-values-index
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic
+                inference_id: embedding-inference-id
+                use_reference_values: true
+
+  - do:
       index:
-        index: test-semantic-field-index
+        index: test-semantic-field-use-reference-values-index
         id: doc_1
         body:
           semantic_field:
@@ -283,7 +294,7 @@ setup:
 
   - do:
       search:
-        index: test-semantic-field-index
+        index: test-semantic-field-use-reference-values-index
         body:
           query:
             match_all: { }
@@ -311,8 +322,19 @@ setup:
       reason: "reference value inference strings need to be available"
 
   - do:
+      indices.create:
+        index: test-semantic-field-use-reference-values-index
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic
+                inference_id: embedding-inference-id
+                use_reference_values: true
+
+  - do:
       index:
-        index: test-semantic-field-index
+        index: test-semantic-field-use-reference-values-index
         id: doc_1
         body:
           semantic_field:
@@ -328,7 +350,7 @@ setup:
 
   - do:
       search:
-        index: test-semantic-field-index
+        index: test-semantic-field-use-reference-values-index
         body:
           query:
             match_all: { }
@@ -371,3 +393,57 @@ setup:
   - match:      { hits.hits.0._source.semantic_field.3.format: "reference" }
   - match:      { hits.hits.0._source.semantic_field.3.value: "a dog" }
   - not_exists: hits.hits.0._source.semantic_field.3.reference_value
+
+---
+"Indexing a reference-value image is rejected when use_reference_values is not enabled":
+  - requires:
+      cluster_features: "semantic_field.reference_value_inference_strings"
+      reason: "reference value inference strings need to be available"
+
+  - do:
+      catch: bad_request
+      index:
+        index: test-semantic-field-index
+        id: doc_1
+        body:
+          semantic_field:
+            type: image
+            value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+            reference_value: "a cat"
+        refresh: true
+
+  - match: { error.type: "status_exception" }
+  - match:
+      error.reason: "Input for field [semantic_field] from source field [semantic_field] does not accept a [reference_value]"
+
+---
+"Indexing an image without a reference value is rejected when use_reference_values is enabled":
+  - requires:
+      cluster_features: "semantic_field.reference_value_inference_strings"
+      reason: "reference value inference strings need to be available"
+
+  - do:
+      indices.create:
+        index: test-semantic-field-use-reference-values-index
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic
+                inference_id: embedding-inference-id
+                use_reference_values: true
+
+  - do:
+      catch: bad_request
+      index:
+        index: test-semantic-field-use-reference-values-index
+        id: doc_1
+        body:
+          semantic_field:
+            type: image
+            value: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+        refresh: true
+
+  - match: { error.type: "status_exception" }
+  - match:
+      error.reason: "Input for field [semantic_field] from source field [semantic_field] requires a [reference_value] to be set"

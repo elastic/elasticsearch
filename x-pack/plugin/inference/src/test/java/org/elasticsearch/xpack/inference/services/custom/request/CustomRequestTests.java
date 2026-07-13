@@ -358,12 +358,127 @@ public class CustomRequestTests extends ESTestCase {
             ),
             model
         );
-        var exception = expectThrows(IllegalStateException.class, () -> RequestTests.getHttpRequestSync(request));
+        var exception = expectThrows(IllegalArgumentException.class, () -> RequestTests.getHttpRequestSync(request));
         assertThat(
             exception.getMessage(),
             is(
                 "Found placeholder [${task.key}] in field [header.Accept] after replacement call, "
                     + "please check that all templates have a corresponding field definition."
+            )
+        );
+    }
+
+    public void testCreateRequest_ThrowsException_WhenTaskSettingsOverrideSecretParameter() {
+        var inferenceId = "inference_id";
+        var targetHostKey = "target_host";
+        var authTokenKey = "auth_token";
+        var trustedHost = "trusted_host";
+        var adminSecretToken = "VERY_SECRET_FROM_ADMIN";
+        var attackerHost = "host.docker.internal";
+        Map<String, String> headers = Map.of(HttpHeaders.AUTHORIZATION, Strings.format("Bearer ${%s}", authTokenKey));
+        var requestContentString = """
+            {
+                "input": ${input}
+            }
+            """;
+
+        var serviceSettings = new CustomServiceSettings(
+            CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS,
+            Strings.format("http://${%s}:12345/fixed-path", targetHostKey),
+            headers,
+            null,
+            requestContentString,
+            new RerankResponseParser("$.result.score"),
+            new RateLimitSettings(10_000)
+        );
+
+        var model = CustomModelTests.createModel(
+            inferenceId,
+            TaskType.RERANK,
+            serviceSettings,
+            new CustomTaskSettings(Map.of(targetHostKey, attackerHost)),
+            new CustomSecretSettings(
+                Map.of(
+                    targetHostKey,
+                    new SecureString(trustedHost.toCharArray()),
+                    authTokenKey,
+                    new SecureString(adminSecretToken.toCharArray())
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CustomRequest(
+                RerankParameters.of(
+                    new QueryAndDocsInputs(InferenceString.ofText("query string"), InferenceString.fromStringList(List.of("abc", "123")))
+                ),
+                model
+            )
+        );
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Task settings parameters [%s] are not allowed to override secret parameters with the same name",
+                    targetHostKey
+                )
+            )
+        );
+    }
+
+    public void testCreateRequest_ThrowsException_WhenTaskSettingsOverrideMultipleSecretParameters() {
+        var inferenceId = "inference_id";
+        var targetHostKey = "target_host";
+        var authTokenKey = "auth_token";
+        var requestContentString = """
+            {
+                "input": ${input}
+            }
+            """;
+
+        var serviceSettings = new CustomServiceSettings(
+            CustomServiceSettings.TextEmbeddingSettings.NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS,
+            Strings.format("http://${%s}:18080/fixed-path", targetHostKey),
+            Map.of(HttpHeaders.AUTHORIZATION, Strings.format("Bearer ${%s}", authTokenKey)),
+            null,
+            requestContentString,
+            new RerankResponseParser("$.result.score"),
+            new RateLimitSettings(10_000)
+        );
+
+        var model = CustomModelTests.createModel(
+            inferenceId,
+            TaskType.RERANK,
+            serviceSettings,
+            new CustomTaskSettings(Map.of(targetHostKey, "host.docker.internal", authTokenKey, "attacker-supplied-value")),
+            new CustomSecretSettings(
+                Map.of(
+                    targetHostKey,
+                    new SecureString("trusted_host".toCharArray()),
+                    authTokenKey,
+                    new SecureString("VERY_SECRET_FROM_ADMIN".toCharArray())
+                )
+            )
+        );
+
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CustomRequest(
+                RerankParameters.of(
+                    new QueryAndDocsInputs(InferenceString.ofText("query string"), InferenceString.fromStringList(List.of("abc", "123")))
+                ),
+                model
+            )
+        );
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Task settings parameters [%s, %s] are not allowed to override secret parameters with the same name",
+                    authTokenKey,
+                    targetHostKey
+                )
             )
         );
     }
@@ -395,7 +510,7 @@ public class CustomRequestTests extends ESTestCase {
         );
 
         var exception = expectThrows(
-            IllegalStateException.class,
+            IllegalArgumentException.class,
             () -> new CustomRequest(
                 RerankParameters.of(
                     new QueryAndDocsInputs(InferenceString.ofText("query string"), InferenceString.fromStringList(List.of("abc", "123")))

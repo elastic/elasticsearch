@@ -53,6 +53,10 @@ dependencies {
   // existing modules/ entries and fail boot with a duplicate-key check).
 }
 
+tasks.named('compileJavaRestTestJava').configure {
+  options.compilerArgs << '-Xlint:-classfile'
+}
+
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   it.onlyIf("snapshot build") { buildParams.snapshotBuild }

@@ -220,7 +220,11 @@ public class TransformTask extends AllocatedPersistentTask
             );
             return;
         }
-        transformsCheckpointService.getCheckpointProvider(parentTaskClient, transformIndexer.getConfig())
+        transformsCheckpointService.getCheckpointProvider(
+            parentTaskClient,
+            transformIndexer.getConfig(),
+            () -> getContext().getPersistedCloudCredential()
+        )
             .getCheckpointingInfo(
                 transformIndexer.getLastCheckpoint(),
                 transformIndexer.getNextCheckpoint(),

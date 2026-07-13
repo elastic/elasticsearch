@@ -76,9 +76,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -112,6 +110,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -1096,7 +1095,7 @@ public class InternalEngine extends Engine {
         if (versionValue == null) {
             assert incrementIndexVersionLookup(); // used for asserting in tests
             final DocIdAndVersion docIdAndVersion = performActionWithDirectoryReader(SearcherScope.INTERNAL, directoryReader -> {
-                if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+                if (engineConfig.getIndexSettings().getMode().isTsdb()) {
                     assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
                     return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
                         directoryReader,
@@ -1106,7 +1105,7 @@ public class InternalEngine extends Engine {
                         useTsdbSyntheticId
                     );
                 } else {
-                    return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
+                    return VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
                 }
             });
             if (docIdAndVersion != null) {
@@ -1199,7 +1198,7 @@ public class InternalEngine extends Engine {
     protected long generateSeqNoForOperationOnPrimary(final Operation operation) {
         assert operation.origin() == Operation.Origin.PRIMARY;
         assert operation.seqNo() == UNASSIGNED_SEQ_NO : "ops should not have an assigned seq no. but was: " + operation.seqNo();
-        return doGenerateSeqNoForOperation(operation);
+        return doGenerateSeqNo();
     }
 
     protected void advanceMaxSeqNoOfUpdatesOnPrimary(long seqNo) {
@@ -1211,13 +1210,23 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Generate the sequence number for the specified operation.
+     * Generate a sequence number.
      *
-     * @param operation the operation
      * @return the sequence number
      */
-    long doGenerateSeqNoForOperation(final Operation operation) {
+    long doGenerateSeqNo() {
         return localCheckpointTracker.generateSeqNo();
+    }
+
+    /**
+     * Atomically reserve {@code count} contiguous sequence numbers and return the first.
+     * The caller owns {@code [result, result + count - 1]}.
+     *
+     * @param count the number of sequence numbers to reserve; must be positive
+     * @return the first (lowest) sequence number in the reserved range
+     */
+    protected long doGenerateSeqNos(int count) {
+        return localCheckpointTracker.generateSeqNos(count);
     }
 
     @Override
@@ -1288,7 +1297,7 @@ public class InternalEngine extends Engine {
                             advanceMaxSeqNoOfUpdatesOnPrimary(index.seqNo());
                         }
                     } else {
-                        markSeqNoAsSeen(index.seqNo());
+                        advanceMaxSeqNo(index.seqNo());
                     }
 
                     assert index.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
@@ -1358,7 +1367,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations, EirfBatch batch) throws IOException {
+    public List<IndexResult> indexBatch(List<Index> operations, SourceBatch batch) throws IOException {
         assert operations.size() == batch.docCount()
             : "operations [" + operations.size() + "] must map 1:1 to batch rows [" + batch.docCount() + "]";
         try (var ignored = acquireEnsureOpenRef()) {
@@ -1438,7 +1447,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void processSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize, EirfBatch batch, IndexResult[] allResults)
+    private void processSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize, SourceBatch batch, IndexResult[] allResults)
         throws IOException {
         final boolean fromTranslog = operations.getFirst().origin().isFromTranslog();
         assert assertNoMixedRecoveryOperations(operations);
@@ -1450,6 +1459,7 @@ public class InternalEngine extends Engine {
         long maxStartNanos = lastWriteNanos;
 
         final var origin = operations.get(subBatchIdx).origin(); // all origins must be uniform, so grab the first one as "the" origin
+        final var primaryTerm = operations.get(subBatchIdx).primaryTerm();
         for (int i = 0; i < subBatchSize; i++) {
             Index op = operations.get(subBatchIdx + i);
             if (origin != op.origin()) { // verify that origins are uniform
@@ -1457,6 +1467,13 @@ public class InternalEngine extends Engine {
                 assert false : message;
                 throw new IllegalStateException(message);
             }
+
+            if (primaryTerm != op.primaryTerm()) { // verify that primary terms are same
+                final var message = "mixed primary terms in sub-batch: " + primaryTerm + " vs " + op.primaryTerm();
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
+
             if (op.startTime() - maxStartNanos > 0) {
                 maxStartNanos = op.startTime();
             }
@@ -1465,12 +1482,16 @@ public class InternalEngine extends Engine {
         }
         lastWriteNanos = maxStartNanos;
 
+        int opsWithPreflightErrors = 0;
         if (origin == Operation.Origin.PRIMARY) {
             // Primary: resolve all version IDs in a single Lucene reader acquisition, then plan.
             final IndexingStrategy[] batchPlans = planPrimarySubBatch(subBatchOps, subBatchSize);
             for (int i = 0; i < subBatchSize; i++) {
                 plans[i] = batchPlans[i];
                 reservedDocs += plans[i].reservedDocs;
+                if (plans[i].earlyResultOnPreflightError.isPresent()) {
+                    opsWithPreflightErrors++;
+                }
             }
         } else {
             for (int i = 0; i < subBatchSize; i++) {
@@ -1480,24 +1501,33 @@ public class InternalEngine extends Engine {
         }
 
         try {
-            // Create Indexing Operation
+            // Create Indexing Operation — reserve all sequence numbers for primary ops atomically up
+            // front (before any Lucene writes). Skipped when every op is a preflight error.
+            long firstPrimarySeqNo = -1;
+            long seqNoToBeMarkedSeen = SequenceNumbers.NO_OPS_PERFORMED;
+            final int seqNoCount = subBatchSize - opsWithPreflightErrors;
+            if (origin == Operation.Origin.PRIMARY && seqNoCount > 0) {
+                firstPrimarySeqNo = doGenerateSeqNos(seqNoCount);
+            }
+            int batchSeqNoIdx = 0;
             for (int i = 0; i < subBatchSize; i++) {
                 Index index = subBatchOps[i];
                 IndexingStrategy plan = plans[i];
 
                 if (plan.earlyResultOnPreflightError.isPresent()) {
-                    assert index.origin() == Operation.Origin.PRIMARY : index.origin();
+                    assert origin == Operation.Origin.PRIMARY : origin;
                     IndexResult indexResult = plan.earlyResultOnPreflightError.get();
                     allResults[subBatchIdx + i] = indexResult;
                     assert indexResult.getResultType() == Result.Type.FAILURE : indexResult.getResultType();
                     continue;
                 }
 
-                if (index.origin() == Operation.Origin.PRIMARY) {
+                if (origin == Operation.Origin.PRIMARY) {
+                    final long seqNo = firstPrimarySeqNo + batchSeqNoIdx++;
                     index = new Index(
                         index.uid(),
                         index.parsedDoc(),
-                        generateSeqNoForOperationOnPrimary(index),
+                        seqNo,
                         index.primaryTerm(),
                         index.version(),
                         index.versionType(),
@@ -1513,14 +1543,16 @@ public class InternalEngine extends Engine {
                     final boolean toAppend = plan.indexIntoLucene && plan.useLuceneUpdateDocument == false;
 
                     if (toAppend == false) {
-                        advanceMaxSeqNoOfUpdatesOnPrimary(index.seqNo());
+                        advanceMaxSeqNoOfUpdatesOnPrimary(seqNo);
                     }
                 } else {
-                    // TODO: Can probably move to just the max for this batch
-                    markSeqNoAsSeen(index.seqNo());
+                    seqNoToBeMarkedSeen = Math.max(seqNoToBeMarkedSeen, index.seqNo());
                 }
 
                 assert index.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
+            }
+            if (seqNoToBeMarkedSeen != SequenceNumbers.NO_OPS_PERFORMED) {
+                advanceMaxSeqNo(seqNoToBeMarkedSeen);
             }
 
             // Lucene
@@ -1551,7 +1583,7 @@ public class InternalEngine extends Engine {
             final Translog.Location batchLocation;
             if (fromTranslog == false) {
                 final long batchPrimaryTerm = subBatchOps[0].primaryTerm();
-                final EirfBatch slicedBatch = batch.slice(subBatchIdx, subBatchIdx + subBatchSize);
+                final SourceBatch slicedBatch = batch.slice(subBatchIdx, subBatchIdx + subBatchSize);
                 final List<Translog.IndexBatch.Op> translogOps = new ArrayList<>(subBatchSize);
                 for (int i = 0; i < subBatchSize; i++) {
                     Index index = subBatchOps[i];
@@ -1672,59 +1704,49 @@ public class InternalEngine extends Engine {
         }
 
         // Phase 2: single Lucene reader acquisition for all versionMap misses.
-        // For standard indices: collect misses into flat arrays and do a single sorted scan per segment.
-        // For time series indices: keep the per-UID path (timestamp-based segment skipping complicates batching).
+        // Collect misses into flat arrays and resolve them all in one sorted segment scan.
         if (anyNeedsLucene) {
-            final boolean isTimeSeries = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
-            if (isTimeSeries) {
-                performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
-                    for (int i = 0; i < count; i++) {
-                        if (needsLucene[i] == false) {
-                            continue;
-                        }
-                        final Index op = ops[i];
-                        final boolean loadSeqNo = op.getIfSeqNo() != UNASSIGNED_SEQ_NO;
-                        final DocIdAndVersion d = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
-                            reader,
-                            op.uid(),
-                            op.id(),
-                            loadSeqNo,
-                            useTsdbSyntheticId
-                        );
-                        if (d != null) {
-                            resolvedVersions[i] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
-                        }
+            final boolean isTimeSeries = engineConfig.getIndexSettings().getMode().isTsdb();
+            int luceneCount = 0;
+            for (int i = 0; i < count; i++) {
+                if (needsLucene[i]) luceneCount++;
+            }
+            final BytesRef[] luceneUids = new BytesRef[luceneCount];
+            final String[] luceneIds = isTimeSeries ? new String[luceneCount] : null;
+            final boolean[] luceneLoadSeqNo = new boolean[luceneCount];
+            final int[] luceneToSubBatch = new int[luceneCount];
+            for (int i = 0, k = 0; i < count; i++) {
+                if (needsLucene[i]) {
+                    luceneUids[k] = ops[i].uid();
+                    luceneLoadSeqNo[k] = ops[i].getIfSeqNo() != UNASSIGNED_SEQ_NO;
+                    luceneToSubBatch[k] = i;
+                    if (luceneIds != null) {
+                        luceneIds[k] = ops[i].id();
                     }
-                    return null;
-                });
-            } else {
-                // Collect the Lucene-miss UIDs into flat arrays, then resolve them all in one sorted
-                // segment scan via batchLoadDocIdAndVersion.
-                int luceneCount = 0;
-                for (int i = 0; i < count; i++) {
-                    if (needsLucene[i]) luceneCount++;
+                    k++;
                 }
-                final BytesRef[] luceneUids = new BytesRef[luceneCount];
-                final boolean[] luceneLoadSeqNo = new boolean[luceneCount];
-                final int[] luceneToSubBatch = new int[luceneCount];
-                for (int i = 0, k = 0; i < count; i++) {
-                    if (needsLucene[i]) {
-                        luceneUids[k] = ops[i].uid();
-                        luceneLoadSeqNo[k] = ops[i].getIfSeqNo() != UNASSIGNED_SEQ_NO;
-                        luceneToSubBatch[k] = i;
-                        k++;
-                    }
-                }
-                final DocIdAndVersion[] luceneResults = new DocIdAndVersion[luceneCount];
-                performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+            }
+            final DocIdAndVersion[] luceneResults = new DocIdAndVersion[luceneCount];
+            performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+                if (isTimeSeries) {
+                    assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
+                    VersionsAndSeqNoResolver.timeSeriesBatchLoadDocIdAndVersion(
+                        reader,
+                        luceneUids,
+                        luceneIds,
+                        useTsdbSyntheticId,
+                        luceneLoadSeqNo,
+                        luceneResults
+                    );
+                } else {
                     VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, luceneUids, luceneLoadSeqNo, luceneResults);
-                    return null;
-                });
-                for (int k = 0; k < luceneCount; k++) {
-                    final DocIdAndVersion d = luceneResults[k];
-                    if (d != null) {
-                        resolvedVersions[luceneToSubBatch[k]] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
-                    }
+                }
+                return null;
+            });
+            for (int k = 0; k < luceneCount; k++) {
+                final DocIdAndVersion d = luceneResults[k];
+                if (d != null) {
+                    resolvedVersions[luceneToSubBatch[k]] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
                 }
             }
         }
@@ -2135,7 +2157,7 @@ public class InternalEngine extends Engine {
 
                     advanceMaxSeqNoOfDeletesOnPrimary(delete.seqNo());
                 } else {
-                    markSeqNoAsSeen(delete.seqNo());
+                    advanceMaxSeqNo(delete.seqNo());
                 }
 
                 assert delete.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + delete.origin();
@@ -2328,6 +2350,7 @@ public class InternalEngine extends Engine {
                 engineConfig.getIndexSettings().seqNoIndexOptions(),
                 engineConfig.getIndexSettings().useDocValuesSkipper(),
                 useTsdbSyntheticId,
+                engineConfig.getMapperService().isUseColumnarId(),
                 delete.id(),
                 delete.uid()
             );
@@ -2524,7 +2547,7 @@ public class InternalEngine extends Engine {
         if (preFlightError.isPresent()) {
             return new NoOpResult(UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO, preFlightError.get());
         }
-        markSeqNoAsSeen(noOp.seqNo());
+        advanceMaxSeqNo(noOp.seqNo());
         if (hasBeenProcessedBefore(noOp) == false) {
             try {
                 final ParsedDocument tombstone = ParsedDocument.noopTombstone(
@@ -3313,7 +3336,7 @@ public class InternalEngine extends Engine {
             engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()
                 ? SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME
                 : SourceFieldMapper.RECOVERY_SOURCE_NAME,
-            engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES,
+            engineConfig.getIndexSettings().getMode().isTsdb(),
             pruneSeqNo,
             () -> softDeletesPolicy.getRetentionQuery(seqNoIndexOptions),
             new SoftDeletesRetentionMergePolicy(
@@ -3715,9 +3738,9 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Marks the given seq_no as seen and advances the max_seq_no of this engine to at least that value.
+     * Advances the max_seq_no of this engine to at least the given value.
      */
-    protected final void markSeqNoAsSeen(long seqNo) {
+    protected final void advanceMaxSeqNo(long seqNo) {
         localCheckpointTracker.advanceMaxSeqNo(seqNo);
     }
 

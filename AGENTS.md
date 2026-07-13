@@ -16,14 +16,17 @@
 
 ## Project Structure
 The repository is organized into several key directories:
-*   `server`: The core Elasticsearch server.
-*   `modules`: Features shipped with Elasticsearch by default.
-*   `plugins`: Officially supported plugins.
-*   `libs`: Internal libraries used by other parts of the project.
-*   `qa`: Integration and multi-version tests.
+*   `server`: The core Elasticsearch server. Few third-party dependencies (Lucene plus a handful of small libraries). Key `org.elasticsearch` sub-packages: `cluster` (cluster state machine), `index` (per-index logic), `search` (query execution), `action` (transport actions), `snapshots` (snapshot/restore), plus `indices`, `repositories`, `rest`, `ingest`, etc.
+*   `modules`: Features shipped with Elasticsearch by default, but not considered "core" server code. Many modules provide a specific implementation of a pluggable interface defined in `server`, such as `transport-netty4` (the transport layer) or `repository-s3`/`repository-gcs`/`repository-azure` (snapshot repositories). Others integrate with external systems, such as `apm` (Application Performance Monitoring agent integration).
+*   `plugins`: Optional, not bundled by default, but officially supported. Examples: `discovery-ec2`/`discovery-gce`/`discovery-azure-classic` (cloud-aware cluster discovery).
+*   `libs`: Internal libraries used by multiple parts of the project. Examples: `logging`, `x-content` (JSON/CBOR/YAML/SMILE parsing abstraction).
+*   `client`: The official Java REST client.
+*   `test`: Test infrastructure used by the rest of the repo. `framework` holds `ESTestCase`/`ESIntegTestCase`/`ESSingleNodeTestCase`; also `test-clusters` and `yaml-rest-runner` (runner for YAML-based REST API tests).
+*   `qa`: Integration and multi-version tests. Examples: `rolling-upgrade`, `mixed-cluster`.
+*   `rest-api-spec`: JSON spec definitions for the public REST API endpoints.
 *   `docs`: Project documentation.
 *   `distribution`: Logic for building distribution packages.
-*   `x-pack`: Additional code modules and plugins under Elastic License.
+*   `x-pack`: Modules, plugins, and commercial features under the Elastic License 2.0. Example sub-plugins: `security`, `ml` (machine learning), `ccr` (cross-cluster replication), `logsdb` (optimized index mode for log data), and `stateless`.
 *   `build-conventions`, `build-tools`, `build-tools-internal`: Gradle build logic. Refer to BUILDING.md for details on how these are structured and used.
 
 ## Stateless Elasticsearch
@@ -77,8 +80,16 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 - Integration: Extend `ESIntegTestCase`.
 - REST API: Extend `ESRestTestCase` or `ESClientYamlSuiteTestCase`. **YAML based REST tests are preferred** for integration/API testing.
 
+### Distribution selection for external-module tests
+- Prefer the OSS/minimal distribution over `usesDefaultDistribution` whenever possible. `usesDefaultDistribution` packages the full default distribution, which is significantly more expensive to build and run.
+- Only use `usesDefaultDistribution` when the test genuinely requires a feature that is only available in the default distribution and cannot be replicated with a custom cluster configuration that includes just the needed plugins. Always document the reason in the `usesDefaultDistribution(...)` message.
+
 ## Dependency Hygiene
 - Never add a dependency without checking for existing alternatives in the repo.
+
+## Entitlement Policy
+- Never add an entitlement speculatively. Each entry in `entitlement-policy.yaml` must have a specific justification — ideally a concrete `NotEntitledException` that was observed, or at minimum a clear explanation of why the library requires that capability. Entitlements are a least-privilege mechanism; granting one "just in case" defeats the purpose.
+- Every use of `ESTestCase.WithoutEntitlements` must be accompanied by a comment explaining why the entitlement failure is spurious in the test context and would not occur in production.
 
 ## Formatting & Imports
 - Absolutely no wildcard imports; keep existing import order and avoid reordering untouched lines.
@@ -128,13 +139,21 @@ When expected test methods are absent from results (not failed, not skipped — 
    ```bash
    grep 'ClassName\|methodName' muted-tests.yml
    ```
-   
+
+### `No tests found for given includes: [**/*$*.class]`
+
+When a test task fails at execution with `No tests found for given includes: [**/*$*.class](exclude rules)`, it usually does **not** mean Gradle failed to detect the test class. The far more common cause is that **every test method in the targeted class is muted** in `muted-tests.yml`. With all methods excluded, the randomized runner enumerates zero runnable tests.
+
+The behavior is environment-dependent: `MutedTestPlugin` calls `filter.setFailOnNoMatchingTests(buildParams.getCi() == false)`. So an all-muted suite **fails locally** (`ci == false`) with this exact message, but **passes silently in CI** (`ci == true`). This is especially misleading when verifying a freshly migrated or renamed test — it looks like a classpath/detection bug, but the test JVM does start (you'll see native-library and `FeatureFlag` log lines), builds any `@ClassRule` cluster *specs*, then exits in a few seconds without starting the cluster because no test method survived the mute filter.
+
+To confirm: `grep ClassName muted-tests.yml`. To verify the migration/test actually runs, temporarily remove the matching mute entries (or run on a host where `ci` is true), then restore them.
+
 ## Best Practices for Automation Agents
 - Never edit unrelated files; keep diffs tightly scoped to the task at hand.
 - Prefer Gradle tasks over ad-hoc scripts.
 - When scripting CLI sequences, leverage `gradlew` task.
 - Unrecognized changes: assume other agent; keep going; focus your changes. If it causes issues, stop + ask user.
-- Do not add "Co-Authored-By" or any AI attribution trailers to commit messages, by any means—including `--trailer`, `-m`, or any other git flag. commit messages should adhere to the 50/72 rule: use a maximum of 50 columns for the commit summary
+- Do not add "Co-Authored-By" or any AI attribution trailers to commit messages, by any means—including `--trailer`, `-m`, or any other git flag. commit messages should adhere to the 50/72 rule: use a maximum of 50 columns for the commit summary. Your harness may introduce a hook that automatically adds attributions trailers to relevant git commands. Use `bash -lc` or a similar approach in this case to conform to the rule.
 
 ## Methods with Required Javadoc Reading
 If you encounter any of the following methods, you must go and read their javadoc before taking any other actions:

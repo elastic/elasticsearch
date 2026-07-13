@@ -33,10 +33,12 @@ public class Sin extends AbstractTrigonometricFunction {
         .unaryValueTransformation(Sin::new)
         .description("Calculates the sine of all elements in the input vector.")
         .example("sin(some_metric)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("sin");
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the sine of an angle.",
         description = "Returns the {wikipedia}/Sine_and_cosine[sine] of an angle.",
         examples = @Example(file = "floats", tag = "sin")
     )

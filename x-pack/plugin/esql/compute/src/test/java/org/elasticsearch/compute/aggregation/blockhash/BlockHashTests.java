@@ -33,6 +33,7 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.LongSwissHash;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -170,6 +171,39 @@ public class BlockHashTests extends BlockHashTestCase {
             }
             assertKeys(ordsAndKeys.keys(), 2L, 1L, 4L, 3L);
         }, blockFactory.newLongArrayVector(values, values.length).asBlock());
+    }
+
+    /**
+     * Builds a {@link LongBlockHash} big enough to form a big core, then replays the keys across
+     * several pages so the batched prefetch path ({@code addWithPrefetch}) is exercised and asserted
+     * to produce the same ords as the scalar path. {@code shouldPrefetch} is checked once per page,
+     * so a single page never reaches the prefetch path: it needs the table primed by an earlier page.
+     */
+    public void testLongHashHighCardinalityPrefetch() {
+        assumeFalse("the packed hash has no long prefetch path", forcePackedHash);
+        LongSwissHash.PREFETCH_THRESHOLD = between(1, 1024);
+        int distinct = between(2_000, 8_000); // exceeds the small-core capacity so a big core (and the prefetch path) forms
+        int pages = between(3, 6);
+        try (BlockHash hash = new LongBlockHash(0, blockFactory)) {
+            for (int page = 0; page < pages; page++) {
+                long[] values = new long[distinct];
+                for (int i = 0; i < distinct; i++) {
+                    values[i] = i;
+                }
+                try (LongBlock block = blockFactory.newLongArrayVector(values, distinct).asBlock()) {
+                    // value i is first seen at position i on page 0, so it always resolves to ord i + 1
+                    hash(true, hash, ordsAndKeys -> {
+                        IntBlock ords = ordsAndKeys.ords();
+                        for (int p = 0; p < distinct; p++) {
+                            assertThat(ords.getInt(p), equalTo(p + 1));
+                        }
+                    }, block);
+                }
+            }
+            try (IntVector nonEmpty = hash.nonEmpty()) {
+                assertThat(nonEmpty.getPositionCount(), equalTo(distinct));
+            }
+        }
     }
 
     public void testLongHashWithNulls() {
@@ -1059,10 +1093,10 @@ public class BlockHashTests extends BlockHashTestCase {
                     startsWith(
                         forcePackedHash
                             ? "PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=4, size="
-                            : "BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=4, size="
+                            : "Adaptive{BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=4, size="
                     )
                 );
-                assertThat(ordsAndKeys.description(), endsWith("b}"));
+                assertThat(ordsAndKeys.description(), endsWith(forcePackedHash ? "b}" : "b}}"));
                 assertOrds(ordsAndKeys.ords(), 0, 1, 0, 2, 3, 2);
                 assertKeys(ordsAndKeys.keys(), expectedKeys);
                 assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
@@ -1081,37 +1115,29 @@ public class BlockHashTests extends BlockHashTestCase {
             append(b1, b2, new long[] { 0 }, null);
             append(b1, b2, null, new String[] { "nn" });
 
+            // Either path (packed or adaptive) handles nulls correctly: the adaptive hash sees a non-vector
+            // page and migrates to PackedValuesBlockHash before doing any work, so ord assignment matches.
             hash((OrdsAndKeys ordsAndKeys) -> {
-                if (forcePackedHash) {
-                    assertThat(
-                        ordsAndKeys.description(),
-                        startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=5, size=")
-                    );
-                    assertThat(ordsAndKeys.description(), endsWith("b}"));
-                    assertOrds(ordsAndKeys.ords(), 0, 1, 2, 3, 4);
-                    assertKeys(
-                        ordsAndKeys.keys(),
-                        new Object[][] {
-                            new Object[] { 1L, "cat" },
-                            new Object[] { null, null },
-                            new Object[] { 0L, "dog" },
-                            new Object[] { 0L, null },
-                            new Object[] { null, "nn" } }
-                    );
-                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 5)));
-                } else {
-                    assertThat(
-                        ordsAndKeys.description(),
-                        startsWith("BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=3, size=")
-                    );
-                    assertThat(ordsAndKeys.description(), endsWith("b}"));
-                    assertOrds(ordsAndKeys.ords(), 0, null, 1, 2, null);
-                    assertKeys(
-                        ordsAndKeys.keys(),
-                        new Object[][] { new Object[] { 1L, "cat" }, new Object[] { 0L, "dog" }, new Object[] { 0L, null } }
-                    );
-                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
-                }
+                assertThat(
+                    ordsAndKeys.description(),
+                    startsWith(
+                        forcePackedHash
+                            ? "PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=5, size="
+                            : "Adaptive{PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=5, size="
+                    )
+                );
+                assertThat(ordsAndKeys.description(), endsWith(forcePackedHash ? "b}" : "b}}"));
+                assertOrds(ordsAndKeys.ords(), 0, 1, 2, 3, 4);
+                assertKeys(
+                    ordsAndKeys.keys(),
+                    new Object[][] {
+                        new Object[] { 1L, "cat" },
+                        new Object[] { null, null },
+                        new Object[] { 0L, "dog" },
+                        new Object[] { 0L, null },
+                        new Object[] { null, "nn" } }
+                );
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 5)));
             }, b1, b2);
         }
     }
@@ -1164,76 +1190,45 @@ public class BlockHashTests extends BlockHashTestCase {
             append(b1, b2, new long[] { 1, 1, 2, 2 }, new String[] { "a", "b", "b" });
             append(b1, b2, new long[] { 1, 2, 3 }, new String[] { "c", "c", "a" });
 
+            // MV inputs cannot be vectors, so the adaptive hash migrates to PackedValuesBlockHash on
+            // the first page. Ord assignment then matches the forced-packed branch exactly.
             hash((OrdsAndKeys ordsAndKeys) -> {
-                if (forcePackedHash) {
-                    assertThat(
-                        ordsAndKeys.description(),
-                        startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=10, size=")
-                    );
-                    assertOrds(
-                        ordsAndKeys.ords(),
-                        new int[] { 0, 1, 2, 3 },
-                        new int[] { 0, 2 },
-                        new int[] { 0, 1 },
-                        new int[] { 0 },
-                        new int[] { 4 },
-                        new int[] { 5 },
-                        new int[] { 0 },
-                        new int[] { 0, 1, 2, 3 },
-                        new int[] { 6, 0, 7, 2, 8, 9 }
-                    );
-                    assertKeys(
-                        ordsAndKeys.keys(),
-                        new Object[][] {
-                            new Object[] { 1L, "a" },
-                            new Object[] { 1L, "b" },
-                            new Object[] { 2L, "a" },
-                            new Object[] { 2L, "b" },
-                            new Object[] { null, "a" },
-                            new Object[] { 1L, null },
-                            new Object[] { 1L, "c" },
-                            new Object[] { 2L, "c" },
-                            new Object[] { 3L, "c" },
-                            new Object[] { 3L, "a" }, }
-                    );
-                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 10)));
-                } else {
-                    assertThat(
-                        ordsAndKeys.description(),
-                        equalTo(
-                            "BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=9, size=%size%}".replace(
-                                "%size%",
-                                byteRefBlockHashSize()
-                            )
-                        )
-                    );
-                    assertOrds(
-                        ordsAndKeys.ords(),
-                        new int[] { 0, 1, 2, 3 },
-                        new int[] { 0, 1 },
-                        new int[] { 0, 2 },
-                        new int[] { 0 },
-                        null,
-                        new int[] { 4 },
-                        new int[] { 0 },
-                        new int[] { 0, 1, 2, 3 },
-                        new int[] { 5, 6, 7, 0, 1, 8 }
-                    );
-                    assertKeys(
-                        ordsAndKeys.keys(),
-                        new Object[][] {
-                            new Object[] { 1L, "a" },
-                            new Object[] { 2L, "a" },
-                            new Object[] { 1L, "b" },
-                            new Object[] { 2L, "b" },
-                            new Object[] { 1L, null },
-                            new Object[] { 1L, "c" },
-                            new Object[] { 2L, "c" },
-                            new Object[] { 3L, "c" },
-                            new Object[] { 3L, "a" }, }
-                    );
-                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 9)));
-                }
+                assertThat(
+                    ordsAndKeys.description(),
+                    startsWith(
+                        forcePackedHash
+                            ? "PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=10, size="
+                            : "Adaptive{PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=10, size="
+                    )
+                );
+                assertThat(ordsAndKeys.description(), endsWith(forcePackedHash ? "b}" : "b}}"));
+                assertOrds(
+                    ordsAndKeys.ords(),
+                    new int[] { 0, 1, 2, 3 },
+                    new int[] { 0, 2 },
+                    new int[] { 0, 1 },
+                    new int[] { 0 },
+                    new int[] { 4 },
+                    new int[] { 5 },
+                    new int[] { 0 },
+                    new int[] { 0, 1, 2, 3 },
+                    new int[] { 6, 0, 7, 2, 8, 9 }
+                );
+                assertKeys(
+                    ordsAndKeys.keys(),
+                    new Object[][] {
+                        new Object[] { 1L, "a" },
+                        new Object[] { 1L, "b" },
+                        new Object[] { 2L, "a" },
+                        new Object[] { 2L, "b" },
+                        new Object[] { null, "a" },
+                        new Object[] { 1L, null },
+                        new Object[] { 1L, "c" },
+                        new Object[] { 2L, "c" },
+                        new Object[] { 3L, "c" },
+                        new Object[] { 3L, "a" }, }
+                );
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 10)));
             }, b1, b2);
         }
     }
@@ -1249,28 +1244,24 @@ public class BlockHashTests extends BlockHashTestCase {
             append(b1, b2, v1, v2);
             int[] expectedEntries = new int[1];
             int pageSize = between(1000, 16 * 1024);
+            // The single MV row forces both paths through PackedValuesBlockHash (the adaptive hash
+            // migrates immediately on a non-vector page), so ords/keys are identical.
             hash(ordsAndKeys -> {
                 int start = expectedEntries[0];
                 expectedEntries[0] = Math.min(expectedEntries[0] + pageSize, v1.length * v2.length);
                 assertThat(
                     ordsAndKeys.description(),
-                    forcePackedHash
-                        ? startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=" + expectedEntries[0] + ", size=")
-                        : startsWith(
-                            "BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries="
-                                + expectedEntries[0]
-                                + ", size="
-                        )
+                    startsWith(
+                        forcePackedHash
+                            ? "PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=" + expectedEntries[0] + ", size="
+                            : "Adaptive{PackedValuesBlockHash{groups=[0:LONG, 1:BYTES_REF], entries=" + expectedEntries[0] + ", size="
+                    )
                 );
                 assertOrds(ordsAndKeys.ords(), IntStream.range(start, expectedEntries[0]).toArray());
                 assertKeys(
                     ordsAndKeys.keys(),
                     IntStream.range(0, expectedEntries[0])
-                        .mapToObj(
-                            i -> forcePackedHash
-                                ? new Object[] { v1[i / v2.length], v2[i % v2.length] }
-                                : new Object[] { v1[i % v1.length], v2[i / v1.length] }
-                        )
+                        .mapToObj(i -> new Object[] { v1[i / v2.length], v2[i % v2.length] })
                         .toArray(l -> new Object[l][])
                 );
                 assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, expectedEntries[0])));
@@ -1278,6 +1269,308 @@ public class BlockHashTests extends BlockHashTestCase {
 
             assertThat("misconfigured test", expectedEntries[0], greaterThan(0));
         }
+    }
+
+    /**
+     * Drive the {@link LongBytesRefAdaptiveBlockHash} through a vector page first, then a block page
+     * with both nulls and multivalues, then another vector page that re-uses an old key. Verifies that:
+     * <ul>
+     *   <li>group ids assigned on the vector page survive the migration to {@link PackedValuesBlockHash};</li>
+     *   <li>null/MV groups are correctly enumerated post-migration (the broken behavior {@code #99434}
+     *       guarded against was dropping null-keyed rows and never forming {@code (null, x)}/{@code (x, null)} groups);</li>
+     *   <li>a re-occurrence of an old key on a later page maps to the same group id as before.</li>
+     * </ul>
+     */
+    public void testLongBytesRefHashMidStreamMigrationToPacked() {
+        if (forcePackedHash) {
+            // Nothing to migrate: both inputs go to PackedValuesBlockHash from the start.
+            // The general null/MV correctness for that path is exercised by the other tests above.
+            return;
+        }
+        // Page 1: pure vectors. The adaptive hash uses its dict-aware fast path. Two groups: (1L,"a"), (2L,"b").
+        try (
+            LongBlock.Builder b1a = blockFactory.newLongBlockBuilder(2);
+            BytesRefBlock.Builder b2a = blockFactory.newBytesRefBlockBuilder(2)
+        ) {
+            append(b1a, b2a, new long[] { 1 }, new String[] { "a" });
+            append(b1a, b2a, new long[] { 2 }, new String[] { "b" });
+            // Page 2: a null key + an MV key. Forces migration to PackedValuesBlockHash.
+            // null group: (null, "z"); MV: (1L,"a"), (1L,"b"), (3L,"a"), (3L,"b") — the last two are new.
+            try (
+                LongBlock.Builder b1b = blockFactory.newLongBlockBuilder(2);
+                BytesRefBlock.Builder b2b = blockFactory.newBytesRefBlockBuilder(2)
+            ) {
+                append(b1b, b2b, null, new String[] { "z" });
+                append(b1b, b2b, new long[] { 1, 3 }, new String[] { "a", "b" });
+                // Page 3: vector again, re-uses the old (1L,"a") key (must keep its old ord).
+                try (
+                    LongBlock.Builder b1c = blockFactory.newLongBlockBuilder(1);
+                    BytesRefBlock.Builder b2c = blockFactory.newBytesRefBlockBuilder(1)
+                ) {
+                    append(b1c, b2c, new long[] { 1 }, new String[] { "a" });
+
+                    Block[] page1 = Block.Builder.buildAll(b1a, b2a);
+                    Block[] page2 = Block.Builder.buildAll(b1b, b2b);
+                    Block[] page3 = Block.Builder.buildAll(b1c, b2c);
+                    try (
+                        BlockHash hash = BlockHash.build(
+                            List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.BYTES_REF)),
+                            blockFactory,
+                            16 * 1024,
+                            true
+                        )
+                    ) {
+                        // Page 1: vector path; expect ords (0, 1).
+                        List<Integer> ords1 = collectOrds(hash, page1);
+                        assertThat(ords1, equalTo(List.of(0, 1)));
+                        assertThat(hash.toString(), startsWith("Adaptive{BytesRefLongBlockHash{"));
+
+                        // Page 2: triggers migration. Existing groups (1L,"a")=0, (2L,"b")=1 stay put.
+                        // New groups: 2 = (null,"z"); 3 = (1L,"b") (cross), 4 = (3L,"a"), 5 = (3L,"b").
+                        // (1L,"a"=0) is reused for the (1L,"a") corner of the cross product.
+                        // For position 1, the (1L,"a"),(1L,"b"),(3L,"a"),(3L,"b") combos may emit in
+                        // PackedValues iteration order (long-outer, bytes-inner), so we just collect the set.
+                        List<List<Integer>> ords2 = collectOrdsByPosition(hash, page2);
+                        assertThat(hash.toString(), startsWith("Adaptive{PackedValuesBlockHash{"));
+                        // Position 0: (null, "z") -> a single ord (the null group). Distinct from prior groups.
+                        assertThat("position 0 single value", ords2.get(0).size(), equalTo(1));
+                        int nullGroupOrd = ords2.get(0).get(0);
+                        assertThat(nullGroupOrd, greaterThan(1));
+                        // Position 1: (1,a),(1,b),(3,a),(3,b) -> 4 groups; (1L,"a") must be 0 (preserved).
+                        assertThat(ords2.get(1).size(), equalTo(4));
+                        assertThat("(1L, a) keeps its ord", ords2.get(1).contains(0), equalTo(true));
+
+                        // Page 3: re-add (1L, "a") and verify the same ord as page 1.
+                        List<Integer> ords3 = collectOrds(hash, page3);
+                        assertThat(ords3, equalTo(List.of(0)));
+
+                        // Final group set: (1,a)=0, (2,b)=1, plus the four added on page 2 -> 6 total.
+                        assertThat(hash.numKeys(), equalTo(6));
+                        try (IntVector nonEmpty = hash.nonEmpty()) {
+                            assertThat(nonEmpty.getPositionCount(), equalTo(6));
+                            Block[] keys = hash.getKeys(nonEmpty);
+                            try {
+                                LongBlock kLong = (LongBlock) keys[0];
+                                BytesRefBlock kBytes = (BytesRefBlock) keys[1];
+                                BytesRef scratch = new BytesRef();
+                                Set<List<Object>> got = new HashSet<>();
+                                for (int p = 0; p < 6; p++) {
+                                    Object lv = kLong.isNull(p) ? null : kLong.getLong(p);
+                                    Object bv = kBytes.isNull(p) ? null : kBytes.getBytesRef(p, scratch).utf8ToString();
+                                    got.add(List.of(lv == null ? "_NULL_" : lv, bv == null ? "_NULL_" : bv));
+                                }
+                                assertThat(
+                                    got,
+                                    equalTo(
+                                        Set.of(
+                                            List.of(1L, "a"),
+                                            List.of(2L, "b"),
+                                            List.of("_NULL_", "z"),
+                                            List.of(1L, "b"),
+                                            List.of(3L, "a"),
+                                            List.of(3L, "b")
+                                        )
+                                    )
+                                );
+                            } finally {
+                                Releasables.closeExpectNoException(keys);
+                            }
+                        }
+                    } finally {
+                        Releasables.closeExpectNoException(Releasables.wrap(page1), Releasables.wrap(page2), Releasables.wrap(page3));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Mirror of {@link #testLongBytesRefHashMidStreamMigrationToPacked} for the swapped key order
+     * {@code (BYTES_REF, LONG)}. Specifically exercises the hand-written
+     * {@code reverseOutput == true} branch in
+     * {@link LongBytesRefAdaptiveBlockHash.BytesRefLongVectorOnlyBlockHash#migrateToPackedHash()}:
+     * if the byte-layout swap were wrong, migrated keys would collide with each other or with
+     * pre-migration keys, breaking the ord-stability invariant asserted below.
+     */
+    public void testBytesRefLongHashMidStreamMigrationToPacked() {
+        if (forcePackedHash) {
+            return;
+        }
+        try (
+            LongBlock.Builder b1a = blockFactory.newLongBlockBuilder(2);
+            BytesRefBlock.Builder b2a = blockFactory.newBytesRefBlockBuilder(2)
+        ) {
+            append(b1a, b2a, new long[] { 1 }, new String[] { "a" });
+            append(b1a, b2a, new long[] { 2 }, new String[] { "b" });
+            try (
+                LongBlock.Builder b1b = blockFactory.newLongBlockBuilder(2);
+                BytesRefBlock.Builder b2b = blockFactory.newBytesRefBlockBuilder(2)
+            ) {
+                append(b1b, b2b, null, new String[] { "z" });
+                append(b1b, b2b, new long[] { 1, 3 }, new String[] { "a", "b" });
+                try (
+                    LongBlock.Builder b1c = blockFactory.newLongBlockBuilder(1);
+                    BytesRefBlock.Builder b2c = blockFactory.newBytesRefBlockBuilder(1)
+                ) {
+                    append(b1c, b2c, new long[] { 1 }, new String[] { "a" });
+
+                    Block[] longsPage1 = Block.Builder.buildAll(b1a, b2a);
+                    Block[] longsPage2 = Block.Builder.buildAll(b1b, b2b);
+                    Block[] longsPage3 = Block.Builder.buildAll(b1c, b2c);
+                    // Reverse shape: bytes are channel 0, longs are channel 1. Page columns are [bytes, long].
+                    Block[] page1 = new Block[] { longsPage1[1], longsPage1[0] };
+                    Block[] page2 = new Block[] { longsPage2[1], longsPage2[0] };
+                    Block[] page3 = new Block[] { longsPage3[1], longsPage3[0] };
+                    try (
+                        BlockHash hash = BlockHash.build(
+                            List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF), new BlockHash.GroupSpec(1, ElementType.LONG)),
+                            blockFactory,
+                            16 * 1024,
+                            true
+                        )
+                    ) {
+                        List<Integer> ords1 = collectOrds(hash, page1);
+                        assertThat(ords1, equalTo(List.of(0, 1)));
+                        assertThat(hash.toString(), startsWith("Adaptive{BytesRefLongBlockHash{"));
+
+                        List<List<Integer>> ords2 = collectOrdsByPosition(hash, page2);
+                        assertThat(hash.toString(), startsWith("Adaptive{PackedValuesBlockHash{"));
+                        assertThat("position 0 single value", ords2.get(0).size(), equalTo(1));
+                        int nullGroupOrd = ords2.get(0).get(0);
+                        assertThat(nullGroupOrd, greaterThan(1));
+                        assertThat(ords2.get(1).size(), equalTo(4));
+                        assertThat("(a, 1L) keeps its ord", ords2.get(1).contains(0), equalTo(true));
+
+                        List<Integer> ords3 = collectOrds(hash, page3);
+                        assertThat(ords3, equalTo(List.of(0)));
+
+                        assertThat(hash.numKeys(), equalTo(6));
+                        try (IntVector nonEmpty = hash.nonEmpty()) {
+                            assertThat(nonEmpty.getPositionCount(), equalTo(6));
+                            Block[] keys = hash.getKeys(nonEmpty);
+                            try {
+                                BytesRefBlock kBytes = (BytesRefBlock) keys[0];
+                                LongBlock kLong = (LongBlock) keys[1];
+                                BytesRef scratch = new BytesRef();
+                                Set<List<Object>> got = new HashSet<>();
+                                for (int p = 0; p < 6; p++) {
+                                    Object bv = kBytes.isNull(p) ? null : kBytes.getBytesRef(p, scratch).utf8ToString();
+                                    Object lv = kLong.isNull(p) ? null : kLong.getLong(p);
+                                    got.add(List.of(bv == null ? "_NULL_" : bv, lv == null ? "_NULL_" : lv));
+                                }
+                                assertThat(
+                                    got,
+                                    equalTo(
+                                        Set.of(
+                                            List.of("a", 1L),
+                                            List.of("b", 2L),
+                                            List.of("z", "_NULL_"),
+                                            List.of("b", 1L),
+                                            List.of("a", 3L),
+                                            List.of("b", 3L)
+                                        )
+                                    )
+                                );
+                            } finally {
+                                Releasables.closeExpectNoException(keys);
+                            }
+                        }
+                    } finally {
+                        Releasables.closeExpectNoException(
+                            Releasables.wrap(longsPage1),
+                            Releasables.wrap(longsPage2),
+                            Releasables.wrap(longsPage3)
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Collects all group ids emitted by {@link BlockHash#add} into a single flat list, in the order
+     * the hash emitted them. Used by {@link #testLongBytesRefHashMidStreamMigrationToPacked}.
+     */
+    private List<Integer> collectOrds(BlockHash hash, Block[] page) {
+        List<Integer> out = new ArrayList<>();
+        hash.add(new Page(page), new GroupingAggregatorFunction.AddInput() {
+            @Override
+            public void add(int positionOffset, IntVector groupIds) {
+                for (int i = 0; i < groupIds.getPositionCount(); i++) {
+                    out.add(groupIds.getInt(i));
+                }
+            }
+
+            @Override
+            public void add(int positionOffset, IntArrayBlock groupIds) {
+                addBlock(groupIds);
+            }
+
+            @Override
+            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                addBlock(groupIds);
+            }
+
+            private void addBlock(IntBlock groupIds) {
+                for (int p = 0; p < groupIds.getPositionCount(); p++) {
+                    int start = groupIds.getFirstValueIndex(p);
+                    int end = start + groupIds.getValueCount(p);
+                    for (int i = start; i < end; i++) {
+                        out.add(groupIds.getInt(i));
+                    }
+                }
+            }
+
+            @Override
+            public void close() {}
+        });
+        return out;
+    }
+
+    /**
+     * Like {@link #collectOrds} but groups the emitted ords by input position. Multivalued positions
+     * yield a list of size > 1; null positions yield an empty list.
+     */
+    private List<List<Integer>> collectOrdsByPosition(BlockHash hash, Block[] page) {
+        List<List<Integer>> out = new ArrayList<>();
+        hash.add(new Page(page), new GroupingAggregatorFunction.AddInput() {
+            @Override
+            public void add(int positionOffset, IntVector groupIds) {
+                for (int i = 0; i < groupIds.getPositionCount(); i++) {
+                    out.add(List.of(groupIds.getInt(i)));
+                }
+            }
+
+            @Override
+            public void add(int positionOffset, IntArrayBlock groupIds) {
+                addBlock(groupIds);
+            }
+
+            @Override
+            public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                addBlock(groupIds);
+            }
+
+            private void addBlock(IntBlock groupIds) {
+                for (int p = 0; p < groupIds.getPositionCount(); p++) {
+                    if (groupIds.isNull(p)) {
+                        out.add(List.of());
+                        continue;
+                    }
+                    int start = groupIds.getFirstValueIndex(p);
+                    int end = start + groupIds.getValueCount(p);
+                    List<Integer> at = new ArrayList<>(end - start);
+                    for (int i = start; i < end; i++) {
+                        at.add(groupIds.getInt(i));
+                    }
+                    out.add(at);
+                }
+            }
+
+            @Override
+            public void close() {}
+        });
+        return out;
     }
 
     public void testLongNull() {
@@ -1833,6 +2126,70 @@ public class BlockHashTests extends BlockHashTestCase {
             } finally {
                 Releasables.close(keys1);
                 Releasables.close(keys2);
+            }
+        }
+    }
+
+    /**
+     * The page-local tsid dictionary built for a chunked page must contain each referenced tsid exactly once, even when
+     * the tsids referenced by the page are not contiguous by group id (which happens, for example, for groups added by
+     * window expansion). This verifies the ordinals are remapped through a lookup rather than relying on the previous
+     * ordinal of the iteration.
+     */
+    public void testTimeSeriesBlockHashChunkedPageDeduplicatesUnsortedTsids() {
+        BytesRef tsidA = new BytesRef("id-a");
+        BytesRef tsidB = new BytesRef("id-b");
+        int pairs = 10;
+        try (var hash = new TimeSeriesBlockHash(0, 1, false, false, blockFactory)) {
+            // Interleave two tsids across single-row pages so the tsid ordinals alternate by group id (A, B, A, B, ...).
+            for (int t = 0; t < pairs; t++) {
+                addSingleTsidRow(hash, tsidA, t);
+                addSingleTsidRow(hash, tsidB, t);
+            }
+            int totalGroups = 2 * pairs;
+            int pageSize = totalGroups - 1; // a strict subset, so we take the chunked page-local dictionary path
+            Block[] keys = null;
+            try (IntVector selected = blockFactory.newIntRangeVector(0, pageSize)) {
+                keys = hash.getKeys(selected);
+                BytesRefBlock tsids = (BytesRefBlock) keys[0];
+                BytesRef scratch = new BytesRef();
+                for (int p = 0; p < pageSize; p++) {
+                    assertThat(tsids.getBytesRef(p, scratch), equalTo(p % 2 == 0 ? tsidA : tsidB));
+                }
+                OrdinalBytesRefBlock ordinals = tsids.asOrdinals();
+                assertNotNull("a dense page should be ordinal-encoded", ordinals);
+                assertThat(
+                    "page-local dictionary must hold each referenced tsid once",
+                    ordinals.getDictionaryVector().getPositionCount(),
+                    equalTo(2)
+                );
+            } finally {
+                Releasables.close(keys);
+            }
+        }
+    }
+
+    private void addSingleTsidRow(TimeSeriesBlockHash hash, BytesRef tsid, long timestamp) {
+        try (
+            BytesRefVector.Builder tsidBuilder = blockFactory.newBytesRefVectorBuilder(1);
+            LongVector.Builder timestampBuilder = blockFactory.newLongVectorBuilder(1)
+        ) {
+            tsidBuilder.appendBytesRef(tsid);
+            timestampBuilder.appendLong(timestamp);
+            try (var tsidBlock = tsidBuilder.build().asBlock(); var timestampBlock = timestampBuilder.build().asBlock()) {
+                hash.add(new Page(tsidBlock, timestampBlock), new GroupingAggregatorFunction.AddInput() {
+                    @Override
+                    public void add(int positionOffset, IntArrayBlock groupIds) {}
+
+                    @Override
+                    public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+
+                    @Override
+                    public void add(int positionOffset, IntVector groupIds) {}
+
+                    @Override
+                    public void close() {}
+                });
             }
         }
     }

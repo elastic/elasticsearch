@@ -93,9 +93,8 @@ public class ReindexPitKeepAliveIT extends ESIntegTestCase {
             .build();
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void resetPitKeepAliveSetting() throws Exception {
         try {
             assertAcked(
                 clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -103,7 +102,6 @@ public class ReindexPitKeepAliveIT extends ESIntegTestCase {
             );
         } finally {
             LAST_OPEN_PIT_KEEP_ALIVE.set(null);
-            super.tearDown();
         }
     }
 

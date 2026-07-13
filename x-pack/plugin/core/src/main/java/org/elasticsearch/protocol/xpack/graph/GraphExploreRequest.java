@@ -8,7 +8,7 @@ package org.elasticsearch.protocol.xpack.graph;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -32,7 +32,7 @@ import java.util.List;
  * Holds the criteria required to guide the exploration of connected terms which
  * can be returned as a graph.
  */
-public class GraphExploreRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public class GraphExploreRequest extends UntypedActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
 
     public static final String NO_HOPS_ERROR_MESSAGE = "Graph explore request must have at least one hop";
     public static final String NO_VERTICES_ERROR_MESSAGE = "Graph explore hop must have at least one VertexRequest";

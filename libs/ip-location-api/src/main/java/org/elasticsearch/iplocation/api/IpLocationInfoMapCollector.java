@@ -228,4 +228,39 @@ public final class IpLocationInfoMapCollector extends HashMap<String, Object> im
     public void service(String service) {
         put(DatabaseProperty.SERVICE.fieldName(), service);
     }
+
+    @Override
+    public void anycast(boolean val) {
+        put(DatabaseProperty.ANYCAST.fieldName(), val);
+    }
+
+    @Override
+    public void mobile(boolean val) {
+        put(DatabaseProperty.MOBILE.fieldName(), val);
+    }
+
+    @Override
+    public void satellite(boolean val) {
+        put(DatabaseProperty.SATELLITE.fieldName(), val);
+    }
+
+    @Override
+    public void dmaCode(String code) {
+        put(DatabaseProperty.DMA_CODE.fieldName(), code);
+    }
+
+    @Override
+    public void geonameId(String id) {
+        put(DatabaseProperty.GEONAME_ID.fieldName(), id);
+    }
+
+    @Override
+    public void asnChangedDate(String date) {
+        put(DatabaseProperty.ASN_CHANGED_DATE.fieldName(), date);
+    }
+
+    @Override
+    public void geoChangedDate(String date) {
+        put(DatabaseProperty.GEO_CHANGED_DATE.fieldName(), date);
+    }
 }

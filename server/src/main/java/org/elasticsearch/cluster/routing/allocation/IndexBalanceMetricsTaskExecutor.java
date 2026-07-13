@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -286,8 +287,10 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
                 }
                 logger.info("Starting index balance metrics task");
                 needsComputation.set(true);
-                clusterService.addListener(routingTableChangedListener);
                 scheduleComputation(pollIntervalSupplier.get());
+                if (scheduledComputation != null) {
+                    clusterService.addListener(routingTableChangedListener);
+                }
             }
         }
 
@@ -299,6 +302,9 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
                 }
                 cancelScheduledComputation();
                 scheduleComputation(pollIntervalSupplier.get());
+                if (scheduledComputation == null) {
+                    stopListeningAndCancelComputation();
+                }
             }
         }
 
@@ -315,11 +321,12 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
 
         private void scheduleComputation(TimeValue interval) {
             assert Thread.holdsLock(lifecycleLock) : "Must hold lifecycle lock";
-            if (threadPool.scheduler().isShutdown()) {
-                return;
-            }
             assert scheduledComputation == null : "Must not already have a scheduled computation";
-            scheduledComputation = threadPool.scheduleWithFixedDelay(this::runComputation, interval, managementExecutor);
+            try {
+                scheduledComputation = threadPool.scheduleWithFixedDelay(this::runComputation, interval, managementExecutor);
+            } catch (RejectedExecutionException e) {
+                logger.debug("thread pool is shutting down, index balance metrics task will not run on this node");
+            }
         }
 
         private void runComputation() {

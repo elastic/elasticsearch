@@ -180,3 +180,22 @@ min:datetime                  | max:datetime                  | bucket:datetime
 2023-10-23T17:15:03.360+05:00 | 2023-10-23T17:27:28.948+05:00 | 2023-10-23T18:15:00.000+05:00
 2023-10-23T18:33:34.937+05:00 | 2023-10-23T18:55:01.543+05:00 | 2023-10-23T19:15:00.000+05:00
 ;
+
+without explicit @timestamp
+required_capability: tstep
+required_capability: fix_tstep_bucket_rounding
+required_capability: fn_tstep_implicit_timestamp
+request_time_filter: 2023-10-23T12:15:00.000Z,2023-10-23T13:55:01.543Z
+
+FROM sample_data
+| STATS c = COUNT(*) BY bucket = TSTEP(10 minutes)
+| SORT bucket
+;
+
+c:long | bucket:datetime
+1      | 2023-10-23T12:25:00.000Z
+1      | 2023-10-23T12:35:00.000Z
+1      | 2023-10-23T13:35:00.000Z
+3      | 2023-10-23T13:55:00.000Z
+1      | 2023-10-23T14:05:00.000Z
+;

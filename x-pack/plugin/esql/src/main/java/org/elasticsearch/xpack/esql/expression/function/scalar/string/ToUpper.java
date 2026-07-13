@@ -32,6 +32,7 @@ public class ToUpper extends ChangeCase {
 
     @FunctionInfo(
         returnType = { "keyword" },
+        briefSummary = "Returns a new string converted to upper case.",
         description = "Returns a new string representing the input string converted to upper case.",
         examples = @Example(file = "string", tag = "to_upper")
     )

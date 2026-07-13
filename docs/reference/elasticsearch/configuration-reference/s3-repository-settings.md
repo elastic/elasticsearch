@@ -123,6 +123,8 @@ In versions `7.0`, `7.1`, `7.2` and `7.3` all bucket operations used the [now-de
 `s3.client.CLIENT_NAME.disable_chunked_encoding`
 :   Whether chunked encoding should be disabled or not. If `false`, chunked encoding is enabled and will be used where appropriate. If `true`, chunked encoding is disabled and will not be used, which may mean that snapshot operations consume more resources and take longer to complete. It should only be set to `true` if you are using a storage service that does not support chunked encoding. See the [AWS Java SDK documentation](https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#disableChunkedEncoding--) for details. Defaults to `false`.
 
+`s3.client.CLIENT_NAME.always_sign_requests` {applies_to}`stack: ga 9.5`
+:   {{es}} usually uses HTTPS to protect the integrity of all network traffic to a S3 repository, but if you access your repository using plain HTTP it will protect the integrity of request payloads uses a separate signature mechanism. If `always_sign_requests` is set to `true`, {{es}} will use this additional signature mechanism even for requests sent over HTTPS which do not need it. Defaults to `false`.
 
 ## Repository settings [repository-s3-repository-settings]
 

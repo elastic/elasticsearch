@@ -83,7 +83,12 @@ public class RLike extends RegexMatch<RLikePattern> {
     public RLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal value.") Expression value,
-        @Param(name = "pattern", type = { "keyword", "text" }, description = "A regular expression.") RLikePattern pattern
+        @Param(
+            name = "pattern",
+            type = { "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "A regular expression."
+        ) RLikePattern pattern
     ) {
         this(source, value, pattern, false);
     }

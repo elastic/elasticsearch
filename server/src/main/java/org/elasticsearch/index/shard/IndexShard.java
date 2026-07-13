@@ -3859,11 +3859,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 recoveryListener.onRecoveryAborted();
             }
         }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true));
-        try {
-            action.accept(actionListener);
-        } catch (Exception t) {
-            actionListener.onFailure(t);
-        }
+        ActionListener.run(actionListener, action);
     }
 
     /**

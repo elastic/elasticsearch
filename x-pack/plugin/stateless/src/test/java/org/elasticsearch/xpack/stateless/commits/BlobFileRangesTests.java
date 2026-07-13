@@ -11,7 +11,6 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;

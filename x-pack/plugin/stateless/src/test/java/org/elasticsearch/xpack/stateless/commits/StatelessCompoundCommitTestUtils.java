@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.Timesta
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;

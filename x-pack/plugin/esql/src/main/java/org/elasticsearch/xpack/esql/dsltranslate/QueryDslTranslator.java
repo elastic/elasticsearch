@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.dsltranslate;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -65,13 +67,17 @@ import java.util.function.Function;
 public final class QueryDslTranslator {
 
     private final Function<String, Expression> fieldBinder;
+    private final long nowInMillis;
 
     /**
      * @param fieldBinder resolves a DSL field name to the ES|QL expression standing for it on this source — the
      *                    source's attribute when the field exists, {@link Literal#NULL} when it does not.
+     * @param nowInMillis the query's start time, epoch millis — the anchor for {@code now} date math on date bounds, so
+     *                    that {@code "now-15m"} resolves to the same instant the index path would use for this request.
      */
-    public QueryDslTranslator(Function<String, Expression> fieldBinder) {
+    public QueryDslTranslator(Function<String, Expression> fieldBinder, long nowInMillis) {
         this.fieldBinder = fieldBinder;
+        this.nowInMillis = nowInMillis;
     }
 
     /** Translate a DSL query into an ES|QL boolean predicate. */
@@ -86,7 +92,17 @@ public final class QueryDslTranslator {
             }
             // any-value equality: the field's values contain the term value
             Expression field = fieldBinder.apply(term.fieldName());
-            return new MvContains(Source.EMPTY, field, literalFor(field, term.value()));
+            // A term on a date field is a range over the value's rounding unit ("2020" means all of that year), not a
+            // point — so a coarse or date-math value matches the same span the index path's term query does.
+            if (isDate(field.dataType())) {
+                return checkedLeaf(field, dateTermRange(field, field.dataType(), term.value(), null));
+            }
+            // A value that no value of the field's integral type can equal (a decimal, or one outside the type's range)
+            // matches nothing, exactly as the index path's term query returns match-no-docs — never a truncated match.
+            if (isPresent(field) && cannotEqualIntegral(field.dataType(), term.value())) {
+                return Literal.FALSE;
+            }
+            return checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, term.value())));
         }
         if (query instanceof TermsQueryBuilder terms) {
             return terms(terms);
@@ -118,8 +134,26 @@ public final class QueryDslTranslator {
             return Literal.FALSE;
         }
         Expression field = fieldBinder.apply(terms.fieldName());
+        // On a date field each term is a rounding-unit range, not a point (see the term branch); the set is their
+        // union. Build it as an OR of per-value ranges so coarse and date-math values match the index-path span.
+        if (isDate(field.dataType())) {
+            Expression or = null;
+            for (Object v : values) {
+                Expression range = checkedLeaf(field, dateTermRange(field, field.dataType(), v, null));
+                or = or == null ? range : new Or(Source.EMPTY, or, range);
+            }
+            return or;
+        }
+        // Drop values no value of an integral field can equal (decimals, out-of-range) — they match nothing, as the
+        // index path's terms query does. If that empties the set, the whole clause matches nothing.
+        if (isPresent(field)) {
+            values = values.stream().filter(v -> cannotEqualIntegral(field.dataType(), v) == false).toList();
+            if (values.isEmpty()) {
+                return Literal.FALSE;
+            }
+        }
         // any-value set membership: the field's values intersect the term set
-        return new MvIntersects(Source.EMPTY, field, listLiteralFor(field, values));
+        return checkedLeaf(field, new MvIntersects(Source.EMPTY, field, listLiteralFor(field, values)));
     }
 
     private Expression bool(BoolQueryBuilder bool) {
@@ -160,9 +194,12 @@ public final class QueryDslTranslator {
                 or = or == null ? e : new Or(Source.EMPTY, or, e);
             }
             // The DSL default is 1 when the bool carries no must/filter, and 0 otherwise — must_not does NOT count
-            // towards that (a bool of must_not + should still requires one should clause to match).
+            // towards that (a bool of must_not + should still requires one should clause to match). Crucially, an
+            // EXPLICIT minimum_should_match of 0 does NOT make a should-only bool match everything: Lucene still needs
+            // one optional clause when there is no required (must/filter) clause, so msm=0 only drops the should group
+            // when a must/filter is present. (msm=1 always requires one; msm=0 and the unset default coincide.)
             boolean hasMustOrFilter = bool.must().isEmpty() == false || bool.filter().isEmpty() == false;
-            boolean shouldIsRequired = requiredShould == null ? hasMustOrFilter == false : requiredShould == 1;
+            boolean shouldIsRequired = (requiredShould != null && requiredShould == 1) || hasMustOrFilter == false;
             if (shouldIsRequired) {
                 conjuncts.add(or);
             }
@@ -194,6 +231,15 @@ public final class QueryDslTranslator {
             return Literal.TRUE;
         }
 
+        // A date range carries its own rules the generic numeric path cannot fake: date math ("now-15m"), and a coarse
+        // bound rounding to the edge of its unit ("2020-01" as an upper bound means the last millis of that month). The
+        // index path resolves both through a DateMathParser with a per-bound round direction; we mirror it exactly and
+        // fold the result to a closed inclusive interval, which is what mv_in_range wants. A MISSING date field keeps the
+        // generic path so it stays null-bound and folds to false (leniency), never touching the parser.
+        if (isDate(type) && isPresent(field)) {
+            return dateRange(field, type, range, formatter, hasLower, hasUpper);
+        }
+
         if (hasLower && hasUpper) {
             // Both bounds: this must be ONE any-value range test. Splitting it into two independent existentials
             // (mv_max >= lo AND mv_min <= hi) is an ENVELOPE test, which is wrong on multivalue fields: [0,100]
@@ -218,7 +264,10 @@ public final class QueryDslTranslator {
                     return Literal.FALSE;
                 }
             }
-            return new MvInRange(Source.EMPTY, field, new Literal(Source.EMPTY, lower, type), new Literal(Source.EMPTY, upper, type));
+            return checkedLeaf(
+                field,
+                new MvInRange(Source.EMPTY, field, new Literal(Source.EMPTY, lower, type), new Literal(Source.EMPTY, upper, type))
+            );
         }
 
         // Exactly one bound. Comparing against the field's extreme value is exact any-value here — "some value clears
@@ -228,15 +277,112 @@ public final class QueryDslTranslator {
         if (hasLower) {
             Expression max = new MvMax(Source.EMPTY, field);
             Literal lo = literalFor(field, range.from(), formatter);
-            return twoValued(
-                range.includeLower() ? new GreaterThanOrEqual(Source.EMPTY, max, lo, null) : new GreaterThan(Source.EMPTY, max, lo, null)
+            return checkedLeaf(
+                field,
+                twoValued(
+                    range.includeLower()
+                        ? new GreaterThanOrEqual(Source.EMPTY, max, lo, null)
+                        : new GreaterThan(Source.EMPTY, max, lo, null)
+                )
             );
         }
         Expression min = new MvMin(Source.EMPTY, field);
         Literal hi = literalFor(field, range.to(), formatter);
-        return twoValued(
-            range.includeUpper() ? new LessThanOrEqual(Source.EMPTY, min, hi, null) : new LessThan(Source.EMPTY, min, hi, null)
+        return checkedLeaf(
+            field,
+            twoValued(range.includeUpper() ? new LessThanOrEqual(Source.EMPTY, min, hi, null) : new LessThan(Source.EMPTY, min, hi, null))
         );
+    }
+
+    /**
+     * Resolve a date range to a closed inclusive interval and build the any-value leaf over it, mirroring the index
+     * path's {@code DateFieldType} resolution: each bound is parsed with the round direction that bound uses ({@code
+     * roundUp} for an inclusive upper or an exclusive lower), then an exclusive bound is nudged one unit inward so the
+     * interval is always closed. Both bounds → {@code mv_in_range}; one bound → an inclusive comparison against the
+     * field's extreme value (the same any-value reduction the numeric path uses), wrapped {@link #twoValued}.
+     */
+    private Expression dateRange(
+        Expression field,
+        DataType type,
+        RangeQueryBuilder range,
+        DateFormatter formatter,
+        boolean hasLower,
+        boolean hasUpper
+    ) {
+        if (hasLower && hasUpper) {
+            long lo = closedLowerBound(type, range.from(), formatter, range.includeLower());
+            long hi = closedUpperBound(type, range.to(), formatter, range.includeUpper());
+            if (lo > hi) {
+                // Rounding collapsed the interval (e.g. lt and gt straddling the same unit) — it matches nothing.
+                return Literal.FALSE;
+            }
+            return checkedLeaf(field, new MvInRange(Source.EMPTY, field, longLit(lo, type), longLit(hi, type)));
+        }
+        if (hasLower) {
+            long lo = closedLowerBound(type, range.from(), formatter, range.includeLower());
+            return checkedLeaf(
+                field,
+                twoValued(new GreaterThanOrEqual(Source.EMPTY, new MvMax(Source.EMPTY, field), longLit(lo, type), null))
+            );
+        }
+        long hi = closedUpperBound(type, range.to(), formatter, range.includeUpper());
+        return checkedLeaf(field, twoValued(new LessThanOrEqual(Source.EMPTY, new MvMin(Source.EMPTY, field), longLit(hi, type), null)));
+    }
+
+    /**
+     * A {@code term}/{@code terms} value on a date field is the closed range from the start to the end of the value's
+     * rounding unit — a full-precision instant collapses to a point, a coarse one ("2020") spans its whole unit.
+     */
+    private Expression dateTermRange(Expression field, DataType type, Object value, DateFormatter formatter) {
+        long lo = dateBound(type, value, formatter, false);
+        long hi = dateBound(type, value, formatter, true);
+        return new MvInRange(Source.EMPTY, field, longLit(lo, type), longLit(hi, type));
+    }
+
+    /** The inclusive lower bound: round down for {@code gte}, up-then-plus-one for {@code gt}. */
+    private long closedLowerBound(DataType type, Object value, DateFormatter formatter, boolean inclusive) {
+        long l = dateBound(type, value, formatter, inclusive == false);
+        return inclusive ? l : l + 1;
+    }
+
+    /** The inclusive upper bound: round up for {@code lte}, down-then-minus-one for {@code lt}. */
+    private long closedUpperBound(DataType type, Object value, DateFormatter formatter, boolean inclusive) {
+        long u = dateBound(type, value, formatter, inclusive);
+        return inclusive ? u : u - 1;
+    }
+
+    /**
+     * Parse one date bound to the field type's internal long. A numeric value is an explicit epoch and is exact — no
+     * date math or unit rounding applies. A string goes through a {@link org.elasticsearch.common.time.DateMathParser}
+     * anchored at the query's {@code now}, with {@code roundUp} choosing the edge of the value's rounding unit.
+     */
+    private long dateBound(DataType type, Object value, DateFormatter formatter, boolean roundUp) {
+        if (value instanceof Number n) {
+            return n.longValue();
+        }
+        DateFormatter effective = formatter != null
+            ? formatter
+            : (type == DataType.DATE_NANOS
+                ? EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER
+                : EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER);
+        try {
+            Instant instant = effective.toDateMathParser().parse(String.valueOf(value), () -> nowInMillis, roundUp, null);
+            DateFieldMapper.Resolution resolution = type == DataType.DATE_NANOS
+                ? DateFieldMapper.Resolution.NANOSECONDS
+                : DateFieldMapper.Resolution.MILLISECONDS;
+            return resolution.convert(instant);
+        } catch (RuntimeException e) {
+            // An unparseable bound or a date-math expression we cannot resolve cannot be translated faithfully.
+            throw new TranslationUnsupportedException("range[date bound on " + type.typeName() + "]");
+        }
+    }
+
+    private static boolean isDate(DataType type) {
+        return type == DataType.DATETIME || type == DataType.DATE_NANOS;
+    }
+
+    private static Literal longLit(long value, DataType type) {
+        return new Literal(Source.EMPTY, value, type);
     }
 
     /**
@@ -246,6 +392,42 @@ public final class QueryDslTranslator {
      */
     private static Expression twoValued(Expression comparison) {
         return new Coalesce(Source.EMPTY, comparison, List.of(Literal.FALSE));
+    }
+
+    /**
+     * Guards a leaf built over a PRESENT field. The graft runs after the analyzer and skips the Verifier, so a leaf
+     * whose emitted function cannot type its field (a {@code range} over a boolean column, an order comparison over an
+     * unorderable type) would otherwise sail through and fail in the compute engine. Rejecting it degrades the filter
+     * per-source instead — and keeps this hand-written translator immune to any future drift between the types it
+     * accepts and the types the emitted functions resolve. A MISSING field is deliberately null-bound and every leaf
+     * folds it to {@code false}, so it is left untouched: that is leniency, not a type error.
+     */
+    private static Expression checkedLeaf(Expression field, Expression leaf) {
+        if (DataType.isNull(field.dataType()) == false && leaf.resolved() == false) {
+            throw new TranslationUnsupportedException(leaf.nodeName() + "[on " + field.dataType().typeName() + "]");
+        }
+        return leaf;
+    }
+
+    /** A field the source actually has, as opposed to the {@link Literal#NULL} a missing field binds to. */
+    private static boolean isPresent(Expression field) {
+        return DataType.isNull(field.dataType()) == false;
+    }
+
+    /**
+     * Whether {@code value} can equal no value of an integral field type. The index path's numeric term/terms query
+     * returns match-no-docs for a decimal or an out-of-range number rather than truncating or wrapping it; we reproduce
+     * that by treating such a value as unmatchable. Non-number values fall through to the ordinary coercion path.
+     */
+    private static boolean cannotEqualIntegral(DataType type, Object value) {
+        if (value instanceof Number n && (type == DataType.INTEGER || type == DataType.LONG)) {
+            double d = n.doubleValue();
+            if (Double.isNaN(d) || Double.isInfinite(d) || d != Math.floor(d)) {
+                return true; // a fractional (or non-finite) value equals no integer
+            }
+            return type == DataType.INTEGER ? (d < Integer.MIN_VALUE || d > Integer.MAX_VALUE) : (d < Long.MIN_VALUE || d > Long.MAX_VALUE);
+        }
+        return false;
     }
 
     /** Whole-number types have an exact predecessor/successor, so an exclusive bound can be rewritten as inclusive. */

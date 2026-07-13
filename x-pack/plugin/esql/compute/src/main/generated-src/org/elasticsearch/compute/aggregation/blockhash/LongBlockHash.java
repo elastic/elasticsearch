@@ -218,6 +218,10 @@ final class LongBlockHash extends BlockHash {
 
                 @Override
                 public int addKey(Block keyBlock, int position, int hash) {
+                    if (keyBlock.isNull(position)) {
+                        seenNull = true;
+                        return 0;
+                    }
                     long key = ((LongBlock) keyBlock).getLong(position);
                     return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
                 }

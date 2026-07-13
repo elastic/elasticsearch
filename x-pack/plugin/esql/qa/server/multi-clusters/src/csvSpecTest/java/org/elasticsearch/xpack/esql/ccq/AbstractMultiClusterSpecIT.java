@@ -327,10 +327,11 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
      * the union matches the identical rows on both clusters and double-counts them. This mirrors the {@code onlyRemotes} handling
      * {@link #convertToRemoteIndices} applies to top-level FROM commands.
      */
-    public static final Set<String> INDICES_ON_BOTH_CLUSTERS = Stream.concat(
-        LOOKUP_INDICES.stream(),
-        ENRICH_POLICIES.values().stream().map(CsvTestsDataLoader.EnrichConfig::index)
-    ).map(name -> name.toLowerCase(Locale.ROOT)).collect(toSet());
+    private static final Set<String> INDICES_ON_BOTH_CLUSTERS = Set.copyOf(
+        Stream.concat(LOOKUP_INDICES.stream(), ENRICH_POLICIES.values().stream().map(CsvTestsDataLoader.EnrichConfig::index))
+            .map(name -> name.toLowerCase(Locale.ROOT))
+            .collect(toSet())
+    );
 
     /**
      * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk, _query,

@@ -38,7 +38,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Targeted unit tests for {@link NdJsonPageDecoder}'s keyword-decode path. Sibling
@@ -296,7 +295,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * e.g. {@code address.city}/{@code address.zip}, but a row's {@code address} is a plain string) is a genuine
      * scalar/object schema conflict: core ES dynamic mapping treats the same ambiguity as a hard document-parsing
      * conflict, so under {@link ErrorPolicy#STRICT} it must fail the query with an actionable message naming the
-     * field and both shapes rather than silently null-filling (elastic/esql-planning#1028). Before that fix, this
+     * field and both shapes rather than silently null-filling. Before that fix, this
      * mismatch was silently null-filled even under {@code STRICT} (see the pre-#1028 revision of
      * {@code testNullOrScalarWhereNestedObjectExpected}).
      */
@@ -317,12 +316,12 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * Same conflict as {@link #testScalarWhereNestedObjectExpectedStrictFails}, but under a non-strict policy: the
-     * conflicting field is null-filled and a client warning is surfaced, while the row's other columns (and other
-     * rows) still decode normally. This is a per-field null-fill, not a whole-row skip — elastic/esql-planning#1028
-     * notes the conflict path already decodes the rest of the record, so there is no need to drop it wholesale.
+     * Same conflict as {@link #testScalarWhereNestedObjectExpectedStrictFails}, but under skip_row: the conflicting
+     * record is dropped whole and a client warning is surfaced, while the other records still decode. error_mode
+     * governs the outcome the same for a bound/declared or an inferred schema; null_field keeps the record and nulls
+     * the conflicting field instead (see the NdJsonPageIteratorTests null_field pin).
      */
-    public void testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills() throws IOException {
+    public void testScalarWhereNestedObjectExpectedSkipRowDropsRecordAndWarns() throws IOException {
         String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}, \"id\": 1}\n"
             + "{\"address\": \"unstructured\", \"id\": 2}\n"
             + "{\"address\": {\"city\": \"London\", \"zip\": \"SW1A\"}, \"id\": 3}\n";
@@ -339,18 +338,17 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             )
         ) {
             assertNotNull(page);
-            assertEquals(3, page.getPositionCount());
+            // The scalar-where-object record is dropped whole under skip_row; the two structured records survive.
+            assertEquals(2, page.getPositionCount());
             BytesRefBlock city = page.getBlock(0);
             BytesRefBlock zip = page.getBlock(1);
             IntBlock id = page.getBlock(2);
             BytesRef scratch = new BytesRef();
             assertEquals(new BytesRef("NYC"), BytesRef.deepCopyOf(city.getBytesRef(0, scratch)));
-            assertTrue("scalar-where-object row -> city null", city.isNull(1));
-            assertTrue("scalar-where-object row -> zip null", zip.isNull(1));
-            assertFalse("scalar-where-object row's sibling column must still decode", id.isNull(1));
-            assertEquals(2, id.getInt(id.getFirstValueIndex(1)));
-            assertEquals(new BytesRef("London"), BytesRef.deepCopyOf(city.getBytesRef(2, scratch)));
-            assertEquals(new BytesRef("SW1A"), BytesRef.deepCopyOf(zip.getBytesRef(2, scratch)));
+            assertEquals(1, id.getInt(id.getFirstValueIndex(0)));
+            assertEquals(new BytesRef("London"), BytesRef.deepCopyOf(city.getBytesRef(1, scratch)));
+            assertEquals(new BytesRef("SW1A"), BytesRef.deepCopyOf(zip.getBytesRef(1, scratch)));
+            assertEquals(3, id.getInt(id.getFirstValueIndex(1)));
         }
 
         List<String> warnings = drainWarnings();
@@ -359,7 +357,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * Same shape conflict as {@link #testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills}, but with a
+     * Same shape conflict as {@link #testScalarWhereNestedObjectExpectedSkipRowDropsRecordAndWarns}, but with a
      * {@code warningSink} supplied: the decoder must route every emitted message through the sink instead of
      * {@link HeaderWarning}, since {@link NdJsonPageDecoder}'s decode loop can run on a background reader thread
      * whose thread-local response headers never reach the client (see {@link SkipWarnings}).
@@ -475,7 +473,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * Mirror of {@link #testArrayOfObjectsWithScalarElements}: an array of scalars on a leaf column whose
      * elements are occasionally objects (e.g. {@code ["a", {"x":1}, "b"]}). A stray object among array
      * scalars is a distinct, supported shape — not the record-level scalar/object conflict
-     * elastic/esql-planning#1028 targets — so it must be silently omitted from the multi-value entry under
+     * the record-level shape-conflict path targets — so it must be silently omitted from the multi-value entry under
      * every {@link ErrorPolicy}, including {@code STRICT}; only a genuine top-level (non-array) conflict
      * (see {@link #testScalarWhereNestedObjectExpectedStrictFails}) fails the query. Covers leading-object,
      * mid-object, and all-object arrays against a scalar {@code id} column that pins the expected row count.
@@ -541,8 +539,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 "test://declared-date",
                 new NdJsonReaderCounters(),
-                Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"),
-                Set.of()
+                Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z")
             )
         ) {
             try (Page page = decoder.decodePage()) {
@@ -660,9 +657,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * A bad VALUE is a per-cell data failure the error policy governs — never the blanket
      * unsupportedTypeForNdjson throw that used to fire before any cell was even looked at.
      */
-    public void testDeclaredUnsignedLongBadValueIsPerCellUnderLenient() throws IOException {
+    public void testDeclaredUnsignedLongBadValueIsPerCellUnderNullField() throws IOException {
         String ndjson = "{\"v\":-1}\n{\"v\":18446744073709551616}\n{\"v\":\"abc\"}\n{\"v\":5}\n";
-        try (Page page = decodeOneColumn(ndjson, DataType.UNSIGNED_LONG, ErrorPolicy.LENIENT)) {
+        try (Page page = decodeOneColumn(ndjson, DataType.UNSIGNED_LONG, ErrorPolicy.PERMISSIVE)) {
             LongBlock block = page.getBlock(0);
             assertEquals(4, block.getPositionCount());
             assertTrue("negative nulls the cell", block.isNull(0));
@@ -679,7 +676,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      */
     public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
         String ndjson = "{\"v\":\"1e999999999\"}\n{\"v\":1e999999999}\n{\"v\":5}\n";
-        try (Page page = decodeOneColumn(ndjson, DataType.UNSIGNED_LONG, ErrorPolicy.LENIENT)) {
+        try (Page page = decodeOneColumn(ndjson, DataType.UNSIGNED_LONG, ErrorPolicy.PERMISSIVE)) {
             LongBlock block = page.getBlock(0);
             assertTrue("string exotic exponent nulls the cell", block.isNull(0));
             assertTrue("numeric exotic exponent nulls the cell", block.isNull(1));

@@ -132,16 +132,18 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public interface Router {
         /**
          * Compute the partition hash for the single, non-null key value at {@code position} in
-         * {@code keyBlock}, without inserting it.
+         * {@code keyBlock}, without inserting it. Never call this for a null key — a null key
+         * has no partition hash; callers are expected to route null keys to one fixed, agreed-upon
+         * partition instead of hashing them (mirroring the {@code 0}-for-null convention below),
+         * then call {@link #addKey} directly for that key.
          */
         int partitionHashOfKey(Block keyBlock, int position);
 
         /**
-         * Insert (or look up) the single, non-null key value at {@code position} in
-         * {@code keyBlock}, reusing a {@code hash} already computed by
-         * {@link #partitionHashOfKey} for that same value, and return its group id — numbered
-         * the same way {@link #add} numbers groups (e.g. reserving {@code 0} for null, even
-         * though a {@link Router} is never actually called for a null key).
+         * Insert (or look up) the key value at {@code position} in {@code keyBlock}, reusing a
+         * {@code hash} already computed by {@link #partitionHashOfKey} for that same value (for
+         * a null key, any {@code hash} value is accepted and ignored), and return its group id —
+         * numbered the same way {@link #add} numbers groups, reserving {@code 0} for null.
          */
         int addKey(Block keyBlock, int position, int hash);
     }

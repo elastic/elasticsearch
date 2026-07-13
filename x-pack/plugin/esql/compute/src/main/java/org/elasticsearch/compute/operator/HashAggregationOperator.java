@@ -19,12 +19,10 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -33,7 +31,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -501,22 +498,44 @@ public class HashAggregationOperator implements Operator {
         if (rowsAddedInCurrentBatch == 0) {
             return;
         }
-        int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
         long startInNanos = System.nanoTime();
-        PreparedForEvaluation prepared = new PreparedForEvaluation();
         try {
-            if (prepared.selected.keys.getPositionCount() <= maxPageSize) {
-                output = ReleasableIterator.single(prepared.buildPage(prepared.selected, aggBlockCounts));
-            } else {
-                output = new MultiPageResult(prepared, aggBlockCounts);
-                prepared = null; // Prepared has moved into the output
-            }
+            var pageBuilder = new GroupingAggregatorPageBuilder(blockHash, aggregators, maxPageSize, this::customizeSelected);
+            output = timeEmitting(pageBuilder.build(evaluationContext(blockHash)));
         } finally {
             rowsAddedInCurrentBatch = 0;
-            Releasables.close(prepared);
             emitNanos += System.nanoTime() - startInNanos;
             emitCount++;
         }
+    }
+
+    /**
+     * Wraps {@code delegate} so each {@link ReleasableIterator#next} call's time is folded into
+     * {@link #emitNanos}, matching this operator's own emit-time accounting for pages built after
+     * the first (e.g. when a result is split across multiple pages).
+     */
+    private ReleasableIterator<Page> timeEmitting(ReleasableIterator<Page> delegate) {
+        return new ReleasableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return delegate.hasNext();
+            }
+
+            @Override
+            public Page next() {
+                long start = System.nanoTime();
+                try {
+                    return delegate.next();
+                } finally {
+                    emitNanos += System.nanoTime() - start;
+                }
+            }
+
+            @Override
+            public void close() {
+                delegate.close();
+            }
+        };
     }
 
     /**
@@ -795,130 +814,4 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    /**
-     * Returns many pages of results from aggregations. Works by breaking chunks off
-     * of the {@code selected} and {@code keys}.
-     * <p>
-     *     This is a step towards a system that breaks rows off of the {@link BlockHash}
-     *     itself. Right now, the {@link BlockHash} implementations returns all results
-     *     at once so the best we can do is break pieces off. But soon! Soon we can make
-     *     them smarter.
-     * </p>
-     */
-    class MultiPageResult implements ReleasableIterator<Page> {
-        private final PreparedForEvaluation prepared;
-        private final int[] aggBlockCounts;
-
-        private int rowOffset = 0;
-
-        MultiPageResult(PreparedForEvaluation prepared, int[] aggBlockCounts) {
-            this.prepared = prepared;
-            this.aggBlockCounts = aggBlockCounts;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return rowOffset < prepared.selected.keys.getPositionCount();
-        }
-
-        @Override
-        public Page next() {
-            long startInNanos = System.nanoTime();
-            int endOffset = Math.min(maxPageSize + rowOffset, prepared.selected.keys.getPositionCount());
-            try (Selected selectedInThisPage = prepared.selected.slice(rowOffset, endOffset)) {
-                Page output = prepared.buildPage(selectedInThisPage, aggBlockCounts);
-                rowOffset = endOffset;
-                return output;
-            } finally {
-                emitNanos += System.nanoTime() - startInNanos;
-            }
-        }
-
-        @Override
-        public void close() {
-            prepared.close();
-        }
-    }
-
-    private class PreparedForEvaluation implements Releasable {
-        private final GroupingAggregatorEvaluationContext ctx;
-        private final Selected selected;
-        private final List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators;
-
-        private PreparedForEvaluation() {
-            int count = aggregators.size();
-            GroupingAggregatorEvaluationContext ctx = evaluationContext(blockHash);
-            Selected selected = null;
-            List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators = new ArrayList<>(count);
-            boolean success = false;
-            try {
-                selected = new Selected(blockHash.nonEmpty(), new IntVector[count]);
-                for (int a = 0; a < count; a++) {
-                    selected.aggs[a] = customizeSelected(aggregators.get(a), selected.keys);
-                    preparedAggregators.add(aggregators.get(a).prepareForEvaluate(selected.aggs[a], ctx));
-                }
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.close(ctx, selected, Releasables.wrap(preparedAggregators));
-                }
-            }
-            this.ctx = ctx;
-            this.selected = selected;
-            this.preparedAggregators = preparedAggregators;
-        }
-
-        /**
-         * Build a page or results.
-         * @param selectedInPage The subset of {@link #selected} for this page. If we're
-         *                       emitting a single page then this is {@code ==} to {@link #selected}.
-         */
-        Page buildPage(Selected selectedInPage, int[] aggBlockCounts) {
-            Block[] keys = blockHash.getKeys(selectedInPage.keys);
-            Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
-            System.arraycopy(keys, 0, blocks, 0, keys.length);
-            try {
-                int blockOffset = keys.length;
-                for (int i = 0; i < preparedAggregators.size(); i++) {
-                    var aggregator = preparedAggregators.get(i);
-                    aggregator.evaluate(blocks, blockOffset, selectedInPage.aggs[i]);
-                    blockOffset += aggBlockCounts[i];
-                }
-                Page result = new Page(blocks);
-                blocks = null;
-                return result;
-            } finally {
-                if (blocks != null) {
-                    Releasables.close(blocks);
-                }
-            }
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(ctx, selected, Releasables.wrap(preparedAggregators));
-        }
-    }
-
-    private record Selected(IntVector keys, IntVector[] aggs) implements Releasable {
-        public Selected slice(int beginInclude, int endExclusive) {
-            Selected result = new Selected(keys.slice(beginInclude, endExclusive), new IntVector[aggs.length]);
-            try {
-                for (int a = 0; a < aggs.length; a++) {
-                    result.aggs[a] = aggs[a].slice(beginInclude, endExclusive);
-                }
-                Selected r = result;
-                result = null;
-                return r;
-            } finally {
-                Releasables.close(result);
-            }
-
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(keys, Releasables.wrap(aggs));
-        }
-    }
 }

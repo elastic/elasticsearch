@@ -99,6 +99,41 @@ public class LongBlockHashRouterTests extends BlockHashTestCase {
         }
     }
 
+    public void testAddKeyOnNullPinsToZeroAndMarksSeenNull() {
+        assumeTrue("SwissHash not available on this JVM", HashImplFactory.SWISS_HASH_AVAILABLE);
+        // A null key isn't hashed (there's nothing to hash), so the hash argument is a dummy value
+        // here: addKey must detect the null itself and route it to the reserved group regardless.
+        try (BlockHash hash = longBlockHash()) {
+            LongBlock keys;
+            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
+                builder.appendNull();
+                builder.appendLong(5);
+                keys = builder.build();
+            }
+            try (keys) {
+                BlockHash.Router router = hash.router();
+                assertThat(router, notNullValue());
+                assertThat(router.addKey(keys, 0, 0), equalTo(0));
+                assertThat(router.addKey(keys, 0, 0), equalTo(0));
+
+                int nonNullGroup = router.addKey(keys, 1, router.partitionHashOfKey(keys, 1));
+                assertThat("a real key must never land on the reserved null group", nonNullGroup, greaterThan(0));
+            }
+
+            // seenGroupIds/numKeys must now account for the null group, exactly as the normal
+            // add(Page, AddInput) path would after seeing a null key.
+            assertThat(hash.numKeys(), equalTo(2));
+            try (IntVector selected = blockFactory.newIntArrayVector(new int[] { 0 }, 1)) {
+                Block[] keysBack = hash.getKeys(selected);
+                try {
+                    assertThat(keysBack[0].isNull(0), equalTo(true));
+                } finally {
+                    Releasables.close(keysBack);
+                }
+            }
+        }
+    }
+
     public void testAddKeyConsistentWithNormalAdd() {
         assumeTrue("SwissHash not available on this JVM", HashImplFactory.SWISS_HASH_AVAILABLE);
         // Insert some keys through the normal add(Page, AddInput) path first, then confirm the

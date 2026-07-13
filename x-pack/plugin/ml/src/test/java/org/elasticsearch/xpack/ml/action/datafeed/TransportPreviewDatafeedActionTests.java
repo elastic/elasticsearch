@@ -15,6 +15,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -171,6 +172,49 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         assertThat(request.includeResolvedTo(), is(false));
         assertThat(request.indices(), equalTo(new String[] { "my_index" }));
+    }
+
+    public void testRequiresDateNanosCheck_GivenEsqlDatafeed_ReturnsFalse() {
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("esql_feed", "job_foo");
+        datafeed.setEsqlQuery("FROM logs");
+
+        assertThat(TransportPreviewDatafeedAction.requiresDateNanosCheck(datafeed.build()), is(false));
+    }
+
+    public void testRequiresDateNanosCheck_GivenIndexBasedDatafeed_ReturnsTrue() {
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("index_feed", "job_foo");
+        datafeed.setIndices(Collections.singletonList("my_index"));
+
+        assertThat(TransportPreviewDatafeedAction.requiresDateNanosCheck(datafeed.build()), is(true));
+    }
+
+    public void testResolvePreviewEndTime_GivenNoExplicitEndAndIsDateNanos() {
+        DatafeedConfig datafeedConfig = new DatafeedConfig.Builder("esql_feed", "job_foo").setEsqlQuery("FROM logs").build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeedConfig, null, null, null);
+
+        assertThat(
+            TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true),
+            equalTo(DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli())
+        );
+    }
+
+    public void testResolvePreviewEndTime_GivenNoExplicitEndAndNotDateNanos() {
+        DatafeedConfig datafeedConfig = new DatafeedConfig.Builder("no_aggs_feed", "job_foo").setIndices(
+            Collections.singletonList("my_index")
+        ).build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeedConfig, null, null, null);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false), equalTo(Long.MAX_VALUE));
+    }
+
+    public void testResolvePreviewEndTime_GivenExplicitEndTime_ReturnsExplicitValue() {
+        DatafeedConfig datafeedConfig = new DatafeedConfig.Builder("no_aggs_feed", "job_foo").setIndices(
+            Collections.singletonList("my_index")
+        ).build();
+        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeedConfig, null, 100L, 5000L);
+
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, true), equalTo(5000L));
+        assertThat(TransportPreviewDatafeedAction.resolvePreviewEndTime(request, false), equalTo(5000L));
     }
 
     public void testBuildPreviewDatafeed_GivenNoAggregations() {

@@ -77,13 +77,7 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGG
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION;
@@ -509,7 +503,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public Optional<Tuple<TransportVersion, String>> minRequiredTransportVersion() {
         if (esqlQuery != null) {
             return Optional.of(
-                new Tuple<>(ML_DATAFEED_ESQL_QUERY, "datafeed uses esql_query which requires transport version ml_datafeed_esql_query")
+                new Tuple<>(ML_DATAFEED_ESQL_QUERY, "datafeed uses an ES|QL query, which requires support for ES|QL datafeeds")
             );
         }
         return Optional.empty();
@@ -1435,25 +1429,39 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
         void validateEsqlDatafeedConfig() {
             if (indices != null) {
-                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES));
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, INDICES.getPreferredName())
+                );
             }
             if (queryProvider != null) {
-                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY));
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, QUERY.getPreferredName())
+                );
             }
             if (aggProvider != null) {
-                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS));
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, AGGREGATIONS.getPreferredName())
+                );
             }
             if (scriptFields != null) {
-                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS));
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, SCRIPT_FIELDS.getPreferredName())
+                );
             }
             if (runtimeMappings != null) {
-                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS));
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName())
+                );
             }
             if (scrollSize != null) {
-                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE));
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, SCROLL_SIZE.getPreferredName())
+                );
             }
             if (indicesOptions != null) {
-                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS));
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, INDICES_OPTIONS.getPreferredName())
+                );
             }
         }
 

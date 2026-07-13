@@ -33,18 +33,7 @@ public final class Messages {
         "delayed_data_check_config: check_window [{0}] must be less than 10,000x the bucket_span [{1}]";
     public static final String DATAFEED_CONFIG_QUERY_BAD_FORMAT = "Datafeed query is not parsable";
     public static final String DATAFEED_CONFIG_AGG_BAD_FORMAT = "Datafeed aggregations are not parsable";
-    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY = "[query] cannot be used in combination with [esql_query]";
-    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS =
-        "[aggregations] cannot be used in combination with [esql_query]";
-    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS =
-        "[script_fields] cannot be used in combination with [esql_query]";
-    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS =
-        "[runtime_mappings] cannot be used in combination with [esql_query]";
-    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE =
-        "[scroll_size] cannot be used in combination with [esql_query]";
-    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES = "[indices] cannot be used in combination with [esql_query]";
-    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS =
-        "[indices_options] cannot be used in combination with [esql_query]";
+    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD = "{0} cannot be used in combination with esql_query";
 
     public static final String DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "A job configured with datafeed cannot support latency";
     public static final String DATAFEED_NOT_FOUND = "No datafeed with id [{0}] exists";

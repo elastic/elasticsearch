@@ -74,13 +74,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS;
-import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1096,7 +1090,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         builder.setParsedQuery(QueryBuilders.termQuery("field", "value"));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY));
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "query")));
     }
 
     public void testBuild_GivenEsqlQueryWithAggregationsThrows() {
@@ -1107,7 +1101,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         );
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS));
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "aggregations")));
     }
 
     public void testBuild_GivenEsqlQueryWithScriptFieldsThrows() {
@@ -1117,7 +1111,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         );
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS));
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "script_fields")));
     }
 
     public void testBuild_GivenEsqlQueryWithRuntimeMappingsThrows() {
@@ -1129,7 +1123,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         builder.setRuntimeMappings(runtimeFields);
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS));
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "runtime_mappings")));
     }
 
     public void testBuild_GivenEsqlQueryWithCustomScrollSizeThrows() {
@@ -1137,7 +1131,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         builder.setScrollSize(500);
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE));
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "scroll_size")));
     }
 
     public void testBuild_GivenEsqlQueryWithChunkingOffSucceeds() {
@@ -1198,7 +1192,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         builder.setIndices(Collections.singletonList("logs"));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES));
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "indices")));
     }
 
     public void testBuild_GivenEsqlQueryWithIndicesOptionsThrows() {
@@ -1206,7 +1200,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
-        assertThat(e.getMessage(), equalTo(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS));
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "indices_options")));
     }
 
     public void testBuild_GivenEsqlQueryWithManualChunkingSucceeds() {

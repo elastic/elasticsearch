@@ -196,22 +196,46 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
-                responseHeaderPreservingListener.delegateFailure(
-                    (l, dataExtractorFactory) -> isDateNanos(
-                        previewClient,
-                        effectiveDatafeedConfig,
-                        job.getDataDescription().getTimeField(),
-                        l.delegateFailure((l2, isDateNanos) -> {
-                            final long start = request.getStartTime().orElse(0);
-                            final long end = request.getEndTime()
-                                .orElse(isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE);
-                            DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
-                            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, l2));
-                        })
-                    )
-                )
+                responseHeaderPreservingListener.delegateFailure((l, dataExtractorFactory) -> {
+                    if (requiresDateNanosCheck(effectiveDatafeedConfig)) {
+                        isDateNanos(
+                            previewClient,
+                            effectiveDatafeedConfig,
+                            job.getDataDescription().getTimeField(),
+                            l.delegateFailure((l2, isDateNanos) -> runPreview(dataExtractorFactory, request, isDateNanos, l2))
+                        );
+                    } else {
+                        runPreview(dataExtractorFactory, request, true, l);
+                    }
+                })
             );
         });
+    }
+
+    private void runPreview(
+        DataExtractorFactory dataExtractorFactory,
+        PreviewDatafeedAction.Request request,
+        boolean isDateNanos,
+        ActionListener<PreviewDatafeedAction.Response> listener
+    ) {
+        final long start = request.getStartTime().orElse(0);
+        final long end = resolvePreviewEndTime(request, isDateNanos);
+        DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
+        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> previewDatafeed(dataExtractor, listener));
+    }
+
+    /**
+     * Visible for testing
+     */
+    static boolean requiresDateNanosCheck(DatafeedConfig datafeed) {
+        return datafeed.getEsqlQuery() == null;
+    }
+
+    /**
+     * Visible for testing
+     */
+    static long resolvePreviewEndTime(PreviewDatafeedAction.Request request, boolean isDateNanos) {
+        return request.getEndTime().orElse(isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE);
     }
 
     /**

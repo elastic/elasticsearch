@@ -360,16 +360,36 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "*" + c.ch() + "*")), 1);
 
         if (c.upperCh() != null) {
-            // cross-case unicode folding unimplemented; pinned for when it lands
             assertHitCount(
                 client().prepareSearch(indexName)
                     .setQuery(QueryBuilders.wildcardQuery("version", "*" + c.upperCh() + "tart").caseInsensitive(true)),
-                0
+                1
             );
         }
 
         // '?' must consume one full char, not a single byte of it
         assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", c.prefix() + "?tart")), 1);
+    }
+
+    // version field's case_insensitive wildcards should fold like #153513 (K <-> KELVIN SIGN) even for ASCII query chars.
+    public void testWildcardQueryAsciiFoldsToMultiByte() throws Exception {
+        String indexName = "test_wildcard_ascii_fold";
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
+        ensureGreen(indexName);
+
+        prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", "1.0.0-\u212Aelvin").endObject()).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        assertHitCount(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "1.0.0-kelvin*").caseInsensitive(true)),
+            1
+        );
+        assertHitCount(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "1.0.0-KELVIN*").caseInsensitive(true)),
+            1
+        );
+        // without case-insensitive matching, the ASCII pattern must not match the Kelvin sign
+        assertHitCount(client().prepareSearch(indexName).setQuery(QueryBuilders.wildcardQuery("version", "1.0.0-kelvin*")), 0);
     }
 
     private void checkWildcardQuery(String indexName, String query, String... expectedResults) {

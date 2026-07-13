@@ -16,13 +16,13 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.UTF32ToUTF8;
-import org.elasticsearch.common.lucene.search.AutomatonQueries;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * A variation of the {@link WildcardQuery} than skips over meta characters introduced using {@link VersionEncoder}.
+ * Raw byte-level automaton (marker bytes aren't valid codepoints) — built isBinary=true, skipping Lucene's implicit UTF32ToUTF8.
  */
 class VersionFieldWildcardQuery extends AutomatonQuery {
 
@@ -111,15 +111,18 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                     break;
                 default:
                     if (c >= 0) {
-                        // ASCII: byte value == codepoint
-                        automata.add(caseInsensitive ? AutomatonQueries.toCaseInsensitiveChar(c) : Automata.makeChar(c));
+                        // ASCII: byte value == codepoint. Still needs UTF32ToUTF8 conversion when case-insensitive, since
+                        // Lucene's Unicode case folding can map an ASCII char to multi-byte equivalents (e.g. 'K' <-> KELVIN SIGN).
+                        automata.add(
+                            caseInsensitive ? utf32ToUtf8.convert(Automata.makeCaseInsensitiveChar(c)) : Automata.makeChar(c)
+                        );
                     } else {
                         // multi-byte lead byte: decode full codepoint
                         UnicodeUtil.codePointAt(wildcardText.bytes, wildcardText.offset + i, reusableCodePoint);
                         length = reusableCodePoint.numBytes;
                         int codepoint = reusableCodePoint.codePoint;
                         Automaton charAutomaton = caseInsensitive
-                            ? AutomatonQueries.toCaseInsensitiveChar(codepoint)
+                            ? Automata.makeCaseInsensitiveChar(codepoint)
                             : Automata.makeChar(codepoint);
                         // convert codepoint automaton to UTF-8 bytes
                         automata.add(utf32ToUtf8.convert(charAutomaton));

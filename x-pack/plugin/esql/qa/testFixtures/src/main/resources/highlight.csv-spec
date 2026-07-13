@@ -1259,7 +1259,6 @@ John Ronald Reuel Tolkien | John Ronald Reuel <em>Tolkien</em> | 1
 # HIGHLIGHT on a VALUES() aggregate: the collected value is re-analyzed and both query terms are wrapped.
 highlightStatsValues
 required_capability: highlight_v4
-required_capability: agg_values
 
 FROM books
 | WHERE book_no == "2714"
@@ -1276,7 +1275,6 @@ book_no:keyword | highlight_t:keyword
 # HIGHLIGHT on a field added by ENRICH: the enriched keyword value is re-analyzed and highlighted.
 highlightAfterEnrich
 required_capability: highlight_v4
-required_capability: enrich_load
 
 ROW client_ip = "172.21.0.5"
 | ENRICH clientip_policy ON client_ip
@@ -1292,7 +1290,6 @@ highlight_env:keyword
 # HIGHLIGHT on a field brought in by LOOKUP JOIN: the joined value is highlighted after the join.
 highlightAfterLookupJoin
 required_capability: highlight_v4
-required_capability: join_lookup_v12
 
 ROW language_code = 1
 | LOOKUP JOIN languages_lookup ON language_code
@@ -1308,7 +1305,6 @@ highlight_language_name:keyword
 # HIGHLIGHT inside FORK branches: each branch highlights the same field with its own query, keeping outputs independent.
 highlightInsideForkBranch
 required_capability: highlight_v4
-required_capability: fork_v9
 
 FROM books
 | WHERE book_no == "2714"
@@ -1327,7 +1323,6 @@ fork2         | 2714            | Return of the <em>King</em> Being the Third Pa
 # HIGHLIGHT after FORK: the merged fork output is highlighted once, wrapping the match in every branch's rows.
 highlightAfterFork
 required_capability: highlight_v4
-required_capability: fork_v9
 
 FROM books
 | WHERE book_no == "2714" OR book_no == "7350"
@@ -1348,9 +1343,6 @@ fork2         | 7350            | <em>Return</em> of the Shadow
 # fragmentation on titles with internal periods (e.g. "The J. R. R. Tolkien Audio Collection").
 highlightAfterForkFuse
 required_capability: highlight_v4
-required_capability: fork_v9
-required_capability: fuse_v6
-required_capability: match_operator_colon
 
 FROM books METADATA _score, _id, _index
 | WHERE title:"Tolkien"

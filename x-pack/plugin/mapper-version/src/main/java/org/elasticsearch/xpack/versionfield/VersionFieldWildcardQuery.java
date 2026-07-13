@@ -113,9 +113,7 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                     if (c >= 0) {
                         // ASCII: byte value == codepoint. Still needs UTF32ToUTF8 conversion when case-insensitive, since
                         // Lucene's Unicode case folding can map an ASCII char to multi-byte equivalents (e.g. 'K' <-> KELVIN SIGN).
-                        automata.add(
-                            caseInsensitive ? utf32ToUtf8.convert(Automata.makeCaseInsensitiveChar(c)) : Automata.makeChar(c)
-                        );
+                        automata.add(caseInsensitive ? utf32ToUtf8.convert(Automata.makeCaseInsensitiveChar(c)) : Automata.makeChar(c));
                     } else {
                         // multi-byte lead byte: decode full codepoint
                         UnicodeUtil.codePointAt(wildcardText.bytes, wildcardText.offset + i, reusableCodePoint);

@@ -805,9 +805,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
   method: testPeriodicMaintenance
   issue: https://github.com/elastic/elasticsearch/issues/153548
-- class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCanMatchOnCoordinatorIntegTests
-  method: testLogsDBSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode
-  issue: https://github.com/elastic/elasticsearch/issues/153564
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.lookupJoinWithExpression [ndjson.bz2/HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/153744

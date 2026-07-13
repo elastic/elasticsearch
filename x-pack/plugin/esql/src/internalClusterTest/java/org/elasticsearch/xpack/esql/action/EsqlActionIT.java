@@ -1438,6 +1438,56 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * End-to-end proof that mv_in_range is correct when it is pushed to Lucene and trusted without a row-level recheck.
+     * For a numeric field mv_in_range returns YES, so the FilterExec is dropped and the surviving rows come straight from
+     * the pushed range query — a wrong range (exclusive bounds, or a single-value wrapper that hid multivalued docs) would
+     * silently return the wrong rows with nothing to catch it. The docs are chosen to exercise the load-bearing cases:
+     * any one value in range wins (b), both bounds are inclusive (c, d), just-outside on either side loses (a, e, f), and
+     * a single-valued doc still matches (g). The NOT query then pins must_not(range) as the exact complement — the
+     * negation soundness that any-value pushdown hinges on.
+     */
+    public void testMvInRangePushdownEndToEnd() {
+        String index = "mv_in_range_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=integer").get());
+        Map<String, List<Integer>> docs = new HashMap<>();
+        docs.put("a", List.of(10, 50));  // neither value in [20, 30]
+        docs.put("b", List.of(5, 25));   // 25 is in range: any one value is enough
+        docs.put("c", List.of(20));      // lower bound, inclusive
+        docs.put("d", List.of(30));      // upper bound, inclusive
+        docs.put("e", List.of(31, 40));  // just above the upper bound
+        docs.put("f", List.of(19));      // just below the lower bound
+        docs.put("g", List.of(22));      // single-valued, in range
+        for (var doc : docs.entrySet()) {
+            prepareIndex(index).setSource("id", doc.getKey(), "v", doc.getValue()).get();
+        }
+        client().admin().indices().prepareRefresh(index).get();
+
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(v, 20, 30) | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("b", "c", "d", "g"));
+        }
+        try (EsqlQueryResponse results = run("from " + index + " | where not mv_in_range(v, 20, 30) | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("a", "e", "f"));
+        }
+    }
+
+    /**
+     * Regression pin for the double-family RECHECK gate. A float field widens to double in ES|QL, and its Lucene range
+     * rounds the bound to float precision — so trusting the pushed range (YES) would return rows the full-double evaluator
+     * rejects. Here 1.00000001 rounds down to 1.0f, so the pushed float range [1.0f, 2.0f] matches the doc {f: 1.0}, but
+     * the evaluator computes 1.0 &gt;= 1.00000001 = false. Because double stays RECHECK, the retained evaluator excludes the
+     * row and the result is empty; a naive YES would wrongly return it.
+     */
+    public void testMvInRangeFloatPrecisionRecheckEndToEnd() {
+        String index = "mv_in_range_float_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "f", "type=float").get());
+        prepareIndex(index).setSource("id", "x", "f", 1.0f).get();
+        client().admin().indices().prepareRefresh(index).get();
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(f, 1.00000001, 2.0) | keep id")) {
+            assertThat(getValuesList(results), empty());
+        }
+    }
+
     public void testLoadId() {
         try (EsqlQueryResponse results = run("from test metadata _id | keep _id | sort _id ")) {
             assertThat(results.columns(), equalTo(List.of(new ColumnInfoImpl("_id", "keyword", null))));

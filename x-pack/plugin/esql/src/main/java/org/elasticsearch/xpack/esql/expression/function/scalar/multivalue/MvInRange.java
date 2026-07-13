@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
@@ -328,9 +329,7 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        // We push the range to Lucene as a pre-filter and keep this evaluator as the authority (RECHECK). For that to be
-        // sound — including under negation, where NOT pushes must_not(range) and rechecks the survivors — the pushed
-        // query must never drop a true match, so we only push when the range is a faithful stand-in for the evaluator:
+        // We only push when the range is a faithful stand-in for this evaluator:
         // - text is excluded: its range query matches the analyzed tokens, not the whole string, so it is not even a
         // superset of what this evaluator compares;
         // - the bounds must be single-valued, non-null literals: a null bound would push an unbounded range (the
@@ -340,7 +339,18 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
             return Translatable.NO;
         }
         if (pushdownPredicates.isPushableFieldAttribute(field) && isPushableBound(lower) && isPushableBound(upper)) {
-            return Translatable.RECHECK;
+            // For integral fields (integer, long, date, date_nanos, unsigned_long) the pushed RangeQuery matches exactly
+            // what this evaluator computes, so the filter can be dropped (YES) and the range is the whole answer, like
+            // Range and the comparison operators. Everything else stays RECHECK — the range still pre-filters the scan,
+            // but the evaluator remains the final authority — for two reasons:
+            // - double: float/half_float/scaled_float all widen to DataType.DOUBLE here, so a DOUBLE attribute can be a
+            // reduced-precision mapper whose range rounds the bound to float/scaled precision while the evaluator compares
+            // full doubles; and even a true double sorts -0.0 below +0.0 in Lucene but treats them equal in the evaluator.
+            // - bytes_ref (ip/version/keyword): a keyword normalizer can make the indexed, normalized values diverge from
+            // the evaluator's raw-bound comparison.
+            var elementType = PlannerUtils.toElementType(field.dataType());
+            boolean exact = elementType == ElementType.INT || elementType == ElementType.LONG;
+            return exact ? Translatable.YES : Translatable.RECHECK;
         }
         return Translatable.NO;
     }

@@ -615,26 +615,37 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
-     * mv_in_range over an indexed numeric field pushes a bare (any-value) range query to Lucene and keeps a FilterExec
-     * for the row-level recheck (RECHECK semantics).
+     * mv_in_range over an indexed numeric field pushes a bare (any-value) range query to Lucene and drops the FilterExec
+     * entirely (YES): the range matches exactly what the evaluator computes for a numeric field, so no row-level recheck
+     * is needed. The range is not wrapped in a SingleValueQuery — any-value semantics are exactly what a bare range gives.
      */
     public void testMvInRangePushdown() {
         var plan = plannerOptimizer.plan("from test | where mv_in_range(salary, 25000, 30000)");
-        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
-        var expected = boolQuery().filter(unscore(rangeQuery("salary").from(25000, true).to(30000, true)));
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = unscore(rangeQuery("salary").from(25000, true).to(30000, true));
         assertThat(mvInRangeQuery(plan).toString(), equalTo(expected.toString()));
     }
 
     /**
-     * NOT mv_in_range pushes must_not(range) and keeps the FilterExec — sound because the pushed range is exact for a
-     * pushable non-text field.
+     * NOT mv_in_range over a numeric field pushes must_not(range) and drops the FilterExec (YES) — sound because the
+     * pushed range is exact, so negating it in Lucene is exact too.
      */
     public void testMvInRangeNotPushdown() {
         var plan = plannerOptimizer.plan("from test | where not mv_in_range(salary, 25000, 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = boolQuery().mustNot(unscore(rangeQuery("salary").from(25000, true).to(30000, true)));
+        assertThat(mvInRangeQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * mv_in_range over a keyword field pushes the range as a pre-filter but keeps the FilterExec for a row-level recheck
+     * (RECHECK): a keyword normalizer can make the indexed, normalized values diverge from the evaluator's raw-bound
+     * comparison, so the evaluator stays authoritative. Contrast the numeric YES cases above, which drop the FilterExec.
+     */
+    public void testMvInRangeKeywordRecheck() {
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(first_name, \"a\", \"m\")");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
-        // PushFiltersToSource runs at fixed-point, so the pushed must_not(range) also appears once wrapped in a filter.
-        var range = unscore(rangeQuery("salary").from(25000, true).to(30000, true));
-        var expected = boolQuery().filter(unscore(boolQuery().mustNot(range))).mustNot(range);
+        var expected = boolQuery().filter(unscore(rangeQuery("first_name").from("a", true).to("m", true)));
         assertThat(mvInRangeQuery(plan).toString(), equalTo(expected.toString()));
     }
 
@@ -661,20 +672,33 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
-     * A date field pushes down too — this pins the date path through Range's per-type bound formatting, which the
-     * integer plan tests above do not exercise.
+     * A date field is a YES type too — it drops the FilterExec and pins the date path through Range's per-type bound
+     * formatting, which the integer plan tests above do not exercise.
      */
     public void testMvInRangeDatePushdown() {
         var plan = plannerOptimizer.plan("from test | where mv_in_range(hire_date, \"2020-01-01\"::datetime, \"2021-01-01\"::datetime)");
-        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("hire_date").from("2020-01-01T00:00:00.000Z", true)
-                    .to("2021-01-01T00:00:00.000Z", true)
-                    .format("strict_date_optional_time")
-            )
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = unscore(
+            rangeQuery("hire_date").from("2020-01-01T00:00:00.000Z", true)
+                .to("2021-01-01T00:00:00.000Z", true)
+                .format("strict_date_optional_time")
         );
         assertThat(mvInRangeQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * Double-family fields stay RECHECK, never YES: float/half_float/scaled_float all widen to DataType.DOUBLE, so the
+     * pushed range can be evaluated at reduced precision (the mapper rounds the bound to float/scaled precision) while the
+     * evaluator compares full doubles — and even a true double sorts -0.0 below +0.0 in Lucene but treats them equal in
+     * the evaluator. RECHECK keeps the evaluator authoritative: the range still pre-filters, but the FilterExec stays.
+     */
+    public void testMvInRangeDoubleRecheck() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        for (var field : List.of("double", "float", "scaled_float")) {
+            var plan = plannerOptimizer.plan("from test | where mv_in_range(" + field + ", 1.0, 2.0)", IS_SV_STATS, analyzer);
+            assertThat("field " + field + " must RECHECK (retain the FilterExec)", plan.anyMatch(FilterExec.class::isInstance), is(true));
+            assertThat("field " + field + " must still push a range pre-filter", mvInRangeQuery(plan), is(not(nullValue())));
+        }
     }
 
     private static QueryBuilder mvInRangeQuery(PhysicalPlan plan) {

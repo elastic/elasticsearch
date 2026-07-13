@@ -308,7 +308,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         handlers.add(new RestPutDataStreamLifecycleAction());
         handlers.add(new RestGetDataStreamLifecycleAction());
         handlers.add(new RestDeleteDataStreamLifecycleAction());
-        handlers.add(new RestExplainDataStreamLifecycleAction());
+        handlers.add(new RestExplainDataStreamLifecycleAction(frozenTransitionInfoProvider.infoAvailable()));
         handlers.add(new RestDataStreamLifecycleStatsAction());
         handlers.add(new RestGetDataStreamOptionsAction());
         handlers.add(new RestPutDataStreamOptionsAction());

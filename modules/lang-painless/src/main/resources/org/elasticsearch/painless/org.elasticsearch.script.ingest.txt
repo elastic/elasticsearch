@@ -10,9 +10,9 @@
 # This file contains a whitelist for the ingest scripts
 
 class java.lang.String {
-  String org.elasticsearch.painless.api.Augmentation sha1()
-  String org.elasticsearch.painless.api.Augmentation sha256()
-  String org.elasticsearch.painless.api.Augmentation sha512()
+  String org.elasticsearch.painless.api.Augmentation sha1() @allocates_constant[bytes="112b"]
+  String org.elasticsearch.painless.api.Augmentation sha256() @allocates_constant[bytes="160b"]
+  String org.elasticsearch.painless.api.Augmentation sha512() @allocates_constant[bytes="288b"]
 }
 
 class org.elasticsearch.painless.api.Json {

@@ -1406,18 +1406,18 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         String name = (String) map.get("name");
                         if (name == null) return;
                         name = name.toUpperCase(Locale.ROOT);
-                        // Neither NOT_EQUALS nor NOT_IN can ever be exercised by this variant, for the same structural
-                        // reason: the parser desugars a leading "NOT" into Not(X(...)) at parse time, before the
-                        // pre-analysis AST this variant walks ever sees a distinct NOT_* node - only Not wrapping the
-                        // un-negated node. A keyword field reference anywhere in the negated expression is therefore
-                        // always tracked and wrapped under the un-negated operator's name/child-index, never the NOT_*
-                        // one, so both operators are excluded from candidates here rather than left as permanent
-                        // EXPECTED_ERRORS entries. Concretely: ExpressionBuilder#buildComparison desugars "!=" to
-                        // Not(Equals(lhs, rhs)) (see EsqlBaseParser.NEQ), tracked as EQUALS:lhs/EQUALS:rhs; and
-                        // ExpressionBuilder#visitLogicalIn desugars "NOT ... IN (...)" to Not(In(lhs, list)) (or
-                        // Not(Equals(...)) for a single-candidate list), tracked as IN:0/IN:1.
-                        if ("NOT_EQUALS".equals(name)) return;
-                        if ("NOT_IN".equals(name)) return;
+
+                        /*
+                         * The parser just refuses to build these real looking functions, instead building something
+                         * like NOT(IN()). So we skip tracking them here - though we do actually test them.
+                         */
+                        boolean rewrittenAwayAtParseTime = switch (name) {
+                            case "NOT_EQUALS", "NOT_IN" -> true;
+                            default -> false;
+                        };
+                        if (rewrittenAwayAtParseTime) {
+                            return;
+                        }
 
                         List<Map<String, Object>> signatures = (List<Map<String, Object>>) map.get("signatures");
                         if (signatures == null) return;

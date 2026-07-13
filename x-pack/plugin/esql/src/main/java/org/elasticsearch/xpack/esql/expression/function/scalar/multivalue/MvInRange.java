@@ -409,8 +409,9 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
         var f = toEvaluator.apply(field);
         var lo = toEvaluator.apply(lower);
         var hi = toEvaluator.apply(upper);
-        boolean il = includeBound(INCLUDE_LOWER);
-        boolean iu = includeBound(INCLUDE_UPPER);
+        var optionsMap = optionsMap();
+        boolean il = (boolean) optionsMap.getOrDefault(INCLUDE_LOWER, Boolean.TRUE);
+        boolean iu = (boolean) optionsMap.getOrDefault(INCLUDE_UPPER, Boolean.TRUE);
         // date/date_nanos/unsigned_long land on LONG and ip/version/keyword/text on BYTES_REF; resolveType has already
         // pinned the bounds to the field type, so the single per-element-type evaluator reads all three safely.
         return switch (PlannerUtils.toElementType(field.dataType())) {
@@ -423,16 +424,17 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
     }
 
     /**
-     * Resolves an inclusivity flag from the options map, defaulting to {@code true} (inclusive) when absent or unset.
-     * Resolved lazily (never in the constructor) so {@code resolveType} reports a friendly error before this runs.
+     * Parses the options map once (callers read both flags with {@code getOrDefault(key, true)}). Returns an empty map
+     * when there are no options. Resolved lazily (never in the constructor) so {@code resolveType} reports a friendly
+     * error before this runs.
      */
-    private boolean includeBound(String key) {
+    private Map<String, Object> optionsMap() {
         if (options == null) {
-            return true;
+            return Map.of();
         }
         Map<String, Object> optionsMap = new HashMap<>();
         Options.populateMap((MapExpression) options, optionsMap, source(), FOURTH, ALLOWED_OPTIONS);
-        return (boolean) optionsMap.getOrDefault(key, Boolean.TRUE);
+        return optionsMap;
     }
 
     @Override
@@ -477,8 +479,9 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
         // exclusive bound on a reduced-precision mapper (float/half_float/scaled_float, all widened to DOUBLE) rounds inward
         // and would drop a boundary row that RECHECK could never restore. Inclusive keeps the range a true superset.
         boolean exact = isExactRangeType();
-        boolean pushLower = exact ? includeBound(INCLUDE_LOWER) : true;
-        boolean pushUpper = exact ? includeBound(INCLUDE_UPPER) : true;
+        var optionsMap = exact ? optionsMap() : Map.<String, Object>of();
+        boolean pushLower = exact ? (boolean) optionsMap.getOrDefault(INCLUDE_LOWER, Boolean.TRUE) : true;
+        boolean pushUpper = exact ? (boolean) optionsMap.getOrDefault(INCLUDE_UPPER, Boolean.TRUE) : true;
         return new Range(source(), field, widenZeroBound(lower, true), pushLower, widenZeroBound(upper, false), pushUpper, null).asQuery(
             pushdownPredicates,
             handler

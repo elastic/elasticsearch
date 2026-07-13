@@ -49,10 +49,10 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/142819
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:METRICS}
-  issue: https://github.com/elastic/elasticsearch/issues/143697
+  issue: https://github.com/elastic/elasticsearch/issues/153507
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:METRICS}
-  issue: https://github.com/elastic/elasticsearch/issues/143697
+  issue: https://github.com/elastic/elasticsearch/issues/153507
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testClusterState {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143800
@@ -694,9 +694,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromRightSideWhenNotKept}
   issue: https://github.com/elastic/elasticsearch/issues/153046
-- class: org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests
-  method: testFetchRegion
-  issue: https://github.com/elastic/elasticsearch/issues/153058
 - class: org.elasticsearch.xpack.transform.integration.TransformTaskFailedStateIT
   method: testStartFailedTransform
   issue: https://github.com/elastic/elasticsearch/issues/153065
@@ -745,3 +742,45 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:unmapped-load.sameMappingHashWithUnmappedIndex}
   issue: https://github.com/elastic/elasticsearch/issues/153478
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.registeredDomainFromEval [ndjson.zst/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/153556
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.lookupJoinWithExpression [ndjson.bz/HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/153557
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-multivalue.mvExpandFromSplit [ndjson.zst/AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/153566
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
+  method: testRandomActivitiesStatelessSnapshotAndRelocationEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/153578
+- class: org.elasticsearch.compute.aggregation.BulkArrowAggregationTests
+  method: testSumIntOverArrowBufferMasked
+  issue: https://github.com/elastic/elasticsearch/issues/153586
+- class: org.elasticsearch.repositories.azure.AzureStorageCleanupThirdPartyTests
+  method: testIndexLatest
+  issue: https://github.com/elastic/elasticsearch/issues/153588
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-multivalue.mvMaxFromSplit [ndjson.bz/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/153589
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:inlinestats.inlinestatsWithMixedFiltersAndGroup}
+  issue: https://github.com/elastic/elasticsearch/issues/153592
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:ints.signumOfPositiveLong}
+  issue: https://github.com/elastic/elasticsearch/issues/153594
+- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
+  method: testWaitForEmptySubRangeReturnsImmediately
+  issue: https://github.com/elastic/elasticsearch/issues/153378
+- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.SubTests
+  method: testEvaluate {TestCase=<big negative double>, <big positive double>}
+  issue: https://github.com/elastic/elasticsearch/issues/153598
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.topNSortBySalaryDesc [ndjson.bz2/HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/153609
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataFilterModifiedInExcludesAll [ndjson.zst/HTTP]}
+  issue: https://github.com/elastic/elasticsearch/issues/153610
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testOneRepeatedVector
+  issue: https://github.com/elastic/elasticsearch/issues/153569

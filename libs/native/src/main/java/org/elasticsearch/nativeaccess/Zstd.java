@@ -23,6 +23,7 @@ import java.util.Objects;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
+import static org.elasticsearch.foreign.adapter.MemorySegmentAdapter.varHandleWithoutOffset;
 
 public final class Zstd {
 
@@ -34,9 +35,9 @@ public final class Zstd {
         JAVA_LONG.withName("size"),
         JAVA_LONG.withName("pos")
     );
-    private static final VarHandle PTR_VH = BUFFER_LAYOUT.varHandle(PathElement.groupElement("ptr"));
-    private static final VarHandle SIZE_VH = BUFFER_LAYOUT.varHandle(PathElement.groupElement("size"));
-    private static final VarHandle POS_VH = BUFFER_LAYOUT.varHandle(PathElement.groupElement("pos"));
+    private static final VarHandle PTR_VH = varHandleWithoutOffset(BUFFER_LAYOUT, PathElement.groupElement("ptr"));
+    private static final VarHandle SIZE_VH = varHandleWithoutOffset(BUFFER_LAYOUT, PathElement.groupElement("size"));
+    private static final VarHandle POS_VH = varHandleWithoutOffset(BUFFER_LAYOUT, PathElement.groupElement("pos"));
 
     private final ZstdLibrary zstdLib;
 
@@ -81,19 +82,14 @@ public final class Zstd {
     }
 
     /**
-     * Variant of {@link #decompress(CloseableByteBuffer, CloseableByteBuffer)} that accepts a direct {@link ByteBuffer} as the source.
-     * Use this when the caller already holds a direct buffer (e.g. from {@code DirectAccessInput.withByteBufferSlice}) to avoid allocating
-     * an intermediate {@link CloseableByteBuffer}.
+     * Decompress the content of {@code src} into {@code dst}, and return the number of decompressed bytes.
+     * Both segments may be native or heap-backed. On JDK 22+ heap segments are passed through the
+     * critical downcall without copying; on JDK 21 the fallback adapter stages them via a confined arena.
      */
-    public int decompress(CloseableByteBuffer dst, ByteBuffer src) {
-        Objects.requireNonNull(dst, "Null destination buffer");
-        Objects.requireNonNull(src, "Null source buffer");
-        if (src.isDirect() == false) {
-            throw new IllegalArgumentException("Source buffer must be direct");
-        }
-        long dstSize = dst.buffer().remaining();
-        long srcSize = src.remaining();
-        long ret = zstdLib.decompress(MemorySegment.ofBuffer(dst.buffer()), dstSize, MemorySegment.ofBuffer(src), srcSize);
+    public int decompress(MemorySegment dst, MemorySegment src) {
+        Objects.requireNonNull(dst, "Null dst segment");
+        Objects.requireNonNull(src, "Null src segment");
+        long ret = zstdLib.decompressHeap(dst, dst.byteSize(), src, src.byteSize());
         if (zstdLib.isError(ret)) {
             throw new IllegalArgumentException(zstdLib.getErrorName(ret));
         } else if (ret < 0 || ret > Integer.MAX_VALUE) {
@@ -326,8 +322,8 @@ public final class Zstd {
                 // Stamp the pointer fields once — they never change across calls, only size and pos
                 // are mutated per-call (size depends on how many input bytes the caller has staged
                 // and how much output room they want this round).
-                PTR_VH.set(inStruct, 0L, inBuf);
-                PTR_VH.set(outStruct, 0L, outBuf);
+                PTR_VH.set(inStruct, inBuf);
+                PTR_VH.set(outStruct, outBuf);
             } catch (Throwable t) {
                 // If any of the allocations throws (e.g. OOM mid-arena), drop the libzstd handle
                 // we just got back from ZSTD_createDStream so we don't leak the ~256 KB native
@@ -385,18 +381,18 @@ public final class Zstd {
             if (srcAvail > 0) {
                 MemorySegment.copy(src, srcPos, inBuf, JAVA_BYTE, 0L, srcAvail);
             }
-            SIZE_VH.set(inStruct, 0L, (long) srcAvail);
-            POS_VH.set(inStruct, 0L, 0L);
-            SIZE_VH.set(outStruct, 0L, (long) outRoom);
-            POS_VH.set(outStruct, 0L, 0L);
+            SIZE_VH.set(inStruct, (long) srcAvail);
+            POS_VH.set(inStruct, 0L);
+            SIZE_VH.set(outStruct, (long) outRoom);
+            POS_VH.set(outStruct, 0L);
 
             long hint = zstdLib.decompressStream(handle, outStruct, inStruct);
             if (zstdLib.isError(hint)) {
                 throw new IllegalArgumentException(zstdLib.getErrorName(hint));
             }
 
-            int srcConsumed = (int) (long) POS_VH.get(inStruct, 0L);
-            int dstProduced = (int) (long) POS_VH.get(outStruct, 0L);
+            int srcConsumed = (int) (long) POS_VH.get(inStruct);
+            int dstProduced = (int) (long) POS_VH.get(outStruct);
             // libzstd guarantees pos ≤ size on return — the size fields we stamped above are the
             // upper bounds here, both already int-typed and bounded by the staging buffer sizes.
             assert srcConsumed >= 0 && srcConsumed <= srcAvail : "srcConsumed " + srcConsumed + " out of [0, " + srcAvail + "]";

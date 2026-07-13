@@ -417,6 +417,14 @@ public class ESVectorUtil {
         }
     }
 
+    /**
+     * Hamming similarity between two equal-length bit vectors, matching Lucene's
+     * {@code FlatBitVectorsScorer}: {@code (numBits - xorBitCount) / numBits}.
+     */
+    public static float hammingScore(byte[] a, byte[] b) {
+        return ((a.length * Byte.SIZE) - VectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
+    }
+
     /** AND bit count striding over 4 bytes at a time. */
     static int andBitCountInt(byte[] a, byte[] b) {
         int distance = 0, i = 0;
@@ -836,6 +844,21 @@ public class ESVectorUtil {
     }
 
     /**
+     * Narrows each of the first {@code len} ints to a byte by truncating to the low 8 bits,
+     * writing into {@code dst[0..len)}. No bounds check is performed; the caller must ensure
+     * {@code dst.length >= len}.
+     *
+     * @param src int array of quantized values
+     * @param dst byte array to receive the narrowed values
+     * @param len number of elements to convert
+     */
+    public static void packAsBytes(int[] src, byte[] dst, int len) {
+        for (int i = 0; i < len; i++) {
+            dst[i] = (byte) src[i];
+        }
+    }
+
+    /**
      * Packs the provided int array populated with "0" and "1" values into a byte array.
      *
      * @param vector the int array to pack, must contain only "0" and "1" values.
@@ -981,6 +1004,20 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
         }
         IMPL.linearCombination(scaleOther, other, scaleDest, dest);
+    }
+
+    /**
+     * Computes dest = scale * other + dest, widening byte src to float.
+     *
+     * @param scaleOther a multiplicative factor for src
+     * @param other the byte source vector (widened to float for computation)
+     * @param dest the destination float vector (modified in place)
+     */
+    public static void linearCombination(float scaleOther, byte[] other, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
+        IMPL.linearCombination(scaleOther, other, dest);
     }
 
     /**

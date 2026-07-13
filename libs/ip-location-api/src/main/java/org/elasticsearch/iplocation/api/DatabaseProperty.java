@@ -61,7 +61,14 @@ public enum DatabaseProperty {
     SERVICE("service", String.class),
     REGISTERED_COUNTRY_IN_EUROPEAN_UNION("registered_country_in_european_union", Boolean.class),
     REGISTERED_COUNTRY_ISO_CODE("registered_country_iso_code", String.class),
-    REGISTERED_COUNTRY_NAME("registered_country_name", String.class);
+    REGISTERED_COUNTRY_NAME("registered_country_name", String.class),
+    ANYCAST("anycast", Boolean.class),
+    MOBILE("mobile", Boolean.class),
+    SATELLITE("satellite", Boolean.class),
+    DMA_CODE("dma_code", String.class),
+    GEONAME_ID("geoname_id", String.class),
+    ASN_CHANGED_DATE("asn_changed_date", String.class),
+    GEO_CHANGED_DATE("geo_changed_date", String.class);
 
     private final String fieldName;
     private final Class<?> fieldType;

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -21,13 +22,16 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -44,8 +48,8 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class IncrementalBulkService {
     public static final String CHUNK_WAIT_TIME_HISTOGRAM_NAME = "es.rest.incremental_bulk.wait_for_next_chunk.duration.histogram";
-    public static final String BULK_SESSION_TASK_TYPE = "bulk_session_timeout_tracking";
-    public static final String BULK_SESSION_ACTION = "bulk_session_timeout_tracking_action";
+    public static final String BULK_SESSION_TASK_TYPE = "bulk";
+    public static final String BULK_SESSION_ACTION = "internal:bulk";
 
     public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting(
         "rest.incremental_bulk",
@@ -53,21 +57,58 @@ public class IncrementalBulkService {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * Overall wall-clock timeout for a single incremental bulk request, measured from the moment the
+     * request session is created. A non-positive value (the default) disables the timeout. When it
+     * elapses the request's {@link Handler#bulkSessionTask} is cancelled, which causes the next chunk
+     * to fail with a {@link org.elasticsearch.tasks.TaskCancelledException}.
+     */
+    public static final Setting<TimeValue> REQUEST_TIMEOUT = Setting.timeSetting(
+        "rest.incremental_bulk.request_timeout",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final Client client;
     private final AtomicBoolean enabledForTests = new AtomicBoolean(true);
     private final IndexingPressure indexingPressure;
     private final TaskManager taskManager;
     private final ThreadPool threadPool;
+    @Nullable
+    private volatile TimeValue requestTimeout;
 
     /* Capture in milliseconds because the APM histogram only has a range of 100,000 */
     private final LongHistogram chunkWaitTimeMillisHistogram;
 
+    /**
+     * Test-only constructor for callers that have no {@link ClusterSettings} to wire. Requests created by
+     * this instance never time out; production code must use the {@link ClusterSettings}-aware constructor
+     * so that {@link #REQUEST_TIMEOUT} is honoured.
+     */
     public IncrementalBulkService(
         Client client,
         IndexingPressure indexingPressure,
         MeterRegistry meterRegistry,
         TaskManager taskManager,
         ThreadPool threadPool
+    ) {
+        this(client, indexingPressure, meterRegistry, taskManager, threadPool, null);
+    }
+
+    /**
+     * @param clusterSettings used to watch {@link #REQUEST_TIMEOUT}; when {@code null} no overall request
+     *                        timeout is enforced (see the test-only constructor above).
+     */
+    public IncrementalBulkService(
+        Client client,
+        IndexingPressure indexingPressure,
+        MeterRegistry meterRegistry,
+        TaskManager taskManager,
+        ThreadPool threadPool,
+        @Nullable ClusterSettings clusterSettings
     ) {
         this.client = client;
         this.indexingPressure = indexingPressure;
@@ -78,6 +119,9 @@ public class IncrementalBulkService {
             "Total time in millis spent waiting for next chunk of a bulk request",
             "ms"
         );
+        if (clusterSettings != null) {
+            clusterSettings.initializeAndWatch(REQUEST_TIMEOUT, value -> this.requestTimeout = value);
+        }
     }
 
     public Handler newBulkRequest() {
@@ -92,7 +136,7 @@ public class IncrementalBulkService {
         Set<String> paramsUsed
     ) {
         ensureEnabled();
-        return new Handler(
+        Handler handler = new Handler(
             client,
             indexingPressure,
             waitForActiveShards,
@@ -103,6 +147,10 @@ public class IncrementalBulkService {
             taskManager,
             threadPool
         );
+        // Scheduled after construction (rather than in the Handler constructor) so the timeout callback
+        // never captures a partially-initialized Handler.
+        handler.scheduleTimeout(requestTimeout);
+        return handler;
     }
 
     private void ensureEnabled() {
@@ -155,7 +203,10 @@ public class IncrementalBulkService {
         private Exception bulkActionLevelFailure = null;
         private BulkRequest bulkRequest = null;
         private final TaskManager taskManager;
+        private final ThreadPool threadPool;
         private final CancellableTask bulkSessionTask;
+        // Cancels the request after REQUEST_TIMEOUT elapses; null when no timeout is configured.
+        private volatile Scheduler.Cancellable pendingTimeout;
 
         protected Handler(
             Client client,
@@ -194,6 +245,7 @@ public class IncrementalBulkService {
             }
 
             this.client = client;
+            this.threadPool = threadPool;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
             this.refresh = refresh;
@@ -201,6 +253,30 @@ public class IncrementalBulkService {
             this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
             this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
             createNewBulkRequest(EMPTY_STATE);
+        }
+
+        /**
+         * Schedules cancellation of this request once {@code requestTimeout} elapses. A no-op when the
+         * timeout is null or non-positive. Called once, immediately after construction.
+         */
+        private void scheduleTimeout(@Nullable TimeValue requestTimeout) {
+            // Guard on millis(), not nanos(): ThreadPool#schedule floors the delay to whole milliseconds, so a
+            // sub-millisecond timeout would otherwise arm a zero-delay task that cancels the request immediately.
+            if (requestTimeout != null && requestTimeout.millis() > 0) {
+                pendingTimeout = threadPool.schedule(
+                    () -> cancel("request timed out after [" + requestTimeout + "]", () -> {}),
+                    requestTimeout,
+                    threadPool.generic()
+                );
+            }
+        }
+
+        /** Cancels the pending timeout, if any. Idempotent; safe to call once the request has finished. */
+        private void cancelTimeout() {
+            Scheduler.Cancellable pending = pendingTimeout;
+            if (pending != null) {
+                pending.cancel();
+            }
         }
 
         public void cancel(String reason, Runnable listener) {
@@ -263,7 +339,10 @@ public class IncrementalBulkService {
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
             assert bulkInProgress == false;
-            ActionListener<BulkResponse> finalListener = ActionListener.runBefore(listener, () -> taskManager.unregister(bulkSessionTask));
+            ActionListener<BulkResponse> finalListener = ActionListener.runBefore(listener, () -> {
+                cancelTimeout();
+                taskManager.unregister(bulkSessionTask);
+            });
             if (bulkActionLevelFailure != null) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 errorResponse(finalListener);
@@ -304,6 +383,7 @@ public class IncrementalBulkService {
         public void close() {
             if (closed == false) {
                 closed = true;
+                cancelTimeout();
                 incrementalOperation.close();
                 releasables.forEach(Releasable::close);
                 releasables.clear();
@@ -344,7 +424,9 @@ public class IncrementalBulkService {
         private void handleBulkFailure(boolean isFirstRequest, Exception e) {
             assert bulkActionLevelFailure == null;
             globalFailure = isFirstRequest;
-            bulkActionLevelFailure = e;
+            bulkActionLevelFailure = e instanceof TaskCancelledException tce
+                ? new ElasticsearchStatusException(tce.getMessage(), RestStatus.TOO_MANY_REQUESTS, tce)
+                : e;
             addItemLevelFailures(bulkRequest.requests());
             bulkRequest = null;
         }
@@ -406,6 +488,11 @@ public class IncrementalBulkService {
                 bulkRequest.setRefreshPolicy(refresh);
             }
             bulkRequest.requestParamsUsed(paramsUsed);
+        }
+
+        // Visible for testing
+        protected Task getBulkSessionTask() {
+            return bulkSessionTask;
         }
     }
 }

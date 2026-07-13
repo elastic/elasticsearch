@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -128,12 +129,23 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return blobFileRanges != null ? blobFileRanges.blobLocation() : null;
     }
 
+    public Collection<BlobFileRanges> getBlobFileRanges() {
+        return Collections.unmodifiableCollection(currentMetadata.values());
+    }
+
     /**
      * Returns position of the file in the surrounding blob
      */
     public long getPosition(String fileName, long pos, int length) {
         var blobFileRanges = currentMetadata.get(fileName);
         return blobFileRanges != null ? blobFileRanges.getPosition(pos, length) : pos;
+    }
+
+    public long getTimestampMillis(String fileName) {
+        var blobFileRanges = currentMetadata.get(fileName);
+        return blobFileRanges != null
+            ? BlobFileRanges.midpointMillisOrUnknownForCache(blobFileRanges.timestampRange())
+            : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
     }
 
     StatelessSharedBlobCacheService getCacheService() {
@@ -318,7 +330,8 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             // blob length (with padding added).
             blobFileRanges.fileOffset() + blobFileRanges.fileLength(),
             // todo: time-source
-            new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime)
+            new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime),
+            BlobFileRanges.midpointMillisOrUnknownForCache(blobFileRanges.timestampRange())
         );
     }
 

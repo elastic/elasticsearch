@@ -22,23 +22,25 @@ import org.elasticsearch.common.settings.Settings;
  * <ol>
  *   <li>The SDK defaults from {@link Resource#getDefault()}
  *   <li>Fixed Elasticsearch identity attributes set below: {@code service.name},
- *       {@code service.version}, {@code service.language.name}, plus {@code service.agent.*}.</li>
+ *       {@code service.version}, {@code service.language.name},
+ *       {@code service.runtime.name}/{@code service.runtime.version}, plus {@code service.agent.*}.</li>
  *   <li>{@code service.instance.id} from the {@code node.name} setting when configured.</li>
  *   <li>Operator-injected attributes pulled from the
- *       {@link OtelSdkSettings#TELEMETRY_OTEL_RESOURCE_ATTRIBUTES} affix setting
- *       ({@code telemetry.otel.resource.*}).
+ *       {@link OtelSdkSettings#TELEMETRY_RESOURCE_ATTRIBUTES} affix setting
+ *       ({@code telemetry.resource.*}).
  *       This is the OTel-SDK counterpart to the {@code telemetry.agent.global_labels.*} bridge
  *       the APM-agent path uses, and it has two known producers today:
  *       <ul>
  *         <li>{@code ServerlessServerCli} maps
  *             {@code serverless.project_id}, {@code serverless.project_type} and the filtered
- *             {@code node.roles} to {@code elasticsearch.project.id}, {@code elasticsearch.project.type}
- *             and {@code elasticsearch.node.tier} respectively;</li>
+ *             {@code node.roles} to {@code project.id}, {@code project.type}
+ *             and {@code node.tier} respectively;</li>
  *         <li>The {@code elasticsearch-controller} (serverless control plane) injects
- *             {@code k8s.cluster.name}, {@code elasticsearch.channel} and
- *             {@code elasticsearch.project.trial} into per-pod node settings.</li>
+ *             {@code orchestrator.cluster.name}, {@code channel} and
+ *             {@code project.trial} into per-pod node settings.</li>
  *       </ul>
- *       Self-managed deployments simply leave these unset.</li>
+ *       The bare keys are chosen so that APM Server maps them to the same {@code labels.*} fields the
+ *       APM-agent path produced. Self-managed deployments simply leave these unset.</li>
  * </ol>
  */
 final class OtelSdkResource {
@@ -48,10 +50,12 @@ final class OtelSdkResource {
     static Resource get(Settings settings) {
         ResourceBuilder builder = Resource.builder()
             .put("service.name", "self-managed-elasticsearch") // other deployment types should override via
-                                                               // telemetry.otel.resource.service.name
+                                                               // telemetry.resource.service.name
             .put("service.type", "elasticsearch")
             .put("service.version", Build.current().version())
             .put("service.language.name", "java")
+            .put("process.runtime.name", "Java")
+            .put("process.runtime.version", Runtime.version().toString())
             .put("service.agent.name", "elasticsearch-otel-sdk")
             .put("service.agent.version", Build.current().version())
             .put("telemetry.distro.name", "elasticsearch-otel-sdk")
@@ -60,7 +64,7 @@ final class OtelSdkResource {
         if (nodeName != null) {
             builder.put("service.instance.id", nodeName);
         }
-        OtelSdkSettings.TELEMETRY_OTEL_RESOURCE_ATTRIBUTES.getAsMap(settings).forEach(builder::put);
+        OtelSdkSettings.TELEMETRY_RESOURCE_ATTRIBUTES.getAsMap(settings).forEach(builder::put);
         return Resource.getDefault().merge(builder.build());
     }
 }

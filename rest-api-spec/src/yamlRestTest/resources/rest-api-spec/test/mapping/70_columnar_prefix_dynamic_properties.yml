@@ -568,3 +568,366 @@ setup:
             unknown_field: "should be rejected"
   - match: { status: 400 }
   - match: { error.type: "strict_dynamic_mapping_exception" }
+
+---
+"columnar: sub-object with enabled false is serialized under prefix_properties":
+  - do:
+      indices.create:
+        index: test_columnar_enabled_false
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              attributes:
+                enabled: false
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_enabled_false
+  - match: { test_columnar_enabled_false.mappings.prefix_properties.attributes.enabled: false }
+  # Children of a disabled object are not flattened into indexed leaf mappers
+  - is_false: test_columnar_enabled_false.mappings.properties.attributes
+
+  # Fields under the disabled prefix are dropped entirely (not indexed, not stored)
+  - do:
+      index:
+        index: test_columnar_enabled_false
+        refresh: true
+        body:
+          attributes:
+            host: "es-node-1"
+            region: "us-east"
+          name: "test"
+
+  - do:
+      search:
+        index: test_columnar_enabled_false
+        body:
+          query:
+            term:
+              attributes.host: "es-node-1"
+  - match: { hits.total.value: 0 }
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_enabled_false
+  # No leaf fields under the disabled prefix are created
+  - is_false: test_columnar_enabled_false.mappings.properties.attributes\.host
+  - is_false: test_columnar_enabled_false.mappings.properties.attributes\.region
+
+---
+"columnar: explicitly declared field under enabled:false is also dropped":
+  - do:
+      indices.create:
+        index: test_columnar_enabled_mapped
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              attributes:
+                enabled: false
+                properties:
+                  host:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_enabled_mapped
+  - match: { test_columnar_enabled_mapped.mappings.prefix_properties.attributes.enabled: false }
+  # No children are flattened — the entire subtree is disabled
+  - is_false: test_columnar_enabled_mapped.mappings.properties.attributes\.host
+
+  # Declared field is dropped even when sent in the document
+  - do:
+      index:
+        index: test_columnar_enabled_mapped
+        refresh: true
+        body:
+          attributes:
+            host: "es-node-1"
+          name: "test"
+
+  - do:
+      search:
+        index: test_columnar_enabled_mapped
+        body:
+          query:
+            term:
+              attributes.host: "es-node-1"
+  - match: { hits.total.value: 0 }
+
+---
+"columnar: index created with prefix_properties.enabled in mapping body is preserved on get_mapping":
+  - do:
+      indices.create:
+        index: test_columnar_enabled_input
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            prefix_properties:
+              attributes:
+                enabled: false
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_enabled_input
+  - match: { test_columnar_enabled_input.mappings.prefix_properties.attributes.enabled: false }
+
+---
+"columnar: put_mapping merge adds new enabled prefix":
+  - do:
+      indices.create:
+        index: test_columnar_enabled_merge
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              attributes:
+                enabled: false
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_enabled_merge
+  - match: { test_columnar_enabled_merge.mappings.prefix_properties.attributes.enabled: false }
+  - is_false: test_columnar_enabled_merge.mappings.prefix_properties.resource.enabled
+
+  # Merge update: add resource enabled=false
+  - do:
+      indices.put_mapping:
+        index: test_columnar_enabled_merge
+        body:
+          properties:
+            resource:
+              enabled: false
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_enabled_merge
+  - match: { test_columnar_enabled_merge.mappings.prefix_properties.attributes.enabled: false }
+  - match: { test_columnar_enabled_merge.mappings.prefix_properties.resource.enabled: false }
+
+---
+"logsdb_columnar: sub-object with enabled false is serialized under prefix_properties":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_enabled_false
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              attributes:
+                enabled: false
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_enabled_false
+  - match: { test_logsdb_columnar_enabled_false.mappings.prefix_properties.attributes.enabled: false }
+  - is_false: test_logsdb_columnar_enabled_false.mappings.properties.attributes
+
+  # Fields under the disabled prefix are dropped entirely (not indexed, not stored)
+  - do:
+      index:
+        index: test_logsdb_columnar_enabled_false
+        refresh: true
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          attributes:
+            host: "es-node-1"
+            region: "us-east"
+
+  - do:
+      search:
+        index: test_logsdb_columnar_enabled_false
+        body:
+          query:
+            term:
+              attributes.host: "es-node-1"
+  - match: { hits.total.value: 0 }
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_enabled_false
+  - is_true: test_logsdb_columnar_enabled_false.mappings.properties.@timestamp
+  - is_false: test_logsdb_columnar_enabled_false.mappings.properties.attributes\.host
+
+---
+"logsdb_columnar: explicitly declared field under enabled:false is also dropped":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_enabled_mapped
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              attributes:
+                enabled: false
+                properties:
+                  host:
+                    type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_enabled_mapped
+  - match: { test_logsdb_columnar_enabled_mapped.mappings.prefix_properties.attributes.enabled: false }
+  # No children are flattened — the entire subtree is disabled
+  - is_false: test_logsdb_columnar_enabled_mapped.mappings.properties.attributes\.host
+
+  # Declared field is dropped even when sent in the document
+  - do:
+      index:
+        index: test_logsdb_columnar_enabled_mapped
+        refresh: true
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          attributes:
+            host: "es-node-1"
+
+  - do:
+      search:
+        index: test_logsdb_columnar_enabled_mapped
+        body:
+          query:
+            term:
+              attributes.host: "es-node-1"
+  - match: { hits.total.value: 0 }
+
+---
+"logsdb_columnar: index created with prefix_properties.enabled in mapping body is preserved on get_mapping":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_enabled_input
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            prefix_properties:
+              attributes:
+                enabled: false
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_enabled_input
+  - match: { test_logsdb_columnar_enabled_input.mappings.prefix_properties.attributes.enabled: false }
+
+---
+"logsdb_columnar: put_mapping merge adds new enabled prefix":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_enabled_merge
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              attributes:
+                enabled: false
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_enabled_merge
+  - match: { test_logsdb_columnar_enabled_merge.mappings.prefix_properties.attributes.enabled: false }
+  - is_false: test_logsdb_columnar_enabled_merge.mappings.prefix_properties.resource.enabled
+
+  # Merge update: add resource enabled=false
+  - do:
+      indices.put_mapping:
+        index: test_logsdb_columnar_enabled_merge
+        body:
+          properties:
+            resource:
+              enabled: false
+
+  - do:
+      indices.get_mapping:
+        index: test_logsdb_columnar_enabled_merge
+  - match: { test_logsdb_columnar_enabled_merge.mappings.prefix_properties.attributes.enabled: false }
+  - match: { test_logsdb_columnar_enabled_merge.mappings.prefix_properties.resource.enabled: false }
+
+---
+"columnar: root enabled:false is rejected":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_columnar_root_enabled_false
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            enabled: false
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "/\\[enabled\\].cannot.be.set.to.\\[false\\].on.the.root.object/" }
+
+---
+"logsdb_columnar: root enabled:false is rejected":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_logsdb_columnar_root_enabled_false
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            enabled: false
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "/\\[enabled\\].cannot.be.set.to.\\[false\\].on.the.root.object/" }
+
+---
+"columnar: nested enabled:false disables only the child prefix, parent prefix unaffected":
+  - do:
+      indices.create:
+        index: test_columnar_nested_enabled_false
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              resource:
+                properties:
+                  attributes:
+                    enabled: false
+
+  - do:
+      indices.get_mapping:
+        index: test_columnar_nested_enabled_false
+  # Only the nested disabled prefix is tracked — resource.attributes is disabled
+  - match: { test_columnar_nested_enabled_false.mappings.prefix_properties.resource\.attributes.enabled: false }
+  # The parent prefix (resource) is not in prefix_properties (it is enabled by default)
+  - is_false: test_columnar_nested_enabled_false.mappings.prefix_properties.resource
+
+  # Index a document with fields both under the disabled subtree and directly under resource
+  - do:
+      index:
+        index: test_columnar_nested_enabled_false
+        refresh: true
+        body:
+          resource:
+            name: "my-service"
+            attributes:
+              host: "es-node-1"
+              region: "us-east"
+
+  # resource.name is directly under resource (not under attributes) — it IS indexed
+  - do:
+      search:
+        index: test_columnar_nested_enabled_false
+        body:
+          query:
+            term:
+              resource.name: "my-service"
+  - match: { hits.total.value: 1 }
+
+  # resource.attributes.host is under the disabled prefix — it is dropped
+  - do:
+      search:
+        index: test_columnar_nested_enabled_false
+        body:
+          query:
+            term:
+              resource.attributes.host: "es-node-1"
+  - match: { hits.total.value: 0 }

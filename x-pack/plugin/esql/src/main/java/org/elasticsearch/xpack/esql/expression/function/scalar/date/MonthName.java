@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -119,9 +120,19 @@ public class MonthName extends EsqlConfigurationFunction {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         if (field().dataType() == DataType.DATE_NANOS) {
-            return new MonthNameNanosEvaluator.Factory(source(), fieldEvaluator, configuration().zoneId(), configuration().locale());
+            return new MonthNameNanosEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+                configuration().locale()
+            );
         }
-        return new MonthNameMillisEvaluator.Factory(source(), fieldEvaluator, configuration().zoneId(), configuration().locale());
+        return new MonthNameMillisEvaluator.Factory(
+            source(),
+            fieldEvaluator,
+            QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+            configuration().locale()
+        );
     }
 
     @Override

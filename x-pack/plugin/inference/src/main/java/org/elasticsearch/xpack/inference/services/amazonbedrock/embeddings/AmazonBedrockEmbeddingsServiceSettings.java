@@ -239,7 +239,6 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
                 model,
                 provider,
                 dimensions,
-                // Set the dimensionsSetByUser flag only if we're parsing the request and dimensions was populated by the user
                 dimensionsSetByUser,
                 maxInputTokens,
                 similarity,

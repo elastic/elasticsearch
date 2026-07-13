@@ -23,8 +23,10 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Base test case for {@link AmazonBedrockServiceSettings} subclasses. Holds the assertions for the fields common to every Bedrock task
@@ -143,6 +145,21 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
         assertThat(
             thrownException.getMessage(),
             is(Strings.format("[%s] does not contain the required setting [%s]", ModelConfigurations.SERVICE_SETTINGS, PROVIDER_FIELD))
+        );
+    }
+
+    public void testFromMap_InvalidProvider_ThrowsException() {
+        var thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> fromMap(
+                buildCommonServiceSettingsMap(TEST_REGION, TEST_MODEL_ID, "invalid_provider", TEST_RATE_LIMIT),
+                randomFrom(ConfigurationParseContext.values())
+            )
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("No enum constant")
         );
     }
 

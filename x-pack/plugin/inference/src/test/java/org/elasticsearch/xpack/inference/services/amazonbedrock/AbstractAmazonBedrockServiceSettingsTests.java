@@ -26,7 +26,6 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Base test case for {@link AmazonBedrockServiceSettings} subclasses. Holds the assertions for the fields common to every Bedrock task
@@ -157,10 +156,7 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
             )
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            containsString("No enum constant")
-        );
+        assertThat(thrownException.getMessage(), containsString("No enum constant"));
     }
 
     public void testUpdateServiceSettings_RateLimit_IsUpdated() {

@@ -40,6 +40,13 @@ import static org.hamcrest.Matchers.hasEntry;
  */
 public class NodeShutdownUpgradeIT extends NodeShutdownRollingUpgradeTestCase {
 
+    /**
+     * Stable reason string written into every shutdown record. Must not change across parameterized
+     * stages — {@code getTestName()} includes the current {@code upgradedNodes} parameter and would
+     * produce a different value in each stage, causing cross-stage assertions to fail.
+     */
+    private static final String SHUTDOWN_REASON = "NodeShutdownUpgradeIT#testShutdown";
+
     List<String> namesSorted;
     Map<String, String> nodeNameToIdMap;
 
@@ -103,7 +110,7 @@ public class NodeShutdownUpgradeIT extends NodeShutdownRollingUpgradeTestCase {
     private Matcher<Map<String, Object>> shutdownStatusCompleteFor(int i) {
         return allOf(
             hasEntry("node_id", nodeIdToShutdown(i)),
-            hasEntry("reason", this.getTestName()),
+            hasEntry("reason", SHUTDOWN_REASON),
             hasEntry("status", SingleNodeShutdownMetadata.Status.COMPLETE.toString())
         );
     }
@@ -121,7 +128,7 @@ public class NodeShutdownUpgradeIT extends NodeShutdownRollingUpgradeTestCase {
             putBody.startObject();
             {
                 putBody.field("type", "restart");
-                putBody.field("reason", this.getTestName());
+                putBody.field("reason", SHUTDOWN_REASON);
             }
             putBody.endObject();
             putShutdownRequest.setJsonEntity(Strings.toString(putBody));

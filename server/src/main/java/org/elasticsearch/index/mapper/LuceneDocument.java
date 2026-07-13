@@ -14,9 +14,11 @@ import org.apache.lucene.util.BytesRef;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -29,6 +31,15 @@ public class LuceneDocument implements Iterable<IndexableField> {
     private final String prefix;
     private final List<IndexableField> fields;
     private Map<Object, IndexableField> keyedFields;
+    // One-slot reference-equality cache for getOrAddWithKey: consecutive array elements
+    // that share the same field name (identical reference via Mapper.internFieldName) skip
+    // the HashMap entirely. Falls through on a miss, so correctness is unaffected.
+    private Object lastKey;
+    private IndexableField lastKeyedField;
+    // Names of [nullability=false] fields that received a non-null value in THIS Lucene doc. Lazily allocated: stays null unless the
+    // mapping actually has required fields, so mappings without nullability=false pay nothing. Tallied per Lucene doc so each nested
+    // instance is independent and copy_to (which targets this doc) counts correctly.
+    private Set<String> satisfiedRequiredFields;
 
     LuceneDocument(String path, LuceneDocument parent) {
         fields = new ArrayList<>();
@@ -109,6 +120,16 @@ public class LuceneDocument implements Iterable<IndexableField> {
     }
 
     /**
+     * Returns null if key wasn't associated with any field before or the field that is associated with the key.
+     */
+    public IndexableField putKeyIfAbsent(final Object key, final IndexableField field) {
+        if (keyedFields == null) {
+            keyedFields = new HashMap<>();
+        }
+        return keyedFields.putIfAbsent(key, field);
+    }
+
+    /**
      * Get back fields that have been previously added with {@link #addWithKey(Object, IndexableField)}.
      */
     public IndexableField getByKey(Object key) {
@@ -122,12 +143,17 @@ public class LuceneDocument implements Iterable<IndexableField> {
      * added eagerly or lazily (e.g. a blob written only once it holds a value), so it is not required to be in the field list yet.
      */
     public IndexableField getOrAddWithKey(final Object key, Function<Object, IndexableField> mappingFunction) {
+        if (key == lastKey) {
+            return lastKeyedField;
+        }
         if (keyedFields == null) {
             keyedFields = new HashMap<>();
         }
 
         var indexableField = keyedFields.computeIfAbsent(key, mappingFunction);
         assert indexableField != null : "mappingFunction must return a non-null field";
+        lastKey = key;
+        lastKeyedField = indexableField;
         return indexableField;
     }
 
@@ -175,5 +201,22 @@ public class LuceneDocument implements Iterable<IndexableField> {
             }
         }
         return null;
+    }
+
+    /**
+     * Record that a {@code [nullability=false]} field received a non-null value in this Lucene doc. See {@link #satisfiedRequiredFields()}.
+     */
+    public void markRequiredSatisfied(String fieldName) {
+        if (satisfiedRequiredFields == null) {
+            satisfiedRequiredFields = new HashSet<>();
+        }
+        satisfiedRequiredFields.add(fieldName);
+    }
+
+    /**
+     * The {@code [nullability=false]} field names that received a non-null value in this Lucene doc; empty if none were marked.
+     */
+    public Set<String> satisfiedRequiredFields() {
+        return satisfiedRequiredFields == null ? Set.of() : satisfiedRequiredFields;
     }
 }

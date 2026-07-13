@@ -10,7 +10,8 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.foreign.CloseableByteBuffer;
-import org.elasticsearch.foreign.MemorySegmentUtil;
+import org.elasticsearch.foreign.LinkerHelper;
+import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
@@ -34,7 +35,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 import static org.elasticsearch.foreign.LinkerHelper.downcallHandle;
-import static org.elasticsearch.foreign.MemorySegmentUtil.varHandleWithoutOffset;
+import static org.elasticsearch.foreign.adapter.MemorySegmentAdapter.varHandleWithoutOffset;
 
 class JdkPosixCLibrary implements PosixCLibrary {
 
@@ -121,7 +122,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         FunctionDescriptor.of(JAVA_LONG, JAVA_INT, ADDRESS, JAVA_LONG, JAVA_INT)
     );
 
-    static final MemorySegment errnoState = Arena.ofAuto().allocate(CAPTURE_ERRNO_LAYOUT);
+    static final MemorySegment errnoState = LinkerHelper.ERRNO_STATE;
 
     static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor) {
         return downcallHandle(function, functionDescriptor, CAPTURE_ERRNO_OPTION);
@@ -136,7 +137,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     public String strerror(int errno) {
         try {
             MemorySegment str = (MemorySegment) strerror$mh.invokeExact(errno);
-            return MemorySegmentUtil.getString(str.reinterpret(Long.MAX_VALUE), 0);
+            return MemorySegmentAdapter.getString(str.reinterpret(Long.MAX_VALUE), 0);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -247,7 +248,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     @Override
     public int open(String pathname, int flags) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment nativePathname = MemorySegmentUtil.allocateString(arena, pathname);
+            MemorySegment nativePathname = MemorySegmentAdapter.allocateString(arena, pathname);
             return (int) open$mh.invokeExact(errnoState, nativePathname, flags);
         } catch (Throwable t) {
             throw new AssertionError(t);
@@ -257,7 +258,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     @Override
     public int open(String pathname, int flags, int mode) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment nativePathname = MemorySegmentUtil.allocateString(arena, pathname);
+            MemorySegment nativePathname = MemorySegmentAdapter.allocateString(arena, pathname);
             return (int) openWithMode$mh.invokeExact(errnoState, nativePathname, flags, mode);
         } catch (Throwable t) {
             throw new AssertionError(t);
@@ -430,7 +431,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         JdkSockAddr(String path) {
             segment = Arena.ofAuto().allocate(layout);
             segment.set(JAVA_SHORT, 0, AF_UNIX);
-            MemorySegmentUtil.setString(segment, 2, path);
+            MemorySegmentAdapter.setString(segment, 2, path);
         }
     }
 }

@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.OS
+
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 plugins {
@@ -46,11 +48,13 @@ dependencies {
   implementation project(':libs:grok')
   implementation project(':libs:web-utils')
   implementation project(':libs:user-agent-api')
+  implementation project(':libs:ip-location-api')
   implementation project(':libs:exponential-histogram')
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
+  implementation 'com.carrotsearch:hppc:0.8.1'
 
   testImplementation(project('qa:testFixtures')) {
     exclude(group: "org.elasticsearch.plugin", module: "esql")
@@ -81,12 +85,21 @@ dependencies {
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(path: ':modules:data-streams')
+  testImplementation project(':modules:ip-location')
   testImplementation project(path: ':modules:mapper-extras')
   testImplementation project(path: ':modules:user-agent')
   testImplementation project(xpackModule('esql:compute:test'))
   testImplementation('ch.obermuhlner:big-math:2.3.2')
 
+  internalClusterTestImplementation(project('qa:testFixtures')) {
+      transitive = false
+  }
   internalClusterTestImplementation project(":modules:user-agent")
+  internalClusterTestImplementation project(":modules:ip-location")
+  internalClusterTestImplementation(testArtifact(project(":modules:ip-location")))
+  internalClusterTestImplementation(testArtifact(project(":modules:ip-location"), "internalClusterTest"))
+  internalClusterTestImplementation project(':test:fixtures:geoip-fixture')
+  internalClusterTestImplementation project(':modules:reindex')
   internalClusterTestImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
@@ -112,6 +125,13 @@ dependencies {
   internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
   internalClusterTestImplementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
   internalClusterTestImplementation("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") { transitive = false }
+  // NOTE: esql-datasource-orc is intentionally NOT added here. Its plugin jar ships a same-FQN
+  // org.apache.commons.lang3.StringUtils stub (src/main/java/org/apache/commons/lang3) as a
+  // production classloader-isolation trick, which collides with the real commons-lang3 that
+  // parquet/hadoop already pull onto this flat internalClusterTest classpath — the test JVM's
+  // JarHell check aborts boot. There is no Gradle exclusion that strips a class from inside a
+  // module's own jar, so the ORC reader cannot share this classpath; ORC is therefore omitted
+  // from AbstractExternalMetadataMatrixIT's per-format subclasses.
 }
 
 tasks.named('compileInternalClusterTestJava').configure {
@@ -135,6 +155,7 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.parquet'
   exclude '**/*.avro'
   exclude '**/.*.crc'
+  exclude '**/*.mmdb'
 }
 
 tasks.named("test").configure {
@@ -169,9 +190,21 @@ tasks.named("internalClusterTest").configure {
    * task and generates a types table for the LOOKUP JOIN command. It is possible
    * in future we might have move tests that do this.
    */
-  systemProperty 'es.esql_external_datasources_feature_flag_enabled', 'true'
+  // Local file:// access is on by default in snapshot builds; in release builds the local flag is off unless
+  // explicitly enabled here, so External*IT and FromDatasetIT actually run (not just skip) in release testing.
+  systemProperty 'es.esql_external_datasources_local_feature_flag_enabled', 'true'
   // Data sources require the project encryption key feature (EsqlPlugin fails fast otherwise); pair the flags.
   systemProperty 'es.project_encryption_key_feature_flag_enabled', 'true'
+  systemProperty 'esql.kibana.docs.dir', "${rootDir}/docs/reference/query-languages/esql/kibana/generated"
+
+  // The IP_LOCATION csv-spec tests load geoip databases, which are memory-mapped by default.
+  // Windows cannot delete a memory-mapped file, so the per-suite temp directory cleanup fails there
+  // unless the databases are loaded on heap instead. Mirrors :modules:ip-location and
+  // :modules:ingest-ip-location.
+  // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
+  if (OS.current() == OS.WINDOWS) {
+    systemProperty 'es.geoip.load_db_on_heap', 'true'
+  }
 
   def injected = project.objects.newInstance(Injected)
   File snippetsFolder = file("build/testrun/internalClusterTest/temp/esql/_snippets")

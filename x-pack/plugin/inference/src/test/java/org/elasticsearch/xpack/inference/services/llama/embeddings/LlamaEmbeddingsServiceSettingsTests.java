@@ -374,6 +374,60 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractLlamaServiceSet
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
     }
 
+    public void testUpdateServiceSettings_RateLimitOmitted_KeepsExistingRateLimit() {
+        var settingsMap = new HashMap<String, Object>();
+        settingsMap.put(ServiceFields.MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS);
+        var originalServiceSettings = new LlamaEmbeddingsServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        assertThat(
+            originalServiceSettings.updateServiceSettings(settingsMap),
+            is(
+                new LlamaEmbeddingsServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_URI,
+                    INITIAL_TEST_DIMENSIONS,
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    TEST_MAX_INPUT_TOKENS,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_ExplicitNullMaxInputTokens_ClearsField() {
+        var settingsMap = new HashMap<String, Object>();
+        settingsMap.put(ServiceFields.MAX_INPUT_TOKENS, null);
+        var originalServiceSettings = new LlamaEmbeddingsServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        assertThat(
+            originalServiceSettings.updateServiceSettings(settingsMap),
+            is(
+                new LlamaEmbeddingsServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    INITIAL_TEST_URI,
+                    INITIAL_TEST_DIMENSIONS,
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    null,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
     public void testUpdateServiceSettings_ZeroInputTokens_ThrowsException() {
         assertUpdateServiceSettings_InvalidMaxInputTokens_ThrowsException(0);
     }

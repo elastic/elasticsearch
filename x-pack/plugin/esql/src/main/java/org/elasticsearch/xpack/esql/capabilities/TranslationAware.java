@@ -121,7 +121,17 @@ public interface TranslationAware {
          * This comes up when pushing {@code NOT(text == "a")} to {@code text.keyword} which can
          * have ignored fields.
          */
-        YES_BUT_RECHECK_NEGATED(FinishedTranslatable.YES);
+        YES_BUT_RECHECK_NEGATED(FinishedTranslatable.YES),
+        /**
+         * The same as {@link #RECHECK}, but if this expression is negated it turns into {@link #NO}.
+         * A {@link #RECHECK} query is a <em>superset</em> of the expression's matches; negating a superset
+         * (via {@code must_not}) yields a <em>subset</em> of the negation, dropping true matches, and the
+         * retained recheck filter can only remove rows, never restore them. This is safe for a predicate that
+         * goes null on its false positives (the null fails under both polarities), but not for a two-valued
+         * predicate like {@code mv_in_range}, whose false positives are {@code false} — so {@code NOT} of it
+         * cannot be pushed and must stay a full filter.
+         */
+        RECHECK_BUT_NO_NEGATED(FinishedTranslatable.RECHECK);
 
         private final FinishedTranslatable finish;
 
@@ -141,6 +151,9 @@ public interface TranslationAware {
             if (this == YES_BUT_RECHECK_NEGATED) {
                 return RECHECK;
             }
+            if (this == RECHECK_BUT_NO_NEGATED) {
+                return NO;
+            }
             return this;
         }
 
@@ -155,15 +168,24 @@ public interface TranslationAware {
                     case YES -> YES;
                     case RECHECK -> RECHECK;
                     case YES_BUT_RECHECK_NEGATED -> YES_BUT_RECHECK_NEGATED;
+                    case RECHECK_BUT_NO_NEGATED -> RECHECK_BUT_NO_NEGATED;
                 };
                 case RECHECK -> switch (rhs) {
                     case NO -> NO;
                     case YES, RECHECK, YES_BUT_RECHECK_NEGATED -> RECHECK;
+                    case RECHECK_BUT_NO_NEGATED -> RECHECK_BUT_NO_NEGATED;
                 };
                 case YES_BUT_RECHECK_NEGATED -> switch (rhs) {
                     case NO -> NO;
                     case YES, YES_BUT_RECHECK_NEGATED -> YES_BUT_RECHECK_NEGATED;
                     case RECHECK -> RECHECK;
+                    case RECHECK_BUT_NO_NEGATED -> RECHECK_BUT_NO_NEGATED;
+                };
+                // RECHECK behavior when not negated (finish() == RECHECK), but the negate()->NO poison must survive a
+                // merge: once any conjunct/disjunct can't be soundly negated, neither can the combination.
+                case RECHECK_BUT_NO_NEGATED -> switch (rhs) {
+                    case NO -> NO;
+                    case YES, RECHECK, YES_BUT_RECHECK_NEGATED, RECHECK_BUT_NO_NEGATED -> RECHECK_BUT_NO_NEGATED;
                 };
             };
         }

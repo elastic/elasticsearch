@@ -87,8 +87,10 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
 
         // Override the WORKLOAD_MEMORY_OVERHEAD of 500MB because testing often runs 512MB nodes.
         // Shards need more space to be assigned than what's leftover with the default node overheads. A value of 100 is arbitrary.
+        // Refreshes so this value is set before creating indices below
         internalCluster().getInstance(StatelessMemoryMetricsService.class, internalCluster().getMasterName())
             .setWorkloadMemoryOverheadOverrideForTesting(100);
+        refreshClusterInfo();
 
         // Place index shards on both index nodes.
         final var indexNameA = randomIdentifier();
@@ -210,8 +212,11 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
         ensureStableCluster(3);
 
         // Override the WORKLOAD_MEMORY_OVERHEAD of 500MB because testing often runs 512MB nodes.
+        // Shards need more space to be assigned than what's leftover with the default node overheads. A value of 100 is arbitrary.
+        // Refreshes so this value is set before creating indices below
         internalCluster().getInstance(StatelessMemoryMetricsService.class, internalCluster().getMasterName())
             .setWorkloadMemoryOverheadOverrideForTesting(100);
+        refreshClusterInfo();
 
         // Place index shards on both index nodes so that both publish memory metrics.
         final var indexNameA = randomIdentifier();
@@ -381,6 +386,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
                                 entry.getValue().totalFields(),
                                 entry.getValue().postingsInMemoryBytes(),
                                 entry.getValue().liveDocsBytes(),
+                                entry.getValue().pointsInMemoryBytes(),
                                 UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
                                 nodeId
                             )

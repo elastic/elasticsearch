@@ -19,7 +19,9 @@ import java.util.Set;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.ACCURACY_RADIUS;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.ANONYMOUS;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.ANONYMOUS_VPN;
+import static org.elasticsearch.iplocation.api.DatabaseProperty.ANYCAST;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.ASN;
+import static org.elasticsearch.iplocation.api.DatabaseProperty.ASN_CHANGED_DATE;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.CITY_CONFIDENCE;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.CITY_NAME;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.CONNECTION_TYPE;
@@ -29,12 +31,16 @@ import static org.elasticsearch.iplocation.api.DatabaseProperty.COUNTRY_CONFIDEN
 import static org.elasticsearch.iplocation.api.DatabaseProperty.COUNTRY_IN_EUROPEAN_UNION;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.COUNTRY_ISO_CODE;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.COUNTRY_NAME;
+import static org.elasticsearch.iplocation.api.DatabaseProperty.DMA_CODE;
+import static org.elasticsearch.iplocation.api.DatabaseProperty.GEONAME_ID;
+import static org.elasticsearch.iplocation.api.DatabaseProperty.GEO_CHANGED_DATE;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.HOSTING;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.HOSTING_PROVIDER;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.IP;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.ISP;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.ISP_ORGANIZATION_NAME;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.LOCATION;
+import static org.elasticsearch.iplocation.api.DatabaseProperty.MOBILE;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.MOBILE_COUNTRY_CODE;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.MOBILE_NETWORK_CODE;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.NETWORK;
@@ -50,6 +56,7 @@ import static org.elasticsearch.iplocation.api.DatabaseProperty.REGISTERED_COUNT
 import static org.elasticsearch.iplocation.api.DatabaseProperty.REGISTERED_COUNTRY_NAME;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.RELAY;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.RESIDENTIAL_PROXY;
+import static org.elasticsearch.iplocation.api.DatabaseProperty.SATELLITE;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.SERVICE;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.TIMEZONE;
 import static org.elasticsearch.iplocation.api.DatabaseProperty.TOR;
@@ -68,7 +75,7 @@ import static org.elasticsearch.iplocation.api.DatabaseProperty.VPN;
  * This can be accommodated, for example, by having a Foo value and a separate FooV2 value where the 'V' should be read as
  * 'variant' or 'variation'. A V-less Database type is inherently the first variant/variation (i.e. V1).
  */
-enum Database {
+public enum Database {
 
     City(
         Set.of(
@@ -168,7 +175,46 @@ enum Database {
         Set.of(IP, CONTINENT_CODE, CONTINENT_NAME, COUNTRY_NAME, COUNTRY_ISO_CODE),
         Set.of(CONTINENT_NAME, COUNTRY_NAME, COUNTRY_ISO_CODE)
     ),
-    PrivacyDetection(Set.of(IP, HOSTING, PROXY, RELAY, TOR, VPN, SERVICE), Set.of(HOSTING, PROXY, RELAY, TOR, VPN, SERVICE));
+    PrivacyDetection(Set.of(IP, HOSTING, PROXY, RELAY, TOR, VPN, SERVICE), Set.of(HOSTING, PROXY, RELAY, TOR, VPN, SERVICE)),
+    IpinfoPlus(
+        Set.of(
+            IP,
+            CITY_NAME,
+            REGION_NAME,
+            REGION_ISO_CODE,
+            COUNTRY_NAME,
+            COUNTRY_ISO_CODE,
+            CONTINENT_NAME,
+            CONTINENT_CODE,
+            LOCATION,
+            TIMEZONE,
+            POSTAL_CODE,
+            DMA_CODE,
+            GEONAME_ID,
+            ACCURACY_RADIUS,
+            ASN,
+            ORGANIZATION_NAME,
+            DatabaseProperty.DOMAIN,
+            TYPE,
+            ISP,
+            MOBILE_COUNTRY_CODE,
+            MOBILE_NETWORK_CODE,
+            ASN_CHANGED_DATE,
+            GEO_CHANGED_DATE,
+            ANONYMOUS,
+            ANYCAST,
+            HOSTING,
+            MOBILE,
+            SATELLITE,
+            PROXY,
+            RELAY,
+            TOR,
+            VPN,
+            SERVICE,
+            NETWORK
+        ),
+        Set.of(COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME, REGION_ISO_CODE, REGION_NAME, CITY_NAME, LOCATION)
+    );
 
     private final Set<DatabaseProperty> properties;
     private final Set<DatabaseProperty> defaultProperties;

@@ -175,14 +175,11 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
         try (BlockHash blockHash = newBlockHash(blockFactory, emitBatchSize, elementTypes)) {
             logger.info("checking {}", blockHash);
             /*
-             * Only the long/long, long/bytes_ref, and bytes_ref/long implementations don't collect nulls.
+             * Only the long/long implementation still doesn't collect nulls. (LONG, BYTES_REF)/(BYTES_REF, LONG)
+             * now route through LongBytesRefAdaptiveBlockHash, which migrates to PackedValuesBlockHash on
+             * the first non-vector page so all nulls and multivalues end up represented as groups.
              */
-            Oracle oracle = new Oracle(
-                forcePackedHash
-                    || false == (elementTypes.equals(List.of(ElementType.LONG, ElementType.LONG))
-                        || elementTypes.equals(List.of(ElementType.LONG, ElementType.BYTES_REF))
-                        || elementTypes.equals(List.of(ElementType.BYTES_REF, ElementType.LONG)))
-            );
+            Oracle oracle = new Oracle(forcePackedHash || elementTypes.equals(List.of(ElementType.LONG, ElementType.LONG)) == false);
 
             for (int p = 0; p < pageCount; p++) {
                 for (int g = 0; g < blocks.length; g++) {
@@ -202,6 +199,8 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                          */
                         int effectiveEmitBatchSize = emitBatchSize;
                         if (blockHash instanceof LongIntAdaptiveBlockHash adaptive) {
+                            effectiveEmitBatchSize = adaptive.effectiveEmitBatchSize();
+                        } else if (blockHash instanceof LongBytesRefAdaptiveBlockHash adaptive) {
                             effectiveEmitBatchSize = adaptive.effectiveEmitBatchSize();
                         }
                         assertThat(

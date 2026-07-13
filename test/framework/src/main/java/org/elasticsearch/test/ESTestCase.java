@@ -117,6 +117,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.entitlement.bootstrap.TestEntitlementsRule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -240,7 +241,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assume.assumeFalse;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -741,6 +741,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertThat("unexpected warning headers", filterOutExcludedWarnings(getActualWarningStrings(true)), empty());
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // remove
+    public static final String LOGGER_CHILD_OVERRIDE_DEPRECATION_WARNING =
+        "A settings update to logger levels overrides child loggers with explicitly configured levels."
+            + " This behavior is deprecated and will change in a future major version.";
+
     protected List<String> filteredWarnings() {
         List<String> filtered = new ArrayList<>();
         filtered.add(
@@ -753,6 +758,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed "
                 + "in a future release. See the breaking changes documentation for the next major version."
         );
+        filtered.add(LOGGER_CHILD_OVERRIDE_DEPRECATION_WARNING);
         return filtered;
     }
 
@@ -2403,8 +2409,12 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static void assertEqualsPercent(float expectedValue, float actualValue, float deltaPercent) {
-        var error = Math.max(expectedValue * deltaPercent, DEFAULT_DELTA);
-        var actualDelta = Math.abs(expectedValue - actualValue) - error;
+        assertEqualsPercent(expectedValue, actualValue, deltaPercent, DEFAULT_DELTA);
+    }
+
+    public static void assertEqualsPercent(float expectedValue, float actualValue, float deltaPercent, float absoluteDelta) {
+        float error = Math.max(expectedValue * deltaPercent, absoluteDelta);
+        float actualDelta = Math.abs(expectedValue - actualValue) - error;
         if (actualDelta > 0) {
             fail(Strings.format("expected:<%f> but was:<%f>", expectedValue, actualValue));
         }
@@ -3060,6 +3070,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         var e = expectThrows(expectedType, reason, runnable);
         assertThat(reason, e.getMessage(), messageMatcher);
         return e;
+    }
+
+    /**
+     * Same as {@link #runInParallel(Runnable...)} but also attempts to start all tasks at the same time by blocking execution on a
+     * barrier until all threads are started and ready to execute their task.
+     */
+    public static void startInParallel(Runnable... tasks) {
+        startInParallel(tasks.length, i -> tasks[i].run());
     }
 
     /**

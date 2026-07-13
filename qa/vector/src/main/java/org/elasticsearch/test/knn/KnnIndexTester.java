@@ -38,6 +38,10 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -210,6 +214,9 @@ public class KnnIndexTester {
                 var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
                 // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
+                IvfMergeConfigResolver mergeConfigResolver = args.autoCalibrate()
+                    ? IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize())
+                    : IvfMergeConfigResolver.useCodecDefault();
                 yield new ESNextDiskBBQVectorsFormat(
                     encoding,
                     args.ivfClusterSize(),
@@ -223,7 +230,9 @@ public class KnnIndexTester {
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
                     flatVectorThreshold,
-                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null
+                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null,
+                    IvfFlushConfigSource.empty(),
+                    mergeConfigResolver
                 );
             }
             case GPU_HNSW -> {
@@ -523,6 +532,9 @@ public class KnnIndexTester {
                 if (testConfiguration.forceMerge()) {
                     forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration, dataGenerator.getIndexSort());
                 }
+                if (testConfiguration.numDeletedDocs() > 0) {
+                    deleteDocuments(knnIndexer, indexResults, sharedDir, testConfiguration);
+                }
             }
             numSegments(indexPath, indexResults, sharedDir);
 
@@ -561,6 +573,26 @@ public class KnnIndexTester {
             knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), sharedDir, indexSort);
         } else {
             knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), indexSort);
+        }
+    }
+
+    static void deleteDocuments(KnnIndexer knnIndexer, Results indexResults, Directory sharedDir, TestConfiguration testConfiguration)
+        throws Exception {
+        if (sharedDir != null) {
+            knnIndexer.deleteDocuments(
+                sharedDir,
+                indexResults,
+                testConfiguration.numDocs(),
+                testConfiguration.numDeletedDocs(),
+                testConfiguration.deleteSeed()
+            );
+        } else {
+            knnIndexer.deleteDocuments(
+                indexResults,
+                testConfiguration.numDocs(),
+                testConfiguration.numDeletedDocs(),
+                testConfiguration.deleteSeed()
+            );
         }
     }
 
@@ -634,11 +666,11 @@ public class KnnIndexTester {
         };
     }
 
-    private static ESNextDiskBBQVectorsFormat.QuantEncoding resolveQuantEncoding(int docQuantizeBits, @Nullable Integer queryQuantizeBits) {
+    private static QuantEncoding resolveQuantEncoding(int docQuantizeBits, @Nullable Integer queryQuantizeBits) {
         if (queryQuantizeBits == null) {
-            return ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) docQuantizeBits);
+            return QuantEncoding.fromBits((byte) docQuantizeBits);
         }
-        return ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
+        return QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
     }
 
     private static void checkQuantizeBits(TestConfiguration args) {
@@ -726,6 +758,7 @@ public class KnnIndexTester {
                 "index_name",
                 "index_type",
                 "num_docs",
+                "num_deleted_docs",
                 "doc_add_time(ms)",
                 "total_index_time(ms)",
                 "force_merge_time(ms)",
@@ -770,6 +803,7 @@ public class KnnIndexTester {
                     indexResult.indexName,
                     indexResult.indexType,
                     Integer.toString(indexResult.numDocs),
+                    Integer.toString(indexResult.numDeletedDocs),
                     Long.toString(indexResult.docAddTimeMS),
                     Long.toString(indexResult.indexTimeMS),
                     Long.toString(indexResult.forceMergeTimeMS),
@@ -878,6 +912,7 @@ public class KnnIndexTester {
         final String indexType, indexName;
         public long docAddTimeMS;
         int numDocs;
+        int numDeletedDocs;
         float filterSelectivity;
         long indexTimeMS;
         long forceMergeTimeMS;
@@ -1016,6 +1051,7 @@ public class KnnIndexTester {
         "index_name",
         "index_type",
         "num_docs",
+        "num_deleted_docs",
         "num_segments",
         "quantize_bits",
         "query_quantize_bits",
@@ -1127,6 +1163,7 @@ public class KnnIndexTester {
                             qr.indexName,
                             qr.indexType,
                             Integer.toString(qr.numDocs),
+                            Integer.toString(indexResult.numDeletedDocs),
                             Integer.toString(qr.numSegments),
                             config.quantizeBits() != null ? Integer.toString(config.quantizeBits()) : "",
                             config.queryQuantizeBits() != null ? Integer.toString(config.queryQuantizeBits()) : "",

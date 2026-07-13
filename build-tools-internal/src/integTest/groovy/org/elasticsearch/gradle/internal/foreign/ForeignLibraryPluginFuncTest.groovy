@@ -9,8 +9,9 @@
 
 package org.elasticsearch.gradle.internal.foreign
 
-import org.elasticsearch.gradle.fixtures.AbstractJavaGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.TempDir
 
 /**
  * Exercises the plugin's wiring in a real Gradle invocation. Validation of the actual processor's
@@ -19,10 +20,12 @@ import org.gradle.testkit.runner.TaskOutcome
  * locations. A dummy processor is supplied via the {@code foreignLibraryProcessor} configuration
  * so the test does not need any real {@code :libs:foreign-library} artifacts.
  */
-class ForeignLibraryPluginFuncTest extends AbstractJavaGradleFuncTest {
+class ForeignLibraryPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin
 
     def setup() {
-        internalBuild()
+        configureBwcVersions()
 
         settingsFile << """
             include ':fakeprocessor'
@@ -114,7 +117,7 @@ class ForeignLibraryPluginFuncTest extends AbstractJavaGradleFuncTest {
 
     def "wires foreignLibraryProcessor onto the annotation processor path and runs it"() {
         when:
-        def result = gradleRunner('processForeignAnnotations', '-g', gradleUserHome).build()
+        def result = gradleRunner('processForeignAnnotations').build()
 
         then:
         result.task(":processForeignAnnotations").outcome == TaskOutcome.SUCCESS

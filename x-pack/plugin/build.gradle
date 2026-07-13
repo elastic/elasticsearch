@@ -60,8 +60,6 @@ if (buildParams.snapshotBuild == false) {
   // * Data Stream Lifecycle. manage_data_stream_lifecycle privilege is only available with dlm_feature_flag_enabled set
   // We disable these tests for snapshot builds to maintain release build coverage.
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
-  // Requires ESNext codec which is not available in release test. This should be removed once the production codec supports slices.
-  restTestBlacklist.add('search.vectors/47_knn_search_bbq_disk_slice/*')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
@@ -110,6 +108,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     )
     task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-1", ".ml-anomalies-custom-all-test-1-000001")
     task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-2", ".ml-anomalies-custom-all-test-2-000001")
+    task.skipTest("counted_keyword/20_no_index/Counted keyword with index false is not searchable", "counted_keyword with index:false now reports searchable:true via doc values")
     task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry)", "The telemetry output changed. We dropped a column. That's safe.")
     task.skipTest("inference/inference_crud/Test get all", "Assertions on number of inference models break due to default configs")
     task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) snapshot version", "The number of functions is constantly increasing")
@@ -205,6 +204,8 @@ tasks.named("yamlRestCompatTestTransform").configure(
       "aggregate-metrics/100_synthetic_source/aggregate_metric_double with ignore_malformed",
       "Malformed values are now stored in binary doc values which sort differently than stored fields"
     )
+    task.skipTest("esql/180_match_operator/match on eval column", "Match works now with non-mapped columns")
+    task.skipTest("esql/180_match_operator/match on overwritten column", "Match works now with non-mapped columns")
   }
 )
 

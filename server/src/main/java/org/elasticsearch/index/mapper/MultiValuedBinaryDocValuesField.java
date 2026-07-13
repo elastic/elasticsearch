@@ -11,13 +11,16 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -45,14 +48,30 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         UNSORTED
     }
 
+    // Heuristic initial capacity for the ArrayList-backed orderings. Sized for the common
+    // small multi-valued case to avoid the default 0→10 grow on the first add.
+    private static final int INITIAL_VALUES_CAPACITY = 4;
+
     protected final ValueOrdering ordering;
-    protected final Collection<BytesRef> values;
+    protected Collection<BytesRef> values;
     protected int docValuesByteCount = 0;
 
     MultiValuedBinaryDocValuesField(String name, ValueOrdering ordering) {
         super(name);
         this.ordering = ordering;
-        this.values = ordering == ValueOrdering.SORTED_UNIQUE ? new TreeSet<>() : new ArrayList<>();
+        this.values = ordering == ValueOrdering.SORTED_UNIQUE ? new TreeSet<>() : new ArrayList<>(INITIAL_VALUES_CAPACITY);
+    }
+
+    /**
+     * Constructor for subclasses that manage their own values collection lazily and do not
+     * need the base class to pre-allocate the backing collection.
+     */
+    protected MultiValuedBinaryDocValuesField(String name, ValueOrdering ordering, boolean eagerAllocate) {
+        super(name);
+        this.ordering = ordering;
+        this.values = eagerAllocate
+            ? (ordering == ValueOrdering.SORTED_UNIQUE ? new TreeSet<>() : new ArrayList<>(INITIAL_VALUES_CAPACITY))
+            : null;
     }
 
     public void add(BytesRef value) {
@@ -265,6 +284,36 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         public String countFieldName() {
             return name() + COUNT_FIELD_SUFFIX;
         }
+
+        /**
+         * Decodes the minimum ({@code maxMode=false}) or maximum ({@code maxMode=true}) value from a multi-value
+         * ({@code count > 1}) {@code SeparateCount} blob. Values are stored sorted, so the minimum is simply the first
+         * entry and the maximum is the last; callers must handle the {@code count <= 1} raw-passthrough case themselves.
+         */
+        public static BytesRef decodeExtreme(BytesRef raw, boolean maxMode) {
+            ByteArrayStreamInput stream = new ByteArrayStreamInput();
+            stream.reset(raw.bytes, raw.offset, raw.length);
+            BytesRef selectedValue = new BytesRef();
+            selectedValue.bytes = raw.bytes;
+            try {
+                if (maxMode == false) {
+                    // First value = minimum.
+                    selectedValue.length = stream.readVInt();
+                    selectedValue.offset = stream.getPosition();
+                } else {
+                    // Last value = maximum: iterate through all entries.
+                    int endPos = raw.offset + raw.length;
+                    while (stream.getPosition() < endPos) {
+                        selectedValue.length = stream.readVInt();
+                        selectedValue.offset = stream.getPosition();
+                        stream.setPosition(selectedValue.offset + selectedValue.length);
+                    }
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to decode SeparateCount extreme value", e);
+            }
+            return selectedValue;
+        }
     }
 
     /**
@@ -292,8 +341,15 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         // Held so the record* helpers can update the count on each slot without re-deriving the companion field from the document.
         private NumericDocValuesField countField;
 
+        // Lazy single-slot storage: avoids allocating the backing ArrayList until a second slot
+        // arrives. When hasSingleSlot==true and singleSlot==null, the single slot is a null
+        // (inline null). The base-class values field starts null and is promoted to an ArrayList
+        // only on the second add/addNull call.
+        private BytesRef singleSlot;
+        private boolean hasSingleSlot;
+
         public ArrayOrderInlineNull(String name) {
-            super(name, ValueOrdering.UNSORTED);
+            super(name, ValueOrdering.UNSORTED, false);
         }
 
         public String countFieldName() {
@@ -333,6 +389,23 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         /**
+         * Optimized version of {@link #recordValue(LuceneDocument, String, BytesRef)}
+         * for when it is very likely that a field has a single value.
+         */
+        public static void recordSingleValue(LuceneDocument doc, String fieldName, BytesRef value) {
+            var field = new ArrayOrderInlineNull(fieldName);
+            if (doc.putKeyIfAbsent(fieldName, field) == null) {
+                field.add(value);
+                field.countField = NumericDocValuesField.indexedField(field.countFieldName(), 1);
+                doc.addAll(List.of(field, field.countField));
+            } else {
+                // Safety net (for dotted-field flattening or duplicated field names):
+                // a field under the same name has already been registered.
+                recordValue(doc, fieldName, value);
+            }
+        }
+
+        /**
          * Looks up the per-field accumulator on the document, creating it on first use. The accumulator is registered by key (without
          * being added to the field list yet) and its always-present {@code .counts} companion is added to the document immediately.
          */
@@ -349,7 +422,20 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         @Override
         public void add(BytesRef value) {
             hasNonNullValue = true;
-            super.add(value);
+            if (values == null) {
+                if (hasSingleSlot == false) {
+                    singleSlot = value;
+                    hasSingleSlot = true;
+                } else {
+                    // Second slot: promote the lazy single-slot to the backing list.
+                    values = new ArrayList<>(INITIAL_VALUES_CAPACITY);
+                    values.add(singleSlot);
+                    values.add(value);
+                    singleSlot = null;
+                }
+            } else {
+                values.add(value);
+            }
         }
 
         /**
@@ -357,8 +443,20 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
          * {@link #count()} but not towards {@code docValuesByteCount}.
          */
         public void addNull() {
-            // The UNSORTED ordering backs values with an ArrayList, which permits null elements.
-            values.add(null);
+            if (values == null) {
+                if (hasSingleSlot == false) {
+                    // singleSlot is already null — record the null slot lazily.
+                    hasSingleSlot = true;
+                } else {
+                    // Second slot: promote to list.
+                    values = new ArrayList<>(INITIAL_VALUES_CAPACITY);
+                    values.add(singleSlot);
+                    values.add(null);
+                    singleSlot = null;
+                }
+            } else {
+                values.add(null);
+            }
         }
 
         /**
@@ -370,8 +468,17 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         @Override
+        public int count() {
+            return values != null ? values.size() : (hasSingleSlot ? 1 : 0);
+        }
+
+        @Override
         public BytesRef binaryValue() {
-            return encode(values);
+            if (values != null) {
+                return encode(values);
+            }
+            assert hasSingleSlot && singleSlot != null : "a lone null slot must not write a binary value";
+            return singleSlot;
         }
 
         /**
@@ -408,5 +515,163 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
                 throw new UncheckedIOException("Failed to get binary value", e);
             }
         }
+
+        /**
+         * Decodes the minimum ({@code maxMode=false}) or maximum ({@code maxMode=true}) non-null value from a multi-slot
+         * ({@code slotCount > 1}) {@code ArrayOrderInlineNull} blob. Values are stored in document order (not sorted) with
+         * inline nulls, so unlike {@link SeparateCount#decodeExtreme}, this must scan every slot and compare values;
+         * callers must handle the {@code slotCount <= 1} raw-passthrough case themselves. Returns {@code null} only if
+         * every slot is null, which should not occur for a real sort key (an all-null document writes no binary blob).
+         */
+        public static BytesRef decodeExtreme(BytesRef raw, int slotCount, boolean maxMode) {
+            ByteArrayStreamInput stream = new ByteArrayStreamInput();
+            stream.reset(raw.bytes, raw.offset, raw.length);
+            BytesRef extreme = null;
+            try {
+                for (int i = 0; i < slotCount; i++) {
+                    int encodedLength = stream.readVInt();
+                    if (encodedLength == 0) {
+                        // Null slot: no bytes follow.
+                        continue;
+                    }
+                    int length = encodedLength - 1;
+                    int offset = stream.getPosition();
+                    stream.setPosition(offset + length);
+                    if (extreme == null) {
+                        extreme = new BytesRef(raw.bytes, offset, length);
+                    } else {
+                        BytesRef candidate = new BytesRef(raw.bytes, offset, length);
+                        boolean candidateWins = maxMode ? candidate.compareTo(extreme) > 0 : candidate.compareTo(extreme) < 0;
+                        if (candidateWins) {
+                            extreme = candidate;
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to decode ArrayOrderInlineNull extreme value", e);
+            }
+            return extreme;
+        }
+    }
+
+    /**
+     * Format for flattened fields in strictly columnar index mode. Stores keyed slots ({@code key\0value} pairs) in DOCUMENT ORDER with
+     * inline null markers and no {@code .offsets} sidecar. Each slot carries its key inline so readers can reconstruct per-key arrays.
+     * <p>
+     * The companion {@code .counts} numeric doc values field (suffix {@link SeparateCount#COUNT_FIELD_SUFFIX}) stores the total number of
+     * slots, INCLUDING null slots. Every slot uses the same uniform encoding: {@code [valueLen+1][key\0value]}. A real value of length
+     * {@code L} is stored with a {@code L+1} prefix, so a stored prefix of {@code 0} means a null slot ({@code [0][key\0]}).
+     */
+    public static class KeyedArrayOrderInlineNull extends MultiValuedBinaryDocValuesField {
+
+        // slotBytesList.get(i) is key\0value for non-null slots, key\0 for null slots.
+        // nullMarkers.get(i) is true when slot i is null (needed to distinguish null from empty-string value).
+        // TODO: benchmark whether the lazy single-slot optimization from ArrayOrderInlineNull is worth porting here.
+        private final ArrayList<BytesRef> slotBytesList = new ArrayList<>();
+        private final BitSet nullMarkers = new BitSet();
+
+        // Held so record* helpers can update the count on each slot without re-deriving the companion from the document.
+        private NumericDocValuesField countField;
+
+        public KeyedArrayOrderInlineNull(String name) {
+            // Use eagerAllocate=false so the base-class `values` field stays null; slot state is managed here.
+            super(name, ValueOrdering.UNSORTED, false);
+        }
+
+        public String countFieldName() {
+            return name() + SeparateCount.COUNT_FIELD_SUFFIX;
+        }
+
+        /**
+         * Records a non-null keyed slot for {@code fieldName}. {@code keyedValue} must be {@code key\0value}.
+         */
+        public static void recordValue(LuceneDocument doc, String fieldName, BytesRef keyedValue) {
+            var field = getOrCreate(doc, fieldName);
+            field.addSlot(keyedValue, false);
+            field.countField.setLongValue(field.count());
+        }
+
+        /**
+         * Records a null slot for {@code fieldName}. {@code keyPlusSep} must be {@code key\0} (key bytes followed by the separator byte).
+         * The key is preserved inline so synthetic source can reconstruct which key had a null value.
+         */
+        public static void recordNull(LuceneDocument doc, String fieldName, BytesRef keyPlusSep) {
+            var field = getOrCreate(doc, fieldName);
+            field.addSlot(keyPlusSep, true);
+            field.countField.setLongValue(field.count());
+        }
+
+        /**
+         * Looks up the per-field accumulator on the document, creating it on first use. Unlike {@link ArrayOrderInlineNull}, both the
+         * binary field and the {@code .counts} companion are added immediately, because a null-only document still needs the binary blob
+         * to preserve key associations (null slots carry their key inline).
+         */
+        private static KeyedArrayOrderInlineNull getOrCreate(LuceneDocument doc, String fieldName) {
+            return (KeyedArrayOrderInlineNull) doc.getOrAddWithKey(fieldName, key -> {
+                var field = new KeyedArrayOrderInlineNull(fieldName);
+                field.countField = NumericDocValuesField.indexedField(field.countFieldName(), 0);
+                // Add both binary field and counts companion immediately; null-only docs also write a binary blob.
+                doc.addAll(List.of(field, field.countField));
+                return field;
+            });
+        }
+
+        private void addSlot(BytesRef slotBytes, boolean isNull) {
+            int idx = slotBytesList.size();
+            slotBytesList.add(slotBytes);
+            if (isNull) {
+                nullMarkers.set(idx);
+            }
+        }
+
+        @Override
+        public int count() {
+            return slotBytesList.size();
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            assert slotBytesList.isEmpty() == false : "binaryValue called on an empty KeyedArrayOrderInlineNull field";
+            return encode(slotBytesList, nullMarkers);
+        }
+
+        /**
+         * Encodes one or more keyed slots into the wire format: {@code [valueLen+1][key\0value]...}.
+         * Null slots are encoded as {@code [0][key\0]}.
+         * <p>
+         * The length prefix measures only the VALUE portion (not {@code key\0value}). Readers locate the key by scanning forward
+         * to the first {@code 0x00} byte after the prefix; the value immediately follows the separator for {@code valueLen} bytes.
+         */
+        static BytesRef encode(ArrayList<BytesRef> slots, BitSet nullMarkers) {
+            int slotCount = slots.size();
+            assert slotCount >= 1 : "encode(list) requires at least one slot";
+            int byteCount = 0;
+            for (BytesRef slot : slots) {
+                byteCount += slot.length;
+            }
+            int streamSize = byteCount + slotCount * VINT_MAX_BYTES;
+            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
+                for (int i = 0; i < slotCount; i++) {
+                    BytesRef slot = slots.get(i);
+                    if (nullMarkers.get(i)) {
+                        // Null slot: [0]key\0
+                        out.writeVInt(0);
+                        out.writeBytes(slot.bytes, slot.offset, slot.length);
+                    } else {
+                        // Non-null slot: [valueLen+1]key\0value
+                        // Scan for the \0 separator to compute valueLen = slot.length - keyLen - 1.
+                        int keyLen = ESVectorUtil.indexOf(slot.bytes, slot.offset, slot.length, (byte) 0);
+                        assert keyLen != -1 : "KeyedArrayOrderInlineNull slot has no separator byte: " + slot.utf8ToString();
+                        int valueLen = slot.length - keyLen - 1;
+                        out.writeVInt(valueLen + 1);
+                        out.writeBytes(slot.bytes, slot.offset, slot.length);
+                    }
+                }
+                return out.bytes().toBytesRef();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to encode keyed inline null binary value", e);
+            }
+        }
+
     }
 }

@@ -75,6 +75,7 @@ processingCommand
     | tsInfoCommand
     | userAgentCommand
     | tsCollapseCommand
+    | ipLocationCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
@@ -130,8 +131,8 @@ subquery
 
 subquerySourceCommand
     : fromCommand
-    | {this.isDevVersion()}? rowCommand
-    | {this.isDevVersion()}? timeSeriesCommand
+    | rowCommand
+    | timeSeriesCommand
     ;
 
 indexPattern
@@ -399,7 +400,7 @@ dedupCommand
     ;
 
 highlightCommand
-    : DEV_HIGHLIGHT queryText=string ON highlightFields=qualifiedNames commandNamedParameters
+    : DEV_HIGHLIGHT (prefixKeyword=identifier ASSIGN prefix=string)? queryText=string ON highlightFields=qualifiedNames commandNamedParameters
     ;
 
 qualifiedNames
@@ -416,6 +417,10 @@ registeredDomainCommand
 
 userAgentCommand
     : USER_AGENT qualifiedName ASSIGN primaryExpression commandNamedParameters
+    ;
+
+ipLocationCommand
+    : IP_LOCATION qualifiedName ASSIGN primaryExpression commandNamedParameters
     ;
 
 setCommand

@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 153429
+summary: Add APM default buckets to OTel SDK histograms
+type: bug

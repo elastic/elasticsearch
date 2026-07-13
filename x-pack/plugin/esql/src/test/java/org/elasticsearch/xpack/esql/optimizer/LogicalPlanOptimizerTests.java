@@ -1077,7 +1077,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), null);
         var join = switch (randomIntBetween(0, 2)) {
-            case 0 -> new Join(EMPTY, leftChild, rightChild, joinConfig);
+            case 0 -> new Join(Source.EMPTY, leftChild, rightChild, joinConfig, false);
             case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, false);
             case 2 -> new InlineJoin(EMPTY, leftChild, rightChild, joinConfig);
             default -> throw new IllegalArgumentException();
@@ -7763,6 +7763,23 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
     }
 
+    public void testTranslateNoFalsePositiveTimeBucketWhenEvalAliasOverridden() {
+        // Regression: when EVAL defines date_trunc(@timestamp) in a variable that is later overridden
+        // as a non-grouping STATS output, TranslateTimeSeriesAggregate incorrectly counted it as a
+        // second time bucket and threw "expected at most one time bucket" (#143697).
+        var plan = planMetrics("""
+            TS k8s
+            | EVAL tbucket = date_trunc(1h, @timestamp)
+            | STATS tbucket = max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)
+            | LIMIT 10
+            """);
+        Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+        plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
+        assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
+        assertNotNull(tsHolder.get().timeBucket());
+        assertThat(tsHolder.get().timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+    }
+
     public void testTranslateWithInlineFilterWithImplicitLastOverTime() {
         var query = """
             TS k8s | STATS avg(network.bytes_in) WHERE cluster == "prod" BY bucket(@timestamp, 1 minute)
@@ -9572,6 +9589,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Exception e = expectThrows(VerificationException.class, () -> customRulesLogicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
         assertThat(e.getMessage(), containsString("additionalAttribute"));
+        assertThat(e.getMessage(), containsString("[integer]"));
     }
 
     public void testVerifierOnAttributeDatatypeChanged() {
@@ -9619,6 +9637,51 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
         Exception e = expectThrows(VerificationException.class, () -> customRulesLogicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
+        assertThat(e.getMessage(), containsString("integer -> datetime"));
+    }
+
+    public void testVerifierOnMultipleAttributeDatatypesChanged() {
+        var plan = optimizedPlan("""
+            from test
+            | stats a = min(salary), b = max(salary)
+            """);
+
+        // The plan outputs two integer reference attributes: a (position 0) and b (position 1).
+        // Change both to different types to verify that all per-position diffs appear in the message.
+        Holder<Integer> appliedCount = new Holder<>(0);
+        var customRuleBatch = new RuleExecutor.Batch<>(
+            "CustomRuleBatch",
+            RuleExecutor.Limiter.ONCE,
+            new OptimizerRules.ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext>(DOWN) {
+                @Override
+                protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext context) {
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
+                        Limit limit = as(plan, Limit.class);
+                        Limit newLimit = new Limit(plan.source(), limit.limit(), limit.child()) {
+                            @Override
+                            public List<Attribute> output() {
+                                List<Attribute> oldOutput = super.output();
+                                List<Attribute> newOutput = new ArrayList<>(oldOutput);
+                                newOutput.set(0, oldOutput.get(0).withDataType(DataType.DATETIME));
+                                newOutput.set(1, oldOutput.get(1).withDataType(DataType.KEYWORD));
+                                return newOutput;
+                            }
+                        };
+                        return newLimit;
+                    }
+                    return plan;
+                }
+            }
+        );
+        LogicalPlanOptimizer customRulesLogicalPlanOptimizer = getCustomRulesLogicalPlanOptimizer(
+            List.of(customRuleBatch),
+            logicalOptimizerCtx.minimumVersion()
+        );
+        Exception e = expectThrows(VerificationException.class, () -> customRulesLogicalPlanOptimizer.optimize(plan));
+        assertThat(e.getMessage(), containsString("Output has changed from"));
+        assertThat(e.getMessage(), containsString("integer -> datetime"));
+        assertThat(e.getMessage(), containsString("integer -> keyword"));
     }
 
     public void testTimeSeriesWithLimitZeroDoesNotFailVerifier() {

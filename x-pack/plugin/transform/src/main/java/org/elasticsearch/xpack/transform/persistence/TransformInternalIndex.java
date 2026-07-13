@@ -19,6 +19,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -79,7 +81,7 @@ public final class TransformInternalIndex {
      * of changes above. Increment this constant by one at the same time as adding a new
      * entry to the table of changes above.
      */
-    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 2;
+    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 3;
     /**
      * No longer used for determining the age of mappings, but system index descriptor
      * code requires <em>something</em> be set. We use a value that can be parsed by
@@ -371,7 +373,13 @@ public final class TransformInternalIndex {
     }
 
     private static XContentBuilder addTransformCloudCredentialMappings(XContentBuilder builder) throws IOException {
-        return builder.startObject("persisted_credential")
+        return builder.startObject(TransformConfigManager.CLOUD_CREDENTIAL_TRANSFORM_ID_FIELD)
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(TransformConfigManager.CLOUD_CREDENTIAL_TOKEN_ID_FIELD)
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject("persisted_credential")
             .startObject(PROPERTIES)
             .startObject("version")
             .field(TYPE, LONG)
@@ -400,12 +408,12 @@ public final class TransformInternalIndex {
             .endObject();
     }
 
-    protected static boolean hasLatestVersionedIndex(ClusterState state) {
-        return state.getMetadata().getProject().hasIndexAbstraction(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+    protected static boolean hasLatestVersionedIndex(ProjectMetadata project) {
+        return project.hasIndexAbstraction(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
     }
 
-    protected static boolean allPrimaryShardsActiveForLatestVersionedIndex(ClusterState state) {
-        IndexRoutingTable indexRouting = state.routingTable().index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+    protected static boolean allPrimaryShardsActiveForLatestVersionedIndex(ClusterState state, ProjectId projectId) {
+        IndexRoutingTable indexRouting = state.routingTable(projectId).index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
 
         return indexRouting != null && indexRouting.allPrimaryShardsActive() && indexRouting.readyForSearch();
     }
@@ -448,13 +456,15 @@ public final class TransformInternalIndex {
     public static void createLatestVersionedIndexIfRequired(
         ClusterService clusterService,
         Client client,
+        ProjectId projectId,
         Settings transformInternalIndexAdditionalSettings,
         ActionListener<Void> listener
     ) {
         ClusterState state = clusterService.state();
+        ProjectMetadata project = state.metadata().getProject(projectId);
         // The check for existence is against local cluster state, so very cheap
-        if (hasLatestVersionedIndex(state)) {
-            if (allPrimaryShardsActiveForLatestVersionedIndex(state)) {
+        if (hasLatestVersionedIndex(project)) {
+            if (allPrimaryShardsActiveForLatestVersionedIndex(state, projectId)) {
                 listener.onResponse(null);
                 return;
             }
@@ -477,7 +487,7 @@ public final class TransformInternalIndex {
                 // this method at the same time as this one, and also have created the index
                 // check if shards are active
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                    if (allPrimaryShardsActiveForLatestVersionedIndex(clusterService.state())) {
+                    if (allPrimaryShardsActiveForLatestVersionedIndex(clusterService.state(), projectId)) {
                         listener.onResponse(null);
                         return;
                     }

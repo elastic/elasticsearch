@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
+import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
+import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -96,8 +98,8 @@ public enum FeatureMetric {
     MV_EXPAND(MvExpand.class::isInstance),
     SHOW(ShowInfo.class::isInstance),
     ROW(Row.class::isInstance),
-    FROM(x -> x instanceof EsRelation relation && relation.indexMode() != IndexMode.TIME_SERIES),
-    TS(x -> x instanceof EsRelation relation && relation.indexMode() == IndexMode.TIME_SERIES),
+    FROM(x -> x instanceof EsRelation relation && relation.indexMode().isTsdb() == false),
+    TS(x -> x instanceof EsRelation relation && relation.indexMode().isTsdb()),
     EXTERNAL(plan -> plan instanceof org.elasticsearch.xpack.esql.plan.logical.ExternalRelation),
     DROP(Drop.class::isInstance),
     KEEP(Keep.class::isInstance),
@@ -122,6 +124,10 @@ public enum FeatureMetric {
     REGISTERED_DOMAIN(RegisteredDomain.class::isInstance),
     TS_INFO(TsInfo.class::isInstance),
     USER_AGENT(UserAgent.class::isInstance),
+    // FeatureMetric.set runs over two plans: gatherPreAnalysisMetrics walks the pre-analysis plan (still UnresolvedIpLocation),
+    // while Verifier.gatherMetrics walks the analyzed plan (resolved IpLocation). Both stages must be matched, otherwise the
+    // unmatched node would trip the "Command not mapped for telemetry" check. The shared bitset keeps the count at one per query.
+    IP_LOCATION(plan -> plan instanceof IpLocation || plan instanceof UnresolvedIpLocation),
     DEDUP(Dedup.class::isInstance),
     HIGHLIGHT(Highlight.class::isInstance),
     // IN_SUBQUERY is collected by InSubqueryResolver on the pre-resolution plan (when the
@@ -142,6 +148,7 @@ public enum FeatureMetric {
         LocalRelation.class, // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
         NamedSubquery.class, // temporary plan node used as part of view resolution, but is removed by Analyzer
         ViewShadowRelation.class, // CPS lenient-lookup marker, stripped by ViewCompactionPostAnalysis after ResolveTable
+        DatasetShadowRelation.class, // CPS lenient-lookup marker for datasets, stripped by StripDatasetShadowRelations after ResolveTable
         TimeSeriesCollapse.class, // TS_COLLAPSE is rolled into the PROMQL counter via the wrapped PromqlCommand below it
         TopNBy.class // produced by PROMQL `or` (union) translation for left-preferring dedup; otherwise only appears post-analysis
     );

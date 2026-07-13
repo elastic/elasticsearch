@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -92,6 +93,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -454,10 +456,12 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         putTransformConfiguration(transformsConfigManager, transformId);
 
         var task = mockTransformTask();
+        // NotMasterException is a transient cluster-state/master failure -- the kind the startup retry loop is meant to
+        // recover from. See testNodeOperationDoesNotRetryPermanentStartFailure for the permanent-failure counterpart.
         doAnswer(ans -> {
             ActionListener<StartTransformAction.Response> listener = ans.getArgument(1);
             if (failFirstCall.compareAndSet(true, false)) {
-                listener.onFailure(new IllegalStateException("ahhhh"));
+                listener.onFailure(new NotMasterException("not master"));
             } else {
                 listener.onResponse(new StartTransformAction.Response(true));
             }
@@ -474,6 +478,41 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             eq(transformId),
             assertArg(message -> assertThat(message, startsWith("Failed while starting Transform. Automatically retrying")))
         );
+    }
+
+    /**
+     * Regression test for the transform startup retry loop bug: a permanent start failure (the
+     * task's own state, e.g. {@link CannotStartFailedTransformException}) must not be retried --
+     * previously every startup failure was retried forever regardless of type, so a transform that
+     * failed permanently (e.g. from memory pressure) would spam
+     * "Failed while starting Transform. Automatically retrying..." until force-stopped.
+     */
+    public void testNodeOperationDoesNotRetryPermanentStartFailure() throws Exception {
+        var transformsConfigManager = new InMemoryTransformConfigManager();
+
+        var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, fastRetry(), TimeValue.ZERO);
+        var transformServices = transformServices(transformsConfigManager, transformScheduler);
+        var taskExecutor = buildTaskExecutor(transformServices);
+
+        var transformId = "testNodeOperationDoesNotRetryPermanentStartFailure";
+        var params = taskParams(transformId);
+        putTransformConfiguration(transformsConfigManager, transformId);
+
+        var task = mockTransformTask();
+        doAnswer(ans -> {
+            ActionListener<StartTransformAction.Response> listener = ans.getArgument(1);
+            listener.onFailure(new CannotStartFailedTransformException("failed state"));
+            return Void.TYPE;
+        }).when(task).start(any(), any());
+        taskExecutor.nodeOperation(task, params, mock());
+
+        // there is nothing to "skip waiting" for: no retry should have been scheduled at all
+        verify(task, times(1)).start(isNull(), any());
+        assertNull(transformScheduler.getStats().peekTransformName());
+        // the permanent failure still logs once via the pre-existing "please stop and attempt to start again" path...
+        verify(transformServices.auditor(), times(1)).audit(any(), eq(transformId), any());
+        // ...but the "Automatically retrying" loop-warning must never fire, since no retry is scheduled
+        verify(transformServices.auditor(), never()).warning(any(), any());
     }
 
     public void testNodeOperationLoadsCloudCredentialOnFirstTry() throws Exception {
@@ -696,6 +735,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         when(task.setAuthState(any(AuthorizationState.class))).thenReturn(task);
         when(task.setNumFailureRetries(anyInt())).thenReturn(task);
         when(task.getParentTaskId()).thenReturn(TaskId.EMPTY_TASK_ID);
+        when(task.getProjectId()).thenReturn(projectId.id());
         when(task.getContext()).thenReturn(mock());
         doAnswer(a -> fail(a.getArgument(0, Throwable.class))).when(task).fail(any(Throwable.class), any(String.class), any());
         when(task.getState()).thenReturn(
@@ -916,7 +956,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         var clusterService = mock(ClusterService.class);
         var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(Transform.NUM_FAILURE_RETRIES_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
-        when(clusterService.state()).thenReturn(TransformInternalIndexTests.randomTransformClusterState());
+        when(clusterService.state()).thenReturn(TransformInternalIndexTests.randomTransformClusterState(projectId));
         return clusterService;
     }
 }

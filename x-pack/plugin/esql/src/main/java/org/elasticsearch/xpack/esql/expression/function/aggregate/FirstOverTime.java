@@ -59,6 +59,8 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns the first value of each time series in the specified time range.")
         .example("first_over_time(http_requests_total[1h])")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .differenceFromPrometheus(PromqlFunctionDefinition.FIRST_LAST_NOTE)
         .name("first_over_time");
 
     private final Expression timestamp;

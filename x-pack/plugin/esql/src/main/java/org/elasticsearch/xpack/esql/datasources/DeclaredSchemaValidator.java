@@ -33,8 +33,8 @@ import java.util.TreeSet;
  *
  * <p>What is deliberately <b>not</b> checked here (deferred to first-query mapping resolution, because PUT does no
  * I/O and the files may not exist yet): that the {@code _id.path} column exists when it is inferred rather than declared; that
- * a declared {@code path}/type matches the physical file; per-format narrowing (e.g. {@code unsigned_long} is
- * Parquet-only) — the producing format is authoritative at read time.
+ * a declared {@code path}/type matches the physical file; per-format narrowing, should a format ever be unable to
+ * read a declarable type — the producing format is authoritative at read time.
  */
 public final class DeclaredSchemaValidator {
 
@@ -57,6 +57,16 @@ public final class DeclaredSchemaValidator {
         DataType.UNSIGNED_LONG,
         DataType.IP
     );
+
+    /**
+     * The types a user may declare on a dataset mapping. Exposed so a format reader's tests can pin that the reader
+     * actually builds every declarable type with the shape {@link
+     * org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions#elementTypeFor} prescribes — the drift
+     * that let a declared {@code unsigned_long} pass validation and then fail at read.
+     */
+    public static Set<DataType> declarableTypes() {
+        return DECLARABLE_TYPES;
+    }
 
     public static void validate(DatasetMapping mapping) {
         if (mapping == null) {

@@ -620,6 +620,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".kibana",
             ".kibana-devnull",
             ".reporting-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ".context-engine-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             ".apm-agent-configuration",
             ".apm-custom-link",
             ".apm-source-map",

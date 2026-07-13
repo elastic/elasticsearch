@@ -7,10 +7,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -24,7 +27,18 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
+public class SemanticClusterMetadataTests extends ESSingleNodeTestCase {
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return List.of(new Object[] { "semantic" }, new Object[] { "semantic_text" });
+    }
+
+    private final String fieldType;
+
+    public SemanticClusterMetadataTests(String fieldType) {
+        this.fieldType = fieldType;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -34,7 +48,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
     public void testCreateIndexWithSemanticTextField() {
         final IndexService indexService = createIndex(
             "test",
-            client().admin().indices().prepareCreate("test").setMapping("field", "type=semantic_text,inference_id=test_model")
+            client().admin().indices().prepareCreate("test").setMapping("field", "type=" + fieldType + ",inference_id=test_model")
         );
         assertEquals(indexService.getMetadata().getInferenceFields().get("field").getInferenceId(), "test_model");
     }
@@ -48,8 +62,16 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
-            """
-                { "properties": { "field": { "type": "semantic_text", "inference_id": "test_model" }}}""",
+            Strings.format("""
+                {
+                  "properties": {
+                    "field": {
+                      "type": "%s",
+                      "inference_id": "test_model"
+                    }
+                  }
+                }
+                """, fieldType),
             false,
             indexService.index()
         );
@@ -70,11 +92,11 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
-            """
+            Strings.format("""
                 {
                   "properties": {
                     "semantic": {
-                      "type": "semantic_text",
+                      "type": "%s",
                       "inference_id": "test_model"
                     },
                     "copy_origin_1": {
@@ -87,7 +109,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
                     }
                   }
                 }
-                """,
+                """, fieldType),
             false,
             indexService.index()
         );

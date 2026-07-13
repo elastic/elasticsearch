@@ -164,8 +164,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         Consumer<ActionListener<Void>> validateWarmCacheListener
     ) {
         return newWarmingServiceWithWarmCache(threadPool, telemetryProvider, 0L, listener -> {
-            validateWarmCacheListener.accept(listener);
             listener.onResponse(null);
+            validateWarmCacheListener.accept(listener);
         });
     }
 
@@ -549,16 +549,18 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
         }
     }
 
-    public void testWarmCacheForSearchShardRecoveryNullEndOffsetsResumesSynchronously() {
+    public void testWarmCacheForSearchShardRecoveryNullEndOffsetsUsesResumesRecoveryIndependentFromWarming() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
-            // the warm listener is now wrapped for the search-recovery warm-duration metric, so it is no longer literally
-            // ActionListener.noop(); fire-and-forget behavior is verified instead via the synchronous resume below.
-            var service = newWarmingServiceWithWarmCacheListenerCheck(threadPool, l -> {});
+            PlainActionFuture<Void> resume = new PlainActionFuture<>();
+            var service = newWarmingServiceWithWarmCacheListenerCheck(threadPool, l -> {
+                // resume is not controlled by the warm cache listener
+                assertFalse(resume.isDone());
+            });
             ClusterState state = clusterStateOneSearchReplica("idx", STARTED);
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
-            PlainActionFuture<Void> resume = new PlainActionFuture<>();
             service.warmCacheForSearchShardRecovery(state, mockIndexShard(self), null, null, null, resume);
+            // but resume is set synchronously after method returns
             assertTrue(resume.isDone());
         }
     }
@@ -569,13 +571,6 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
      */
     public void testWarmCacheForSearchShardRecoveryWithReplica() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
-            var service = newWarmingServiceWithWarmCacheListenerCheck(
-                threadPool,
-                l -> assertThat(l, not(sameInstance(ActionListener.<Void>noop())))
-            );
-            ClusterState state = clusterStateInitializingSearchReplicaWithActivePeer("idx");
-            ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
-            ShardRouting self = initializingSearchReplica(state, shardId);
             PlainActionFuture<Void> resumeFuture = new PlainActionFuture<>() {
                 @Override
                 public void onResponse(Void result) {
@@ -583,6 +578,16 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     super.onResponse(result);
                 }
             };
+            var service = newWarmingServiceWithWarmCacheListenerCheck(
+                threadPool,
+                l -> {
+                    // resume is done after warming completed
+                    assertTrue(resumeFuture.isDone());
+                }
+            );
+            ClusterState state = clusterStateInitializingSearchReplicaWithActivePeer("idx");
+            ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
+            ShardRouting self = initializingSearchReplica(state, shardId);
             service.warmCacheForSearchShardRecovery(
                 state,
                 mockIndexShard(self),
@@ -602,11 +607,13 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
      */
     public void testWarmCacheForSearchShardRecoveryNoOtherActive() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
-            var service = newWarmingServiceWithWarmCacheListenerCheck(threadPool, l -> {});
+            PlainActionFuture<Void> resume = new PlainActionFuture<>();
+            var service = newWarmingServiceWithWarmCacheListenerCheck(threadPool, l -> {
+                assertFalse(resume.isDone());
+            });
             ClusterState state = clusterStateOneSearchReplica("idx", INITIALIZING);
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
-            PlainActionFuture<Void> resume = new PlainActionFuture<>();
             service.warmCacheForSearchShardRecovery(
                 state,
                 mockIndexShard(self),

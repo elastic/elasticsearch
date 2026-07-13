@@ -499,13 +499,12 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Resolves the {@code on_failure} behavior configured on the given required field, defaulting to {@code FAIL} if the field can't be
-     * resolved to a {@link FieldMapper} (ie. an object mapper matched by a required-field name, which should not normally happen).
+     * Resolves the {@code on_failure} behavior configured on the given required field.
      */
     private FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior(String fieldName) {
-        return mappingLookup.getMapper(fieldName) instanceof FieldMapper fieldMapper
-            ? fieldMapper.onFailureBehavior()
-            : FieldMapper.DocValuesParameter.Values.OnFailure.FAIL;
+        var mapper = mappingLookup.getMapper(fieldName);
+        assert mapper instanceof FieldMapper : "required field [" + fieldName + "] must resolve to a FieldMapper, but got " + mapper;
+        return ((FieldMapper) mapper).onFailureBehavior();
     }
 
     /**

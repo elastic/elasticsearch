@@ -2078,6 +2078,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    /**
+     * Removes the result of an async esql query. Asserts that it returned {@code 200 OK}
+     * and that deleting it a second time gives a {@code 404 Not Found}.
+     */
     static void assertDeleteRemovesResult(String id) throws IOException {
         var request = prepareAsyncDeleteRequest(id);
         performRequest(request);

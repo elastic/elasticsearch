@@ -2971,11 +2971,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         return new StoppableExecutorServiceWrapper(threadPool.generic()) {
             @Override
             public void execute(Runnable command) {
-                bulkTaskCount.incrementAndGet();
                 super.execute(() -> {
                     command.run();
                     executionFinishedLatch.countDown();
                 });
+                bulkTaskCount.incrementAndGet();
             }
         };
     }

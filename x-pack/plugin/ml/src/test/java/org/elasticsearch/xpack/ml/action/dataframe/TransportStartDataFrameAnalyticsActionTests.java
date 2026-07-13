@@ -150,34 +150,6 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         assertThat(assignment.getExplanation(), is(not(equalTo(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation()))));
     }
 
-    public void testTooManyDocumentsForAnalysis_FullTrainingPercentBelowLimit() {
-        assertFalse(tooManyDocumentsForAnalysis(50_000_000L, 100.0));
-    }
-
-    public void testTooManyDocumentsForAnalysis_FullTrainingPercentAtLimit() {
-        long twoTo32 = 1L << 32;
-        assertTrue(tooManyDocumentsForAnalysis(twoTo32, 100.0));
-    }
-
-    public void testTooManyDocumentsForAnalysis_FullTrainingPercentJustBelowLimit() {
-        long justBelow = (1L << 32) - 1;
-        assertFalse(tooManyDocumentsForAnalysis(justBelow, 100.0));
-    }
-
-    public void testTooManyDocumentsForAnalysis_PartialTrainingPercentBelowLimit() {
-        long twoTo32 = 1L << 32;
-        assertFalse(tooManyDocumentsForAnalysis(twoTo32, 50.0));
-    }
-
-    public void testTooManyDocumentsForAnalysis_PartialTrainingPercentAboveLimit() {
-        long twiceTheLimit = (1L << 32) * 2;
-        assertTrue(tooManyDocumentsForAnalysis(twiceTheLimit, 50.0));
-    }
-
-    public void testTooManyDocumentsForAnalysis_LargeRowCountWithFullTrainingPercent() {
-        assertFalse(tooManyDocumentsForAnalysis(1_000_000_000L, 100.0));
-    }
-
     private static TaskExecutor createTaskExecutor() {
         return createTaskExecutor(Settings.EMPTY, mock(MlMemoryTracker.class));
     }

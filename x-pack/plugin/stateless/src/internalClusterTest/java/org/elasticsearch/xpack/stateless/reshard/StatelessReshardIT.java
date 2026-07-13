@@ -3569,8 +3569,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         String targetIndexNode = startIndexNode();
         ensureStableCluster(5);
 
-        // Block the target's SHARD_STARTED notification so routing stays
-        // !started while resharding metadata is HANDOFF.
+        // Block the target's SHARD_STARTED notification so routing stays !started
+        // while resharding metadata is HANDOFF.
         CountDownLatch allowShardStarted = new CountDownLatch(1);
         MockTransportService targetTransport = MockTransportService.getInstance(targetIndexNode);
         targetTransport.addSendBehavior((connection, requestId, action, request, options) -> {

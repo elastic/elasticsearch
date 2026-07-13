@@ -530,15 +530,15 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         // resolution under PARTITION_COLUMNS_KEY. This is what makes the guard survive to the DATA-NODE fold,
         // where the coordinator-only FileList is UNRESOLVED. A null/absent/empty key yields the empty set (an
         // unpartitioned source is unguarded, so its physical columns serve normally).
-        assertEquals(Set.of(), ExternalSourceAggregatePushdown.partitionColumnNames(null));
-        assertEquals(Set.of(), ExternalSourceAggregatePushdown.partitionColumnNames(Map.of()));
+        assertEquals(Set.of(), SourceStatisticsSerializer.partitionColumnNames(null));
+        assertEquals(Set.of(), SourceStatisticsSerializer.partitionColumnNames(Map.of()));
         assertEquals(
             Set.of("p"),
-            ExternalSourceAggregatePushdown.partitionColumnNames(Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("p")))
+            SourceStatisticsSerializer.partitionColumnNames(Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("p")))
         );
         assertEquals(
             Set.of("year", "month"),
-            ExternalSourceAggregatePushdown.partitionColumnNames(
+            SourceStatisticsSerializer.partitionColumnNames(
                 Map.of(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.of("year", "month"))
             )
         );

@@ -257,12 +257,9 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         this.shardToNodeIds = computeShardToNodeIds(dataPath);
         if (in.getTransportVersion().supports(CACHE_METADATA_IN_CLUSTER_INFO)) {
             this.shardCacheSizes = in.readImmutableMap(ShardId::new, BoostedAndUnboostedCacheSizes::new);
-        } else {
-            this.shardCacheSizes = Map.of();
-        }
-        if (in.getTransportVersion().supports(CACHE_METADATA_IN_CLUSTER_INFO)) {
             this.nodeCacheUsage = in.readImmutableMap(StreamInput::readString, CurrentCacheUsage::new);
         } else {
+            this.shardCacheSizes = Map.of();
             this.nodeCacheUsage = Map.of();
         }
     }
@@ -344,8 +341,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         }
         if (out.getTransportVersion().supports(CACHE_METADATA_IN_CLUSTER_INFO)) {
             out.writeMap(this.shardCacheSizes, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
-        }
-        if (out.getTransportVersion().supports(CACHE_METADATA_IN_CLUSTER_INFO)) {
             out.writeMap(this.nodeCacheUsage, StreamOutput::writeString, StreamOutput::writeWriteable);
         }
     }

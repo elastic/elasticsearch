@@ -18,7 +18,6 @@ import java.io.IOException;
 /**
  * Cache size requirements for a shard, split by boosted and unboosted cache accounting.
  */
-// TODO: replace the serverless record with this record instead
 public record BoostedAndUnboostedCacheSizes(long boostedCacheSizeInBytes, long unboostedCacheSizeInBytes) implements Writeable {
     /// Sentinel indicating that no cache size for boosted/unboosted data applies.
     public static final long NO_BOOSTED_OR_UNBOOSTED_CACHE_SIZE = -1L;

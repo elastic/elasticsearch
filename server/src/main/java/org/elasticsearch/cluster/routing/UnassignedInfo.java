@@ -362,12 +362,11 @@ public record UnassignedInfo(
             out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
         } else if (reason.equals(Reason.RECOVERY_CANCELLED)
             && out.getTransportVersion().supports(UNASSIGNEDINFO_RECOVERY_CANCELLED) == false) {
-                // TODO: Currently, the master never triggers direct cancellation. When added, the usage of direct
-                // cancellation will be gated by a minimum cluster wide transport version.
+                // TODO: edit/remove this comment once #153670 merges.
+                // Direct cancellation will be gated by a min cluster-wide transport version > UNASSIGNEDINFO_RECOVERY_CANCELLED
                 assert false;
-                out.writeByte(
-                    failedAllocations > 0 ? (byte) Reason.ALLOCATION_FAILED.ordinal() : (byte) Reason.MANUAL_ALLOCATION.ordinal()
-                );
+                final Reason fallbackReason = failedAllocations > 0 ? Reason.ALLOCATION_FAILED : Reason.MANUAL_ALLOCATION;
+                out.writeByte((byte) fallbackReason.ordinal());
             } else {
                 out.writeByte((byte) reason.ordinal());
             }

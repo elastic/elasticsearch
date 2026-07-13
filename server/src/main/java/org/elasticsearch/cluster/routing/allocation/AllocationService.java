@@ -234,11 +234,9 @@ public class AllocationService {
                     );
                 }
                 final UnassignedInfo currentUnassignedInfo = failedShard.unassignedInfo();
+                final Exception cause = failedShardEntry.failure();
                 final int failedAllocations = currentUnassignedInfo != null ? currentUnassignedInfo.failedAllocations() : 0;
-                final boolean cancelledByMaster = ExceptionsHelper.unwrap(
-                    failedShardEntry.failure(),
-                    RecoveryCancelledException.class
-                ) != null;
+                final boolean cancelledByMaster = ExceptionsHelper.unwrap(cause, RecoveryCancelledException.class) != null;
                 final Set<String> failedNodeIds;
                 if (currentUnassignedInfo != null) {
                     if (cancelledByMaster == false) {
@@ -255,7 +253,7 @@ public class AllocationService {
                 final UnassignedInfo updatedUnassignedInfo = new UnassignedInfo(
                     cancelledByMaster ? UnassignedInfo.Reason.RECOVERY_CANCELLED : UnassignedInfo.Reason.ALLOCATION_FAILED,
                     message,
-                    failedShardEntry.failure(),
+                    cause,
                     cancelledByMaster ? failedAllocations : failedAllocations + 1,
                     currentNanoTime,
                     System.currentTimeMillis(),

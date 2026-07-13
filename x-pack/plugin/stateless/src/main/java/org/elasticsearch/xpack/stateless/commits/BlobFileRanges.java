@@ -256,7 +256,12 @@ public class BlobFileRanges implements Writeable {
         assert blobLocation.equals(other.blobLocation)
             : "Cannot reconcile BlobFileRanges with different blob locations: " + blobLocation + " vs " + other.blobLocation;
 
-        return new BlobFileRanges(blobLocation, reconcileReplicatedRanges(other), reconcileTimestampRange(other));
+        final NavigableMap<Long, ReplicatedByteRange> reconciledReplicatedRanges = reconcileReplicatedRanges(other);
+        final StatelessCompoundCommit.TimestampFieldValueRange reconcileTimestampRange = reconcileTimestampRange(other);
+        if (Objects.equals(replicatedRanges, reconciledReplicatedRanges) && Objects.equals(timestampRange, reconcileTimestampRange)) {
+            return this;
+        }
+        return new BlobFileRanges(blobLocation, reconciledReplicatedRanges, reconcileTimestampRange);
     }
 
     private StatelessCompoundCommit.TimestampFieldValueRange reconcileTimestampRange(final BlobFileRanges other) {

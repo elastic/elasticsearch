@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -352,11 +353,24 @@ public abstract class FullTextFunction extends Function
                 // but for now all checks apply, except for MV_EXPAND which can be used before a runtime search function
                 if ((lp instanceof MvExpand && exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) == false
                     && commandCheck.test(lp) == false) {
+                    if (lp instanceof ExternalRelation externalRelation) {
+                        // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)
+                        // fail here regardless of position. Name the actual limitation instead of the generic positional
+                        // message below, which reads like the function is misplaced rather than unsupported on this source.
+                        failures.add(
+                            fail(
+                                plan,
+                                "{} is not supported on federated data sources [{}]; it requires an index. Use "
+                                    + "MATCH(field, \"term\") for full-text search on non-indexed data.",
+                                typeErrorMsgProvider.apply(exp),
+                                externalRelation.datasetName() != null ? externalRelation.datasetName() : lp.sourceText()
+                            )
+                        );
+                        return;
+                    }
                     String sourceText = lp.sourceText();
                     String errorMessage;
-                    if (lp instanceof ExternalRelation) {
-                        errorMessage = "[" + sourceText + "]";
-                    } else if (lp instanceof UnionAll) {
+                    if (lp instanceof UnionAll) {
                         errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
                             ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
                             : sourceText;
@@ -432,13 +446,18 @@ public abstract class FullTextFunction extends Function
 
             plan.forEachExpression(function.getClass(), m -> {
                 if (function.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
+                    String fieldName = field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText();
+                    String federatedSourceClause = isFieldFromFederatedSource(plan, field)
+                        ? " (the source is a federated data source, not an index)"
+                        : "";
                     failures.add(
                         fail(
                             field,
-                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
+                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping{}",
                             m.functionName(),
                             m.functionType(),
-                            field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText()
+                            fieldName,
+                            federatedSourceClause
                         )
                     );
                 }
@@ -657,5 +676,50 @@ public abstract class FullTextFunction extends Function
             }
         });
         return hasSubquery.get();
+    }
+
+    /**
+     * Whether {@code field} originates - possibly through one or more {@code RENAME}/{@code Project} aliases -
+     * from an output attribute of an {@link ExternalRelation} in {@code plan}, i.e. the field is backed by a
+     * federated (non-Lucene) data source rather than a genuinely unmapped/computed expression on a real index.
+     * <p>
+     * This is only reachable for {@link MatchPhrase} and {@link org.elasticsearch.xpack.esql.expression.function.vector.Knn}
+     * - the {@link SingleFieldFullTextFunction}s whose {@link #isRuntimeSearch()} is {@code false}; {@link Match} returns
+     * from {@link #fieldVerifier} before this is ever called.
+     * <p>
+     * Only {@code RENAME}/{@code Project} chains are followed here; {@code MV_EXPAND} and {@code FORK} are deliberately
+     * not chased. For {@code MatchPhrase}/{@code Knn}, both commands are already unconditionally rejected by the
+     * general position check in {@link #checkCommandsBeforeExpression} - neither function overrides
+     * {@link #isRuntimeSearch()}, so no exemption applies to either. A query that reaches this method through an
+     * intervening {@code MV_EXPAND} or {@code FORK} is therefore already guaranteed to fail on that unrelated,
+     * always-present error; chasing through them would only cosmetically enrich an already-doomed second message,
+     * never change whether the query is accepted. {@code RENAME} is different: it's allowed to precede these
+     * functions, so it's the only chain that determines whether the sole failure message correctly names the
+     * federation limitation on an otherwise-valid query.
+     */
+    private static boolean isFieldFromFederatedSource(LogicalPlan plan, Expression field) {
+        Expression fieldExpression = field;
+        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+            fieldExpression = convertFunction.field();
+        }
+        if (fieldExpression instanceof Attribute == false) {
+            return false;
+        }
+
+        AttributeMap.Builder<Attribute> aliases = AttributeMap.builder();
+        List<ExternalRelation> externalRelations = new ArrayList<>();
+        plan.forEachDown(p -> {
+            if (p instanceof ExternalRelation externalRelation) {
+                externalRelations.add(externalRelation);
+            } else if (p instanceof Project project) {
+                for (NamedExpression ne : project.projections()) {
+                    // Projections are just aliases for attributes, so casting is safe.
+                    aliases.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
+                }
+            }
+        });
+
+        Attribute resolved = aliases.build().resolve(fieldExpression, (Attribute) fieldExpression);
+        return externalRelations.stream().anyMatch(er -> er.output().stream().anyMatch(a -> a.id().equals(resolved.id())));
     }
 }

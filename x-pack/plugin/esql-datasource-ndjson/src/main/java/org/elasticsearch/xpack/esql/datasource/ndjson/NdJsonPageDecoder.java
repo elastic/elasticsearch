@@ -24,7 +24,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -50,6 +49,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.time.DateTimeException;
 import java.util.ArrayList;
@@ -1340,17 +1340,14 @@ public class NdJsonPageDecoder implements Closeable {
         // Builders setup independently as we need to create new ones for each page.
         void setupBuilders(Block.Builder[] blockBuilders) {
             if (dataType != null) {
-                blockBuilder = switch (dataType) {
-                    // Keep in sync with NdJsonSchemaInferrer.inferValueSchema
-                    case BOOLEAN -> blockFactory.newBooleanBlockBuilder(batchSize);
-                    case NULL -> new ConstantNullBlock.Builder(blockFactory);
-                    case INTEGER -> blockFactory.newIntBlockBuilder(batchSize);
-                    case LONG -> blockFactory.newLongBlockBuilder(batchSize);
-                    case DOUBLE -> blockFactory.newDoubleBlockBuilder(batchSize);
-                    case KEYWORD, TEXT, IP -> blockFactory.newBytesRefBlockBuilder(batchSize);
-                    case DATETIME -> blockFactory.newLongBlockBuilder(batchSize); // milliseconds since epoch
-                    default -> throw unsupportedTypeForNdjson(dataType);
-                };
+                // The type -> block-shape mapping is not re-derived here: it belongs to the declared-read SPI,
+                // which delegates the enumeration to PlannerUtils.toElementType. A reader-local copy of it is
+                // exactly how unsigned_long came to pass dataset validation and then throw at page setup.
+                try {
+                    blockBuilder = DeclaredTypeCoercions.builderFor(dataType, blockFactory, batchSize);
+                } catch (IllegalArgumentException e) {
+                    throw unsupportedTypeForNdjson(dataType, e);
+                }
                 blockBuilders[blockIdx] = blockBuilder;
             }
 
@@ -1363,14 +1360,20 @@ public class NdJsonPageDecoder implements Closeable {
 
         /**
          * The declared type passed create + resolution (it is in {@code DeclaredSchemaValidator.DECLARABLE_TYPES})
-         * but NDJSON has no builder/decoder arm for it — for example {@code unsigned_long}, which no text format
-         * reads yet. Names the column and type so the failure is actionable rather than a bare internal error.
-         * Reserved for the {@code default} arm of the two type switches: an unexpected value there is a coverage
-         * gap, not a routine per-record condition.
+         * but NDJSON has no decoder arm for it, or the declared-read SPI has no block shape for it. Names the
+         * column and type so the failure is actionable rather than a bare internal error.
+         * Raised from builder setup, where the SPI rejects the type, and from the {@code default} arm of the value
+         * decode switch. Either is a coverage gap, not a routine per-record condition: a bad <em>value</em> of a
+         * supported type takes the per-cell error policy instead.
          */
         private IllegalArgumentException unsupportedTypeForNdjson(DataType type) {
+            return unsupportedTypeForNdjson(type, null);
+        }
+
+        private IllegalArgumentException unsupportedTypeForNdjson(DataType type, Throwable cause) {
             return new IllegalArgumentException(
-                "column [" + name + "] has declared type [" + type.typeName() + "] which is not supported for NDJSON reads"
+                "column [" + name + "] has declared type [" + type.typeName() + "] which is not supported for NDJSON reads",
+                cause
             );
         }
 
@@ -1670,6 +1673,7 @@ public class NdJsonPageDecoder implements Closeable {
                 case BOOLEAN -> decodeBooleanValue(parser, token, inArray);
                 case INTEGER -> decodeIntValue(parser, token, inArray);
                 case LONG -> decodeLongValue(parser, token, inArray);
+                case UNSIGNED_LONG -> decodeUnsignedLongValue(parser, token, inArray);
                 case DOUBLE -> decodeDoubleValue(parser, token, inArray);
                 case DATETIME -> decodeDatetimeValue(parser, token, inArray);
                 case KEYWORD, TEXT -> {
@@ -1783,6 +1787,38 @@ public class NdJsonPageDecoder implements Closeable {
                 }
             } else {
                 crossKindDrift(parser, inArray, DataType.LONG); // boolean in a number column: unsupported cross-kind drift
+            }
+        }
+
+        /**
+         * The {@code unsigned_long} twin of {@link #decodeLongValue}. A JSON integer is read as a
+         * {@link BigInteger} rather than a {@code long} because the interesting half of the domain --
+         * {@code (2^63, 2^64)} -- does not fit a signed long and would trip {@code getLongValue}. Float and
+         * string tokens go through the same {@link DeclaredTypeCoercions#coerceToUnsignedLong} scalar the CSV
+         * and columnar readers use, so truncation-toward-zero and the {@code [0, 2^64-1]} range check are
+         * identical across every format. A bad value fails the cell through the error policy; only a
+         * cross-kind token (a boolean in a numeric column) takes the drift path.
+         */
+        private void decodeUnsignedLongValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_NUMBER_INT) {
+                try {
+                    long encoded = DeclaredTypeCoercions.coerceToUnsignedLong(parser.getBigIntegerValue());
+                    ((LongBlock.Builder) blockBuilder).appendLong(encoded);
+                } catch (IllegalArgumentException | InputCoercionException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.UNSIGNED_LONG);
+                }
+            } else if (token == JsonToken.VALUE_NUMBER_FLOAT || token == JsonToken.VALUE_STRING) {
+                try {
+                    long encoded = DeclaredTypeCoercions.coerceToUnsignedLong(parser.getValueAsString());
+                    ((LongBlock.Builder) blockBuilder).appendLong(encoded);
+                } catch (IllegalArgumentException e) {
+                    // coerceToUnsignedLong signals every bad token with an IllegalArgumentException (its range guard,
+                    // the ArithmeticException remap, and the NumberFormatException subclass from BigDecimal); unlike
+                    // strictParseBoolean it never throws InvalidArgumentException, so one catch clause covers it.
+                    coercionFailure(blockBuilder, parser, inArray, DataType.UNSIGNED_LONG);
+                }
+            } else {
+                crossKindDrift(parser, inArray, DataType.UNSIGNED_LONG);
             }
         }
 

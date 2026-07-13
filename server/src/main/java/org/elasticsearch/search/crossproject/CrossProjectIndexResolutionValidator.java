@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.ArrayList;
@@ -170,7 +171,11 @@ public class CrossProjectIndexResolutionValidator {
             // TODO consider sorting during index re-writing, to avoid sorting here
             var remoteExpressions = localResolvedIndices.remoteExpressions().stream().sorted().toList();
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
-            var localFailure = checkResolutionFailure(localExpressions, asOriginExpression(originalExpression));
+            var localFailure = checkResolutionFailure(
+                localExpressions,
+                asOriginExpression(originalExpression),
+                localResolvedExpressions.authorizationFailureTemplate()
+            );
 
             if (isQualifiedExpression) {
                 validateQualifiedExpression(originalExpression, remoteExpressions, localFailure);
@@ -260,7 +265,7 @@ public class CrossProjectIndexResolutionValidator {
             return notFoundFailure != null ? new IndexNotFoundException(notFoundFailure.expression()) : null;
         } else {
             var firstException = localAuthorizationFailure != null
-                ? formatAuthorizationException(localAuthorizationFailure.exception(), localUnauthorizedIndices)
+                ? formatAuthorizationException(localAuthorizationFailure.errorTemplate(), localUnauthorizedIndices)
                 : null;
 
             if (remoteAuthorizationFailures != null) {
@@ -268,7 +273,7 @@ public class CrossProjectIndexResolutionValidator {
                     final var unauthorizedIndices = remoteUnauthorizedIndices.get(e.getKey());
                     assert unauthorizedIndices.isEmpty() == false;
 
-                    var exception = formatAuthorizationException(e.getValue().exception(), unauthorizedIndices);
+                    var exception = formatAuthorizationException(e.getValue().errorTemplate(), unauthorizedIndices);
                     if (firstException == null) {
                         firstException = exception;
                     } else {
@@ -309,13 +314,10 @@ public class CrossProjectIndexResolutionValidator {
         }
     }
 
-    private static ElasticsearchSecurityException formatAuthorizationException(
-        ElasticsearchException exceptionWithPlaceholder,
-        List<String> unauthorizedIndices
-    ) {
+    private static ElasticsearchSecurityException formatAuthorizationException(String template, List<String> unauthorizedIndices) {
         return new ElasticsearchSecurityException(
-            Strings.replace(exceptionWithPlaceholder.getMessage(), "-*", Strings.collectionToCommaDelimitedString(unauthorizedIndices)),
-            exceptionWithPlaceholder.status()
+            Strings.replace(template, "-*", Strings.collectionToCommaDelimitedString(unauthorizedIndices)),
+            RestStatus.FORBIDDEN
         );
     }
 
@@ -372,7 +374,7 @@ public class CrossProjectIndexResolutionValidator {
             }
         }
 
-        return checkResolutionFailure(matchingExpression, remoteExpression);
+        return checkResolutionFailure(matchingExpression, remoteExpression, resolvedExpressionsInProject.authorizationFailureTemplate());
     }
 
     private static boolean hasProjectExclusionPrefix(ResolvedIndexExpressions localExpressions, String projectAlias) {
@@ -404,7 +406,11 @@ public class CrossProjectIndexResolutionValidator {
         return RemoteClusterAware.buildRemoteIndexName("_origin", split.indexExpression());
     }
 
-    private ResolutionFailure checkResolutionFailure(ResolvedIndexExpression.LocalExpressions localExpressions, String expression) {
+    private ResolutionFailure checkResolutionFailure(
+        ResolvedIndexExpression.LocalExpressions localExpressions,
+        String expression,
+        @Nullable String authorizationFailureTemplate
+    ) {
         assert false == (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable())
             : "Should not be checking index existence in lenient mode";
 
@@ -414,9 +420,9 @@ public class CrossProjectIndexResolutionValidator {
             if (result == CONCRETE_RESOURCE_NOT_VISIBLE) {
                 return new ResolutionFailure.NotFound(expression);
             } else if (result == CONCRETE_RESOURCE_UNAUTHORIZED) {
-                assert localExpressions.exception() != null
-                    : "ResolvedIndexExpression should have exception set when concrete index is unauthorized";
-                return new ResolutionFailure.Unauthorized(localExpressions.exception());
+                assert authorizationFailureTemplate != null
+                    : "ResolvedIndexExpression should have authorization failure template set when concrete index is unauthorized";
+                return new ResolutionFailure.Unauthorized(authorizationFailureTemplate);
             }
         }
 
@@ -456,7 +462,7 @@ public class CrossProjectIndexResolutionValidator {
     }
 
     private sealed interface ResolutionFailure {
-        record Unauthorized(ElasticsearchException exception) implements ResolutionFailure {}
+        record Unauthorized(String errorTemplate) implements ResolutionFailure {}
 
         record NotFound(String expression) implements ResolutionFailure {}
     }

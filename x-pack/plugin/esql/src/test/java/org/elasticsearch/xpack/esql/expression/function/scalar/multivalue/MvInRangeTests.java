@@ -93,6 +93,9 @@ public class MvInRangeTests extends AbstractScalarFunctionTestCase {
         addIntOpt(withNulls, List.of(2, 3), 2, 3, false, false, false); // open range with no interior integer
         addIntOpt(withNulls, List.of(3), 2, 5, false, false, true); // open range with an interior value
         addIntOpt(withNulls, List.of(2), 2, 3, true, true, true); // explicit inclusive equals the default
+        addIntOpt(withNulls, List.of(5), 5, 5, true, true, true); // closed [5, 5] matches the point value
+        addIntOpt(withNulls, List.of(5), 5, 5, false, false, false); // open (5, 5) is empty — the point does not match
+        addIntOpt(withNulls, List.of(5, 6), 5, 6, false, false, false); // open (5, 6) — no integer strictly between
 
         // Exercise the exclusive branch of each of the other three element-type kernels (long, double, bytes_ref); the
         // 3-argument suppliers above already cover the inclusive branch of every kernel.

@@ -638,10 +638,9 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
-     * mv_in_range over a keyword field pushes the range as a pre-filter but keeps the FilterExec (RECHECK): the range
-     * surfaces candidate documents and the retained evaluator re-checks them, discarding false positives (a keyword
-     * normalizer can make the indexed, normalized values differ from the evaluator's raw-bound comparison, the same
-     * divergence the comparison operators tolerate). Contrast the numeric YES cases above, which drop the FilterExec.
+     * mv_in_range over a keyword field pushes the range as a pre-filter but keeps the FilterExec (RECHECK): byte-encoded
+     * types are held conservatively out of the exact-YES set, so the range surfaces candidate documents and the retained
+     * evaluator re-checks them. Contrast the numeric YES cases above, which drop the FilterExec.
      */
     public void testMvInRangeKeywordRecheck() {
         var plan = plannerOptimizer.plan("from test | where mv_in_range(first_name, \"a\", \"m\")");
@@ -687,12 +686,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(mvInRangeQuery(plan).toString(), equalTo(expected.toString()));
     }
 
-    /**
-     * Double-family fields stay RECHECK, never YES: float/half_float/scaled_float all widen to DataType.DOUBLE, so the
-     * pushed range can be evaluated at reduced precision (the mapper rounds the bound to float/scaled precision) while the
-     * evaluator compares full doubles. Those roundings only over-match, so the range stays a superset and the retained
-     * evaluator re-checks the surfaced documents to drop the false positives — the FilterExec stays for exactly that.
-     */
     /** long, date_nanos and unsigned_long are YES types with no recheck net, so pin their per-type pushed-range shape. */
     public void testMvInRangeYesTypeFormatting() {
         var analyzer = makeAnalyzer("mapping-all-types.json");
@@ -723,6 +716,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(mvInRangeQuery(ul).toString(), equalTo(expectedUl.toString()));
     }
 
+    /**
+     * Double-family fields stay RECHECK, never YES: float/half_float/scaled_float all widen to DataType.DOUBLE, so the
+     * pushed range can be evaluated at reduced precision (the mapper rounds the bound to float/scaled precision) while the
+     * evaluator compares full doubles. Those roundings only over-match, so the range stays a superset and the retained
+     * evaluator re-checks the surfaced documents to drop the false positives — the FilterExec stays for exactly that.
+     */
     public void testMvInRangeDoubleRecheck() {
         var analyzer = makeAnalyzer("mapping-all-types.json");
         for (var field : List.of("double", "float", "scaled_float")) {
@@ -776,9 +775,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
-     * Exclusive bounds via the options map push down too. For an integral field the pushed range carries the exclusive
-     * endpoints (gt/lt) and the FilterExec is still dropped (YES). For a double (RECHECK) an exclusive zero lower bound is
-     * pushed as +0.0 (widenZeroBound normalizes inward so the range stays a superset) and the FilterExec is retained.
+     * Exclusive bounds via the options map. For an integral field the pushed range carries the exact exclusive endpoints
+     * (gt/lt) and the FilterExec is still dropped (YES). For a RECHECK field (double/keyword/…) the range is only a
+     * pre-filter, so the exclusive flags are NOT pushed — the range stays inclusive (a true superset, avoiding the inward
+     * rounding a reduced-precision mapper would apply to an exclusive bound) and the retained evaluator applies the
+     * exclusivity. (A zero double lower bound is widened outward to -0.0 to keep both signed zeros in the superset.)
      */
     public void testMvInRangeExclusivePushdown() {
         var lower = plannerOptimizer.plan("from test | where mv_in_range(salary, 25000, 30000, {\"include_lower\": false})");
@@ -791,15 +792,27 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(both.anyMatch(FilterExec.class::isInstance), is(false));
         assertThat(mvInRangeQuery(both).toString(), equalTo(unscore(rangeQuery("salary").from(25000, false).to(30000, false)).toString()));
 
+        // RECHECK type: the exclusive flags stay in the retained evaluator; the pushed range is the inclusive superset.
         var dbl = plannerOptimizer.plan(
-            "from test | where mv_in_range(double, 0.0, 1.0, {\"include_lower\": false})",
+            "from test | where mv_in_range(double, 0.0, 1.0, {\"include_lower\": false, \"include_upper\": false})",
             IS_SV_STATS,
             makeAnalyzer("mapping-all-types.json")
         );
         assertThat(dbl.anyMatch(FilterExec.class::isInstance), is(true));
         assertThat(
             mvInRangeQuery(dbl).toString(),
-            equalTo(boolQuery().filter(unscore(rangeQuery("double").from(0.0, false).to(1.0, true))).toString())
+            equalTo(boolQuery().filter(unscore(rangeQuery("double").from(-0.0, true).to(1.0, true))).toString())
+        );
+
+        var kw = plannerOptimizer.plan(
+            "from test | where mv_in_range(keyword, \"a\", \"m\", {\"include_lower\": false})",
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json")
+        );
+        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(
+            mvInRangeQuery(kw).toString(),
+            equalTo(boolQuery().filter(unscore(rangeQuery("keyword").from("a", true).to("m", true))).toString())
         );
     }
 

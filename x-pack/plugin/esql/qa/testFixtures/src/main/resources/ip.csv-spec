@@ -1003,3 +1003,15 @@ ROW ips = ["1.1.1.1", "10.0.0.5"]::ip
 ips:ip              | in_range:boolean
 [1.1.1.1, 10.0.0.5] | true
 ;
+
+mvInRangeIpEncodedOrder
+required_capability: fn_mv_in_range
+// 10.0.0.5 is in [2.0.0.0, 11.0.0.0] by IP order, but a lexical string comparison would put "10..." below "2..." and
+// return false — so this pins that the 16-byte encoded order is used, not the display string.
+ROW ip = "10.0.0.5"::ip
+| EVAL in_range = mv_in_range(ip, "2.0.0.0"::ip, "11.0.0.0"::ip)
+;
+
+ip:ip    | in_range:boolean
+10.0.0.5 | true
+;

@@ -1714,3 +1714,25 @@ ROW values = [4]
 values:integer | default:boolean | explicit:boolean
 [4]            | true            | true
 ;
+
+mvInRangeOpenPointIsFalse
+required_capability: fn_mv_in_range
+// an open range (5, 5) contains nothing, so a value on the excluded bound does not match — unlike the closed [5, 5]
+ROW values = [5]
+| EVAL open = mv_in_range(values, 5, 5, {"include_lower": false, "include_upper": false}), closed = mv_in_range(values, 5, 5)
+;
+
+values:integer | open:boolean | closed:boolean
+[5]            | false        | true
+;
+
+mvInRangeOpenAdjacentIntsIsFalse
+required_capability: fn_mv_in_range
+// no integer lies strictly between 5 and 6, so the open range (5, 6) matches nothing
+ROW values = [5, 6]
+| EVAL in_range = mv_in_range(values, 5, 6, {"include_lower": false, "include_upper": false})
+;
+
+values:integer | in_range:boolean
+[5, 6]         | false
+;

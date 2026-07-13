@@ -2908,6 +2908,10 @@ public class VerifierTests extends ESTestCase {
             "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": \"banana\" })",
             containsString("Invalid option [include_lower]")
         );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": null })",
+            containsString("Invalid option [include_lower]")
+        );
         defaultAnalyzer().error("FROM test | WHERE mv_in_range(salary, 1, 2, 5)", containsString("must be a map expression"));
     }
 

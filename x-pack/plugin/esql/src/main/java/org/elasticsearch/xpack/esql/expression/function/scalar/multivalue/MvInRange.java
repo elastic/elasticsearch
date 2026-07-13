@@ -24,6 +24,7 @@ import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -229,7 +230,7 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
             }
             // With a null field there is no field type to anchor to, so the bounds must agree with each other
             // (keyword and text agree, as everywhere else).
-            TypeResolution optionsResolution = Options.resolve(options, source(), FOURTH, ALLOWED_OPTIONS);
+            TypeResolution optionsResolution = resolveOptions();
             if (lower.dataType() != DataType.NULL
                 && upper.dataType() != DataType.NULL
                 && lower.dataType().noText() != upper.dataType().noText()) {
@@ -248,9 +249,24 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
         if (resolution.unresolved()) {
             return resolution;
         }
-        return isType(upper, t -> t.noText() == fieldType, sourceText(), THIRD, fieldType.typeName()).and(
-            Options.resolve(options, source(), FOURTH, ALLOWED_OPTIONS)
-        );
+        return isType(upper, t -> t.noText() == fieldType, sourceText(), THIRD, fieldType.typeName()).and(resolveOptions());
+    }
+
+    /**
+     * Validates the options map: known keys, boolean values, and — beyond what {@link Options#resolve} checks — a non-null
+     * value for each key. A {@code null} value parses and would otherwise unbox to an NPE when the flag is read at planning
+     * time, so it is rejected here with a friendly error instead.
+     */
+    private TypeResolution resolveOptions() {
+        return Options.resolve(options, source(), FOURTH, ALLOWED_OPTIONS, optionsMap -> {
+            for (Map.Entry<String, Object> entry : optionsMap.entrySet()) {
+                if (entry.getValue() == null) {
+                    throw new InvalidArgumentException(
+                        "Invalid option [" + entry.getKey() + "] in [" + sourceText() + "], a boolean value is required"
+                    );
+                }
+            }
+        });
     }
 
     // Must stay in lockstep with the @Param type lists, the toEvaluator switch, and the tests (unit + MvInRangeErrorTests):
@@ -428,16 +444,21 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
             return Translatable.NO;
         }
         if (pushdownPredicates.isPushableFieldAttribute(field) && isPushableBound(lower) && isPushableBound(upper)) {
-            // Integral types push an exact range, so drop the filter (YES). Everything else pushes a superset range and
-            // re-checks the surfaced rows (RECHECK) — true for double (its roundings only over-match; see widenZeroBound
-            // for the signed-zero exception) and for keyword (whose normalizer divergence the comparison operators tolerate
-            // the same way). But because this predicate is two-valued, its negation cannot be pushed: must_not(superset) is
-            // a subset of the true complement and the recheck can only drop rows, not restore them — so RECHECK_BUT_NO_NEGATED.
-            var elementType = PlannerUtils.toElementType(field.dataType());
-            boolean exact = elementType == ElementType.INT || elementType == ElementType.LONG;
-            return exact ? Translatable.YES : Translatable.RECHECK_BUT_NO_NEGATED;
+            // Integral types push an exact range, so drop the filter (YES). Everything else stays RECHECK — push a superset
+            // range and re-check the surfaced rows: the double family widens reduced-precision mappers (float/half_float/
+            // scaled_float) that round the bound outward, an over-match the retained evaluator removes; byte-encoded types
+            // (ip/version/keyword) push a faithful range but are kept conservatively out of the exact-YES set. Because this
+            // predicate is two-valued, RECHECK's negation cannot be pushed: must_not(superset) is a subset of the true
+            // complement and the recheck can only drop rows, not restore them — so RECHECK_BUT_NO_NEGATED.
+            return isExactRangeType() ? Translatable.YES : Translatable.RECHECK_BUT_NO_NEGATED;
         }
         return Translatable.NO;
+    }
+
+    /** Integral element types (integer, long, date, date_nanos, unsigned_long) whose pushed range matches the evaluator exactly. */
+    private boolean isExactRangeType() {
+        var elementType = PlannerUtils.toElementType(field.dataType());
+        return elementType == ElementType.INT || elementType == ElementType.LONG;
     }
 
     private static boolean isPushableBound(Expression bound) {
@@ -449,24 +470,30 @@ public class MvInRange extends EsqlScalarFunction implements OptionalArgument, T
         // Reuse Range's per-type bound formatting (dates, ip, version, unsigned_long). For a plain field attribute Range
         // returns the bare RangeQuery (its single-value wrap is the framework's job, not ours) — exactly the any-value
         // range semantics we want over a multivalue field.
-        boolean il = includeBound(INCLUDE_LOWER);
-        boolean iu = includeBound(INCLUDE_UPPER);
-        return new Range(source(), field, widenZeroBound(lower, true, il), il, widenZeroBound(upper, false, iu), iu, null).asQuery(
+        //
+        // The pushed range must stay a superset of the evaluator's matches. Integral types push the real inclusivity (gt/lt
+        // is exact on the discrete domain, so YES can drop the filter). For the RECHECK types the range is only a pre-filter
+        // and the retained evaluator applies the exclusivity, so we push both bounds INCLUSIVE regardless of the options: an
+        // exclusive bound on a reduced-precision mapper (float/half_float/scaled_float, all widened to DOUBLE) rounds inward
+        // and would drop a boundary row that RECHECK could never restore. Inclusive keeps the range a true superset.
+        boolean exact = isExactRangeType();
+        boolean pushLower = exact ? includeBound(INCLUDE_LOWER) : true;
+        boolean pushUpper = exact ? includeBound(INCLUDE_UPPER) : true;
+        return new Range(source(), field, widenZeroBound(lower, true), pushLower, widenZeroBound(upper, false), pushUpper, null).asQuery(
             pushdownPredicates,
             handler
         );
     }
 
     /**
-     * Lucene sorts {@code -0.0} below {@code +0.0}, but this evaluator treats them equal. Widen a {@code 0.0} bound to the
-     * signed zero that keeps the pushed range a superset of the evaluator's matches. Inclusive bounds widen outward
-     * ({@code -0.0} lower, {@code +0.0} upper, so both zeros match); exclusive bounds normalize inward ({@code +0.0} lower,
-     * {@code -0.0} upper, so neither zero matches) — captured by {@code (isLower == include) ? -0.0 : 0.0}. Only doubles
-     * have a signed zero.
+     * Lucene sorts {@code -0.0} below {@code +0.0}, but this evaluator treats them equal. A double range is always pushed
+     * with inclusive bounds (it is a RECHECK pre-filter — see {@link #asQuery}), so widen a {@code 0.0} bound outward to the
+     * signed zero that includes both zeros ({@code -0.0} lower, {@code +0.0} upper), keeping the pushed range a superset.
+     * Only doubles have a signed zero.
      */
-    private Expression widenZeroBound(Expression bound, boolean isLower, boolean include) {
+    private Expression widenZeroBound(Expression bound, boolean isLower) {
         if (field.dataType() == DataType.DOUBLE && bound instanceof Literal literal && literal.value() instanceof Double d && d == 0.0) {
-            return Literal.of(literal, (isLower == include) ? -0.0 : 0.0);
+            return Literal.of(literal, isLower ? -0.0 : 0.0);
         }
         return bound;
     }

@@ -188,7 +188,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         }
         long splitDiscoveryNanos = 0L;
         if (in.getTransportVersion().supports(ESQL_SPLIT_DISCOVERY_PROFILE)) {
-            splitDiscoveryNanos = in.readLong();
+            splitDiscoveryNanos = in.readVLong();
         }
         return new EsqlQueryProfile(
             query,
@@ -254,7 +254,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             out.writeVInt(externalWarmAggregates.get());
         }
         if (out.getTransportVersion().supports(ESQL_SPLIT_DISCOVERY_PROFILE)) {
-            out.writeLong(splitDiscoveryNanos.get());
+            out.writeVLong(splitDiscoveryNanos.get());
         }
     }
 

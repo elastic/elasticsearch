@@ -914,7 +914,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     + ", and its index heap usage, "
                     + indexHeapUsage
                     + "; new node heap usage: "
-                    + nodeHeapUsages.get(sourceNodeId).nodeHeapEstimate(),
+                    + nodeHeapUsages.get(sourceNodeId).nodeHeapEstimate().totalHeapUsage(),
                 nodeHeapUsages.get(sourceNodeId).nodeHeapEstimate().totalHeapUsage(),
                 equalTo(sourceNodeHeapBeforeRelocation - shardHeapUsage - indexHeapUsage)
             );
@@ -928,7 +928,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     + ", and not its index heap usage, "
                     + indexHeapUsage
                     + "; new node heap usage: "
-                    + nodeHeapUsages.get(targetNodeId).nodeHeapEstimate(),
+                    + nodeHeapUsages.get(targetNodeId).nodeHeapEstimate().totalHeapUsage(),
                 nodeHeapUsages.get(targetNodeId).nodeHeapEstimate().totalHeapUsage(),
                 equalTo(targetNodeHeapBeforeRelocation + shardHeapUsage)
             );

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
@@ -35,13 +36,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.lessThan;
+
 public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     private static Settings defaultSettings() {
+        return schemaTtlSettings("5m");
+    }
+
+    /** {@link #defaultSettings()} with a chosen schema TTL — shrunk by the expiry-sweep tests. */
+    private static Settings schemaTtlSettings(String schemaTtl) {
         return Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.schema.ttl", schemaTtl)
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
     }
@@ -388,6 +396,15 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         assertTrue(escaped.formatConfig().contains("mode=escaped"));
     }
 
+    public void testSchemaCacheKeySeparatesTrimSpaces() {
+        // trim_spaces changes stored string values (and the null-ness of whitespace-only cells) on the
+        // same bytes, so two configs differing only in it must not share a cached schema/stats fingerprint.
+        SchemaCacheKey base = SchemaCacheKey.build("s3://b/f.csv", 1000L, ".csv", Map.of("format", "csv"));
+        SchemaCacheKey trimmed = SchemaCacheKey.build("s3://b/f.csv", 1000L, ".csv", Map.of("format", "csv", "trim_spaces", true));
+        assertNotEquals(base.formatConfig(), trimmed.formatConfig());
+        assertTrue(trimmed.formatConfig().contains("trim_spaces=true"));
+    }
+
     /**
      * Bare {@code multi_value_syntax: brackets} resolves the mode to quoted on a no-quote
      * baseline (and selects the bracket-aware record scanner everywhere), so two configs differing
@@ -558,6 +575,157 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test for the scale mechanism behind the ndjson warm-COUNT loss seen at ClickBench-100M scale:
+     * a cold multi-file scan LONGER than the schema TTL (multi-minute external scans vs the 5m default)
+     * reconciles into a cache whose entries for the scanned glob have ALL expired. Expired entries are
+     * still forEach-visible, but the first commit's {@code put()} prunes every expired entry from the
+     * LRU tail; pre-fix, files #2..N's deltas then matched nothing and were silently dropped — the
+     * multi-file whole-source fold is all-or-nothing, so the warm {@code COUNT(*)} re-scanned the
+     * entire source. Single-file sources self-healed (no sibling entry to sweep), which is exactly the
+     * bench signature: every 1file cell short-circuited even at cold ≫ TTL while multi-file cells with
+     * cold > TTL full-re-scanned. The TTL here is shrunk so the seeded entries are expired by reconcile
+     * time, standing in for "the scan outlived the TTL".
+     */
+    public void testMultiFileStripeCommitSurvivesSchemaTtlExpiry() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("500ms"))) {
+            long mtime = 1000L;
+            String pathA = "s3://bucket/data/hits_00.ndjson";
+            String pathB = "s3://bucket/data/hits_01.ndjson";
+            SchemaCacheKey keyA = SchemaCacheKey.build(pathA, mtime, ".ndjson", Map.of("format", "ndjson"));
+            SchemaCacheKey keyB = SchemaCacheKey.build(pathB, mtime, ".ndjson", Map.of("format", "ndjson"));
+            seedSchemaCache(service, keyA, pathA, "fp");
+            seedSchemaCache(service, keyB, pathB, "fp");
+
+            // Let both entries expire (but remain physically cached — expiry evicts lazily), exactly
+            // the state a scan longer than the TTL leaves behind at reconcile time.
+            Thread.sleep(1200);
+
+            Map<String, List<Map<String, Object>>> contributions = new LinkedHashMap<>();
+            contributions.put(pathA, List.of(stripeFragment(mtime, "fp", 100L, 1024L, 0, 0, 100, true, true, true)));
+            contributions.put(pathB, List.of(stripeFragment(mtime, "fp", 200L, 1024L, 0, 0, 100, true, true, true)));
+            service.reconcileSourceStatsFromContributions(contributions);
+
+            // BOTH files must retain their committed row counts: losing either forfeits the whole
+            // source's warm COUNT(*) (aggregateFileStatistics is all-or-nothing across the glob).
+            assertEquals("first-committed file must keep its stats", 100L, schemaRowCount(service, pathA));
+            assertEquals("sibling file's delta must survive the expiry sweep", 200L, schemaRowCount(service, pathB));
+        }
+    }
+
+    /** Whole-file-contribution twin of {@link #testMultiFileStripeCommitSurvivesSchemaTtlExpiry}. */
+    public void testMultiFileWholeFileCommitSurvivesSchemaTtlExpiry() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("500ms"))) {
+            long mtime = 1000L;
+            String pathA = "s3://bucket/data/hits_00.csv";
+            String pathB = "s3://bucket/data/hits_01.csv";
+            SchemaCacheKey keyA = SchemaCacheKey.build(pathA, mtime, ".csv", Map.of("format", "csv"));
+            SchemaCacheKey keyB = SchemaCacheKey.build(pathB, mtime, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, keyA, pathA, "fp");
+            seedSchemaCache(service, keyB, pathB, "fp");
+
+            Thread.sleep(1200);
+
+            Map<String, List<Map<String, Object>>> contributions = new LinkedHashMap<>();
+            contributions.put(pathA, List.of(wholeFileStats(mtime, "fp", 100L)));
+            contributions.put(pathB, List.of(wholeFileStats(mtime, "fp", 200L)));
+            service.reconcileSourceStatsFromContributions(contributions);
+
+            assertEquals("first-committed file must keep its stats", 100L, schemaRowCount(service, pathA));
+            assertEquals("sibling file's whole-file stats must survive the expiry sweep", 200L, schemaRowCount(service, pathB));
+        }
+    }
+
+    /**
+     * A single-file reconcile whose sole entry has expired must still commit its stats. There is no sibling
+     * to sweep, so the pre-write snapshot is never consulted — the lone path's live sweep finds the
+     * expired-but-still-visible entry and revives it — and {@link ExternalSourceCacheService#snapshotEntriesByPath}
+     * skips the whole-cache forEach entirely. This guards that the skip is behavior-preserving for the common
+     * single-file case (the one that would otherwise pay a doubled full-cache scan).
+     */
+    public void testSingleFileStripeCommitSurvivesSchemaTtlExpiry() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("500ms"))) {
+            long mtime = 1000L;
+            String path = "s3://bucket/data/hits_00.ndjson";
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
+            seedSchemaCache(service, key, path, "fp");
+
+            // Let the entry expire (but remain physically cached — expiry evicts lazily).
+            Thread.sleep(1200);
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(path, List.of(stripeFragment(mtime, "fp", 100L, 1024L, 0, 0, 100, true, true, true)))
+            );
+
+            assertEquals("single-file stats must survive the expiry, snapshot-skip notwithstanding", 100L, schemaRowCount(service, path));
+        }
+    }
+
+    /**
+     * The same {@code (path, mtime, fingerprint)} can live under SEVERAL cache keys — endpoint/region are
+     * {@link SchemaCacheKey} components but not config-fingerprint inputs — and a commit applies its delta to
+     * every one of them. A sibling path's earlier commit can sweep ONE twin (the older, expired one) while the
+     * other is still live; the snapshot recovery must be per key, not all-or-nothing on the live sweep, or the
+     * swept twin's delta is silently lost. Staggered seeding makes the sweep partial deterministically: the
+     * first twin outlives the TTL by reconcile time, the second does not. (If a CI stall expires the second
+     * twin too, both are recovered from the snapshot and the test still passes — it degrades to the
+     * all-swept case rather than false-failing. The one stall that WOULD false-fail is between the two
+     * seeds: a second seed landing past the first twin's TTL sweeps the first twin at seed time, before
+     * any snapshot exists to recover it from. The 3s TTL keeps that window a &gt;2.3s stall inside a
+     * two-statement gap.)
+     */
+    public void testPartialTwinSweepRecoversSweptTwinEntry() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("3s"))) {
+            long mtime = 1000L;
+            String pathA = "s3://bucket/data/hits_00.csv";
+            String pathB = "s3://bucket/data/hits_01.csv";
+            SchemaCacheKey keyA = SchemaCacheKey.build(pathA, mtime, ".csv", Map.of("format", "csv"));
+            SchemaCacheKey twinB1 = SchemaCacheKey.build(pathB, mtime, ".csv", Map.of("format", "csv", "endpoint", "https://e1"));
+            SchemaCacheKey twinB2 = SchemaCacheKey.build(pathB, mtime, ".csv", Map.of("format", "csv", "endpoint", "https://e2"));
+            seedSchemaCache(service, keyA, pathA, "fp");
+            seedSchemaCache(service, twinB1, pathB, "fp");
+            Thread.sleep(700);
+            seedSchemaCache(service, twinB2, pathB, "fp"); // still inside the TTL: seeding must not sweep the first twin
+            Thread.sleep(2500); // now twinB1 and keyA have expired; twinB2 has not
+
+            // Order matters and is honored: pathA must commit before pathB so pathA's put sweeps the expired
+            // twinB1 from the LRU tail BEFORE pathB is collected (that is the partial sweep under test). The
+            // reconcile commits whole-file entries in this LinkedHashMap's insertion order (see the
+            // LinkedHashMap in reconcileSourceStatsFromContributions), so pathA-before-pathB is deterministic
+            // here, not a filename-hashCode accident.
+            Map<String, List<Map<String, Object>>> contributions = new LinkedHashMap<>();
+            contributions.put(pathA, List.of(wholeFileStats(mtime, "fp", 100L)));
+            contributions.put(pathB, List.of(wholeFileStats(mtime, "fp", 200L)));
+            service.reconcileSourceStatsFromContributions(contributions);
+
+            assertEquals("first-committed file must keep its stats", 100L, schemaRowCount(service, keyA));
+            assertEquals("live twin must receive the delta", 200L, schemaRowCount(service, twinB2));
+            assertEquals("twin swept by the sibling commit must be recovered per key", 200L, schemaRowCount(service, twinB1));
+        }
+    }
+
+    /** The committed row count of {@code path}'s entry, read expiry-blind via forEach (get() would hide expired entries). */
+    private static Object schemaRowCount(ExternalSourceCacheService service, String path) {
+        AtomicReference<Object> found = new AtomicReference<>();
+        service.schemaCache().forEach((k, e) -> {
+            if (path.equals(k.canonicalPath())) {
+                found.set(e.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            }
+        });
+        return found.get();
+    }
+
+    /** Key-precise variant of {@link #schemaRowCount(ExternalSourceCacheService, String)} for paths cached under twin keys. */
+    private static Object schemaRowCount(ExternalSourceCacheService service, SchemaCacheKey key) {
+        AtomicReference<Object> found = new AtomicReference<>();
+        service.schemaCache().forEach((k, e) -> {
+            if (key.equals(k)) {
+                found.set(e.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            }
+        });
+        return found.get();
+    }
+
     public void testReconcileSingleCompleteStripe() throws Exception {
         // One chunk fully covers stripe 0 to EOF: complete, marker = 0, whole-file fold = 100.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
@@ -572,7 +740,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
             assertEquals(100L, enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
-            assertEquals(0L, enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            // Once the 0..K fold is complete the per-stripe bookkeeping is compacted away (it has served its
+            // purpose) so the entry weight stays O(1) — see ExternalSourceCacheService#clearStripeState.
+            assertNull(
+                "stripe bookkeeping compacted after a complete fold",
+                enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            );
         }
     }
 
@@ -715,7 +888,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 100L,
                 enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
-            assertEquals(1L, enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            assertNull(
+                "stripe bookkeeping compacted after a complete fold",
+                enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            );
         }
     }
 
@@ -856,6 +1032,34 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             ExternalSourceCacheService.coerceColumnStatsToResolvedTypes(big, names, types, true)
                 .containsKey(SourceStatisticsSerializer.columnMaxKey("l"))
         );
+    }
+
+    /**
+     * A NON-Number extremum on a numeric-typed column — cross-declaration garbage, e.g. a keyword min reconciled onto a
+     * column another dataset over the same file declares DOUBLE (the reconcile matches on path+mtime+config, never the
+     * declared type). It must be DROPPED and marked unservable so the serve safe-misses, never left in the map where
+     * {@code buildBlock}'s {@code (Number)} cast would {@code ClassCastException}. Holds on both the stripe path and the
+     * whole-file path — a non-Number extremum is never servable on a numeric column.
+     */
+    public void testCoerceColumnStatsToResolvedTypesDropsNonNumberOnNumericColumn() {
+        String[] names = { "v" };
+        DataType[] types = { DataType.DOUBLE };
+        for (boolean dropUnrepresentable : new boolean[] { false, true }) {
+            Map<String, Object> in = new LinkedHashMap<>();
+            in.put(SourceStatisticsSerializer.columnMinKey("v"), "alpha"); // keyword min landed on a DOUBLE column
+            in.put(SourceStatisticsSerializer.columnMaxKey("v"), 42.0);    // a valid Double max — must survive untouched
+            Map<String, Object> out = ExternalSourceCacheService.coerceColumnStatsToResolvedTypes(in, names, types, dropUnrepresentable);
+            assertFalse(
+                "non-Number min must be dropped (dropUnrepresentable=" + dropUnrepresentable + ")",
+                out.containsKey(SourceStatisticsSerializer.columnMinKey("v"))
+            );
+            assertEquals(
+                "and marked unservable so the serve safe-misses",
+                Boolean.TRUE,
+                out.get(SourceStatisticsSerializer.columnMinUnservableKey("v"))
+            );
+            assertEquals("a valid Double max is left intact", Double.valueOf(42.0), out.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        }
     }
 
     public void testColumnValueCountFoldsAcrossStripesAsSum() throws Exception {
@@ -1041,6 +1245,50 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test for the second, TTL-independent mechanism of the ndjson warm-COUNT loss: a many-stripe file's
+     * entry must NOT keep its per-stripe sub-entries once the whole-file 0..K fold is complete. Retaining them
+     * makes the entry weight O(stripe count); a multi-file glob of such entries overflows the schema-cache weight
+     * budget, the LRU evicts already-committed sibling entries, and the all-or-nothing multi-file warm serve
+     * re-scans. After a complete fold the entry must hold ONLY the whole-file _stats.* (no _stats.stripe.*),
+     * keeping its weight O(1) and its estimatedBytes small regardless of stripe count.
+     */
+    public void testManyStripeEntryCompactedToConstantWeightAfterCompleteFold() throws Exception {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/big.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
+            seedSchemaCache(service, key, path, "fp");
+
+            int stripes = 500;
+            long grid = 100L;
+            List<Map<String, Object>> fragments = new ArrayList<>(stripes);
+            for (int k = 0; k < stripes; k++) {
+                boolean last = k == stripes - 1;
+                fragments.add(stripeFragment(mtime, "fp", 3L, grid, k, k * grid, (k + 1) * grid, true, true, last));
+            }
+            service.reconcileSourceStatsFromContributions(Map.of(path, fragments));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "whole-file fold sums every stripe",
+                (long) stripes * 3L,
+                enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            long stripeSubEntries = enriched.safeMetadata()
+                .keySet()
+                .stream()
+                .filter(kk -> kk.startsWith(ExternalStats.STRIPE_ENTRY_PREFIX))
+                .count();
+            assertEquals("no per-stripe sub-entries retained after a complete fold", 0L, stripeSubEntries);
+            assertNull("stripe EOF marker compacted", enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            assertNull("stripe grid stamp compacted", enriched.safeMetadata().get(ExternalStats.STRIPE_GRID_KEY));
+            // The entry weight must not scale with stripe count: 500 stripes must weigh no more than a small
+            // constant over a fold-only entry (a retained-stripe entry would be tens of KB heavier).
+            assertThat("compacted entry weight must be O(1), not O(stripe count)", enriched.estimatedBytes(), lessThan(2_000L));
+        }
+    }
+
     public void testReconcileEmptyStripeFromOversizedRecord() throws Exception {
         // A record larger than the grid skips an ordinal entirely — the reader emits an explicit
         // zero-length empty fragment for it (atStripeStart & atStripeEnd). The whole-file fold counts
@@ -1066,7 +1314,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 10L,
                 enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
-            assertEquals(2L, enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            assertNull(
+                "stripe bookkeeping compacted after a complete fold",
+                enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            );
         }
     }
 
@@ -1123,7 +1374,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 stripes * rowsPerStripe,
                 enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
-            assertEquals((long) (stripes - 1), enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            assertNull(
+                "stripe bookkeeping compacted after a complete fold",
+                enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY)
+            );
         }
     }
 
@@ -1401,6 +1655,338 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         long[] noCredHash = ListingCacheKey.computeCredentialHash(Map.of("format", "parquet"));
         assertEquals(0L, noCredHash[0]);
         assertEquals(0L, noCredHash[1]);
+    }
+
+    // --- dataset-level aggregate (warm COUNT(*) survival independent of per-file entries) ---
+
+    private static SchemaCacheKey datasetKey() {
+        return SchemaCacheKey.forDatasetAggregate(
+            "s3://bucket/data/*.csv",
+            new FileSetFingerprint(111, 222),
+            "csv",
+            Map.of("format", "csv")
+        );
+    }
+
+    public void testDatasetAggregateRoundtrip() {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            SchemaCacheKey key = datasetKey();
+            assertNull("miss before put", service.getDatasetAggregate(key));
+            service.putDatasetAggregate(key, 123L, "csv", "s3://bucket/data/*.csv");
+            Map<String, Object> served = service.getDatasetAggregate(key);
+            assertNotNull(served);
+            assertEquals(123L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            // Row-count-only contract: the aggregate must never carry per-column stats, so a warm
+            // MIN/MAX can never be served from it (it would skip type normalization).
+            assertEquals(1, served.size());
+            // Neither hit nor miss is counted get-side: every resolve prefetches, including healthy warm
+            // resolves that never need the aggregate. Both counters are resolver-driven at the serve
+            // decision (needed-and-present / needed-and-absent), so they share a denominator.
+            Map<String, Object> usage = service.usageStats();
+            assertEquals(0L, usage.get("dataset_aggregate.hits"));
+            assertEquals(0L, usage.get("dataset_aggregate.misses"));
+            service.recordDatasetAggregateHit();
+            service.recordDatasetAggregateMiss();
+            Map<String, Object> after = service.usageStats();
+            assertEquals(1L, after.get("dataset_aggregate.hits"));
+            assertEquals(1L, after.get("dataset_aggregate.misses"));
+        }
+    }
+
+    public void testPendingDatasetAggregateRefusedWhenSingleGlobExceedsPathBudget() {
+        // A single glob whose file count exceeds the whole registry's path budget is refused up front
+        // (safe-miss) — never registered, so it cannot pin the heap. Observable via the pending gauge.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            int overBudget = 65_536 + 1;
+            Map<String, Long> paths = new LinkedHashMap<>();
+            for (int i = 0; i < overBudget; i++) {
+                paths.put("s3://bucket/data/f" + i + ".csv", (long) i);
+            }
+            service.registerPendingDatasetAggregate(datasetKey(), paths, overBudget, "fp", "csv", "s3://bucket/data/*.csv");
+            assertEquals("an over-budget glob registers no promise", 0, service.usageStats().get("dataset_aggregate.pending"));
+        }
+    }
+
+    public void testPendingDatasetAggregateRegistryEvictsWhenTotalPathBudgetExceeded() {
+        // Cross-descriptor path budget: many mid-size globs whose stored paths sum past the budget must
+        // evict the oldest descriptors (not just the count bound), keeping total stored paths in check.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            int pathsPerGlob = 2_000; // 33 * 2000 = 66000 > 65536, so the count bound (64) is not what trips
+            int globs = 33;
+            for (int g = 0; g < globs; g++) {
+                Map<String, Long> paths = new LinkedHashMap<>();
+                for (int i = 0; i < pathsPerGlob; i++) {
+                    paths.put("s3://bucket/g" + g + "/f" + i + ".csv", (long) i);
+                }
+                SchemaCacheKey key = SchemaCacheKey.forDatasetAggregate(
+                    "s3://bucket/g" + g + "/*.csv",
+                    new FileSetFingerprint(g, g),
+                    "csv",
+                    Map.of("format", "csv")
+                );
+                service.registerPendingDatasetAggregate(key, paths, pathsPerGlob, "fp", "csv", "s3://bucket/g" + g + "/*.csv");
+            }
+            int pending = (Integer) service.usageStats().get("dataset_aggregate.pending");
+            // Well under the count bound (64), so the path budget is what evicted, deterministically:
+            // 33 * 2000 = 66000 > 65536, dropping the single oldest descriptor (2000 paths) brings it to
+            // 64000 <= 65536, so exactly 32 survive. Pin the count to catch an eviction-order regression.
+            assertEquals(globs - 1, pending);
+        }
+    }
+
+    public void testReconcileNeverOverwritesDatasetAggregateRowCount() {
+        // Enforcement test for the dataset-marker exclusion in matchesContribution. A dataset-aggregate
+        // entry holds a WHOLE-SET row count. Here a stray contribution is crafted to match its key on
+        // EVERY other axis — same glob path, mtime 0, and (like the entry) no config fingerprint — so the
+        // isDatasetAggregate() marker guard is the ONLY thing that excludes it. Without that guard the
+        // reconcile would enrich the entry and overwrite the whole-set 100 with the contribution's 42.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String glob = "s3://bucket/data/*.csv";
+            SchemaCacheKey key = SchemaCacheKey.forDatasetAggregate(glob, new FileSetFingerprint(1, 2), "csv", Map.of("format", "csv"));
+            service.putDatasetAggregate(key, 100L, "csv", glob);
+
+            Map<String, Object> strayContribution = new LinkedHashMap<>();
+            strayContribution.put(ExternalStats.MTIME_MILLIS_KEY, 0L); // matches the dataset key's mtime
+            strayContribution.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
+            // No CONFIG_FINGERPRINT_KEY: matches the dataset entry's absent fingerprint too.
+            service.reconcileSourceStats(Map.of(glob, strayContribution));
+
+            Map<String, Object> served = service.getDatasetAggregate(key);
+            assertNotNull(served);
+            assertEquals(
+                "the dataset aggregate's whole-set count must be untouched",
+                100L,
+                served.get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
+    public void testPendingDatasetAggregateFulfilledByWholeFileReconcile() {
+        // The cold-scan flow: resolve registers the promise (per-file aggregate incomplete), the scan's
+        // reconcile proves every file whole-file complete, and the dataset aggregate materializes so the
+        // FIRST warm query survives per-file entry loss.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "s3://bucket/data/a.csv";
+            String pathB = "s3://bucket/data/b.csv";
+            SchemaCacheKey key = datasetKey();
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", "csv", "s3://bucket/data/*.csv");
+            assertNull("promise alone must not serve", service.getDatasetAggregate(key));
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L)), pathB, List.of(wholeFileStats(2000L, "fp", 200L)))
+            );
+
+            Map<String, Object> served = service.getDatasetAggregate(key);
+            assertNotNull("fully covered promise must materialize", served);
+            assertEquals(300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
+    public void testPendingDatasetAggregateFulfilledByStripeFoldReconcile() throws Exception {
+        // Same promise, but the files arrive as stripe fragments (the parallel-parse path): fulfillment
+        // must ride the committed whole-file FOLD, which requires a matching schema entry per file.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "file:///data/a.ndjson";
+            String pathB = "file:///data/b.ndjson";
+            long mtime = 1000L;
+            seedSchemaCache(service, SchemaCacheKey.build(pathA, mtime, ".ndjson", Map.of("format", "ndjson")), pathA, "fp");
+            seedSchemaCache(service, SchemaCacheKey.build(pathB, mtime, ".ndjson", Map.of("format", "ndjson")), pathB, "fp");
+            SchemaCacheKey key = datasetKey();
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, mtime, pathB, mtime), 2, "fp", "ndjson", "file:///data/*.ndjson");
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(
+                    pathA,
+                    List.of(stripeFragment(mtime, "fp", 40L, 64L, 0L, 0L, 30L, true, true, true)),
+                    pathB,
+                    List.of(stripeFragment(mtime, "fp", 60L, 64L, 0L, 0L, 30L, true, true, true))
+                )
+            );
+
+            Map<String, Object> served = service.getDatasetAggregate(key);
+            assertNotNull("stripe folds reaching whole-file completeness must fulfill the promise", served);
+            assertEquals(100L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
+    public void testPendingDatasetAggregateFulfilledByDirectDeltaFoldWithNoSeededEntry() {
+        // The eviction-pressure variant of the stripe-fold fulfillment: the files' schema entries are
+        // NOT in the cache at reconcile time (exactly the LRU pressure the dataset aggregate exists
+        // for), so the entry-side commitStripeDelta fold cannot run. Fulfillment must ride the direct
+        // per-query delta fold (foldQueryDeltaStripes) — proving the dataset promise does not depend
+        // on per-file cache survival.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "file:///data/a.ndjson";
+            String pathB = "file:///data/b.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = datasetKey();
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, mtime, pathB, mtime), 2, "fp", "ndjson", "file:///data/*.ndjson");
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(
+                    pathA,
+                    List.of(stripeFragment(mtime, "fp", 40L, 64L, 0L, 0L, 30L, true, true, true)),
+                    pathB,
+                    List.of(stripeFragment(mtime, "fp", 60L, 64L, 0L, 0L, 30L, true, true, true))
+                )
+            );
+
+            Map<String, Object> served = service.getDatasetAggregate(key);
+            assertNotNull("a whole-file-complete delta must fulfill the promise without a cached schema entry", served);
+            assertEquals(100L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
+    public void testPendingDatasetAggregateUnfulfilledByPoisonedFile() {
+        // The poison negative: one file's scan did not complete cleanly. Its contributions are
+        // discarded, the promise stays unfulfilled, and the warm query re-scans (correct-or-miss) —
+        // materializing the sum anyway would serve an under-count.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "s3://bucket/data/a.csv";
+            String pathB = "s3://bucket/data/b.csv";
+            SchemaCacheKey key = datasetKey();
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", "csv", "s3://bucket/data/*.csv");
+
+            Map<String, Object> poison = new LinkedHashMap<>();
+            poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+            service.reconcileSourceStatsFromContributions(
+                Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L)), pathB, List.of(wholeFileStats(2000L, "fp", 200L), poison))
+            );
+
+            assertNull("a poisoned file must leave the promise unfulfilled", service.getDatasetAggregate(key));
+        }
+    }
+
+    public void testPendingDatasetAggregateUnfulfilledOnMtimeMismatch() {
+        // A file modified between the resolve's listing and the scan describes a DIFFERENT file
+        // version; summing it under the promised listing identity would bind a wrong count to the key.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "s3://bucket/data/a.csv";
+            String pathB = "s3://bucket/data/b.csv";
+            SchemaCacheKey key = datasetKey();
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", "csv", "s3://bucket/data/*.csv");
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L)), pathB, List.of(wholeFileStats(2001L, "fp", 200L)))
+            );
+
+            assertNull(service.getDatasetAggregate(key));
+        }
+    }
+
+    public void testPendingDatasetAggregateUnfulfilledOnFingerprintMismatch() {
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "s3://bucket/data/a.csv";
+            String pathB = "s3://bucket/data/b.csv";
+            SchemaCacheKey key = datasetKey();
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", "csv", "s3://bucket/data/*.csv");
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L)), pathB, List.of(wholeFileStats(2000L, "other-fp", 200L)))
+            );
+
+            assertNull(service.getDatasetAggregate(key));
+        }
+    }
+
+    public void testPendingDatasetAggregateUnfulfilledOnPartialCoverage() {
+        // All-or-nothing at the dataset level: a reconcile covering only some of the promised files
+        // must not materialize a partial sum.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "s3://bucket/data/a.csv";
+            String pathB = "s3://bucket/data/b.csv";
+            SchemaCacheKey key = datasetKey();
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", "csv", "s3://bucket/data/*.csv");
+
+            service.reconcileSourceStatsFromContributions(Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L))));
+
+            assertNull(service.getDatasetAggregate(key));
+        }
+    }
+
+    public void testPendingDatasetAggregateRegistryBoundDropsOldest() {
+        // The registry is bounded; overflowing it drops the OLDEST promise, whose later fulfillment
+        // must then be a no-op (safe-miss: that dataset's first warm query re-scans).
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "s3://bucket/data/a.csv";
+            String pathB = "s3://bucket/data/b.csv";
+            Map<String, Long> paths = Map.of(pathA, 1000L, pathB, 2000L);
+            SchemaCacheKey oldest = SchemaCacheKey.forDatasetAggregate("g0", new FileSetFingerprint(0, 0), "csv", Map.of());
+            service.registerPendingDatasetAggregate(oldest, paths, 2, "fp", "csv", "g0");
+            for (int i = 1; i <= 64; i++) {
+                SchemaCacheKey k = SchemaCacheKey.forDatasetAggregate("g" + i, new FileSetFingerprint(i, i), "csv", Map.of());
+                service.registerPendingDatasetAggregate(k, paths, 2, "fp", "csv", "g" + i);
+            }
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L)), pathB, List.of(wholeFileStats(2000L, "fp", 200L)))
+            );
+
+            assertNull("evicted oldest promise must not materialize", service.getDatasetAggregate(oldest));
+            SchemaCacheKey newest = SchemaCacheKey.forDatasetAggregate("g64", new FileSetFingerprint(64, 64), "csv", Map.of());
+            Map<String, Object> served = service.getDatasetAggregate(newest);
+            assertNotNull("surviving promise must materialize", served);
+            assertEquals(300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
+    public void testPendingDatasetAggregateSingleFileRefused() {
+        // Single-file sources never take the multi-file aggregate rail (their per-file entry IS the
+        // dataset), so a one-path promise is refused at registration.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "s3://bucket/data/a.csv";
+            SchemaCacheKey key = datasetKey();
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L), 1, "fp", "csv", "s3://bucket/data/*.csv");
+            service.reconcileSourceStatsFromContributions(Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L))));
+            assertNull(service.getDatasetAggregate(key));
+        }
+    }
+
+    public void testPendingDatasetAggregateRefusedOnDuplicateListingPaths() {
+        // A comma-separated source list can name the same file twice; the scan then counts its rows
+        // TWICE (multiset), but the promise's path map deduplicates — a unique-path sum would publish
+        // an undercount relative to the scan. Registration must be refused when the unique-path count
+        // disagrees with the listing's file count, keeping the dataset on the re-scan path.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "s3://bucket/data/a.csv";
+            String pathB = "s3://bucket/data/b.csv";
+            SchemaCacheKey key = datasetKey();
+            // 3 listed files (b.csv listed twice) but only 2 unique paths.
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 3, "fp", "csv", "dup-glob");
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L)), pathB, List.of(wholeFileStats(2000L, "fp", 200L)))
+            );
+
+            assertNull("a deduplicating promise over a multiset listing must be refused", service.getDatasetAggregate(key));
+        }
+    }
+
+    public void testPendingDatasetAggregateOutlivesSchemaTtl() throws Exception {
+        // The promise is registered BEFORE the scan and fulfilled AFTER it, so its expiry horizon must
+        // be decoupled from the schema TTL: with a promise horizon tied to the schema TTL, a scan
+        // longer than the TTL (the motivating 20-minute ClickBench cell vs the 5m default) would expire
+        // its OWN promise before its own reconcile — making the whole mechanism inert exactly where it
+        // matters. Shrink the schema TTL far below the register→fulfill gap and prove fulfillment
+        // still materializes the aggregate.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("50ms"))) {
+            String pathA = "s3://bucket/data/a.csv";
+            String pathB = "s3://bucket/data/b.csv";
+            SchemaCacheKey key = datasetKey();
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", "csv", "slow-scan-glob");
+
+            Thread.sleep(200); // the "cold scan": several schema TTLs long
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L)), pathB, List.of(wholeFileStats(2000L, "fp", 200L)))
+            );
+
+            // Read immediately: the entry was written by the reconcile just above (its own TTL starts
+            // at write), so only the PROMISE's age is under test here.
+            Map<String, Object> served = service.getDatasetAggregate(key);
+            assertNotNull("a promise must outlive a scan longer than the schema TTL", served);
+            assertEquals(300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
     }
 
     // --- test helpers ---

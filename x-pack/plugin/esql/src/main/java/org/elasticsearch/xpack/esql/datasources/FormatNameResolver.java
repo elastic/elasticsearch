@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -65,9 +64,9 @@ public final class FormatNameResolver {
         ? Map.of(READER_PARQUET_RS, FORMAT_PARQUET_RS, READER_JAVA, FORMAT_PARQUET)
         : Map.of(READER_JAVA, FORMAT_PARQUET);
 
-    /** The parquet-rs reader is live iff the external-datasources umbrella and the parquet-rs sub-flag are both on. */
+    /** The parquet-rs reader is live iff the parquet-rs sub-flag is on. */
     public static boolean parquetRsEnabled() {
-        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() && ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG.isEnabled();
+        return ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG.isEnabled();
     }
 
     private FormatNameResolver() {}
@@ -106,6 +105,13 @@ public final class FormatNameResolver {
 
     /**
      * Resolves the format name from the WITH config map and/or the source path.
+     * <p>
+     * <b>Not compound-extension aware:</b> the extension fallback here is a naive last-dot, so a compound name like
+     * {@code hits.csv.gz} resolves to the codec suffix {@code "gz"}, not {@code "csv"}. A caller that keys operator
+     * dispatch or reader lookup on the format over a possibly-compressed resource must use {@link #resolveFormatName}
+     * (or {@link #resolveReader}), which routes through the compound-aware registry. Kept for the config-override-only
+     * path ({@code FileSourceFactory} passes an empty source path); {@code PushFiltersToSource} still calls it over the
+     * exec source path and so misses filter pushdown on compressed text — migrating that caller is tracked separately.
      *
      * @return the format name (e.g. "parquet", "parquet-rs", "orc"), or null if undetermined
      */
@@ -138,6 +144,20 @@ public final class FormatNameResolver {
 
     public static Set<String> supportedReaderAliases() {
         return READER_ALIAS_TO_FORMAT.keySet();
+    }
+
+    /**
+     * Resolves the format <em>name</em> (e.g. {@code "csv"}, {@code "parquet"}) using config and source path, routed
+     * through the registry so it is compound-extension aware. Unlike {@link #resolve}, which last-dots the path and
+     * would yield the compression codec suffix ({@code "gz"}) for a compound name like {@code hits.csv.gz}, this
+     * delegates to {@link #resolveReader} and reads back {@link FormatReader#formatName()} —
+     * {@link CompressionDelegatingFormatReader#formatName()} returns the wrapped format, so the result equals the
+     * format name the inferred read path ({@code FileSourceFactory}) would produce. The strict resolver keys
+     * operator-factory dispatch on the result, so it uses this rather than {@link #resolve} to avoid diverging from the
+     * read path over a compressed resource.
+     */
+    public static String resolveFormatName(Map<String, Object> config, String objectName, FormatReaderRegistry registry) {
+        return resolveReader(config, objectName, registry).formatName();
     }
 
     /**

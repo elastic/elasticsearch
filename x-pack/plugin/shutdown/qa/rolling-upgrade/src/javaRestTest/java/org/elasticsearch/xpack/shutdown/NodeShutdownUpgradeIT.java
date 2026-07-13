@@ -4,7 +4,10 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.upgrades;
+
+package org.elasticsearch.xpack.shutdown;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -24,9 +27,25 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasEntry;
 
-public class NodeShutdownUpgradeIT extends AbstractUpgradeTestCase {
+/**
+ * Exercises node shutdown records across a rolling upgrade: a node is marked for shutdown in the
+ * old cluster, another once one node is upgraded, and a third once two nodes are upgraded, then
+ * all three are asserted to still be {@code COMPLETE} once the cluster is fully upgraded.
+ * <p>
+ * Note: because each parameterized stage ({@code upgradedNodes=0,1,2,3}) both creates new
+ * shutdown records and asserts on records created by earlier stages, this test is not safe under
+ * per-test smart-retry (rerunning e.g. only {@code upgradedNodes=2} in isolation would spuriously
+ * fail, since the shutdown calls performed by the skipped earlier stages would never have run in
+ * that JVM). The whole task must be rerun together on failure.
+ */
+public class NodeShutdownUpgradeIT extends NodeShutdownRollingUpgradeTestCase {
+
     List<String> namesSorted;
     Map<String, String> nodeNameToIdMap;
+
+    public NodeShutdownUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     @SuppressWarnings("unchecked")
     @Before
@@ -40,60 +59,44 @@ public class NodeShutdownUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testShutdown() throws Exception {
         String nodeIdToShutdown;
-        switch (CLUSTER_TYPE) {
-            case OLD:
-                nodeIdToShutdown = nodeIdToShutdown(0);
-                assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
+        if (isOldCluster()) {
+            nodeIdToShutdown = nodeIdToShutdown(0);
+            assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
 
-                assertBusy(() -> assertThat(getShutdownStatus(), containsInAnyOrder(shutdownStatusCompleteFor(0))));
-                break;
+            assertBusy(() -> assertThat(getShutdownStatus(), containsInAnyOrder(shutdownStatusCompleteFor(0))));
+        } else if (isFirstMixedCluster()) {
+            // after upgrade the record still exist
+            assertBusy(() -> assertThat(getShutdownStatus(), containsInAnyOrder(shutdownStatusCompleteFor(0))));
 
-            case MIXED:
-                if (FIRST_MIXED_ROUND) {
-                    // after upgrade the record still exist
-                    assertBusy(() -> assertThat(getShutdownStatus(), containsInAnyOrder(shutdownStatusCompleteFor(0))));
+            nodeIdToShutdown = nodeIdToShutdown(1);
+            assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
 
-                    nodeIdToShutdown = nodeIdToShutdown(1);
-                    assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
+            assertBusy(
+                () -> assertThat(getShutdownStatus(), containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1)))
+            );
+        } else if (isMixedCluster()) {
+            assertBusy(
+                () -> assertThat(getShutdownStatus(), containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1)))
+            );
 
-                    assertBusy(
-                        () -> assertThat(
-                            getShutdownStatus(),
-                            containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1))
-                        )
-                    );
+            nodeIdToShutdown = nodeIdToShutdown(2);
+            assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
 
-                } else {
-                    assertBusy(
-                        () -> assertThat(
-                            getShutdownStatus(),
-                            containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1))
-                        )
-                    );
-
-                    nodeIdToShutdown = nodeIdToShutdown(2);
-                    assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
-
-                    assertBusy(
-                        () -> assertThat(
-                            getShutdownStatus(),
-                            containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1), shutdownStatusCompleteFor(2))
-                        )
-                    );
-                }
-
-                break;
-
-            case UPGRADED:
-                assertBusy(
-                    () -> assertThat(
-                        getShutdownStatus(),
-                        containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1), shutdownStatusCompleteFor(2))
-                    )
-                );
-                break;
-            default:
-                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            assertBusy(
+                () -> assertThat(
+                    getShutdownStatus(),
+                    containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1), shutdownStatusCompleteFor(2))
+                )
+            );
+        } else if (isUpgradedCluster()) {
+            assertBusy(
+                () -> assertThat(
+                    getShutdownStatus(),
+                    containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1), shutdownStatusCompleteFor(2))
+                )
+            );
+        } else {
+            throw new AssertionError("Unknown cluster upgrade stage");
         }
     }
 

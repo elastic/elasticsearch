@@ -82,6 +82,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         "multi_value_syntax",
         "header_row",
         "column_prefix",
+        "trim_spaces",
         "schema_sample_size"
     );
 
@@ -184,6 +185,55 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
                 Map.of("auth", "managed_identity", "access_key", "AKIA123", "secret_key", "secret")
             )
         );
+    }
+
+    public void testValidateDatasourceRejectsExplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of(
+            "auth",
+            "federated_identity",
+            "role_arn",
+            "arn:aws:iam::123456789012:role/example",
+            "jwt_audience",
+            "sts.amazonaws.com",
+            "region",
+            "us-east-1"
+        );
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
+        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+    }
+
+    public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of(
+            "role_arn",
+            "arn:aws:iam::123456789012:role/example",
+            "jwt_audience",
+            "sts.amazonaws.com",
+            "region",
+            "us-east-1"
+        );
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
+        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
+        var federatedValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withFederatedIdentityEnabled(() -> true);
+        var result = federatedValidator.validateDatasource(
+            Map.of(
+                "auth",
+                "federated_identity",
+                "role_arn",
+                "arn:aws:iam::123456789012:role/example",
+                "jwt_audience",
+                "sts.amazonaws.com",
+                "region",
+                "us-east-1"
+            )
+        );
+        assertEquals("arn:aws:iam::123456789012:role/example", result.get("role_arn").nonSecretValue());
+        assertFalse(result.get("role_arn").secret());
     }
 
     public void testValidateDatasourceWithSessionToken() {

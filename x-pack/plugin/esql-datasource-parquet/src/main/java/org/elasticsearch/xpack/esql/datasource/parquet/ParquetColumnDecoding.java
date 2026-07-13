@@ -90,6 +90,35 @@ final class ParquetColumnDecoding {
             && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
     }
 
+    /**
+     * Whether decoding a physical column with logical annotation {@code annotation} into an ESQL integral value
+     * ({@code long}/{@code integer}) applies a scaling factor that the raw parquet footer statistics do NOT carry, so
+     * a raw integral predicate pushed against those stats would mis-prune. This is the ground truth for the pushdown
+     * decline guard ({@code ParquetPushedExpressions.pushDeclinedForUnitMismatch}); it lives here, next to the decode
+     * transforms it summarizes, so the two cannot drift when a logical type is added:
+     * <ul>
+     *   <li>{@code DATE} — {@link #dateDaysToMillis} scales days ×86_400_000 to epoch-millis;</li>
+     *   <li>{@code TIMESTAMP(MICROS)} / {@code TIME(MICROS)} — {@link #convertTimestampToNanos} / the time nanos
+     *       multiplier scale ×1_000 to nanos ({@code MILLIS}/{@code NANOS} are identity);</li>
+     *   <li>{@code DECIMAL(scale>0)} — the value reader divides the unscaled integer by 10^scale.</li>
+     * </ul>
+     */
+    static boolean integralDecodeScalesRelativeToRawStats(LogicalTypeAnnotation annotation) {
+        if (annotation instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+            return true;
+        }
+        if (annotation instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            return ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
+        }
+        if (annotation instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time) {
+            return time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS;
+        }
+        if (annotation instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation dec) {
+            return dec.getScale() != 0;
+        }
+        return false;
+    }
+
     /** Whether scaling a {@code TIMESTAMP(MICROS)} value to epoch-nanoseconds would overflow a {@code long}. */
     static boolean microsOverflowsNanos(long micros) {
         return micros > MAX_MICROS_AS_NANOS || micros < MIN_MICROS_AS_NANOS;

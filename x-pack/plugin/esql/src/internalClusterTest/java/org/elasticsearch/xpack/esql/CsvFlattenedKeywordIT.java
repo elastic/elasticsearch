@@ -1322,8 +1322,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "FIELD_EXTRACT:path is missing",
         "FIRST_OVER_TIME:field is missing",
         "FROM_BASE64:string is missing",
-        "GREATER_THAN:rhs is missing",
-        "GREATER_THAN_OR_EQUAL:rhs is missing",
         "GREATEST:first is missing",
         "GREATEST:rest is missing",
         "IN:field is missing",
@@ -1333,8 +1331,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "LAST_OVER_TIME:field is missing",
         "LEAST:first is missing",
         "LEAST:rest is missing",
-        "LESS_THAN:rhs is missing",
-        "LESS_THAN_OR_EQUAL:rhs is missing",
         "LIKE:pattern is missing",
         "MATCH:query is missing",
         "MATCH_OPERATOR:field is missing",
@@ -1345,8 +1341,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
         // check below) and never appears here as missing.
         "NETWORK_DIRECTION:internal_networks is missing",
-        "NOT_EQUALS:lhs is missing",
-        "NOT_EQUALS:rhs is missing",
         "NOT_IN:field is missing",
         "NOT_IN:inlist is missing",
         "NOT_LIKE:pattern is missing",
@@ -1415,6 +1409,13 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         String name = (String) map.get("name");
                         if (name == null) return;
                         name = name.toUpperCase(Locale.ROOT);
+                        // NOT_EQUALS can never be exercised by this variant: ExpressionBuilder#buildComparison desugars
+                        // "!=" to Not(Equals(lhs, rhs)) at parse time (see EsqlBaseParser.NEQ), so the pre-analysis AST
+                        // this variant walks never contains a NotEquals node - only Not wrapping Equals. A keyword field
+                        // reference on either side of "!=" is therefore tracked and wrapped as an EQUALS:lhs/EQUALS:rhs
+                        // argument, never NOT_EQUALS:lhs/NOT_EQUALS:rhs, so the whole operator is excluded from
+                        // candidates here rather than left as a permanent EXPECTED_ERRORS entry.
+                        if ("NOT_EQUALS".equals(name)) return;
 
                         List<Map<String, Object>> signatures = (List<Map<String, Object>>) map.get("signatures");
                         if (signatures == null) return;

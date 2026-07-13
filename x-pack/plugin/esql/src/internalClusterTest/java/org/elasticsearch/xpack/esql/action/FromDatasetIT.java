@@ -218,14 +218,23 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "logs_bad_date_failfast",
         "logs_csv_bad_date_failfast",
         "logs_ndjson_bad_date_failfast",
-        "logs_ndjson_bad_date_permissive"
+        "logs_ndjson_bad_date_permissive",
+        "employees_divergent_multi",
+        "tsv_declared_type",
+        "tsv_declared_date",
+        "tsv_declared_rename",
+        "mapped_ds_for_view",
+        "mapped_ds_for_subquery",
+        "ndjson_mv_coerce",
+        "logs_ts_declared_long",
+        "logs_date_inferred"
     );
 
     /**
      * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
      * cluster requires explicit teardown so views don't leak across methods.
      */
-    private static final Set<String> CREATED_VIEWS = Set.of("employees_view", "employees_filtered_view");
+    private static final Set<String> CREATED_VIEWS = Set.of("employees_view", "employees_filtered_view", "mapped_dataset_view");
 
     @After
     public void cleanupViews() throws Exception {
@@ -2044,6 +2053,144 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("long"));
     }
 
+    private byte[] timestampMicrosFixtureBytes(long... microsValues) throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("message logs { required int64 ts (TIMESTAMP(MICROS,true)); }");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (long micros : microsValues) {
+                Group g = factory.newGroup();
+                g.add("ts", micros);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    private byte[] dateFixtureBytes(int... days) throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("message logs { required int32 d (DATE); }");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int day : days) {
+                Group g = factory.newGroup();
+                g.add("d", day);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    /**
+     * End-to-end regression pin for the declared-{@code long}-over-{@code TIMESTAMP(MICROS)} filter-pushdown bug:
+     * such a column decodes to epoch-NANOS, but the file's row-group statistics are in MICROS. Before the fix a
+     * pushed {@code WHERE ts == <nanos>} predicate was compared against micros stats and pruned the matching row
+     * group, so the query returned zero rows — filtering for exactly the value the column reads back found nothing.
+     */
+    public void testWhereOnDeclaredLongTimestampMatchesThroughEngine() throws Exception {
+        Path root = createTempDir();
+        long microsA = 1_600_000_000_000_000L; // reads back as 1_600_000_000_000_000_000 nanos
+        long microsB = 1_700_000_000_000_000L;
+        Files.write(root.resolve("logs.parquet"), timestampMicrosFixtureBytes(microsA, microsB));
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", new DatasetFieldMapping("long", null)); // declare the timestamp column as long (epoch-nanos)
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_ts_declared_long",
+                    "local_ds",
+                    root.toUri() + "*.parquet",
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        // Filter for exactly the nanos value the first row reads back; it must be found (row group not wrongly pruned).
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM logs_ts_declared_long | WHERE ts == 1600000000000000000 | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat("the matching row must survive filter pushdown", getValuesList(response).get(0).get(0), equalTo(1L));
+        }
+        // The IN path had the same hazard (translateLongIn); the row must survive it too.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM logs_ts_declared_long | WHERE ts IN (1600000000000000000) | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat("the matching row must survive IN pushdown", getValuesList(response).get(0).get(0), equalTo(1L));
+        }
+    }
+
+    /**
+     * End-to-end regression pin for the DATE-column filter-pushdown rounding bug (no declared mapping — a plain
+     * inferred {@code date} column). A DATE stores whole days; the row group holds day 19723 (2024-01-01). Before the
+     * fix the day bound was rounded with {@code floorDiv} for every operator, so {@code d < 2024-01-01T00:00:00.001Z}
+     * pushed {@code day < 19723} and pruned the [19723,19723] row group, and {@code d != 2024-01-01T00:00:00.001Z}
+     * pushed {@code notEq(19723)} and pruned it too — both dropped the row that genuinely matches.
+     */
+    public void testWhereLessThanAndNotEqualsOnDateColumnMatchThroughEngine() throws Exception {
+        Path root = createTempDir();
+        Files.write(root.resolve("dates.parquet"), dateFixtureBytes(19723)); // 2024-01-01, single row group
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_date_inferred",
+                    "local_ds",
+                    root.toUri() + "*.parquet",
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null // inferred: no declared mapping, the column reads back as datetime
+                )
+            )
+        );
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM logs_date_inferred | WHERE d < TO_DATETIME(\"2024-01-01T00:00:00.001Z\") | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat("the matching day must survive < pushdown", getValuesList(response).get(0).get(0), equalTo(1L));
+        }
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM logs_date_inferred | WHERE d != TO_DATETIME(\"2024-01-01T00:00:00.001Z\") | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            assertThat("the matching day must survive != pushdown", getValuesList(response).get(0).get(0), equalTo(1L));
+        }
+    }
+
     private Path writeParquetRenameFixture() throws IOException {
         Path tempFile = createTempDir().resolve("employees.parquet");
         Files.write(tempFile, parquetRenameFixtureBytes());
@@ -2207,6 +2354,252 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows, hasSize(3));
             assertThat(rows.get(0).get(0), equalTo(1L)); // declared LONG override across files
             assertThat(rows.get(2).get(0), equalTo(3L));
+        }
+    }
+
+    /**
+     * The declared schema must win uniformly across a multi-file glob whose files DISAGREE on a column's physical
+     * type — every existing glob test uses identical files, so the reconcile-under-declaration path never runs here.
+     * part1 stores {@code val} as integer, part2 as long with a value that overflows int; declared {@code val: long}
+     * reads both as long, and part2's large value survives (an inferred integer reconcile would have clashed/nulled it).
+     */
+    public void testDeclaredSchemaOverDivergentTypeMultiFileGlob() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("part1.csv"), "val:integer\n100\n");
+        Files.writeString(root.resolve("part2.csv"), "val:long\n5000000000\n"); // 5e9 > Integer.MAX_VALUE
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("val", new DatasetFieldMapping("long", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_divergent_multi",
+                    "local_ds",
+                    root.toUri() + "*.csv",
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_divergent_multi | SORT val | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(1));
+            assertThat(columns.get(0).name(), equalTo("val"));
+            assertThat(columns.get(0).outputType(), equalTo("long"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(100L));          // integer-file value read as long
+            assertThat(rows.get(1).get(0), equalTo(5000000000L));   // long-file value that would overflow an int
+        }
+    }
+
+    /** TSV (shares the CSV reader via the tsv preset): a declared type coerces the file value like CSV/Parquet. */
+    public void testTsvDeclaredTypeCoercionReadsAsDeclared() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("data.tsv"), "val:integer\tname:keyword\n100\tAlice\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("val", new DatasetFieldMapping("long", null)); // retype integer file column to long
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "tsv_declared_type",
+                    "local_ds",
+                    root.toUri() + "*.tsv",
+                    null,
+                    new HashMap<>(Map.of("format", "tsv")),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM tsv_declared_type | KEEP val | LIMIT 1"), TIMEOUT)) {
+            assertThat(response.columns().get(0).outputType(), equalTo("long"));
+            assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
+        }
+    }
+
+    /** TSV declared per-column date {@code format}: a string field declared date parses zone-aware, like the CSV path. */
+    public void testTsvDeclaredDateFormatParsesZoneAware() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("logs.tsv"), "ts:keyword\tnote:keyword\n10/Oct/2000:13:55:36 -0700\thello\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
+        properties.put("note", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "tsv_declared_date",
+                    "local_ds",
+                    root.toUri() + "*.tsv",
+                    null,
+                    new HashMap<>(Map.of("format", "tsv")),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM tsv_declared_date | EVAL ms = ts::long | KEEP ms | LIMIT 1"), TIMEOUT)) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo(ACCESS_LOG_EPOCH_MILLIS)); // -0700 offset honored
+        }
+    }
+
+    /** TSV declared rename (`path`): a logical column reads from a differently-named physical TSV column. */
+    public void testTsvDeclaredRenameReadsByPhysicalColumn() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("e.tsv"), "emp_no:integer\tfirst_name:keyword\n1\tAlice\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", "emp_no"));      // logical id <- physical emp_no
+        properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "tsv_declared_rename",
+                    "local_ds",
+                    root.toUri() + "*.tsv",
+                    null,
+                    new HashMap<>(Map.of("format", "tsv")),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM tsv_declared_rename | KEEP id, name | LIMIT 1"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns.get(0).name(), equalTo("id"));
+            assertThat(columns.get(1).name(), equalTo("name"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(0).get(0), equalTo(1L));
+            assertThat(rows.get(0).get(1), equalTo("Alice"));
+        }
+    }
+
+    /**
+     * A multivalue (array) column declared a coerced type coerces element-by-element — every element of the
+     * position is converted, not just the first, and the position keeps its multivalue shape.
+     */
+    public void testNdjsonMultiValueColumnCoercesElementwise() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("mv.ndjson"), "{\"vals\":[\"10\",\"20\",\"30\"]}\n{\"vals\":[\"40\"]}\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("vals", new DatasetFieldMapping("long", null)); // declare the string array as long
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_mv_coerce",
+                    "local_ds",
+                    root.toUri() + "*.ndjson",
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_mv_coerce | KEEP vals | LIMIT 10"), TIMEOUT)) {
+            assertThat(response.columns().get(0).outputType(), equalTo("long"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            // The 3-element position keeps all three elements, each coerced to long.
+            assertThat(rows.get(0).get(0), equalTo(List.of(10L, 20L, 30L)));
+            assertThat(rows.get(1).get(0), equalTo(40L)); // single-element position renders as a scalar
+        }
+    }
+
+    /**
+     * A view whose body targets a dataset carrying a DECLARED mapping: the declared coercion must survive view
+     * inlining (view resolution rewrites the inlined leaf into the external relation, which must keep the mapping —
+     * a dropped mapping here would silently read the file's physical type instead of the declared one).
+     */
+    public void testViewOverMappedDatasetPreservesCoercion() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("d.csv"), "val:integer\n100\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("val", new DatasetFieldMapping("long", null)); // declare integer file column as long
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mapped_ds_for_view",
+                    "local_ds",
+                    root.toUri() + "*.csv",
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("mapped_dataset_view", "FROM mapped_ds_for_view")));
+
+        try (var response = run(syncEsqlQueryRequest("FROM mapped_dataset_view | KEEP val | LIMIT 1"), TIMEOUT)) {
+            assertThat("declared type must survive view inlining", response.columns().get(0).outputType(), equalTo("long"));
+            assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
+        }
+    }
+
+    /**
+     * A dataset carrying a DECLARED mapping used inside a subquery ({@code FROM (FROM mapped)}): the declared
+     * coercion must survive the subquery planning rewrite, not just a top-level {@code FROM}.
+     */
+    public void testSubqueryOverMappedDatasetPreservesCoercion() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("d.csv"), "val:integer\n100\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("val", new DatasetFieldMapping("long", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mapped_ds_for_subquery",
+                    "local_ds",
+                    root.toUri() + "*.csv",
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM mapped_ds_for_subquery) | KEEP val | LIMIT 1"), TIMEOUT)) {
+            assertThat("declared type must survive the subquery rewrite", response.columns().get(0).outputType(), equalTo("long"));
+            assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
         }
     }
 

@@ -114,6 +114,7 @@ tasks.named('javaRestTest') {
   // Increase timeouts for S3 operations which may take longer than standard queries
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
+
   // Enable more verbose logging for debugging
   testLogging {
     events = ["passed", "skipped", "failed"]

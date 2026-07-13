@@ -25,8 +25,8 @@ import java.util.Set;
 /**
  * Parameterized integration tests for compressed NDJSON files (.ndjson.gz, .ndjson.zst, .ndjson.zstd, .ndjson.bz2, .ndjson.bz).
  * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL, GCS) and compression format.
- *  * Each csv-spec test is run against every configured storage backend and compression format.
- *  * This class runs four csv-spec files and exceeds {@link EsqlSpecTestCase}'s 10-minute suite budget.
+ * Each csv-spec test is run against every configured storage backend and compression format.
+ * This class runs four csv-spec files and exceeds {@link EsqlSpecTestCase}'s 10-minute suite budget.
  */
 @TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })

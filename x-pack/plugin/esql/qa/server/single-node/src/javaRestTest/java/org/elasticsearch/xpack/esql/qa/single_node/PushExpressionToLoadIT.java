@@ -15,6 +15,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
@@ -298,17 +299,14 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     public void testMvMinToKeywordHighCardinality() throws IOException {
         String min = "a".repeat(between(1, 256));
         String max = "b".repeat(between(1, 256));
-        test(
-            b -> b.startObject("test")
-                .field("type", "keyword")
-                .startObject("doc_values")
-                .field("cardinality", "high")
-                .endObject()
-                .endObject(),
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MIN(test)",
             matchesList().item(min),
-            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.SeparateCount", 1)
+            // High-cardinality keyword stores values as ArrayOrderInlineNull binary doc values; MV_MIN pushes down into the matching
+            // array-order reader, which skips inline nulls and computes the minimum over the non-null values.
+            matchesMap().entry("test:column_at_a_time:MvMinBytesRefsFromBinary.ArrayOrderInlineNull", 1)
         );
     }
 
@@ -423,17 +421,38 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     public void testMvMaxToKeywordHighCardinality() throws IOException {
         String min = "a".repeat(between(1, 256));
         String max = "b".repeat(between(1, 256));
-        test(
-            b -> b.startObject("test")
-                .field("type", "keyword")
-                .startObject("doc_values")
-                .field("cardinality", "high")
-                .endObject()
-                .endObject(),
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
             b -> b.startArray("test").value(min).value(max).endArray(),
             "| EVAL test = MV_MAX(test)",
             matchesList().item(max),
-            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.SeparateCount", 1)
+            // High-cardinality keyword stores values as ArrayOrderInlineNull binary doc values; MV_MAX pushes down into the matching
+            // array-order reader, which skips inline nulls and computes the maximum over the non-null values.
+            matchesMap().entry("test:column_at_a_time:MvMaxBytesRefsFromBinary.ArrayOrderInlineNull", 1)
+        );
+    }
+
+    public void testLengthToKeywordHighCardinality() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
+            // The trailing null makes the slot count 2 (nulls are counted but not stored), forcing the array-order length reader rather
+            // than the single-value fast path, while the single non-null value keeps LENGTH single-valued.
+            b -> b.startArray("test").value(value).nullValue().endArray(),
+            "| EVAL test = LENGTH(test)",
+            matchesList().item(value.length()),
+            matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.MultiValuedBinaryArrayOrderInlineNull", 1)
+        );
+    }
+
+    public void testByteLengthToKeywordHighCardinality() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        testHighCardinality(
+            b -> b.startObject("test").field("type", "keyword").endObject(),
+            b -> b.startArray("test").value(value).nullValue().endArray(),
+            "| EVAL test = BYTE_LENGTH(test)",
+            matchesList().item(value.length()),
+            matchesMap().entry("test:column_at_a_time:ByteLengthFromBytesRef.MultiValuedBinaryArrayOrderInlineNull", 1)
         );
     }
 
@@ -1197,7 +1216,42 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Map<String, List<MapMatcher>> expectedLoadersPerDriver,
         Consumer<List<String>> assertDataNodeSig
     ) throws IOException {
-        test(mapping, doc, query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, null);
+        test(mapping, doc, query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, null, null);
+    }
+
+    /**
+     * Runs a function-pushdown test against a strict-columnar index so the keyword field gets HIGH-cardinality binary doc values
+     * (the {@code ArrayOrderInlineNull} format), exercising the array-order binary block loaders instead of the SortedSet ordinal loaders.
+     */
+    private void testHighCardinality(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String eval,
+        Matcher<?> expectedValue,
+        MapMatcher expectedLoaders
+    ) throws IOException {
+        test(
+            mapping,
+            doc,
+            """
+                FROM test
+                """ + eval + """
+                | STATS test = MV_SORT(VALUES(test))
+                """,
+            expectedValue,
+            matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
+            Map.of("data", List.of(expectedLoaders)),
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("AggregationOperator")
+                    .item("ExchangeSinkOperator")
+            ),
+            null,
+            IndexMode.COLUMNAR.getName()
+        );
     }
 
     private void test(
@@ -1210,7 +1264,21 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Consumer<List<String>> assertDataNodeSig,
         Settings pragmas
     ) throws IOException {
-        indexValue(mapping, doc);
+        test(mapping, doc, query, expectedValue, columnMatcher, expectedLoadersPerDriver, assertDataNodeSig, pragmas, null);
+    }
+
+    private void test(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String query,
+        Matcher<?> expectedValue,
+        Matcher<?> columnMatcher,
+        Map<String, List<MapMatcher>> expectedLoadersPerDriver,
+        Consumer<List<String>> assertDataNodeSig,
+        Settings pragmas,
+        String indexMode
+    ) throws IOException {
+        indexValue(mapping, doc, indexMode);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(query);
         if (pragmas != null) {
             builder.pragmasOk().pragmas(pragmas);
@@ -1236,6 +1304,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
                     .entry("field_caps_calls", instanceOf(Integer.class))
+                    .entry("unmapped_fields", instanceOf(String.class))
                     .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             columnMatcher,
@@ -1269,6 +1338,14 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
 
     private void indexValue(CheckedConsumer<XContentBuilder, IOException> mapping, CheckedConsumer<XContentBuilder, IOException> doc)
         throws IOException {
+        indexValue(mapping, doc, null);
+    }
+
+    private void indexValue(
+        CheckedConsumer<XContentBuilder, IOException> mapping,
+        CheckedConsumer<XContentBuilder, IOException> doc,
+        String indexMode
+    ) throws IOException {
         try {
             // Delete the index if it has already been created.
             client().performRequest(new Request("DELETE", "test"));
@@ -1286,6 +1363,9 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 config.startObject("index");
                 config.field("number_of_shards", 1);
                 config.field("mapping.use_doc_values_skipper", true);
+                if (indexMode != null) {
+                    config.field("mode", indexMode);
+                }
                 config.endObject();
             }
             config.endObject();
@@ -1382,7 +1462,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         List<String> sig = new ArrayList<>();
         for (Map<String, Object> operator : operators) {
             String name = (String) operator.get("operator");
-            name = PushQueriesIT.TO_NAME.matcher(name).replaceAll("");
+            name = PushQueriesStringIT.TO_NAME.matcher(name).replaceAll("");
             if (name.equals("ValuesSourceReaderOperator")) {
                 assertNotNull("Expected loaders to match the ValuesSourceReaderOperator for driver " + driverDesc, expectedLoaders);
                 MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name))

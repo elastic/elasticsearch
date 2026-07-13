@@ -88,6 +88,64 @@ setup:
           settings: { }
 
 ---
+"mappings-unknown-keys-rejected":
+  # The declared-mapping vocabulary is strict: keys outside the deliberate index-mapping subset are
+  # rejected at parse time (before any cluster interaction), naming the offending key.
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/dataset/{name}
+          capabilities: [dataset_declared_schema]
+      test_runner_features: capabilities
+      reason: "declared mappings block on datasets"
+
+  # Unknown mappings-level key (core mapping keys outside our subset are rejected too, e.g. runtime).
+  - do:
+      catch: /unknown mappings field \[runtime\]/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            dynamic: "true"
+            runtime: { }
+
+  # _id supports only [path].
+  - do:
+      catch: /unknown \[_id\] field \[type\]; only \[path\] is supported/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            _id: { type: keyword }
+
+  # Field parameters outside {type, path, format} are rejected (index-mapping params we don't model).
+  - do:
+      catch: /\[analyzer\]/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            properties:
+              msg: { type: keyword, analyzer: standard }
+
+  # Unknown dynamic value: only true/false (the read-applicable subset of the index-mapping enum).
+  - do:
+      catch: /unknown dynamic value \[strict\]/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            dynamic: "strict"
+
+---
 "delete-missing":
   - do:
       catch: missing
@@ -119,3 +177,50 @@ setup:
 
   # Counterpart assertion for the data source side: even if one existed, it would not appear here.
   - is_false: metadata.esql_datasource
+
+---
+"mappings-validator-rejections":
+  # Semantic validator rejections (DeclaredSchemaValidator) run inside validatePutDataset, after the parent data
+  # source is resolved — so create one, then assert an undeclarable type and a [format] on a non-date column are
+  # both rejected with an actionable message.
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query/dataset/{name}
+          capabilities: [dataset_declared_schema]
+      test_runner_features: capabilities
+      reason: "declared mappings validation"
+
+  - do:
+      esql.put_data_source:
+        name: parent
+        body:
+          type: s3
+          settings:
+            auth: anonymous
+
+  - do:
+      catch: /unsupported declared type \[geo_point\] for column \[g\]/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            properties:
+              g: { type: geo_point }
+
+  - do:
+      catch: /\[format\] on column \[msg\] is only supported on \[date\] columns/
+      esql.put_dataset:
+        name: ds
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            properties:
+              msg: { type: keyword, format: "yyyy-MM-dd" }
+
+  - do:
+      esql.delete_data_source:
+        name: parent

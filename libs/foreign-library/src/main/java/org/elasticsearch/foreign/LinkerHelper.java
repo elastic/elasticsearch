@@ -56,6 +56,8 @@ public class LinkerHelper {
         return LINKER.downcallHandle(functionAddress, functionDescriptor, options);
     }
 
+    public static final MemorySegment ERRNO_STATE = Arena.ofAuto().allocate(Linker.Option.captureStateLayout());
+
     public static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
         Linker.Option[] allOptions = new Linker.Option[options.length + 1];
         allOptions[0] = Linker.Option.captureCallState("errno");

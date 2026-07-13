@@ -97,6 +97,11 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
         return DocValuesType.SORTED_NUMERIC;
     }
@@ -311,12 +316,19 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     private class BooleanSyntheticSourceSupport implements SyntheticSourceSupport {
         Boolean nullValue = usually() ? null : randomBoolean();
         private boolean ignoreMalformed;
-        // boolean fields have doc_values enabled by default, so multi_value: false can always be requested when the feature is on.
-        private final boolean enforceSingleValue = FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
-            && randomBoolean();
+        private final boolean isColumnar;
+        // boolean fields have doc_values enabled by default, so multi_value: false can be requested in columnar mode.
+        private final boolean enforceSingleValue;
 
-        BooleanSyntheticSourceSupport(boolean ignoreMalformed) {
+        BooleanSyntheticSourceSupport(boolean ignoreMalformed, boolean isColumnar) {
             this.ignoreMalformed = ignoreMalformed;
+            this.isColumnar = isColumnar;
+            this.enforceSingleValue = isColumnar && randomBoolean();
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -333,7 +345,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             }
             List<Tuple<Boolean, Boolean>> values = randomList(1, maxVals, this::generateValue);
             List<Boolean> in = values.stream().map(Tuple::v1).toList();
-            List<Boolean> outList = values.stream().map(Tuple::v2).sorted().toList();
+            List<Boolean> outList = isColumnar ? values.stream().map(Tuple::v2).toList() : values.stream().map(Tuple::v2).sorted().toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }
@@ -367,12 +379,17 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new BooleanSyntheticSourceSupport(ignoreMalformed);
+        return new BooleanSyntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new BooleanSyntheticSourceSupport(ignoreMalformed, true);
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode keepMode) {
-        return new BooleanSyntheticSourceSupport(ignoreMalformed) {
+        return new BooleanSyntheticSourceSupport(ignoreMalformed, false) {
             @Override
             public SyntheticSourceExample example(int maxVals) throws IOException {
                 var example = super.example(maxVals);
@@ -431,7 +448,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnarBooleanArrayOrderRoundTrip() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "boolean").endObject()))
             .documentMapper();

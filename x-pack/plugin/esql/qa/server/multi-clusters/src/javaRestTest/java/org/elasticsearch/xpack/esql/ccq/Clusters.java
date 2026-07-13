@@ -23,7 +23,7 @@ public class Clusters {
     static final String REMOTE_CLUSTER_NAME = "remote_cluster";
     static final String LOCAL_CLUSTER_NAME = "local_cluster";
 
-    static ElasticsearchCluster remoteCluster(Path csvDataPath, Map<String, String> additionalSettings) {
+    static ElasticsearchCluster remoteCluster(Path csvDataPath, Map<String, String> additionalSettings, boolean shared) {
         Version version = distributionVersion("tests.version.remote_cluster");
         var cluster = ElasticsearchCluster.local()
             .name(REMOTE_CLUSTER_NAME)
@@ -35,18 +35,28 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
-            .shared(true);
+            .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"));
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
+        // The local-disk allowlist setting is new in 9.5.0; older BWC nodes reject unknown settings and fail to start,
+        // so only set it on nodes that know it. file:// EXTERNAL reads run on the local (coordinating) cluster anyway.
+        if (remoteClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
+            cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
+        }
         for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
             cluster.setting(entry.getKey(), entry.getValue());
+        }
+        if (shared) {
+            cluster.shared(true);
         }
         return cluster.build();
     }
 
     static ElasticsearchCluster remoteCluster(Map<String, String> additionalSettings) {
-        return remoteCluster(CsvTestUtils.createCsvDataDirectory(), additionalSettings);
+        return remoteCluster(CsvTestUtils.createCsvDataDirectory(), additionalSettings, false);
     }
 
     public static ElasticsearchCluster remoteCluster() {
@@ -64,9 +74,10 @@ public class Clusters {
     public static ElasticsearchCluster localCluster(
         Path csvDataPath,
         ElasticsearchCluster remoteCluster,
-        Map<String, String> additionalSettings
+        Map<String, String> additionalSettings,
+        boolean shared
     ) {
-        return localCluster(csvDataPath, remoteCluster, true, additionalSettings);
+        return localCluster(csvDataPath, remoteCluster, true, additionalSettings, shared);
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster, Boolean skipUnavailable) {
@@ -78,14 +89,15 @@ public class Clusters {
         Boolean skipUnavailable,
         Map<String, String> additionalSettings
     ) {
-        return localCluster(CsvTestUtils.createCsvDataDirectory(), remoteCluster, skipUnavailable, additionalSettings);
+        return localCluster(CsvTestUtils.createCsvDataDirectory(), remoteCluster, skipUnavailable, additionalSettings, false);
     }
 
     public static ElasticsearchCluster localCluster(
         Path csvDataPath,
         ElasticsearchCluster remoteCluster,
         Boolean skipUnavailable,
-        Map<String, String> additionalSettings
+        Map<String, String> additionalSettings,
+        boolean shared
     ) {
         Version version = distributionVersion("tests.version.local_cluster");
         var cluster = ElasticsearchCluster.local()
@@ -101,9 +113,15 @@ public class Clusters {
             .setting("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", skipUnavailable.toString())
             .setting("path.repo", csvDataPath::toString)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
-            .shared(true);
+            .configFile("ingest-geoip/GeoLite2-City.mmdb", Resource.fromClasspath("GeoLite2-City.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-Country.mmdb", Resource.fromClasspath("GeoLite2-Country.mmdb"))
+            .configFile("ingest-geoip/GeoLite2-ASN.mmdb", Resource.fromClasspath("GeoLite2-ASN.mmdb"));
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
+        }
+        // The local-disk allowlist setting is new in 9.5.0; older BWC nodes reject unknown settings and fail to start.
+        if (localClusterVersion().onOrAfter(org.elasticsearch.Version.V_9_5_0)) {
+            cluster.setting("esql.datasource.local_allowed_paths", csvDataPath.toString());
         }
         if (localClusterSupportsInferenceTestService()) {
             cluster.plugin("inference-service-test");
@@ -112,6 +130,9 @@ public class Clusters {
             for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
                 cluster.setting(entry.getKey(), entry.getValue());
             }
+        }
+        if (shared) {
+            cluster.shared(true);
         }
         return cluster.build();
     }

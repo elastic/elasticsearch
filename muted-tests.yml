@@ -212,9 +212,6 @@ tests:
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/155421
-- class: org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTests
-  method: testFetchRegion
-  issue: https://github.com/elastic/elasticsearch/issues/155575
 
 # Examples:
 #

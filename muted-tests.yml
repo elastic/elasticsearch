@@ -796,9 +796,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.overridingExpressionGroupings}
   issue: https://github.com/elastic/elasticsearch/issues/153690
-- class: org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormatTests
-  method: testOneRepeatedVector
-  issue: https://github.com/elastic/elasticsearch/issues/153568
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecStatsFirstLastIT
   method: test {csv-spec:stats_first_last.Test aggregating on integers from row}
   issue: https://github.com/elastic/elasticsearch/issues/153700

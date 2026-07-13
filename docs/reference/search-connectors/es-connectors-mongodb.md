@@ -95,7 +95,7 @@ We strongly recommend leaving this option disabled in production environments.
     Default value is `DATETIME`.
 
 ::::{note}
-The `DATETIME_AUTO` option can produce mixed types for the same field (date strings and numbers), which may cause Elasticsearch mapping conflicts. Prefer `DATETIME_CLAMP` if you need the sync to continue past out-of-range dates.
+The `DATETIME_AUTO` option can produce mixed types for the same field (date strings and numbers), which might cause Elasticsearch mapping conflicts. Prefer `DATETIME_CLAMP` if you need the sync to continue past out-of-range dates.
 
 ::::
 

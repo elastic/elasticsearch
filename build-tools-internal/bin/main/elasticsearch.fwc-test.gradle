@@ -1,0 +1,38 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+Version elasticsearchVersion = Version.fromString(versions.get("elasticsearch"))
+def fwcVersions = buildParams.bwcVersions.released.findAll { it.major == elasticsearchVersion.major &&  it.minor == elasticsearchVersion.minor }
+def targetMajor = elasticsearchVersion.minor > 0 ? elasticsearchVersion.major : elasticsearchVersion.major - 1
+def targetMinor = elasticsearchVersion.minor > 0 ? elasticsearchVersion.minor - 1 : buildParams.bwcVersions.unreleased.findAll { it.major == targetMajor }*.minor.max()
+def previousMinorSnapshot = buildParams.bwcVersions.unreleased.find { it.major == targetMajor && it.minor == targetMinor }
+if (previousMinorSnapshot != null) {
+  fwcVersions.each { fwcVersion ->
+    tasks.register("v${fwcVersion}#fwcTest", StandaloneRestIntegTestTask) {
+      usesBwcDistribution(previousMinorSnapshot)
+      usesBwcDistribution(fwcVersion)
+      systemProperty("tests.old_cluster_version", previousMinorSnapshot)
+      systemProperty("tests.new_cluster_version", fwcVersion)
+      nonInputProperties.systemProperty 'tests.fwc', 'true'
+    }
+  }
+}
+
+gradle.taskGraph.whenReady { graph ->
+  if (graph.allTasks.any { it.name.endsWith('#fwcTest') } && Boolean.parseBoolean(System.getProperty("tests.bwc.snapshot", "true"))) {
+    throw new GradleException("Running forward compatibility tests requires passing `-Dtests.bwc.snapshot=false`.")
+  }
+
+  if (graph.allTasks.any { it.name.endsWith('#fwcTest') } && graph.allTasks.any { it.name.endsWith('#bwcTest') }) {
+    throw new GradleException("Backward compatibility and forward compatibility tests cannot be executed in the same build.")
+  }
+}

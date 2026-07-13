@@ -46,7 +46,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)")
 
     def setup() {
-        configurationCacheCompatible = false // JDK class references configurations which break configuration cache
+        disableConfigurationCache("JDK class references configurations which break configuration cache")
     }
 
     @Unroll

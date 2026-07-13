@@ -20,13 +20,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Streaming;
-import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
-import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.RowCountPreserving;
 
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -70,26 +65,18 @@ final class PartitionPruningRule {
     }
 
     /**
-     * The physical twin of {@link #rowPreserving(LogicalPlan)} — same rule, other tree. There is no physical
-     * {@code Streaming} marker to lean on, so the row-preserving execs are named explicitly. Each corresponds to a
-     * {@code Streaming} logical node: {@link FilterExec}, {@link EvalExec}, {@link ProjectExec} (the lowered form of
-     * {@code Keep}/{@code Drop}/{@code Rename}/{@code Insist}), {@link RegexExtractExec} ({@code DISSECT}/{@code GROK}),
-     * and {@link EnrichExec}. An order node is deliberately absent: a sort lowers to {@link TopNExec}, which carries a
-     * limit and so is cardinality-sensitive.
+     * The physical twin of {@link #rowPreserving(LogicalPlan)} — same rule, other tree. Where the logical side leans on
+     * the existing {@link Streaming} marker, the physical side has its own marker, {@link RowCountPreserving}, carried by
+     * every exec that maps rows one-to-one ({@code FilterExec}, {@code EvalExec}, {@code ProjectExec} — the lowered form
+     * of {@code Keep}/{@code Drop}/{@code Rename}/{@code Insist} — {@code RegexExtractExec} for {@code DISSECT}/{@code
+     * GROK}, and {@code EnrichExec}). A cardinality-sensitive exec such as {@code LimitExec} or {@code TopNExec} does not
+     * carry it, so the seed stops there.
      *
-     * <p>This is an allowlist rather than a marker interface on purpose. It fails closed — an exec that is not listed
-     * stops the seed, which costs a wider scan but can never invent an answer. A marker would invert that: it would
-     * pressure every new node to be classified, and a node wrongly marked row-preserving is a wrong result. For a
-     * correctness gate the explicit, conservative list is the safer shape. If a new row-preserving exec is added and
-     * not listed here, the only cost is that pruning stops crossing it — a missed optimization, caught by a perf
-     * regression, not by wrong rows.
+     * <p>The marker is opt-in and fails closed: an exec without it is treated as cardinality-sensitive, so a new
+     * row-preserving node that forgets the marker forfeits an optimization across itself, never correctness.
      */
     static boolean rowPreserving(PhysicalPlan plan) {
-        return plan instanceof FilterExec
-            || plan instanceof EvalExec
-            || plan instanceof ProjectExec
-            || plan instanceof RegexExtractExec
-            || plan instanceof EnrichExec;
+        return plan instanceof RowCountPreserving;
     }
 
     /**

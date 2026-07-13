@@ -404,4 +404,50 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
         assertTrue("the last line must note suppression", drained.get(drained.size() - 1).contains("further reader warnings suppressed"));
         assertFalse(buffer.isPartial());
     }
+
+    /**
+     * A hard-cutting {@code finish(true)} that wins the running→finishing transition (task cancel / async DELETE /
+     * LIMIT teardown while the producer is still reading) must arm {@link AsyncExternalSourceBuffer#readCancelled()}
+     * so the runtime read's {@code StorageRetryCancellation} scope aborts a parked storage backoff.
+     */
+    public void testFinishTrueArmsReadCancelledWhenTransitioning() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        assertFalse("a fresh buffer is not cancelled", buffer.readCancelled());
+        assertTrue("first finish(true) makes the transition", buffer.finish(true));
+        assertTrue("a transitioning draining finish is a hard cut and must arm read cancellation", buffer.readCancelled());
+    }
+
+    /**
+     * Async STOP is {@code finish(false)}: it keeps buffered pages for a partial response and must NOT arm read
+     * cancellation, otherwise an in-flight read would be aborted mid-backoff and the STOP contract (return what was
+     * already produced) would degrade into a hard failure.
+     */
+    public void testFinishFalseDoesNotArmReadCancelled() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        assertTrue("first finish(false) makes the transition", buffer.finish(false));
+        assertFalse("STOP must not arm read cancellation", buffer.readCancelled());
+    }
+
+    /**
+     * Natural EOF: the producer's own {@code finish(false)} wins the transition, so the driver's later
+     * {@code finish(true)} on operator close no longer transitions and must not be mistaken for a cancel.
+     */
+    public void testNaturalCompletionThenCloseDoesNotArmReadCancelled() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        assertTrue("producer's finish(false) wins the transition at natural EOF", buffer.finish(false));
+        assertFalse("the driver's later close is a no-op transition and must not arm cancellation", buffer.finish(true));
+        assertFalse("natural completion is not a cancel", buffer.readCancelled());
+    }
+
+    /**
+     * A producer that fails on its own (real read error) sets {@code noMoreInputs} via {@link
+     * AsyncExternalSourceBuffer#onFailure}; a subsequent close's {@code finish(true)} then loses the transition, so
+     * read cancellation stays disarmed — there is no other in-flight read to abort.
+     */
+    public void testOnFailureThenCloseDoesNotArmReadCancelled() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        buffer.onFailure(new RuntimeException("boom"));
+        assertFalse("close after a producer failure does not transition", buffer.finish(true));
+        assertFalse("a producer's own failure is not a read cancellation", buffer.readCancelled());
+    }
 }

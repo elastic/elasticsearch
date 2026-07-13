@@ -1497,6 +1497,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(f, 1.00000001, 2.0) | keep id")) {
             assertThat(getValuesList(results), empty());
         }
+        // NOT of the same: evaluator says 1.0 >= 1.00000001 is false, so NOT is true -> the row MUST be returned.
+        try (EsqlQueryResponse results = run("from " + index + " | where not mv_in_range(f, 1.00000001, 2.0) | keep id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("x"));
+        }
     }
 
     public void testLoadId() {

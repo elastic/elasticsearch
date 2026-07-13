@@ -325,13 +325,14 @@ public class MvInRange extends EsqlScalarFunction implements TranslationAware {
             return Translatable.NO;
         }
         if (pushdownPredicates.isPushableFieldAttribute(field) && isPushableBound(lower) && isPushableBound(upper)) {
-            // Integral types push an exact range, so drop the filter (YES). Everything else stays RECHECK: the range
-            // pre-filters and the retained evaluator re-checks the surfaced rows to drop false positives. That needs the
-            // range to be a superset — true for double (its roundings only over-match; see widenZeroBound for the signed-
-            // zero exception) and for keyword (whose normalizer divergence the comparison operators tolerate the same way).
+            // Integral types push an exact range, so drop the filter (YES). Everything else pushes a superset range and
+            // re-checks the surfaced rows (RECHECK) — true for double (its roundings only over-match; see widenZeroBound
+            // for the signed-zero exception) and for keyword (whose normalizer divergence the comparison operators tolerate
+            // the same way). But because this predicate is two-valued, its negation cannot be pushed: must_not(superset) is
+            // a subset of the true complement and the recheck can only drop rows, not restore them — so RECHECK_BUT_NO_NEGATED.
             var elementType = PlannerUtils.toElementType(field.dataType());
             boolean exact = elementType == ElementType.INT || elementType == ElementType.LONG;
-            return exact ? Translatable.YES : Translatable.RECHECK;
+            return exact ? Translatable.YES : Translatable.RECHECK_BUT_NO_NEGATED;
         }
         return Translatable.NO;
     }

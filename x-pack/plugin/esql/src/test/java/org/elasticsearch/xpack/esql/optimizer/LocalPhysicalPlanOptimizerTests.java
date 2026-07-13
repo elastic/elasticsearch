@@ -747,6 +747,34 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(mvInRangeQuery(version), is(not(nullValue())));
     }
 
+    /**
+     * NOT of a RECHECK-typed mv_in_range (double / keyword / ip / version) is not pushed at all. The range is a superset,
+     * so must_not(range) would drop true matches and the retained recheck can't restore them — the whole predicate stays
+     * a filter (NO). Contrast the integral YES types, whose NOT pushes an exact must_not(range) (testMvInRangeNotPushdown).
+     */
+    public void testMvInRangeNotRecheckTypeNotPushed() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var bounds = Map.of(
+            "double",
+            "1.0, 2.0",
+            "keyword",
+            "\"a\", \"m\"",
+            "ip",
+            "\"1.1.1.1\"::ip, \"2.2.2.2\"::ip",
+            "version",
+            "\"1.0.0\"::version, \"2.0.0\"::version"
+        );
+        for (var field : bounds.keySet()) {
+            var plan = plannerOptimizer.plan(
+                "from test | where not mv_in_range(" + field + ", " + bounds.get(field) + ")",
+                IS_SV_STATS,
+                analyzer
+            );
+            assertThat("NOT over " + field + " must retain the filter", plan.anyMatch(FilterExec.class::isInstance), is(true));
+            assertThat("NOT over " + field + " must not push a range", mvInRangeQuery(plan), is(nullValue()));
+        }
+    }
+
     private static QueryBuilder mvInRangeQuery(PhysicalPlan plan) {
         var esQueryExec = (EsQueryExec) plan.collectLeaves()
             .stream()

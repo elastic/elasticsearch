@@ -91,7 +91,8 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
             b.field("index_terms", true);
         }));
 
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", 42)));
+        int value = randomIntBetween(0, Integer.MAX_VALUE);
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", value)));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
 
         // Should have a terms field (inverted index) with the sortable-bytes encoded value
@@ -102,14 +103,14 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
             .findFirst()
             .get();
         byte[] expected = new byte[Integer.BYTES];
-        NumericUtils.intToSortableBytes(42, expected, 0);
+        NumericUtils.intToSortableBytes(value, expected, 0);
         assertEquals(new BytesRef(expected), termsField.binaryValue());
 
         // Should have doc values
         long dvCount = fields.stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count();
         assertEquals(1, dvCount);
         IndexableField dvField = fields.stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).findFirst().get();
-        assertEquals(42, dvField.numericValue().intValue());
+        assertEquals(value, dvField.numericValue().intValue());
     }
 
     public void testIndexTermsIndexesNegativeValues() throws IOException {
@@ -118,7 +119,8 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
             b.field("index_terms", true);
         }));
 
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", -1)));
+        int value = randomIntBetween(Integer.MIN_VALUE, -1);
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", value)));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
 
         IndexableField termsField = fields.stream()
@@ -126,11 +128,11 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
             .findFirst()
             .get();
         byte[] expected = new byte[Integer.BYTES];
-        NumericUtils.intToSortableBytes(-1, expected, 0);
+        NumericUtils.intToSortableBytes(value, expected, 0);
         assertEquals(new BytesRef(expected), termsField.binaryValue());
 
         IndexableField dvField = fields.stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).findFirst().get();
-        assertEquals(-1, dvField.numericValue().intValue());
+        assertEquals(value, dvField.numericValue().intValue());
     }
 
     public void testIndexTermsOnlyAllowedOnInteger() {

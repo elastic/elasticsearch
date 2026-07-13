@@ -321,36 +321,32 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         var clusterState = createInitialClusterState();
         final int maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
 
-        // Burn through failures while only node1/node2 exist, so both end up in failedNodeIds.
-        for (int i = 0; i < maxRetries - 2; i++) {
+        // Burn through maxRetries - 1 genuine failures, bouncing between node1/node2.
+        for (int i = 0; i < maxRetries - 1; i++) {
             clusterState = applyShardFailure(clusterState, clusterState.routingTable().index("idx").shard(0).shard(0), "genuine-" + i);
         }
+        final var routingBeforeMove = clusterState.routingTable().index("idx").shard(0).shard(0);
+        assertThat(routingBeforeMove.unassignedInfo().failedAllocations(), equalTo(maxRetries - 1));
+        final var failedNodeIdsBeforeCancellation = routingBeforeMove.unassignedInfo().failedNodeIds();
 
-        // Add a fresh node that has never failed, and steer the next allocation attempt onto it by
-        // excluding the two nodes that have already failed.
+        // Move the shard directly onto a fresh node that has never failed.
         final String freshNodeId = randomIdentifier("node");
-        final var exclusionSettings = Settings.builder()
-            .put(clusterState.metadata().getProject().index("idx").getSettings())
-            .put("index.routing.allocation.exclude._id", "node1,node2")
-            .build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode(freshNodeId)))
-            .metadata(
-                Metadata.builder(clusterState.metadata())
-                    .put(IndexMetadata.builder(clusterState.metadata().getProject().index("idx")).settings(exclusionSettings).build(), true)
-                    .build()
-            )
             .build();
-        clusterState = applyShardFailure(clusterState, clusterState.routingTable().index("idx").shard(0).shard(0), "genuine-last");
+        clusterState = withRoutingAllocation(clusterState, allocation -> {
+            final var initializing = allocation.routingTable().index("idx").shard(0).shard(0);
+            allocation.routingNodes().failShard(initializing, initializing.unassignedInfo(), allocation.changes());
+            final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
+            unassignedIterator.next();
+            unassignedIterator.initialize(freshNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation.changes());
+        });
 
         final var routingBeforeCancellation = clusterState.routingTable().index("idx").shard(0).shard(0);
-        assertThat(
-            "shard should have been reallocated onto the fresh node",
-            routingBeforeCancellation.currentNodeId(),
-            equalTo(freshNodeId)
-        );
-        assertThat(routingBeforeCancellation.unassignedInfo().failedAllocations(), equalTo(maxRetries - 1));
-        final var failedNodeIdsBeforeCancellation = routingBeforeCancellation.unassignedInfo().failedNodeIds();
+        final var infoBeforeCancellation = routingBeforeCancellation.unassignedInfo();
+        assertThat(routingBeforeCancellation.currentNodeId(), equalTo(freshNodeId));
+        assertThat(infoBeforeCancellation.failedAllocations(), equalTo(maxRetries - 1));
+        assertThat(infoBeforeCancellation.failedNodeIds(), equalTo(failedNodeIdsBeforeCancellation));
         assertThat("fresh node does not have a failed allocation", failedNodeIdsBeforeCancellation, not(hasItem(freshNodeId)));
 
         final ClusterState stateBeforeCancellation = clusterState;
@@ -376,15 +372,11 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = stateAfterCancellation.get();
 
         final var routingAfterCancellation = clusterState.routingTable().index("idx").shard(0).shard(0);
-        final var updatedUnassignedInfo = routingAfterCancellation.unassignedInfo();
-        assertThat(
-            "cancellation must not increment existing failedAllocations",
-            routingAfterCancellation.unassignedInfo().failedAllocations(),
-            equalTo(maxRetries - 1)
-        );
-        assertThat(updatedUnassignedInfo.reason(), equalTo(UnassignedInfo.Reason.RECOVERY_CANCELLED));
+        final var updatedInfo = routingAfterCancellation.unassignedInfo();
+        assertThat("cancellation should not increment failedAllocations", updatedInfo.failedAllocations(), equalTo(maxRetries - 1));
+        assertThat(updatedInfo.reason(), equalTo(UnassignedInfo.Reason.RECOVERY_CANCELLED));
         assertThat(routingAfterCancellation.state(), equalTo(INITIALIZING));
-        assertThat("No expected changes to failedNodeIds", updatedUnassignedInfo.failedNodeIds(), equalTo(failedNodeIdsBeforeCancellation));
+        assertThat("No expected changes to failedNodeIds", updatedInfo.failedNodeIds(), equalTo(failedNodeIdsBeforeCancellation));
     }
 
     private ClusterState applyShardCancellation(ClusterState clusterState, ShardRouting shardRouting) {

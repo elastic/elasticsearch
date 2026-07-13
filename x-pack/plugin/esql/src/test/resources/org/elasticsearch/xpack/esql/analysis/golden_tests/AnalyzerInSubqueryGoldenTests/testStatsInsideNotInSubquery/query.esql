@@ -1,0 +1,2 @@
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | STATS min_emp = min(emp_no))

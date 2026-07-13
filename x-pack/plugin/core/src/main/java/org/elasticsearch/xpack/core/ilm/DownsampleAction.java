@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -220,7 +219,7 @@ public class DownsampleAction implements LifecycleAction {
             (index, project) -> {
                 IndexMetadata indexMetadata = project.index(index);
                 assert indexMetadata != null : "invalid cluster metadata. index [" + index.getName() + "] metadata not found";
-                if (IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
+                if (IndexSettings.MODE.get(indexMetadata.getSettings()).isTsdb() == false) {
                     return false;
                 }
 

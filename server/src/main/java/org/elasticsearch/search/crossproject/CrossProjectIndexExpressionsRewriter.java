@@ -57,6 +57,10 @@ public class CrossProjectIndexExpressionsRewriter {
     ) {
         ensureProjectsAvailable(originProjectAlias, allProjectAliases, projectRouting);
 
+        if (indexExpression.contains(":::")) {
+            throw new InvalidIndexNameException(indexExpression, "cross-project expression must not contain ':::'");
+        }
+
         final boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
         final IndexRewriteResult rewrittenExpression;
         if (isQualified) {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
+import org.elasticsearch.xcontent.XContentParseException;
+
 import software.amazon.awssdk.services.bedrockruntime.model.BedrockRuntimeException;
 
 import org.elasticsearch.ElasticsearchException;
@@ -429,8 +431,8 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
         Map<String, Object> config
     ) {
         ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoSuccessListener(e -> {
-            assertThat(e, instanceOf(ElasticsearchStatusException.class));
-            assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service"));
+            assertThat(e, instanceOf(XContentParseException.class));
+            assertThat(e.getMessage(), containsString("[service_settings] unknown field [extra_key]"));
         });
 
         service.parseRequestConfig(INFERENCE_ID_VALUE, taskType, config, modelVerificationListener);
@@ -496,8 +498,8 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
     public void testParseRequestConfig_ForEmbeddingsTask_DimensionsIsNotAllowed() throws IOException {
         try (var service = createAmazonBedrockService()) {
             ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoSuccessListener(exception -> {
-                assertThat(exception, instanceOf(ValidationException.class));
-                assertThat(exception.getMessage(), containsString("[service_settings] does not allow the setting [dimensions]"));
+                assertThat(exception, instanceOf(XContentParseException.class));
+                assertThat(exception.getMessage(), containsString("[service_settings] unknown field [dimensions]"));
             });
 
             service.parseRequestConfig(

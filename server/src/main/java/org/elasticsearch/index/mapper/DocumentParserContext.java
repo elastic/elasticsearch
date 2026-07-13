@@ -486,11 +486,12 @@ public abstract class DocumentParserContext {
         }
         // sortedDifference gives a deterministic message regardless of iteration order; only allocated on the (cold) failure path.
         SortedSet<String> missing = Sets.sortedDifference(required, satisfied);
-        SortedSet<String> toFail = new TreeSet<>(missing);
+        SortedSet<String> toFail = new TreeSet<>();
         for (String fieldName : missing) {
             if (onFailureBehavior(fieldName) == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
-                toFail.remove(fieldName);
                 addIgnoredField(fieldName);
+            } else {
+                toFail.add(fieldName);
             }
         }
         if (toFail.isEmpty() == false) {

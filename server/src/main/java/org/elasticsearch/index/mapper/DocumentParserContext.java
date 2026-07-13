@@ -442,7 +442,11 @@ public abstract class DocumentParserContext {
                 "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"
             );
         }
-        OnFailureStoredValues.storeValueForOnFailureIgnore(this, fieldName, parser());
+        if (mappingLookup.isSourceSynthetic() || mappingLookup.isSourceColumnarStored()) {
+            // Stored source already retains the offending value; only synthetic (and columnar_stored, which reconstructs
+            // its per-document source the same way) need the value copied out to survive reconstruction.
+            OnFailureStoredValues.storeValueForOnFailureIgnore(this, fieldName, parser());
+        }
         addIgnoredField(fieldName);
         return true;
     }

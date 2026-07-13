@@ -741,4 +741,30 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         assertThat(e.getCause().getMessage(), containsString("[failed]"));
         assertThat(e.getCause().getMessage(), not(containsString("[ignored]")));
     }
+
+    /**
+     * In {@code columnar_stored} mode the failure column only exists to let the whole-document source blob (materialized in
+     * {@link SourceFieldMapper#postParse}) reconstruct the offending value; once that blob is written, the column itself is
+     * redundant and must be pruned from the Lucene document, just like the other per-field synthetic-source-only sidecar fields.
+     */
+    public void testOnFailureIgnoreFailureColumnPrunedInColumnarStoredSource() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("multi_value", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
+        assertThat(doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX).isEmpty(), equalTo(true));
+    }
 }

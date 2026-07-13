@@ -20,7 +20,9 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
@@ -119,6 +121,23 @@ public abstract class FieldMapper extends Mapper {
         Property.Final,
         Property.ServerlessPublic
     );
+
+    /**
+     * Guards {@code doc_values.on_failure=ignore} (mapping parameter and {@link #DOC_VALUES_ON_FAILURE_SETTING} index setting) while the
+     * feature is incomplete: the failure column it redirects to isn't wired into synthetic source reconstruction, block loaders, or
+     * search yet, so a field configured with it today would silently lose the offending value on reconstruction.
+     */
+    public static final FeatureFlag DOC_VALUES_ON_FAILURE_FEATURE_FLAG = new FeatureFlag("doc_values_on_failure");
+
+    /**
+     * Resolves {@link #DOC_VALUES_ON_FAILURE_SETTING}, falling back to {@link DocValuesParameter.Values.OnFailure#FAIL} while
+     * {@link #DOC_VALUES_ON_FAILURE_FEATURE_FLAG} is disabled.
+     */
+    public static DocValuesParameter.Values.OnFailure resolveOnFailureSetting(Settings settings) {
+        return DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()
+            ? DOC_VALUES_ON_FAILURE_SETTING.get(settings)
+            : DocValuesParameter.Values.OnFailure.FAIL;
+    }
 
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
     @SuppressWarnings("rawtypes")
@@ -1652,7 +1671,11 @@ public abstract class FieldMapper extends Mapper {
                 m -> initializer.apply(m).onFailure,
                 subParameterDefaults.onFailure,
                 Values.OnFailure.class
-            );
+            ).addValidator(v -> {
+                if (v == Values.OnFailure.IGNORE && DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled() == false) {
+                    throw new MapperParsingException("[doc_values.on_failure=ignore] is not yet supported");
+                }
+            });
         }
 
         /**
@@ -1667,9 +1690,10 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": { "nullability": true }} - allow documents to omit the field or supply null (default)</li>
          *   <li>{@code "doc_values": { "nullability": false }} - reject any document that omits the field or supplies null (sealed)</li>
          *   <li>{@code "doc_values": { "on_failure": "fail" }} - reject the document if it violates multi_value/nullability (default)</li>
-         *   <li>{@code "doc_values": { "on_failure": "ignore" }} - accepted and stored, but not yet enforced: {@link DocumentParserContext}
-         *       still unconditionally rejects multi_value/nullability violations, so this currently behaves identically to {@code fail}.
-         *       Reserved for future work that will route the offending value to a per-field failure column instead.</li>
+         *   <li>{@code "doc_values": { "on_failure": "ignore" }} - accept the document, routing the offending value to a per-field
+         *       failure column instead of rejecting it (see {@link DocumentParserContext#enforceSingleValue}). Rejected at parse time
+         *       unless {@link #DOC_VALUES_ON_FAILURE_FEATURE_FLAG} is enabled, since reconstruction of the failure column isn't wired
+         *       into synthetic source, block loaders, or search yet.</li>
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying

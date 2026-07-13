@@ -257,6 +257,7 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.DenseVectorQueryBuilder;
 import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -1196,6 +1197,7 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
 
         registerQuery(new QuerySpec<>(KnnVectorQueryBuilder.NAME, KnnVectorQueryBuilder::new, KnnVectorQueryBuilder::fromXContent));
+        registerQuery(new QuerySpec<>(DenseVectorQueryBuilder.NAME, DenseVectorQueryBuilder::new, DenseVectorQueryBuilder::fromXContent));
 
         registerQuery(new QuerySpec<>(KnnScoreDocQueryBuilder.NAME, KnnScoreDocQueryBuilder::new, parser -> {
             throw new IllegalArgumentException("[score_doc] queries cannot be provided directly");

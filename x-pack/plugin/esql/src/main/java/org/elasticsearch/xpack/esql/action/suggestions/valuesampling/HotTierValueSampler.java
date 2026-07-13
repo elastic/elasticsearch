@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +35,8 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
@@ -91,6 +94,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@code dls_active} and "no values for this field" go together on this path (see Step 20).
  */
 public class HotTierValueSampler {
+
+    private static final Logger logger = LogManager.getLogger(HotTierValueSampler.class);
 
     /** The node-request transport action name, matching {@code TransportTermsEnumAction}'s {@code [s]}/{@code [n]} suffix convention. */
     public static final String NODE_ACTION_NAME = "indices:data/read/esql/suggestions/sample_values[n]";
@@ -151,11 +156,11 @@ public class HotTierValueSampler {
         Object cursor = root.get("properties");
         String[] segments = field.split("\\.");
         for (int i = 0; i < segments.length; i++) {
-            if (cursor instanceof Map<?, ?> map == false) {
+            if (!(cursor instanceof Map<?, ?> map)) {
                 return null;
             }
-            Object node = ((Map<?, ?>) map).get(segments[i]);
-            if (node instanceof Map<?, ?> nodeMap == false) {
+            Object node = map.get(segments[i]);
+            if (!(node instanceof Map<?, ?> nodeMap)) {
                 return null;
             }
             if (i == segments.length - 1) {
@@ -180,7 +185,11 @@ public class HotTierValueSampler {
      * Pure, cluster-state-driven variant of {@link #hotTierNodeBundles(ProjectMetadata, Set)}, extracted
      * so it can be unit-tested without a live {@link ClusterService}.
      */
-    public static Map<String, Set<ShardId>> hotTierNodeBundles(RoutingTable routingTable, DiscoveryNodes nodes, Set<String> concreteIndices) {
+    public static Map<String, Set<ShardId>> hotTierNodeBundles(
+        RoutingTable routingTable,
+        DiscoveryNodes nodes,
+        Set<String> concreteIndices
+    ) {
         Map<String, Set<ShardId>> bundles = new HashMap<>();
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = routingTable.index(index);
@@ -231,47 +240,36 @@ public class HotTierValueSampler {
                 finishOne(remaining, merged, shardsSkipped, dlsActive, size, listener);
                 continue;
             }
-            NodeSuggestValuesRequest nodeRequest = new NodeSuggestValuesRequest(
-                field,
-                entry.getValue(),
-                size,
-                timeoutMillis,
-                startMillis
-            );
-            transportService.sendRequest(
-                node,
-                NODE_ACTION_NAME,
-                nodeRequest,
-                new TransportResponseHandler<NodeSuggestValuesResponse>() {
-                    @Override
-                    public NodeSuggestValuesResponse read(StreamInput in) throws IOException {
-                        return new NodeSuggestValuesResponse(in);
-                    }
-
-                    @Override
-                    public void handleResponse(NodeSuggestValuesResponse response) {
-                        if (response.partialOrErrored()) {
-                            shardsSkipped.set(true);
-                        }
-                        if (response.dlsActive()) {
-                            dlsActive.set(true);
-                        }
-                        mergeInto(merged, response);
-                        finishOne(remaining, merged, shardsSkipped, dlsActive, size, listener);
-                    }
-
-                    @Override
-                    public void handleException(TransportException exc) {
-                        shardsSkipped.set(true);
-                        finishOne(remaining, merged, shardsSkipped, dlsActive, size, listener);
-                    }
-
-                    @Override
-                    public Executor executor() {
-                        return autoCompleteExecutor;
-                    }
+            NodeSuggestValuesRequest nodeRequest = new NodeSuggestValuesRequest(field, entry.getValue(), size, timeoutMillis, startMillis);
+            transportService.sendRequest(node, NODE_ACTION_NAME, nodeRequest, new TransportResponseHandler<NodeSuggestValuesResponse>() {
+                @Override
+                public NodeSuggestValuesResponse read(StreamInput in) throws IOException {
+                    return new NodeSuggestValuesResponse(in);
                 }
-            );
+
+                @Override
+                public void handleResponse(NodeSuggestValuesResponse response) {
+                    if (response.partialOrErrored()) {
+                        shardsSkipped.set(true);
+                    }
+                    if (response.dlsActive()) {
+                        dlsActive.set(true);
+                    }
+                    mergeInto(merged, response);
+                    finishOne(remaining, merged, shardsSkipped, dlsActive, size, listener);
+                }
+
+                @Override
+                public void handleException(TransportException exc) {
+                    shardsSkipped.set(true);
+                    finishOne(remaining, merged, shardsSkipped, dlsActive, size, listener);
+                }
+
+                @Override
+                public Executor executor() {
+                    return autoCompleteExecutor;
+                }
+            });
         }
     }
 
@@ -296,7 +294,12 @@ public class HotTierValueSampler {
         if (remaining.decrementAndGet() == 0) {
             List<FieldSuggestion.ValueSuggestion> values = merged.entrySet()
                 .stream()
-                .map(e -> new FieldSuggestion.ValueSuggestion(e.getKey(), e.getValue()[1] == 0 ? 0.0 : (double) e.getValue()[0] / e.getValue()[1]))
+                .map(
+                    e -> new FieldSuggestion.ValueSuggestion(
+                        e.getKey(),
+                        e.getValue()[1] == 0 ? 0.0 : (double) e.getValue()[0] / e.getValue()[1]
+                    )
+                )
                 .sorted(Comparator.comparingDouble(FieldSuggestion.ValueSuggestion::docFreq).reversed())
                 .limit(size)
                 .toList();
@@ -358,13 +361,16 @@ public class HotTierValueSampler {
                             return new NodeSuggestValuesResponse(nodeId, docFreqByTerm, liveDocs, false, dlsActive, null);
                         }
                     }
-                    Object value = fieldType.valueForDisplay(terms.term().utf8ToString());
+                    // valueForDisplay converts the term's raw bytes into a display String immediately, so
+                    // the BytesRef TermsEnum#term() reuses across iterations doesn't need to be copied here.
+                    Object value = fieldType.valueForDisplay(terms.term());
                     docFreqByTerm.merge(value, (long) terms.docFreq(), Long::sum);
                     collected++;
                 }
             }
             return new NodeSuggestValuesResponse(nodeId, docFreqByTerm, liveDocs, true, dlsActive, null);
         } catch (Exception e) {
+            logger.warn(() -> Strings.format("failed to sample values for field [%s] on node [%s]", request.field(), nodeId), e);
             return NodeSuggestValuesResponse.error(nodeId, e);
         } finally {
             IOUtils.closeWhileHandlingException(opened);

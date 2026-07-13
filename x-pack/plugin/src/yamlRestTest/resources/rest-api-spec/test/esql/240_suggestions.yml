@@ -1,5 +1,7 @@
 ---
 setup:
+  - requires:
+      test_runner_features: allowed_warnings_regex
   - do:
       bulk:
         index: "test"
@@ -13,6 +15,8 @@ setup:
 ---
 pipe position lists fields:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.suggestions:
         body:
           query: "FROM test | KEEP agent, response_time\n"
@@ -24,6 +28,8 @@ pipe position lists fields:
 ---
 field name slot after WHERE:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.suggestions:
         body:
           query: "FROM test | WHERE response_time > 10"
@@ -35,6 +41,8 @@ field name slot after WHERE:
 ---
 cursor inside a WHERE equality literal on an ip field does not choke:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.suggestions:
         body:
           query: "FROM test | WHERE ip == \"\""
@@ -46,6 +54,8 @@ cursor inside a WHERE equality literal on an ip field does not choke:
 ---
 field name slot after IP_LOCATION lists dotted output fields:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.suggestions:
         body:
           # KEEP g.* (rather than one dotted field) keeps every IP_LOCATION output field in
@@ -61,6 +71,8 @@ field name slot after IP_LOCATION lists dotted output fields:
 ---
 multiline query via block scalar:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.suggestions:
         body:
           # cursor is right after "chr" on line 2 (inside the string literal)
@@ -96,6 +108,8 @@ hot tier keyword equality samples values:
           - { "k": "beta" }
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.suggestions:
         body:
           # cursor sits inside the empty string literal, right after the opening quote

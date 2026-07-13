@@ -19,11 +19,10 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportAddress;
 
-import java.net.InetAddress;
 import java.util.Map;
 import java.util.Set;
 
@@ -128,13 +127,13 @@ public class HotTierValueSamplerTests extends ESTestCase {
 
     private static ProjectMetadata projectWithMapping(String mappingJson) {
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(indexSettings(1, 0))
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
             .putMapping(mappingJson)
             .build();
         return ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, false).build();
     }
 
     private static DiscoveryNode discoveryNode(String id, Set<DiscoveryNodeRole> roles) {
-        return DiscoveryNodeUtils.create(id, new TransportAddress(InetAddress.getLoopbackAddress(), 0), Map.of(), roles);
+        return DiscoveryNodeUtils.create(id, buildNewFakeTransportAddress(), Map.of(), roles);
     }
 }

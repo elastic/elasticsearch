@@ -98,4 +98,3 @@ public class TransportEsqlSuggestionsActionTests extends ESTestCase {
         );
     }
 }
-

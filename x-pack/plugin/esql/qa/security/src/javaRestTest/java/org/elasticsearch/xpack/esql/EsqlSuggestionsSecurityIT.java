@@ -119,18 +119,23 @@ public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
         json.field("include_sample_values", includeSampleValues);
         json.endObject();
         request.setJsonEntity(Strings.toString(json));
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));
+        // The analysis path this endpoint shares with real query execution can emit the ordinary "no
+        // LIMIT" advisory warning header; this endpoint's own response-body `warnings` field (a closed
+        // enum) is what these tests actually assert on, so tolerate any HTTP warning headers here.
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user).setWarningsHandler(warnings -> false)
+        );
         return client().performRequest(request);
     }
 
     public void testUnauthorizedIndexIsDenied() {
-        String query = "FROM index-user2 | KEEP val";
+        String query = "FROM index-user2 | KEEP val*";
         ResponseException e = expectThrows(ResponseException.class, () -> runSuggestions("user1", query, query.length()));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
     }
 
     public void testFieldLevelSecurityRestrictsFieldsMap() throws IOException {
-        String query = "FROM index | KEEP val";
+        String query = "FROM index | KEEP *";
 
         Response adminResp = runSuggestions("test-admin", query, query.length());
         assertOK(adminResp);
@@ -157,7 +162,7 @@ public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
      * as correct, not an oversight.
      */
     public void testDocumentLevelSecurityIsNoOpForBaselinePath() throws IOException {
-        String query = "FROM lookup-user2 | KEEP val";
+        String query = "FROM lookup-user2 | KEEP *";
 
         Response adminResp = runSuggestions("test-admin", query, query.length());
         assertOK(adminResp);
@@ -182,7 +187,7 @@ public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
     }
 
     public void testOutOfRangeCursorReturnsPlainValidationError() throws IOException {
-        String query = "FROM index | KEEP val";
+        String query = "FROM index | KEEP val*";
         ResponseException e = expectThrows(ResponseException.class, () -> runSuggestions("user1", query, query.length() + 999));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(e.getMessage(), containsString("[cursor] must be within"));

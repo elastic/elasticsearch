@@ -14,6 +14,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -22,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -167,5 +171,15 @@ public class EsqlSuggestionsRequest extends ActionRequest implements IndicesRequ
     @Override
     public IndicesOptions indicesOptions() {
         return IndicesOptions.DEFAULT;
+    }
+
+    /**
+     * This request can reach real data nodes (Step 18's hot-tier {@code TermsEnum} sampling), so it needs
+     * a cancellable task the same way {@code EsqlQueryRequest} does, or {@code RestCancellableNodeClient}
+     * refuses to dispatch it at all.
+     */
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, query, parentTaskId, headers);
     }
 }

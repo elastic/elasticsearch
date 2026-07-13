@@ -52,7 +52,7 @@ public class NodeSuggestValuesResponse extends TransportResponse {
 
     public NodeSuggestValuesResponse(StreamInput in) throws IOException {
         this.nodeId = in.readString();
-        this.docFreqByTerm = in.readMap(i -> (Object) i.readGenericValue(), StreamInput::readVLong);
+        this.docFreqByTerm = in.readMap(StreamInput::readGenericValue, StreamInput::readVLong);
         this.liveDocs = in.readVLong();
         this.complete = in.readBoolean();
         this.dlsActive = in.readBoolean();

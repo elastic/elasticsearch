@@ -16,10 +16,10 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -297,7 +297,10 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
             TimeValue.timeValueSeconds(5).millis(),
             listener.delegateFailureAndWrap((l, result) -> {
                 Map<String, FieldSuggestion> fields = new LinkedHashMap<>(base.fields());
-                fields.put(field, new FieldSuggestion(SuggestionBuilder.wireType(fieldType), result.values(), null));
+                // An empty sample (e.g. Step 20's DLS gate refusing every contributing shard) is reported
+                // the same way as "statistics not populated": no `values` key at all, not an empty list.
+                List<FieldSuggestion.ValueSuggestion> values = result.values().isEmpty() ? null : result.values();
+                fields.put(field, new FieldSuggestion(SuggestionBuilder.wireType(fieldType), values, null));
                 l.onResponse(new EsqlSuggestionsResponse(fields, warningsForSampleResult(result)));
             })
         );

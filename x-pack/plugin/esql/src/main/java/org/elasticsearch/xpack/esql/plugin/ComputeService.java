@@ -279,7 +279,6 @@ public class ComputeService {
      * Adds the post-prune external scan accounting to the query profile. The counts are captured
      * before split coalescing, so {@code splits_scanned} reflects the pre-coalesce discovered split
      * count rather than the smaller post-coalesce count.
-     *
      */
     private static void recordExternalScanStats(EsqlExecutionInfo execInfo, SplitDiscoveryPhase.Result result) {
         if (execInfo != null && result.splitsScanned() > 0) {

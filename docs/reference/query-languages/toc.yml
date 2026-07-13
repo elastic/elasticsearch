@@ -54,6 +54,7 @@ toc:
       - file: query-dsl/vector-queries.md
         children:
           - file: query-dsl/query-dsl-knn-query.md
+          - file: query-dsl/query-dsl-dense-vector-query.md
           - file: query-dsl/query-dsl-sparse-vector-query.md
           - file: query-dsl/query-dsl-semantic-query.md
           - file: query-dsl/query-dsl-text-expansion-query.md
@@ -406,7 +407,8 @@ toc:
           - file: esql/esql-cross-serverless-projects.md
           - file: esql/esql-subquery.md
           - file: esql/esql-views.md
-      - hidden: esql/esql-federated-data.md
+      - hidden: esql/esql-data-federation.md
+      - hidden: esql/esql-data-federation-sources.md
       - file: esql/esql-advanced.md
         children:
           - file: esql/esql-process-data-with-dissect-grok.md

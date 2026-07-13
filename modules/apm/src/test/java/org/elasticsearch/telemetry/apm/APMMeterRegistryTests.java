@@ -11,6 +11,10 @@ package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.data.LongPointData;
+import io.opentelemetry.sdk.metrics.data.MetricData;
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.Measurement;
@@ -32,10 +36,13 @@ import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
@@ -149,6 +156,52 @@ public class APMMeterRegistryTests extends ESTestCase {
         hasOneLong(lh, 1L);
         hasOneLong(lac, 100L);
         hasOneLong(lg, 100L);
+    }
+
+    public void testInstrumentsResumeAfterDisableAndReEnable() {
+        InMemoryMetricReader reader = InMemoryMetricReader.create();
+        SdkMeterProvider meterProvider = SdkMeterProvider.builder().registerMetricReader(reader).build();
+        Meter otelMeter = meterProvider.get("elasticsearch");
+
+        TestAPMMeterService apmMeter = new TestAPMMeterService(
+            Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), false).build(),
+            () -> otelMeter,
+            () -> noopOtel
+        );
+        APMMeterRegistry registry = apmMeter.getMeterRegistry();
+
+        String counterName = "es.test.resume_counter.total";
+        String gaugeName = "es.test.resume_gauge.current";
+        LongCounter counter = registry.registerLongCounter(counterName, "", "");
+        registry.registerLongGauge(gaugeName, "", "", () -> new LongWithAttributes(7L, Collections.emptyMap()));
+
+        apmMeter.setEnabled(true);
+        counter.increment();
+        Collection<MetricData> enabled = reader.collectAllMetrics();
+        assertThat(longPoints(enabled, counterName), contains(1L));
+        assertThat(longPoints(enabled, gaugeName), contains(7L));
+
+        apmMeter.setEnabled(false);
+        counter.increment();
+        Collection<MetricData> disabled = reader.collectAllMetrics();
+        assertThat("counter increment while disabled must not reach the SDK", longPoints(disabled, counterName), contains(1L));
+        assertThat("gauge must not be collected while disabled", longPoints(disabled, gaugeName), empty());
+
+        apmMeter.setEnabled(true);
+        counter.increment();
+        Collection<MetricData> reEnabled = reader.collectAllMetrics();
+        assertThat(longPoints(reEnabled, counterName), contains(2L));
+        assertThat(longPoints(reEnabled, gaugeName), contains(7L));
+
+        meterProvider.close();
+    }
+
+    private static List<Long> longPoints(Collection<MetricData> metrics, String name) {
+        return metrics.stream()
+            .filter(m -> m.getName().equals(name))
+            .flatMap(m -> m.getData().getPoints().stream())
+            .map(p -> ((LongPointData) p).getValue())
+            .toList();
     }
 
     private void hasOneDouble(Instrument instrument, double value) {

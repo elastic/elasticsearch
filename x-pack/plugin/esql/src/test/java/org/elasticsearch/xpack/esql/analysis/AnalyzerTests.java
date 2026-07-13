@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
@@ -2796,6 +2797,26 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(limit.child(), not(instanceOf(OrderBy.class)));
     }
 
+    public void testFirstWithNullSortAndDroppedTimestampFailsGracefully() {
+        // Dropping @timestamp before the STATS command makes the implicit timestamp sort parameter of first()/last()
+        // unresolvable; this must surface as a normal resolution failure rather than an internal exception (#153487).
+        tsdb().error(
+            "TS test | KEEP network.connections, host | STATS x = first(network.connections, null) by host",
+            containsString(UnresolvedTimestamp.UNRESOLVED_SUFFIX)
+        );
+    }
+
+    public void testFirstWithNullSortAndTimestampPresent() {
+        // When @timestamp is still resolvable, first()/last() with a null sort should resolve without error.
+        var plan = tsdb().query("TS test | STATS x = first(network.connections, null) by host");
+        assertTrue(plan.resolved());
+    }
+
+    public void testNonTimeSeriesFirstWithNullSort() {
+        var plan = basic().query("FROM test | STATS x = first(last_name, null) by first_name");
+        assertTrue(plan.resolved());
+    }
+
     public void testNoImplicitTimestampSortForNotTsQuery() {
         // Not TS query should NOT have implicit sort
         var plan = tsdb().query("FROM test");
@@ -3945,6 +3966,35 @@ public class AnalyzerTests extends ESTestCase {
                 containsString(
                     "Cannot use field [network.eth0.tx] due to ambiguities being mapped as [2] incompatible types: "
                         + "[aggregate_metric_double] in [k8s-downsampled], [integer] in [k8s]"
+                )
+            );
+    }
+
+    /**
+     * TO_TEXT only accepts {@code keyword}/{@code text} inputs (see {@code ToText#EVALUATORS}). When
+     * a union-typed field has a leg outside that set (here {@code ip} vs {@code keyword}), the
+     * conversion function can't resolve every leg, so the field falls through to the generic
+     * ambiguous-type-conflict error rather than being implicitly converted. This pins that
+     * "forbid for now" boundary so intentionally widening TO_TEXT's accepted union legs is a
+     * deliberate, test-breaking change. See union_types.csv-spec#multiIndexIpToTextWithExplicitCast
+     * for the supported workaround (an explicit inner cast to a type TO_TEXT does accept).
+     */
+    public void testToTextOnNonStringUnionTypeFails() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "ip")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "keyword"))
+            ),
+            List.of()
+        );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
+        analyzer().addIndex(resolution)
+            .error(
+                "FROM foo, bar | EVAL x = TO_TEXT(value)",
+                equalTo(
+                    "Found 1 problem\n"
+                        + "line 1:34: Cannot use field [value] due to ambiguities being mapped as [2] incompatible types: "
+                        + "[ip] in [foo], [keyword] in [bar]"
                 )
             );
     }

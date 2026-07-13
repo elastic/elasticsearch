@@ -742,7 +742,7 @@ class java.lang.String {
   int codePointCount(int,int)
   int compareTo(String)
   int compareToIgnoreCase(String)
-  String concat(String)
+  String concat(String) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="concatBytes"]
   boolean org.elasticsearch.painless.api.Augmentation contains(CharSequence) @script_aware
   boolean contentEquals(CharSequence)
   String copyValueOf(char[])
@@ -768,19 +768,19 @@ class java.lang.String {
   String org.elasticsearch.painless.api.Augmentation replace(CharSequence,CharSequence) @script_aware
   boolean startsWith(String)
   boolean startsWith(String,int)
-  String substring(int)
+  String substring(int) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="substringBytes"]
   String substring(int,int) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="substringBytes"]
-  char[] toCharArray()
-  String toLowerCase()
-  String toLowerCase(Locale)
-  String toUpperCase()
-  String toUpperCase(Locale)
-  String trim()
+  char[] toCharArray() @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="toCharArrayBytes"]
+  String toLowerCase() @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="recaseBytes"]
+  String toLowerCase(Locale) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="recaseBytes"]
+  String toUpperCase() @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="recaseBytes"]
+  String toUpperCase(Locale) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="recaseBytes"]
+  String trim() @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="recaseBytes"]
   String valueOf(def)
 }
 
 class java.lang.StringBuffer {
-  ()
+  () @allocates_constant[bytes="72b"]
   (CharSequence)
   StringBuffer append(def)
   StringBuffer append(CharSequence,int,int)
@@ -807,7 +807,7 @@ class java.lang.StringBuffer {
 }
 
 class java.lang.StringBuilder {
-  ()
+  () @allocates_constant[bytes="64b"]
   (CharSequence)
   StringBuilder append(def)
   StringBuilder append(CharSequence,int,int)

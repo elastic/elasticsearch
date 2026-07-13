@@ -45,9 +45,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Unit tests for EXTERNAL command analysis.
@@ -139,43 +141,58 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /**
-     * Match function requires field from index mapping; EXTERNAL fields are rejected.
+     * Match function requires field from index mapping; EXTERNAL fields are rejected, and the message names the
+     * federated-source limitation.
      */
     public void testWithMatchPhraseFunctionRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
         external().error(
             "EXTERNAL \"" + S3_PATH + "\" | WHERE MATCH_PHRASE(first_name, \"foo\")",
-            containsString("function cannot operate on [first_name], which is not a field from an index mapping")
+            containsString(
+                "function cannot operate on [first_name], which is not a field from an index mapping "
+                    + "(the source is a federated data source, not an index)"
+            )
         );
     }
 
     /**
-     * KQL function requires index context; EXTERNAL is rejected.
+     * KQL function requires a Lucene index; EXTERNAL (federated) sources are rejected with a message naming the
+     * limitation and suggesting the MATCH(field, ...) alternative, rather than a generic positional error.
      */
     public void testWithKqlFunctionRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
         external().error(
             "EXTERNAL \"" + S3_PATH + "\" | WHERE KQL(\"first_name: foo\")",
-            containsString("[KQL] function cannot be used after [EXTERNAL \"" + S3_PATH + "\"]")
+            containsString(
+                "[KQL] function is not supported on federated data sources [EXTERNAL \""
+                    + S3_PATH
+                    + "\"]; it requires an index. Use MATCH(field, \"term\") for full-text search on non-indexed data."
+            )
         );
     }
 
     /**
-     * QSTR function requires index context; EXTERNAL is rejected.
+     * QSTR function requires a Lucene index; EXTERNAL (federated) sources are rejected with a message naming the
+     * limitation and suggesting the MATCH(field, ...) alternative, rather than a generic positional error.
      */
     public void testWithQstrFunctionRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
         external().error(
             "EXTERNAL \"" + S3_PATH + "\" | WHERE QSTR(\"first_name: foo\")",
-            containsString("[QSTR] function cannot be used after [EXTERNAL \"" + S3_PATH + "\"]")
+            containsString(
+                "[QSTR] function is not supported on federated data sources [EXTERNAL \""
+                    + S3_PATH
+                    + "\"]; it requires an index. Use MATCH(field, \"term\") for full-text search on non-indexed data."
+            )
         );
     }
 
     /**
-     * KNN function requires vector field from index; EXTERNAL is rejected.
+     * KNN function requires vector field from index; EXTERNAL is rejected, and the message names the federated-source
+     * limitation.
      */
     public void testWithKnnFunctionRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
@@ -184,7 +201,47 @@ public class AnalyzerExternalTests extends ESTestCase {
 
         testAnalyzer.error(
             "EXTERNAL \"" + S3_PATH + "\" | WHERE KNN(vector, [3, 100, 0])",
-            containsString("function cannot operate on [vector], which is not a field from an index mapping")
+            containsString(
+                "function cannot operate on [vector], which is not a field from an index mapping "
+                    + "(the source is a federated data source, not an index)"
+            )
+        );
+    }
+
+    /**
+     * MatchPhrase still names the federated-source limitation for a field that was renamed before reaching the
+     * function - the federated-clause detection must follow the rename (by attribute identity) back to the
+     * {@link ExternalRelation}, not just compare the field's current name against its output.
+     */
+    public void testWithMatchPhraseFunctionRejectedAfterRename() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        external().error(
+            "EXTERNAL \"" + S3_PATH + "\" | RENAME first_name AS fname | WHERE MATCH_PHRASE(fname, \"foo\")",
+            containsString(
+                "function cannot operate on [fname], which is not a field from an index mapping "
+                    + "(the source is a federated data source, not an index)"
+            )
+        );
+    }
+
+    /**
+     * MatchPhrase on a genuinely computed (EVAL-derived) field - even one built from a federated field, and even
+     * after a subsequent rename - must not gain the federated-source clause: the value is no longer a direct
+     * reference to the federated field, so the plain "not a field from an index mapping" message applies.
+     */
+    public void testWithMatchPhraseFunctionRejectedOnEvalDerivedField() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        external().error(
+            "EXTERNAL \""
+                + S3_PATH
+                + "\" | EVAL full_name = CONCAT(first_name, last_name) | RENAME full_name AS content "
+                + "| WHERE MATCH_PHRASE(content, \"foo\")",
+            allOf(
+                containsString("function cannot operate on [content], which is not a field from an index mapping"),
+                not(containsString("federated"))
+            )
         );
     }
 

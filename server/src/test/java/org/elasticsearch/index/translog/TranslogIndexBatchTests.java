@@ -50,27 +50,23 @@ public class TranslogIndexBatchTests extends ESTestCase {
     private Path translogDir;
     private Translog translog;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createTranslog() throws Exception {
         assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
         primaryTerm.set(randomLongBetween(1, Integer.MAX_VALUE));
         translogDir = createTempDir();
         translog = create(translogDir);
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeTranslog() throws Exception {
         try {
             if (translog != null) {
                 translog.close();
             }
         } finally {
-            super.tearDown();
+            IOUtils.rm(translogDir);
         }
-        IOUtils.rm(translogDir);
     }
 
     private Translog create(Path path) throws IOException {

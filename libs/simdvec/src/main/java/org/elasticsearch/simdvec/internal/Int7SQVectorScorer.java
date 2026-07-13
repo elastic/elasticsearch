@@ -17,6 +17,8 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.simdvec.IndexInputUtils;
 import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
@@ -24,10 +26,11 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7u;
-import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceI7u;
-
 public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
+
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
 
     final int vectorByteSize;
     final int vectorPitch;
@@ -126,7 +129,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 input,
                 vectorByteSize,
                 scratch::getScratch,
-                seg -> dotProductI7u(query, seg, vectorByteSize)
+                seg -> DISTANCE_FUNCS.dotProductI7u(query, seg, vectorByteSize)
             );
             assert dotProduct >= 0;
             float nodeCorrection = Float.intBitsToFloat(input.readInt());
@@ -136,7 +139,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::dotProductI7uBulkSparse)) {
+            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::dotProductI7uBulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     var dotProduct = scores[i];
@@ -168,7 +171,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 input,
                 vectorByteSize,
                 scratch::getScratch,
-                seg -> squareDistanceI7u(query, seg, vectorByteSize)
+                seg -> DISTANCE_FUNCS.squareDistanceI7u(query, seg, vectorByteSize)
             );
             float adjustedDistance = sqDist * scoreCorrectionConstant;
             return VectorUtil.normalizeDistanceToUnitInterval(adjustedDistance);
@@ -176,7 +179,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::squareDistanceI7uBulkSparse)) {
+            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::squareDistanceI7uBulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     var squareDistance = scores[i];
@@ -205,7 +208,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 input,
                 vectorByteSize,
                 scratch::getScratch,
-                seg -> dotProductI7u(query, seg, vectorByteSize)
+                seg -> DISTANCE_FUNCS.dotProductI7u(query, seg, vectorByteSize)
             );
             assert dotProduct >= 0;
             float nodeCorrection = Float.intBitsToFloat(input.readInt());
@@ -215,7 +218,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
 
         @Override
         public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-            if (bulkScoreWithSparse(nodes, scores, numNodes, Similarities::dotProductI7uBulkSparse)) {
+            if (bulkScoreWithSparse(nodes, scores, numNodes, DISTANCE_FUNCS::dotProductI7uBulkSparse)) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     var dotProduct = scores[i];

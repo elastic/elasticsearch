@@ -414,6 +414,7 @@ module org.elasticsearch.server {
             org.elasticsearch.xpack.diskbbq,
             org.elasticsearch.xpack.stateless;
 
+    exports org.elasticsearch.telemetry.instrumentation;
     exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;
     exports org.elasticsearch.telemetry.metric;

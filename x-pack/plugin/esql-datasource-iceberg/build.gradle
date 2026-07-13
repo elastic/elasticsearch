@@ -43,6 +43,8 @@ dependencies {
   // Apache Iceberg with Parquet support - using parquet-hadoop-bundle to avoid jar hell from duplicate shaded classes
   implementation("org.apache.iceberg:iceberg-core:${versions.iceberg}") {
     exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+    // Exclude httpclient5 to avoid jar hell - x-pack-core already provides httpclient5 (aligned with the 5.x upgrade)
+    exclude group: 'org.apache.httpcomponents.client5', module: 'httpclient5'
     // Exclude commons-codec to avoid jar hell - x-pack-core already provides commons-codec:1.15
     exclude group: 'commons-codec', module: 'commons-codec'
     // Exclude slf4j-api to avoid jar hell - x-pack-core already provides slf4j-api:2.0.6
@@ -59,6 +61,8 @@ dependencies {
   implementation("org.apache.iceberg:iceberg-aws:${versions.iceberg}") {
     // Exclude AWS SDK bundle - we'll declare individual modules explicitly
     exclude group: 'software.amazon.awssdk', module: 'bundle'
+    // Exclude httpclient5 to avoid jar hell - x-pack-core already provides httpclient5 (aligned with the 5.x upgrade)
+    exclude group: 'org.apache.httpcomponents.client5', module: 'httpclient5'
     exclude group: 'commons-codec', module: 'commons-codec'
     exclude group: 'org.slf4j', module: 'slf4j-api'
     exclude group: 'org.checkerframework', module: 'checker-qual'
@@ -70,6 +74,8 @@ dependencies {
     exclude group: 'io.airlift', module: 'aircompressor'
   }
   implementation("org.apache.iceberg:iceberg-parquet:${versions.iceberg}") {
+    // Exclude httpclient5 to avoid jar hell - x-pack-core already provides httpclient5 (aligned with the 5.x upgrade)
+    exclude group: 'org.apache.httpcomponents.client5', module: 'httpclient5'
     exclude group: 'org.apache.parquet', module: 'parquet-hadoop'
     exclude group: 'org.apache.parquet', module: 'parquet-column'
     exclude group: 'org.apache.parquet', module: 'parquet-avro'
@@ -89,6 +95,8 @@ dependencies {
   }
   // Iceberg Arrow integration for vectorized data reading
   implementation("org.apache.iceberg:iceberg-arrow:${versions.iceberg}") {
+    // Exclude httpclient5 to avoid jar hell - x-pack-core already provides httpclient5 (aligned with the 5.x upgrade)
+    exclude group: 'org.apache.httpcomponents.client5', module: 'httpclient5'
     exclude group: 'org.apache.parquet', module: 'parquet-avro'
     exclude group: 'org.apache.parquet', module: 'parquet-hadoop'
     exclude group: 'org.apache.parquet', module: 'parquet-column'

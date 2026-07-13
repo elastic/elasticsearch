@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -73,16 +74,35 @@ public final class AsyncExternalSourceBuffer {
     private volatile int cachedMetadataPathCount = 0;
 
     /**
-     * Client-visible partial-results warnings recorded by the background reader path — currently a
-     * streaming {@code max_record_size} truncation under a non-strict {@code error_mode} (see
-     * {@code StreamingParallelParsingCoordinator}). Producer / parse-worker threads append here off
-     * the driver thread; {@link AsyncExternalSourceOperator#close()} drains and re-emits them via
-     * {@link org.elasticsearch.common.logging.HeaderWarning} on the driver thread, whose response
-     * headers {@code DriverRunner} collects into the client response. Emitting from the forked worker
-     * thread directly would land the header on that worker's {@code ThreadContext}, which is never
-     * merged back into the response — so the warning would be invisible to the client.
+     * Client-visible warnings recorded by the background reader path — both genuine partial-results
+     * signals (currently a streaming {@code max_record_size} truncation under a non-strict
+     * {@code error_mode}, see {@code StreamingParallelParsingCoordinator}) and per-record
+     * skip/null-fill warnings relayed from format-reader {@code SkipWarnings} sinks (see
+     * {@code FormatReadContext#informationalWarningSink()} / {@code RangeReadContext#informationalWarningSink()}),
+     * which do not necessarily imply a dropped record. See {@link #recordWarning} vs {@link
+     * #recordInformationalWarning}. Producer / parse-worker threads append here off the driver thread;
+     * {@link AsyncExternalSourceOperator#close()} drains and re-emits them via {@link
+     * org.elasticsearch.common.logging.HeaderWarning} on the driver thread, whose response headers
+     * {@code DriverRunner} collects into the client response. Emitting from the forked worker thread
+     * directly would land the header on that worker's {@code ThreadContext}, which is never merged
+     * back into the response — so the warning would be invisible to the client.
      */
     private final Queue<String> pendingWarnings = new ConcurrentLinkedQueue<>();
+
+    /**
+     * Cap on informational warning lines a single query may emit via {@link #recordInformationalWarning}
+     * across every concurrently-parsed segment/chunk. Each {@code SkipWarnings} instance already caps its
+     * own detail count at {@link SkipWarnings#MAX_ADDED_WARNINGS}, but that cap is per reader instance, not
+     * per query — a parallel or macro-split read constructs one instance per chunk/segment, so without a
+     * cap here a single read could add far more than that to {@link #pendingWarnings}, multiplying response
+     * header count by chunk/segment count. The {@code +2} mirrors the 1 summary + 1 overflow line a single
+     * {@code SkipWarnings} instance adds around its own cap.
+     */
+    private static final int MAX_INFORMATIONAL_WARNINGS = SkipWarnings.MAX_ADDED_WARNINGS + 2;
+
+    // Each caller gets a unique count, so exactly one caller ever sees count == MAX_INFORMATIONAL_WARNINGS
+    // and adds the overflow line — no separate overflow flag needed.
+    private final AtomicInteger informationalWarningsAdded = new AtomicInteger();
 
     /**
      * Set when the background reader path drops data under a lenient policy — currently a streaming
@@ -118,17 +138,54 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Records a client-visible partial-results warning to be re-emitted on the driver thread when the
-     * operator closes. Thread-safe: called from the background reader / parse-worker thread.
+     * operator closes, and flips {@link #partial}. Thread-safe: called from the background reader /
+     * parse-worker thread.
      * <p>
-     * This sink is currently wired exclusively to the lenient {@code max_record_size} truncation path
-     * (see {@code StreamingParallelParsingCoordinator#emitTruncationWarning}), so it also flips
-     * {@link #partial}: a recorded warning here always means the read returned fewer records than the
-     * source held. If a future caller routes a non-partial warning through this method, split the
-     * partial signal out into its own entry point.
+     * This sink is wired exclusively to the lenient {@code max_record_size} truncation path (see
+     * {@code StreamingParallelParsingCoordinator#emitTruncationWarning}): a recorded warning here
+     * always means the read returned fewer records than the source held. Per-record {@code SkipWarnings}
+     * warnings (row skipped or field null-filled under a lenient {@code ErrorPolicy}) must use
+     * {@link #recordInformationalWarning} instead — not because a skipped row is never a "real" partial
+     * result, but because {@link #partial} has never tracked that case (this predates warning-sink
+     * relaying entirely: on the driver thread such warnings always emitted straight to
+     * {@link org.elasticsearch.common.logging.HeaderWarning} without touching this flag). Overloading
+     * {@link #partial}'s meaning to also cover {@code SKIP_ROW} drops is a separate, pre-existing
+     * question and out of scope here.
      */
     public void recordWarning(String warning) {
         pendingWarnings.add(warning);
         partial = true;
+    }
+
+    /**
+     * Records a client-visible warning to be re-emitted on the driver thread when the operator closes,
+     * without affecting {@link #partial}. Thread-safe: called from the background reader / parse-worker
+     * thread.
+     * <p>
+     * Use this for warnings relayed from format-reader {@code SkipWarnings} sinks (see {@code
+     * FormatReadContext#informationalWarningSink()} / {@code RangeReadContext#informationalWarningSink()})
+     * — e.g. CSV/NDJSON per-record skip/null-fill handling or Parquet on-disk/planner type mismatches.
+     * This preserves these warnings' pre-existing behavior of never flipping {@link #partial} (previously
+     * they only ever reached {@link org.elasticsearch.common.logging.HeaderWarning} directly, which has
+     * no notion of {@link #partial} either); this method only fixes their delivery when the read runs
+     * off the driver thread, without changing what they signal. See {@link #recordWarning} for the one
+     * warning that has always mapped to {@link #partial}.
+     * <p>
+     * Each {@code SkipWarnings} instance caps its own per-event details at
+     * {@code SkipWarnings.MAX_ADDED_WARNINGS} (20), but that cap is per reader instance, not per query:
+     * a parallel or macro-split read constructs one {@code SkipWarnings} per chunk/segment. This method
+     * applies {@link #MAX_INFORMATIONAL_WARNINGS} as a single cap across every caller so that a read
+     * split into many chunks/segments cannot multiply {@link #pendingWarnings}'s size by chunk/segment
+     * count — otherwise a large enough split count can grow response headers past what the client (or
+     * an intermediate proxy) is willing to accept.
+     */
+    public void recordInformationalWarning(String warning) {
+        int count = informationalWarningsAdded.incrementAndGet();
+        if (count < MAX_INFORMATIONAL_WARNINGS) {
+            pendingWarnings.add(warning);
+        } else if (count == MAX_INFORMATIONAL_WARNINGS) {
+            pendingWarnings.add("... further reader warnings suppressed (more than " + (MAX_INFORMATIONAL_WARNINGS - 1) + " recorded)");
+        }
     }
 
     /** Removes and returns the next recorded warning, or {@code null} if none remain. */
@@ -333,6 +390,16 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Mark the buffer as finished. Called when reading is done or an error occurs.
+     * <p>
+     * {@code drainingPages} is honored regardless of whether this call wins the {@code noMoreInputs}
+     * transition: {@link AsyncExternalSourceOperator#close()} always calls {@code finish(true)}, and
+     * by the time a driver closes its operator {@code noMoreInputs} has very often already been set
+     * by the producer's own {@link #onFailure} or an earlier {@code finish(false)} — e.g. the producer
+     * reached natural EOF, or the read failed, before the driver got a chance to drain every page via
+     * {@code getOutput()}/{@link #pollPage()}. Gating {@link #discardPages()} behind the transition
+     * used to skip it entirely in that (common) case, leaking whatever the producer had already
+     * buffered when the driver's close is not preceded by a full drain (e.g. cross-driver task
+     * cancellation cutting this operator before its own poll loop ever ran).
      *
      * @return {@code true} if this call performed the running→finishing transition; {@code false} if the buffer had
      *         already been finished (e.g. producer reached natural EOF, or a concurrent {@code finish}/{@code onFailure}
@@ -341,9 +408,8 @@ public final class AsyncExternalSourceBuffer {
      *         (honestly complete result).
      */
     public boolean finish(boolean drainingPages) {
-        if (noMoreInputs.compareAndSet(false, true) == false) {
-            return false;
-        }
+        boolean transitioned = noMoreInputs.compareAndSet(false, true);
+        // See the javadoc above for why this must not be gated on `transitioned`.
         if (drainingPages) {
             discardPages();
         }
@@ -351,7 +417,7 @@ public final class AsyncExternalSourceBuffer {
         notifyNotFull(); // wake producers so they observe noMoreInputs and exit
         signalCompletionIfDrained();
         assert invariantsHold() : "buffer invariants violated after finish";
-        return true;
+        return transitioned;
     }
 
     /**

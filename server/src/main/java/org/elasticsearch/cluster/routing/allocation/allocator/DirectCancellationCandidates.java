@@ -20,6 +20,10 @@ public record DirectCancellationCandidates(List<Candidates> candidates) {
 
     public static final DirectCancellationCandidates EMPTY = new DirectCancellationCandidates(List.of());
 
+    public boolean isEmpty() {
+        return candidates.isEmpty();
+    }
+
     public DirectCancellationCandidates {
         candidates = List.copyOf(candidates);
     }

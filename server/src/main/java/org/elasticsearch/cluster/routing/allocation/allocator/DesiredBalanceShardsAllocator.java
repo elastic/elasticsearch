@@ -124,7 +124,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     public interface DirectCancellationExecutor {
         DirectCancellationExecutor NO_OP = (version, candidates) -> {};
 
-        void onNewCancellationCandidates(long clusterStateVersion, DirectCancellationCandidates candidates);
+        void executeCancellations(long clusterStateVersion, DirectCancellationCandidates candidates);
     }
 
     public DesiredBalanceShardsAllocator(
@@ -262,6 +262,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         clusterService.addListener(event -> {
             if (event.localNodeMaster() == false) {
                 onNoLongerMaster();
+            } else {
+                var candidates = pendingRecoveryCancellations.getAndSet(DirectCancellationCandidates.EMPTY);
+                if (candidates.isEmpty() == false) {
+                    directCancellationExecutor.executeCancellations(event.state().version(), candidates);
+                }
             }
             // Only update on change, to minimise volatile writes
             if (event.localNodeMaster() != event.previousState().nodes().isLocalNodeElectedMaster()) {
@@ -540,14 +545,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     createReconcileAllocationAction(latest.getTask().desiredBalance)
                 );
 
-                var cancellationsForThisRound = pendingRecoveryCancellations.get();
-                // The cancellation candidates were computed from initialState and the reconciler should not
-                // ask to direct cancel shards it just allocated.
-                var clusterStateVersion = batchExecutionContext.initialState().version();
-                latest.success(() -> {
-                    pendingListenersQueue.complete(latest.getTask().desiredBalance.lastConvergedIndex());
-                    directCancellationExecutor.onNewCancellationCandidates(clusterStateVersion, cancellationsForThisRound);
-                });
+                latest.success(() -> pendingListenersQueue.complete(latest.getTask().desiredBalance.lastConvergedIndex()));
                 return newState;
             }
         }
@@ -590,6 +588,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     public void setDirectCancellationConsumer(DirectCancellationExecutor cancellationExecutor) {
+        assert directCancellationExecutor == DirectCancellationExecutor.NO_OP : "direct cancellation executor should only be set once";
         directCancellationExecutor = cancellationExecutor;
     }
 }

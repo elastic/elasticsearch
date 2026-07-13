@@ -1406,20 +1406,17 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         String name = (String) map.get("name");
                         if (name == null) return;
                         name = name.toUpperCase(Locale.ROOT);
-                        // NOT_EQUALS can never be exercised by this variant: ExpressionBuilder#buildComparison desugars
-                        // "!=" to Not(Equals(lhs, rhs)) at parse time (see EsqlBaseParser.NEQ), so the pre-analysis AST
-                        // this variant walks never contains a NotEquals node - only Not wrapping Equals. A keyword field
-                        // reference on either side of "!=" is therefore tracked and wrapped as an EQUALS:lhs/EQUALS:rhs
-                        // argument, never NOT_EQUALS:lhs/NOT_EQUALS:rhs, so the whole operator is excluded from
-                        // candidates here rather than left as a permanent EXPECTED_ERRORS entry.
-                        if ("NOT_EQUALS".equals(name)) return;
-                        // NOT_IN can never be exercised by this variant either, for the identical structural reason:
+                        // Neither NOT_EQUALS nor NOT_IN can ever be exercised by this variant, for the same structural
+                        // reason: the parser desugars a leading "NOT" into Not(X(...)) at parse time, before the
+                        // pre-analysis AST this variant walks ever sees a distinct NOT_* node - only Not wrapping the
+                        // un-negated node. A keyword field reference anywhere in the negated expression is therefore
+                        // always tracked and wrapped under the un-negated operator's name/child-index, never the NOT_*
+                        // one, so both operators are excluded from candidates here rather than left as permanent
+                        // EXPECTED_ERRORS entries. Concretely: ExpressionBuilder#buildComparison desugars "!=" to
+                        // Not(Equals(lhs, rhs)) (see EsqlBaseParser.NEQ), tracked as EQUALS:lhs/EQUALS:rhs; and
                         // ExpressionBuilder#visitLogicalIn desugars "NOT ... IN (...)" to Not(In(lhs, list)) (or
-                        // Not(Equals(...)) for a single-candidate list) at parse time, so the pre-analysis AST this
-                        // variant walks never contains a distinct NotIn node - only Not wrapping In. A keyword field
-                        // reference anywhere in a NOT IN expression is therefore tracked and wrapped as an IN:0/IN:1
-                        // argument, never NOT_IN:0/NOT_IN:1, so the whole operator is excluded from candidates here
-                        // rather than left as a permanent EXPECTED_ERRORS entry.
+                        // Not(Equals(...)) for a single-candidate list), tracked as IN:0/IN:1.
+                        if ("NOT_EQUALS".equals(name)) return;
                         if ("NOT_IN".equals(name)) return;
 
                         List<Map<String, Object>> signatures = (List<Map<String, Object>>) map.get("signatures");

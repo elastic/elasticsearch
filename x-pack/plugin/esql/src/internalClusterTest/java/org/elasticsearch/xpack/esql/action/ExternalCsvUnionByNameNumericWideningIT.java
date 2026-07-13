@@ -33,8 +33,9 @@ import static org.hamcrest.Matchers.equalTo;
  * null-filling.
  * <p>
  * {@code schema_sample_size} is small so the narrow-inferred file's sample sees only its leading rows and never the
- * wider trailing row. {@code error_mode = null_field} keeps a lost value visible as a {@code null} cell rather than a
- * query failure.
+ * wider trailing row. Under {@code error_mode = null_field} a value that does not fit its read type surfaces as a
+ * {@code null} cell; under {@code error_mode = fail_fast} it aborts the query. In both modes reading at the reconciled
+ * type lets the out-of-sample value parse, so it survives as its value and the {@code fail_fast} query succeeds.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class ExternalCsvUnionByNameNumericWideningIT extends AbstractExternalDataSourceIT {
@@ -113,6 +114,55 @@ public class ExternalCsvUnionByNameNumericWideningIT extends AbstractExternalDat
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows.stream().map(row -> row.get(0)).toList(), contains(10.0, 20.0, 1.5, 1.1, 2.2));
             assertThat("the out-of-sample decimal value must not be dropped", rows.get(2).get(0), equalTo(1.5));
+        }
+    }
+
+    public void testFailFastNumericInferredColumnKeepsTextTailWhenWidenedToKeyword() throws Exception {
+        Path dir = createTempDir().resolve("ubn_failfast_widened_keyword");
+        Files.createDirectories(dir);
+        // a.csv: sample (100, 200) infers numeric; the out-of-sample text "oops" would fail a numeric parse.
+        Files.writeString(dir.resolve("a.csv"), "id,col,note\n1,100,alpha\n2,200,beta\n3,oops,gamma\n", StandardCharsets.UTF_8);
+        // b.csv: col is text -> inferred keyword, so union_by_name widens col to keyword.
+        Files.writeString(dir.resolve("b.csv"), "id,col,note\n4,abc,delta\n5,def,epsilon\n", StandardCharsets.UTF_8);
+
+        String glob = StoragePath.fileUri(dir) + "/*.csv";
+        String dataset = registerDataset(
+            "ubn_failfast_widened_keyword",
+            glob,
+            Map.of("schema_resolution", "union_by_name", "schema_sample_size", 2, "error_mode", "fail_fast")
+        );
+
+        // Under fail_fast, parsing "oops" at the sampled numeric type would abort the whole query. Pinned to KEYWORD
+        // the reader returns the raw token, so the query succeeds and no value is lost.
+        String query = "FROM " + dataset + " | SORT id ASC | KEEP col";
+        try (var response = run(syncEsqlQueryRequest(query))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.stream().map(row -> row.get(0)).toList(), contains("100", "200", "oops", "abc", "def"));
+            assertThat("the numeric-inferred file's text tail must not abort the read", rows.get(2).get(0), equalTo("oops"));
+        }
+    }
+
+    public void testFailFastIntInferredColumnKeepsOutOfSampleOverflowWhenWidenedToLong() throws Exception {
+        Path dir = createTempDir().resolve("ubn_failfast_widened_long");
+        Files.createDirectories(dir);
+        // a.csv: sample (10, 20) infers INTEGER; the out-of-sample value overflows int and would abort a fail_fast read.
+        Files.writeString(dir.resolve("a.csv"), "id,col\n1,10\n2,20\n3,3000000000\n", StandardCharsets.UTF_8);
+        // b.csv: values exceed int range -> inferred LONG, so union_by_name widens col to LONG.
+        Files.writeString(dir.resolve("b.csv"), "id,col\n4,5000000000\n5,6000000000\n", StandardCharsets.UTF_8);
+
+        String glob = StoragePath.fileUri(dir) + "/*.csv";
+        String dataset = registerDataset(
+            "ubn_failfast_widened_long",
+            glob,
+            Map.of("schema_resolution", "union_by_name", "schema_sample_size", 2, "error_mode", "fail_fast")
+        );
+
+        // Pinned to LONG the reader parses 3000000000 directly, so the fail_fast query succeeds instead of aborting.
+        String query = "FROM " + dataset + " | SORT id ASC | KEEP col";
+        try (var response = run(syncEsqlQueryRequest(query))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.stream().map(row -> row.get(0)).toList(), contains(10L, 20L, 3000000000L, 5000000000L, 6000000000L));
+            assertThat("the out-of-sample overflow value must not abort the read", rows.get(2).get(0), equalTo(3000000000L));
         }
     }
 

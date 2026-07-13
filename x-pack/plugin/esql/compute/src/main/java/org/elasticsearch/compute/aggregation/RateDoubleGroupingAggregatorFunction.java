@@ -689,6 +689,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             }
             if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
                 tsContext.computeAdjacentGroupIds();
+                // https://github.com/elastic/elasticsearch/issues/152758
+                assert assertTimestampsWithinBuckets(selectedInPage, tsContext);
             }
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
@@ -711,6 +713,30 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             }
             blocks[offset] = rates.build();
         }
+    }
+
+    /**
+     * Verifies that every non-empty group's raw timestamps fall within the group's time bucket range.
+     * Called before any {@link #computeRate} invocation so that a mis-bucketed point is detected
+     * before it poisons the adjacent-group interpolation.
+     */
+    private boolean assertTimestampsWithinBuckets(IntVector selected, TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+        for (int p = 0; p < selected.getPositionCount(); p++) {
+            int group = selected.getInt(p);
+            var state = group < reducedStates.size() ? reducedStates.get(group) : null;
+            if (state == null || state.samples == 0) {
+                continue;
+            }
+            double bucketStart = tsContext.rangeStartInMillis(group) / 1000.0;
+            double bucketEnd = tsContext.rangeEndInMillis(group) / 1000.0;
+            double firstTsSec = state.firstTs() / dateFactor;
+            double lastTsSec = state.lastTs() / dateFactor;
+            assert firstTsSec >= bucketStart
+                : "firstTs " + firstTsSec + " is before bucket start " + bucketStart + " for group " + group;
+            assert lastTsSec < bucketEnd
+                : "lastTs " + lastTsSec + " is at or after bucket end " + bucketEnd + " for group " + group;
+        }
+        return true;
     }
 
     @Override

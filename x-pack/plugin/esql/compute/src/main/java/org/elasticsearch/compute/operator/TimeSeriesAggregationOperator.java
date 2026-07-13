@@ -547,6 +547,31 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     long nextBucketTs = nextTimestamps.computeIfAbsent(bucketTs, fastRounding::nextRoundingValue);
                     int nextGroupId = Math.toIntExact(tsBlockHash.getGroupId(tsid, nextBucketTs));
                     if (nextGroupId >= 0) {
+                        // https://github.com/elastic/elasticsearch/issues/152758
+                        assert tsBlockHash.tsidForGroup(nextGroupId) == tsid
+                            : "adjacent groups must share the same tsid: group "
+                                + groupId
+                                + " (tsid="
+                                + tsid
+                                + ") -> nextGroup "
+                                + nextGroupId
+                                + " (tsid="
+                                + tsBlockHash.tsidForGroup(nextGroupId)
+                                + ")";
+                        assert tsBlockHash.timestampForGroup(nextGroupId) == nextBucketTs
+                            : "next group timestamp mismatch: expected "
+                                + nextBucketTs
+                                + " but group "
+                                + nextGroupId
+                                + " has "
+                                + tsBlockHash.timestampForGroup(nextGroupId);
+                        assert prevGroupIds.get(nextGroupId) == -1
+                            : "prevGroupIds["
+                                + nextGroupId
+                                + "] already set to "
+                                + prevGroupIds.get(nextGroupId)
+                                + " when linking from group "
+                                + groupId;
                         nextGroupIds.set(groupId, nextGroupId);
                         prevGroupIds.set(nextGroupId, groupId);
                     }

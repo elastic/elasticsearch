@@ -835,9 +835,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {byte_stream_split_extended.gzip}
   issue: https://github.com/elastic/elasticsearch/issues/153345
-- class: org.elasticsearch.xpack.downsample.DownsampleRateIT
-  method: testTimeSeriesQuerying_RandomDocuments
-  issue: https://github.com/elastic/elasticsearch/issues/153348
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {delta_length_byte_array}
   issue: https://github.com/elastic/elasticsearch/issues/153349

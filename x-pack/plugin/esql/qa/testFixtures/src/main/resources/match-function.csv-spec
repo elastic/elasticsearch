@@ -2071,18 +2071,26 @@ required_capability: match_function
 required_capability: full_text_functions_after_inline_stats
 
 FROM books
-| INLINE STATS max_year = MAX(year) BY year
-| WHERE MATCH(author, "Faulkner") AND max_year >= 2011
-| KEEP book_no, year, max_year
+| INLINE STATS max_year_for_publisher = MAX(year) BY publisher
+| WHERE MATCH(author, "Faulkner") AND max_year_for_publisher >= 2000
+| KEEP book_no, year, publisher, max_year_for_publisher
 | SORT book_no
 ;
 
-book_no:keyword | year:integer | max_year:integer
-4724            | 2011         | 2011
-4977            | 2011         | 2011
-5119            | 2011         | 2011
-5404            | 2011         | 2011
-8077            | 2011         | 2011
+book_no:keyword | year:integer | publisher:text               | max_year_for_publisher:integer
+2378            | 2002         | University of Illinois Press | 2002
+2713            | 1995         | Vintage                      | 2011
+2883            | 2005         | Vintage Books                | 2005
+3293            | 2004         | New Leaf Publishing Group    | 2004
+3535            | 2003         | Barrons Juveniles            | 2003
+4724            | 2011         | Vintage                      | 2011
+4977            | 2011         | Vintage                      | 2011
+5119            | 2011         | Vintage                      | 2011
+5404            | 2011         | Vintage                      | 2011
+5578            | 1991         | Vintage                      | 2011
+6151            | 2003         | Dutton Childrens Books       | 2003
+7381            | 2003         | Red Wheel/Weiser             | 2003
+8077            | 2011         | Vintage                      | 2011
 ;
 
 notMatchAfterInlineStats
@@ -2092,11 +2100,11 @@ required_capability: full_text_functions_after_inline_stats
 FROM books
 | INLINE STATS max_year = MAX(year)
 | WHERE NOT MATCH(author, "Faulkner")
-| STATS count = COUNT(*)
+| STATS count = COUNT(*) BY max_year
 ;
 
-count:long
-61
+count:long | max_year:integer
+61         | 2022
 ;
 
 matchNotPushableAfterInlineStats
@@ -2106,29 +2114,29 @@ required_capability: full_text_functions_after_inline_stats
 FROM books
 | INLINE STATS max_year = MAX(year)
 | WHERE MATCH(author, "Faulkner") OR LENGTH(title) < 5
-| KEEP book_no
+| KEEP book_no, max_year
 | SORT book_no
 ;
 
-book_no:keyword
-2378
-2713
-2847
-2883
-3293
-3535
-3870
-4502
-4724
-4977
-5119
-5404
-5578
-6151
-7381
-8077
-8423
-9896
+book_no:keyword | max_year:integer
+2378            | 2022
+2713            | 2022
+2847            | 2022
+2883            | 2022
+3293            | 2022
+3535            | 2022
+3870            | 2022
+4502            | 2022
+4724            | 2022
+4977            | 2022
+5119            | 2022
+5404            | 2022
+5578            | 2022
+6151            | 2022
+7381            | 2022
+8077            | 2022
+8423            | 2022
+9896            | 2022
 ;
 
 matchAfterMultipleInlineStats
@@ -2139,27 +2147,27 @@ FROM books
 | INLINE STATS max_year = MAX(year)
 | INLINE STATS min_year = MIN(year)
 | WHERE MATCH(author, "Faulkner")
-| KEEP book_no
+| KEEP book_no, max_year, min_year
 | SORT book_no
 ;
 
-book_no:keyword
-2378
-2713
-2847
-2883
-3293
-3535
-3870
-4502
-4724
-4977
-5119
-5404
-5578
-6151
-7381
-8077
-8423
-9896
+book_no:keyword | max_year:integer | min_year:integer
+2378            | 2022             | 1969
+2713            | 2022             | 1969
+2847            | 2022             | 1969
+2883            | 2022             | 1969
+3293            | 2022             | 1969
+3535            | 2022             | 1969
+3870            | 2022             | 1969
+4502            | 2022             | 1969
+4724            | 2022             | 1969
+4977            | 2022             | 1969
+5119            | 2022             | 1969
+5404            | 2022             | 1969
+5578            | 2022             | 1969
+6151            | 2022             | 1969
+7381            | 2022             | 1969
+8077            | 2022             | 1969
+8423            | 2022             | 1969
+9896            | 2022             | 1969
 ;

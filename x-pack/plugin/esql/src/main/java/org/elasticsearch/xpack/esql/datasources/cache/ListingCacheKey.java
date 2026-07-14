@@ -40,10 +40,9 @@ public record ListingCacheKey(
     );
 
     public static ListingCacheKey build(String scheme, String bucket, String prefixAndGlob, Map<String, Object> config) {
-        String endpoint = config != null ? String.valueOf(config.getOrDefault("endpoint", "")) : "";
-        String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
+        EndpointRegion location = EndpointRegion.of(config);
         long[] hash = computeCredentialHash(config);
-        return new ListingCacheKey(scheme, bucket, prefixAndGlob, endpoint, region, hash[0], hash[1]);
+        return new ListingCacheKey(scheme, bucket, prefixAndGlob, location.endpoint(), location.region(), hash[0], hash[1]);
     }
 
     static long[] computeCredentialHash(Map<String, Object> config) {

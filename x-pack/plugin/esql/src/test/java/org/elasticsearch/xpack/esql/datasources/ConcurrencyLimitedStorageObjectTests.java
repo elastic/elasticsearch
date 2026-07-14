@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -94,7 +95,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
         assertEquals(3, limiter.availablePermits());
     }
 
-    public void testLengthReleasesPermit() throws Exception {
+    public void testLengthBypassesPermit() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
         StorageObject delegate = mock(StorageObject.class);
         when(delegate.length()).thenReturn(42L);
@@ -102,6 +103,34 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
         ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
         assertEquals(42L, obj.length());
         assertEquals(3, limiter.availablePermits());
+    }
+
+    /**
+     * Starvation regression for #1151: metadata ops (length/lastModified/exists) must not acquire the
+     * concurrency permit. With a single permit already held by an open stream, a permit-taking metadata
+     * call would block forever (single-threaded here, so it would deadlock/time out). It must instead
+     * return immediately without touching the permit count.
+     */
+    public void testMetadataOpsBypassPermitWhileStreamHoldsOnlyPermit() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1);
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+        when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
+        when(delegate.length()).thenReturn(42L);
+        when(delegate.lastModified()).thenReturn(Instant.ofEpochMilli(123L));
+        when(delegate.exists()).thenReturn(true);
+
+        ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
+        InputStream stream = obj.newStream();
+        assertEquals(0, limiter.availablePermits());
+
+        assertEquals(42L, obj.length());
+        assertEquals(Instant.ofEpochMilli(123L), obj.lastModified());
+        assertTrue(obj.exists());
+        assertEquals("metadata ops must not take the held stream's permit", 0, limiter.availablePermits());
+
+        stream.close();
+        assertEquals(1, limiter.availablePermits());
     }
 
     @SuppressWarnings("unchecked")

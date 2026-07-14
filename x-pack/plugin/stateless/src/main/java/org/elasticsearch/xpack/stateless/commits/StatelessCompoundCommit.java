@@ -334,6 +334,10 @@ public record StatelessCompoundCommit(
         return commitBoundary;
     }
 
+    public Set<BlobFile> getBlobFiles() {
+        return commitFiles.values().stream().map(BlobLocation::blobFile).collect(Collectors.toSet());
+    }
+
     /**
      * Writes the StatelessCompoundCommit header to the given StreamOutput and returns the number of bytes written
      * @return the header size in bytes
@@ -683,6 +687,10 @@ public record StatelessCompoundCommit(
 
         public TimestampFieldValueRange(StreamInput in) throws IOException {
             this(in.readLong(), in.readLong());
+        }
+
+        public long midpointMillis() {
+            return minMillis + (maxMillis - minMillis) / 2;
         }
 
         @Override

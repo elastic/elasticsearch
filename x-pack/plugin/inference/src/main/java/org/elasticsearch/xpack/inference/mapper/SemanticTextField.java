@@ -68,6 +68,7 @@ public record SemanticTextField(
 ) implements ToXContentObject, DenseVectorSupplier {
 
     static final String TEXT_FIELD = "text";
+    static final String INPUT_FIELD = "input";
     static final String INFERENCE_FIELD = "inference";
     public static final String INFERENCE_ID_FIELD = "inference_id";
     static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
@@ -120,10 +121,6 @@ public record SemanticTextField(
         }
 
         private Chunk(@Nullable String text, int startOffset, int endOffset, @Nullable Integer inputIndex, BytesReference rawEmbeddings) {
-            // Temporary logic to ensure no callers set inputIndex in release builds
-            if (inputIndex != null && SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled() == false) {
-                throw new UnsupportedOperationException("Input index is not supported yet");
-            }
             this.text = text;
             this.startOffset = startOffset;
             this.endOffset = endOffset;
@@ -173,6 +170,14 @@ public record SemanticTextField(
 
     public static String getOriginalTextFieldName(String fieldName) {
         return fieldName + "." + TEXT_FIELD;
+    }
+
+    /**
+     * Internal binary doc values field that stores the field's original input value(s) in document order, so that
+     * {@code _source} can be rebuilt, and the field retrieved, from doc values alone.
+     */
+    public static String getOriginalValuesFieldName(String fieldName) {
+        return fieldName + "." + INPUT_FIELD;
     }
 
     public static String getInferenceFieldName(String fieldName) {

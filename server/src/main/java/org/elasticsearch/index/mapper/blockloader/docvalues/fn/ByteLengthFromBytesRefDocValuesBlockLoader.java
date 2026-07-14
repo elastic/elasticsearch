@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader.ArrayOrderSource;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
@@ -28,10 +29,16 @@ import java.io.IOException;
 public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     private final String fieldName;
     private final Warnings warnings;
+    private final ArrayOrderSource arrayOrderSource;
 
     public ByteLengthFromBytesRefDocValuesBlockLoader(Warnings warnings, String fieldName) {
+        this(warnings, fieldName, ArrayOrderSource.NONE);
+    }
+
+    public ByteLengthFromBytesRefDocValuesBlockLoader(Warnings warnings, String fieldName, ArrayOrderSource arrayOrderSource) {
         this.warnings = warnings;
         this.fieldName = fieldName;
+        this.arrayOrderSource = arrayOrderSource;
     }
 
     @Override
@@ -47,6 +54,9 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         }
         if (bc.counts() == null) {
             return new SingleValued(bc.binary());
+        }
+        if (arrayOrderSource == ArrayOrderSource.INLINE) {
+            return new MultiValuedBinaryArrayOrderInlineNull(warnings, bc.counts(), bc.binary());
         }
         return new MultiValuedBinaryWithSeparateCounts(warnings, bc.counts(), bc.binary());
     }
@@ -115,6 +125,23 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         @Override
         public String toString() {
             return "ByteLengthFromBytesRef.MultiValuedBinaryWithSeparateCounts";
+        }
+    }
+
+    private static final class MultiValuedBinaryArrayOrderInlineNull extends MultiValuedBinaryArrayOrderInlineNullLengthReader {
+
+        MultiValuedBinaryArrayOrderInlineNull(Warnings warnings, TrackingNumericDocValues counts, TrackingBinaryDocValues values) {
+            super(warnings, counts, values);
+        }
+
+        @Override
+        int length(BytesRef bytesRef) {
+            return bytesRef.length;
+        }
+
+        @Override
+        public String toString() {
+            return "ByteLengthFromBytesRef.MultiValuedBinaryArrayOrderInlineNull";
         }
     }
 }

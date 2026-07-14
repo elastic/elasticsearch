@@ -11,6 +11,8 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -23,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -259,6 +262,31 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         IOException thrown = expectThrows(IOException.class, () -> NdJsonFormatReader.openForSchemaInference(object, true));
         assertSame("the original scan failure must propagate unchanged", scanFailure, thrown);
         assertTrue("raw stream must be aborted when scanForTerminator fails", aborted.get());
+    }
+
+    /**
+     * 4-digit all-digit values must not be inferred as {@link DataType#DATETIME}
+     * when using the default {@code strict_date_optional_time} formatter.
+     */
+    public void testFourDigitNumbersNotInferredAsDatetime() throws IOException {
+        // JSON numeric values: 5327 and 4536 must be inferred as INTEGER, not DATETIME.
+        byte[] numericBytes = "{\"code\":5327,\"id\":4536}\n".getBytes(StandardCharsets.UTF_8);
+        List<Attribute> numericSchema = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(numericBytes)).schema();
+        assertEquals(2, numericSchema.size());
+        assertEquals("code", numericSchema.get(0).name());
+        assertEquals(DataType.INTEGER, numericSchema.get(0).dataType());
+        assertEquals("id", numericSchema.get(1).name());
+        assertEquals(DataType.INTEGER, numericSchema.get(1).dataType());
+
+        // JSON string values containing only digits must not be inferred as DATETIME by the
+        // default strict_date_optional_time formatter — they must resolve to KEYWORD.
+        byte[] stringBytes = "{\"code\":\"5327\",\"id\":\"4536\"}\n".getBytes(StandardCharsets.UTF_8);
+        List<Attribute> stringSchema = new NdJsonFormatReader(null, blockFactory).metadata(new BytesObject(stringBytes)).schema();
+        assertEquals(2, stringSchema.size());
+        assertEquals("code", stringSchema.get(0).name());
+        assertEquals(DataType.KEYWORD, stringSchema.get(0).dataType());
+        assertEquals("id", stringSchema.get(1).name());
+        assertEquals(DataType.KEYWORD, stringSchema.get(1).dataType());
     }
 
     // -- helpers --

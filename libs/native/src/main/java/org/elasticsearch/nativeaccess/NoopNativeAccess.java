@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -91,7 +92,7 @@ class NoopNativeAccess implements NativeAccess {
     }
 
     @Override
-    public CloseableMappedByteBuffer map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) {
+    public MappedSegment map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) {
         logger.warn("cannot map because native access is not available");
         return null;
     }

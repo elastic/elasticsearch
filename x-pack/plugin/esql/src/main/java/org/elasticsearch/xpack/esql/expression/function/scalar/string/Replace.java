@@ -53,6 +53,7 @@ public class Replace extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Replaces regular expression matches in a string with a replacement string.",
         description = """
             The function substitutes in the string `str` any match of the regular expression `regex`
             with the replacement string `newStr`.""",

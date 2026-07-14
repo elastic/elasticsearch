@@ -819,19 +819,19 @@ bytes:double | time_bucket:datetime
 8465.0       | 2024-05-10T00:20:00.000Z
 ;
 
-# Awaits fix: index wildcard selector not yet available for PromQL.
-min_over_time_aggregate_metric_double_implicit_casting_promql-Ignore
+min_over_time_aggregate_metric_double_implicit_casting_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: aggregate_metric_double_v0
+required_capability: time_series_translation_in_analyzer
 
 PROMQL index=k8s,k8s-downsampled step=10m bytes=(sum by (pod) (min_over_time(network.eth0.rx[10m])))
 | SORT bytes, pod, step | LIMIT 10;
 
 bytes:double | step:datetime            | pod:keyword
-114.0        | 2024-05-10T00:00:00.000Z | two
-196.0        | 2024-05-10T00:00:00.000Z | three
-225.0        | 2024-05-10T00:00:00.000Z | one
+114.0        | 2024-05-10T00:10:00.000Z | two
+196.0        | 2024-05-10T00:10:00.000Z | three
+225.0        | 2024-05-10T00:10:00.000Z | one
 742.0        | 2024-05-09T23:30:00.000Z | three
 781.0        | 2024-05-09T23:40:00.000Z | two
 947.0        | 2024-05-09T23:30:00.000Z | one
@@ -859,19 +859,19 @@ bytes:double | pod:keyword | time_bucket:datetime
 1102.0       | one         | 2024-05-09T23:50:00.000Z
 ;
 
-# Awaits fix: index wildcard selector not yet available for PromQL.
-min_over_time_aggregate_metric_double_implicit_casting_grouping_promql-Ignore
+min_over_time_aggregate_metric_double_implicit_casting_grouping_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: aggregate_metric_double_v0
+required_capability: time_series_translation_in_analyzer
 
 PROMQL index=k8s,k8s-downsampled step=10m bytes=(sum by (pod) (min_over_time(network.eth0.rx[10m])))
 | SORT bytes, pod, step | LIMIT 10;
 
 bytes:double | step:datetime            | pod:keyword
-114.0        | 2024-05-10T00:00:00.000Z | two
-196.0        | 2024-05-10T00:00:00.000Z | three
-225.0        | 2024-05-10T00:00:00.000Z | one
+114.0        | 2024-05-10T00:10:00.000Z | two
+196.0        | 2024-05-10T00:10:00.000Z | three
+225.0        | 2024-05-10T00:10:00.000Z | one
 742.0        | 2024-05-09T23:30:00.000Z | three
 781.0        | 2024-05-09T23:40:00.000Z | two
 947.0        | 2024-05-09T23:30:00.000Z | one

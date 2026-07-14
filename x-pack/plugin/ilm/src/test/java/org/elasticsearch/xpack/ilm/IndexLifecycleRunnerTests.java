@@ -227,7 +227,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
         final var index = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(randomIndexSettings().put(LifecycleSettings.LIFECYCLE_SKIP, true))
+            .settings(randomIndexSettings().put(IndexMetadata.LIFECYCLE_SKIP, true))
             .build();
 
         runner.runPolicyAfterStateChange(randomProjectIdOrDefault(), policyName, index);
@@ -241,7 +241,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
         final var index = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(randomIndexSettings().put(LifecycleSettings.LIFECYCLE_SKIP, true))
+            .settings(randomIndexSettings().put(IndexMetadata.LIFECYCLE_SKIP, true))
             .build();
 
         runner.runPeriodicStep(null, policyName, index);
@@ -255,7 +255,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         final var runner = new IndexLifecycleRunner(null, null, clusterService, null, () -> 0L);
         final var index = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(randomIndexSettings().put(LifecycleSettings.LIFECYCLE_SKIP, true))
+            .settings(randomIndexSettings().put(IndexMetadata.LIFECYCLE_SKIP, true))
             .build();
 
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(index, true));

@@ -10,7 +10,13 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -37,32 +43,47 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
 
+    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
+    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
+    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
+    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
+
     public void testRejectsNegativeExpectedLength() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new KnownLengthAsyncResponseTransformer<>(-1));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new KnownLengthAsyncResponseTransformer<>(-1, FACTORY)
+        );
         assertThat(ex.getMessage(), containsString("must be non-negative"));
     }
 
     public void testSingleChunkHeapByteBuffer() throws Exception {
         byte[] payload = randomByteArrayOfLength(between(1, 4096));
-        ByteBuffer result = runTransformer(payload.length, response(payload.length), List.of(ByteBuffer.wrap(payload)));
-        assertTrue(result.isDirect());
-        assertArrayEquals(payload, toByteArray(result));
+        try (DirectReadBuffer result = runTransformer(payload.length, response(payload.length), List.of(ByteBuffer.wrap(payload)))) {
+            assertTrue(result.buffer().isDirect());
+            assertArrayEquals(payload, toByteArray(result.buffer()));
+        }
     }
 
     public void testMultiChunkHeapByteBuffer() throws Exception {
         byte[] payload = randomByteArrayOfLength(between(64, 8192));
         List<ByteBuffer> chunks = splitIntoChunks(payload, between(2, 8), false);
-        ByteBuffer result = runTransformer(payload.length, response(payload.length), chunks);
-        assertTrue(result.isDirect());
-        assertArrayEquals(payload, toByteArray(result));
+        try (DirectReadBuffer result = runTransformer(payload.length, response(payload.length), chunks)) {
+            assertTrue(result.buffer().isDirect());
+            assertArrayEquals(payload, toByteArray(result.buffer()));
+        }
     }
 
     public void testMultiChunkDirectByteBuffer() throws Exception {
         byte[] payload = randomByteArrayOfLength(between(64, 8192));
         List<ByteBuffer> chunks = splitIntoChunks(payload, between(2, 8), true);
-        ByteBuffer result = runTransformer(payload.length, response(payload.length), chunks);
-        assertTrue(result.isDirect());
-        assertArrayEquals(payload, toByteArray(result));
+        try (DirectReadBuffer result = runTransformer(payload.length, response(payload.length), chunks)) {
+            assertTrue(result.buffer().isDirect());
+            assertArrayEquals(payload, toByteArray(result.buffer()));
+        }
     }
 
     public void testHeapByteBufferWithArrayOffset() throws Exception {
@@ -75,15 +96,17 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         assertTrue("test fixture should have hasArray=true", chunk.hasArray());
         assertThat(chunk.arrayOffset(), greaterThanOrEqualTo(slack));
 
-        ByteBuffer result = runTransformer(payload.length, response(payload.length), List.of(chunk));
-        assertTrue(result.isDirect());
-        assertArrayEquals(payload, toByteArray(result));
+        try (DirectReadBuffer result = runTransformer(payload.length, response(payload.length), List.of(chunk))) {
+            assertTrue(result.buffer().isDirect());
+            assertArrayEquals(payload, toByteArray(result.buffer()));
+        }
     }
 
     public void testEmptyResponse() throws Exception {
-        ByteBuffer result = runTransformer(0, response(0), List.of());
-        assertTrue(result.isDirect());
-        assertEquals(0, result.remaining());
+        try (DirectReadBuffer result = runTransformer(0, response(0), List.of())) {
+            assertTrue(result.buffer().isDirect());
+            assertEquals(0, result.buffer().remaining());
+        }
     }
 
     public void testOverflowFailsFastAndCancelsSubscription() {
@@ -91,8 +114,11 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         AtomicBoolean cancelled = new AtomicBoolean(false);
         AtomicLong requested = new AtomicLong(0);
 
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(payload.length - 1);
-        CompletableFuture<ByteBuffer> future = transformer.prepare();
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            payload.length - 1,
+            FACTORY
+        );
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
         transformer.onResponse(response(payload.length - 1));
 
         transformer.onStream(new SdkPublisher<>() {
@@ -124,8 +150,11 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
 
     public void testUnderflowOnCompleteFails() {
         byte[] partial = randomByteArrayOfLength(32);
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(partial.length + 8);
-        CompletableFuture<ByteBuffer> future = transformer.prepare();
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            partial.length + 8,
+            FACTORY
+        );
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
         transformer.onResponse(response(partial.length + 8));
 
         transformer.onStream(new SdkPublisher<>() {
@@ -143,8 +172,8 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
     }
 
     public void testOnErrorPropagates() {
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(16);
-        CompletableFuture<ByteBuffer> future = transformer.prepare();
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(16, FACTORY);
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
         transformer.onResponse(response(16));
 
         RuntimeException boom = new RuntimeException("boom");
@@ -161,8 +190,8 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
     }
 
     public void testExceptionOccurredBeforeStreamPropagates() {
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(16);
-        CompletableFuture<ByteBuffer> future = transformer.prepare();
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(16, FACTORY);
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
 
         IllegalStateException error = new IllegalStateException("connection reset");
         transformer.exceptionOccurred(error);
@@ -174,9 +203,9 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
     public void testRetryAllocatesFreshDestination() throws Exception {
         // The SDK invokes prepare() for every retry attempt; the result of the first attempt must
         // not contaminate the second.
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(8);
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(8, FACTORY);
 
-        CompletableFuture<ByteBuffer> firstAttempt = transformer.prepare();
+        CompletableFuture<DirectReadBuffer> firstAttempt = transformer.prepare();
         transformer.onResponse(response(8));
         transformer.onStream(new SdkPublisher<>() {
             @Override
@@ -189,7 +218,7 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
 
         // Second attempt — must produce the new payload, untainted by the first attempt's state.
         byte[] payload = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
-        CompletableFuture<ByteBuffer> secondAttempt = transformer.prepare();
+        CompletableFuture<DirectReadBuffer> secondAttempt = transformer.prepare();
         transformer.onResponse(response(8));
         transformer.onStream(new SdkPublisher<>() {
             @Override
@@ -200,17 +229,53 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
             }
         });
 
-        ByteBuffer result = secondAttempt.get();
-        assertTrue(result.isDirect());
-        assertArrayEquals(payload, toByteArray(result));
+        try (DirectReadBuffer result = secondAttempt.get()) {
+            assertTrue(result.buffer().isDirect());
+            assertArrayEquals(payload, toByteArray(result.buffer()));
+        }
+    }
+
+    public void testOnCompleteReleasesBufferWhenItLosesTheCompletionRace() throws Exception {
+        // If a concurrent exceptionOccurred fails the future before onComplete completes it, onComplete's
+        // complete() returns false; it then solely owns the buffer it took via getAndSet and must release it,
+        // or the direct memory leaks. The child allocator surfaces any leak as non-zero allocated bytes.
+        try (BufferAllocator child = ALLOCATOR.newChildAllocator("onComplete-race", 0, Long.MAX_VALUE)) {
+            DirectBufferFactory factory = DirectBufferFactory.forAllocator(child);
+            byte[] payload = randomByteArrayOfLength(256);
+            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+                payload.length,
+                factory
+            );
+            CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+            transformer.onResponse(response(payload.length));
+
+            RuntimeException raced = new RuntimeException("exceptionOccurred won the completion race");
+            transformer.onStream(new SdkPublisher<>() {
+                @Override
+                public void subscribe(Subscriber<? super ByteBuffer> s) {
+                    s.onSubscribe(new TestSubscription());
+                    s.onNext(ByteBuffer.wrap(payload)); // fills the destination: offset == capacity
+                    future.completeExceptionally(raced); // a concurrent exceptionOccurred fails the future first
+                    s.onComplete(); // onComplete loses the race; it must release the buffer it could not hand off
+                }
+            });
+
+            ExecutionException ex = expectThrows(ExecutionException.class, future::get);
+            assertSame(raced, ex.getCause());
+            assertEquals("onComplete must release the buffer it could not hand off", 0L, child.getAllocatedMemory());
+        }
     }
 
     public void testResponseObjectExposedViaGetter() throws Exception {
         byte[] payload = randomByteArrayOfLength(between(8, 256));
         GetObjectResponse expectedResponse = response(payload.length);
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(payload.length);
-        runTransformer(transformer, expectedResponse, List.of(ByteBuffer.wrap(payload)));
-        assertThat(transformer.response().contentLength(), equalTo((long) payload.length));
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            payload.length,
+            FACTORY
+        );
+        try (DirectReadBuffer ignored = runTransformer(transformer, expectedResponse, List.of(ByteBuffer.wrap(payload)))) {
+            assertThat(transformer.response().contentLength(), equalTo((long) payload.length));
+        }
     }
 
     /**
@@ -218,17 +283,21 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
      * pre-computed chunks. Each chunk is emitted in order on the same calling thread, mirroring
      * the SDK's external-synchronization guarantee.
      */
-    private static ByteBuffer runTransformer(int expectedLength, GetObjectResponse response, List<ByteBuffer> chunks) throws Exception {
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(expectedLength);
+    private static DirectReadBuffer runTransformer(int expectedLength, GetObjectResponse response, List<ByteBuffer> chunks)
+        throws Exception {
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            expectedLength,
+            FACTORY
+        );
         return runTransformer(transformer, response, chunks);
     }
 
-    private static ByteBuffer runTransformer(
+    private static DirectReadBuffer runTransformer(
         KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer,
         GetObjectResponse response,
         List<ByteBuffer> chunks
     ) throws Exception {
-        CompletableFuture<ByteBuffer> future = transformer.prepare();
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
         transformer.onResponse(response);
         transformer.onStream(new SdkPublisher<>() {
             @Override
@@ -240,8 +309,8 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
                 s.onComplete();
             }
         });
-        ByteBuffer result = future.get();
-        assertTrue(result.isDirect());
+        DirectReadBuffer result = future.get();
+        assertTrue(result.buffer().isDirect());
         return result;
     }
 

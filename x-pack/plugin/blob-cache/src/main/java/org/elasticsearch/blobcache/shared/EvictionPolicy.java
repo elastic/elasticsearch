@@ -7,6 +7,8 @@
 
 package org.elasticsearch.blobcache.shared;
 
+import java.util.function.Predicate;
+
 /**
  * Pluggable eviction strategy for {@link SharedBlobCacheService}.
  * <p>
@@ -24,7 +26,11 @@ package org.elasticsearch.blobcache.shared;
 public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> {
 
     /**
-     * Returns {@code true} if {@code region} can be evicted to make room for {@code incoming}.
+     * Creates a predicate that returns {@code true} if a region can be evicted to make room for {@code incoming}.
+     * <p>
+     * The predicate is created once per eviction scan and invoked for each candidate region. Implementations
+     * can capture any required information needed for the scan when creating the predicate, rather
+     * than recomputing it on every invocation.
      * <p>
      * A return value of {@code true} indicates the policy considers the region <em>eligible</em>
      * for eviction, but does not guarantee that eviction will succeed. The region may still be
@@ -35,11 +41,10 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * <p>
      * This method must not perform I/O.
      *
-     * @param region   the existing cache region being considered for eviction
-     * @param incoming the new cache region that needs a slot; eviction of {@code region} would free
+     * @param incoming the new cache region that needs a slot; eviction of a cached region would free
      *                 space for this entry
      */
-    boolean canEvict(CacheRegion<KeyType> region, CacheRegion<KeyType> incoming);
+    Predicate<CacheRegion<KeyType>> createPredicate(CacheRegion<KeyType> incoming);
 
     /**
      * Called when a region is assigned a cache slot (after successful allocation or eviction+take).

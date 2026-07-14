@@ -16,4 +16,5 @@ dependencies {
     javaRestTestImplementation testArtifact(project(xpackModule('core')))
     javaRestTestImplementation project(':x-pack:test:stateless-test-framework')
     clusterModules project(':x-pack:plugin:stateless')
+    clusterModules project(':x-pack:plugin:secure-settings')
 }

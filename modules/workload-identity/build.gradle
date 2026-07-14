@@ -6,6 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
 
 esplugin {
   description = 'Client for the workload-identity-issuer service, which mints short-lived OIDC JWTs used to authenticate to customer-owned cloud resources.'
@@ -47,8 +48,8 @@ esplugin.bundleSpec.into("spi") {
   from(configurations.spi)
 }
 
-tasks.named("dependencyLicenses").configure {
-  mapping from: /http.*/, to: 'httpclient'
+tasks.withType(AbstractDependenciesTask).configureEach {
+  mapping from: /httpcore|httpcore-nio|httpasyncclient/, to: 'httpclient'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -70,4 +71,14 @@ tasks.named('forbiddenPatterns').configure {
   // Test PEM key material can incidentally contain the regex "nocommit" inside its base64 payload.
   // (*.crt is already excluded by the task's built-in default list.)
   exclude '**/*.key'
+}
+
+// Local-dev fixture: stands up an HTTPS workload-identity-issuer mock backed by the checked-in
+// test PEM material so a node from `./gradlew run` can exercise the real mTLS transport. See
+// LocalTestWorkloadIdentityIssuer's javadoc for the elasticsearch.yml snippet to point a node at it.
+tasks.register('runTestIssuer', JavaExec) {
+  group = 'Execution'
+  description = 'Run the local test workload-identity-issuer fixture (mTLS, per-audience JWTs) for manual end-to-end testing'
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'org.elasticsearch.workloadidentity.LocalTestWorkloadIdentityIssuer'
 }

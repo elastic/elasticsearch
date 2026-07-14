@@ -350,6 +350,60 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         );
     }
 
+    public void testElasticFleetServerRemotePrivileges() {
+        final Role role = Role.buildFromRoleDescriptor(
+            ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server-remote").roleDescriptor(),
+            new FieldPermissionsCache(Settings.EMPTY),
+            RESTRICTED_INDICES
+        );
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
+
+        // Cluster privileges: can manage its own API keys, nothing more.
+        assertThat(
+            role.cluster()
+                .check(CreateApiKeyAction.NAME, new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication),
+            is(true)
+        );
+        assertThat(
+            role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.builder().ownedByAuthenticatedUser().build(), authentication),
+            is(true)
+        );
+        assertThat(role.cluster().check(InvalidateApiKeyAction.NAME, InvalidateApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
+        assertThat(role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.builder().build(), authentication), is(false));
+
+        // Data output indices, including the Elastic Defend response/diagnostic indices required so remote-output
+        // endpoints can write action responses that the managing cluster reads back over cross-cluster search.
+        List.of(
+            "logs-" + randomAlphaOfLengthBetween(1, 20),
+            "metrics-" + randomAlphaOfLengthBetween(1, 20),
+            "traces-" + randomAlphaOfLengthBetween(1, 20),
+            ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(1, 20),
+            ".logs-endpoint.action.responses-" + randomAlphaOfLengthBetween(1, 20)
+        ).stream().map(this::mockIndexAbstraction).forEach(index -> {
+            assertThat(role.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportMultiGetAction.NAME).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(index), is(false));
+        });
+
+        // The heartbeat index is intentionally NOT granted to the remote account (unlike elastic/fleet-server).
+        final IndexAbstraction heartbeatIndex = mockIndexAbstraction(".logs-endpoint.heartbeat-" + randomAlphaOfLengthBetween(1, 20));
+        assertThat(role.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(heartbeatIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(heartbeatIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(heartbeatIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(heartbeatIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(heartbeatIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(heartbeatIndex), is(false));
+    }
+
     public void testElasticServiceAccount() {
         final String serviceName = randomAlphaOfLengthBetween(3, 8);
         final String principal = ElasticServiceAccounts.NAMESPACE + "/" + serviceName;

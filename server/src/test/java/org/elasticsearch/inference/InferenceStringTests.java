@@ -10,10 +10,14 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -84,6 +88,41 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
             randomAlphanumericOfLength(10)
         );
         new InferenceString(DataType.IMAGE, DataFormat.BASE64, value);
+    }
+
+    /** RFC 2397 parameters and MIME types containing {@code +} must still be accepted. */
+    public void testConstructorWithValidDataURIFormat_withMediaTypeParameters() {
+        new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;charset=utf-8;base64,abcd");
+        new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;p1=v1;p2=v2;base64,abcd");
+        new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/svg+xml;base64,abcd");
+    }
+
+    /** URI prefixes exceeding {@link InferenceString#MAX_DATA_URI_PREFIX_LENGTH} are rejected before the regex runs. */
+    public void testConstructorWithOversizedDataURIPrefix_throws() {
+        String oversizedPrefixValue = "data:image/" + "a".repeat(InferenceString.MAX_DATA_URI_PREFIX_LENGTH) + ";base64,abcd";
+
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> new InferenceString(DataType.IMAGE, DataFormat.BASE64, oversizedPrefixValue)
+        );
+        assertThat(
+            exception.getMessage(),
+            is("base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]")
+        );
+    }
+
+    /** Adversarial input that would backtrack under the old {@code .*&#47;.*} regex must fail fast. */
+    public void testConstructorWithPathologicalDataURI_throwsAndCompletesQuickly() {
+        String pathological = "data:a" + "/a;".repeat(100) + ",";
+
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> new InferenceString(DataType.IMAGE, DataFormat.BASE64, pathological)
+        );
+        assertThat(
+            exception.getMessage(),
+            is("base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]")
+        );
     }
 
     public void testParserWithText() throws IOException {
@@ -443,5 +482,15 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public static String randomDataURI() {
         return TEST_DATA_URI + randomAlphanumericOfLength(5);
+    }
+
+    public static Map<String, Object> inferenceStringToMap(InferenceString inferenceString) {
+        try {
+            var builder = XContentFactory.contentBuilder(XContentType.JSON);
+            inferenceString.toXContent(builder, null);
+            return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        } catch (IOException ioException) {
+            throw new AssertionError("Exception when converting InferenceString to map", ioException);
+        }
     }
 }

@@ -59,7 +59,11 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     private final Expression field;
     private final Expression subfieldIndex;
 
-    @FunctionInfo(returnType = { "long", "double" }, description = "Convert aggregate double metric to a block of a single subfield.")
+    @FunctionInfo(
+        returnType = { "long", "double" },
+        briefSummary = "Converts an aggregate double metric to a single subfield block.",
+        description = "Convert aggregate double metric to a block of a single subfield."
+    )
     public FromAggregateMetricDouble(
         Source source,
         @Param(

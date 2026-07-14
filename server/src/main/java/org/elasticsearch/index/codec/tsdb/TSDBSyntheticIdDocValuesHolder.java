@@ -54,6 +54,8 @@ class TSDBSyntheticIdDocValuesHolder {
     private SortedDocValues tsIdDocValues; // sorted asc. order
     private NumericDocValues tombstoneDocValues;
     private NumericDocValues softDeletesDocValues;
+    // tsids in the same segment have the same length
+    private int tsidFixedLength = -1;
     // Keep around the latest tsId ordinal and value
     private int cachedTsIdOrd = -1;
     private BytesRef cachedTsId;
@@ -305,6 +307,21 @@ class TSDBSyntheticIdDocValuesHolder {
             tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
         }
         return tsIdDocValues.getValueCount();
+    }
+
+    int getTsidFixedLength() throws IOException {
+        if (tsidFixedLength >= 0) {
+            return tsidFixedLength;
+        }
+        if (tsIdDocValues == null) {
+            tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
+        }
+        if (tsIdDocValues.getValueCount() == 0) {
+            tsidFixedLength = 0;
+        } else {
+            tsidFixedLength = tsIdDocValues.lookupOrd(0).length;
+        }
+        return tsidFixedLength;
     }
 
     /**

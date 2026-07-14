@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -49,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Turns a Query DSL {@link QueryBuilder} tree into an ES|QL {@link Expression} that means what the DSL means.
@@ -130,61 +132,95 @@ public final class QueryDslTranslator {
         if (term.caseInsensitive()) {
             throw new TranslationUnsupportedException("term[case_insensitive]");
         }
-        return equality(fieldBinder.apply(term.fieldName()), term.value());
+        return equality(fieldBinder.apply(term.fieldName()), term.value(), false);
     }
 
     /**
-     * The any-value exact-equality leaf shared by {@code term} and {@code match}: on a date field the value spans its
-     * rounding unit; a value no value of an integral field can equal matches nothing (never a truncated match); an
-     * analyzed {@code text} field is rejected by {@link #checkedLeaf}; otherwise the field's values contain the value.
+     * The any-value exact-equality leaf shared by {@code term} and {@code match}. Three outcomes, faithful to the index:
+     * a value that <em>equals</em> some value of the field's type → {@code mv_contains}; a well-formed value that no
+     * value of the type can equal (a decimal or out-of-range number on an integral field) → {@code false}, matching the
+     * index's match-no-docs; a value the field's type cannot even represent → degrade (the term precedent), unless the
+     * caller is {@code lenient} <em>and</em> the type is one we fully encode, in which case a malformed value matches
+     * nothing (the index's {@code newLenientFieldQuery}). Analyzed {@code text} and types we cannot encode at all (ip,
+     * version, unsigned_long) always degrade — lenient's "skip a bad value" is not a licence to drop a whole capability.
      */
-    private Expression equality(Expression field, Object value) {
-        if (isDate(field.dataType())) {
-            return checkedLeaf(field, dateTermRange(field, field.dataType(), value, null));
+    private Expression equality(Expression field, Object value, boolean lenient) {
+        DataType type = field.dataType();
+        if (isDate(type)) {
+            return lenient && isPresent(field)
+                ? foldMalformedToFalse(() -> checkedLeaf(field, dateTermRange(field, type, value, null)))
+                : checkedLeaf(field, dateTermRange(field, type, value, null));
         }
-        if (isPresent(field) && cannotEqualIntegral(field.dataType(), value)) {
-            return Literal.FALSE;
+        if (type == DataType.INTEGER || type == DataType.LONG) {
+            return integralEquality(field, type, value, lenient);
+        }
+        // keyword never fails to coerce; double/boolean fail only on a malformed value; the types coerce's default
+        // rejects (ip, version, unsigned_long) and analyzed text are capability gaps, so they never lenient-fold.
+        boolean encodable = type == DataType.KEYWORD || type == DataType.DOUBLE || type == DataType.BOOLEAN;
+        if (lenient && encodable && isPresent(field)) {
+            return foldMalformedToFalse(() -> checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, value))));
         }
         return checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, value)));
     }
 
+    /** A lenient match over a value an encodable type cannot represent matches nothing, mirroring the index. */
+    private static Expression foldMalformedToFalse(Supplier<Expression> build) {
+        try {
+            return build.get();
+        } catch (TranslationUnsupportedException e) {
+            return Literal.FALSE;
+        }
+    }
+
+    /**
+     * Equality against an integral field, computed on {@link BigDecimal} so no precision is lost. A whole in-range value
+     * (including a string like {@code "300.0"}, which the index coerces to {@code 300}) is that integer; a well-formed
+     * value with a fractional part or out of range equals no value of the type ({@code false}); a non-numeric value is
+     * malformed — a lenient match matches nothing, a strict one degrades (the term precedent, matching the index's 400).
+     */
+    private Expression integralEquality(Expression field, DataType type, Object value, boolean lenient) {
+        BigDecimal number;
+        try {
+            // Trim a string value: the index parses integral bounds via Double.parseDouble, which ignores surrounding
+            // whitespace, so " 300" must resolve like "300" rather than degrading.
+            number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
+        } catch (NumberFormatException e) {
+            if (lenient && isPresent(field)) {
+                return Literal.FALSE;
+            }
+            throw new TranslationUnsupportedException("match[integral value on " + type.typeName() + "]");
+        }
+        BigDecimal min = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MIN_VALUE) : BigDecimal.valueOf(Long.MIN_VALUE);
+        BigDecimal max = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MAX_VALUE) : BigDecimal.valueOf(Long.MAX_VALUE);
+        if (number.stripTrailingZeros().scale() > 0 || number.compareTo(min) < 0 || number.compareTo(max) > 0) {
+            return Literal.FALSE;
+        }
+        // Box each branch to Number separately — a bare int/long ternary would promote the int to long.
+        Number literal = type == DataType.INTEGER ? (Number) number.intValueExact() : (Number) number.longValueExact();
+        return checkedLeaf(field, new MvContains(Source.EMPTY, field, new Literal(Source.EMPTY, literal, type)));
+    }
+
     /**
      * A {@code match} on an exact-typed field IS a term — the index builds a term query there. Options that change what
-     * matches (analyzer, fuzziness, minimum_should_match) are rejected; an analyzed {@code text} field is rejected (it
-     * needs real analysis); a lenient match over a value the field's type cannot hold matches nothing, mirroring the
-     * index path's {@code newLenientFieldQuery} match-no-docs, while a strict one degrades.
+     * matches (analyzer, fuzziness, minimum_should_match) are rejected; everything else is delegated to {@link
+     * #equality}, which handles the lenient / malformed / unmatchable distinctions.
      */
     private Expression match(MatchQueryBuilder match) {
         if (match.analyzer() != null || match.fuzziness() != null || match.minimumShouldMatch() != null) {
             throw new TranslationUnsupportedException("match[unsupported option]");
         }
-        Expression field = fieldBinder.apply(match.fieldName());
-        if (field.dataType() == DataType.TEXT) {
-            throw new TranslationUnsupportedException("match[on analyzed text]");
-        }
-        try {
-            return equality(field, match.value());
-        } catch (TranslationUnsupportedException e) {
-            if (match.lenient() && isPresent(field)) {
-                return Literal.FALSE;
-            }
-            throw e;
-        }
+        return equality(fieldBinder.apply(match.fieldName()), match.value(), match.lenient());
     }
 
     /**
      * A {@code match_phrase} on an exact-typed field is the whole value — plain equality; a positional slop or an
-     * analyzed text field cannot be honored.
+     * analyzed text field cannot be honored. It has no lenient option.
      */
     private Expression matchPhrase(MatchPhraseQueryBuilder phrase) {
         if (phrase.analyzer() != null || phrase.slop() != 0) {
             throw new TranslationUnsupportedException("match_phrase[unsupported option]");
         }
-        Expression field = fieldBinder.apply(phrase.fieldName());
-        if (field.dataType() == DataType.TEXT) {
-            throw new TranslationUnsupportedException("match_phrase[on analyzed text]");
-        }
-        return equality(field, phrase.value());
+        return equality(fieldBinder.apply(phrase.fieldName()), phrase.value(), false);
     }
 
     /**
@@ -216,24 +252,15 @@ public final class QueryDslTranslator {
         if (resolved.isEmpty()) {
             return Literal.FALSE;
         }
-        boolean lenient = multiMatch.lenient();
+        // An all-fields multi_match is implicitly lenient on the index (MultiMatchQueryBuilder.doToQuery sets it), so a
+        // value that cannot be a value of a given field's type just drops that field from the OR rather than failing
+        // the whole clause — while a text field (or a type we cannot encode) still degrades it, since dropping that is
+        // an under-match, not a skipped bad value.
+        boolean lenient = fields.isEmpty() || multiMatch.lenient();
         Object value = multiMatch.value();
         Expression or = null;
         for (String name : resolved) {
-            Expression field = fieldBinder.apply(name);
-            if (field.dataType() == DataType.TEXT) {
-                throw new TranslationUnsupportedException("multi_match[on analyzed text]");
-            }
-            Expression leaf;
-            try {
-                leaf = equality(field, value);
-            } catch (TranslationUnsupportedException e) {
-                if (lenient && isPresent(field)) {
-                    leaf = Literal.FALSE;
-                } else {
-                    throw e;
-                }
-            }
+            Expression leaf = equality(fieldBinder.apply(name), value, lenient);
             or = or == null ? leaf : new Or(Source.EMPTY, or, leaf);
         }
         return or;

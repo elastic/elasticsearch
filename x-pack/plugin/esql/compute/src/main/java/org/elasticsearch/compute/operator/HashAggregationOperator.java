@@ -166,6 +166,7 @@ public class HashAggregationOperator implements Operator {
     public static final int DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD = 100_000;
     public static final double DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD = 0.1;
 
+    // TODO: Push down LIMIT only
     public record TopAggregation(int aggregatorIndex, boolean asc, int limit) {}
 
     /**
@@ -870,6 +871,7 @@ public class HashAggregationOperator implements Operator {
             try {
                 final IntVector keys;
                 if (aggregatorMode.isOutputPartial() == false && topAggregation != null) {
+                    // push down TopN by selecting a subset of keys
                     try (var allKeys = blockHash.nonEmpty()) {
                         keys = aggregators.get(topAggregation.aggregatorIndex())
                             .aggregatorFunction()

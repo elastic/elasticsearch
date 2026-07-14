@@ -416,7 +416,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Span for discovering external splits (external source footer/metadata reads), run on the
+     * Time spent discovering external splits (external source footer/metadata reads), run on the
      * coordinator once planning completes and before data node compute plans are dispatched.
      */
     public long splitDiscoveryNanos() {

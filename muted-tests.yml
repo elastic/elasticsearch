@@ -631,9 +631,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSourceRelocationAndTargetRestart
   issue: https://github.com/elastic/elasticsearch/issues/153173
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
-  method: testMasterFailoverDuringCleanup
-  issue: https://github.com/elastic/elasticsearch/issues/153174
 - class: org.elasticsearch.packaging.test.PackageUpgradeTests
   method: test12SetupBwcVersion
   issue: https://github.com/elastic/elasticsearch/issues/152819
@@ -832,3 +829,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.groupByMultipleRenamedColumns_AndComplexEval}
   issue: https://github.com/elastic/elasticsearch/issues/153752
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:BASELINE}
+  issue: https://github.com/elastic/elasticsearch/issues/149746
+- class: org.elasticsearch.index.codec.tsdb.ES819DocValuesDuelTests
+  method: testDuel
+  issue: https://github.com/elastic/elasticsearch/issues/153763

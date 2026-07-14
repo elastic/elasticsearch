@@ -72,12 +72,6 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
 
-    /**
-     * A subquery branch that ends with a {@code SORT} (pinned by a following {@code LIMIT}/{@code DEDUP}, which fuse the
-     * {@code SORT} into a {@code TopN}/{@code TopNBy} carrying the {@code SORT}'s source text) makes the product reject a
-     * full-text function in the outer {@code WHERE} with "cannot be used after SORT". Reproduced by
-     * {@code GenerativeIT {feature:SUBQUERIES\}} on seed {@code 6DF16F9F17374414}.
-     */
     public void testFullTextAfterSubqueryMatchesSortMessage() {
         String query = "FROM (FROM languages | SORT language_name | LIMIT 5), alerts | WHERE kql(\"language_name: English\")";
         String error = "verification_exception: line 1:36: [KQL] function cannot be used after SORT";
@@ -99,28 +93,31 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
 
-    /**
-     * A field created inside a {@code FROM (...)} subquery branch (here via {@code EVAL}) is non-index-mapped, so a
-     * {@code MATCH} carrying options against it is rejected with "Options are not supported for [MATCH] function call
-     * on non-index-mapped field". Reproduced by {@code GenerativeIT {feature:SUBQUERIES\}} on seed
-     * {@code 7033534A36E5A879}.
-     */
     public void testMatchOptionsOnNonIndexMappedSubqueryFieldIsTolerated() {
         String query = "FROM books, (FROM books | EVAL title2 = concat(title, \"x\")) "
             + "| WHERE match(title2, \"search\", {\"lenient\": true})";
         String error = "verification_exception: Found 1 problem\n"
             + "line 1:88: Options are not supported for [MATCH] function call on non-index-mapped field [title2]";
 
-        assertTrue(GenerativeRestTest.isMatchOptionsOnNonIndexMappedFieldInSubqueryBug(error, query));
+        assertTrue(GenerativeRestTest.isFullTextOnNonIndexMappedFieldInSubqueryBug(error, query));
     }
 
     public void testOptionsForNonMatchFunctionOnNonIndexMappedSubqueryFieldIsNotTolerated() {
-        // The rule is pinned to [MATCH]; the same error for other full-text functions must not be tolerated yet.
+        // The "Options are not supported" shape is pinned to [MATCH]; the same options error for other full-text
+        // functions must not be tolerated (it does not match the "cannot operate on ..." shape either).
         String query = "FROM books, (FROM books | EVAL title2 = concat(title, \"x\")) "
             + "| WHERE qstr(\"title2:search\", {\"lenient\": true})";
         String error = "verification_exception: Found 1 problem\n"
             + "line 1:88: Options are not supported for [QSTR] function call on non-index-mapped field [title2]";
 
-        assertFalse(GenerativeRestTest.isMatchOptionsOnNonIndexMappedFieldInSubqueryBug(error, query));
+        assertFalse(GenerativeRestTest.isFullTextOnNonIndexMappedFieldInSubqueryBug(error, query));
+    }
+
+    public void testFullTextOnNonIndexMappedSubqueryFieldIsTolerated() {
+        String query = "FROM books, (FROM books | EVAL title2 = concat(title, \"x\")) | WHERE match_phrase(title2, \"search\")";
+        String error = "verification_exception: Found 1 problem\n"
+            + "line 1:190: [MatchPhrase] function cannot operate on [title2], which is not a field from an index mapping";
+
+        assertTrue(GenerativeRestTest.isFullTextOnNonIndexMappedFieldInSubqueryBug(error, query));
     }
 }

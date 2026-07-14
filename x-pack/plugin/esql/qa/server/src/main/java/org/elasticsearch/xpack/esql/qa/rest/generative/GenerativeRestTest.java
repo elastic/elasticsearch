@@ -493,7 +493,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isMatchOptionsOnNonIndexMappedFieldInSubqueryBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isFullTextOnNonIndexMappedFieldInSubqueryBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query),
@@ -963,19 +963,30 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     /**
-     * A field produced inside a {@code FROM (...)} subquery branch (e.g. via {@code EVAL}/{@code USER_AGENT}) is
-     * non-index-mapped, so a {@code MATCH} function that carries options against it is rejected at verification with
-     * "Options are not supported for [MATCH] function call on non-index-mapped field [...]". The generator does not yet
-     * track index-mapped-ness across subquery boundaries to avoid emitting options in this case. Gated on a parenthesised
-     * inner {@code FROM} so non-subquery runs still surface the error.
-     * Reproduced by {@code GenerativeIT {feature:SUBQUERIES\}} on seed {@code 7033534A36E5A879}.
+     * A field produced inside a {@code FROM (...)} subquery branch (e.g. via {@code EVAL}/{@code GROK}/{@code DISSECT}/
+     * {@code RENAME}/{@code USER_AGENT}) is non-index-mapped, so a full-text function applied to it is rejected at
+     * verification. Two error shapes are tolerated here:
+     * <ul>
+     *   <li>"Options are not supported for [MATCH] function call on non-index-mapped field [...]" — a {@code MATCH}
+     *   carrying options against such a field.</li>
+     *   <li>"[...] function cannot operate on [X], which is not a field from an index mapping" — any full-text function
+     *   ({@code MATCH}, {@code MatchPhrase}, {@code KQL}, {@code QSTR}, the {@code :} operator, ...) against such a
+     *   field.</li>
+     * </ul>
+     * {@link #isFieldFullTextError} normally tolerates the second shape using the current schema's
+     * {@link Column#indexMapped()} flag, but {@code SubqueryGenerator} discards the inner schema once a command fails,
+     * so the schema-based check has nothing to inspect and the error would otherwise escape as an unexpected generation
+     * failure. This rule tolerates both shapes from the query text alone, gated on a parenthesised inner {@code FROM} so
+     * non-subquery runs still surface the error / rely on the schema-based check.
+     * Reproduced by {@code GenerativeIT {feature:SUBQUERIES\}} (e.g. seed {@code 7033534A36E5A879} for the first shape).
      */
-    static boolean isMatchOptionsOnNonIndexMappedFieldInSubqueryBug(String errorMessage, String query) {
+    static boolean isFullTextOnNonIndexMappedFieldInSubqueryBug(String errorMessage, String query) {
         if (errorMessage == null || query == null) {
             return false;
         }
         return SUBQUERY_IN_FROM_PATTERN.matcher(query).find()
-            && MATCH_OPTIONS_ON_NON_INDEX_MAPPED_FIELD_PATTERN.matcher(errorMessage).matches();
+            && (MATCH_OPTIONS_ON_NON_INDEX_MAPPED_FIELD_PATTERN.matcher(errorMessage).matches()
+                || NOT_A_FIELD_FROM_INDEX_PATTERN.matcher(errorMessage).matches());
     }
 
     private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(

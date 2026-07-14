@@ -11,7 +11,6 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -23,17 +22,12 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 
 import java.util.List;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isDateField;
-import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isKeywordField;
-import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isRuntimeField;
-import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isSearchableField;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.escapeLuceneQueryString;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.extractText;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.hasWildcard;
@@ -151,8 +145,8 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         assert ctx.fieldName() != null; // Should not happen since the grammar does not allow the fieldname to be null.
 
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().minimumShouldMatch(1);
-        withFields(ctx.fieldName(), (fieldName, mappedFieldType) -> {
-            if (isRuntimeField(mappedFieldType) == false) {
+        withFields(ctx.fieldName(), fieldName -> {
+            if (kqlParsingContext.isRuntimeField(fieldName) == false) {
                 boolQueryBuilder.should(wrapWithNestedQuery(fieldName, QueryBuilders.existsQuery(fieldName)));
             }
         });
@@ -167,7 +161,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         String queryText = extractText(ctx.rangeQueryValue());
         BiFunction<RangeQueryBuilder, String, RangeQueryBuilder> rangeOperation = rangeOperation(ctx.operator);
 
-        withFields(ctx.fieldName(), (fieldName, mappedFieldType) -> {
+        withFields(ctx.fieldName(), fieldName -> {
             RangeQueryBuilder rangeQuery = rangeOperation.apply(QueryBuilders.rangeQuery(fieldName), queryText);
 
             if (kqlParsingContext.timeZone() != null) {
@@ -277,26 +271,26 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         }
     }
 
-    private BiConsumer<String, MappedFieldType> fieldQueryApplier(
+    private Consumer<String> fieldQueryApplier(
         String queryText,
         boolean hasWildcard,
         boolean isPhraseMatch,
         Consumer<QueryBuilder> clauseConsumer
     ) {
-        return (fieldName, mappedFieldType) -> {
+        return fieldName -> {
             QueryBuilder fieldQuery;
 
-            if (hasWildcard && isKeywordField(mappedFieldType)) {
+            if (hasWildcard && kqlParsingContext.isKeywordField(fieldName)) {
                 fieldQuery = QueryBuilders.wildcardQuery(fieldName, queryText).caseInsensitive(kqlParsingContext.caseInsensitive());
             } else if (hasWildcard) {
                 fieldQuery = QueryBuilders.queryStringQuery(escapeLuceneQueryString(queryText, true)).field(fieldName);
-            } else if (isDateField(mappedFieldType)) {
+            } else if (kqlParsingContext.isDateField(fieldName)) {
                 RangeQueryBuilder rangeFieldQuery = QueryBuilders.rangeQuery(fieldName).gte(queryText).lte(queryText);
                 if (kqlParsingContext.timeZone() != null) {
                     rangeFieldQuery.timeZone(kqlParsingContext.timeZone().getId());
                 }
                 fieldQuery = rangeFieldQuery;
-            } else if (isKeywordField(mappedFieldType)) {
+            } else if (kqlParsingContext.isKeywordField(fieldName)) {
                 fieldQuery = QueryBuilders.termQuery(fieldName, queryText).caseInsensitive(kqlParsingContext.caseInsensitive());
             } else if (isPhraseMatch) {
                 fieldQuery = QueryBuilders.matchPhraseQuery(fieldName, queryText);
@@ -326,7 +320,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         };
     }
 
-    private void withFields(KqlBaseParser.FieldNameContext ctx, BiConsumer<String, MappedFieldType> fieldConsummer) {
+    private void withFields(KqlBaseParser.FieldNameContext ctx, Consumer<String> fieldConsummer) {
         assert ctx != null : "Field ctx cannot be null";
         String fieldNamePattern = extractText(ctx);
 
@@ -343,11 +337,10 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         withFields(fieldNames, fieldConsummer);
     }
 
-    private void withFields(Set<String> fieldNames, BiConsumer<String, MappedFieldType> fieldConsummer) {
+    private void withFields(Set<String> fieldNames, Consumer<String> fieldConsummer) {
         fieldNames.forEach(fieldName -> {
-            MappedFieldType fieldType = kqlParsingContext.fieldType(fieldName);
-            if (isSearchableField(fieldName, fieldType)) {
-                fieldConsummer.accept(fieldName, fieldType);
+            if (kqlParsingContext.isSearchableField(fieldName)) {
+                fieldConsummer.accept(fieldName);
             }
         });
     }

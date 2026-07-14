@@ -467,6 +467,57 @@ public class BasicPageTests extends SerializationTestCase {
         }
     }
 
+    public void testPageWithPartitionIdSerialization() throws IOException {
+        int positions = randomIntBetween(1, 100);
+        int partitionId = randomIntBetween(0, 31);
+
+        Page basePage = new Page(
+            blockFactory.newIntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock(),
+            blockFactory.newLongArrayVector(LongStream.range(0, positions).toArray(), positions).asBlock()
+        );
+        Page origPage = basePage.withPartitionId(partitionId);
+        basePage.releaseBlocks();
+        try {
+            Page deserPage = serializeDeserializePageWithVersion(origPage, TransportVersion.current());
+            try {
+                assertThat(deserPage.partitionId(), is(notNullValue()));
+                assertThat(deserPage.partitionId(), is(partitionId));
+                assertThat(deserPage.getPositionCount(), is(origPage.getPositionCount()));
+                assertThat(deserPage.getBlockCount(), is(origPage.getBlockCount()));
+            } finally {
+                deserPage.releaseBlocks();
+            }
+        } finally {
+            origPage.releaseBlocks();
+        }
+    }
+
+    public void testPageWithoutPartitionIdSerializationOnOldVersion() throws IOException {
+        int positions = randomIntBetween(1, 100);
+        int partitionId = randomIntBetween(0, 31);
+
+        Page basePage = new Page(
+            blockFactory.newIntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock(),
+            blockFactory.newLongArrayVector(LongStream.range(0, positions).toArray(), positions).asBlock()
+        );
+        Page origPage = basePage.withPartitionId(partitionId);
+        basePage.releaseBlocks();
+        try {
+            // Serialize with a version that pre-dates PARTITION_ID_VERSION; partitionId should be dropped.
+            TransportVersion oldVersion = TransportVersion.fromName("esql_batch_page");
+            Page deserPage = serializeDeserializePageWithVersion(origPage, oldVersion);
+            try {
+                assertThat(deserPage.partitionId(), is(nullValue()));
+                assertThat(deserPage.getPositionCount(), is(origPage.getPositionCount()));
+                assertThat(deserPage.getBlockCount(), is(origPage.getBlockCount()));
+            } finally {
+                deserPage.releaseBlocks();
+            }
+        } finally {
+            origPage.releaseBlocks();
+        }
+    }
+
     BytesRefArray bytesRefArrayOf(String... values) {
         var array = new BytesRefArray(values.length, bigArrays);
         Arrays.stream(values).map(BytesRef::new).forEach(array::append);

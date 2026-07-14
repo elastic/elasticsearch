@@ -907,7 +907,13 @@ public class PartitionedHashAggregationOperator implements Operator {
             }
             TaggedPageSource source = sources.peekFirst();
             currentOutputPartition = source.partitionId();
-            return source.pages().next();
+            Page page = source.pages().next();
+            if (currentOutputPartition != NONE_PARTITION) {
+                Page tagged = page.withPartitionId(currentOutputPartition);
+                page.releaseBlocks();
+                return tagged;
+            }
+            return page;
         }
 
         @Override

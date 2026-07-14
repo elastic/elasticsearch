@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.dsltranslate;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -15,6 +16,9 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -40,7 +44,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -66,16 +73,20 @@ import java.util.function.Function;
 public final class QueryDslTranslator {
 
     private final Function<String, Expression> fieldBinder;
+    private final Set<String> fieldNames;
     private final long nowInMillis;
 
     /**
      * @param fieldBinder resolves a DSL field name to the ES|QL expression standing for it on this source — the
      *                    source's attribute when the field exists, {@link Literal#NULL} when it does not.
+     * @param fieldNames  every field the source has, used to expand a {@code multi_match}'s field patterns (a bare
+     *                    function binder cannot be enumerated). Leaves still bind through {@code fieldBinder}.
      * @param nowInMillis the query's start time, epoch millis — the anchor for {@code now} date math on date bounds, so
      *                    that {@code "now-15m"} resolves to the same instant the index path would use for this request.
      */
-    public QueryDslTranslator(Function<String, Expression> fieldBinder, long nowInMillis) {
+    public QueryDslTranslator(Function<String, Expression> fieldBinder, Set<String> fieldNames, long nowInMillis) {
         this.fieldBinder = fieldBinder;
+        this.fieldNames = fieldNames;
         this.nowInMillis = nowInMillis;
     }
 
@@ -89,6 +100,15 @@ public final class QueryDslTranslator {
         }
         if (query instanceof TermsQueryBuilder terms) {
             return terms(terms);
+        }
+        if (query instanceof MatchQueryBuilder match) {
+            return match(match);
+        }
+        if (query instanceof MatchPhraseQueryBuilder phrase) {
+            return matchPhrase(phrase);
+        }
+        if (query instanceof MultiMatchQueryBuilder multiMatch) {
+            return multiMatch(multiMatch);
         }
         if (query instanceof ExistsQueryBuilder exists) {
             return exists(exists);
@@ -110,19 +130,113 @@ public final class QueryDslTranslator {
         if (term.caseInsensitive()) {
             throw new TranslationUnsupportedException("term[case_insensitive]");
         }
-        // any-value equality: the field's values contain the term value
-        Expression field = fieldBinder.apply(term.fieldName());
-        // A term on a date field is a range over the value's rounding unit ("2020" means all of that year), not a
-        // point — so a coarse or date-math value matches the same span the index path's term query does.
+        return equality(fieldBinder.apply(term.fieldName()), term.value());
+    }
+
+    /**
+     * The any-value exact-equality leaf shared by {@code term} and {@code match}: on a date field the value spans its
+     * rounding unit; a value no value of an integral field can equal matches nothing (never a truncated match); an
+     * analyzed {@code text} field is rejected by {@link #checkedLeaf}; otherwise the field's values contain the value.
+     */
+    private Expression equality(Expression field, Object value) {
         if (isDate(field.dataType())) {
-            return checkedLeaf(field, dateTermRange(field, field.dataType(), term.value(), null));
+            return checkedLeaf(field, dateTermRange(field, field.dataType(), value, null));
         }
-        // A value that no value of the field's integral type can equal (a decimal, or one outside the type's range)
-        // matches nothing, exactly as the index path's term query returns match-no-docs — never a truncated match.
-        if (isPresent(field) && cannotEqualIntegral(field.dataType(), term.value())) {
+        if (isPresent(field) && cannotEqualIntegral(field.dataType(), value)) {
             return Literal.FALSE;
         }
-        return checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, term.value())));
+        return checkedLeaf(field, new MvContains(Source.EMPTY, field, literalFor(field, value)));
+    }
+
+    /**
+     * A {@code match} on an exact-typed field IS a term — the index builds a term query there. Options that change what
+     * matches (analyzer, fuzziness, minimum_should_match) are rejected; an analyzed {@code text} field is rejected (it
+     * needs real analysis); a lenient match over a value the field's type cannot hold matches nothing, mirroring the
+     * index path's {@code newLenientFieldQuery} match-no-docs, while a strict one degrades.
+     */
+    private Expression match(MatchQueryBuilder match) {
+        if (match.analyzer() != null || match.fuzziness() != null || match.minimumShouldMatch() != null) {
+            throw new TranslationUnsupportedException("match[unsupported option]");
+        }
+        Expression field = fieldBinder.apply(match.fieldName());
+        if (field.dataType() == DataType.TEXT) {
+            throw new TranslationUnsupportedException("match[on analyzed text]");
+        }
+        try {
+            return equality(field, match.value());
+        } catch (TranslationUnsupportedException e) {
+            if (match.lenient() && isPresent(field)) {
+                return Literal.FALSE;
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * A {@code match_phrase} on an exact-typed field is the whole value — plain equality; a positional slop or an
+     * analyzed text field cannot be honored.
+     */
+    private Expression matchPhrase(MatchPhraseQueryBuilder phrase) {
+        if (phrase.analyzer() != null || phrase.slop() != 0) {
+            throw new TranslationUnsupportedException("match_phrase[unsupported option]");
+        }
+        Expression field = fieldBinder.apply(phrase.fieldName());
+        if (field.dataType() == DataType.TEXT) {
+            throw new TranslationUnsupportedException("match_phrase[on analyzed text]");
+        }
+        return equality(field, phrase.value());
+    }
+
+    /**
+     * A {@code multi_match} over exact-typed fields is an OR of per-field equality. Only {@code best_fields} and
+     * {@code phrase} reduce this way; the other types fuse tokens/scores across fields. The field patterns are expanded
+     * against the source schema (boost weights ignored — a boost never changes which rows a filter selects); a pattern
+     * that matches no field, or an empty field list resolving to nothing, matches nothing. A text field among the
+     * resolved set degrades the whole clause rather than under-matching by dropping it.
+     */
+    private Expression multiMatch(MultiMatchQueryBuilder multiMatch) {
+        MultiMatchQueryBuilder.Type type = multiMatch.getType();
+        if (type != MultiMatchQueryBuilder.Type.BEST_FIELDS && type != MultiMatchQueryBuilder.Type.PHRASE) {
+            throw new TranslationUnsupportedException("multi_match[type=" + type + "]");
+        }
+        if (multiMatch.fuzziness() != null || multiMatch.minimumShouldMatch() != null || multiMatch.analyzer() != null) {
+            throw new TranslationUnsupportedException("multi_match[unsupported option]");
+        }
+        Map<String, Float> fields = multiMatch.fields();
+        Collection<String> patterns = fields.isEmpty() ? fieldNames : fields.keySet();
+        List<String> resolved = new ArrayList<>();
+        for (String name : fieldNames) {
+            for (String pattern : patterns) {
+                if (Regex.simpleMatch(pattern, name)) {
+                    resolved.add(name);
+                    break;
+                }
+            }
+        }
+        if (resolved.isEmpty()) {
+            return Literal.FALSE;
+        }
+        boolean lenient = multiMatch.lenient();
+        Object value = multiMatch.value();
+        Expression or = null;
+        for (String name : resolved) {
+            Expression field = fieldBinder.apply(name);
+            if (field.dataType() == DataType.TEXT) {
+                throw new TranslationUnsupportedException("multi_match[on analyzed text]");
+            }
+            Expression leaf;
+            try {
+                leaf = equality(field, value);
+            } catch (TranslationUnsupportedException e) {
+                if (lenient && isPresent(field)) {
+                    leaf = Literal.FALSE;
+                } else {
+                    throw e;
+                }
+            }
+            or = or == null ? leaf : new Or(Source.EMPTY, or, leaf);
+        }
+        return or;
     }
 
     private Expression exists(ExistsQueryBuilder exists) {

@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.dsltranslate;
 
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -56,8 +59,11 @@ public class QueryDslTranslatorTests extends ESTestCase {
     // A fixed query "now" so date-math bounds ("now-1d") resolve deterministically in tests.
     private static final long NOW = Instant.parse("2020-06-15T12:00:00Z").toEpochMilli();
 
+    // The schema field set (for multi_match expansion) — the names the BINDER resolves to a present attribute.
+    private static final Set<String> FIELDS = Set.of("status", "tags", "bytes", "score", "@timestamp", "ts_nanos", "active", "body");
+
     private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb) {
-        return new QueryDslTranslator(BINDER, NOW).translate(qb);
+        return new QueryDslTranslator(BINDER, FIELDS, NOW).translate(qb);
     }
 
     public void testTermBecomesAnyValueContains() {
@@ -447,5 +453,82 @@ public class QueryDslTranslatorTests extends ESTestCase {
     /** A numeric date_nanos bound before the epoch is outside the type's representable range; it degrades, not 500s. */
     public void testOutOfRangeNumericDateNanosBoundDegrades() {
         expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("ts_nanos").gte(-5000)));
+    }
+
+    /** A match on an exact-typed field IS a term — plain equality (mv_contains), same as the index builds. */
+    public void testMatchOnExactFieldIsEquality() {
+        assertThat(translate(QueryBuilders.matchQuery("status", 200)), instanceOf(MvContains.class));
+        assertThat(translate(QueryBuilders.matchQuery("tags", "x")), instanceOf(MvContains.class));
+    }
+
+    /** A match on a date field is the rounding-unit range, like a term on a date. */
+    public void testMatchOnDateIsUnitRange() {
+        assertThat(translate(QueryBuilders.matchQuery("@timestamp", "2020-06-15")), instanceOf(MvInRange.class));
+    }
+
+    /** A match on a field the source lacks binds to null and folds to false — the same leniency as term. */
+    public void testMatchOnMissingFieldFoldsViaNull() {
+        Expression e = translate(QueryBuilders.matchQuery("nope", "x"));
+        assertThat(e, instanceOf(MvContains.class));
+        assertEquals(Literal.NULL, ((MvContains) e).children().get(0));
+    }
+
+    /** A match on an analyzed text field needs real analysis we do not do here — degrade, never approximate. */
+    public void testMatchOnAnalyzedTextDegrades() {
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.matchQuery("body", "quick")));
+    }
+
+    /** Options that change what matches (analyzer, fuzziness, minimum_should_match) cannot be honored as equality. */
+    public void testMatchWithMatchingOptionsDegrades() {
+        expectThrows(
+            TranslationUnsupportedException.class,
+            () -> translate(QueryBuilders.matchQuery("status", 200).fuzziness(Fuzziness.ONE))
+        );
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.matchQuery("status", 200).analyzer("standard")));
+        expectThrows(
+            TranslationUnsupportedException.class,
+            () -> translate(QueryBuilders.matchQuery("status", 200).minimumShouldMatch("2"))
+        );
+    }
+
+    /** A lenient match over a value the field's type cannot hold matches nothing; a strict one degrades. */
+    public void testLenientMatchOnUncoercibleValueMatchesNothing() {
+        assertEquals(Literal.FALSE, translate(QueryBuilders.matchQuery("status", "abc").lenient(true)));
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.matchQuery("status", "abc")));
+    }
+
+    /** A match_phrase on an exact field is the whole value — plain equality; a slop or a text field cannot be honored. */
+    public void testMatchPhraseOnExactFieldIsEquality() {
+        assertThat(translate(QueryBuilders.matchPhraseQuery("tags", "x")), instanceOf(MvContains.class));
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.matchPhraseQuery("tags", "x").slop(2)));
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.matchPhraseQuery("body", "x")));
+    }
+
+    /** A multi_match over exact fields is an OR of per-field equality; a single resolved field collapses to one leaf. */
+    public void testMultiMatchIsOrOfPerFieldEquality() {
+        Expression e = translate(QueryBuilders.multiMatchQuery(200, "status", "bytes"));
+        assertThat(e, instanceOf(Or.class));
+        assertThat(((Or) e).left(), instanceOf(MvContains.class));
+        assertThat(((Or) e).right(), instanceOf(MvContains.class));
+        assertThat(translate(QueryBuilders.multiMatchQuery(200, "status")), instanceOf(MvContains.class));
+    }
+
+    /** multi_match field patterns are expanded against the schema; a pattern matching nothing matches nothing. */
+    public void testMultiMatchExpandsPatternsAndEmptyMatchesNothing() {
+        assertThat(translate(QueryBuilders.multiMatchQuery(1000L, "byte*")), instanceOf(MvContains.class));
+        assertEquals(Literal.FALSE, translate(QueryBuilders.multiMatchQuery("x", "no_such_field*")));
+    }
+
+    /** A text field among the resolved set degrades the whole multi_match rather than silently dropping it. */
+    public void testMultiMatchOverTextFieldDegrades() {
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.multiMatchQuery("x", "status", "body")));
+    }
+
+    /** Only best_fields and phrase reduce to an OR of equality; other types fuse tokens/scores across fields. */
+    public void testMultiMatchUnsupportedTypeDegrades() {
+        expectThrows(
+            TranslationUnsupportedException.class,
+            () -> translate(QueryBuilders.multiMatchQuery("x", "status").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))
+        );
     }
 }

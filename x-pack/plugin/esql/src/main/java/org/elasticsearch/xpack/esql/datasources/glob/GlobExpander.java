@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -808,7 +809,7 @@ public final class GlobExpander {
      * Space, {@code ,} and {@code }} are deliberately NOT escaped by those writers (so {@link #braceExpressible}
      * still vetoes comma/brace values to a full-glob listing). Non-ASCII passes through literally, matching the writer.
      */
-    private static final java.util.BitSet HIVE_ESCAPE = new java.util.BitSet(128);
+    private static final BitSet HIVE_ESCAPE = new BitSet(128);
     static {
         for (int c = 0; c < 0x20; c++) {
             HIVE_ESCAPE.set(c);

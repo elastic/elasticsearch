@@ -615,7 +615,7 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * A comma segment a rewrite narrows to empty must fall back on its own, not be masked by another segment that
      * still matches. Without per-segment fallback the {@code a/month=06} files are silently dropped while {@code b/}
-     * keeps the aggregate non-empty. (Bug found in human review of #153682.)
+     * keeps the aggregate non-empty.
      */
     public void testCommaSegmentRewrittenToEmptyFallsBackForThatSegment() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(

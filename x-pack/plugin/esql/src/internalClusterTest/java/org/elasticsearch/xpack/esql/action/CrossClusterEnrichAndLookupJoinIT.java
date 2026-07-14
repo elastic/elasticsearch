@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -91,14 +92,14 @@ public class CrossClusterEnrichAndLookupJoinIT extends AbstractEnrichBasedCrossC
             new String[] { "LOOKUP JOIN _coordinator:ip_lookup", "ENRICH _coordinator:hosts" },
             new String[] { "ENRICH _coordinator:hosts", "LOOKUP JOIN _coordinator:ip_lookup" }
         )) {
-            try (EsqlQueryResponse resp = runQuery("""
+            try (EsqlQueryResponse resp = runQuery(Strings.format("""
                 FROM *:events
                 | EVAL ip = TO_STR(host)
                 | %s ON ip
                 | %s ON ip
                 | STATS c = COUNT(*) BY os, location
                 | SORT os
-                """.formatted(test[0], test[1]), null)) {
+                """, test[0], test[1]), null)) {
                 assertThat(getValuesList(resp), equalTo(EXPECTED_ROWS));
                 assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
             }
@@ -115,14 +116,14 @@ public class CrossClusterEnrichAndLookupJoinIT extends AbstractEnrichBasedCrossC
                 "LOOKUP JOIN ip_lookup",
                 "LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:hosts ON ip]" }
         )) {
-            expectThrows(VerificationException.class, containsString(test[2]), () -> runQuery("""
+            expectThrows(VerificationException.class, containsString(test[2]), () -> runQuery(Strings.format("""
                 FROM *:events
                 | EVAL ip = TO_STR(host)
                 | %s ON ip
                 | %s ON ip
                 | STATS c = COUNT(*) BY os, location
                 | SORT os
-                """.formatted(test[0], test[1]), null).close());
+                """, test[0], test[1]), null).close());
         }
     }
 }

@@ -53,6 +53,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
         case "ts_nanos" -> new ReferenceAttribute(Source.EMPTY, "ts_nanos", DataType.DATE_NANOS);
         case "active" -> new ReferenceAttribute(Source.EMPTY, "active", DataType.BOOLEAN);
         case "body" -> new ReferenceAttribute(Source.EMPTY, "body", DataType.TEXT);
+        case "client_ip" -> new ReferenceAttribute(Source.EMPTY, "client_ip", DataType.IP);
         default -> Literal.NULL;
     };
 
@@ -491,10 +492,36 @@ public class QueryDslTranslatorTests extends ESTestCase {
         );
     }
 
-    /** A lenient match over a value the field's type cannot hold matches nothing; a strict one degrades. */
-    public void testLenientMatchOnUncoercibleValueMatchesNothing() {
+    /** A lenient match over a malformed value on an encodable type matches nothing; a strict one degrades. */
+    public void testLenientMatchOnMalformedValueMatchesNothing() {
         assertEquals(Literal.FALSE, translate(QueryBuilders.matchQuery("status", "abc").lenient(true)));
         expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.matchQuery("status", "abc")));
+    }
+
+    /** A whole-number STRING on an integral field is that integer, exactly as the index coerces "300.0" to 300. */
+    public void testWholeNumberStringOnIntegerMatches() {
+        Expression e = translate(QueryBuilders.matchQuery("status", "300.0"));
+        assertThat(e, instanceOf(MvContains.class));
+        assertEquals(300, ((Literal) ((MvContains) e).children().get(1)).value());
+        // Surrounding whitespace is ignored, as the index's Double.parseDouble does.
+        assertThat(translate(QueryBuilders.matchQuery("status", " 300 ")), instanceOf(MvContains.class));
+    }
+
+    /** A well-formed decimal (or out-of-range) value on an integral field equals nothing — the index's match-no-docs. */
+    public void testDecimalStringOnIntegerMatchesNothing() {
+        assertEquals(Literal.FALSE, translate(QueryBuilders.matchQuery("status", "300.5")));
+        assertEquals(Literal.FALSE, translate(QueryBuilders.matchQuery("status", "3000000000"))); // out of int range
+    }
+
+    /**
+     * A lenient match on a type we cannot encode (ip/version/unsigned_long) DEGRADES — it must not be silently mapped to
+     * match-nothing, because the index would actually match. Regression guard for the lenient-swallows-everything bug.
+     */
+    public void testLenientMatchOnUnsupportedTypeDegrades() {
+        expectThrows(
+            TranslationUnsupportedException.class,
+            () -> translate(QueryBuilders.matchQuery("client_ip", "10.0.0.1").lenient(true))
+        );
     }
 
     /** A match_phrase on an exact field is the whole value — plain equality; a slop or a text field cannot be honored. */
@@ -521,7 +548,21 @@ public class QueryDslTranslatorTests extends ESTestCase {
 
     /** A text field among the resolved set degrades the whole multi_match rather than silently dropping it. */
     public void testMultiMatchOverTextFieldDegrades() {
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.multiMatchQuery("x", "status", "body")));
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.multiMatchQuery(200, "status", "body")));
+    }
+
+    /**
+     * A lenient multi_match drops a field whose type cannot hold the value (rather than failing the clause), keeping the
+     * fields that can — mirroring the index. Here "t2" is malformed for the integer field but fine for the keyword one.
+     */
+    public void testLenientMultiMatchSkipsFieldsThatCannotHoldTheValue() {
+        Expression e = translate(QueryBuilders.multiMatchQuery("t2", "status", "tags").lenient(true));
+        assertThat(e, instanceOf(Or.class));
+        // status -> false (malformed integer), tags -> mv_contains; the OR keeps the keyword leaf. Field order is
+        // unspecified (the schema is a Set), so assert the pair of sides regardless of order.
+        List<Expression> sides = List.of(((Or) e).left(), ((Or) e).right());
+        assertTrue("the integer field is dropped to false", sides.contains(Literal.FALSE));
+        assertTrue("the keyword field keeps its match", sides.stream().anyMatch(s -> s instanceof MvContains));
     }
 
     /** Only best_fields and phrase reduce to an OR of equality; other types fuse tokens/scores across fields. */

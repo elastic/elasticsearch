@@ -286,4 +286,17 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     public void testMultiMatchSingleField() {
         assertSelectsSameRows(QueryBuilders.multiMatchQuery(300, "status"));
     }
+
+    /** The value matches only the SECOND field (bytes=3000 → one row; status is never 3000) — the OR has teeth. */
+    public void testMultiMatchSecondFieldSelects() {
+        assertSelectsSameRows(QueryBuilders.multiMatchQuery(3000, "status", "bytes"));
+    }
+
+    /**
+     * A fieldless multi_match is implicitly lenient on both paths: it searches every field, dropping the ones that
+     * cannot hold the value. "t2" matches only the keyword column; the integer/long/date columns drop out.
+     */
+    public void testFieldlessMultiMatchIsImplicitlyLenient() {
+        assertSelectsSameRows(QueryBuilders.multiMatchQuery("t2"));
+    }
 }

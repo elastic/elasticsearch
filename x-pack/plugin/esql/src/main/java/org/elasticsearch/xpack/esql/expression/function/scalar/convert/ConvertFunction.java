@@ -32,9 +32,9 @@ public interface ConvertFunction {
     DataType dataType();
 
     /**
-     * Whether converting a value of {@code inputType} using this function leaves it unchanged, so the cast can be dropped. By default this
-     * holds when the input already has the output type. Widening conversions (e.g., {@code half_float} to {@code double}) are not no-ops
-     * even though they share a representation, since the declared type changes.
+     * Whether converting a value of {@code field().dataType()} using this function leaves it unchanged, so the cast can be dropped. By
+     * default, this holds when the {@code field().dataType()} already has the output type. Widening conversions (e.g., {@code half_float}
+     * to {@code double}) are not no-ops even though they share a representation, since the declared type changes.
      */
     default boolean isNoop() {
         return field().dataType() == dataType();

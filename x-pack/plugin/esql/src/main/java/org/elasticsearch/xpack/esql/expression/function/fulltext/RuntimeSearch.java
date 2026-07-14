@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -88,9 +89,9 @@ public final class RuntimeSearch {
                 }
                 BytesRef token = term.getBytesRef();
                 for (int k = queryTerms.size() - 1; k > 0; k--) {
-                    curr[k] = prev[k - 1] && token.equals(queryTerms.get(k));
+                    curr[k] = prev[k - 1] && ByteMatchers.equals(token, queryTerms.get(k));
                 }
-                curr[0] = token.equals(queryTerms.get(0));
+                curr[0] = ByteMatchers.equals(token, queryTerms.get(0));
                 if (curr[queryTerms.size() - 1]) {
                     return true;
                 }

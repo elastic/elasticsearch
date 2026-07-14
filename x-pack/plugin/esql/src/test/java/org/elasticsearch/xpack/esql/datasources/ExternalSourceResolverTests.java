@@ -2303,6 +2303,92 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * A warm single-file resolve must be zero-I/O: the file-metadata cache holds {length, mtime} within
+     * the schema TTL, so the second resolve reuses the cached metadata and issues no object probe. This
+     * is the amortization lever removing the per-query warm-path metadata probe.
+     */
+    public void testSingleFileMetadataCacheEliminatesWarmProbe() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/single.parquet", schema);
+
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f1);
+            assertNotNull(f1.actionGet().resolvedSource("s3://bucket/data/single.parquet"));
+            assertEquals("cold resolve probes the object exactly once", 1, countingProvider.metadataProbeCount.get());
+
+            Map<String, Object> stats1 = cacheService.usageStats();
+            assertEquals(1L, stats1.get("file_metadata_cache.misses"));
+            assertEquals(0L, stats1.get("file_metadata_cache.hits"));
+            assertEquals(1, stats1.get("file_metadata_cache.count"));
+
+            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f2);
+            ExternalSourceResolution res2 = f2.actionGet();
+            assertNotNull(res2.resolvedSource("s3://bucket/data/single.parquet"));
+            assertEquals(1, res2.resolvedSource("s3://bucket/data/single.parquet").fileList().fileCount());
+            assertEquals("warm resolve issues zero additional probes", 1, countingProvider.metadataProbeCount.get());
+
+            Map<String, Object> stats2 = cacheService.usageStats();
+            assertEquals(1L, stats2.get("file_metadata_cache.misses"));
+            assertEquals(1L, stats2.get("file_metadata_cache.hits"));
+            assertEquals(1, stats2.get("file_metadata_cache.count"));
+        }
+    }
+
+    /**
+     * The file-metadata cache is bounded by a hard {@code expireAfterWrite} TTL (the schema TTL), so once
+     * the entry expires the next resolve must re-probe the object — mtime is a version token, not a
+     * second freshness clock, and staleness is bounded by TTL alone.
+     */
+    public void testSingleFileMetadataCacheReprobesAfterTtlExpiry() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/single.parquet", schema);
+
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
+
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "500ms")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f1);
+            assertNotNull(f1.actionGet().resolvedSource("s3://bucket/data/single.parquet"));
+            assertEquals(1, countingProvider.metadataProbeCount.get());
+
+            // Let the entry expire (it remains lazily cached but is TTL-dead), then resolve again.
+            Thread.sleep(1200);
+
+            PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f2);
+            assertNotNull(f2.actionGet().resolvedSource("s3://bucket/data/single.parquet"));
+            assertEquals("expired metadata entry must be re-probed", 2, countingProvider.metadataProbeCount.get());
+
+            Map<String, Object> stats = cacheService.usageStats();
+            assertEquals(2L, stats.get("file_metadata_cache.misses"));
+        }
+    }
+
     public void testSingleFileCacheDisabledBypassesCache() throws Exception {
         List<Attribute> schema = List.of(attr("val", DataType.LONG));
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
@@ -2331,6 +2417,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertEquals("schema cache should have no entries when disabled", 0, stats.get("schema_cache.count"));
             assertEquals("schema cache should have no hits when disabled", 0L, stats.get("schema_cache.hits"));
             assertEquals("schema cache should have no misses when disabled", 0L, stats.get("schema_cache.misses"));
+            assertEquals("file-metadata cache should have no entries when disabled", 0, stats.get("file_metadata_cache.count"));
+            assertEquals(
+                "disabled cache must not eliminate the probe — one probe per resolve",
+                3,
+                countingProvider.metadataProbeCount.get()
+            );
         }
     }
 
@@ -3428,25 +3520,38 @@ public class ExternalSourceResolverTests extends ESTestCase {
     private static class StubStorageProvider implements StorageProvider {
         private final Map<String, List<StorageEntry>> listingsByPrefix;
         private final Map<String, List<Attribute>> schemasByPath;
+        // Non-null only when the wrapping provider wants to count metadata probes: it is passed to every
+        // object so an object.lastModified() call (the single-file metadata probe) increments it.
+        @Nullable
+        private final AtomicInteger probeCount;
 
         StubStorageProvider(Map<String, List<StorageEntry>> listingsByPrefix, Map<String, List<Attribute>> schemasByPath) {
+            this(listingsByPrefix, schemasByPath, null);
+        }
+
+        StubStorageProvider(
+            Map<String, List<StorageEntry>> listingsByPrefix,
+            Map<String, List<Attribute>> schemasByPath,
+            @Nullable AtomicInteger probeCount
+        ) {
             this.listingsByPrefix = listingsByPrefix;
             this.schemasByPath = schemasByPath;
+            this.probeCount = probeCount;
         }
 
         @Override
         public StorageObject newObject(StoragePath path) {
-            return new StubStorageObject(path);
+            return new StubStorageObject(path, 0, probeCount);
         }
 
         @Override
         public StorageObject newObject(StoragePath path, long length) {
-            return new StubStorageObject(path, length);
+            return new StubStorageObject(path, length, probeCount);
         }
 
         @Override
         public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
-            return new StubStorageObject(path, length);
+            return new StubStorageObject(path, length, probeCount);
         }
 
         @Override
@@ -3491,14 +3596,21 @@ public class ExternalSourceResolverTests extends ESTestCase {
     private static class StubStorageObject implements StorageObject {
         private final StoragePath path;
         private final long length;
+        @Nullable
+        private final AtomicInteger probeCount;
 
         StubStorageObject(StoragePath path) {
-            this(path, 0);
+            this(path, 0, null);
         }
 
         StubStorageObject(StoragePath path, long length) {
+            this(path, length, null);
+        }
+
+        StubStorageObject(StoragePath path, long length, @Nullable AtomicInteger probeCount) {
             this.path = path;
             this.length = length;
+            this.probeCount = probeCount;
         }
 
         @Override
@@ -3518,6 +3630,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         @Override
         public Instant lastModified() {
+            // The single-file metadata probe is the one caller of lastModified() in the cacheable flow, so
+            // counting it here isolates the probe from the schema-resolution object creation.
+            if (probeCount != null) {
+                probeCount.incrementAndGet();
+            }
             return Instant.EPOCH;
         }
 
@@ -3539,10 +3656,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
     private static class CountingStorageProvider implements StorageProvider {
         final AtomicInteger listCallCount = new AtomicInteger();
         final AtomicInteger schemaCallCount = new AtomicInteger();
+        // Counts the single-file metadata probe. Incremented by the object's lastModified() (the one caller
+        // of it in the cacheable flow), so it isolates the metadata probe from the schema-resolution object
+        // creation that also calls newObject. The warm-path file-metadata cache drives it to exactly one
+        // probe across repeated resolves.
+        final AtomicInteger metadataProbeCount = new AtomicInteger();
         private final StubStorageProvider delegate;
 
         CountingStorageProvider(Map<String, List<StorageEntry>> listingsByPrefix, Map<String, List<Attribute>> schemasByPath) {
-            this.delegate = new StubStorageProvider(listingsByPrefix, schemasByPath);
+            this.delegate = new StubStorageProvider(listingsByPrefix, schemasByPath, metadataProbeCount);
         }
 
         @Override

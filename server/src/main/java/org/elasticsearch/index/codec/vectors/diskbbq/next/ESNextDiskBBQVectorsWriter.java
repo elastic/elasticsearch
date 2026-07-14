@@ -976,15 +976,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         }
     }
 
-    /**
-     * Calculate the centroids for the given field.
-     * We use the {@link HierarchicalKMeans} algorithm to partition the space of all vectors across merging segments
-     *
-     * @param fieldInfo merging field info
-     * @param floatVectorValues the float vector values to merge
-     * @return the vector assignments, soar assignments, and if asked the centroids themselves that were computed
-     * @throws IOException if an I/O error occurs
-     */
     @Override
     public CentroidInformation calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
         if (sliceField != null) {

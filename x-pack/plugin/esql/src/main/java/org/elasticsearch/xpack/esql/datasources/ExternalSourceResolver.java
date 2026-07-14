@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.FileMetadata;
+import org.elasticsearch.xpack.esql.datasources.cache.FileMetadataCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
@@ -564,26 +566,25 @@ public class ExternalSourceResolver {
         }
 
         ExternalSourceMetadata extMetadata;
-        StorageObject object;
+        StorageEntry storageEntry;
         if (isCacheable(provider)) {
-            // Stat the file first (cheap HEAD/stat) to get mtime for the cache key.
-            // Null mtime (e.g. gRPC/Flight, GCS/Azure fixtures) falls back to EPOCH so the
-            // cache key is stable; providers that never report trustworthy mtime should
-            // eventually return supportsStableMetadata() == false to bypass caching entirely.
-            object = provider.newObject(storagePath);
-            Instant lastMod = object.lastModified();
-            long mtime = lastMod != null ? lastMod.toEpochMilli() : Instant.EPOCH.toEpochMilli();
+            // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
+            // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
+            // length + mtime rebuild the singleton FileList.
+            FileMetadata meta = fileMetadataOf(storagePath, provider, config);
             String formatType = detectFormatType(storagePath);
-            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtime, formatType, config);
+            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), meta.mtimeMillis(), formatType, config);
             SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
                 return SchemaCacheEntry.from(resolveSingleSource(path, config));
             });
             List<Attribute> schema = schemaEntry.toAttributes();
             extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
+            storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
         } else {
             SourceMetadata metadata = resolveSingleSource(path, config);
             extMetadata = wrapAsExternalSourceMetadata(metadata, config, declaredReadSpecOf(declaredMapping));
-            object = provider.newObject(storagePath);
+            StorageObject object = provider.newObject(storagePath);
+            storageEntry = new StorageEntry(storagePath, object.length(), object.lastModified());
         }
 
         // Capture the raw file schema: schemaMap describes the physical schema each reader actually
@@ -592,10 +593,7 @@ public class ExternalSourceResolver {
         // shim that injects them into the relation's metadataFields). See ResolveExternalRelations.
         List<Attribute> fileSchema = extMetadata.schema();
 
-        FileList singletonList = GlobExpander.fileListOf(
-            List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
-            path
-        );
+        FileList singletonList = GlobExpander.fileListOf(List.of(storageEntry), path);
         // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, fileSchema);
         listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
@@ -923,6 +921,35 @@ public class ExternalSourceResolver {
      */
     private boolean isCacheable(StorageProvider provider) {
         return cacheService != null && cacheService.isEnabled() && provider.supportsStableMetadata();
+    }
+
+    /**
+     * The single file's {@link FileMetadata} ({@code {length, mtime}}), shared by both single-file rails (inferred
+     * {@link #resolveSingleFileSource} and strict {@link #resolveStrictSingleFile}). A cacheable provider serves it
+     * from the file-metadata cache within the schema TTL, so a warm resolve is zero-I/O; a miss — or a non-cacheable
+     * provider — probes the live object exactly once via {@link #probeFileMetadata(StoragePath, StorageProvider)}. The
+     * mtime is the version token that rebuilds the {@link SchemaCacheKey}; length + mtime rebuild the singleton
+     * {@code StorageEntry}.
+     */
+    private FileMetadata fileMetadataOf(StoragePath storagePath, StorageProvider provider, Map<String, Object> config) throws Exception {
+        if (isCacheable(provider)) {
+            FileMetadataCacheKey metaKey = FileMetadataCacheKey.build(storagePath.toString(), config);
+            return cacheService.getOrComputeFileMetadata(metaKey, k -> probeFileMetadata(storagePath, provider));
+        }
+        return probeFileMetadata(storagePath, provider);
+    }
+
+    /**
+     * One live object probe: a cheap HEAD/stat that on S3 is a single {@code bytes=-1} GET serving both length and
+     * mtime. Null mtime (e.g. gRPC/Flight, GCS/Azure fixtures) falls back to EPOCH so the derived cache key is stable;
+     * providers that never report a trustworthy mtime should return {@code supportsStableMetadata() == false} to bypass
+     * caching entirely.
+     */
+    private static FileMetadata probeFileMetadata(StoragePath storagePath, StorageProvider provider) throws Exception {
+        StorageObject probe = provider.newObject(storagePath);
+        Instant lastMod = probe.lastModified();
+        long mtime = lastMod != null ? lastMod.toEpochMilli() : Instant.EPOCH.toEpochMilli();
+        return new FileMetadata(probe.length(), mtime);
     }
 
     private StorageProvider resolveProvider(StoragePath storagePath, Map<String, Object> config) {
@@ -2126,7 +2153,11 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         DatasetMapping declaredMapping
     ) throws Exception {
-        StorageObject object = provider.newObject(storagePath);
+        // Same warm-probe amortization as the inferred single-file rail (resolveSingleFileSource): a cacheable
+        // provider serves {length, mtime} from the file-metadata cache within the schema TTL, so a warm strict
+        // resolve never probes the live object; a miss (or a non-cacheable provider) probes exactly once. Strict
+        // resolution reads no file body, so length + mtime are the only per-query object metadata it needs.
+        FileMetadata meta = fileMetadataOf(storagePath, provider, config);
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
@@ -2139,8 +2170,7 @@ public class ExternalSourceResolver {
         // Cheap no-I/O guard first (no partitions on a single file), then the columnar coercibility check which reads
         // this file's footer (cached when the provider is).
         rejectDeclaredMappingViolations(null, declaredMapping);
-        Instant singleMtime = object.lastModified();
-        long mtimeMillis = singleMtime != null ? singleMtime.toEpochMilli() : Instant.EPOCH.toEpochMilli();
+        long mtimeMillis = meta.mtimeMillis();
         rejectStrictColumnarUncoercibleTypes(sourceType, provider, storagePath, mtimeMillis, config, declaredMapping);
         ExternalSourceMetadata extMetadata = strictSingleFileMetadata(
             path,
@@ -2153,7 +2183,7 @@ public class ExternalSourceResolver {
             mtimeMillis
         );
         FileList singletonList = GlobExpander.fileListOf(
-            List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
+            List.of(new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()))),
             path
         );
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema);

@@ -178,13 +178,6 @@ public class BwcSetupExtension {
             // Each provisioned JDK is stored two levels deep: jdks/<vendor-version-arch-os>/<jdk-bundle>/
             // We collect every second-level directory and pass them as a comma-separated list so that the
             // nested BWC Gradle build can discover all available toolchains without a hardcoded list.
-            //
-            // The provider is intentionally lazy (added via ListProperty.addAll rather than resolved here).
-            // LoggedExec.run() calls getArgs().get() inside @TaskAction, which executes after all doFirst
-            // actions. The doFirst above provisions the minimum compiler JDK via toolChainService, which
-            // lands in this jdks/ directory. Lazy evaluation therefore guarantees that any JDK provisioned
-            // during this build is already present when JdkToolchainInstallationsValueSource.obtain() scans the
-            // directory — regardless of whether JAVA_TOOLCHAIN_HOME is set on CI or not.
             String jdksDir = project.getGradle().getGradleUserHomeDir().getAbsolutePath() + "/jdks";
             Provider<List<Object>> jdkInstallationsArg = providerFactory.of(
                 JdkToolchainInstallationsValueSource.class,

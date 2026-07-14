@@ -117,25 +117,63 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     public void testRangeTranslation() {
-        // single lower bound -> two-valued (Coalesce-to-false) comparison against the field's max value (any-value on
-        // multivalue fields; the Coalesce keeps a missing field two-valued so must_not-over-missing matches all)
-        Expression lower = translate(QueryBuilders.rangeQuery("status").gte(1));
+        // A one-sided range on a NON-integral field is a two-valued (Coalesce-to-false) comparison against the field's
+        // extreme value (any-value on multivalue fields; the Coalesce keeps a missing field two-valued so
+        // must_not-over-missing matches all). Integral one-sided ranges take the mv_in_range path (tested below).
+        Expression lower = translate(QueryBuilders.rangeQuery("score").gte(1));
         assertThat(lower, instanceOf(Coalesce.class));
         Expression lowerCmp = ((Coalesce) lower).children().get(0);
         assertThat(lowerCmp, instanceOf(GreaterThanOrEqual.class));
         assertThat(((GreaterThanOrEqual) lowerCmp).left(), instanceOf(MvMax.class));
         // single upper bound -> two-valued comparison against the field's min value
-        Expression upper = translate(QueryBuilders.rangeQuery("status").lte(10));
+        Expression upper = translate(QueryBuilders.rangeQuery("score").lte(10));
         assertThat(upper, instanceOf(Coalesce.class));
         Expression upperCmp = ((Coalesce) upper).children().get(0);
         assertThat(upperCmp, instanceOf(LessThanOrEqual.class));
         assertThat(((LessThanOrEqual) upperCmp).left(), instanceOf(MvMin.class));
         // exclusive single bound -> strict comparison, still two-valued and over the extreme value
-        Expression exclusive = translate(QueryBuilders.rangeQuery("status").gt(1));
+        Expression exclusive = translate(QueryBuilders.rangeQuery("score").gt(1));
         assertThat(exclusive, instanceOf(Coalesce.class));
         assertThat(((Coalesce) exclusive).children().get(0), instanceOf(GreaterThan.class));
         // closed range -> the two-valued any-value range intrinsic
-        assertThat(translate(QueryBuilders.rangeQuery("status").gte(1).lte(10)), instanceOf(MvInRange.class));
+        assertThat(translate(QueryBuilders.rangeQuery("score").gte(1).lte(10)), instanceOf(MvInRange.class));
+    }
+
+    /**
+     * An integral range folds every bound into ONE closed inclusive {@code mv_in_range} — including a one-sided bound,
+     * whose open end is the type's extreme. The exclusive/inclusive distinction is baked into the bound, not the tree.
+     */
+    public void testIntegralOneSidedRangeIsMvInRangeOverTypeExtreme() {
+        Expression lower = translate(QueryBuilders.rangeQuery("status").gt(200)); // int field
+        assertThat(lower, instanceOf(MvInRange.class));
+        assertEquals(201, ((Literal) ((MvInRange) lower).lower()).value()); // gt 200 -> [201, MAX]
+        assertEquals(Integer.MAX_VALUE, ((Literal) ((MvInRange) lower).upper()).value());
+        Expression upper = translate(QueryBuilders.rangeQuery("status").lte(200));
+        assertThat(upper, instanceOf(MvInRange.class));
+        assertEquals(Integer.MIN_VALUE, ((Literal) ((MvInRange) upper).lower()).value());
+        assertEquals(200, ((Literal) ((MvInRange) upper).upper()).value());
+    }
+
+    /**
+     * A fractional bound on an integral field rounds INWARD like the index (NumberFieldMapper), never truncates toward
+     * zero — {@code gte 300.5} is {@code >= 301}, {@code lte 300.5} is {@code <= 300}, and the sign matters
+     * ({@code lte -1.5} is {@code <= -2}, {@code gte -1.5} is {@code >= -1}). Regression pin for the silent over-match.
+     */
+    public void testFractionalIntegralRangeBoundRoundsInward() {
+        assertEquals(301, ((Literal) ((MvInRange) translate(QueryBuilders.rangeQuery("status").gte(300.5))).lower()).value());
+        assertEquals(300, ((Literal) ((MvInRange) translate(QueryBuilders.rangeQuery("status").lte(300.5))).upper()).value());
+        assertEquals(-2, ((Literal) ((MvInRange) translate(QueryBuilders.rangeQuery("status").lte(-1.5))).upper()).value());
+        assertEquals(-1, ((Literal) ((MvInRange) translate(QueryBuilders.rangeQuery("status").gte(-1.5))).lower()).value());
+        // a two-bound fractional interval rounds both ends inward
+        MvInRange both = (MvInRange) translate(QueryBuilders.rangeQuery("status").gte(300.5).lte(400.5));
+        assertEquals(301, ((Literal) both.lower()).value());
+        assertEquals(400, ((Literal) both.upper()).value());
+    }
+
+    /** A lower bound above the type's max (or an inverted interval) selects nothing — the index's match-no-docs. */
+    public void testIntegralRangeBeyondTypeRangeMatchesNothing() {
+        assertEquals(Literal.FALSE, translate(QueryBuilders.rangeQuery("status").gte(3_000_000_000L))); // > Integer.MAX
+        assertEquals(Literal.FALSE, translate(QueryBuilders.rangeQuery("status").gte(500).lte(400))); // inverted
     }
 
     public void testShouldOnlyBoolBecomesOr() {
@@ -454,6 +492,40 @@ public class QueryDslTranslatorTests extends ESTestCase {
     /** A numeric date_nanos bound before the epoch is outside the type's representable range; it degrades, not 500s. */
     public void testOutOfRangeNumericDateNanosBoundDegrades() {
         expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("ts_nanos").gte(-5000)));
+    }
+
+    /**
+     * A numeric date_nanos bound that ROUNDS UP (an inclusive upper) reaches the last nanosecond of its milli, matching
+     * the index's epoch_millis round-up parser (NANOS_OF_MILLI defaults to 999_999). Without this an upper bound would
+     * under-match every sub-milli row. The round-DOWN direction (gte) is pinned above.
+     */
+    public void testNumericUpperBoundOnDateNanosRoundsUpToLastNano() {
+        long millis = millis("2020-06-15T00:00:00.000Z");
+        Expression e = translate(QueryBuilders.rangeQuery("ts_nanos").lte(millis));
+        Expression cmp = ((Coalesce) e).children().get(0);
+        Literal bound = (Literal) ((LessThanOrEqual) cmp).right();
+        assertEquals(millis * 1_000_000L + 999_999L, bound.value());
+    }
+
+    /**
+     * adjust_pure_negative=false makes a bool of only must_not clauses match NOTHING on the index; we model the default
+     * (match everything not excluded), so a pure-negative bool with the flag off must degrade, not silently over-match.
+     */
+    public void testPureNegativeBoolWithAdjustDisabledDegrades() {
+        expectThrows(
+            TranslationUnsupportedException.class,
+            () -> translate(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("tags", "x")).adjustPureNegative(false))
+        );
+        // the flag is harmless when the bool is not pure-negative (a must clause is present)
+        assertThat(
+            translate(
+                QueryBuilders.boolQuery()
+                    .must(QueryBuilders.existsQuery("tags"))
+                    .mustNot(QueryBuilders.termQuery("tags", "x"))
+                    .adjustPureNegative(false)
+            ),
+            instanceOf(And.class)
+        );
     }
 
     /** A match on an exact-typed field IS a term — plain equality (mv_contains), same as the index builds. */

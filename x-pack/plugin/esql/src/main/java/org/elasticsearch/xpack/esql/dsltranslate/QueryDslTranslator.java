@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -324,6 +325,17 @@ public final class QueryDslTranslator {
             }
         }
 
+        // adjust_pure_negative=false makes a bool with ONLY must_not clauses match NOTHING (Lucene omits the implicit
+        // match-all that the default true adds). We model the default; a pure-negative bool with the flag off would be a
+        // silent over-match (we would emit NOT-of-the-excluded), so reject it. The flag has no effect in any other shape.
+        if (bool.adjustPureNegative() == false
+            && bool.mustNot().isEmpty() == false
+            && bool.must().isEmpty()
+            && bool.filter().isEmpty()
+            && bool.should().isEmpty()) {
+            throw new TranslationUnsupportedException("bool[adjust_pure_negative=false]");
+        }
+
         List<Expression> conjuncts = new ArrayList<>();
         for (QueryBuilder q : bool.must()) {
             conjuncts.add(translate(q));
@@ -388,6 +400,14 @@ public final class QueryDslTranslator {
             return dateRange(field, type, range, formatter, hasLower, hasUpper);
         }
 
+        // INTEGER/LONG bounds round INWARD like NumberFieldMapper — a fractional lower rounds up, a fractional upper
+        // down, an exclusive whole bound nudges one — never truncate toward zero, which would silently over-match a
+        // fractional bound (`gte 300.5` must not include 300). A MISSING field has NULL type, so it stays on the generic
+        // path below and folds to false (leniency); only a present integral field takes this route.
+        if (type == DataType.INTEGER || type == DataType.LONG) {
+            return integralRange(field, type, range, hasLower, hasUpper);
+        }
+
         if (hasLower && hasUpper) {
             // Both bounds: this must be ONE any-value range test. Splitting it into two independent existentials
             // (mv_max >= lo AND mv_min <= hi) is an ENVELOPE test, which is wrong on multivalue fields: [0,100]
@@ -443,6 +463,56 @@ public final class QueryDslTranslator {
             field,
             twoValued(range.includeUpper() ? new LessThanOrEqual(Source.EMPTY, min, hi, null) : new LessThan(Source.EMPTY, min, hi, null))
         );
+    }
+
+    /**
+     * A range over a present INTEGER/LONG field, resolved to one closed inclusive {@code [lo, hi]} the way {@code
+     * NumberFieldMapper} does, then emitted as a single any-value {@link MvInRange} (exact on multivalue, pushdown
+     * friendly, and two-valued so a null row folds to false). Each present bound is rounded inward by
+     * {@link #effectiveIntegralBound}; a missing bound is the type's extreme. Bounds are clamped to the representable
+     * range (an out-of-range bound on the far side just removes that side's restriction); an empty interval is {@code
+     * FALSE} — the index's match-no-docs.
+     */
+    private Expression integralRange(Expression field, DataType type, RangeQueryBuilder range, boolean hasLower, boolean hasUpper) {
+        BigDecimal min = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MIN_VALUE) : BigDecimal.valueOf(Long.MIN_VALUE);
+        BigDecimal max = type == DataType.INTEGER ? BigDecimal.valueOf(Integer.MAX_VALUE) : BigDecimal.valueOf(Long.MAX_VALUE);
+        BigDecimal lo = hasLower ? effectiveIntegralBound(type, range.from(), true, range.includeLower()) : min;
+        BigDecimal hi = hasUpper ? effectiveIntegralBound(type, range.to(), false, range.includeUpper()) : max;
+        lo = lo.max(min);
+        hi = hi.min(max);
+        if (lo.compareTo(hi) > 0) {
+            return Literal.FALSE; // the interval is empty — no value of the type lies inside it
+        }
+        Number loValue = type == DataType.INTEGER ? (Number) lo.intValueExact() : (Number) lo.longValueExact();
+        Number hiValue = type == DataType.INTEGER ? (Number) hi.intValueExact() : (Number) hi.longValueExact();
+        return checkedLeaf(
+            field,
+            new MvInRange(Source.EMPTY, field, new Literal(Source.EMPTY, loValue, type), new Literal(Source.EMPTY, hiValue, type))
+        );
+    }
+
+    /**
+     * The effective INCLUSIVE integer bound for a range, mirroring {@code NumberFieldMapper}: the value is truncated
+     * toward zero, then nudged one inward when it is an exclusive whole number, or a fractional value that rounds into
+     * the interval (a positive-decimal lower / a negative-decimal upper). Computed on {@link BigDecimal} so a large or
+     * fractional value loses no precision; an unparseable value degrades the clause.
+     */
+    private static BigDecimal effectiveIntegralBound(DataType type, Object value, boolean lower, boolean inclusive) {
+        BigDecimal number;
+        try {
+            number = value instanceof Number n ? new BigDecimal(n.toString()) : new BigDecimal(String.valueOf(value).trim());
+        } catch (NumberFormatException e) {
+            throw new TranslationUnsupportedException("range[bound on " + type.typeName() + "]");
+        }
+        boolean hasDecimal = number.stripTrailingZeros().scale() > 0;
+        BigDecimal base = number.setScale(0, RoundingMode.DOWN); // truncate toward zero, as the index parse does
+        if (lower && ((hasDecimal && number.signum() > 0) || (hasDecimal == false && inclusive == false))) {
+            return base.add(BigDecimal.ONE);
+        }
+        if (lower == false && ((hasDecimal && number.signum() < 0) || (hasDecimal == false && inclusive == false))) {
+            return base.subtract(BigDecimal.ONE);
+        }
+        return base;
     }
 
     /**
@@ -516,7 +586,12 @@ public final class QueryDslTranslator {
             : DateFieldMapper.Resolution.MILLISECONDS;
         try {
             if (value instanceof Number n) {
-                return resolution.convert(Instant.ofEpochMilli(n.longValue()));
+                // The numeric bound is epoch-MILLIS (matching the index's epoch_millis parse). resolution.convert lands
+                // on the FIRST nanosecond of that milli; when rounding up, a date_nanos bound must reach the LAST nano
+                // (the index's epoch_millis round-up parser defaults NANOS_OF_MILLI to 999_999) or an upper bound would
+                // under-match every sub-milli row. For DATETIME the milli is exact, so roundUp is a no-op there.
+                long point = resolution.convert(Instant.ofEpochMilli(n.longValue()));
+                return (type == DataType.DATE_NANOS && roundUp) ? point + 999_999L : point;
             }
             DateFormatter effective = formatter != null
                 ? formatter

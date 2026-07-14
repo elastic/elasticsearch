@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -181,5 +182,19 @@ abstract class AbstractSemanticMapperTestCase extends MapperTestCase {
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         // Until a doc is indexed, the query is rewritten as match no docs
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
+    }
+
+    protected static void assertInferenceEndpoints(
+        MapperService mapperService,
+        String fieldName,
+        String expectedInferenceId,
+        String expectedSearchInferenceId
+    ) {
+        var fieldType = mapperService.fieldType(fieldName);
+        assertNotNull(fieldType);
+        assertThat(fieldType, instanceOf(SemanticFieldMapper.SemanticFieldType.class));
+        SemanticFieldMapper.SemanticFieldType semanticFieldType = (SemanticFieldMapper.SemanticFieldType) fieldType;
+        assertEquals(expectedInferenceId, semanticFieldType.getInferenceId());
+        assertEquals(expectedSearchInferenceId, semanticFieldType.getSearchInferenceId());
     }
 }

@@ -1520,20 +1520,6 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         return (SemanticTextFieldMapper) mapper;
     }
 
-    private static void assertInferenceEndpoints(
-        MapperService mapperService,
-        String fieldName,
-        String expectedInferenceId,
-        String expectedSearchInferenceId
-    ) {
-        var fieldType = mapperService.fieldType(fieldName);
-        assertNotNull(fieldType);
-        assertThat(fieldType, instanceOf(SemanticTextFieldMapper.SemanticTextFieldType.class));
-        SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType = (SemanticTextFieldMapper.SemanticTextFieldType) fieldType;
-        assertEquals(expectedInferenceId, semanticTextFieldType.getInferenceId());
-        assertEquals(expectedSearchInferenceId, semanticTextFieldType.getSearchInferenceId());
-    }
-
     public void testSuccessfulParse() throws IOException {
         for (int depth = 1; depth < 4; depth++) {
             final IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat);

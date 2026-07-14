@@ -1881,17 +1881,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private String parseParamValueString(EsqlBaseParser.PromqlParamValueContext ctx) {
         if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
             QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
+            if (param == null) {
+                throw new ParsingException(source(ctx), "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+            }
             return param.value().toString();
         } else if (ctx.QUOTED_IDENTIFIER() != null) {
             throw new ParsingException(source(ctx), "Parameter value [{}] must not be a quoted identifier", ctx.getText());
         } else if (ctx.promqlIndexPattern().size() == 1) {
             EsqlBaseParser.PromqlIndexStringContext string = ctx.promqlIndexPattern().getFirst().promqlIndexString();
-            if (string.UNQUOTED_SOURCE() != null) {
-                return string.UNQUOTED_SOURCE().getText();
-            } else if (string.UNQUOTED_IDENTIFIER() != null) {
-                return string.UNQUOTED_IDENTIFIER().getText();
-            } else if (string.QUOTED_STRING() != null) {
-                return AbstractBuilder.unquote(string.QUOTED_STRING().getText());
+            if (string != null) {
+                if (string.UNQUOTED_SOURCE() != null) {
+                    return string.UNQUOTED_SOURCE().getText();
+                } else if (string.UNQUOTED_IDENTIFIER() != null) {
+                    return string.UNQUOTED_IDENTIFIER().getText();
+                } else if (string.QUOTED_STRING() != null) {
+                    return AbstractBuilder.unquote(string.QUOTED_STRING().getText());
+                }
             }
         }
         throw new ParsingException(source(ctx), "Invalid parameter value [{}]", ctx.getText());

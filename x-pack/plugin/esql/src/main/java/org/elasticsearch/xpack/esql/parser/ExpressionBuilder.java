@@ -1373,14 +1373,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-
-        final Expression matchFieldExpression;
-        if (ctx.fieldType != null) {
-            matchFieldExpression = castToType(source(ctx), ctx.fieldExp, ctx.fieldType);
-        } else {
-            matchFieldExpression = expression(ctx.fieldExp);
-        }
-
-        return new MatchOperator(source(ctx), matchFieldExpression, expression(ctx.matchQuery));
+        return new MatchOperator(source(ctx), expression(ctx.fieldExp), expression(ctx.matchQuery));
     }
 }

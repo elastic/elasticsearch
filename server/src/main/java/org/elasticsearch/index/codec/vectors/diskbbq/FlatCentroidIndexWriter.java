@@ -23,8 +23,19 @@ import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
 
+/**
+ * Methods for writing a centroid index with one or two layers
+ */
 public class FlatCentroidIndexWriter {
 
+    /**
+     * Information on parent centroid groups for two-layer centroid indexing.
+     *
+     * @param centroids                   the parent centroids
+     * @param vectors                     indexed by parent ordinal; {@code vectors[p]} holds the ordinals of the
+     *                                    child centroids assigned to parent {@code p}
+     * @param maxVectorsPerCentroidLength the largest number of children assigned to a single parent
+     */
     public record CentroidGroups(float[][] centroids, int[][] vectors, int maxVectorsPerCentroidLength) {}
 
     public static CentroidGroups writeCentroidIndex(

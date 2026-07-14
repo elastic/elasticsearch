@@ -203,6 +203,8 @@ flakiness-detection/
     changed-files.ts     git-diff source
     unmutes.ts           muted-tests.yml diff source
     explicit-list.ts     FQCN list source
+    bwc.ts               BWC-project detection → not_applicable partition
+    abstract.ts          skips abstract base classes (their --tests matches nothing)
   commands.ts            dedupe / collapse / batch / emit RunnableCommand[]
   runners/
     buildkite.ts         RunnableCommand[] → BK YAML + upload (wraps + writes per-job status file)

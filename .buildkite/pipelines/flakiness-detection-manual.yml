@@ -19,3 +19,7 @@ steps:
       bun .buildkite/scripts/flakiness-detection/entrypoints/manual.ts
     timeout_in_minutes: 10
     soft_fail: false
+    # manual.ts writes this when it skips BWC tests that cannot be re-run via the
+    # bare task; the generated analyze step downloads it and records them as
+    # not_applicable. No-op when the file is absent.
+    artifact_paths: flakiness-skipped.json

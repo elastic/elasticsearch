@@ -2,6 +2,8 @@ import { execSync } from "child_process";
 import { resolve } from "path";
 
 import { classifyExplicitList } from "../detectors/explicit-list.ts";
+import { defaultJavaSourceReader } from "../detectors/abstract.ts";
+import { partitionByBwc, defaultBuildScriptReader } from "../detectors/bwc.ts";
 import { buildCommands } from "../commands.ts";
 import { runLocally } from "../runners/local.ts";
 import { DEFAULT_BATCHING_CONFIG } from "../domain.ts";
@@ -35,11 +37,22 @@ export async function run(): Promise<void> {
   }).toString();
   const repoFiles = repoFilesOutput.split("\n").map((f) => f.trim()).filter((f) => f !== "");
 
-  const { located, unlocated } = classifyExplicitList(specs, repoFiles);
+  const { located, unlocated } = classifyExplicitList(specs, repoFiles, defaultJavaSourceReader(PROJECT_ROOT));
   if (unlocated.length > 0) {
-    console.error(`Could not resolve ${unlocated.length} spec(s):`);
+    console.error(`Could not resolve ${unlocated.length} spec(s) (or they are abstract base classes):`);
     for (const u of unlocated) console.error(`  - ${u.spec}`);
     process.exit(1); // fail-fast (per design)
+  }
+
+  // BWC qa projects can't be re-run via the bare task; drop them with a note so
+  // a local run doesn't silently execute zero tests for them.
+  const { runnable, notApplicable } = partitionByBwc(located, defaultBuildScriptReader(PROJECT_ROOT));
+  for (const t of notApplicable) {
+    console.error(`Skipping BWC test (not re-runnable via the bare task): ${t.gradleProject} ${t.fqcn ?? t.suitePath ?? ""}`);
+  }
+  if (runnable.length === 0) {
+    console.error("No runnable tests after filtering; nothing to do.");
+    process.exit(0);
   }
 
   const baseCfg: typeof DEFAULT_BATCHING_CONFIG = {
@@ -58,7 +71,7 @@ export async function run(): Promise<void> {
     : baseCfg;
 
   const startMs = Date.now();
-  const exitCode = runLocally(buildCommands(located, cfg), PROJECT_ROOT);
+  const exitCode = runLocally(buildCommands(runnable, cfg), PROJECT_ROOT);
   const report = await analyzeReports([PROJECT_ROOT], startMs);
   console.log("\n" + renderMarkdown(report));
   process.exit(exitCode);

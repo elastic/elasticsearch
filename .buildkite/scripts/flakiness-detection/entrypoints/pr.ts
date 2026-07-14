@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
 import { classifyChangedFiles } from "../detectors/changed-files.ts";
+import { defaultJavaSourceReader, type JavaSourceReader } from "../detectors/abstract.ts";
 import { partitionByBwc, defaultBuildScriptReader } from "../detectors/bwc.ts";
 import { findUnmutedTests, type UnmuteDetectionResult } from "../detectors/unmutes.ts";
 import { buildCommands, compileTasksFor, dedupeTests } from "../commands.ts";
@@ -50,7 +51,7 @@ export function resolveMergeBaseTarget(
 // timeout_in_minutes budget.
 const GIT_COMMAND_TIMEOUT_MS = 60_000;
 
-function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetectionResult {
+function detectUnmutedTests(mergeBase: string, projectRoot: string, readSource: JavaSourceReader): UnmuteDetectionResult {
   console.log(`  Reading muted-tests.yml at ${mergeBase}...`);
   let oldYaml = "";
   try {
@@ -88,7 +89,7 @@ function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetec
     .filter((f) => f !== "");
   console.log(`  Indexed ${repoFiles.length} tracked files`);
 
-  return findUnmutedTests(oldYaml, newYaml, repoFiles);
+  return findUnmutedTests(oldYaml, newYaml, repoFiles, readSource);
 }
 
 export function run(): void {
@@ -106,11 +107,15 @@ export function run(): void {
   const changedFiles = changedFilesOutput.split("\n").map((f) => f.trim()).filter((f) => f);
   console.log(`Found ${changedFiles.length} changed files`);
 
-  const changedTests = classifyChangedFiles(changedFiles);
+  // Reads working-tree Java sources so the detectors can skip abstract base
+  // classes (whose `*Tests`/`*IT` name matches but which run no tests).
+  const readSource = defaultJavaSourceReader(PROJECT_ROOT);
+
+  const changedTests = classifyChangedFiles(changedFiles, readSource);
   console.log(`Found ${changedTests.length} changed test files`);
 
   console.log("Detecting unmuted tests...");
-  const unmuted = detectUnmutedTests(mergeBase, PROJECT_ROOT);
+  const unmuted = detectUnmutedTests(mergeBase, PROJECT_ROOT, readSource);
   console.log(`Found ${unmuted.located.length} unmuted tests`);
   if (unmuted.unlocated.length > 0) {
     console.log(`Skipping ${unmuted.unlocated.length} unmuted tests whose class files no longer exist:`);

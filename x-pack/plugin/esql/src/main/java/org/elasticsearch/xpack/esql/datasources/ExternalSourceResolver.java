@@ -746,9 +746,13 @@ public class ExternalSourceResolver {
                 // into the async aggregation so text-format multi-file merges force a re-scan instead of serving
                 // a subset COUNT/MIN/MAX (see foldsAbsentColumnAsImplicitNull / SourceStatisticsSerializer).
                 boolean implicitNulls = foldsAbsentColumnAsImplicitNull(base.sourceType());
+                // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
+                // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
+                DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, cacheable);
                 ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
                     try {
-                        listener.onResponse(finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, aggregatedStats)));
+                        Map<String, Object> effective = applyDatasetAggregate(datasetPrefetch, aggregatedStats, listing, base, config);
+                        listener.onResponse(finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, effective)));
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
@@ -1032,6 +1036,188 @@ public class ExternalSourceResolver {
         };
     }
 
+    /**
+     * The dataset-level aggregate key for one multi-file resolve, or {@code null} when the shape does not
+     * qualify: single file, no file-set fingerprint, a non-cacheable provider (handled by callers), or — the
+     * format gate — a format that folds an absent column stat as implicit nulls (Parquet/ORC). The
+     * aggregate is ROW-COUNT-ONLY, and under the footer implicit-nulls contract an absent per-column
+     * stat reads as "all null", so serving the aggregate to a footer-format {@code COUNT(col)} would
+     * fold {@code rowCount - rowCount = 0} — a wrong answer. Text formats safe-miss absent columns
+     * instead, so only they may carry the aggregate; a {@code null} key disables put, serve, and
+     * promise registration together. (Precedent: {@code strictSingleFileMetadata} refuses
+     * {@code FILE_TYPED_FORMATS} on its warm rail for the same reason family.)
+     * <p>
+     * Keyed on the listing's file-set fingerprint (see {@link SchemaCacheKey#forDatasetAggregate}), so it
+     * needs no invalidation: any add/remove/mtime/size change in the set derives a different key. The
+     * {@code formatType} slot uses the same extension-based detection the per-file keys use — a stable
+     * identity input; the logical source type may only diverge from it via config keys that are already
+     * part of the key's config fingerprint, with one benign exception: the {@code reader} override is
+     * absent from the fingerprint but can only select footer-format (Parquet-family) readers, which the
+     * format gate above refuses — so no dataset key is ever minted for a reader-overridden resolve.
+     * Package-private for testing.
+     */
+    @Nullable
+    SchemaCacheKey datasetAggregateKey(FileList listing, Map<String, Object> config) {
+        if (listing == null || listing.fileSetFingerprint() == null || listing.fileCount() < 2) {
+            return null;
+        }
+        if (datasetAggregateSafeForFormat(listing, config) == false) {
+            return null;
+        }
+        return SchemaCacheKey.forDatasetAggregate(
+            listing.originalPattern(),
+            listing.fileSetFingerprint(),
+            detectFormatType(listing.path(0)),
+            config
+        );
+    }
+
+    /**
+     * Whether the listing's format treats an ABSENT per-column stat as "not harvested" (safe-miss to a
+     * re-scan) rather than "all null" — the text-format contract that makes a row-count-only aggregate
+     * safe to serve. The format is resolved exactly the way the READ path resolves it
+     * ({@link FormatNameResolver#resolveFormatName}: config {@code format}/{@code reader} override
+     * first, then the compound-extension-aware registry lookup), so this gate can never disagree with
+     * the reader that actually scans — a footer file under a {@code .ndjson} name with
+     * {@code format=parquet} is gated as parquet, and compressed text ({@code .ndjson.gz}) resolves to
+     * {@code ndjson} and qualifies. The {@code formatName() -> findByName} round-trip deliberately
+     * unwraps {@code CompressionDelegatingFormatReader} to the inner reader, whose
+     * {@code aggregatePushdownSupport} is the authoritative one (the wrapper does not forward it).
+     * Any resolution failure refuses: the registry throws {@code QlIllegalArgumentException} (not
+     * {@code java.lang.IllegalArgumentException}) on an unregistered extension, and the aggregate is an
+     * optimization that must never turn a resolvable read into a throw — hence the broad catch.
+     */
+    private boolean datasetAggregateSafeForFormat(FileList listing, Map<String, Object> config) {
+        try {
+            String formatName = FormatNameResolver.resolveFormatName(
+                config,
+                listing.path(0).objectName(),
+                dataSourceModule.formatReaderRegistry()
+            );
+            // Same predicate as foldsAbsentColumnAsImplicitNull, negated: an absent-column stat is only
+            // safe to fold as an implicit null (and thus a dataset COUNT aggregate only correct) for a
+            // KNOWN format that does NOT treat an absent column as implicit null. Delegate so the two
+            // callers can't drift. This rail re-resolves the format from config because it prefetches
+            // before any SourceMetadata (and thus sourceType) exists.
+            return foldsAbsentColumnAsImplicitNull(formatName) == false;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * One multi-file resolve's dataset-aggregate prefetch: the key (or {@code null} when the shape does
+     * not qualify — including the non-cacheable case, gated here so it lives in one place) and the
+     * memoized aggregate if present. Read BEFORE the per-file gather; see {@link #applyDatasetAggregate}
+     * for why post-gather reads self-defeat under cache pressure. Package-private for testing.
+     */
+    record DatasetAggregatePrefetch(@Nullable SchemaCacheKey key, @Nullable Map<String, Object> prefetched) {}
+
+    private DatasetAggregatePrefetch prefetchDatasetAggregate(FileList listing, Map<String, Object> config, boolean cacheable) {
+        SchemaCacheKey key = cacheable ? datasetAggregateKey(listing, config) : null;
+        return new DatasetAggregatePrefetch(key, key != null ? cacheService.getDatasetAggregate(key) : null);
+    }
+
+    /**
+     * Resolves the effective multi-file aggregate: the per-file merge when it succeeded, else the
+     * memoized dataset-level aggregate. Centralizes the dataset-aggregate lifecycle both multi-file
+     * rails share:
+     * <ul>
+     *   <li><b>Per-file merge succeeded</b> — write-through on the FIRST such merge for this file set
+     *   (i.e. the prefetch missed): memoize its row count under the dataset key so the NEXT warm query
+     *   survives per-file entry loss (LRU pressure) without re-merging. A later warm resolve whose
+     *   prefetch already hit skips the re-put (the entry is current and was just revived).</li>
+     *   <li><b>Per-file merge failed, prefetch hit</b> — serve the memoized aggregate. The prefetch was
+     *   read (and TTL/LRU-revived) BEFORE the per-file gather on purpose: under cache pressure the
+     *   gather's own {@code putSchema} calls can evict the dataset entry, so reading it after the gather
+     *   would lose exactly the entry this fallback exists to serve. The served map is row-count-only
+     *   ({@code _stats.row_count}), so only COUNT(*) warms from it — MIN/MAX keep re-scanning until the
+     *   per-file rail can serve them (see {@code ExternalSourceCacheService#getDatasetAggregate}).</li>
+     *   <li><b>Both missed (the cold query)</b> — register a pending-descriptor promise so the scan's
+     *   reconcile materializes the aggregate the moment every file folds to whole-file completeness;
+     *   the FIRST warm query is then already protected.</li>
+     * </ul>
+     * The descriptor's expected fingerprint is taken from the reference file's reader-stamped metadata
+     * (the exact value data-node contributions will carry), falling back to the coordinator-side
+     * canonical config only when the probe did not stamp one. Package-private for testing.
+     */
+    @Nullable
+    Map<String, Object> applyDatasetAggregate(
+        DatasetAggregatePrefetch prefetch,
+        @Nullable Map<String, Object> aggregatedStats,
+        FileList listing,
+        SourceMetadata referenceMeta,
+        Map<String, Object> config
+    ) {
+        SchemaCacheKey datasetKey = prefetch.key();
+        if (datasetKey == null) {
+            return aggregatedStats;
+        }
+        if (aggregatedStats != null) {
+            // Write-through only on the FIRST successful merge for this file set — i.e. when the prefetch
+            // missed. Once the aggregate is memoized under the fingerprint key (a set-identity key: same
+            // files => same key => same count), repeat warm resolves needn't re-scan paths or re-put; the
+            // prefetch's getDatasetAggregate already LRU/TTL-revived the entry, so skipping the put here
+            // costs it no liveness. Keeps the common warm-non-evicted path off the O(N) scan + write.
+            if (prefetch.prefetched() == null) {
+                Object rowCount = aggregatedStats.get(SourceStatisticsSerializer.STATS_ROW_COUNT);
+                // Duplicate-path guard on the write-through: a comma-separated list can name the same file
+                // twice, and the reconciliation rail's per-file merge folds a per-path MAP (deduplicated)
+                // while the scan reads the listing MULTISET — memoizing that merge under the fingerprint would
+                // persist an undercount beyond eviction. NOTE: the per-file rail SERVING that dedup merge
+                // immediately is a pre-existing main bug tracked separately (GA issue); this guard only
+                // keeps the dataset aggregate from memoizing it.
+                if (rowCount instanceof Number n && listingPathsAreDistinct(listing)) {
+                    cacheService.putDatasetAggregate(datasetKey, n.longValue(), referenceMeta.sourceType(), listing.originalPattern());
+                }
+            }
+            return aggregatedStats;
+        }
+        cacheService.recordStatsAggregateIncomplete();
+        if (prefetch.prefetched() != null) {
+            // Needed (per-file merge incomplete) AND present: the fallback actually served.
+            cacheService.recordDatasetAggregateHit();
+            return prefetch.prefetched();
+        }
+        // Needed AND absent: the fallback was wanted but missing. Counted symmetrically with the hit above
+        // (both only on the needed path — healthy warm resolves never reach here), so hits/(hits+misses)
+        // is a real fallback hit rate.
+        cacheService.recordDatasetAggregateMiss();
+        Map<String, Long> pathToMtime = new HashMap<>(listing.fileCount());
+        for (int i = 0; i < listing.fileCount(); i++) {
+            pathToMtime.put(listing.path(i).toString(), listing.lastModifiedMillis(i));
+        }
+        Map<String, Object> referenceMetadata = referenceMeta.sourceMetadata();
+        Object stamped = referenceMetadata != null ? referenceMetadata.get(ExternalStats.CONFIG_FINGERPRINT_KEY) : null;
+        String fingerprint = stamped instanceof String s ? s : SchemaCacheKey.buildFormatConfig(config);
+        cacheService.registerPendingDatasetAggregate(
+            datasetKey,
+            pathToMtime,
+            listing.fileCount(),
+            fingerprint,
+            referenceMeta.sourceType(),
+            listing.originalPattern()
+        );
+        return null;
+    }
+
+    /**
+     * True when no path appears twice in the listing (comma-lists may repeat a file; globs cannot). O(N),
+     * resolve-time only. Same duplicate-path guard as the promise rail's {@code size != expectedFileCount}
+     * check in {@code ExternalSourceCacheService#registerPendingDatasetAggregate}, encoded here as a set on
+     * the write-through path so the common warm-non-evicted resolve pays the O(N) scan only when it writes,
+     * not on every key-mint.
+     */
+    private static boolean listingPathsAreDistinct(FileList listing) {
+        Set<String> unique = new HashSet<>(listing.fileCount());
+        for (int i = 0; i < listing.fileCount(); i++) {
+            if (unique.add(listing.path(i).toString()) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private void resolveMultiFileWithReconciliation(
         FileList fileList,
         Map<String, Object> config,
@@ -1040,6 +1226,7 @@ public class ExternalSourceResolver {
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         long startNanos = System.nanoTime();
+        DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(fileList, config, cacheable);
         readAllFileMetadata(fileList, config, cacheable, ActionListener.wrap(allMetadata -> {
             try {
                 long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
@@ -1086,6 +1273,7 @@ public class ExternalSourceResolver {
                     reconciledTypes,
                     foldsAbsentColumnAsImplicitNull(firstMeta.sourceType())
                 );
+                aggregatedStats = applyDatasetAggregate(datasetPrefetch, aggregatedStats, fileList, firstMeta, config);
                 ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
 
                 // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
@@ -1318,7 +1506,10 @@ public class ExternalSourceResolver {
         for (Map.Entry<StoragePath, SourceMetadata> entry : allMetadata.entrySet()) {
             Map<String, Object> flat = flatStatsOf(entry.getValue());
             if (flat == null) {
-                // At least one file has no statistics — cannot produce accurate global stats.
+                // At least one file has no statistics — cannot produce accurate global stats. Name the
+                // first offender: an all-or-nothing miss over hundreds of files is otherwise
+                // undiagnosable (the 20-minute warm re-scan with no trace of WHICH file broke it).
+                LOGGER.debug("multi-file stats aggregate incomplete: [{}] has no statistics", entry.getKey());
                 return null;
             }
             Map<String, DataType> fileTypes = perFileTypes.get(entry.getKey());
@@ -1345,6 +1536,7 @@ public class ExternalSourceResolver {
         for (SourceMetadata meta : allMetadata) {
             Map<String, Object> flat = flatStatsOf(meta);
             if (flat == null) {
+                LOGGER.debug("multi-file stats aggregate incomplete: [{}] has no statistics", meta.location());
                 return null;
             }
             perFileFlatStats.add(flat);
@@ -1453,7 +1645,9 @@ public class ExternalSourceResolver {
             for (SourceMetadata meta : allMeta) {
                 Map<String, Object> fileMeta = meta.sourceMetadata();
                 if (fileMeta == null || fileMeta.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false) {
-                    // This file has no statistics — cannot produce accurate global stats.
+                    // This file has no statistics — cannot produce accurate global stats. Name the first
+                    // offender; the all-or-nothing miss is otherwise undiagnosable at glob scale.
+                    LOGGER.debug("multi-file stats aggregate incomplete: [{}] has no row count", meta.location());
                     listener.onResponse(null);
                     return;
                 }
@@ -1830,7 +2024,8 @@ public class ExternalSourceResolver {
         // Stamp the partition column names into the serialized sourceMetadata. The fileList that carries
         // PartitionMetadata is coordinator-only (ExternalRelation deserializes it to UNRESOLVED), so the data-node
         // fold reads this key instead to safe-miss COUNT(partition_col). Read by
-        // ExternalSourceAggregatePushdown.partitionColumnNames.
+        // SourceStatisticsSerializer.partitionColumnNames (via the partitionColumnNames() accessors on
+        // ExternalSourceExec / ExternalRelation, which every node-agnostic consumer goes through).
         Map<String, Object> stampedMetadata = new HashMap<>(schemaEnriched.sourceMetadata());
         stampedMetadata.put(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.copyOf(partitionNames));
         return replaceSourceMetadata(schemaEnriched, Map.copyOf(stampedMetadata));
@@ -1972,8 +2167,11 @@ public class ExternalSourceResolver {
      * schema-cache lookup — the post-query stats reconcile keys on path+mtime+config_fingerprint (NOT the format-type),
      * so the harvested row-count still lands on this entry. It does NOT isolate the *stats* across declarations; that is
      * why {@link #strictSingleFileMetadata} serves only the declaration-independent row-count (see there).
+     * <p>
+     * Declared in {@link SchemaCacheKey} next to its sibling reserved suffix so the two markers'
+     * distinctness is visible at one declaration site.
      */
-    private static final String STRICT_DECLARED_SCHEMA_MARKER = "#strict-declared";
+    private static final String STRICT_DECLARED_SCHEMA_MARKER = SchemaCacheKey.STRICT_DECLARED_SCHEMA_MARKER;
 
     /**
      * Builds the strict single-file source metadata, warming the ungrouped-{@code COUNT(*)} metadata fast path for

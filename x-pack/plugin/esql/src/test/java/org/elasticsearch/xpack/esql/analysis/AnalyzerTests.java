@@ -3580,36 +3580,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     /**
-     * Unlike {@link #testTsStatsQueryWithConflictingTsTypesMarksFieldUnsupported}, this isn't about
-     * a field-type conflict — the fields agree across both indices. The problem is that one of the
-     * two matched indices isn't a time-series index at all, so the relation as a whole can't supply
-     * the per-document dimension/metric semantics (_tsid, etc.) a true time-series aggregation
-     * (here, last_over_time BY bucket(@timestamp, ...), which needs both bucketing and _tsid) needs.
-     * See https://github.com/elastic/elasticsearch/issues/153030.
-     */
-    public void testTsStatsQueryOverMixedTimeSeriesAndStandardIndexModesFails() {
-        assumeTrue(
-            "Requires the TS-requires-time-series-indices fix",
-            EsqlCapabilities.Cap.TS_COMMAND_REQUIRES_TIME_SERIES_INDICES.isEnabled()
-        );
-        Map<String, EsField> mapping = EsqlTestUtils.loadMapping("k8s-mappings.json");
-        var mixedIndex = new EsIndex(
-            "*",
-            mapping,
-            Map.of("ts_index", IndexMode.TIME_SERIES, "standard_index", IndexMode.STANDARD),
-            Map.of(),
-            Map.of()
-        );
-        var testAnalyzer = analyzer().addIndex(mixedIndex);
-        var e = expectThrows(
-            VerificationException.class,
-            () -> testAnalyzer.query("TS * | STATS last_over_time(events_received) BY bucket(@timestamp, 1 minute)")
-        );
-        assertThat(e.getMessage(), containsString("TS command requires all matched indices to be time-series indices"));
-        assertThat(e.getMessage(), containsString("standard_index"));
-    }
-
-    /**
      * Boundary confirmation: a multi-index TS pattern where every matched index genuinely is
      * time-series mode is unaffected by the fix above, even for a query that needs true
      * time-series semantics (bucketing + an _over_time aggregate).

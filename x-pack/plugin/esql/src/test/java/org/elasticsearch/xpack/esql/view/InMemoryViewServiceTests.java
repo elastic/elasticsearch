@@ -880,19 +880,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(e.getMessage(), containsString("view_a -> view_b"));
     }
 
-    /**
-     * Confirms the fix's boundary: the opposite direction (FROM referencing a TS-bodied view) is
-     * unaffected — the view's own TS aggregation is fully resolved within its body, so nothing
-     * about the outer FROM ever needs TS-only semantics. Covered extensively at the REST/csv-spec
-     * level too (views.csv-spec "tsView*" family); this is a fast unit-level confirmation living
-     * next to the rejection tests above.
-     */
-    public void testViewWithTsBodyReferencedViaFromStillWorks() {
-        addView("ts_view", "TS emp | STATS count(*)");
-        LogicalPlan rewritten = replaceViews(query("FROM ts_view"));
-        assertThat(rewritten, matchesPlan(query("TS emp | STATS count(*)")));
-    }
-
     public void testCircularViewInFork() {
         addView("view_a", "FROM view_b");
         addView("view_b", "FROM view_a");

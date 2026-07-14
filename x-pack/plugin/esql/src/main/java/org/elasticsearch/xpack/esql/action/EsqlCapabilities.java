@@ -1498,14 +1498,12 @@ public class EsqlCapabilities {
         VIEWS_FALSE_CIRCULAR_REFERENCE_FIX,
 
         /**
-         * TS command now rejects a relation whose matched indices are not uniformly time-series
-         * mode; previously a mixed-mode multi-index pattern (e.g. via a wildcard) could silently
-         * inject _tsid into a relation partly backed by non-time-series indices, surfacing as a
-         * confusing failure at physical execution instead of a clear analysis-time error. See
-         * https://github.com/elastic/elasticsearch/issues/153030 (same family as
+         * Views are not supported as a source of the TS command; previously this could reach the
+         * optimizer and fail with a confusing "optimized incorrectly due to missing references" error.
+         * See https://github.com/elastic/elasticsearch/issues/153030 (same failure family as
          * https://github.com/elastic/elasticsearch/issues/149619).
          */
-        TS_COMMAND_REQUIRES_TIME_SERIES_INDICES,
+        VIEWS_NOT_SUPPORTED_IN_TS_COMMAND,
 
         /**
          * Support for the {@code leading_zeros} named parameter.

@@ -11533,21 +11533,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(aggsByTsid.child(), EsRelation.class);
     }
 
-    /**
-     * A TS pattern that field-caps/multi-index resolution collapses into a single {@code EsRelation}
-     * backed by a mix of time-series and non-time-series indices cannot supply the per-document
-     * dimension/metric semantics (_tsid, etc.) that time-series aggregation needs, even for a
-     * simple aggregate like count() that doesn't itself require true time-series semantics — the
-     * unconditional _tsid injection would still succeed structurally (a single relation trivially
-     * satisfies the plan's own consistency check), silently masking the mode mismatch instead of
-     * failing until much later, confusingly, at physical execution against the non-time-series
-     * shards. See https://github.com/elastic/elasticsearch/issues/153030.
-     */
     public void testTsWildcardStatsWithMixedIndexModes() {
-        assumeTrue(
-            "Requires the TS-requires-time-series-indices fix",
-            EsqlCapabilities.Cap.TS_COMMAND_REQUIRES_TIME_SERIES_INDICES.isEnabled()
-        );
         var mapping = EsqlTestUtils.loadMapping("k8s-mappings.json");
         var mixedIndex = new EsIndex(
             "*",
@@ -11557,9 +11543,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             Map.of()
         );
         var testAnalyzer = EsqlTestUtils.analyzer().addIndex(IndexResolution.valid(mixedIndex));
-        var e = expectThrows(VerificationException.class, () -> testAnalyzer.query("TS * | STATS count(events_received)"));
-        assertThat(e.getMessage(), containsString("TS command requires all matched indices to be time-series indices"));
-        assertThat(e.getMessage(), containsString("standard_index"));
+        var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS count(events_received)"));
+        assertNotNull(plan);
     }
 
     public void testTsWildcardWithRateAggregate() {

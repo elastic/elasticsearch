@@ -223,7 +223,7 @@ public class WatcherService implements WatcherEventConsumer {
         assert ThreadPool.assertCurrentThreadPool(LIFECYCLE_THREADPOOL_NAME)
             : "reconcile must run on the single threaded [" + LIFECYCLE_THREADPOOL_NAME + "] thread pool";
         DesiredState reconciledState = null;
-        ReconcileResult result = ReconcileResult.COMPLETE;
+        ReconcileResult result;
         try {
             while (true) {
                 reconciledState = desiredState.get();
@@ -258,7 +258,7 @@ public class WatcherService implements WatcherEventConsumer {
             return ReconcileResult.COMPLETE;
         }
         if (starting) {
-            state.set(WatcherState.STARTING);
+            validateTransitionAndApplyNewState(WatcherState.STARTING);
         } else {
             final boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(running.clusterState());
             if (hasValidWatcherTemplates == false) {
@@ -289,13 +289,13 @@ public class WatcherService implements WatcherEventConsumer {
                 executionService.executeTriggeredWatches(triggeredWatches);
             }
             appliedShardRoutings = running.affectedShardRoutings();
-            state.set(WatcherState.STARTED);
+            validateTransitionAndApplyNewState(WatcherState.STARTED);
             logger.debug("watch service has been reloaded, reason [{}]", running.reason());
         } catch (Exception e) {
             logger.error(starting ? "error starting watcher" : "error reloading watcher", e);
             if (desiredState.get() == running) {
                 if (starting) {
-                    state.set(WatcherState.STOPPED);
+                    validateTransitionAndApplyNewState(WatcherState.STOPPED);
                 }
                 desiredState.compareAndSet(running, null);
             }
@@ -310,7 +310,7 @@ public class WatcherService implements WatcherEventConsumer {
         triggerService.pauseExecution();
         final int cancelledTaskCount = executionService.pause(() -> {});
         appliedShardRoutings = null;
-        state.set(WatcherState.STARTED);
+        validateTransitionAndApplyNewState(WatcherState.STARTED);
         logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", paused.reason(), cancelledTaskCount);
         return ReconcileResult.COMPLETE;
     }
@@ -323,7 +323,7 @@ public class WatcherService implements WatcherEventConsumer {
         if (state.get() == WatcherState.STOPPING) {
             return ReconcileResult.WAITING_FOR_STOP;
         }
-        state.set(WatcherState.STOPPING);
+        validateTransitionAndApplyNewState(WatcherState.STOPPING);
         logger.info("stopping watch service, reason [{}]", stopped.reason());
         triggerService.pauseExecution();
         executionService.pause(() -> notifyStopComplete(stopped));
@@ -350,12 +350,12 @@ public class WatcherService implements WatcherEventConsumer {
     }
 
     private ReconcileResult reconcileShutdown() {
-        state.set(WatcherState.STOPPING);
+        validateTransitionAndApplyNewState(WatcherState.STOPPING);
         appliedShardRoutings = null;
         logger.info("stopping watch service, reason [shutdown initiated]");
         triggerService.stop();
         executionService.pause(() -> {
-            state.set(WatcherState.STOPPED);
+            validateTransitionAndApplyNewState(WatcherState.STOPPED);
             logger.info("watcher has stopped and shutdown");
         });
         return ReconcileResult.COMPLETE;
@@ -574,4 +574,18 @@ public class WatcherService implements WatcherEventConsumer {
         };
     }
 
+    /**
+     * Validate state transition when assertions are enabled, and apply the new state
+     *
+     * @param newState The new state to transition to
+     */
+    private void validateTransitionAndApplyNewState(WatcherState newState) {
+        assert newState == state.get() || switch (newState) {
+            case STARTED -> WatcherState.STARTING == state.get();
+            case STOPPED -> WatcherState.STOPPING == state.get();
+            case STOPPING -> WatcherState.STARTED == state.get() || WatcherState.STARTING == state.get();
+            case STARTING -> WatcherState.STOPPED == state.get();
+        } : "Unexpected transition from state " + state.get() + " to state " + newState;
+        state.set(newState);
+    }
 }

@@ -151,6 +151,10 @@ public abstract class AbstractXPackRollingUpgradeTestCase extends ParameterizedR
     protected RestClient oldVersionClient = null;
     protected RestClient newVersionClient = null;
 
+    protected static boolean isOriginalCluster(String clusterVersion) {
+        return getOldClusterVersion().equals(clusterVersion);
+    }
+
     protected AbstractXPackRollingUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }

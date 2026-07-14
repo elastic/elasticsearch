@@ -21,9 +21,16 @@ dependencies {
 }
 
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+  // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
+  String searchableSnapshotRepository = "${layout.buildDirectory.get().asFile}/cluster/shared/searchable-snapshots-repo/${baseName}"
+
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
+    systemProperty("tests.path.searchable.snapshots.repo", searchableSnapshotRepository)
+    doFirst {
+      delete(searchableSnapshotRepository)
+    }
   }
 }
 

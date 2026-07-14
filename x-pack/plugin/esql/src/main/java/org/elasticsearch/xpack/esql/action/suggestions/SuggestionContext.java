@@ -26,8 +26,14 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
  * {@code null} when the cursor sits past the last command, i.e. a fresh pipe position). The
  * {@link #kind} refines the sub-position; {@link #targetField} names the single field being compared
  * when the cursor sits in a literal.
+ *
+ * <p>{@code command == null} (paired with {@code Kind.PIPE_POSITION} and {@code targetField == null})
+ * is not a special case a reader needs to track down: it is absorbed in exactly one place
+ * ({@link #schemaSource}, computed once at construction time) and read defensively in exactly one other
+ * ({@code TransportEsqlSuggestionsAction}'s {@code context.kind() != STRING_LITERAL_EQUALITY ||
+ * context.targetField() == null} guard). There is no wider proliferation of null-checks for this case.
  */
-public record SuggestionContext(Kind kind, @Nullable LogicalPlan command, @Nullable String targetField) {
+public record SuggestionContext(Kind kind, @Nullable LogicalPlan command, @Nullable String targetField, LogicalPlan schemaSource) {
 
     public enum Kind {
         /** Caret inside a string literal on the right of an equality comparison — value completion for one field. */
@@ -49,7 +55,7 @@ public record SuggestionContext(Kind kind, @Nullable LogicalPlan command, @Nulla
     public static SuggestionContext detect(LogicalPlan plan, CursorLocation locations, int cursor) {
         LogicalPlan containing = findContainingCommand(plan, locations, cursor);
         if (containing == null) {
-            return new SuggestionContext(Kind.PIPE_POSITION, null, null);
+            return new SuggestionContext(Kind.PIPE_POSITION, null, null, plan);
         }
         if (containing instanceof Filter filter) {
             SuggestionContext literalContext = detectLiteral(filter, locations, cursor);
@@ -57,7 +63,7 @@ public record SuggestionContext(Kind kind, @Nullable LogicalPlan command, @Nulla
                 return literalContext;
             }
         }
-        return new SuggestionContext(Kind.FIELD_NAME, containing, null);
+        return new SuggestionContext(Kind.FIELD_NAME, containing, null, schemaSourceOf(containing));
     }
 
     /**
@@ -120,12 +126,12 @@ public record SuggestionContext(Kind kind, @Nullable LogicalPlan command, @Nulla
         String field = comparedFieldName(condition, hit[0]);
         DataType type = hit[0].dataType();
         if (DataType.isString(type)) {
-            return new SuggestionContext(Kind.STRING_LITERAL_EQUALITY, filter, field);
+            return new SuggestionContext(Kind.STRING_LITERAL_EQUALITY, filter, field, schemaSourceOf(filter));
         }
         if (type.isNumeric()) {
-            return new SuggestionContext(Kind.NUMERIC_LITERAL_RANGE, filter, field);
+            return new SuggestionContext(Kind.NUMERIC_LITERAL_RANGE, filter, field, schemaSourceOf(filter));
         }
-        return new SuggestionContext(Kind.STRING_LITERAL_EQUALITY, filter, field);
+        return new SuggestionContext(Kind.STRING_LITERAL_EQUALITY, filter, field, schemaSourceOf(filter));
     }
 
     /**
@@ -153,13 +159,9 @@ public record SuggestionContext(Kind kind, @Nullable LogicalPlan command, @Nulla
 
     /**
      * The logical-plan node whose output schema should populate the suggestions — i.e. the command
-     * immediately preceding the cursor's command. For a pipe position that is the whole (last) plan;
-     * for a command in the chain it is that command's child.
+     * immediately preceding {@code command}. For a command in the chain it is that command's child.
      */
-    public LogicalPlan schemaSource(LogicalPlan plan) {
-        if (command == null) {
-            return plan;
-        }
+    private static LogicalPlan schemaSourceOf(LogicalPlan command) {
         if (command instanceof UnaryPlan unary) {
             return unary.child();
         }

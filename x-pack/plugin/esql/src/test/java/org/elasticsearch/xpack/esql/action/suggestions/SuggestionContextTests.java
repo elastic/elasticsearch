@@ -113,7 +113,7 @@ public class SuggestionContextTests extends ESTestCase {
         assertEquals(Kind.FIELD_NAME, context.kind());
         assertNull(context.targetField());
 
-        var fields = SuggestionBuilder.fieldsFromSchema(context.schemaSource(plan));
+        var fields = SuggestionBuilder.fieldsFromSchema(context.schemaSource());
         assertEquals("keyword", fields.get("g.country_iso_code").type());
         assertEquals("keyword", fields.get("g.city_name").type());
     }
@@ -126,7 +126,7 @@ public class SuggestionContextTests extends ESTestCase {
         SuggestionContext context = SuggestionContext.detect(plan, new CursorLocation(query), query.length());
         assertEquals(Kind.PIPE_POSITION, context.kind());
 
-        var fields = SuggestionBuilder.fieldsFromSchema(context.schemaSource(plan));
+        var fields = SuggestionBuilder.fieldsFromSchema(context.schemaSource());
         assertEquals("keyword", fields.get("g.country_iso_code").type());
         assertEquals("geo_point", fields.get("g.location").type());
     }

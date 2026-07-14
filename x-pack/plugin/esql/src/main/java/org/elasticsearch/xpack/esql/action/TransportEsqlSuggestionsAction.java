@@ -249,7 +249,7 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
             return;
         }
         String field = context.targetField();
-        DataType fieldType = resolveFieldType(context.schemaSource(optimizedPlan), field);
+        DataType fieldType = resolveFieldType(context.schemaSource(), field);
         // DataType.KEYWORD collapses keyword/constant_keyword/wildcard; only the plain keyword mapping is
         // supported here (see the concrete-mapping-type gate below) — everything else is unchanged.
         if (fieldType != DataType.KEYWORD) {
@@ -358,7 +358,7 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
         Map<String, FieldSuggestion> fields = switch (context.kind()) {
             // The values/range come from a data-node visit that is deferred; emit an empty skeleton.
             case STRING_LITERAL_EQUALITY, NUMERIC_LITERAL_RANGE -> Map.of();
-            case FIELD_NAME, PIPE_POSITION -> SuggestionBuilder.fieldsFromSchema(context.schemaSource(optimizedPlan));
+            case FIELD_NAME, PIPE_POSITION -> SuggestionBuilder.fieldsFromSchema(context.schemaSource());
         };
         return new EsqlSuggestionsResponse(fields, List.of());
     }
@@ -375,7 +375,7 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
 
         Map<String, FieldSuggestion> fields = switch (context.kind()) {
             case STRING_LITERAL_EQUALITY, NUMERIC_LITERAL_RANGE -> Map.of();
-            case FIELD_NAME, PIPE_POSITION -> SuggestionBuilder.fieldsFromSchema(context.schemaSource(parsed));
+            case FIELD_NAME, PIPE_POSITION -> SuggestionBuilder.fieldsFromSchema(context.schemaSource());
         };
 
         return new EsqlSuggestionsResponse(fields, List.of());

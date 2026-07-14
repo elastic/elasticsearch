@@ -68,7 +68,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTestCase {
@@ -716,14 +715,7 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
                 unassignedInfo.reason(),
                 equalTo(UnassignedInfo.Reason.RECOVERY_CANCELLED)
             );
-
-            final var failure = unassignedInfo.failure();
-            assertNotNull("Unassigned info should have failure details", failure);
-            assertThat(
-                "Failure should be RecoveryCancelledException",
-                ExceptionsHelper.unwrap(failure, RecoveryCancelledException.class),
-                notNullValue()
-            );
+            assertNull("Unassigned info failure should be null", unassignedInfo.failure());
             return true;
         });
     }

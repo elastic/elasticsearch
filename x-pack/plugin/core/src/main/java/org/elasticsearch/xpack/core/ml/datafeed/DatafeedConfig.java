@@ -351,7 +351,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         setHeaders(headers);
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
-        this.indicesOptions = esqlQuery == null ? ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS) : indicesOptions;
+        this.indicesOptions = indicesOptions;
         this.runtimeMappings = runtimeMappings == null ? null : Collections.unmodifiableMap(runtimeMappings);
         this.projectRouting = projectRouting;
         this.cloudInternalCredential = cloudInternalCredential;

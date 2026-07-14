@@ -807,7 +807,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
     }
@@ -1281,7 +1280,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings cacheSettings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -1341,7 +1339,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings cacheSettings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -1965,7 +1962,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -2020,7 +2016,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings cacheSettings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -2272,7 +2267,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -2313,7 +2307,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", false)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -2346,7 +2339,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", false)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -2381,7 +2373,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 

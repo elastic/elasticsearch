@@ -99,7 +99,10 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                 // Last/First have a sort parameter that must also be wrapped so TranslateTimeSeriesAggregate
                 // handles it during the two-phase split. Field and sort use correlated over-time functions
                 // to ensure they pick from the same document within a _tsid group.
-                case Last last when last.sort() instanceof TimeSeriesAggregateFunction == false -> wrapSortedAgg(
+                // If sort isn't resolved yet, fall through to the generic AggregateFunction case below and
+                // leave it untouched, so the Verifier can report a proper resolution failure instead of
+                // wrapSortedAgg blowing up on an unresolved attribute (via Expression#semanticEquals).
+                case Last last when last.sort() instanceof TimeSeriesAggregateFunction == false && last.sort().resolved() -> wrapSortedAgg(
                     last,
                     last.sort(),
                     timestamp,
@@ -108,15 +111,16 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                     MaxOverTime::new,
                     LastOverTime::new
                 );
-                case First first when first.sort() instanceof TimeSeriesAggregateFunction == false -> wrapSortedAgg(
-                    first,
-                    first.sort(),
-                    timestamp,
-                    changed,
-                    new FirstOverTime(first.field().source(), first.field(), Literal.TRUE, AggregateFunction.NO_WINDOW, timestamp),
-                    MinOverTime::new,
-                    FirstOverTime::new
-                );
+                case First first when first.sort() instanceof TimeSeriesAggregateFunction == false && first.sort().resolved() ->
+                    wrapSortedAgg(
+                        first,
+                        first.sort(),
+                        timestamp,
+                        changed,
+                        new FirstOverTime(first.field().source(), first.field(), Literal.TRUE, AggregateFunction.NO_WINDOW, timestamp),
+                        MinOverTime::new,
+                        FirstOverTime::new
+                    );
                 // only transform field, not all children (such as inline filter or window)
                 case AggregateFunction af -> af.withField(addDefaultInnerAggs(af.field(), timestamp, changed));
                 // avoid modifying filter conditions, just the delegate

@@ -17,11 +17,16 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  */
 final class EscfBoolColumn extends EscfColumn {
 
-    /** Value bitset (bit set = {@code true}), or {@code null} when every value is {@code false}. */
+    /** Value bitset (bit set = {@code true}), or {@code null} when every value is {@code false}. Indexed by absolute position. */
     private final FixedBitSet values;
 
     EscfBoolColumn(int docCount, FixedBitSet absent, FixedBitSet values) {
         super(docCount, absent);
+        this.values = values;
+    }
+
+    private EscfBoolColumn(int docCount, FixedBitSet absent, FixedBitSet values, int base) {
+        super(docCount, absent, base);
         this.values = values;
     }
 
@@ -42,7 +47,21 @@ final class EscfBoolColumn extends EscfColumn {
 
     private boolean bitSet(int d) {
         // The value bitset is sized only to the last true document (and is null when there are none),
-        // so any doc beyond its length reads false. Mirrors EscfColumn#isAbsent.
-        return values != null && d < values.length() && values.get(d);
+        // so any doc beyond its length reads false. Uses the absolute index (base + d) since the
+        // backing bitset is shared with parent windows.
+        int idx = base + d;
+        return values != null && idx < values.length() && values.get(idx);
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        return new EscfBoolColumn(count, absent, values, base + from);
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        FixedBitSet newAbsent = windowBitSet(absent, base, docCount);
+        FixedBitSet newValues = windowBitSet(values, base, docCount);
+        return EscfColumnData.ofBool(docCount, newAbsent, newValues);
     }
 }

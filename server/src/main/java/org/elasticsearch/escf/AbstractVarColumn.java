@@ -15,8 +15,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  * Shared base for the variable-length columns (STRING and BINARY), whose values are a contiguous
- * {@code data} payload delimited by a {@code (docCount + 1)}-entry offset vector
- * ({@code [offsets[d], offsets[d + 1])} within {@code data}).
+ * {@code data} payload delimited by a {@code (fullDocCount + 1)}-entry offset vector. Document
+ * {@code d}'s value occupies bytes {@code [offsets[base + d], offsets[base + d + 1])} within
+ * {@code data}. Slicing adjusts {@code base}; the full offset vector and data are shared.
  */
 abstract class AbstractVarColumn extends EscfColumn {
 
@@ -29,9 +30,15 @@ abstract class AbstractVarColumn extends EscfColumn {
         this.offsets = offsets;
     }
 
+    AbstractVarColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets, int base) {
+        super(docCount, absent, base);
+        this.data = data;
+        this.offsets = offsets;
+    }
+
     @Override
     final BytesRef getBinaryValue(int d) {
-        int off = offsets[d];
-        return data.slice(off, offsets[d + 1] - off).toBytesRef();
+        int off = offsets[base + d];
+        return data.slice(off, offsets[base + d + 1] - off).toBytesRef();
     }
 }

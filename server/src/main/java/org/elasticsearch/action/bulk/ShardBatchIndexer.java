@@ -223,7 +223,7 @@ public final class ShardBatchIndexer {
                 // operations are the contiguous run [chunkStart, chunkStart + operations.size()); pass the matching slice
                 // so the engine writes them as a single Translog.IndexBatch record. These operations were built via the
                 // traditional per-document parser (above), not the columnar mapping path, so there is no real
-                // ColumnBatchProvider/BatchMappingContext to offer — the engine falls back to per-operation indexing.
+                // SliceableColumns/BatchMappingContext to offer — the engine falls back to per-operation indexing.
                 final SourceBatch chunkBatch = batch.slice(chunkStart, chunkStart + operations.size());
                 final EngineBatch engineBatch = new EngineBatch(operations, chunkBatch, null);
                 final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(engineBatch);

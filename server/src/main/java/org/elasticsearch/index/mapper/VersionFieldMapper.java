@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.VersionDocValuesField;
+import org.elasticsearch.sourcebatch.SliceableColumns;
 
 import java.util.Collections;
 
@@ -133,6 +134,6 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         // Engine-assigned: register an array-backed column over the context's mutable version
         // array; the engine fills the real per-document value (see InternalEngine) after mapping,
         // just before requesting the ColumnBatch.
-        context.addColumn(LuceneColumns.arrayLongColumn(context.versions(), NAME, VERSION_COLUMN_FIELD_TYPE, LongColumn.NumericKind.LONG));
+        context.addColumn(SliceableColumns.longColumn(context.versions(), NAME, VERSION_COLUMN_FIELD_TYPE, LongColumn.NumericKind.LONG));
     }
 }

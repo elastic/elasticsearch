@@ -15,7 +15,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -48,6 +47,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.sourcebatch.SliceableColumns;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -333,8 +333,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         // Mirror preParse: in columnar storage mode _id is indexed + BINARY doc values; otherwise it
         // is indexed + stored.
         final IndexableFieldType idFieldType = mode == Mode.COLUMNAR ? ColumnarIdField.TYPE : StringField.TYPE_STORED;
-        final BinaryColumn column = LuceneColumns.arrayBinaryColumn(context.uids(), NAME, idFieldType);
-        context.addColumn(column);
+        context.addColumn(SliceableColumns.binaryColumn(context.uids(), NAME, idFieldType));
     }
 
     @Override

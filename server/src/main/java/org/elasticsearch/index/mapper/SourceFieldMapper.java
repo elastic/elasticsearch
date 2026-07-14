@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -39,6 +40,7 @@ import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.sourcebatch.SliceableColumns;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerator;
@@ -536,14 +538,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         final int docCount = context.docCount();
-        final long[] sizes = new long[docCount];
+        final byte[] sizes = new byte[docCount * 8];
         for (int d = 0; d < docCount; d++) {
             final IndexRequest request = context.request(d);
             final XContentType contentType = request.getContentType() != null ? request.getContentType() : XContentType.JSON;
-            sizes[d] = SourceToParse.Source.fromBytes(request.source(), contentType).estimatedSizeInBytes();
+            ByteUtils.writeLongLE(SourceToParse.Source.fromBytes(request.source(), contentType).estimatedSizeInBytes(), sizes, d * 8);
         }
         context.addColumn(
-            LuceneColumns.arrayLongColumn(sizes, RECOVERY_SOURCE_SIZE_NAME, NumericDocValuesField.TYPE, LongColumn.NumericKind.LONG)
+            SliceableColumns.longColumn(sizes, RECOVERY_SOURCE_SIZE_NAME, NumericDocValuesField.TYPE, LongColumn.NumericKind.LONG)
         );
     }
 

@@ -246,6 +246,6 @@ public final class ShardBatchMapper {
             );
         }
 
-        return new EngineBatch(operations, batch.slice(chunkStart, chunkEnd), context);
+        return new EngineBatch(operations, batch.slice(chunkStart, chunkEnd), context.columns());
     }
 }

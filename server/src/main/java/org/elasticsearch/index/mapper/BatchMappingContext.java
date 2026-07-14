@@ -9,16 +9,15 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.column.Column;
-import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.sourcebatch.ColumnBatchProvider;
+import org.elasticsearch.sourcebatch.SliceableColumn;
+import org.elasticsearch.sourcebatch.SliceableColumns;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -26,26 +25,37 @@ import java.util.List;
  * {@link ShardBatchMapper}). Deliberately flat: unlike the row-major path's
  * {@link BatchDocumentParserContext}, there is no per-document parser context or {@link LuceneDocument}
  * here — a columnar metadata mapper is invoked once for the whole batch, reads the per-document
- * values it needs straight off the chunk-local {@link IndexRequest}s, and attaches one Lucene
- * {@link Column} spanning every document via {@link #addColumn}.
+ * values it needs straight off the chunk-local {@link IndexRequest}s, and attaches one
+ * {@link SliceableColumn} spanning every document via {@link #addColumn}.
  *
- * <p>Implements {@link ColumnBatchProvider} so the engine can fill the {@code _seq_no}/
- * {@code _primary_term}/{@code _version} columns (registered by their mappers as array-backed
- * placeholders) after mapping, then request the assembled {@link ColumnBatch}.
+ * <p>After all mappers have run, {@link #columns()} assembles the registered columns into a
+ * {@link SliceableColumns} that the engine can slice per sub-batch and hand to
+ * {@code IndexWriter#addBatch}.
+ *
+ * <h2>Metadata long backing</h2>
+ * <p>Engine-assigned long fields ({@code _seq_no}, {@code _primary_term}, {@code _version}) are
+ * held as {@code byte[]} arrays of length {@code docCount * 8}. The engine writes per-document
+ * values after mapping via {@link org.elasticsearch.common.util.ByteUtils#writeLongLE}; the
+ * metadata mappers wrap these arrays in a live {@link org.elasticsearch.escf.EscfLuceneColumn}
+ * that reads the final values at Lucene {@link org.apache.lucene.document.column.ColumnBatch}
+ * construction time.
  */
-public final class BatchMappingContext implements ColumnBatchProvider {
+public final class BatchMappingContext {
 
     // TODO: Need to remove dependency on the IndexRequest object. We currently need it for source and tsid.
     private final IndexRequest[] requests;
     private final int docCount;
     private final MappingLookup mappingLookup;
     private final IndexSettings indexSettings;
-    private final List<Column> columns = new ArrayList<>();
+    private final List<SliceableColumn> columns = new ArrayList<>();
 
     // Will go in translog
-    private long[] seqNo;
-    private long[] primaryTerm;
-    private long[] version;
+    /** {@code _seq_no}: docCount * 8 bytes, little-endian longs; lazily allocated. */
+    private byte[] seqNo;
+    /** {@code _primary_term}: docCount * 8 bytes, little-endian longs; lazily allocated. */
+    private byte[] primaryTerm;
+    /** {@code _version}: docCount * 8 bytes, little-endian longs; lazily allocated. */
+    private byte[] version;
     private BytesRef[] uids;
     private BytesRef[] routings;
 
@@ -71,32 +81,49 @@ public final class BatchMappingContext implements ColumnBatchProvider {
         return requests[doc];
     }
 
-    /** Attaches a fully-assembled Lucene column covering all {@code docCount} documents. */
-    public void addColumn(Column column) {
+    /** Attaches a fully-assembled {@link SliceableColumn} covering all {@code docCount} documents. */
+    public void addColumn(SliceableColumn column) {
         columns.add(column);
     }
 
-    /** Lazily allocates and returns the mutable {@code _seq_no} backing array (length {@code docCount}). */
-    public long[] seqNos() {
+    /**
+     * Lazily allocates and returns the mutable {@code _seq_no} backing byte array (length
+     * {@code docCount * 8}). Each 8-byte slot is pre-filled with
+     * {@link SequenceNumbers#UNASSIGNED_SEQ_NO} in little-endian order; the engine overwrites
+     * the real per-document value after mapping.
+     */
+    public byte[] seqNos() {
         if (seqNo == null) {
-            seqNo = new long[docCount];
-            Arrays.fill(seqNo, SequenceNumbers.UNASSIGNED_SEQ_NO);
+            seqNo = new byte[docCount * 8];
+            // Fill every 8-byte slot with UNASSIGNED_SEQ_NO; Arrays.fill cannot be used because
+            // a long value is not a repeated byte pattern.
+            for (int d = 0; d < docCount; d++) {
+                ByteUtils.writeLongLE(SequenceNumbers.UNASSIGNED_SEQ_NO, seqNo, d * 8);
+            }
         }
         return seqNo;
     }
 
-    /** Lazily allocates and returns the mutable {@code _primary_term} backing array (length {@code docCount}). */
-    public long[] primaryTerms() {
+    /**
+     * Lazily allocates and returns the mutable {@code _primary_term} backing byte array (length
+     * {@code docCount * 8}). Slots are zero-initialized (0L default); the engine fills the real
+     * value after mapping.
+     */
+    public byte[] primaryTerms() {
         if (primaryTerm == null) {
-            primaryTerm = new long[docCount];
+            primaryTerm = new byte[docCount * 8];
         }
         return primaryTerm;
     }
 
-    /** Lazily allocates and returns the mutable {@code _version} backing array (length {@code docCount}). */
-    public long[] versions() {
+    /**
+     * Lazily allocates and returns the mutable {@code _version} backing byte array (length
+     * {@code docCount * 8}). Slots are zero-initialized (0L default); the engine fills the real
+     * value after mapping.
+     */
+    public byte[] versions() {
         if (version == null) {
-            version = new long[docCount];
+            version = new byte[docCount * 8];
         }
         return version;
     }
@@ -139,55 +166,17 @@ public final class BatchMappingContext implements ColumnBatchProvider {
         return uids;
     }
 
-    @Override
+    /** The number of documents in this chunk. */
     public int docCount() {
         return docCount;
     }
 
-    @Override
-    public void setSeqNo(int doc, long value) {
-        seqNos()[doc] = value;
-    }
-
-    @Override
-    public void fillPrimaryTerm(long value) {
-        Arrays.fill(primaryTerms(), value);
-    }
-
-    @Override
-    public void setVersion(int doc, long value) {
-        versions()[doc] = value;
-    }
-
-    @Override
-    public ColumnBatch columnBatch(int from, int to) {
-        if (from != 0 || to != docCount) {
-            // First cut: a chunk is indexed atomically as one addBatch; sub-range slicing is a follow-up.
-            throw new UnsupportedOperationException(
-                "BatchMappingContext only supports the full range [0, " + docCount + "), got [" + from + ", " + to + ")"
-            );
-        }
-        final List<Column> batchColumns = List.copyOf(columns);
-        return new LuceneColumnBatch(batchColumns, docCount);
-    }
-
-    private static class LuceneColumnBatch extends ColumnBatch {
-        private final List<Column> batchColumns;
-        private final int docCount;
-
-        private LuceneColumnBatch(List<Column> batchColumns, int docCount) {
-            this.batchColumns = batchColumns;
-            this.docCount = docCount;
-        }
-
-        @Override
-        public int numDocs() {
-            return docCount;
-        }
-
-        @Override
-        public Iterable<Column> columns() {
-            return batchColumns;
-        }
+    /**
+     * Returns the accumulated columns as a {@link SliceableColumns} covering the full batch
+     * {@code [0, docCount)}. The engine slices this per sub-batch before calling
+     * {@link SliceableColumns#toColumnBatch()}.
+     */
+    public SliceableColumns columns() {
+        return new SliceableColumns(0, docCount, seqNo, primaryTerm, version, columns);
     }
 }

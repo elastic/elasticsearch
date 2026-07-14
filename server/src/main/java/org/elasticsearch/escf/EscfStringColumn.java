@@ -23,6 +23,10 @@ final class EscfStringColumn extends AbstractVarColumn {
         super(docCount, absent, data, offsets);
     }
 
+    private EscfStringColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets, int base) {
+        super(docCount, absent, data, offsets, base);
+    }
+
     @Override
     byte kind() {
         return EscfColumnKind.STRING;
@@ -37,5 +41,19 @@ final class EscfStringColumn extends AbstractVarColumn {
     Text getStringValue(int d) {
         BytesRef ref = getBinaryValue(d);
         return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        return new EscfStringColumn(count, absent, data, offsets, base + from);
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        FixedBitSet newAbsent = windowBitSet(absent, base, docCount);
+        int byteFrom = offsets[base];
+        BytesReference newData = data.slice(byteFrom, offsets[base + docCount] - byteFrom);
+        int[] newOffsets = rebasedOffsets(offsets, base, docCount);
+        return EscfColumnData.ofVarWidth(kind(), docCount, newAbsent, newOffsets, newData);
     }
 }

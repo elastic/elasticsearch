@@ -1163,7 +1163,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         for (Engine.Index op : batch.operations()) {
             preIndexOps.add(indexingOperationListeners.preIndex(shardId, op));
         }
-        final EngineBatch preIndexBatch = new EngineBatch(preIndexOps, batch.sourceBatch(), batch.columnBatch());
+        final EngineBatch preIndexBatch = new EngineBatch(preIndexOps, batch.sourceBatch(), batch.columns());
         try {
             List<Engine.IndexResult> results = engine.indexBatch(preIndexBatch);
             // TODO: Look at if these can be batch optimized

@@ -20,6 +20,10 @@ final class EscfLongColumn extends AbstractFixed64Column {
         super(docCount, absent, data);
     }
 
+    private EscfLongColumn(int docCount, FixedBitSet absent, BytesReference data, int base) {
+        super(docCount, absent, data, base);
+    }
+
     @Override
     byte kind() {
         return EscfColumnKind.LONG;
@@ -33,5 +37,17 @@ final class EscfLongColumn extends AbstractFixed64Column {
     @Override
     long getLongValue(int d) {
         return rawLong(d);
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        return new EscfLongColumn(count, absent, data, base + from);
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        FixedBitSet newAbsent = windowBitSet(absent, base, docCount);
+        BytesReference newData = data.slice(base * 8, docCount * 8);
+        return EscfColumnData.ofFixed64(kind(), docCount, newAbsent, newData);
     }
 }

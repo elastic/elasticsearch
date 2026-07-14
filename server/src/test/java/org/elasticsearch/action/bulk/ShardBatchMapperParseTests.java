@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.sourcebatch.SliceableColumns;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -104,9 +105,10 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(items, batch, shard, 0, numDocs, resolution);
             assertNotNull("columnar mapping should engage for documents with no field leaves", engineBatch);
             assertThat(engineBatch.operations(), hasSize(numDocs));
-            assertNotNull(engineBatch.columnBatch());
+            final SliceableColumns sliceableColumns = engineBatch.columns();
+            assertNotNull(sliceableColumns);
 
-            ColumnBatch columnBatch = engineBatch.columnBatch().columnBatch(0, numDocs);
+            ColumnBatch columnBatch = sliceableColumns.toColumnBatch();
             assertThat(columnBatch.numDocs(), equalTo(numDocs));
 
             Set<String> columnNames = new HashSet<>();

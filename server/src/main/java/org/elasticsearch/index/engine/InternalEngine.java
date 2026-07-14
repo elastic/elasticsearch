@@ -110,7 +110,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.sourcebatch.ColumnBatchProvider;
+import org.elasticsearch.sourcebatch.SliceableColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1467,6 +1467,43 @@ public class InternalEngine extends Engine {
         return true;
     }
 
+    /**
+     * Indexes one sub-batch via {@code IndexWriter#addBatch}, slicing the columnar data to exactly
+     * {@code [subBatchIdx, subBatchIdx + subBatchSize)}.
+     *
+     * <p>All ops in a sub-batch share the same {@code primaryTerm} (validated by the caller), so it
+     * is filled once. Per-op {@code _seq_no} and {@code _version} are written into the slice before
+     * requesting the Lucene {@link org.apache.lucene.document.column.ColumnBatch}.
+     */
+    private void indexColumnSubBatch(
+        SliceableColumns columns,
+        Index[] subBatchOps,
+        IndexingStrategy[] plans,
+        long primaryTerm,
+        int subBatchIdx,
+        int subBatchSize,
+        IndexResult[] allResults
+    ) throws IOException {
+        final SliceableColumns slice = columns.slice(subBatchIdx, subBatchIdx + subBatchSize);
+        slice.fillPrimaryTerm(primaryTerm);
+        for (int i = 0; i < subBatchSize; i++) {
+            slice.setSeqNo(i, subBatchOps[i].seqNo());
+            slice.setVersion(i, plans[i].versionForIndexing);
+        }
+        indexWriter.addBatch(slice.toColumnBatch());
+        for (int i = 0; i < subBatchSize; i++) {
+            final Index op = subBatchOps[i];
+            final IndexingStrategy plan = plans[i];
+            allResults[subBatchIdx + i] = new IndexResult(
+                plan.versionForIndexing,
+                op.primaryTerm(),
+                op.seqNo(),
+                plan.currentNotFoundOrDeleted,
+                op.id()
+            );
+        }
+    }
+
     private void processSubBatch(
         List<Index> operations,
         int subBatchIdx,
@@ -1582,32 +1619,9 @@ public class InternalEngine extends Engine {
             }
 
             // Lucene
-            final ColumnBatchProvider columnProvider = engineBatch.columnBatch();
-            final boolean useColumnBatch = columnProvider != null
-                && subBatchIdx == 0
-                && subBatchSize == columnProvider.docCount()
-                && isColumnBatchEligible(plans, allResults, subBatchIdx, subBatchSize);
-            if (useColumnBatch) {
-                // All ops in a sub-batch share one primary term (validated above), so fill it once.
-                columnProvider.fillPrimaryTerm(primaryTerm);
-                for (int i = 0; i < subBatchSize; i++) {
-                    Index op = subBatchOps[i];
-                    IndexingStrategy plan = plans[i];
-                    columnProvider.setSeqNo(i, op.seqNo());
-                    columnProvider.setVersion(i, plan.versionForIndexing);
-                }
-                indexWriter.addBatch(columnProvider.columnBatch(0, subBatchSize));
-                for (int i = 0; i < subBatchSize; i++) {
-                    Index op = subBatchOps[i];
-                    IndexingStrategy plan = plans[i];
-                    allResults[subBatchIdx + i] = new IndexResult(
-                        plan.versionForIndexing,
-                        op.primaryTerm(),
-                        op.seqNo(),
-                        plan.currentNotFoundOrDeleted,
-                        op.id()
-                    );
-                }
+            final SliceableColumns columns = engineBatch.columns();
+            if (columns != null && isColumnBatchEligible(plans, allResults, subBatchIdx, subBatchSize)) {
+                indexColumnSubBatch(columns, subBatchOps, plans, primaryTerm, subBatchIdx, subBatchSize, allResults);
             } else {
                 for (int i = 0; i < subBatchSize; i++) {
                     int originalIdx = subBatchIdx + i;

@@ -29,6 +29,7 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.sourcebatch.SliceableColumns;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -162,8 +163,9 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
 
         mapper.preColumnarParse(context);
 
+        final SliceableColumns sliceableColumns = context.columns();
         Column routingColumn = null;
-        for (Column column : context.columnBatch(0, requests.length).columns()) {
+        for (Column column : sliceableColumns.toColumnBatch().columns()) {
             if (column.name().equals(RoutingFieldMapper.NAME)) {
                 routingColumn = column;
             }

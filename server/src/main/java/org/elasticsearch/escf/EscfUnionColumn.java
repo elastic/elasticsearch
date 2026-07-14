@@ -19,24 +19,34 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
+import java.util.Arrays;
+
 /**
  * A heterogeneous ESCF column: a per-document {@link SourceValueType} vector gives each row's type, and a
- * dense value buffer delimited by a {@code (docCount + 1)}-entry offset vector holds the payload.
+ * dense value buffer delimited by a {@code (fullDocCount + 1)}-entry offset vector holds the payload.
  * Zero-byte types (NULL/TRUE/FALSE/ABSENT) occupy no payload, fixed numerics (LONG/DOUBLE) occupy 8
  * bytes, and variable types occupy their offset-delta bytes. Array and key-value rows are stored as
  * inline bytes and read with {@link InlineArrayReader} / {@link KeyValueReader}.
+ *
+ * <p>The former separate {@code typeVecBase} field has been folded into {@link EscfColumn#base}: all
+ * accesses to {@code typeVec} and {@code offsets} use the absolute index {@code base + d}.
  */
 final class EscfUnionColumn extends EscfColumn {
 
     private final byte[] typeVec;
-    private final int typeVecBase;
     private final int[] offsets;
     private final BytesReference data;
 
-    EscfUnionColumn(int docCount, FixedBitSet absent, byte[] typeVec, int typeVecBase, int[] offsets, BytesReference data) {
+    EscfUnionColumn(int docCount, FixedBitSet absent, byte[] typeVec, int[] offsets, BytesReference data) {
         super(docCount, absent);
         this.typeVec = typeVec;
-        this.typeVecBase = typeVecBase;
+        this.offsets = offsets;
+        this.data = data;
+    }
+
+    private EscfUnionColumn(int docCount, FixedBitSet absent, byte[] typeVec, int[] offsets, BytesReference data, int base) {
+        super(docCount, absent, base);
+        this.typeVec = typeVec;
         this.offsets = offsets;
         this.data = data;
     }
@@ -48,12 +58,12 @@ final class EscfUnionColumn extends EscfColumn {
 
     @Override
     byte typeByteForPresent(int d) {
-        return typeVec[typeVecBase + d];
+        return typeVec[base + d];
     }
 
     @Override
     boolean getBooleanValue(int d) {
-        byte t = typeVec[typeVecBase + d];
+        byte t = typeVec[base + d];
         if (t == SourceValueType.TRUE) {
             return true;
         }
@@ -65,12 +75,12 @@ final class EscfUnionColumn extends EscfColumn {
 
     @Override
     long getLongValue(int d) {
-        return data.getLongLE(offsets[d]);
+        return data.getLongLE(offsets[base + d]);
     }
 
     @Override
     double getDoubleValue(int d) {
-        return Double.longBitsToDouble(data.getLongLE(offsets[d]));
+        return Double.longBitsToDouble(data.getLongLE(offsets[base + d]));
     }
 
     @Override
@@ -86,7 +96,7 @@ final class EscfUnionColumn extends EscfColumn {
 
     @Override
     ArrayReader getArrayValue(int d) {
-        boolean fixed = typeVec[typeVecBase + d] == SourceValueType.FIXED_ARRAY;
+        boolean fixed = typeVec[base + d] == SourceValueType.FIXED_ARRAY;
         // InlineArrayReader takes a byte[]; materialise this one value's bytes (zero-copy when contiguous).
         BytesRef ref = value(d);
         return new InlineArrayReader(ref.bytes, ref.offset, ref.length, fixed);
@@ -101,7 +111,22 @@ final class EscfUnionColumn extends EscfColumn {
 
     /** The contiguous bytes for document {@code d}'s value, sliced from the payload (zero-copy when contiguous). */
     private BytesRef value(int d) {
-        int off0 = offsets[d];
-        return data.slice(off0, offsets[d + 1] - off0).toBytesRef();
+        int off0 = offsets[base + d];
+        return data.slice(off0, offsets[base + d + 1] - off0).toBytesRef();
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        return new EscfUnionColumn(count, absent, typeVec, offsets, data, base + from);
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        FixedBitSet newAbsent = windowBitSet(absent, base, docCount);
+        byte[] newTypeVec = Arrays.copyOfRange(typeVec, base, base + docCount);
+        int byteFrom = offsets[base];
+        BytesReference newData = data.slice(byteFrom, offsets[base + docCount] - byteFrom);
+        int[] newOffsets = rebasedOffsets(offsets, base, docCount);
+        return EscfColumnData.ofUnion(docCount, newAbsent, newTypeVec, newOffsets, newData);
     }
 }

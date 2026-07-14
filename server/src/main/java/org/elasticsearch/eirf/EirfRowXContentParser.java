@@ -353,7 +353,7 @@ public final class EirfRowXContentParser extends AbstractXContentParser {
             }
             case SourceValueType.STRING -> {
                 currentType = SourceValueType.STRING;
-                cachedText = new Text(reader.stringValue());
+                cachedText = reader.textValue();
                 currentToken = Token.VALUE_STRING;
             }
             case SourceValueType.TRUE, SourceValueType.FALSE -> {

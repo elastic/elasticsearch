@@ -70,6 +70,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -2020,6 +2021,21 @@ public class VerifierTests extends ESTestCase {
             "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match_phrase(title, \"data\")",
             containsString("[MatchPhrase] function cannot be used after FORK")
         );
+        // No KEEP here: unlike the general per-command check above, KQL/QSTR's own stricter allow-list also
+        // rejects Project (i.e. RENAME/KEEP), and since Failure equality is keyed on the failing node - not the
+        // message - that nearer failure would otherwise shadow the FORK one we're asserting on.
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | where kql(\"field_name: Meditation\")",
+            containsString("[KQL] function cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | where qstr(\"field_name: Meditation\")",
+            containsString("[QSTR] function cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep vector | where knn(vector, [1, 2, 3])",
+            containsString("[KNN] function cannot be used after FORK")
+        );
         fullText().stripErrorPrefix(false)
             .error(
                 "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
@@ -2357,6 +2373,21 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    /**
+     * A computed field on a genuine (Lucene-backed) index isn't from a federated source - the "not a field from an
+     * index mapping" message must not gain the federated-source clause that {@code FullTextFunction.fieldVerifier}
+     * adds for fields sourced from an {@code ExternalRelation}. Regression guard for over-broadening that clause.
+     */
+    public void testFullTextFunctionsRejectEvalColumnsMessageOmitsFederatedClauseOnRealIndex() throws Exception {
+        fullText().error(
+            "from test | eval name = title | where match_phrase(name, \"Meditation\")",
+            allOf(
+                containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping"),
+                not(containsString("federated"))
+            )
+        );
+    }
+
     public void testFullTextFunctionsRejectRenamedNonIndexFields() throws Exception {
         // MATCH supports runtime search and can operate on renamed non-index fields
         fullText().query("from test | eval text = concat(title, body) | rename text as content | where match(content, \"Meditation\")");
@@ -2655,9 +2686,10 @@ public class VerifierTests extends ESTestCase {
             "row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")",
             equalTo(
                 "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, flattened, "
-                    + "geo_point, geo_shape, geohash, geohex, geotile, integer, ip, keyword, "
-                    + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]"
+                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, "
+                    + "exponential_histogram, flattened, geo_point, geo_shape, geohash, geohex, geotile, histogram, integer, "
+                    + "ip, keyword, long, tdigest, text, unsigned_long or version], "
+                    + "found value [\"3 days\"::date_period] type [date_period]"
             )
         );
 
@@ -2896,6 +2928,23 @@ public class VerifierTests extends ESTestCase {
                     + "expected one of [analyzer, output_format, similarity_threshold]"
             )
         );
+    }
+
+    public void testMvInRangeInvalidOptions() {
+        defaultAnalyzer().query("FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": false })");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lowr\": false })",
+            containsString("Invalid option [include_lowr]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": \"banana\" })",
+            containsString("Invalid option [include_lower]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": null })",
+            containsString("Invalid option [include_lower]")
+        );
+        defaultAnalyzer().error("FROM test | WHERE mv_in_range(salary, 1, 2, 5)", containsString("must be a map expression"));
     }
 
     public void testCategorizeOptionOutputFormat() {

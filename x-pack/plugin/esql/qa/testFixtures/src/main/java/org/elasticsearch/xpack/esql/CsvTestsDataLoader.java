@@ -138,6 +138,7 @@ public class CsvTestsDataLoader {
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
         new TestDataset("partial_mapping_mv_sample_data", "mapping-partial_mapping_sample_data.json", "partial_mapping_mv_sample_data.csv"),
+        new TestDataset("no_mapping_date_extract_fields", "mapping-no_mapping_sample_data.json", "date_extract_fields.csv"),
         new TestDataset(
             "partial_mapping_mv_no_source_sample_data",
             "mapping-partial_mapping_no_source_sample_data.json",
@@ -183,6 +184,7 @@ public class CsvTestsDataLoader {
         new TestDataset("clientips").withIndex("clientips_lookup").withSetting("lookup-settings.json"),
         new TestDataset("message_types"),
         new TestDataset("message_types").withIndex("message_types_lookup").withSetting("lookup-settings.json"),
+        new TestDataset("hash_algorithms"),
         new TestDataset("firewall_logs").noData(),
         new TestDataset("threat_list").withSetting("lookup-settings.json").noData(),
         new TestDataset("app_logs").noData(),

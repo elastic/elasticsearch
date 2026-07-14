@@ -18,12 +18,12 @@ import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 public class DenseVectorQueryBytesTests extends AbstractDenseVectorQueryTestCase {
     @Override
     DenseVectorQuery getDenseVectorQuery(String field, float[] query) {
-        return new DenseVectorQuery.Bytes(toBytes(query), field, null);
+        return DenseVectorQuery.Bytes.codecScored(toBytes(query), field);
     }
 
     @Override
-    DenseVectorQuery getDenseVectorQuery(String field, float[] query, Query filter) {
-        return new DenseVectorQuery.Bytes(toBytes(query), field, filter);
+    Query getDenseVectorQuery(String field, float[] query, Query filter) {
+        return DenseVectorQuery.Bytes.codecScored(toBytes(query), field).filteredBy(filter);
     }
 
     private static byte[] toBytes(float[] query) {

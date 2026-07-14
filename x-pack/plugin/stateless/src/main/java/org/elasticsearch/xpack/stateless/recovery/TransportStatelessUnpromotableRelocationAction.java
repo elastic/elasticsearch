@@ -177,8 +177,12 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
 
-            SubscribableListener.newForked(indexShard::preRecovery).andThenApply(unused -> {
+            SubscribableListener.<Void>newForked(l -> {
+                indexShard.ensureRecoveryNotCancelled();
+                indexShard.preRecovery(l);
+            }).andThenApply(unused -> {
                 logger.trace("{} preparing unpromotable shard for recovery", recoveryTarget.shardId());
+                indexShard.ensureRecoveryNotCancelled();
                 indexShard.prepareForIndexRecovery();
                 // Skip unnecessary intermediate stages
                 recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);

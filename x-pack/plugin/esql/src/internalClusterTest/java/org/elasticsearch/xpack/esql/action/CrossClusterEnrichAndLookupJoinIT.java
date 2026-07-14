@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -104,9 +103,37 @@ public class CrossClusterEnrichAndLookupJoinIT extends AbstractEnrichBasedCrossC
             assertThat(getValuesList(resp), equalTo(EXPECTED_ROWS));
             assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
         }
+        // only coordinator enrich could be executed after coordinator lookup join
+        expectThrows(
+            VerificationException.class,
+            containsString(
+                "Physical plan contains remote executing operation [EnrichExec] in local part. "
+                    + "This usually means this command is incompatible with some of the preceding commands."
+            ),
+            () -> runQuery("""
+                FROM *:events
+                | EVAL ip = TO_STR(host)
+                | LOOKUP JOIN _coordinator:ip_lookup ON ip
+                | ENRICH _remote:hosts ON ip
+                | STATS c = COUNT(*) BY os, location
+                | SORT os
+                """, null).close()
+        );
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events
+            | EVAL ip = TO_STR(host)
+            | LOOKUP JOIN _coordinator:ip_lookup ON ip
+            | ENRICH _coordinator:hosts ON ip
+            | STATS c = COUNT(*) BY os, location
+            | SORT os
+            """, null)) {
+            assertThat(getValuesList(resp), equalTo(EXPECTED_ROWS));
+            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
+        }
     }
 
     public void testEnrichThenLookupJoin() {
+        // both remote and coordinator mode lookup join can be executed after remote enrich
         try (EsqlQueryResponse resp = runQuery("""
             FROM *:events
             | EVAL ip = TO_STR(host)
@@ -118,13 +145,21 @@ public class CrossClusterEnrichAndLookupJoinIT extends AbstractEnrichBasedCrossC
             assertThat(getValuesList(resp), equalTo(EXPECTED_ROWS));
             assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
         }
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events
+            | EVAL ip = TO_STR(host)
+            | ENRICH _remote:hosts ON ip
+            | LOOKUP JOIN _coordinator:ip_lookup ON ip
+            | STATS c = COUNT(*) BY os, location
+            | SORT os
+            """, null)) {
+            assertThat(getValuesList(resp), equalTo(EXPECTED_ROWS));
+            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
+        }
+        // only coordinator lookup join could be executed after coordinator enrich
         expectThrows(
             VerificationException.class,
-            allOf(
-                containsString("LOOKUP JOIN with remote indices can't be executed after ["),
-                containsString("ENRICH"),
-                containsString("]")
-            ),
+            containsString("LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:hosts ON ip]"),
             () -> runQuery("""
                 FROM *:events
                 | EVAL ip = TO_STR(host)
@@ -134,5 +169,16 @@ public class CrossClusterEnrichAndLookupJoinIT extends AbstractEnrichBasedCrossC
                 | SORT os
                 """, null).close()
         );
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events
+            | EVAL ip = TO_STR(host)
+            | ENRICH _coordinator:hosts ON ip
+            | LOOKUP JOIN _coordinator:ip_lookup ON ip
+            | STATS c = COUNT(*) BY os, location
+            | SORT os
+            """, null)) {
+            assertThat(getValuesList(resp), equalTo(EXPECTED_ROWS));
+            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
+        }
     }
 }

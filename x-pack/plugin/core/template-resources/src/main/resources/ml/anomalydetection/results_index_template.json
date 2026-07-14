@@ -1,5 +1,5 @@
 {
-  "priority": 2147483647,
+  "priority": 2147483646,
   "version" : ${xpack.ml.version.id},
   "index_patterns" : [
     ".ml-anomalies-*", ".reindexed-*-ml-anomalies-*"

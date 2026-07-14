@@ -73,6 +73,14 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         );
     }
 
+    /**
+     * The results template's index pattern includes an unanchored {@code .reindexed-*-ml-anomalies-*}
+     * wildcard (see results_index_template.json) so that it also intersects the {@code .ml-state}
+     * template's {@code .reindexed-v7-ml-state*} / {@code .reindexed-v8-ml-state*} patterns under
+     * Elasticsearch's pattern-overlap check. Both templates therefore cannot share the maximum
+     * priority (they used to, both at {@code Integer.MAX_VALUE}); the results template is pinned one
+     * below it so the two composable templates no longer collide at registration time.
+     */
     private static IndexTemplateConfig anomalyDetectionResultsTemplate() {
         Map<String, String> variables = new HashMap<>();
         variables.put(VERSION_ID_PATTERN, String.valueOf(ML_INDEX_TEMPLATE_VERSION));

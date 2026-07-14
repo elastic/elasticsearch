@@ -168,6 +168,17 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/month={6,06,11}/*.parquet", rewritten);
     }
 
+    /**
+     * An IN value that contains a brace delimiter ({@code ,} or <code>&#125;</code>) cannot be expressed as a glob
+     * brace alternative — the parser would split it and drop the folder that literally contains the delimiter. The
+     * rewrite must be vetoed, leaving the wildcard so the full glob is listed (a superset) and the row filter narrows.
+     */
+    public void testRewriteGlobWithInHintVetoedWhenValueHoldsBraceDelimiter() {
+        var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.IN, "a,b", "c"));
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/region=*/*.parquet", hints);
+        assertEquals("s3://bucket/region=*/*.parquet", rewritten);
+    }
+
     public void testRewriteGlobWithRangeHintNoRewrite() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020));
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);

@@ -736,7 +736,11 @@ public final class GlobExpander {
             if (hint.isSingleValue()) {
                 segments[segIdx] = escapeGlobMeta(String.valueOf(values.get(0)));
             } else {
-                segments[segIdx] = brace(partitionValueSpellings(values));
+                Set<String> spellings = partitionValueSpellings(values);
+                if (braceExpressible(spellings) == false) {
+                    continue; // leave the wildcard so the full set is listed (superset); the row filter narrows
+                }
+                segments[segIdx] = brace(spellings);
             }
             changed = true;
         }
@@ -787,8 +791,13 @@ public final class GlobExpander {
             return key + "=" + escapeGlobMeta(String.valueOf(values.get(0)));
         }
 
-        // Multiple values: use glob brace syntax key={v1,v2,...}, each value in every on-disk spelling.
-        return key + "=" + brace(partitionValueSpellings(values));
+        // Multiple values: use glob brace syntax key={v1,v2,...}, each value in every on-disk spelling. If a value
+        // holds a brace delimiter the glob dialect cannot express, leave the wildcard so the full set is listed.
+        Set<String> spellings = partitionValueSpellings(values);
+        if (braceExpressible(spellings) == false) {
+            return segment;
+        }
+        return key + "=" + brace(spellings);
     }
 
     /**
@@ -799,8 +808,12 @@ public final class GlobExpander {
      * keep. Emitting both spellings makes the listing a superset <b>with respect to zero-padding</b>. A single
      * {@code EQUALS} value stays a concrete segment (it prefix-narrows the listing, and a zero-padded miss lists empty
      * and hits the un-rewritten fallback); consistent padding wider than two digits is likewise caught by that
-     * fallback. Other folder-vs-literal normalizations (URL-escaping, boolean case, integer-vs-decimal spelling) are
-     * not covered here — that broader value-spelling class is tracked as follow-up; see the class-level notes.
+     * fallback.
+     *
+     * <p>This does not cover every folder-vs-literal normalization — URL-escaping, boolean case, integer-vs-decimal
+     * spelling, or a value the brace syntax cannot express (see {@link #braceExpressible}). Those either list empty
+     * and hit the fallback, or are vetoed to a full-glob listing, so they never drop rows; the broader value-spelling
+     * class (matching folders by typed value rather than name) is tracked separately.
      */
     private static Set<String> partitionValueSpellings(List<Object> values) {
         Set<String> spellings = new LinkedHashSet<>();
@@ -812,6 +825,21 @@ public final class GlobExpander {
             }
         }
         return spellings;
+    }
+
+    /**
+     * Whether a set of spellings can be expressed as glob brace alternatives. A value containing {@code ,} or
+     * {@code }} would be mis-split by the brace parser (into separate alternatives, or a truncated brace), turning
+     * one value into several and dropping the folder that literally contains the delimiter — so when any spelling
+     * holds one, the caller must skip the rewrite and list the full glob (a superset) rather than a wrong subset.
+     */
+    private static boolean braceExpressible(Set<String> spellings) {
+        for (String spelling : spellings) {
+            if (spelling.indexOf(',') >= 0 || spelling.indexOf('}') >= 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Joins glob-escaped spellings into a brace alternation {@code {a,b,c}}. */

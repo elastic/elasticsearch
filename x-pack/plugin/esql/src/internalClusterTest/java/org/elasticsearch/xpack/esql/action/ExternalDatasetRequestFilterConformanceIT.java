@@ -166,6 +166,13 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         assertSelectsSameRows(QueryBuilders.rangeQuery("status").gt(200));
     }
 
+    /** A fractional bound on an integral field rounds inward exactly like the index — never truncates and over-matches. */
+    public void testFractionalIntegerRangeBoundRoundsInwardLikeIndex() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("status").gte(300.5)); // -> >= 301 (the 400s), not >= 300
+        assertSelectsSameRows(QueryBuilders.rangeQuery("status").lte(300.5)); // -> <= 300 (200s and 300s)
+        assertSelectsSameRows(QueryBuilders.rangeQuery("status").gte(200.5).lte(400.5)); // both ends inward
+    }
+
     /** Coarse (day-precision) date bounds round to the edges of their unit identically on both paths (B3). */
     public void testDateRangeCoarseInclusiveBounds() {
         assertSelectsSameRows(QueryBuilders.rangeQuery("ts").gte("2020-01-05").lte("2020-01-20"));

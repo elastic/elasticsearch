@@ -62,6 +62,8 @@ public class JsonExtract extends EsqlScalarFunction {
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(JsonExtract.class)
         .binary(JsonExtract::new)
+        // Fix ClassCastException when path is a foldable multi-value expression.
+        .capabilities("mv_path_fix")
         .name("json_extract");
 
     private final Expression str;

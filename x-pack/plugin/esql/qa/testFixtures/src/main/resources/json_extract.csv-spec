@@ -511,6 +511,7 @@ json:keyword                                                               | fn:
 // passing a multi-value as the path argument must not throw a ClassCastException.
 jsonExtractMvPath
 required_capability: fn_json_extract
+required_capability: fn_json_extract_mv_path_fix
 ROW str = """{"name":"Alice"}""", mvPath = ["name", "age"]
 | EVAL result = JSON_EXTRACT(str, mvPath)
 | KEEP str, result
@@ -525,6 +526,7 @@ str:keyword              | result:keyword
 // Both arguments are multi-value (the original issue reproduction).
 jsonExtractMvBothArgs
 required_capability: fn_json_extract
+required_capability: fn_json_extract_mv_path_fix
 ROW foo = ["a", "b"]
 | EVAL bar = JSON_EXTRACT(foo, foo)
 | KEEP bar

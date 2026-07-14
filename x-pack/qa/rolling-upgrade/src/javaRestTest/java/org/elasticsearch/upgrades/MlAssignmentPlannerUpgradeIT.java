@@ -112,22 +112,22 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractXPackRollingUpgradeTes
     @SuppressWarnings("unchecked")
     private void waitForDeploymentStarted(String modelId) throws Exception {
         assertBusy(() -> {
-            var response = getTrainedModelStats(modelId);
+            Response response = getTrainedModelStats(modelId);
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
-            var stat = stats.get(0);
+            Map<String, Object> stat = stats.get(0);
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
         }, 30, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("unchecked")
     private void assertOldMemoryFormat(String modelId) throws Exception {
-        var response = getTrainedModelStats(modelId);
+        Response response = getTrainedModelStats(modelId);
         Map<String, Object> map = entityAsMap(response);
         List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
         assertThat(stats, hasSize(1));
-        var stat = stats.get(0);
+        Map<String, Object> stat = stats.get(0);
         Long expectedMemoryUsage = ByteSizeValue.ofMb(240).getBytes() + RAW_MODEL_SIZE * 2;
         Integer actualMemoryUsage = (Integer) XContentMapValues.extractValue("model_size_stats.required_native_memory_bytes", stat);
         assertThat(
@@ -139,11 +139,11 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractXPackRollingUpgradeTes
 
     @SuppressWarnings("unchecked")
     private void assertNewMemoryFormat(String modelId) throws Exception {
-        var response = getTrainedModelStats(modelId);
+        Response response = getTrainedModelStats(modelId);
         Map<String, Object> map = entityAsMap(response);
         List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
         assertThat(stats, hasSize(1));
-        var stat = stats.get(0);
+        Map<String, Object> stat = stats.get(0);
         Long expectedMemoryUsage = ByteSizeValue.ofMb(300).getBytes() + RAW_MODEL_SIZE + ByteSizeValue.ofMb(10).getBytes();
         Integer actualMemoryUsage = (Integer) XContentMapValues.extractValue("model_size_stats.required_native_memory_bytes", stat);
         assertThat(stat.toString(), actualMemoryUsage.toString(), equalTo(expectedMemoryUsage.toString()));
@@ -152,7 +152,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractXPackRollingUpgradeTes
     private Response getTrainedModelStats(String modelId) throws IOException {
         Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = client().performRequest(request);
+        Response response = client().performRequest(request);
         assertOK(response);
         return response;
     }
@@ -277,7 +277,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractXPackRollingUpgradeTes
             request.setOptions(request.getOptions().toBuilder().addHeader("Accept", compatibleHeader).build());
         }
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = client().performRequest(request);
+        Response response = client().performRequest(request);
         assertOK(response);
         return response;
     }

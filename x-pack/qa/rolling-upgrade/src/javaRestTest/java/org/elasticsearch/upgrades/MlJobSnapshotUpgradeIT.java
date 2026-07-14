@@ -167,14 +167,14 @@ public class MlJobSnapshotUpgradeIT extends AbstractXPackRollingUpgradeTestCase 
         assertThat(upgradedSnapshot.get(0).get("latest_record_time_stamp"), equalTo(snapshotToUpgrade.get("latest_record_time_stamp")));
 
         // Does the snapshot still work?
-        var stats = entityAsMap(getJobStats(JOB_ID));
+        Map<String, Object> stats = entityAsMap(getJobStats(JOB_ID));
         List<Map<String, Object>> jobStats = (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", stats);
         assertThat(
             (long) XContentMapValues.extractValue("data_counts.latest_record_timestamp", jobStats.get(0)),
             greaterThan((long) snapshotToUpgrade.get("latest_record_time_stamp"))
         );
 
-        var revertResponse = entityAsMap(revertModelSnapshot(JOB_ID, snapshotToUpgradeId, true));
+        Map<String, Object> revertResponse = entityAsMap(revertModelSnapshot(JOB_ID, snapshotToUpgradeId, true));
         assertThat((String) XContentMapValues.extractValue("model.snapshot_id", revertResponse), equalTo(snapshotToUpgradeId));
         assertThat(entityAsMap(openJob(JOB_ID)).get("opened"), is(true));
 
@@ -194,7 +194,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractXPackRollingUpgradeTestCase 
 
         buildAndPutJob(JOB_ID, bucketSpan);
         openJob(JOB_ID);
-        var dataCounts = entityAsMap(
+        Map<String, Object> dataCounts = entityAsMap(
             postData(
                 JOB_ID,
                 String.join(
@@ -240,8 +240,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractXPackRollingUpgradeTestCase 
         flushJob(JOB_ID);
         closeJob(JOB_ID);
 
-        var modelSnapshots = entityAsMap(getModelSnapshots(JOB_ID));
-        var snapshots = (List<Map<String, Object>>) modelSnapshots.get("model_snapshots");
+        Map<String, Object> modelSnapshots = entityAsMap(getModelSnapshots(JOB_ID));
+        List<Map<String, Object>> snapshots = (List<Map<String, Object>>) modelSnapshots.get("model_snapshots");
         assertThat(snapshots, hasSize(2));
         MlConfigVersion snapshotConfigVersion = MlConfigVersion.fromString(snapshots.get(0).get("min_version").toString());
         assertTrue(

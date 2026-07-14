@@ -24,6 +24,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -68,7 +69,7 @@ public abstract class AbstractXPackRollingUpgradeTestCase extends ParameterizedR
     private static final ElasticsearchCluster cluster = buildCluster();
 
     private static ElasticsearchCluster buildCluster() {
-        var cluster = ElasticsearchCluster.local()
+        LocalClusterSpecBuilder<ElasticsearchCluster> cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .version(getOldClusterVersion(), isOldClusterDetachedVersion())
             .nodes(NODE_NUM)
@@ -266,7 +267,8 @@ public abstract class AbstractXPackRollingUpgradeTestCase extends ParameterizedR
     }
 
     protected void createClientsByCapability(Predicate<TestNodeInfo> capabilityChecker) throws IOException {
-        var testNodesByCapability = collectNodeInfos(adminClient()).stream().collect(Collectors.partitioningBy(capabilityChecker));
+        Map<Boolean, List<TestNodeInfo>> testNodesByCapability = collectNodeInfos(adminClient()).stream()
+            .collect(Collectors.partitioningBy(capabilityChecker));
         if (testNodesByCapability.size() == 2) {
             oldVersionClient = buildClient(
                 restClientSettings(),
@@ -290,24 +292,24 @@ public abstract class AbstractXPackRollingUpgradeTestCase extends ParameterizedR
         final Response response = adminClient.performRequest(request);
 
         final Map<String, Set<String>> nodeFeatures;
-        var responseData = responseAsMap(response);
+        Map<String, Object> responseData = responseAsMap(response);
         if (responseData.get("nodes_features") instanceof List<?> nodesFeatures) {
             nodeFeatures = nodesFeatures.stream()
                 .map(Map.class::cast)
                 .collect(Collectors.toUnmodifiableMap(nodeFeatureMap -> nodeFeatureMap.get("node_id").toString(), nodeFeatureMap -> {
                     @SuppressWarnings("unchecked")
-                    var features = (List<String>) nodeFeatureMap.get("features");
+                    List<String> features = (List<String>) nodeFeatureMap.get("features");
                     return new HashSet<>(features);
                 }));
         } else {
             nodeFeatures = Map.of();
         }
-        var restEndpointByNodeId = getRestEndpointByIdNodeId();
+        Map<String, String> restEndpointByNodeId = getRestEndpointByIdNodeId();
 
         return nodeInfoById().entrySet().stream().map(entry -> {
-            var version = (String) extractValue((Map<?, ?>) entry.getValue(), "version");
+            String version = (String) extractValue((Map<?, ?>) entry.getValue(), "version");
             assertNotNull(version);
-            var transportVersion = (Integer) extractValue((Map<?, ?>) entry.getValue(), "transport_version");
+            Integer transportVersion = (Integer) extractValue((Map<?, ?>) entry.getValue(), "transport_version");
             assertNotNull(transportVersion);
             return new TestNodeInfo(
                 entry.getKey(),

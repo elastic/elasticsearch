@@ -164,11 +164,11 @@ public class MLModelDeploymentsUpgradeIT extends AbstractXPackRollingUpgradeTest
     @SuppressWarnings("unchecked")
     private void waitForDeploymentStarted(String modelId) throws Exception {
         assertBusy(() -> {
-            var response = getTrainedModelStats(modelId);
+            Response response = getTrainedModelStats(modelId);
             Map<String, Object> map = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
             assertThat(stats, hasSize(1));
-            var stat = stats.get(0);
+            Map<String, Object> stat = stats.get(0);
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
         }, 30, TimeUnit.SECONDS);
     }
@@ -248,7 +248,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractXPackRollingUpgradeTest
             request.setOptions(request.getOptions().toBuilder().addHeader("Accept", compatibleHeader).build());
         }
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
-        var response = client().performRequest(request);
+        Response response = client().performRequest(request);
         assertOK(response);
         return response;
     }
@@ -281,7 +281,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractXPackRollingUpgradeTest
 
     private Response getTrainedModelStats(String modelId) throws IOException {
         Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
-        var response = client().performRequest(request);
+        Response response = client().performRequest(request);
         assertOK(response);
         return response;
     }
@@ -291,7 +291,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractXPackRollingUpgradeTest
         request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }
             """, input));
-        var response = client().performRequest(request);
+        Response response = client().performRequest(request);
         assertOK(response);
         return response;
     }

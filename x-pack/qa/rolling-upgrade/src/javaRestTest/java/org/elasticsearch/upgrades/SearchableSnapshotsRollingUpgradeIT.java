@@ -27,6 +27,7 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
@@ -163,13 +164,13 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
             final Map<String, String> nodesIdsAndVersions = nodesVersions();
             assertThat("Cluster should have 3 nodes", nodesIdsAndVersions.size(), equalTo(numberOfNodes));
 
-            final var newVersionNodes = nodesIdsAndVersions.entrySet()
+            final Set<String> newVersionNodes = nodesIdsAndVersions.entrySet()
                 .stream()
                 .filter(node -> isOriginalCluster(node.getValue()) == false)
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
 
-            final var originalVersionNodes = nodesIdsAndVersions.entrySet()
+            final Set<String> originalVersionNodes = nodesIdsAndVersions.entrySet()
                 .stream()
                 .filter(node -> isOriginalCluster(node.getValue()))
                 .map(Map.Entry::getKey)
@@ -178,7 +179,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractXPackRollingUpg
             final String nodeIdWithOriginalVersion = randomFrom(originalVersionNodes);
 
             // We may not have upgraded nodes, if we are running these test on the same version (original == current)
-            final var upgradedVersionNodes = newVersionNodes.isEmpty() ? originalVersionNodes : newVersionNodes;
+            final Set<String> upgradedVersionNodes = newVersionNodes.isEmpty() ? originalVersionNodes : newVersionNodes;
             final String nodeIdWithUpgradedVersion = randomValueOtherThan(
                 nodeIdWithOriginalVersion,
                 () -> randomFrom(upgradedVersionNodes)

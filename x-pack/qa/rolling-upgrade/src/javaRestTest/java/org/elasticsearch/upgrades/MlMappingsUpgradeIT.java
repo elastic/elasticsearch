@@ -301,13 +301,13 @@ public class MlMappingsUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
             Response response = client().performRequest(getMappings);
             Map<String, Object> responseMap = entityAsMap(response);
             assertThat(responseMap.entrySet(), hasSize(1));
-            var aliases = (Map<String, Object>) responseMap.get(".ml-notifications-000002");
+            Map<String, Object> aliases = (Map<String, Object>) responseMap.get(".ml-notifications-000002");
             assertThat(aliases.entrySet(), hasSize(1));
-            var allAliases = (Map<String, Object>) aliases.get("aliases");
-            var writeAlias = (Map<String, Object>) allAliases.get(".ml-notifications-write");
+            Map<String, Object> allAliases = (Map<String, Object>) aliases.get("aliases");
+            Map<String, Object> writeAlias = (Map<String, Object>) allAliases.get(".ml-notifications-write");
 
             assertThat(writeAlias, hasEntry("is_hidden", Boolean.TRUE));
-            var isWriteIndex = (Boolean) writeAlias.get("is_write_index");
+            Boolean isWriteIndex = (Boolean) writeAlias.get("is_write_index");
             assertThat(isWriteIndex, anyOf(is(Boolean.TRUE), nullValue()));
         });
     }

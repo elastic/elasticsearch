@@ -49,7 +49,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeT
         );
 
         if (isOldCluster()) {
-            var exception = expectThrows(Exception.class, () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));
+            Exception exception = expectThrows(Exception.class, () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));
             assertThat(
                 exception.getMessage(),
                 anyOf(containsString("unknown field [certificate_identity]"), containsString("certificate_identity not supported"))

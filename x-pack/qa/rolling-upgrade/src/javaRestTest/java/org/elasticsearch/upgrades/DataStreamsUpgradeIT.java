@@ -91,7 +91,7 @@ public class DataStreamsUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
             index.addParameter("filter_path", "_index");
             if (isFirstMixedCluster()) {
                 // include legacy name and date-named indices with today +/-1 in case of clock skew
-                var expectedIndices = List.of(
+                List<String> expectedIndices = List.of(
                     "{\"_index\":\"" + DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 2) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis + 86400000) + "\"}",
@@ -102,7 +102,7 @@ public class DataStreamsUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
                 assertThat(expectedIndices, Matchers.hasItem(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8)));
             } else {
                 // include legacy name and date-named indices with today +/-1 in case of clock skew
-                var expectedIndices = List.of(
+                List<String> expectedIndices = List.of(
                     "{\"_index\":\"" + DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 3) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 3, nowMillis) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 3, nowMillis + 86400000) + "\"}",
@@ -306,7 +306,7 @@ public class DataStreamsUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
                 false
             );
             Map<String, Object> indices = (Map<String, Object>) responseMap.get("indices");
-            for (var index : indices.keySet()) {
+            for (String index : indices.keySet()) {
                 if (index.equals(writeIndex) == false) {
                     Map<String, Object> ilmInfo = (Map<String, Object>) indices.get(index);
                     assertThat("Index [" + index + "] has not moved to cold ILM phase, " + indices, ilmInfo.get("phase"), equalTo("cold"));
@@ -317,12 +317,12 @@ public class DataStreamsUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
 
     private void startILM() throws IOException {
         setILMInterval();
-        var request = new Request("POST", "/_ilm/start");
+        Request request = new Request("POST", "/_ilm/start");
         assertOK(client().performRequest(request));
     }
 
     private void stopILM() throws IOException {
-        var request = new Request("POST", "/_ilm/stop");
+        Request request = new Request("POST", "/_ilm/stop");
         assertOK(client().performRequest(request));
     }
 
@@ -461,7 +461,7 @@ public class DataStreamsUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
                 "data_stream": {
                 }
             }""";
-        var putIndexTemplateRequest = new Request(
+        Request putIndexTemplateRequest = new Request(
             "POST",
             "/_index_template/reindex_test_data_stream_template" + randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT)
         );
@@ -543,7 +543,7 @@ public class DataStreamsUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
                 "index_patterns": ["$PATTERN"],
                 "template": $TEMPLATE
             }""";
-        var putIndexTemplateRequest = new Request("POST", "/_index_template/reindex_test_data_stream_index_template");
+        Request putIndexTemplateRequest = new Request("POST", "/_index_template/reindex_test_data_stream_index_template");
         putIndexTemplateRequest.setJsonEntity(
             indexTemplate.replace("$TEMPLATE", templateWithNoTimestamp).replace("$PATTERN", dataStreamFromNonDataStreamIndices + "-*")
         );
@@ -618,7 +618,7 @@ public class DataStreamsUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
                 "data_stream": {
                 }
             }""";
-        var putDataStreamTemplateRequest = new Request("POST", "/_index_template/reindex_test_data_stream_data_stream_template");
+        Request putDataStreamTemplateRequest = new Request("POST", "/_index_template/reindex_test_data_stream_data_stream_template");
         putDataStreamTemplateRequest.setJsonEntity(
             dataStreamTemplate.replace("$TEMPLATE", templateWithTimestamp).replace("$PATTERN", dataStreamFromNonDataStreamIndices)
         );
@@ -784,9 +784,9 @@ public class DataStreamsUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
             {"create": {}}
             {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "elephant", "network": {"tx": 1434595272, "rx": 530605511}}}}
             """;
-        var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
+        Request bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
         bulkRequest.setJsonEntity(bulk.replace("$now", formatInstant(Instant.now())));
-        var response = client().performRequest(bulkRequest);
+        Response response = client().performRequest(bulkRequest);
         assertOK(response);
     }
 
@@ -804,9 +804,9 @@ public class DataStreamsUpgradeIT extends AbstractXPackRollingUpgradeTestCase {
             {"create": {}}
             {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "rat", "network": {"tx": 2012916202, "rx": 803685721}}}}
             """;
-        var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
+        Request bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
         bulkRequest.setJsonEntity(bulk.replace("$now", formatInstant(Instant.now())));
-        var response = client().performRequest(bulkRequest);
+        Response response = client().performRequest(bulkRequest);
         assertOK(response);
     }
 

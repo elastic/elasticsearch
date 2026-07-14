@@ -132,7 +132,7 @@ public class TransformSurvivesUpgradeIT extends AbstractXPackRollingUpgradeTestC
         waitUntilAfterCheckpoint(CONTINUOUS_TRANSFORM_ID, 0L);
 
         assertBusy(() -> {
-            var stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
+            Map<String, Object> stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
             assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), equalTo(ENTITIES.size()));
             assertThat(
                 ((Integer) XContentMapValues.extractValue("stats.documents_processed", stateAndStats)).longValue(),
@@ -189,11 +189,11 @@ public class TransformSurvivesUpgradeIT extends AbstractXPackRollingUpgradeTestC
         // A continuous transform should automatically become started when it gets assigned to a node
         // if it was assigned to the node that was removed from the cluster
         assertBusy(() -> {
-            var stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
+            Map<String, Object> stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
             assertThat(stateAndStats.get("state"), oneOf("started", "indexing"));
         }, 120, TimeUnit.SECONDS);
 
-        var previousStateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
+        Map<String, Object> previousStateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
 
         // Add a new user and write data to it
         // This is so we can have more reliable data counts, as writing to existing entities requires
@@ -215,7 +215,7 @@ public class TransformSurvivesUpgradeIT extends AbstractXPackRollingUpgradeTestC
             );
         }, 120, TimeUnit.SECONDS);
 
-        var stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
+        Map<String, Object> stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
 
         assertThat(stateAndStats.get("state"), oneOf("started", "indexing"));
         awaitWrittenIndexerState(CONTINUOUS_TRANSFORM_ID, (responseBody) -> {
@@ -239,7 +239,7 @@ public class TransformSurvivesUpgradeIT extends AbstractXPackRollingUpgradeTestC
         if (isOriginalClusterCurrent()) {
             return;
         }
-        var oldestVersion = Version.fromString(getOldClusterVersion());
+        Version oldestVersion = Version.fromString(getOldClusterVersion());
         if (oldestVersion.onOrAfter(Version.V_9_3_0)) {
             final Request upgradeTransformRequest = new Request("POST", getTransformEndpoint() + "_upgrade");
             Exception ex = expectThrows(Exception.class, () -> client().performRequest(upgradeTransformRequest));
@@ -326,15 +326,15 @@ public class TransformSurvivesUpgradeIT extends AbstractXPackRollingUpgradeTestC
         final Request getStats = new Request("GET", getTransformEndpoint() + id + "/_stats");
         Response response = client().performRequest(getStats);
         assertEquals(200, response.getStatusLine().getStatusCode());
-        var responseMap = entityAsMap(response);
-        var stats = (List<Map<String, Object>>) responseMap.get("transforms");
+        Map<String, Object> responseMap = entityAsMap(response);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("transforms");
         assertThat(stats, hasSize(1));
         return stats.get(0);
     }
 
     private void waitUntilAfterCheckpoint(String id, long currentCheckpoint) throws Exception {
         assertBusy(() -> {
-            var statsMap = getTransformStats(id);
+            Map<String, Object> statsMap = getTransformStats(id);
             assertThat(
                 ((Integer) XContentMapValues.extractValue("checkpointing.last.checkpoint", statsMap)).longValue(),
                 greaterThan(currentCheckpoint)

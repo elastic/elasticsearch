@@ -10,6 +10,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -411,7 +412,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
      */
     private void extendExpirationTimeForAllTokens() throws Exception {
         final List<String> tokensIds = getAllTokenIds();
-        final var bulkRequest = new Request("POST", "/.security-tokens/_bulk?refresh=true");
+        final Request bulkRequest = new Request("POST", "/.security-tokens/_bulk?refresh=true");
         bulkRequest.setOptions(bulkRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         final long newExpirationTime = Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli();
         bulkRequest.setJsonEntity(tokensIds.stream().map(tokenId -> Strings.format("""
@@ -426,7 +427,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
 
     private void refreshSecurityTokensIndex() throws IOException {
         // Ensure all tokens are available for search (token creation and other tokens operations have a WAIT_UNTIL refresh policy)
-        final var refreshRequest = new Request("POST", "/.security-tokens/_refresh");
+        final Request refreshRequest = new Request("POST", "/.security-tokens/_refresh");
         refreshRequest.setOptions(refreshRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         assertOK(client().performRequest(refreshRequest));
     }
@@ -434,7 +435,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
     private List<String> getAllTokenIds() throws IOException {
         refreshSecurityTokensIndex();
         final long searchSize = 100L;
-        final var searchRequest = new Request("POST", "/.security-tokens/_search?size=" + searchSize);
+        final Request searchRequest = new Request("POST", "/.security-tokens/_search?size=" + searchSize);
         searchRequest.setOptions(searchRequest.getOptions().toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         searchRequest.setJsonEntity("""
             {
@@ -446,7 +447,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTe
             }""");
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
-        var response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
+        SearchResponse response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
         try {
             final SearchHits searchHits = response.getHits();
             assertThat(

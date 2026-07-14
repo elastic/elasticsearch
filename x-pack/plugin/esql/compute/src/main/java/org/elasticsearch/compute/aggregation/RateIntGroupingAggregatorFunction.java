@@ -727,12 +727,12 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
             if (state == null || state.samples == 0) {
                 continue;
             }
-            double bucketStart = tsContext.rangeStartInMillis(group) / 1000.0;
-            double bucketEnd = tsContext.rangeEndInMillis(group) / 1000.0;
-            double firstTsSec = state.firstTs() / dateFactor;
-            double lastTsSec = state.lastTs() / dateFactor;
-            assert firstTsSec >= bucketStart : "firstTs " + firstTsSec + " is before bucket start " + bucketStart + " for group " + group;
-            assert lastTsSec < bucketEnd : "lastTs " + lastTsSec + " is at or after bucket end " + bucketEnd + " for group " + group;
+            long bucketStart = tsContext.rangeStartInMillis(group) * (long) (dateFactor / 1000.0);
+            long bucketEnd = tsContext.rangeEndInMillis(group) * (long) (dateFactor / 1000.0);
+            assert state.firstTs() >= bucketStart
+                : "firstTs " + state.firstTs() + " is before bucket start " + bucketStart + " for group " + group;
+            assert state.lastTs() < bucketEnd
+                : "lastTs " + state.lastTs() + " is at or after bucket end " + bucketEnd + " for group " + group;
         }
         return true;
     }

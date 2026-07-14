@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -147,8 +146,7 @@ public class AllocationFailuresResetIT extends ESIntegTestCase {
             internalCluster().startNode();
             awaitClusterState(state -> {
                 var relocatedShard = state.routingTable().index(INDEX).shard(SHARD).primaryShard();
-                return relocatedShard != null
-                    && state.nodes().get(relocatedShard.currentNodeId()).getName().equals(node1) == false;
+                return relocatedShard != null && state.nodes().get(relocatedShard.currentNodeId()).getName().equals(node1) == false;
             });
             mockLog.assertAllExpectationsMatched();
         }

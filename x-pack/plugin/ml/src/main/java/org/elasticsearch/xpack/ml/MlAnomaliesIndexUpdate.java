@@ -93,6 +93,8 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     /**
      * Index pattern used to resolve all reindexed ML anomalies candidates (e.g.
      * {@code .reindexed-v7-ml-anomalies-*}, {@code .reindexed-v8-ml-anomalies-*}).
+     * Keep in sync with {@code index_patterns} in
+     * {@code ml/anomalydetection/results_index_template.json}.
      */
     static final String REINDEXED_ANOMALIES_PATTERN = ".reindexed-*-ml-anomalies-*";
 

@@ -844,7 +844,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // Under two-phase, drain leading fully-filtered batches before deciding: the source-row
         // counter would otherwise claim there is data when every remaining batch is empty.
         if (twoPhase != null) {
-            drainEmptyTwoPhaseBatches();
+            long startNanos = System.nanoTime();
+            try {
+                drainEmptyTwoPhaseBatches();
+            } finally {
+                counters.addTotalReadNanos(System.nanoTime() - startNanos);
+            }
             if (twoPhase != null && twoPhase.hasMoreBatches() == false) {
                 rowsRemainingInGroup = 0;
             }

@@ -1549,6 +1549,43 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testLongDeclaredDatetimeHonorsEpochSecondFormat() throws Exception {
+        // An ORC int64 column declared `datetime` defuses off the fused epoch-millis reinterpret when it carries a
+        // declared `format`: with epoch_second the value 1704067200 reads as epoch SECONDS (1704067200000 millis, routed
+        // through castBlock); with NO format the same value takes the fused reinterpret as epoch MILLIS. Pins the
+        // ORC-local routing driven by fusedInDecode(LONG, DATETIME, hasDeclaredFormat) — the ORC twin of the parquet pin.
+        long token = 1704067200L; // 2024-01-01T00:00:00Z, in seconds
+        TypeDescription schema = TypeDescription.createStruct().addField("ts", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 1;
+            ((LongColumnVector) batch.cols[0]).vector[0] = token;
+        });
+        StorageObject storageObject = createStorageObject(orcData);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+
+        OrcFormatReader withFormat = (OrcFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        try (
+            CloseableIterator<Page> it = withFormat.readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, orcData.length, asDatetime, ErrorPolicy.STRICT)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals("epoch_second format must parse the int64 as seconds", 1704067200000L, ((LongBlock) page.getBlock(0)).getLong(0));
+            page.releaseBlocks();
+        }
+        try (
+            CloseableIterator<Page> it = declaredReader("ts").readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, orcData.length, asDatetime, ErrorPolicy.STRICT)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals("no format must take the fused epoch-millis reinterpret", token, ((LongBlock) page.getBlock(0)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
     public void testInt32ToLongCoerces() throws Exception {
         // An INT32 ORC column read as `long` widens losslessly — a pure widening the inferred path takes with no declared
         // signal (plain reader), so this pins the widening-compatible branch of the null-fill gate, not the declared escape.

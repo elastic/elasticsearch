@@ -3494,6 +3494,45 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A physical int64 column declared {@code datetime} defuses off the fused epoch-millis reinterpret when it carries
+     * a declared {@code format}: with {@code epoch_second} the value 1704067200 reads as epoch SECONDS
+     * (1704067200000 millis, routed through {@code castBlock}); with NO format the same value takes the fused reinterpret
+     * as epoch MILLIS (1704067200). This pins the reader-side routing driven by
+     * {@code fusedInDecode(LONG, DATETIME, hasDeclaredFormat)}.
+     */
+    public void testLongFileDeclaredDatetimeHonorsEpochSecondFormat() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("ts").named("test_schema");
+        long token = 1704067200L; // 2024-01-01T00:00:00Z, in seconds
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("ts", token);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+
+        ParquetFormatReader withFormat = (ParquetFormatReader) declaredReader("ts").withDeclaredDateFormats(Map.of("ts", "epoch_second"));
+        try (
+            CloseableIterator<Page> it = withFormat.readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
+            )
+        ) {
+            LongBlock l = (LongBlock) it.next().getBlock(0);
+            assertEquals("epoch_second format must parse the int64 as seconds", 1704067200000L, l.getLong(0));
+        }
+        try (
+            CloseableIterator<Page> it = declaredReader("ts").readRange(
+                storageObject,
+                new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.STRICT)
+            )
+        ) {
+            LongBlock l = (LongBlock) it.next().getBlock(0);
+            assertEquals("no format must take the fused epoch-millis reinterpret", token, l.getLong(0));
+        }
+    }
+
     /** A physical DOUBLE column read as declared {@code double} preserves non-finite IEEE values (NaN/Infinity). */
     public void testDoubleFileNonFiniteValuesPassThroughDeclared() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.DOUBLE).named("d").named("test_schema");

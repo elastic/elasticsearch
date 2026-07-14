@@ -102,7 +102,11 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             case KEYWORD, TEXT -> true; // ingest stringifies any scalar
             case LONG, INTEGER, DOUBLE, UNSIGNED_LONG -> fromString || fromWhole || from == DataType.DOUBLE;
             case BOOLEAN -> fromString; // number->boolean does not ingest
-            case DATETIME -> fromString || from == DataType.INTEGER || from == DataType.LONG || from == DataType.UNSIGNED_LONG;
+            case DATETIME -> fromString
+                || from == DataType.INTEGER
+                || from == DataType.LONG
+                || from == DataType.UNSIGNED_LONG
+                || from == DataType.DOUBLE;
             // string parse, or the millis->nanos widen a date_nanos field runs on an epoch-millis
             // token at ingest (also cross-file DATETIME + DATE_NANOS unification); a raw long stays
             // out — ambiguous between millis and nanos
@@ -208,6 +212,10 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         assertTrue("string->ip parses", DeclaredTypeCoercions.supports(DataType.KEYWORD, DataType.IP));
         assertTrue("long->integer narrows with range check", DeclaredTypeCoercions.supports(DataType.LONG, DataType.INTEGER));
         assertTrue("datetime->long reads epoch millis", DeclaredTypeCoercions.supports(DataType.DATETIME, DataType.LONG));
+        assertTrue(
+            "double->datetime rounds to epoch millis (the ::datetime semantic)",
+            DeclaredTypeCoercions.supports(DataType.DOUBLE, DataType.DATETIME)
+        );
     }
 
     /**
@@ -227,7 +235,6 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         assertFalse("timestamp->ip has no ingest coercion", DeclaredTypeCoercions.supports(DataType.DATETIME, DataType.IP));
         assertFalse("long->ip has no ingest coercion", DeclaredTypeCoercions.supports(DataType.LONG, DataType.IP));
         assertFalse("number->boolean does not ingest", DeclaredTypeCoercions.supports(DataType.LONG, DataType.BOOLEAN));
-        assertFalse("double->datetime has no epoch encoding", DeclaredTypeCoercions.supports(DataType.DOUBLE, DataType.DATETIME));
         assertFalse("unsupported physical columns cannot decode", DeclaredTypeCoercions.supports(DataType.UNSUPPORTED, DataType.KEYWORD));
     }
 
@@ -260,6 +267,22 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.KEYWORD, DataType.TEXT));
         assertFalse("long->double runs through castBlock", DeclaredTypeCoercions.fusedInDecode(DataType.LONG, DataType.DOUBLE));
         assertFalse("string->long runs through castBlock", DeclaredTypeCoercions.fusedInDecode(DataType.KEYWORD, DataType.LONG));
+
+        // The 2-arg predicate is the no-format overload, so the fused set is unchanged for a column with no format.
+        assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.LONG, DataType.DATETIME, false));
+        // A declared format defuses the epoch-millis reinterpret onto castBlock, which parses through the format.
+        assertFalse(
+            "long->datetime with a declared format runs through castBlock",
+            DeclaredTypeCoercions.fusedInDecode(DataType.LONG, DataType.DATETIME, true)
+        );
+        // string->datetime stays fused either way: its fused BINARY decode arm already threads the declared formatter.
+        assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.KEYWORD, DataType.DATETIME, false));
+        assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.KEYWORD, DataType.DATETIME, true));
+        // the format flag does not fuse a pair the no-format overload leaves unfused
+        assertFalse(DeclaredTypeCoercions.fusedInDecode(DataType.LONG, DataType.DOUBLE, true));
+        // integer->long and keyword<->text are format-agnostic
+        assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.INTEGER, DataType.LONG, true));
+        assertTrue(DeclaredTypeCoercions.fusedInDecode(DataType.KEYWORD, DataType.TEXT, true));
     }
 
     // ---- castBlock value semantics ----
@@ -417,6 +440,129 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             Block cast = castStrict(src, DataType.LONG, DataType.DATETIME)
         ) {
             assertEquals(epochMillis, ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    /**
+     * A whole-number source declared {@code datetime} WITH a declared {@code format} parses the token THROUGH the
+     * format as the epoch unit / parse dialect, overriding the epoch-millis reinterpret — the same semantic the
+     * CSV/NDJSON readers apply to a numeric token. Covers INTEGER, LONG and UNSIGNED_LONG sources with
+     * {@code epoch_second}.
+     */
+    public void testCastWholeNumberToDatetimeHonorsEpochSecondFormat() {
+        DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
+        long token = 1704067200L; // 2024-01-01T00:00:00Z, in seconds (fits an int as well as a long)
+        long expectedMillis = 1704067200000L;
+        try (
+            Block src = blockFactory.newIntArrayVector(new int[] { (int) token }, 1).asBlock();
+            Block cast = castStrict(src, DataType.INTEGER, DataType.DATETIME, epochSecond)
+        ) {
+            assertEquals(expectedMillis, ((LongBlock) cast).getLong(0));
+        }
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { token }, 1).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATETIME, epochSecond)
+        ) {
+            assertEquals(expectedMillis, ((LongBlock) cast).getLong(0));
+        }
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { NumericUtils.asLongUnsigned(BigInteger.valueOf(token)) }, 1).asBlock();
+            Block cast = castStrict(src, DataType.UNSIGNED_LONG, DataType.DATETIME, epochSecond)
+        ) {
+            assertEquals(expectedMillis, ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    /** {@code epoch_millis} on a whole-number source is the identity reinterpret — the same value as no format. */
+    public void testCastWholeNumberToDatetimeEpochMillisFormatIsIdentity() {
+        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis");
+        long token = 1704067200000L;
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { token }, 1).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATETIME, epochMillis)
+        ) {
+            assertEquals(token, ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    /** A calendar pattern reads a numeric token as its DIGITS, not as an epoch value: 20260101 -> 2026-01-01. */
+    public void testCastWholeNumberToDatetimeCalendarPattern() {
+        DateFormatter yyyyMMdd = DateFormatter.forPattern("yyyyMMdd");
+        long expected = DeclaredTypeCoercions.parseDatetimeMillis("20260101", yyyyMMdd);
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { 20260101L }, 1).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATETIME, yyyyMMdd)
+        ) {
+            assertEquals(expected, ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    /** A numeric token the declared format cannot parse fails per-value: throw when strict, warn+null when lenient. */
+    public void testCastWholeNumberToDatetimeUnparseableTokenFollowsErrorPolicy() {
+        DateFormatter yyyyMMdd = DateFormatter.forPattern("yyyyMMdd");
+        try (Block src = blockFactory.newLongArrayVector(new long[] { 7L }, 1).asBlock()) {
+            expectThrows(IllegalArgumentException.class, () -> castStrict(src, DataType.LONG, DataType.DATETIME, yyyyMMdd).close());
+        }
+        List<String> warnings = new ArrayList<>();
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { 7L }, 1).asBlock();
+            Block cast = DeclaredTypeCoercions.castBlock(
+                src,
+                DataType.LONG,
+                DataType.DATETIME,
+                yyyyMMdd,
+                blockFactory,
+                "ts",
+                capturing(warnings)
+            )
+        ) {
+            assertTrue(cast.isNull(0));
+            assertThat(warnings, hasSize(1));
+        }
+    }
+
+    /**
+     * A {@code double} source declared {@code datetime}: with no format the value is epoch millis and its fractional
+     * part rounds (the {@code ::datetime} / {@code safeDoubleToLong} semantic); with {@code epoch_second} it parses
+     * as fractional seconds. A magnitude &ge; 1e7 must render plain-decimal (not scientific), else the epoch parser
+     * rejects it.
+     */
+    public void testCastDoubleToDatetime() {
+        try (
+            Block src = blockFactory.newDoubleArrayVector(new double[] { 1704067200000.6 }, 1).asBlock();
+            Block cast = castStrict(src, DataType.DOUBLE, DataType.DATETIME)
+        ) {
+            assertEquals(1704067200001L, ((LongBlock) cast).getLong(0)); // fraction rounds to the nearest milli
+        }
+        DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
+        try (
+            Block src = blockFactory.newDoubleArrayVector(new double[] { 1704067200.5 }, 1).asBlock();
+            Block cast = castStrict(src, DataType.DOUBLE, DataType.DATETIME, epochSecond)
+        ) {
+            assertEquals(1704067200500L, ((LongBlock) cast).getLong(0)); // 0.5s -> 500ms, >= 1e7 plain-decimal render
+        }
+    }
+
+    /**
+     * A non-finite double in a {@code datetime} column follows {@code safeDoubleToLong} exactly as {@code ::datetime}
+     * does today ({@code ToDatetime} maps DOUBLE via {@code ToLong.fromDouble} == {@code safeDoubleToLong}), so a
+     * declared read and an explicit cast can never disagree: NaN rounds to epoch 0 and an infinity throws out-of-range.
+     * NaN&rarr;1970 is a recorded consequence of mirroring the cast engine, not an accident. With a declared format
+     * there is no parse for a non-finite token, so it fails per value through the error policy instead.
+     */
+    public void testCastNonFiniteDoubleToDatetimeMirrorsCastEngine() {
+        try (
+            Block src = blockFactory.newDoubleArrayVector(new double[] { Double.NaN }, 1).asBlock();
+            Block cast = castStrict(src, DataType.DOUBLE, DataType.DATETIME)
+        ) {
+            assertEquals("NaN rounds to epoch 0, exactly as ::datetime does", 0L, ((LongBlock) cast).getLong(0));
+        }
+        try (Block src = blockFactory.newDoubleArrayVector(new double[] { Double.POSITIVE_INFINITY }, 1).asBlock()) {
+            expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.DOUBLE, DataType.DATETIME).close());
+        }
+        DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
+        try (Block src = blockFactory.newDoubleArrayVector(new double[] { Double.NaN }, 1).asBlock()) {
+            expectThrows(IllegalArgumentException.class, () -> castStrict(src, DataType.DOUBLE, DataType.DATETIME, epochSecond).close());
         }
     }
 
@@ -811,6 +957,10 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
 
     private Block castStrict(Block source, DataType from, DataType to) {
         return DeclaredTypeCoercions.castBlock(source, from, to, null, blockFactory, null, null);
+    }
+
+    private Block castStrict(Block source, DataType from, DataType to, DateFormatter format) {
+        return DeclaredTypeCoercions.castBlock(source, from, to, format, blockFactory, null, null);
     }
 
     private Block bytesBlock(String... values) {

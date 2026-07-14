@@ -57,10 +57,11 @@ import java.util.function.IntFunction;
  *
  * <h2>What is coercible — the mapper coercion set</h2>
  * {@link #supports} follows what the field mappers accept at ingest, deviating on the safe
- * (reject) side where a mapper is more permissive than a reader can be faithful to — the date
- * mapper's default format also parses numeric and fractional tokens ({@code epoch_millis} halves
- * a {@code 1.5} token down to a truncated instant), while {@code supports(DOUBLE, DATETIME)} is
- * deliberately {@code false} because a fractional value has no unambiguous epoch reading:
+ * (reject) side where a mapper is more permissive than a reader can be faithful to. A
+ * {@code double} source coerces into {@code datetime} the same way {@code ::datetime} treats a
+ * double — with no declared format the value rounds to the nearest epoch millisecond; with an
+ * {@code epoch_second} / calendar {@code format} it parses through that format to sub-second
+ * precision (double's ~15-16 significant digits bound the resolution, not the parser):
  * <ul>
  *   <li><b>whole-number targets</b> ({@code integer}/{@code long}): any numeric or string source,
  *       reusing the ES|QL {@code ::} cast engine ({@link #numericCoercer}) so a declared read is
@@ -83,9 +84,12 @@ import java.util.function.IntFunction;
  *       fails loudly). This deliberately diverges from {@code ::boolean}, which maps a non-{@code true}
  *       token silently to {@code false} — a silent wrong answer this read must not introduce;</li>
  *   <li><b>{@code datetime}</b>: string sources parse via {@link #parseDatetimeMillis} with the
- *       column's declared {@code format} (else the ISO default), whole-number sources
- *       reinterpret as epoch milliseconds (the {@code epoch_millis} half of the default date
- *       format);</li>
+ *       column's declared {@code format} (else the ISO default). A numeric source (whole number or
+ *       {@code double}) with no declared format reinterprets as epoch milliseconds (the
+ *       {@code epoch_millis} half of the default date format; a double rounds to the nearest milli).
+ *       A numeric source <b>with</b> a declared format parses through it as the epoch unit / parse
+ *       dialect ({@code epoch_second} reads seconds, {@code yyyyMMdd} reads {@code 20260101}) — the
+ *       same semantic the CSV/NDJSON readers already apply to a numeric token;</li>
  *   <li><b>{@code date_nanos}</b>: string sources parse ISO, {@code datetime} sources widen
  *       millis&rarr;nanos (what an epoch-millis token ingests to in a {@code date_nanos} field;
  *       out-of-nanos-range instants fail per value). Plain whole numbers stay out — a raw long
@@ -106,10 +110,11 @@ import java.util.function.IntFunction;
  *       ({@link #fusedInDecode}); every other supported pair decodes the column at the file's
  *       own type and coerces it with {@link #castBlock}. Per-value failures (numeric overflow,
  *       an unparseable token) follow the read's {@link ErrorPolicy} the same way the text
- *       readers' parse failures do — the default ({@code null_field}; {@code skip_row} degrades
- *       to it, a columnar batch cannot drop one row) nulls the cell and emits a response
- *       {@code Warning} header, {@code ignore_malformed}-style, while {@code fail_fast} fails
- *       the read on the first bad value. Fused arms and {@link #castBlock} route the failure
+ *       readers' parse failures do — the base default {@code fail_fast} ({@link ErrorPolicy#STRICT})
+ *       fails the read on the first bad value, while the opt-in {@code null_field} mode
+ *       ({@code skip_row} degrades to it, a columnar batch cannot drop one row) nulls the cell and
+ *       emits a response {@code Warning} header, {@code ignore_malformed}-style. Fused arms and
+ *       {@link #castBlock} route the failure
  *       through the one {@link #onCoercionFailure} chokepoint so the two paths cannot disagree.
  *       Readers also re-check {@link #supports} per file for a <b>declared</b> column, since a
  *       multi-file glob can drift from the anchor footer; an <b>inferred</b> column may only widen,
@@ -164,9 +169,14 @@ public final class DeclaredTypeCoercions {
             case KEYWORD, TEXT -> fromString || fromNumeric || from == DataType.BOOLEAN || from == DataType.IP;
             case LONG, INTEGER, DOUBLE, UNSIGNED_LONG -> fromString || fromNumeric;
             case BOOLEAN -> fromString; // the boolean mapper accepts only true/false tokens, never numbers
-            // Epoch-millis reinterpret for whole numbers; a nanos payload is NOT millis, so
-            // date_nanos sources don't reinterpret into datetime.
-            case DATETIME -> fromString || from == DataType.INTEGER || from == DataType.LONG || from == DataType.UNSIGNED_LONG;
+            // Epoch-millis reinterpret for whole numbers, and a double rounds to epoch millis (the
+            // ::datetime semantic); a nanos payload is NOT millis, so date_nanos sources don't
+            // reinterpret into datetime.
+            case DATETIME -> fromString
+                || from == DataType.INTEGER
+                || from == DataType.LONG
+                || from == DataType.UNSIGNED_LONG
+                || from == DataType.DOUBLE;
             // String parse, or the millis->nanos widen an epoch-millis token gets when ingested
             // into a date_nanos field (also the cross-file DATETIME + DATE_NANOS unification).
             // Plain whole numbers stay out: a raw long is ambiguous between millis and nanos.
@@ -183,13 +193,30 @@ public final class DeclaredTypeCoercions {
     /**
      * The coercible pairs the columnar decode loops implement directly (fused into the decode,
      * no {@link #castBlock} pass): the lossless {@code integer → long} widen, the
-     * {@code long → datetime} epoch-millis reinterpret, the {@code string → datetime} parse with
-     * the column's declared {@code format}, and the {@code keyword ↔ text} relabel (same bytes).
-     * Every other {@link #supports supported} pair decodes at the file's own type and coerces
-     * through {@link #castBlock}. Both Parquet and ORC consult this so the two readers cannot
-     * disagree about which path a pair takes.
+     * {@code long → datetime} epoch-millis reinterpret <b>of a column with no declared format</b>, the
+     * {@code string → datetime} parse with the column's declared {@code format}, and the
+     * {@code keyword ↔ text} relabel (same bytes). Every other {@link #supports supported} pair decodes at
+     * the file's own type and coerces through {@link #castBlock}.
+     * <p>
+     * This no-format overload is the plain predicate; the readers call
+     * {@link #fusedInDecode(DataType, DataType, boolean)} so that a format-carrying whole-number column
+     * defuses onto {@code castBlock}. Both Parquet and ORC consult that one predicate, so the two readers
+     * cannot disagree about which path a pair takes.
      */
     public static boolean fusedInDecode(DataType from, DataType to) {
+        return fusedInDecode(from, to, false);
+    }
+
+    /**
+     * The {@link #fusedInDecode(DataType, DataType)} predicate, aware of whether the column carries a
+     * declared date {@code format}. The {@code long → datetime} epoch-millis reinterpret is fused only
+     * when there is <b>no</b> format: the fused loop cannot honor one, so a format-carrying whole-number
+     * column defuses onto {@link #castBlock}, whose {@code DATETIME} arm parses the value through the
+     * format (the epoch-unit / parse-dialect semantic the text readers already implement). The
+     * {@code string → datetime} pair stays fused either way — its fused BINARY decode arm already threads
+     * the declared formatter.
+     */
+    public static boolean fusedInDecode(DataType from, DataType to, boolean hasDeclaredFormat) {
         if (from == to) {
             return true;
         }
@@ -197,7 +224,7 @@ public final class DeclaredTypeCoercions {
             return true;
         }
         if (from == DataType.LONG && to == DataType.DATETIME) {
-            return true;
+            return hasDeclaredFormat == false;
         }
         boolean fromString = from == DataType.KEYWORD || from == DataType.TEXT;
         if (fromString && (to == DataType.KEYWORD || to == DataType.TEXT)) {
@@ -219,8 +246,10 @@ public final class DeclaredTypeCoercions {
      * silent wrong value). With a {@code null} {@code warnings} sink the coercion is strict and
      * the failure propagates to the caller.
      *
-     * @param declaredFormat the column's declared date parse pattern for the string&rarr;datetime
-     *                       pair ({@code null} = the ISO default); ignored by every other pair
+     * @param declaredFormat the column's declared date parse pattern, consumed by the temporal targets: it is the
+     *                       parse pattern for a string source, and the epoch unit / parse dialect for a numeric
+     *                       source into {@code datetime} ({@code null} = the ISO default for a string, the
+     *                       epoch-millis reinterpret for a number). Ignored by the non-temporal pairs
      * @param columnName     column name used in warning details; may be {@code null} when the
      *                       caller is strict ({@code warnings == null})
      */
@@ -331,8 +360,10 @@ public final class DeclaredTypeCoercions {
      * with {@code coerce=true}); {@code unsigned_long} mirrors it with the sign-flip block
      * encoding on top; string sources parse into dates via {@link #parseDatetimeMillis} with the
      * declared format, into booleans via the strict mapper token set, into ips via the mapper's
-     * doc-values encoding; whole-number sources reinterpret into dates as epoch millis; string
-     * targets stringify the token (temporal sources in ISO form).
+     * doc-values encoding; a numeric source reinterprets into a date as epoch millis when the column
+     * declares no format (a {@code double} rounding to the nearest milli, the {@code ::datetime}
+     * semantic) and otherwise parses THROUGH the declared format, which is then the epoch unit /
+     * parse dialect; string targets stringify the token (temporal sources in ISO form).
      */
     private static Function<Object, Object> scalarCoercer(DataType from, DataType to, @Nullable DateFormatter declaredFormat) {
         boolean fromString = from == DataType.KEYWORD || from == DataType.TEXT;
@@ -358,10 +389,32 @@ public final class DeclaredTypeCoercions {
             case DOUBLE -> fromString ? v -> Double.parseDouble((String) v) : v -> ((Number) v).doubleValue();
             case UNSIGNED_LONG -> DeclaredTypeCoercions::coerceToUnsignedLong;
             case BOOLEAN -> v -> strictParseBoolean((String) v);
-            case DATETIME -> fromString
-                ? v -> parseDatetimeMillis((String) v, declaredFormat)
-                // Whole-number source: epoch-millis reinterpret; the mapper coercion supplies the range check.
-                : v -> NumberFieldMapper.NumberType.LONG.parse(v, true).longValue();
+            case DATETIME -> {
+                if (fromString) {
+                    yield v -> parseDatetimeMillis((String) v, declaredFormat);
+                }
+                if (from == DataType.DOUBLE) {
+                    // A declared double column reads as an epoch value the same way ::datetime treats a double
+                    // (ToDatetime maps DOUBLE via ToLong.fromDouble == safeDoubleToLong): with no format the value IS
+                    // epoch millis and its fractional part rounds; with a format the value is parsed through it
+                    // (epoch_second reads fractional seconds to sub-second precision). Non-finite values follow
+                    // safeDoubleToLong exactly as the cast engine does — NaN rounds to epoch 0, an infinity throws
+                    // out-of-range — so a declared read and an explicit ::datetime never disagree. String.valueOf(double)
+                    // renders scientific notation at magnitudes >= 1e7, which the epoch formatters reject, so the
+                    // format branch renders plain-decimal.
+                    yield declaredFormat != null
+                        ? v -> parseDatetimeMillis(BigDecimal.valueOf((Double) v).toPlainString(), declaredFormat)
+                        : v -> DataTypeConverter.safeDoubleToLong((Double) v);
+                }
+                if (declaredFormat != null) {
+                    // Whole-number source WITH a declared format: the format is the parse dialect / epoch unit,
+                    // exactly as the text readers already treat it (NdJsonPageDecoder.decodeDatetimeValue,
+                    // CsvFormatReader.tryParseDatetime): epoch_second reads seconds, yyyyMMdd reads 20260101.
+                    yield v -> parseDatetimeMillis(String.valueOf(v), declaredFormat);
+                }
+                // Whole-number source, no format: epoch-millis reinterpret; the mapper coercion supplies the range check.
+                yield v -> NumberFieldMapper.NumberType.LONG.parse(v, true).longValue();
+            }
             case DATE_NANOS -> {
                 if (fromString) {
                     // Mirrors the DATETIME arm above: the declared format, when the column has one, is the parse

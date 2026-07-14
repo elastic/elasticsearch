@@ -2947,7 +2947,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             DataType fileType = info.fileEsqlType();
             if (fileType != null
                 && declared != fileType
-                && DeclaredTypeCoercions.fusedInDecode(fileType, declared) == false
+                && DeclaredTypeCoercions.fusedInDecode(fileType, declared, info.dateFormatter() != null) == false
                 && DeclaredTypeCoercions.supports(fileType, declared)) {
                 Block physical = readColumnBlock(cr, info.fileTyped(), rowsToRead, colIndex);
                 try {

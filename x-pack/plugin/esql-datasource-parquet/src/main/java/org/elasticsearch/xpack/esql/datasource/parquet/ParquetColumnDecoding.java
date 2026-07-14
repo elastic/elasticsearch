@@ -487,7 +487,7 @@ final class ParquetColumnDecoding {
         DataType fileElementType = info.fileEsqlType();
         if (fileElementType != null
             && declared != fileElementType
-            && DeclaredTypeCoercions.fusedInDecode(fileElementType, declared) == false
+            && DeclaredTypeCoercions.fusedInDecode(fileElementType, declared, info.dateFormatter() != null) == false
             && DeclaredTypeCoercions.supports(fileElementType, declared)) {
             Block physical = readListColumn(cr, info.fileTyped(), rows, blockFactory);
             try {

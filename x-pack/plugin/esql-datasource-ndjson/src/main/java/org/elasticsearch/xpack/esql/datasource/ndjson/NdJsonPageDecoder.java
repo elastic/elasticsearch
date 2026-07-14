@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -1823,13 +1824,17 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         private void decodeDatetimeValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
-            if (declaredFormatter != null && (token == JsonToken.VALUE_STRING || token == JsonToken.VALUE_NUMBER_INT)) {
+            if (declaredFormatter != null
+                && (token == JsonToken.VALUE_STRING || token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT)) {
                 // A declared `format` is authoritative and OVERRIDES the numeric-epoch shortcut, exactly as
                 // CsvFormatReader.tryParseDatetime does (declaredFormatters win over looksNumeric): a column
                 // declared {datetime, format:"yyyyMMdd"} reads the token 20260101 as 2026-01-01, NOT as epoch
-                // millis. Parses through the shared DeclaredTypeCoercions.parseDatetimeMillis — the SAME
-                // string->datetime conversion the columnar readers use — so identical bytes + declared format
-                // yield the same instant across every format.
+                // millis, and {datetime, format:"epoch_second"} reads 1704067200.5 as fractional seconds. Parses
+                // through the shared DeclaredTypeCoercions.parseDatetimeMillis — the SAME string->datetime
+                // conversion the columnar readers use — so identical bytes + declared format yield the same
+                // instant across every format. getValueAsString returns the token's source text verbatim; a
+                // token the format cannot parse (e.g. a scientific-notation float like 1.7E9 under
+                // epoch_second) fails per value through the read's error policy, never silently.
                 try {
                     ((LongBlock.Builder) blockBuilder).appendLong(
                         DeclaredTypeCoercions.parseDatetimeMillis(parser.getValueAsString(), declaredFormatter)
@@ -1846,6 +1851,15 @@ public class NdJsonPageDecoder implements Closeable {
                 } catch (InputCoercionException e) {
                     coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
                 }
+            } else if (token == JsonToken.VALUE_NUMBER_FLOAT) {
+                // No declared format: a fractional JSON number is epoch milliseconds and rounds to the nearest
+                // milli, matching the ::datetime semantic (ToDatetime maps DOUBLE via safeDoubleToLong) and the
+                // columnar double->datetime coercion (supports(DOUBLE, DATETIME) is true).
+                try {
+                    ((LongBlock.Builder) blockBuilder).appendLong(DataTypeConverter.safeDoubleToLong(parser.getDoubleValue()));
+                } catch (IllegalArgumentException | InvalidArgumentException | DateTimeException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
+                }
             } else if (token == JsonToken.VALUE_STRING) {
                 // No declared format: parse with the file-level formatter (STRICT_DATE_OPTIONAL_TIME by default).
                 try {
@@ -1854,7 +1868,7 @@ public class NdJsonPageDecoder implements Closeable {
                     coercionFailure(blockBuilder, parser, inArray, DataType.DATETIME);
                 }
             } else {
-                // a boolean, or a fractional number, in a datetime column: unsupported cross-kind drift
+                // a boolean (or a non-scalar) in a datetime column: unsupported cross-kind drift
                 crossKindDrift(parser, inArray, DataType.DATETIME);
             }
         }

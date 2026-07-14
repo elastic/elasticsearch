@@ -550,6 +550,42 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
     }
 
+    public void testDeclaredEpochSecondFormatParsesNumericTokens() throws Exception {
+        // A declared epoch_second format parses a JSON INT token as whole seconds and a JSON FLOAT token as fractional
+        // seconds, overriding the numeric-epoch-millis shortcut — the parse-dialect / epoch-unit semantic.
+        String ndjson = "{\"ts\":1704067200}\n{\"ts\":1704067200.5}\n";
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("ts", DataType.DATETIME)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.STRICT,
+                "test://declared-epoch-second",
+                new NdJsonReaderCounters(),
+                Map.of("ts", "epoch_second")
+            )
+        ) {
+            try (Page page = decoder.decodePage()) {
+                assertNotNull(page);
+                assertEquals(2, page.getPositionCount());
+                LongBlock ts = (LongBlock) page.getBlock(0);
+                assertEquals("epoch_second on an int token reads whole seconds", 1704067200000L, ts.getLong(0));
+                assertEquals("epoch_second on a float token reads fractional seconds", 1704067200500L, ts.getLong(1));
+            }
+        }
+    }
+
+    public void testNoFormatFloatDatetimeRoundsToEpochMillis() throws Exception {
+        // With no declared format a fractional JSON number in a datetime column is epoch millis and rounds to the
+        // nearest milli — the ::datetime / safeDoubleToLong semantic, matching the columnar double->datetime coercion.
+        try (Page page = decodePage("{\"ts\":1704067200000.6}\n", List.of(attribute("ts", DataType.DATETIME)))) {
+            assertEquals(1704067200001L, ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
     /**
      * Reads the response-header warnings emitted on the test thread and clears them so the parent
      * {@code ensureNoWarnings} post-check passes. Returns the unwrapped warning messages.

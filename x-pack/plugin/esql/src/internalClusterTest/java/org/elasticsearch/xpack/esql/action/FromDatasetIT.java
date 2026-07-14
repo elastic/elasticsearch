@@ -88,6 +88,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     // declared-format read path must not have.
     private static final long ACCESS_LOG_EPOCH_MILLIS = 971211336000L;
     private static final String ACCESS_LOG_FORMAT = "dd/MMM/yyyy:HH:mm:ss Z";
+    // A numeric epoch-second token and the instant it names, shared across the cross-format parity test so a single
+    // declared `format: epoch_second` reads the same instant from every carrier (Parquet int64, CSV/TSV/NDJSON token).
+    private static final long EPOCH_SECOND_TOKEN = 1704067200L; // 2024-01-01T00:00:00Z, in seconds
+    private static final long EPOCH_SECOND_MILLIS = 1704067200000L;
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -681,11 +685,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testDeclaredDateFormatOnParquetRejected() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // A declared date `format` is a text-parse pattern; columnar formats carry native typed values, so it is
-        // rejected loudly at query resolution rather than silently ignored.
-        Path parquet = writeParquetRenameFixture();
+        // A declared date `format` applies as a string parse pattern, or as the epoch unit / parse dialect of a numeric
+        // column — but never on an already-temporal physical (an annotated TIMESTAMP infers as datetime), where it
+        // could never apply. Such a declaration is rejected loudly at query resolution rather than silently ignored.
+        Path parquet = createTempDir().resolve("ts.parquet");
+        Files.write(parquet, timestampMillisFixtureBytes(1_000L, 2_000L, 3_000L));
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", DatasetFieldMapping.withFormat("date", "emp_no", ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
 
         assertAcked(
@@ -707,6 +713,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_parquet_format | LIMIT 5"), TIMEOUT).close());
         assertThat(e.getMessage(), containsString("[format] on column [ts]"));
         assertThat(e.getMessage(), containsString("parquet"));
+        assertThat(e.getMessage(), containsString("datetime"));
     }
 
     public void testDeclaredDateFormatNdjsonParsesZoneAware() throws Exception {
@@ -921,11 +928,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testDeclaredDateFormatOnStrictParquetRejected() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // A declared date format on a columnar column is rejected in STRICT mode too, not just non-strict — the strict
-        // resolution path bypasses the non-strict overlay's reject, so it must guard the columnar case itself.
-        Path parquet = writeParquetRenameFixture();
+        // A declared date format on a never-applicable physical (an annotated TIMESTAMP infers as datetime) is rejected
+        // in STRICT mode too, not just non-strict — the strict resolution path bypasses the non-strict overlay's
+        // reject, so it must guard the case itself.
+        Path parquet = createTempDir().resolve("ts.parquet");
+        Files.write(parquet, timestampMillisFixtureBytes(1_000L, 2_000L, 3_000L));
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", DatasetFieldMapping.withFormat("date", "emp_no", ACCESS_LOG_FORMAT));
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, ACCESS_LOG_FORMAT));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
         assertAcked(
@@ -950,6 +959,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         assertThat(e.getMessage(), containsString("[format] on column [ts]"));
         assertThat(e.getMessage(), containsString("parquet"));
+        assertThat(e.getMessage(), containsString("datetime"));
     }
 
     public void testStrictDatasetWithUnknowableFormatFailsCleanlyNotNpe() throws Exception {
@@ -1320,6 +1330,52 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(0).get(2).toString(), equalTo("gamma"));
             assertThat(rows.get(1).get(0), equalTo("2000-10-10T20:55:37.000Z"));
             assertThat(rows.get(1).get(1).toString(), equalTo("2"));
+            assertThat(rows.get(1).get(2).toString(), equalTo("beta"));
+        }
+    }
+
+    public void testNumericEpochFormatCoercionUnderDeferredExtraction() throws Exception {
+        // The deferred-extraction twin of testDeclaredEpochSecondFormatOnParquetLongCoerces: ParquetColumnExtractor
+        // never consults fusedInDecode — it always decodes at the file type and coerces through castBlock with the
+        // column's declared formatter — so the deferred (TopN-materialized) read of an int64 + epoch_second column must
+        // produce the SAME instant as the eager scan. Pins extractor/eager parity for the new numeric-format arm.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = writeParquetDeferredCoerceFixture(); // physical int64 id = 1,2,3
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts_epoch", DatasetFieldMapping.withFormat("date", "id", "epoch_second")); // int64 -> date via epoch unit
+        properties.put("event_ts", new DatasetFieldMapping("keyword", null));
+        properties.put("msg", new DatasetFieldMapping("keyword", null));
+        properties.put("pri", new DatasetFieldMapping("integer", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_deferred_epoch",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+        // Three kept non-sort columns crosses DEFERRED_COLUMN_MIN, so ts_epoch is materialized by the extractor.
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM logs_deferred_epoch | SORT pri DESC | KEEP ts_epoch, event_ts, msg | LIMIT 2"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            // pri 30 -> id 3 -> 3 epoch SECONDS = 3000ms; pri 20 -> id 2 -> 2000ms. An epoch-millis reinterpret
+            // (the un-defused fused path) would instead yield 1970-01-01T00:00:00.003Z / .002Z.
+            assertThat(rows.get(0).get(0), equalTo("1970-01-01T00:00:03.000Z"));
+            assertThat(rows.get(0).get(2).toString(), equalTo("gamma"));
+            assertThat(rows.get(1).get(0), equalTo("1970-01-01T00:00:02.000Z"));
             assertThat(rows.get(1).get(2).toString(), equalTo("beta"));
         }
     }
@@ -2069,6 +2125,27 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("long"));
     }
 
+    /** Annotated TIMESTAMP(MILLIS) fixture — infers as {@code datetime} (MICROS/NANOS infer as {@code date_nanos}). */
+    private byte[] timestampMillisFixtureBytes(long... millisValues) throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("message logs { required int64 ts (TIMESTAMP(MILLIS,true)); }");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (long millis : millisValues) {
+                Group g = factory.newGroup();
+                g.add("ts", millis);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
     private byte[] timestampMicrosFixtureBytes(long... microsValues) throws IOException {
         MessageType schema = MessageTypeParser.parseMessageType("message logs { required int64 ts (TIMESTAMP(MICROS,true)); }");
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -2267,6 +2344,153 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows, hasSize(1));
             assertThat(rows.get(0).get(0), equalTo(ACCESS_LOG_EPOCH_MILLIS));
         }
+    }
+
+    public void testDeclaredEpochSecondFormatOnParquetLongCoerces() throws Exception {
+        // A whole-number Parquet column declared `date` WITH `format: epoch_second` reads the int64 as epoch SECONDS,
+        // not the default epoch-millis reinterpret: emp_no 1 -> 1000ms. The format is the epoch unit, exactly as the
+        // text readers already treat a numeric token. The column defuses off the fused long->datetime reinterpret onto
+        // castBlock, which parses through the format. ts::long recovers the raw epoch millis.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = writeParquetRenameFixture(); // emp_no int64 = 1,2,3
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "emp_no", "epoch_second"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_parquet_epoch_second",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM logs_parquet_epoch_second | EVAL ms = ts::long | KEEP ms | SORT ms | LIMIT 1"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), equalTo(1000L)); // emp_no=1 -> 1 second -> 1000 ms
+        }
+    }
+
+    public void testDeclaredEpochSecondFormatOnStrictParquetLongCoerces() throws Exception {
+        // Same as the non-strict case above, but a STRICT (Dynamic.FALSE) declaration — the strict resolution path
+        // legalizes format-on-numeric identically. emp_no 1 -> 1000ms.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = writeParquetRenameFixture();
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", DatasetFieldMapping.withFormat("date", "emp_no", "epoch_second"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_parquet_strict_epoch_second",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM logs_parquet_strict_epoch_second | EVAL ms = ts::long | KEEP ms | SORT ms | LIMIT 1"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(rows.get(0).get(0), equalTo(1000L));
+        }
+    }
+
+    /**
+     * The acceptance test: ONE declaration — {@code {type: date, format: epoch_second}} — reads the SAME instant from a
+     * numeric epoch-second token regardless of carrier. Parquet holds it as a physical int64 (defused off the fused
+     * reinterpret, parsed through the format); CSV / TSV / NDJSON hold it as a numeric token (the text readers'
+     * existing declared-format-over-numeric semantic). All four land on {@link #EPOCH_SECOND_MILLIS}. ORC shares the
+     * same {@code castBlock} coercion arm but has its OWN routing code, pinned separately by
+     * {@code OrcFormatReaderTests.testLongDeclaredDatetimeHonorsEpochSecondFormat}.
+     */
+    public void testDeclaredEpochSecondFormatSameInstantAcrossFormats() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        Path parquet = writeParquetEpochSecondFixture();
+        assertEpochSecondMs("epoch_parquet", "parquet", parquet.toUri().toString());
+
+        Path csv = createTempFile("dataset-epoch-", ".csv");
+        Files.writeString(csv, "ts:long\n" + EPOCH_SECOND_TOKEN + "\n");
+        assertEpochSecondMs("epoch_csv", "csv", csv.toUri().toString());
+
+        Path tsv = createTempFile("dataset-epoch-", ".tsv");
+        Files.writeString(tsv, "ts:long\n" + EPOCH_SECOND_TOKEN + "\n");
+        assertEpochSecondMs("epoch_tsv", "tsv", tsv.toUri().toString());
+
+        Path ndjson = createTempFile("dataset-epoch-", ".ndjson");
+        Files.writeString(ndjson, "{\"ts\":" + EPOCH_SECOND_TOKEN + "}\n");
+        assertEpochSecondMs("epoch_ndjson", "ndjson", ndjson.toUri().toString());
+    }
+
+    /** Declares {ts: date, format: epoch_second} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */
+    private void assertEpochSecondMs(String datasetName, String format, String location) throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, "epoch_second"));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    datasetName,
+                    "local_ds",
+                    location,
+                    null,
+                    new HashMap<>(Map.of("format", format)),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM " + datasetName + " | EVAL ms = ts::long | KEEP ms | LIMIT 1"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("format [" + format + "]", rows, hasSize(1));
+            assertThat("format [" + format + "] must read the same instant", rows.get(0).get(0), equalTo(EPOCH_SECOND_MILLIS));
+        }
+    }
+
+    /** Single-column int64 fixture holding the shared epoch-second token, for the cross-format parity test. */
+    private Path writeParquetEpochSecondFixture() throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType("message e { required int64 ts; }");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            Group g = factory.newGroup();
+            g.add("ts", EPOCH_SECOND_TOKEN);
+            writer.write(g);
+        }
+        Path tempFile = createTempDir().resolve("epoch.parquet");
+        Files.write(tempFile, baos.toByteArray());
+        return tempFile;
     }
 
     private byte[] parquetRenameFixtureBytes() throws IOException {

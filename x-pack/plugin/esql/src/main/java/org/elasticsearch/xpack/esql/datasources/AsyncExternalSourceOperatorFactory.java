@@ -1558,7 +1558,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private void openUnitThenDrain(ProducerState state, ActionListener<Void> completionListener) {
         try {
             executor.execute(ActionRunnable.wrap(completionListener, l -> {
-                if (advanceToNextUnit(state) == false) {
+                // Install the hard-cancel signal as the ambient StorageRetryCancellation scope for the blocking
+                // open probes (length()/computeSegments/reader open) so a parked storage retry/throttle backoff on
+                // the runtime read path aborts on cancel instead of sleeping out its budget. Mirrors the scope the
+                // coordinator installs in ExternalSourceResolver for discovery/resolution footer reads.
+                boolean opened = StorageRetryCancellation.callWithCancellation(state.buffer::readCancelled, () -> advanceToNextUnit(state));
+                if (opened == false) {
                     snapshotBytesRead(state);
                     snapshotFormatReaderStatus(state);
                     l.onResponse(null);
@@ -1587,7 +1592,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     private void drainCurrentUnit(ProducerState state, ActionListener<Void> completionListener) {
         try {
-            DrainResult result = drainHotPath(state, completionListener);
+            // Same StorageRetryCancellation scope as the open phase: the page pulls (tryAdvance/hasNext/next)
+            // drive the storage reads whose retry/throttle backoff must observe a hard cancel here.
+            DrainResult result = StorageRetryCancellation.callWithCancellation(
+                state.buffer::readCancelled,
+                () -> drainHotPath(state, completionListener)
+            );
             switch (result) {
                 case DONE -> {
                     // Buffer finished (externally or by row-limit exhaustion) while an iterator is still open:
@@ -2308,33 +2318,38 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
             FormatReader reader = readerWithDynamicThreshold(formatReader);
-            CloseableIterator<Page> pages = openWithParallelism(
-                reader,
-                storageObject,
-                PhysicalNames.translateNames(projectedColumns, renames),
-                errorPolicy,
-                false,
-                true,
-                // Single whole-file read: the file is its own final split, so its trailing segment reaches EOF.
-                true,
-                null,
-                0L,
-                buffer.capturedSourceMetadataSink(),
-                buffer::recordWarning,
-                buffer::recordInformationalWarning
-            );
-            if (pages == null) {
-                FormatReadContext ctx = FormatReadContext.builder()
-                    .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
-                    .batchSize(batchSize)
-                    .rowLimit(rowLimit)
-                    .errorPolicy(errorPolicy)
-                    .maxRecordBytes(maxRecordBytes)
-                    .statsColumnScope(statsColumnScope)
-                    .informationalWarningSink(buffer::recordInformationalWarning)
-                    .build();
-                pages = reader.read(storageObject, ctx);
-            }
+            // Install the hard-cancel signal as the ambient StorageRetryCancellation scope for the blocking open,
+            // so a parked storage retry/throttle backoff aborts on cancel rather than sleeping out its budget.
+            CloseableIterator<Page> pages = StorageRetryCancellation.callWithCancellation(buffer::readCancelled, () -> {
+                CloseableIterator<Page> opened = openWithParallelism(
+                    reader,
+                    storageObject,
+                    PhysicalNames.translateNames(projectedColumns, renames),
+                    errorPolicy,
+                    false,
+                    true,
+                    // Single whole-file read: the file is its own final split, so its trailing segment reaches EOF.
+                    true,
+                    null,
+                    0L,
+                    buffer.capturedSourceMetadataSink(),
+                    buffer::recordWarning,
+                    buffer::recordInformationalWarning
+                );
+                if (opened == null) {
+                    FormatReadContext ctx = FormatReadContext.builder()
+                        .projectedColumns(PhysicalNames.translateNames(projectedColumns, renames))
+                        .batchSize(batchSize)
+                        .rowLimit(rowLimit)
+                        .errorPolicy(errorPolicy)
+                        .maxRecordBytes(maxRecordBytes)
+                        .statsColumnScope(statsColumnScope)
+                        .informationalWarningSink(buffer::recordInformationalWarning)
+                        .build();
+                    opened = reader.read(storageObject, ctx);
+                }
+                return opened;
+            });
             pages = applyRowPositionStrategy(reader, pages, projectedColumns);
             pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
             // Wrap with the deferred-extraction encoder (no-op when not enabled), then with the
@@ -2354,6 +2369,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // Cold-path drain resumes on the consumer pool (esql_worker), not the read/parse pool, so the
                 // drain never competes with parser workers for I/O threads. See runProducerLoop's split.
                 producerExecutor,
+                // Ambient hard-cancel signal so the drain's page-pull backoff aborts on cancel.
+                buffer::readCancelled,
                 // Close the iterator chain and record telemetry BEFORE notifying the buffer:
                 // closing publishes the finalize marker into the capture sink (via
                 // StatsCapturingIterator and the parallel coordinators' finalize hook), and
@@ -2403,6 +2420,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 buffer,
                 // Cold-path drain resumes on the consumer pool (esql_worker); see startSyncWrapperRead / runProducerLoop.
                 producerExecutor,
+                // Ambient hard-cancel signal so the drain's page-pull backoff aborts on cancel.
+                buffer::readCancelled,
                 // See startSyncWrapperRead: close the iterator chain and record telemetry
                 // before notifying the buffer so the finalize marker and the telemetry
                 // counters reach the operator status snapshot before isFinished() flips.

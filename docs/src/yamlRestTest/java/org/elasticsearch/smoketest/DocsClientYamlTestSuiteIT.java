@@ -86,6 +86,9 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        // Match the cluster name and node name the docs tests expect (mirrors the old testClusters DSL behaviour)
+        .name("yamlRestTest")
+        .withNode(n -> n.name("node-0"))
         .feature(FeatureFlag.TIME_SERIES_MODE)
         // Install all non-repository plugins from :plugins:* — mirrors the old testClusters DSL loop.
         .plugin("analysis-icu")

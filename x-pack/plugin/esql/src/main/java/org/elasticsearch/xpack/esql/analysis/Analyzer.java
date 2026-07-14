@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
 import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -1477,14 +1478,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
-
-                // A lookup join is remote only when its left side actually streams data from indices that may live on remote clusters.
-                // {@code includesRemoteIndices()} is query-wide, so on its own it would also mark a join whose left side is purely local
-                // (e.g. {@code ROW ... | LOOKUP JOIN} in a subquery branch) as remote. Such a join has no data-node source to attach to,
-                // so flagging it remote would cause {@code CrossClusterSubqueryIT.testSubqueryWithRowAndLookupJoin} error out in
-                // ComputeService.
-                boolean isRemote = join.isRemote() || (context.includesRemoteIndices() && leftSideReadsFromIndices(join.left()));
-                return new LookupJoin(join.source(), join.left(), join.right(), config, isRemote);
+                boolean isRemote = join.left().anyMatch(node -> node instanceof EsRelation relation && hasRemoteIndices(relation));
+                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote() || isRemote);
             } else {
                 // everything else is unsupported for now
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
@@ -1493,16 +1488,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        /**
-         * Whether {@code plan} reads from a non-lookup index, as opposed to a purely local source such as {@code ROW} /
-         * {@link LocalRelation}.
-         * <p>
-         * Only {@link EsRelation} needs to be considered: this runs from {@link #resolveLookupJoin} inside
-         * {@link ResolveRefs}, which is guarded by {@code childrenResolved()}, so by the time we get here the left
-         * subtree is fully resolved and cannot contain an {@link UnresolvedRelation}.
-         */
-        private static boolean leftSideReadsFromIndices(LogicalPlan plan) {
-            return plan.anyMatch(p -> p instanceof EsRelation relation && relation.indexMode() != IndexMode.LOOKUP);
+        private static boolean hasRemoteIndices(EsRelation relation) {
+            return switch (relation.concreteIndices().size()) {
+                case 0 -> false;// row
+                case 1 -> relation.concreteIndices().containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false;
+                default -> true;
+            };
         }
 
         /**

@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -36,6 +37,7 @@ import org.junit.After;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -217,6 +219,31 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     public void testLongMaxMin() throws IOException {
         List<List<Object>> rows = read(false, Map.of(), "a:long\n" + Long.MAX_VALUE + "\n" + Long.MIN_VALUE + "\n");
         assertEquals(List.of(row(Long.MAX_VALUE), row(Long.MIN_VALUE)), rows);
+    }
+
+    /**
+     * unsigned_long is stored in a LongBlock as the sign-flip encoding, and it is decoded by two entirely
+     * separate paths — the direct-to-block byte parser and the Jackson bulk reader. The read() harness runs both
+     * and asserts they agree, so these cases pin that the two paths produce bit-identical blocks across the full
+     * domain, including the (2^63, 2^64) range where a naive signed accumulate would diverge.
+     */
+    public void testUnsignedLongDirectVsJacksonParity() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), "a:unsigned_long\n0\n9223372036854775808\n18446744073709551615\n");
+        assertEquals(List.of(row(ul("0")), row(ul("9223372036854775808")), row(ul("18446744073709551615"))), rows);
+    }
+
+    public void testUnsignedLongTruncatingTokensParity() throws IOException {
+        List<List<Object>> rows = read(false, Map.of(), "a:unsigned_long\n42.9\n1e3\n");
+        assertEquals(List.of(row(ul("42")), row(ul("1000"))), rows);
+    }
+
+    public void testUnsignedLongOutOfRangeNullFieldParity() throws IOException {
+        List<List<Object>> rows = read(false, nullField(), "a:unsigned_long\n-1\n18446744073709551616\n1e999999999\n7\n");
+        assertEquals(List.of(row((Object) null), row((Object) null), row((Object) null), row(ul("7"))), rows);
+    }
+
+    private static long ul(String magnitude) {
+        return NumericUtils.asLongUnsigned(new BigInteger(magnitude));
     }
 
     public void testNumericWhitespaceTrimmed() throws IOException {

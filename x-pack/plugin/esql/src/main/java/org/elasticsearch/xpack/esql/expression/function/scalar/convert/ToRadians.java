@@ -104,6 +104,12 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
         return DOUBLE;
     }
 
+    @Override
+    public boolean isNoop() {
+        // Computes even when the input is already double, so it's never a no-op.
+        return false;
+    }
+
     @ConvertEvaluator
     static double process(double deg) {
         return Math.toRadians(deg);

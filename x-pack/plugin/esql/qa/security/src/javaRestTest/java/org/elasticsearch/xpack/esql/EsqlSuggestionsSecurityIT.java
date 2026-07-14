@@ -28,6 +28,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.anything;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -139,17 +142,14 @@ public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
         assertOK(adminResp);
         @SuppressWarnings("unchecked")
         Map<String, Object> adminFields = (Map<String, Object>) entityAsMap(adminResp).get("fields");
-        assertThat(adminFields, hasKey("value"));
-        assertThat(adminFields, hasKey("org"));
-        assertThat(adminFields, hasKey("partial"));
+        assertMap(adminFields, matchesMap().extraOk().entry("value", anything()).entry("org", anything()).entry("partial", anything()));
 
         Response flsResp = runSuggestions("fls_user", query, query.length());
         assertOK(flsResp);
         @SuppressWarnings("unchecked")
         Map<String, Object> flsFields = (Map<String, Object>) entityAsMap(flsResp).get("fields");
         // Permitted fields still present:
-        assertThat(flsFields, hasKey("value"));
-        assertThat(flsFields, hasKey("partial"));
+        assertMap(flsFields, matchesMap().extraOk().entry("value", anything()).entry("partial", anything()));
         // Restricted field correctly absent, not merely nulled out:
         assertThat(flsFields, not(hasKey("org")));
     }
@@ -171,7 +171,7 @@ public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
         Map<String, Object> adminFields = (Map<String, Object>) entityAsMap(adminResp).get("fields");
         @SuppressWarnings("unchecked")
         Map<String, Object> dlsFields = (Map<String, Object>) entityAsMap(dlsResp).get("fields");
-        assertThat(dlsFields, equalTo(adminFields));
+        assertMap(dlsFields, matchesMap(adminFields));
     }
 
     /**

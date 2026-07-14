@@ -26,10 +26,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.anEmptyMap;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 
 /**
  * Unit tests for the pure, cluster-state-driven pieces of {@link HotTierValueSampler} (see the
@@ -88,9 +87,7 @@ public class HotTierValueSamplerTests extends ESTestCase {
 
         Map<String, Set<ShardId>> bundles = HotTierValueSampler.hotTierNodeBundles(routingTable, nodes, Set.of("test"));
 
-        assertThat(bundles, hasKey("hot-node"));
-        assertThat(bundles.get("hot-node"), containsInAnyOrder(new ShardId(index, 0)));
-        assertFalse(bundles.containsKey("warm-node"));
+        assertMap(bundles, matchesMap().entry("hot-node", containsInAnyOrder(new ShardId(index, 0))));
     }
 
     public void testHotTierNodeBundlesEmptyWhenNoHotNode() {
@@ -105,7 +102,7 @@ public class HotTierValueSamplerTests extends ESTestCase {
 
         Map<String, Set<ShardId>> bundles = HotTierValueSampler.hotTierNodeBundles(routingTable, nodes, Set.of("test"));
 
-        assertThat(bundles, anEmptyMap());
+        assertMap(bundles, matchesMap());
     }
 
     public void testHotTierNodeBundlesTreatsGenericDataRoleAsHot() {
@@ -122,7 +119,7 @@ public class HotTierValueSamplerTests extends ESTestCase {
 
         Map<String, Set<ShardId>> bundles = HotTierValueSampler.hotTierNodeBundles(routingTable, nodes, Set.of("test"));
 
-        assertThat(bundles.keySet(), equalTo(Set.of("data-node")));
+        assertMap(bundles, matchesMap().entry("data-node", containsInAnyOrder(new ShardId(index, 0))));
     }
 
     private static ProjectMetadata projectWithMapping(String mappingJson) {

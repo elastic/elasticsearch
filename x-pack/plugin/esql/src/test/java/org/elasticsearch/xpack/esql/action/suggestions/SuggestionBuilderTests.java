@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 
 public class SuggestionBuilderTests extends ESTestCase {
@@ -30,11 +32,10 @@ public class SuggestionBuilderTests extends ESTestCase {
         // The schema source for a pipe position is the whole plan (last command KEEP).
         LogicalPlan plan = analyze("FROM test | KEEP first_name, emp_no");
         Map<String, FieldSuggestion> fields = SuggestionBuilder.fieldsFromSchema(plan);
-        assertEquals(2, fields.size());
-        assertEquals("keyword", fields.get("first_name").type());
-        assertEquals("integer", fields.get("emp_no").type());
-        assertNull(fields.get("first_name").values());
-        assertNull(fields.get("first_name").range());
+        assertMap(
+            fields,
+            matchesMap().entry("first_name", FieldSuggestion.ofType("keyword")).entry("emp_no", FieldSuggestion.ofType("integer"))
+        );
     }
 
     public void testFieldsFromFullSchemaContainExpectedTypes() {

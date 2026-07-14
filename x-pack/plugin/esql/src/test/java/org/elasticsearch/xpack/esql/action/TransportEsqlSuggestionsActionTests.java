@@ -13,8 +13,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -31,7 +33,7 @@ public class TransportEsqlSuggestionsActionTests extends ESTestCase {
         EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query("FROM foo | KEEP a\n").cursor("FROM foo | KEEP a\n".length());
         EsqlSuggestionsResponse response = TransportEsqlSuggestionsAction.suggest(TEST_PARSER, request);
         assertNotNull(response.fields());
-        assertTrue(response.warnings().isEmpty());
+        assertThat(response.warnings(), matchesList());
     }
 
     public void testStringLiteralContextReturnsSkeleton() {
@@ -40,8 +42,8 @@ public class TransportEsqlSuggestionsActionTests extends ESTestCase {
         EsqlSuggestionsResponse response = TransportEsqlSuggestionsAction.suggest(TEST_PARSER, request);
         // Single-field literal context: no coordinator-side type is known, so the field map is empty
         // (values would come from a deferred data-node visit).
-        assertTrue(response.fields().isEmpty());
-        assertTrue(response.warnings().isEmpty());
+        assertMap(response.fields(), matchesMap());
+        assertThat(response.warnings(), matchesList());
     }
 
     public void testHasRemoteTargetDetectsClusterQualifiedFrom() {
@@ -58,14 +60,17 @@ public class TransportEsqlSuggestionsActionTests extends ESTestCase {
 
     public void testWarningsForSampleResultOnlyHotOnlyWhenComplete() {
         HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), false, false);
-        assertThat(TransportEsqlSuggestionsAction.warningsForSampleResult(result), contains(EsqlSuggestionsResponse.Warning.HOT_ONLY));
+        assertThat(
+            TransportEsqlSuggestionsAction.warningsForSampleResult(result),
+            matchesList(List.of(EsqlSuggestionsResponse.Warning.HOT_ONLY))
+        );
     }
 
     public void testWarningsForSampleResultAddsShardsSkippedOnPartial() {
         HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), true, false);
         assertThat(
             TransportEsqlSuggestionsAction.warningsForSampleResult(result),
-            contains(EsqlSuggestionsResponse.Warning.HOT_ONLY, EsqlSuggestionsResponse.Warning.SHARDS_SKIPPED)
+            matchesList(List.of(EsqlSuggestionsResponse.Warning.HOT_ONLY, EsqlSuggestionsResponse.Warning.SHARDS_SKIPPED))
         );
     }
 
@@ -73,7 +78,7 @@ public class TransportEsqlSuggestionsActionTests extends ESTestCase {
         HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), false, true);
         assertThat(
             TransportEsqlSuggestionsAction.warningsForSampleResult(result),
-            contains(EsqlSuggestionsResponse.Warning.HOT_ONLY, EsqlSuggestionsResponse.Warning.DLS_ACTIVE)
+            matchesList(List.of(EsqlSuggestionsResponse.Warning.HOT_ONLY, EsqlSuggestionsResponse.Warning.DLS_ACTIVE))
         );
     }
 
@@ -81,10 +86,12 @@ public class TransportEsqlSuggestionsActionTests extends ESTestCase {
         HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), true, true);
         assertThat(
             TransportEsqlSuggestionsAction.warningsForSampleResult(result),
-            contains(
-                EsqlSuggestionsResponse.Warning.HOT_ONLY,
-                EsqlSuggestionsResponse.Warning.SHARDS_SKIPPED,
-                EsqlSuggestionsResponse.Warning.DLS_ACTIVE
+            matchesList(
+                List.of(
+                    EsqlSuggestionsResponse.Warning.HOT_ONLY,
+                    EsqlSuggestionsResponse.Warning.SHARDS_SKIPPED,
+                    EsqlSuggestionsResponse.Warning.DLS_ACTIVE
+                )
             )
         );
     }
@@ -94,7 +101,7 @@ public class TransportEsqlSuggestionsActionTests extends ESTestCase {
         // nor dls_active signals, so only hot_only attaches.
         assertThat(
             TransportEsqlSuggestionsAction.warningsForSampleResult(HotTierValueSampler.SampleResult.NO_HOT_NODES),
-            contains(EsqlSuggestionsResponse.Warning.HOT_ONLY)
+            matchesList(List.of(EsqlSuggestionsResponse.Warning.HOT_ONLY))
         );
     }
 }

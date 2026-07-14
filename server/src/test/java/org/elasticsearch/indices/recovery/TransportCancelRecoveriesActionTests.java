@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.indices.recovery.FailureStrategySelector.DEFAULT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -104,6 +105,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
+            DEFAULT,
             recoveryState0,
             allocationId0,
             new RecoveryStats(),
@@ -118,6 +120,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
+            DEFAULT,
             recoveryState1,
             allocationId1,
             new RecoveryStats(),
@@ -129,6 +132,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
+            DEFAULT,
             recoveryState2,
             allocationId2,
             new RecoveryStats(),
@@ -226,6 +230,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
+            DEFAULT,
             recoveryState0,
             allocationId0,
             new RecoveryStats(),
@@ -240,6 +245,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
+            DEFAULT,
             recoveryState1,
             allocationId1,
             new RecoveryStats(),
@@ -310,6 +316,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
+            DEFAULT,
             recoveryState0,
             allocationId0,
             new RecoveryStats(),
@@ -324,6 +331,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
+            DEFAULT,
             recoveryState1,
             allocationId1,
             new RecoveryStats(),
@@ -373,6 +381,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
+            DEFAULT,
             recoveryState0,
             allocationId0,
             new RecoveryStats(),
@@ -387,6 +396,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         throttlingRecoveryService.enqueue(
             ProjectId.DEFAULT,
             RecoveryListener.NOOP,
+            DEFAULT,
             recoveryState2,
             allocationId2,
             new RecoveryStats(),
@@ -489,7 +499,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             public void onRecoveryAborted() {
                 fail("recovery should be cancelled");
             }
-        }, newRecoveryState(shardId), allocationId, new RecoveryStats(), ignored -> fail("recovery should be cancelled"));
+        }, DEFAULT, newRecoveryState(shardId), allocationId, new RecoveryStats(), ignored -> fail("recovery should be cancelled"));
 
         taskQueue.runAllTasks();
         assertTrue("expected recovery to be cancelled", cancelled.get());

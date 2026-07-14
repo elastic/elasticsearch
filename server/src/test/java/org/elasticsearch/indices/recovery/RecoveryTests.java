@@ -58,6 +58,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.indices.recovery.FailureStrategySelector.DEFAULT;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -316,24 +317,30 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
         IndexShard replicaShard = newShard(primaryShard.shardId(), false);
         updateMappings(replicaShard, primaryShard.indexSettings().getIndexMetadata());
-        recoverReplica(replicaShard, primaryShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener) {
-            @Override
-            public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
-                super.prepareForTranslogOperations(totalTranslogOps, listener);
-                assertThat(replicaShard.getLastKnownGlobalCheckpoint(), equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
-            }
+        recoverReplica(
+            replicaShard,
+            primaryShard,
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener, DEFAULT) {
+                @Override
+                public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
+                    super.prepareForTranslogOperations(totalTranslogOps, listener);
+                    assertThat(replicaShard.getLastKnownGlobalCheckpoint(), equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
+                }
 
-            @Override
-            public void cleanFiles(
-                int totalTranslogOps,
-                long globalCheckpoint,
-                Store.MetadataSnapshot sourceMetadata,
-                ActionListener<Void> listener
-            ) {
-                assertThat(globalCheckpoint, equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
-                super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetadata, listener);
-            }
-        }, true, true);
+                @Override
+                public void cleanFiles(
+                    int totalTranslogOps,
+                    long globalCheckpoint,
+                    Store.MetadataSnapshot sourceMetadata,
+                    ActionListener<Void> listener
+                ) {
+                    assertThat(globalCheckpoint, equalTo(primaryShard.getLastKnownGlobalCheckpoint()));
+                    super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetadata, listener);
+                }
+            },
+            true,
+            true
+        );
         List<IndexCommit> commits = DirectoryReader.listCommits(replicaShard.store().directory());
         long maxSeqNo = Long.parseLong(commits.get(0).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
         assertThat(maxSeqNo, lessThanOrEqualTo(globalCheckpoint));
@@ -464,7 +471,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     public void onRecoveryAborted() {
                         throw new AssertionError("recovery must fail");
                     }
-                });
+                }, DEFAULT);
             }));
             expectThrows(AlreadyClosedException.class, () -> replica.refresh("test"));
             group.removeReplica(replica);

@@ -152,6 +152,7 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.recovery.FailureStrategySelector;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
@@ -208,7 +209,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READ
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
@@ -3812,6 +3813,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         RecoveryState recoveryState,
         PeerRecoveryTargetService recoveryTargetService,
         RecoveryListener recoveryListener,
+        FailureStrategySelector failureStrategySelector,
         RepositoriesService repositoriesService,
         BiConsumer<MappingMetadata, ActionListener<Void>> mappingUpdateConsumer,
         IndicesService indicesService,
@@ -3839,15 +3841,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 "from store",
                 recoveryState,
                 recoveryListener,
+                failureStrategySelector,
                 this::recoverFromStore
             );
             case PEER -> {
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);
-                    recoveryTargetService.startRecovery(this, recoveryState.getSourceNode(), clusterStateVersion, recoveryListener);
-                } catch (Exception e) {
-                    failShard("corrupted preexisting index", e);
-                    recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_SEND);
+                    recoveryTargetService.startRecovery(
+                        this,
+                        recoveryState.getSourceNode(),
+                        clusterStateVersion,
+                        recoveryListener,
+                        failureStrategySelector
+                    );
+                } catch (Exception cause) {
+                    failShard("corrupted preexisting index", cause);
+                    RecoveryFailedException e = new RecoveryFailedException(recoveryState, null, cause);
+                    recoveryListener.onRecoveryFailure(e, failureStrategySelector.select(e, FAIL_SEND));
                 }
             }
             case SNAPSHOT -> {
@@ -3858,6 +3868,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     "from snapshot",
                     recoveryState,
                     recoveryListener,
+                    failureStrategySelector,
                     l -> restoreFromRepository(repositoriesService.repository(projectId, repo), l)
                 );
             }
@@ -3890,6 +3901,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         "from local shards",
                         recoveryState,
                         recoveryListener,
+                        failureStrategySelector,
                         l -> recoverFromLocalShards(
                             mappingUpdateConsumer,
                             startedShards.stream().filter((s) -> requiredShards.contains(s.shardId())).toList(),
@@ -3923,6 +3935,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         String reason,
         RecoveryState recoveryState,
         RecoveryListener recoveryListener,
+        FailureStrategySelector failureStrategySelector,
         CheckedConsumer<ActionListener<Boolean>, Exception> action
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
@@ -3933,7 +3946,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 recoveryListener.onRecoveryAborted();
             }
-        }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), FAIL_SEND));
+        }, cause -> {
+            RecoveryFailedException e = new RecoveryFailedException(recoveryState, null, cause);
+            recoveryListener.onRecoveryFailure(e, failureStrategySelector.select(e, FAIL_SEND));
+        });
         ActionListener.run(actionListener, action);
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -763,8 +764,9 @@ public class AuthorizationService {
             || (request instanceof PastTimeSeriesIndexCreationAction.Request);
         if (request instanceof CreateDataStreamAction.Request
             || (request instanceof MigrateToDataStreamAction.Request)
-            || ((CreateIndexRequest) request).aliases().isEmpty()
-            || (request instanceof PastTimeSeriesIndexCreationAction.Request)) {
+            || (request instanceof PastTimeSeriesIndexCreationAction.Request)
+            // Casting to CreateIndexRequest is safe only because it's the last possible option; always keep it last!
+            || ((CreateIndexRequest) request).aliases().isEmpty()) {
             runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener);
             return;
         }
@@ -869,25 +871,25 @@ public class AuthorizationService {
     ) {
         if (request instanceof IndicesRequest.Replaceable replaceable) {
             var indexExpressions = replaceable.getResolvedIndexExpressions();
-            if (indexExpressions != null) {
-                indexExpressions.expressions().forEach(resolved -> {
-                    if (resolved.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED) {
-                        resolved.localExpressions()
-                            .setExceptionIfUnset(
-                                actionDenied(
-                                    authentication,
-                                    authzInfo,
-                                    action,
-                                    request,
-                                    IndexAuthorizationResult.getFailureDescription(
-                                        List.of(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER),
-                                        restrictedIndices
-                                    ),
-                                    null
-                                )
-                            );
-                    }
-                });
+            if (indexExpressions != null
+                && indexExpressions.expressions()
+                    .stream()
+                    .anyMatch(expression -> expression.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_UNAUTHORIZED)) {
+                replaceable.setResolvedIndexExpressions(
+                    new ResolvedIndexExpressions(
+                        indexExpressions.expressions(),
+                        authorizationDenialMessages.actionDenied(
+                            authentication,
+                            authzInfo,
+                            action,
+                            request,
+                            IndexAuthorizationResult.getFailureDescription(
+                                List.of(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER),
+                                restrictedIndices
+                            )
+                        )
+                    )
+                );
             }
         }
     }

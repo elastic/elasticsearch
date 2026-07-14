@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -316,7 +318,7 @@ public class PlannerUtils {
     /**
      * Runs local logical/physical optimization with external splits injected before the physical optimizer.
      * Splits are attached to any empty {@link ExternalSourceExec} nodes so that rules like
-     * {@code PushAggregatesToExternalSource} can see per-split statistics.
+     * {@code PushStatsToExternalSource} can see per-split statistics.
      */
     public static PhysicalPlan localPlan(
         PlannerSettings plannerSettings,
@@ -345,7 +347,11 @@ public class PlannerUtils {
     }
 
     public static PhysicalPlan integrateEsFilterIntoFragment(PhysicalPlan plan, @Nullable QueryBuilder esFilter) {
-        return esFilter == null ? plan : plan.transformUp(FragmentExec.class, f -> {
+        if (esFilter == null) {
+            return plan;
+        }
+        warnIfFilterIgnoredForExternalSources(plan);
+        return plan.transformUp(FragmentExec.class, f -> {
             var fragmentFilter = f.esFilter();
             // TODO: have an ESFilter and push down to EsQueryExec / EsSource
             // This is an ugly hack to push the filter parameter to Lucene
@@ -354,6 +360,30 @@ public class PlannerUtils {
             LOGGER.debug("Fold filter {} to EsQueryExec", filter);
             return f.withFilter(filter);
         });
+    }
+
+    /**
+     * The DSL request filter is only ever composed into {@code EsSourceExec} during local planning
+     * (see {@link #localPlan}); it is never applied to {@code ExternalSourceExec} reads. Warn loudly so
+     * users relying on a non-empty request filter over an external/dataset source know it was silently
+     * ignored, rather than getting unfiltered results with no indication anything is wrong.
+     */
+    private static void warnIfFilterIgnoredForExternalSources(PhysicalPlan plan) {
+        List<String> datasets = plan.collect(FragmentExec.class::isInstance)
+            .stream()
+            .map(FragmentExec.class::cast)
+            .flatMap(f -> f.fragment().collect(ExternalRelation.class::isInstance).stream())
+            .map(ExternalRelation.class::cast)
+            .map(r -> r.datasetName() != null ? r.datasetName() : r.sourcePath())
+            .distinct()
+            .toList();
+        if (datasets.isEmpty() == false) {
+            HeaderWarning.addWarning(
+                "The filter in the ES|QL query request is not applied to external dataset(s) [{}]; "
+                    + "use a WHERE clause to filter rows from external datasets instead",
+                String.join(", ", datasets)
+            );
+        }
     }
 
     public static PhysicalPlan localPlan(

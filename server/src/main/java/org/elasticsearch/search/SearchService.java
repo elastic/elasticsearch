@@ -87,6 +87,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -517,6 +518,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(PIT_RELOCATION_ENABLED, pitRelocationEnabled -> this.pitRelocationEnabled = pitRelocationEnabled);
+        this.jvmInfo = JvmInfo.jvmInfo();
     }
 
     public boolean isPitRelocationEnabled() {
@@ -2383,6 +2385,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public long getDefaultKeepAliveInMillis() {
         return defaultKeepAlive;
     }
+
+    public JvmInfo getJvmInfo() {
+        return jvmInfo;
+    }
+
+    private final JvmInfo jvmInfo;
 
     /**
      * Used to indicate which result object should be instantiated when creating a search context

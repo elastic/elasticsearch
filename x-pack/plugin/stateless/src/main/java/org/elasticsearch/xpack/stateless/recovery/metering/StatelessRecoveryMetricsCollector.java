@@ -187,7 +187,7 @@ public class StatelessRecoveryMetricsCollector implements IndexEventListener {
     private static Map<String, Object> recoveryMetricLabels(IndexShard indexShard) {
         return Maps.copyMapWithAddedEntry(
             commonMetricLabels(indexShard),
-            "recovery_type",
+            "es_recovery_type",
             indexShard.recoveryState().getRecoverySource().getType().name()
         );
     }

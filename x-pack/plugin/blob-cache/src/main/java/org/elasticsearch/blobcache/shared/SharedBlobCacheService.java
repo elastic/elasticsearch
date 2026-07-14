@@ -51,6 +51,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Array;
@@ -1326,22 +1327,22 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         /**
-         * If a direct byte buffer slice is available for the given range,
+         * If a direct memory segment slice is available for the given range,
          * passes it to {@code action} within a ref-counted scope (preventing
          * eviction) and returns {@code true}. Returns {@code false} without
          * invoking the action when not available (not mmap'd, evicted, etc.).
          */
-        boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
-            return withByteBufferSlice(offset, length, action, SharedBytes.MADV_NORMAL);
+        boolean withMemorySegmentSlice(long offset, int length, CheckedConsumer<MemorySegment, IOException> action) throws IOException {
+            return withMemorySegmentSlice(offset, length, action, SharedBytes.MADV_NORMAL);
         }
 
-        boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action, int advice)
+        boolean withMemorySegmentSlice(long offset, int length, CheckedConsumer<MemorySegment, IOException> action, int advice)
             throws IOException {
             SharedBytes.IO ioRef = nonVolatileIO();
             if (ioRef != null && tryIncRef()) {
                 try {
                     ioRef.madvise(advice);
-                    ByteBuffer slice = ioRef.byteBufferSlice(blobCacheService.getRegionRelativePosition(offset), length);
+                    MemorySegment slice = ioRef.memorySegmentSlice(blobCacheService.getRegionRelativePosition(offset), length);
                     if (slice != null && isEvicted() == false) {
                         action.accept(slice);
                         return true;
@@ -1662,15 +1663,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         /**
-         * If a direct byte buffer view is available for the given range, passes it
+         * If a direct memory segment view is available for the given range, passes it
          * to {@code action} and returns {@code true}. Otherwise, returns
          * {@code false} without invoking the action.
          */
-        public boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
-            return withByteBufferSlice(offset, length, action, SharedBytes.MADV_NORMAL);
+        public boolean withMemorySegmentSlice(long offset, int length, CheckedConsumer<MemorySegment, IOException> action)
+            throws IOException {
+            return withMemorySegmentSlice(offset, length, action, SharedBytes.MADV_NORMAL);
         }
 
-        public boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action, int advice)
+        public boolean withMemorySegmentSlice(long offset, int length, CheckedConsumer<MemorySegment, IOException> action, int advice)
             throws IOException {
             assert assertOffsetsWithinFileLength(offset, length, this.length);
             final int startRegion = getRegion(offset);
@@ -1692,7 +1694,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
                 return false;
             }
-            boolean result = region.withByteBufferSlice(offset, length, action, advice);
+            boolean result = region.withMemorySegmentSlice(offset, length, action, advice);
             if (result) {
                 lastAccessedRegion = fileRegion;
             }
@@ -1700,22 +1702,22 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         /**
-         * Bulk variant of {@link #withByteBufferSlice}. Resolves {@code count} byte ranges to
-         * direct byte buffers, holding ref-counts on all distinct regions to prevent eviction,
+         * Bulk variant of {@link #withMemorySegmentSlice}. Resolves {@code count} byte ranges to
+         * memory segments, holding ref-counts on all distinct regions to prevent eviction,
          * then invokes the action. Each individual range must fit within a single region.
          */
         @SuppressWarnings({ "unchecked", "rawtypes" })
-        public boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
+        public boolean withMemorySegmentSlices(long[] offsets, int length, int count, CheckedConsumer<MemorySegment[], IOException> action)
             throws IOException {
-            return withByteBufferSlices(offsets, length, count, action, SharedBytes.MADV_NORMAL);
+            return withMemorySegmentSlices(offsets, length, count, action, SharedBytes.MADV_NORMAL);
         }
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
-        public boolean withByteBufferSlices(
+        public boolean withMemorySegmentSlices(
             long[] offsets,
             int length,
             int count,
-            CheckedConsumer<ByteBuffer[], IOException> action,
+            CheckedConsumer<MemorySegment[], IOException> action,
             int advice
         ) throws IOException {
             if (DirectAccessInput.checkSlicesArgs(offsets, count)) {
@@ -1723,7 +1725,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
             final CacheFileRegion<KeyType>[] held = new CacheFileRegion[count];
             int heldCount = 0;
-            final ByteBuffer[] results = new ByteBuffer[count];
+            final MemorySegment[] results = new MemorySegment[count];
             try {
                 for (int i = 0; i < count; i++) {
                     final long offset = offsets[i];
@@ -1757,7 +1759,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         ioRef.madvise(advice);
                     }
 
-                    results[i] = ioRef.byteBufferSlice(getRegionRelativePosition(offset), length);
+                    results[i] = ioRef.memorySegmentSlice(getRegionRelativePosition(offset), length);
                     if (results[i] == null) {
                         return false;
                     }

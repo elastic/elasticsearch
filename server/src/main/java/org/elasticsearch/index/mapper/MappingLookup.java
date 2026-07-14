@@ -722,7 +722,7 @@ public final class MappingLookup {
         if (shadowed == null) {
             return;
         }
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (indexMode.isTsdb()) {
             if (shadowed.isDimension()) {
                 throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_dimension");
             }

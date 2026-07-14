@@ -146,7 +146,7 @@ public class PreAnalyzer {
         Holder<Boolean> useAggregateMetricDoubleWhenNotSupported = new Holder<>(false);
         Holder<Boolean> useDenseVectorWhenNotSupported = new Holder<>(false);
         indexes.forEach((ip, mode) -> {
-            if (mode == IndexMode.TIME_SERIES) {
+            if (mode.isTsdb()) {
                 useAggregateMetricDoubleWhenNotSupported.set(true);
             }
         });

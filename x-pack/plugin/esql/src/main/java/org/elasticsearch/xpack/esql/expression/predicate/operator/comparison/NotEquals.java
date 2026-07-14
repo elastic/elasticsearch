@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
@@ -63,7 +65,10 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         Map.entry(DataType.VERSION, NotEqualsBytesRefEvaluator.Factory::new),
         Map.entry(DataType.IP, NotEqualsBytesRefEvaluator.Factory::new),
         Map.entry(DataType.DENSE_VECTOR, NotEqualsDenseVectorEvaluator.Factory::new),
-        Map.entry(DataType.FLATTENED, NotEqualsBytesRefEvaluator.Factory::new)
+        Map.entry(DataType.FLATTENED, NotEqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.TDIGEST, NotEqualsTDigestEvaluator.Factory::new),
+        Map.entry(DataType.EXPONENTIAL_HISTOGRAM, NotEqualsExponentialHistogramEvaluator.Factory::new),
+        Map.entry(DataType.HISTOGRAM, NotEqualsBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -87,16 +92,19 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "date_range",
                 "dense_vector",
                 "double",
+                "exponential_histogram",
                 "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
                 "version" },
@@ -113,16 +121,19 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "date_range",
                 "dense_vector",
                 "double",
+                "exponential_histogram",
                 "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
                 "version" },
@@ -201,6 +212,16 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     @Evaluator(extraName = "LongRange")
     static boolean processLongRange(LongRangeBlockBuilder.LongRange lhs, LongRangeBlockBuilder.LongRange rhs) {
         return false == lhs.equals(rhs);
+    }
+
+    @Evaluator(extraName = "TDigest")
+    static boolean processTDigest(TDigestHolder lhs, TDigestHolder rhs) {
+        return false == lhs.equals(rhs);
+    }
+
+    @Evaluator(extraName = "ExponentialHistogram")
+    static boolean processExponentialHistogram(ExponentialHistogram lhs, ExponentialHistogram rhs) {
+        return false == ExponentialHistogram.equals(lhs, rhs);
     }
 
     @Override

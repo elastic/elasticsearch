@@ -134,10 +134,36 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         );
         flushAndAwaitSearchNodeCommit(indexName, commitService, shardId);
 
+        // Randomly do a few more rounds of indexing + refresh to build additional in-memory segments
+        // before the PIT is opened.
+        final int extraRounds = between(0, 2);
+        for (int i = 0; i < extraRounds; i++) {
+            indexDocs(
+                indexName,
+                between(10, 50),
+                UnaryOperator.identity(),
+                null,
+                () -> Map.of("@timestamp", timestamp, "field", randomAlphaOfLength(10))
+            );
+            refresh(indexName);
+        }
+
         final var pitId = openPointInTime(indexName, TimeValue.timeValueMinutes(1)).getPointInTimeId();
         assertNotNull(pitId);
 
-        final var capturedInfos = capturePITContextInfosDuringRelocation(searchNodeA, indexName);
+        // Randomly force-merge to a single segment and flush. The flush uploads a newer BCC (commit B)
+        // to the object store while the PIT remains pinned to the pre-merge commit (commit A). We
+        // intentionally do NOT wait for the search node to apply commit B: doing so triggers a reader
+        // lifecycle transition on searchNodeA that races with MockSearchService's in-flight context
+        // tracking and causes a spurious context leak. The scenario is still meaningful — a newer BCC
+        // exists in the object store when the relocation happens, so the relocation must correctly hand
+        // off PIT contexts that reference older files.
+        if (randomBoolean()) {
+            indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+            flush(indexName);
+        }
+
+        final var capturedInfos = relocateFromNodeAndCapturePITContextInfos(searchNodeA, indexName);
 
         assertThat(capturedInfos, hasSize(1));
         final OpenPITContextInfo pitContextInfo = capturedInfos.getFirst();
@@ -152,7 +178,7 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         // SearchDirectory#mergeMetadata (invoked via mergePITReaderMetadata) must merge every transferred
         // range into the destination's own metadata, not just relay it over the wire.
         pitContextInfo.metadata().forEach((fileName, wireRanges) -> {
-            final BlobFileRanges mergedRanges = getMergedBlobFileRanges(indexName, fileName);
+            final BlobFileRanges mergedRanges = getSearchDirectoryBlobFileRanges(indexName, fileName);
             assertThat("destination SearchDirectory must know about transferred file: " + fileName, mergedRanges, notNullValue());
             assertThat(
                 "merged timestamp range for " + fileName + " must match the transferred range",
@@ -241,7 +267,7 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         final var pitId = openPointInTime(indexName, TimeValue.timeValueMinutes(1)).getPointInTimeId();
         assertNotNull(pitId);
 
-        final List<OpenPITContextInfo> capturedInfos = capturePITContextInfosDuringRelocation(searchNodeA, indexName);
+        final List<OpenPITContextInfo> capturedInfos = relocateFromNodeAndCapturePITContextInfos(searchNodeA, indexName);
         assertThat(capturedInfos, hasSize(1));
         final var info = capturedInfos.getFirst();
 
@@ -272,7 +298,7 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         // otherwise the fix would only be visible on the wire and never reach the merged metadata that
         // SearchDirectory actually uses to serve reads.
         for (final var entry : genFilesWithTimestampC) {
-            final BlobFileRanges mergedRanges = getMergedBlobFileRanges(indexName, entry.getKey());
+            final BlobFileRanges mergedRanges = getSearchDirectoryBlobFileRanges(indexName, entry.getKey());
             assertThat("destination SearchDirectory must know about " + entry.getKey(), mergedRanges, notNullValue());
             assertThat(mergedRanges.timestampRange().minMillis(), equalTo(tsC));
             assertThat(mergedRanges.timestampRange().maxMillis(), equalTo(tsC));
@@ -281,7 +307,7 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         closeRelocatedPointInTime(pitId);
     }
 
-    private List<OpenPITContextInfo> capturePITContextInfosDuringRelocation(final String searchNodeA, final String indexName) {
+    private List<OpenPITContextInfo> relocateFromNodeAndCapturePITContextInfos(final String searchNodeA, final String indexName) {
         final var capturedInfos = new ArrayList<OpenPITContextInfo>();
         final var handoffLatch = new CountDownLatch(1);
         MockTransportService.getInstance(searchNodeA)
@@ -319,7 +345,7 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
     /// Reads the merged {@link BlobFileRanges} for `fileName` directly from the destination search
     /// shard's [SearchDirectory], i.e. the state produced by `mergePITReaderMetadata` rather than
     /// what was merely sent over the wire during the relocation handoff.
-    private static BlobFileRanges getMergedBlobFileRanges(String indexName, String fileName) {
+    private static BlobFileRanges getSearchDirectoryBlobFileRanges(String indexName, String fileName) {
         return SearchDirectory.unwrapDirectory(findSearchShard(indexName).store().directory()).getBlobFileRangesForFile(fileName);
     }
 
@@ -328,17 +354,18 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
     /// newer BCC has been uploaded.
     private void flushAndAwaitSearchNodeCommit(String indexName, StatelessCommitService commitService, ShardId shardId) throws Exception {
         final var prior = commitService.getLatestUploadedBcc(shardId);
-        final long priorGen = prior != null ? lastUploadedCompoundCommitGeneration(prior) : -1L;
+        final long priorGen;
+        priorGen = prior != null ? prior.lastCompoundCommit().generation() : -1L;
         flush(indexName);
 
         final var newBcc = new AtomicReference<BatchedCompoundCommit>();
         assertBusy(() -> {
             final var bcc = commitService.getLatestUploadedBcc(shardId);
             assertThat(bcc, notNullValue());
-            assertThat(lastUploadedCompoundCommitGeneration(bcc), greaterThan(priorGen));
+            assertThat(bcc.lastCompoundCommit().generation(), greaterThan(priorGen));
             newBcc.set(bcc);
         });
-        awaitUntilSearchNodeGetsCommit(indexName, lastUploadedCompoundCommitGeneration(newBcc.get()));
+        awaitUntilSearchNodeGetsCommit(indexName, newBcc.get().lastCompoundCommit().generation());
     }
 
     private static void awaitUntilSearchNodeGetsCommit(String indexName, long generation) {
@@ -347,10 +374,6 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         final var listener = new SubscribableListener<Long>();
         searchEngine.addPrimaryTermAndGenerationListener(primaryTerm, generation, listener);
         safeAwait(listener);
-    }
-
-    private static long lastUploadedCompoundCommitGeneration(BatchedCompoundCommit latestUploadedBcc) {
-        return latestUploadedBcc.lastCompoundCommit().generation();
     }
 
     private OpenPointInTimeResponse openPointInTime(String index, TimeValue keepAlive) {

@@ -628,12 +628,13 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                         generationalFilesTermAndGen = reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
                     }
                     assert reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration().equals(generationalFilesTermAndGen)
-                        : "Because they are either new or copied, generational files should all belong to the same BCC, but "
+                        : "All generational files in an incoming commit batch must belong to the same BCC, but "
                             + fileName
-                            + " has location "
-                            + reconciledRanges.blobLocation()
-                            + " which is different from "
-                            + generationalFilesTermAndGen;
+                            + " belongs to BCC "
+                            + reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration()
+                            + " which differs from "
+                            + generationalFilesTermAndGen
+                            + " (established by a preceding generational file in this batch)";
                 } else {
                     reconciledMetadata.put(fileName, reconciledRanges);
                 }

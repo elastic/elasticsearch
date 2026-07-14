@@ -505,14 +505,14 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     /// location from the CC is used directly, stamped with the CC's own timestamp so the target node can make informed cache-eviction
     /// decisions.
     private static Map<String, BlobFileRanges> overrideBlobFileRangesTimestamp(
-        final Map<String, BlobFileRanges> metadata,
+        final Map<String, BlobFileRanges> metadataFromSearchDirectory,
         final StatelessCompoundCommit statelessCompoundCommit
     ) {
         final var ccTimestamp = statelessCompoundCommit.getTimestampFieldValueRange();
         return statelessCompoundCommit.commitFiles().entrySet().stream().collect(toUnmodifiableMap(Map.Entry::getKey, e -> {
             final String fileName = e.getKey();
             final BlobLocation fileLocation = e.getValue();
-            final BlobFileRanges fileRanges = metadata.get(fileName);
+            final BlobFileRanges fileRanges = metadataFromSearchDirectory.get(fileName);
             assert fileRanges != null : "search directory does not track '" + fileName + "' file";
             if (fileRanges.blobLocation().equals(fileLocation)) {
                 return fileRanges; // originating CC, preserved in SearchDirectory
@@ -535,7 +535,8 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             this.pitHandoffResponse = new PITHandoffResponse(in);
         }
 
-        public List<OpenPITContextInfo> getOpenPITContextInfos() {
+        // visible for testing
+        List<OpenPITContextInfo> getOpenPITContextInfos() {
             return pitHandoffResponse.getOpenPITContextInfos();
         }
 

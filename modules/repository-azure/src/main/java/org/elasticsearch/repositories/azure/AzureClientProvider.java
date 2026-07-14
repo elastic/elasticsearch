@@ -58,6 +58,8 @@ import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.NETTY_E
 import static org.elasticsearch.repositories.azure.AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME;
 
 class AzureClientProvider extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(AzureClientProvider.class);
+
     private static final TimeValue DEFAULT_CONNECTION_TIMEOUT = TimeValue.timeValueSeconds(30);
     private static final TimeValue DEFAULT_MAX_CONNECTION_IDLE_TIME = TimeValue.timeValueSeconds(60);
     private static final int DEFAULT_MAX_CONNECTIONS = 50;

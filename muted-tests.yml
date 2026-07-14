@@ -101,15 +101,6 @@ tests:
 - class: org.elasticsearch.xpack.security.transport.filter.IpFilteringIntegrationTests
   method: testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp
   issue: https://github.com/elastic/elasticsearch/issues/146102
-- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
-  method: testHAProxyModeConnectionWithSNIToCluster1Works
-  issue: https://github.com/elastic/elasticsearch/issues/139170
-- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
-  method: testHAProxyModeConnectionWithSNIToCluster2Works
-  issue: https://github.com/elastic/elasticsearch/issues/139172
-- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
-  method: testHAProxyModeConnectionWorks
-  issue: https://github.com/elastic/elasticsearch/issues/139171
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PROMQL}
   issue: https://github.com/elastic/elasticsearch/issues/146923

@@ -44,11 +44,16 @@ public class ChunkedDataExtractor implements DataExtractor {
     private static final long MIN_CHUNK_SPAN = 60000L;
 
     /**
-     * Target row count per chunk for ESQL datafeeds when chunk span is not specified.
-     * Matches the default value of {@code esql.query.result_truncation_default_size} (1000), which ES|QL silently injects as
-     * {@code LIMIT 1000} when the query has no explicit LIMIT.
+     * Default per-request row cap ES|QL silently applies to a query with no explicit LIMIT
+     * ({@code esql.query.result_truncation_default_size}).
      */
-    private static final long DEFAULT_ESQL_CHUNK_DOCS = 1_000L;
+    private static final long ESQL_ROW_TRUNCATION_CAP = 1_000L;
+    /**
+     * Target row count per chunk for ESQL datafeeds when chunk span is not specified. Deliberately
+     * a fraction of {@link #ESQL_ROW_TRUNCATION_CAP}, so that non-uniform
+     * (bursty) data distributions still leave headroom before ES|QL's own truncation kicks in.
+     */
+    private static final long DEFAULT_ESQL_CHUNK_DOCS = ESQL_ROW_TRUNCATION_CAP / 2;
 
     private final DataExtractorFactory dataExtractorFactory;
     private final ChunkedDataExtractorContext context;

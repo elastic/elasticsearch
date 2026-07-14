@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.ml.action.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunnerTests;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -33,6 +36,8 @@ import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -128,6 +133,27 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             NoSuchRemoteClusterException.class,
             () -> RemoteClusterLicenseChecker.remoteClusterAliases(Set.of(), List.of("_origin:foo"))
         );
+    }
+
+    public void testStartEsqlDatafeedWithCrossProjectEnabledSkipsIndicesOptions() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+
+        DatafeedConfig esqlDatafeed = new DatafeedConfig.Builder("esql-datafeed", "job_id").setEsqlQuery("FROM logs").build();
+
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+
+        StartDatafeedAction.DatafeedParams params = spy(new StartDatafeedAction.DatafeedParams("esql-datafeed", 0L));
+        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(esqlDatafeed, decider);
+        if (effectiveDatafeed.getIndicesOptions() != null) {
+            params.setIndicesOptions(effectiveDatafeed.getIndicesOptions());
+        }
+
+        assertThat(effectiveDatafeed, sameInstance(esqlDatafeed));
+        assertThat(effectiveDatafeed.getIndicesOptions(), nullValue());
+        verify(params, never()).setIndicesOptions(any());
+        assertThat(params.getIndicesOptions(), sameInstance(SearchRequest.DEFAULT_INDICES_OPTIONS));
     }
 
     public static TransportStartDatafeedAction.DatafeedTask createDatafeedTask(

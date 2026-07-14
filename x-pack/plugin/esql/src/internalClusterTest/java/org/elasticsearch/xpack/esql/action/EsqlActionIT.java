@@ -2301,6 +2301,80 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testPushTopNToAggregate() {
+        String indexName = "test-pushdown-topn";
+        assertAcked(client().admin().indices().prepareCreate(indexName).setMapping("value", "type=long", "tag", "type=keyword"));
+        Map<String, Long> counts = new HashMap<>();
+        Map<String, Double> sums = new HashMap<>();
+        int numDocs = between(10, 500);
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            String tag = "tag-" + randomIntBetween(10, 50);
+            int value = randomIntBetween(1, 1000);
+            bulk.add(new IndexRequest(indexName).id("1" + i).source("value", value, "tag", tag));
+            counts.merge(tag, 1L, Long::sum);
+            sums.merge(tag, (double) value, Double::sum);
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        int limit = between(1, 100);
+        boolean asc = randomBoolean();
+        var request = syncEsqlQueryRequest(
+            "FROM test-pushdown-topn | STATS c = COUNT(*), avg = AVG(value) BY tag | SORT c " + (asc ? "ASC" : "DESC") + " | LIMIT " + limit
+        ).profile(true);
+        Comparator<Long> ordering = asc ? Comparator.naturalOrder() : Comparator.reverseOrder();
+        List<Long> expectedTopCounts = counts.values().stream().sorted(ordering).limit(limit).toList();
+        try (var result = run(request)) {
+            List<List<Object>> rows = getValuesList(result);
+            int expectedRows = Math.min(limit, counts.size());
+            assertThat(rows, hasSize(expectedRows));
+            Long previousCount = null;
+            for (List<Object> row : rows) {
+                long c = ((Number) row.get(0)).longValue();
+                double avg = ((Number) row.get(1)).doubleValue();
+                String tag = (String) row.get(2);
+                if (previousCount != null) {
+                    assertThat(
+                        "rows must be sorted by count " + (asc ? "asc" : "desc"),
+                        ordering.compare(previousCount, c),
+                        lessThanOrEqualTo(0)
+                    );
+                }
+                previousCount = c;
+                assertThat("count mismatch for tag " + tag, c, equalTo(counts.get(tag)));
+                assertEquals("avg mismatch for tag " + tag, sums.get(tag) / counts.get(tag), avg, 0.01);
+            }
+            // the returned groups must be exactly the true top-N groups by count
+            List<Long> actualCounts = rows.stream().map(r -> ((Number) r.get(0)).longValue()).sorted(ordering).toList();
+            assertThat(actualCounts, equalTo(expectedTopCounts));
+
+            EsqlQueryResponse.Profile profile = result.profile();
+            assertNotNull(profile);
+            DriverProfile finalDriver = profile.drivers().stream().filter(d -> d.description().contains("final")).findFirst().get();
+            HashAggregationOperator.Status status = finalDriver.operators()
+                .stream()
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .map(o -> (HashAggregationOperator.Status) o.status())
+                .findFirst()
+                .get();
+            assertThat(status.rowsEmitted(), equalTo((long) expectedRows));
+        }
+        request = syncEsqlQueryRequest("""
+            FROM test-pushdown-topn | STATS c = COUNT(*), avg = AVG(value) BY tag | WHERE avg > 100 | SORT c DESC | LIMIT
+            """ + limit).profile(true);
+        try (var result = run(request)) {
+            EsqlQueryResponse.Profile profile = result.profile();
+            assertNotNull(profile);
+            DriverProfile finalDriver = profile.drivers().stream().filter(d -> d.description().contains("final")).findFirst().get();
+            HashAggregationOperator.Status status = finalDriver.operators()
+                .stream()
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .map(o -> (HashAggregationOperator.Status) o.status())
+                .findFirst()
+                .get();
+            assertThat(status.rowsEmitted(), equalTo((long) counts.size()));
+        }
+    }
+
     public void testLookupJoin() {
         Settings lookupSettings = Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup").build();
         assertAcked(

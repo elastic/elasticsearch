@@ -1116,10 +1116,10 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // block split application on stale search node
         final CountDownLatch completedSearch = new CountDownLatch(1);
         final var searchClusterService = internalCluster().getInstance(ClusterService.class, searchNode);
-        // Register an applier that blocks the search node from committing the SPLIT cluster state.
+        // Register an applier that blocks the search node from committing the SPLIT cluster state
         searchClusterService.addStateApplier(event -> {
             final var indexMetadata = event.state().getMetadata().findIndex(index).orElse(null);
-            if (idxMeta != null) {
+            if (indexMetadata != null) {
                 final var resharding = indexMetadata.getReshardingMetadata();
                 if (resharding != null
                     && resharding.getSplit() != null

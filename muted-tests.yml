@@ -831,4 +831,4 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/153763
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=ml/inference_crud/Test delete already-deleted model returns 404 not 409}
-  issue: https://github.com/elastic/elasticsearch/issues/
+  issue: https://github.com/elastic/elasticsearch/issues/153812

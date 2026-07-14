@@ -127,8 +127,42 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(7, ExternalSourceSettings.settings().size());
+        assertEquals(9, ExternalSourceSettings.settings().size());
         assertTrue(ExternalSourceSettings.settings().contains(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS));
+    }
+
+    public void testMaxConcurrentSegmentatorsDefaultDerivesBelowPoolSize() {
+        // Default (0) derives the cap from the pool size (externalIoThreads) and clamps it to poolSize - 1, so a
+        // pool thread always remains for the one-shot parser tasks a segmentator depends on.
+        Settings settings = Settings.builder().put("node.processors", 4).build();
+        int poolSize = ExternalSourceSettings.externalIoThreads(settings);
+        assertEquals(poolSize - 1, ExternalSourceSettings.maxConcurrentSegmentators(settings));
+        assertTrue("cap must leave a pool thread for parsers", ExternalSourceSettings.maxConcurrentSegmentators(settings) < poolSize);
+    }
+
+    public void testMaxConcurrentSegmentatorsExplicitOverride() {
+        // A pool large enough that the explicit value is not clamped.
+        Settings settings = Settings.builder()
+            .put("esql.external.max_concurrent_requests", 64)
+            .put("esql.external.max_concurrent_segmentators", 24)
+            .build();
+        assertEquals(24, ExternalSourceSettings.maxConcurrentSegmentators(settings));
+    }
+
+    public void testMaxConcurrentSegmentatorsClampedBelowPoolSize() {
+        // A tiny pool forces the cap down to poolSize - 1 so at least one thread stays free for parser tasks.
+        Settings settings = Settings.builder()
+            .put("esql.external.max_concurrent_requests", 4)
+            .put("esql.external.max_concurrent_segmentators", 100)
+            .build();
+        assertEquals(3, ExternalSourceSettings.maxConcurrentSegmentators(settings));
+    }
+
+    public void testMaxConcurrentSegmentatorsAtLeastOne() {
+        // Degenerate single-thread pool: the cap floors at 1 (streaming parallel parsing needs >= 2 threads to be
+        // deadlock-free, but the cap must never be zero).
+        Settings settings = Settings.builder().put("esql.external.max_concurrent_requests", 1).build();
+        assertEquals(1, ExternalSourceSettings.maxConcurrentSegmentators(settings));
     }
 
     public void testManagedIdentityDefaultFalse() {
@@ -138,6 +172,15 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     public void testManagedIdentityCanBeEnabled() {
         Settings settings = Settings.builder().put("esql.datasource.managed_identity.enabled", true).build();
         assertTrue(ExternalSourceSettings.MANAGED_IDENTITY_ENABLED.get(settings));
+    }
+
+    public void testFederatedIdentityDefaultFalse() {
+        assertFalse(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(Settings.EMPTY));
+    }
+
+    public void testFederatedIdentityCanBeEnabled() {
+        Settings settings = Settings.builder().put("esql.datasource.federated_identity.enabled", true).build();
+        assertTrue(ExternalSourceSettings.FEDERATED_IDENTITY_ENABLED.get(settings));
     }
 
     // --- Backwards compatibility: the deprecated workload_identity.enabled key still works via fallback ---

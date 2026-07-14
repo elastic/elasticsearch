@@ -30,8 +30,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
     WireMockServer wireMock
 
     def setup() {
-        // Cannot serialize BwcSetupExtension containing project object
-        configurationCacheCompatible = false
+        disableConfigurationCache("cannot serialize BwcSetupExtension containing project object")
         internalBuild()
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'

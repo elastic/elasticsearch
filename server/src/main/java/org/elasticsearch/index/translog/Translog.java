@@ -37,6 +37,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.eirf.EirfRowXContentParser;
+import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
@@ -1964,7 +1965,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * {@link XContentType}. {@link NoOpOp} entries decode to {@link NoOp} records.
          */
         public List<Operation> explode() throws IOException {
-            try (SourceBatch sourceBatch = new EirfBatch(batchData, () -> {})) {
+            // TODO: Batches may still be encoded as EIRF (row-major) in some tests; pick the reader by magic.
+            // This branch goes away once we fully transition to the column format (ESCF).
+            try (SourceBatch sourceBatch = openBatch(batchData)) {
                 EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(sourceBatch.schema());
                 List<Operation> out = new ArrayList<>(ops.size());
                 for (int i = 0; i < ops.size(); i++) {
@@ -2002,6 +2005,20 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 }
                 return out;
             }
+        }
+
+        /**
+         * Opens the encoded batch bytes as a {@link SourceBatch}, choosing the reader by the format's
+         * magic header: ESCF (column-major) or EIRF (row-major).
+         *
+         * <p>TODO: Some tests still produce EIRF-encoded batches. Once the write path fully transitions
+         * to the column format, this dispatch collapses to a plain {@code new EscfBatch(...)}.
+         */
+        private static SourceBatch openBatch(BytesReference batchData) {
+            if (batchData.getIntLE(0) == EirfBatch.MAGIC_LE) {
+                return new EirfBatch(batchData, () -> {});
+            }
+            return EscfBatch.parse(batchData, () -> {});
         }
 
         @Override

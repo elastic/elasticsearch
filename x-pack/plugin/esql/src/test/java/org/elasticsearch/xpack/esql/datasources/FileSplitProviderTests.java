@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -70,6 +72,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
@@ -650,6 +653,8 @@ public class FileSplitProviderTests extends ESTestCase {
         when(mockReader.minimumSegmentSize()).thenReturn(1024L);
         RecordSplitter mockSplitter = mock(RecordSplitter.class);
         when(mockReader.recordSplitter(anyInt())).thenReturn(mockSplitter);
+        // Newline splitting is strided-safe; the mock must say so or the macro-split guard rejects it.
+        when(mockSplitter.supportsStridedProbing()).thenReturn(true);
         when(mockSplitter.findNextRecordBoundary(any())).thenAnswer(invocation -> {
             InputStream in = invocation.getArgument(0);
             long consumed = 0;
@@ -715,26 +720,195 @@ public class FileSplitProviderTests extends ESTestCase {
         verify(mockSplitter, atLeastOnce()).findNextRecordBoundary(any());
     }
 
+    // CSV's minimum segment size is a fixed 1 MiB, so files must clear ~2 MiB before macro-splitting engages.
+    // Both tests use a payload above that floor so a single split proves the quoting gate, not mere smallness.
+    private static final long CSV_MIN_SEGMENT_BYTES = 1024 * 1024L;
+
+    public void testQuotedCsvMacroSplits() {
+        // Default CSV is mode=quoted: a quoted field may embed newlines, so it cannot be probed at arbitrary
+        // byte offsets. It is still macro-split for cross-node parallelism via the proven-probe path, which
+        // proves a record start at each emitted boundary rather than assuming every newline terminates a record.
+        List<ExternalSplit> splits = discoverRealDelimitedSplits(Map.of(), "quoted.csv", ".csv", CsvFormatOptions.DEFAULT, "a,b,c\n");
+
+        assertTrue("quoted CSV should macro-split", splits.size() > 1);
+        for (ExternalSplit s : splits) {
+            FileSplit fileSplit = (FileSplit) s;
+            if (fileSplit.offset() == 0) {
+                continue;
+            }
+            assertEquals("true", fileSplit.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+        }
+    }
+
+    public void testPlainCsvStillMacroSplits() {
+        // mode=plain turns quoting off, so every newline is an unambiguous record boundary and the file is
+        // still macro-split for cross-node parallelism, exactly as before the quoting gate was added.
+        List<ExternalSplit> splits = discoverRealDelimitedSplits(
+            Map.of("mode", "plain"),
+            "plain.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n"
+        );
+
+        assertTrue("plain CSV should still be macro-split", splits.size() > 1);
+        for (ExternalSplit s : splits) {
+            assertEquals("true", ((FileSplit) s).config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+        }
+    }
+
+    public void testPlainTsvBaselineStillMacroSplits() {
+        // TSV's baseline is mode=plain, so a default .tsv keeps quoting off and is still macro-split.
+        List<ExternalSplit> splits = discoverRealDelimitedSplits(Map.of(), "plain.tsv", ".tsv", CsvFormatOptions.TSV, "a\tb\tc\n");
+
+        assertTrue("plain TSV should still be macro-split", splits.size() > 1);
+        for (ExternalSplit s : splits) {
+            assertEquals("true", ((FileSplit) s).config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+        }
+    }
+
+    public void testEscapedModeMacroSplits() {
+        // mode=escaped keeps quoting off but escaping on: a backslash-escaped raw newline is in-field content,
+        // so the file cannot be probed at arbitrary offsets. It is still macro-split via the proven-probe path,
+        // which proves a record start at each emitted boundary rather than assuming every newline terminates a
+        // record.
+        List<ExternalSplit> splits = discoverRealDelimitedSplits(
+            Map.of("mode", "escaped"),
+            "escaped.csv",
+            ".csv",
+            CsvFormatOptions.DEFAULT,
+            "a,b,c\n"
+        );
+
+        assertTrue("escaped CSV should macro-split", splits.size() > 1);
+        for (ExternalSplit s : splits) {
+            FileSplit fileSplit = (FileSplit) s;
+            if (fileSplit.offset() == 0) {
+                continue;
+            }
+            assertEquals("true", fileSplit.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+        }
+    }
+
+    public void testQuotedModeOverrideOnTsvMacroSplits() {
+        // The proven-probe path keys off the config-resolved reader, not the extension: mode=quoted turns
+        // quoting on for a .tsv whose baseline is plain, and the file still macro-splits through proven probing.
+        List<ExternalSplit> splits = discoverRealDelimitedSplits(
+            Map.of("mode", "quoted"),
+            "quoted-mode.tsv",
+            ".tsv",
+            CsvFormatOptions.TSV,
+            "a\tb\tc\n"
+        );
+
+        assertTrue("quoted-mode TSV should macro-split", splits.size() > 1);
+        for (ExternalSplit s : splits) {
+            FileSplit fileSplit = (FileSplit) s;
+            if (fileSplit.offset() == 0) {
+                continue;
+            }
+            assertEquals("true", fileSplit.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+        }
+    }
+
+    private List<ExternalSplit> discoverRealDelimitedSplits(
+        Map<String, Object> config,
+        String fileName,
+        String extension,
+        CsvFormatOptions baselineOptions,
+        String lineContent
+    ) {
+        StringBuilder sb = new StringBuilder();
+        // ~3.5 MiB: above 2 x CSV_MIN_SEGMENT_BYTES so plain data yields several macro-splits.
+        while (sb.length() < 3 * CSV_MIN_SEGMENT_BYTES + CSV_MIN_SEGMENT_BYTES / 2) {
+            sb.append(lineContent);
+        }
+        byte[] payload = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        String formatName = extension.substring(1);
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy(
+            formatName,
+            (s, bf) -> new CsvFormatReader(bf, baselineOptions, formatName, List.of(extension)),
+            Settings.EMPTY,
+            null
+        );
+        formatRegistry.registerExtension(extension, formatName);
+        formatRegistry.byName(formatName);
+
+        StorageProviderRegistry storageRegistry = createPayloadStorageRegistry(payload);
+        FileSplitProvider splitter = new FileSplitProvider(
+            CSV_MIN_SEGMENT_BYTES,
+            new DecompressionCodecRegistry(),
+            storageRegistry,
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/" + fileName), payload.length, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*" + extension);
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(),
+            config,
+            PartitionMetadata.EMPTY,
+            List.of(),
+            ExternalSchema.EMPTY,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            DeclaredReadSpec.NONE
+        );
+        return splitter.discoverSplits(ctx).splits();
+    }
+
     /**
-     * Uses the real {@code CsvFormatReader#findNextRecordBoundary} with the default bracket-aware
-     * mode. Rows contain {@code ""}-escaped quotes inside quoted fields so that the boundary
-     * finder's quote-tracking logic is exercised. Asserts that boundaries land on real record
-     * starts and that reading each split yields the correct total row count.
+     * Full {@link FileSplitProvider#discoverSplits} path for a quoted CSV file whose quoted fields carry
+     * embedded newlines and {@code ""}-escaped quotes: it emits multiple record-aligned macro-splits (proving
+     * the {@code requiresSequentialWholeFileRead} gate lets a proven-capable quoted splitter through). Every
+     * emitted macro-split must begin at a proven record start (balanced quotes before it).
      */
-    public void testRecordAlignedMacroSplitBoundariesRespectCsvQuoting() throws IOException {
+    public void testDiscoverSplitsMacroSplitsQuotedCsv() {
+        String quotedLine = "1,\"embedded\nnewline\",\"has \"\"quote\"\"\"\n";
+
+        List<ExternalSplit> splits = discoverRealDelimitedSplits(Map.of(), "q.csv", ".csv", CsvFormatOptions.DEFAULT, quotedLine);
+        assertThat("quoted CSV must macro-split", splits.size(), greaterThan(1));
+        for (ExternalSplit split : splits) {
+            FileSplit fileSplit = (FileSplit) split;
+            if (fileSplit.offset() == 0) {
+                continue;
+            }
+            assertEquals(
+                "macro-split must be record-aligned",
+                "true",
+                fileSplit.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY)
+            );
+        }
+    }
+
+    /**
+     * Quoted CSV (the default {@code .csv} mode, whose quoted fields may embed newlines) macro-splits via the
+     * proven-probe path: {@link FileSplitProvider#computeRecordAlignedMacroSplitStarts} emits boundaries for
+     * a non-strided but proven-capable splitter. Every emitted boundary must be a true record start, checked
+     * against the trusted sequential scanner {@link RecordSplitter#findNextRecordBoundary} looped from the file
+     * start (its prefix sums are the true record starts), and the boundaries must be strictly increasing. The
+     * payload carries {@code ""}-escaped quotes, embedded newlines, and CRLF rows inside quoted fields so a
+     * naive strided scan would mis-split; the probe must not.
+     */
+    public void testRecordAlignedMacroSplitDiscoveryProvesQuotedCsvBoundaries() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
 
-        // Build a CSV payload exceeding 3 MiB so that at least two splits are produced
-        // (minimumSegmentSize defaults to 1 MiB). Every third row contains ""-escaped
-        // quotes inside a quoted field, exercising the boundary finder's quote tracking.
+        // Build a CSV payload exceeding 3 MiB so macro-splits form (minimumSegmentSize defaults to 1 MiB).
+        // Quoted fields carry both ""-escaped quotes and embedded raw newlines.
         StringBuilder csv = new StringBuilder();
         csv.append("id,name,note\n");
         int dataRows = 0;
         while (csv.length() < 3 * 1024 * 1024) {
             if (dataRows % 3 == 0) {
-                csv.append(dataRows).append(",\"has \"\"escaped\"\" quotes\",ok\n");
+                csv.append(dataRows).append(",\"has \"\"escaped\"\" quotes\",ok\r\n"); // CRLF row guards \r handling
             } else if (dataRows % 3 == 1) {
-                csv.append(dataRows).append(",plain,\"another \"\"quoted\"\" value\"\n");
+                csv.append(dataRows).append(",\"embedded\nnewline\",\"another \"\"quoted\"\" value\"\n");
             } else {
                 csv.append(dataRows).append(",simple,value\n");
             }
@@ -742,10 +916,12 @@ public class FileSplitProviderTests extends ESTestCase {
         }
         byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
         long fileLength = payload.length;
-        assertTrue("payload must exceed 2 MiB for multiple splits", fileLength > 2 * 1024 * 1024);
+        assertTrue("payload must exceed 2 MiB so macro-splits form", fileLength > 2 * 1024 * 1024);
 
+        // Default construction => quoting on => CsvRecordSplitter: non-strided but proven-capable.
         var csvReader = new CsvFormatReader(blockFactory);
         StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv"));
+        Set<Long> trueStarts = trueRecordStarts(csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES), payload);
 
         long stride = fileLength / 4;
         List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
@@ -753,52 +929,35 @@ public class FileSplitProviderTests extends ESTestCase {
             obj,
             fileLength,
             stride,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false
         );
 
-        assertTrue("Expected multiple macro-split boundaries, got " + starts.size(), starts.size() > 1);
-        assertEquals("First boundary must be 0", 0L, starts.get(0).longValue());
-
-        // Verify each boundary falls right after a \n (record terminator).
-        String payloadStr = csv.toString();
-        for (int i = 1; i < starts.size(); i++) {
-            long boundary = starts.get(i);
-            assertTrue("Boundary " + boundary + " exceeds file length " + fileLength, boundary < fileLength);
-            assertEquals(
-                "Byte before boundary " + boundary + " must be newline (record terminator)",
-                '\n',
-                payloadStr.charAt((int) boundary - 1)
-            );
+        assertThat("expected multiple proven macro-split boundaries", starts.size(), greaterThan(1));
+        assertEquals("first boundary is always the file start", 0L, (long) starts.get(0));
+        long prev = -1;
+        for (long start : starts) {
+            assertThat("boundaries must be strictly increasing", start, greaterThan(prev));
+            prev = start;
+            assertTrue("boundary " + start + " must be a true record start", trueStarts.contains(start));
         }
+    }
 
-        // Read each split range with recordAligned=true and count total rows.
-        var meta = csvReader.metadata(obj);
-        var withSchema = csvReader.withSchema(meta.schema());
-        long totalRows = 0;
-        for (int i = 0; i < starts.size(); i++) {
-            long start = starts.get(i);
-            long end = (i + 1 < starts.size()) ? starts.get(i + 1) : fileLength;
-            StorageObject range = new RangeStorageObject(
-                createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv")),
-                start,
-                end - start
-            );
-            var ctx = FormatReadContext.builder()
-                .projectedColumns(List.of("id", "name", "note"))
-                .batchSize(500)
-                .firstSplit(i == 0)
-                .lastSplit(i == starts.size() - 1)
-                .recordAligned(true)
-                .build();
-            try (CloseableIterator<Page> pages = withSchema.read(range, ctx)) {
-                while (pages.hasNext()) {
-                    Page p = pages.next();
-                    totalRows += p.getPositionCount();
-                    p.releaseBlocks();
-                }
-            }
+    /**
+     * True record starts: the file start (0) plus every prefix sum of {@link RecordSplitter#findNextRecordBoundary}
+     * consumed lengths from the trusted sequential scanner.
+     */
+    private static Set<Long> trueRecordStarts(RecordSplitter splitter, byte[] payload) throws IOException {
+        Set<Long> starts = new TreeSet<>();
+        starts.add(0L);
+        long acc = 0;
+        BufferedInputStream in = new BufferedInputStream(new ByteArrayInputStream(payload));
+        long consumed;
+        while ((consumed = splitter.findNextRecordBoundary(in)) >= 0) {
+            acc += consumed;
+            starts.add(acc);
         }
-        assertEquals("Total rows across all splits must match data row count", dataRows, totalRows);
+        return starts;
     }
 
     /**
@@ -819,14 +978,17 @@ public class FileSplitProviderTests extends ESTestCase {
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
 
-        var csvReader = new CsvFormatReader(blockFactory);
+        // Plain mode: the drain contract is format-agnostic, but macro-split discovery now refuses non-strided
+        // splitters (default/quoted CSV), which are read whole-file instead. Plain CSV keeps strided probing.
+        var csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
         long stride = fileLength / 4;
         List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
             csvReader,
             object,
             fileLength,
             stride,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false
         );
 
         assertThat("expected multiple macro-split boundaries", starts.size(), greaterThan(1));
@@ -846,9 +1008,11 @@ public class FileSplitProviderTests extends ESTestCase {
         }
         byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
         StorageObject object = createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv"));
-        CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
+        // Plain mode: max-record-size stop is format-agnostic; macro-split discovery now refuses non-strided
+        // (default/quoted) CSV. Plain CSV keeps strided probing.
+        var csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
 
-        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, object, payload.length, 4, 16);
+        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, object, payload.length, 4, 16, () -> false);
 
         assertEquals(List.of(0L), starts);
     }
@@ -1025,6 +1189,83 @@ public class FileSplitProviderTests extends ESTestCase {
             assertNotNull(fs.statistics());
             assertEquals(fakeRanges[i].statistics().get("_stats.row_count"), fs.statistics().get("_stats.row_count"));
         }
+    }
+
+    public void testRangeAwareSplitsRekeyRenamesAndPoisonRetypesDeclaredStats() {
+        // Footer range stats are keyed by PHYSICAL names (id, amount) and hold inferred-type values. A declaration
+        // renames id->emp_id (same type: LONG) and re-types amount->price (LONG->KEYWORD). The split boundary must
+        // rekey the rename (values unchanged, so emp_id keeps correct min/max/count) and poison the re-type (price's
+        // extrema dropped + markers written, counts stripped), while row_count survives so COUNT(*) stays warm.
+        Map<String, Object> rawStats = new HashMap<>();
+        rawStats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        rawStats.put(SourceStatisticsSerializer.columnMinKey("id"), 0L);
+        rawStats.put(SourceStatisticsSerializer.columnMaxKey("id"), 99L);
+        rawStats.put(SourceStatisticsSerializer.columnValueCountKey("id"), 100L);
+        rawStats.put(SourceStatisticsSerializer.columnMinKey("amount"), 5L);
+        rawStats.put(SourceStatisticsSerializer.columnValueCountKey("amount"), 100L);
+
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(new SplitRange(100, 500, rawStats)));
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.byName("parquet");
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            new DecompressionCodecRegistry(),
+            createMockStorageRegistry(),
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 2000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.parquet");
+
+        // Overlaid (logical) read schema + unified schema: emp_id:long, price:keyword. Pre-overlay inferred file types
+        // (physical): id:long, amount:long.
+        List<Attribute> overlaid = List.of(
+            new ReferenceAttribute(Source.EMPTY, "emp_id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "price", DataType.KEYWORD)
+        );
+        Map<String, DataType> inferredTypes = Map.of("id", DataType.LONG, "amount", DataType.LONG);
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            entry.path(),
+            new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(overlaid), null, null, inferredTypes)
+        );
+        DeclaredReadSpec spec = DeclaredReadSpec.of(
+            Map.of("emp_id", "id", "price", "amount"), // logical -> physical
+            null,
+            Map.of(),
+            Set.of("emp_id", "price")
+        );
+        ExternalSchema schema = new ExternalSchema(overlaid);
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            schemaMap,
+            Map.of(),
+            PartitionMetadata.EMPTY,
+            List.of(),
+            schema,
+            schema,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            () -> false,
+            spec
+        );
+
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx).splits();
+        assertEquals(1, splits.size());
+        Map<String, Object> stats = ((FileSplit) splits.get(0)).statistics();
+
+        // rename: id's family moved to emp_id, physical key gone
+        assertEquals(0L, stats.get(SourceStatisticsSerializer.columnMinKey("emp_id")));
+        assertEquals(99L, stats.get(SourceStatisticsSerializer.columnMaxKey("emp_id")));
+        assertEquals(100L, stats.get(SourceStatisticsSerializer.columnValueCountKey("emp_id")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("id")));
+        // re-type: price poisoned — extremum dropped + marker written, count stripped
+        assertNull(stats.get(SourceStatisticsSerializer.columnMinKey("price")));
+        assertEquals(Boolean.TRUE, stats.get(SourceStatisticsSerializer.columnMinUnservableKey("price")));
+        assertNull(stats.get(SourceStatisticsSerializer.columnValueCountKey("price")));
+        // COUNT(*) stays warm
+        assertEquals(100L, stats.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
     }
 
     public void testRangeAwareFallbackForEmptyRanges() {
@@ -2002,7 +2243,8 @@ public class FileSplitProviderTests extends ESTestCase {
             ExternalSchema.EMPTY,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            cancel
+            cancel,
+            DeclaredReadSpec.NONE
         );
 
         expectThrows(TaskCancelledException.class, () -> provider.discoverSplits(ctx));
@@ -2027,7 +2269,8 @@ public class FileSplitProviderTests extends ESTestCase {
             ExternalSchema.EMPTY,
             null,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            () -> false
+            () -> false,
+            DeclaredReadSpec.NONE
         );
 
         assertEquals(3, provider.discoverSplits(ctx).splits().size());

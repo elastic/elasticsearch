@@ -120,7 +120,7 @@ public class ExternalSourceCacheService implements Closeable {
      * Entry-count cap for the file-metadata cache. Unlike the schema and listing caches (byte-weighted,
      * variable-size values), a {@link FileMetadata} is two {@code long}s behind a small path key, so the
      * cache is bounded by count rather than bytes — no per-entry byte weigher. 100k tiny entries is a few
-     * tens of MB worst case, and, being hard-TTL-bounded by the schema TTL, the live set is normally far
+     * tens of MB worst case, and, being TTL-bounded by the listing TTL, the live set is normally far
      * smaller. Kept a constant rather than a cluster setting: no workload has needed to tune it, and a
      * public setting is a permanent support surface — it can be promoted to a setting later if a real need
      * appears.
@@ -667,7 +667,7 @@ public class ExternalSourceCacheService implements Closeable {
         // is the only path-agnostic enumeration the Cache exposes that is safe against concurrent LRU
         // mutation (keys()/values() walk the lock-free LRU list). The sweep is O(cache) for a multi-path
         // reconcile, but that is the price of capturing each sibling's pre-eviction entry before the first
-        // commit's put() prunes the expired ones.
+        // commit's put() prunes the LRU tail under weight pressure.
         Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> byPath = new HashMap<>();
         schemaCache.forEach((key, entry) -> {
             if (paths.contains(key.canonicalPath())) {
@@ -681,14 +681,14 @@ public class ExternalSourceCacheService implements Closeable {
      * Collects every schema-cache entry a contribution for {@code (path, mtimeMillis, fingerprint)}
      * applies to: every live match, plus — per KEY, for keys the live sweep no longer has — the
      * pre-reconcile {@code fallback} snapshot (see {@link #snapshotEntriesByPath}), the case where a
-     * sibling path's earlier commit swept this path's expired entry out of the cache before its stats
+     * sibling path's earlier commit weight-evicted this path's entry out of the cache before its stats
      * could be applied. The recovery is per key, not all-or-nothing on the live sweep: the same
      * {@code (path, mtime, fingerprint)} can live under several keys (endpoint/region are key
      * components but not fingerprint inputs), and a partial sweep evicting one twin must not forfeit
      * its delta just because another twin survived. A live entry always wins over its snapshot
      * version (it may carry a concurrent commit's enrichment). A fallback entry passes the same
-     * mtime + fingerprint predicate as a live one, and re-putting it re-inserts the entry with a
-     * fresh write time — the same revive a live expired match already gets. Must run holding the
+     * mtime + fingerprint predicate as a live one, and re-putting it re-inserts the entry — the same
+     * revive a live match already gets. Must run holding the
      * per-path {@link #stripeCommitLocks} lock; callers mutate and re-put the returned entries after
      * this method returns.
      */

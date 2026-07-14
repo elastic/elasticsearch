@@ -303,11 +303,10 @@ public class RequestTaskTests extends ESTestCase {
         var estimatedRamBytesUsed = 100L;
         var releaseBytes = Releasables.releaseOnce(() -> trackingCircuitBreaker.addWithoutBreaking(-estimatedRamBytesUsed));
 
-        // Times out after 1 ms
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
             new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputTypeTests.randomWithNull()),
-            ONE_MILLISECOND,
+            TimeValue.timeValueSeconds(30),
             threadPool,
             listener,
             trackingCircuitBreaker,

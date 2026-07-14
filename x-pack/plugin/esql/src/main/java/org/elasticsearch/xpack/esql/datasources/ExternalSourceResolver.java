@@ -506,7 +506,7 @@ public class ExternalSourceResolver {
         );
         if (unavailable != null) {
             recordDiscoveryFailure();
-            LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             return new ExternalUnavailableException(
                 unavailable.throttling(),
                 unavailable,

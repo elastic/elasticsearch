@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -96,7 +97,9 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
             throw new ExternalUnavailableException(e, "Timed out acquiring cloud API concurrency permit: {}", e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ExternalUnavailableException(e, "Interrupted while acquiring cloud API concurrency permit: {}", e.getMessage());
+            // Interrupt is a shutdown/cancellation signal, not back-pressure: throw non-retryable so the
+            // retry layer does not loop on an interrupt flag that will fire again immediately.
+            throw new EsRejectedExecutionException("Interrupted while acquiring cloud API concurrency permit");
         }
     }
 

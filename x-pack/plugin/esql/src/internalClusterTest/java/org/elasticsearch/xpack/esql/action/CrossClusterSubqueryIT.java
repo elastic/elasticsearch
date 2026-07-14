@@ -1449,7 +1449,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     public void testEnrichWithSubqueriesCoordinatorModeSucceedsEvenIfMissingOnRemote() {
         setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
-        setSkipUnavailable(REMOTE_CLUSTER_2, false);
         try {
             try (EsqlQueryResponse resp = runQuery("""
                 FROM (FROM logs-*), (FROM cluster-a:logs-*)
@@ -1466,7 +1465,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         } finally {
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
-            setSkipUnavailable(REMOTE_CLUSTER_2, false);
         }
     }
 
@@ -1477,7 +1475,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     public void testEnrichWithSubqueriesCoordinatorModeSucceedsWithMixedScopes() {
         setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
-        setSkipUnavailable(REMOTE_CLUSTER_2, false);
         try {
             try (EsqlQueryResponse resp = runQuery("""
                 FROM (FROM logs-*), (FROM cluster-a:logs-* | ENRICH _coordinator:values_enrich ON v WITH enrich_name)
@@ -1494,7 +1491,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         } finally {
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
-            setSkipUnavailable(REMOTE_CLUSTER_2, false);
         }
     }
 
@@ -1505,7 +1501,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     public void testEnrichWithSubqueriesRemoteModeSucceedsWhenPresentOnRemote() {
         setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
-        setSkipUnavailable(REMOTE_CLUSTER_2, false);
         try {
             try (EsqlQueryResponse resp = runQuery("""
                 FROM (FROM cluster-a:logs-*
@@ -1519,7 +1514,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         } finally {
             deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
-            setSkipUnavailable(REMOTE_CLUSTER_2, false);
         }
     }
 
@@ -1531,7 +1525,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
     public void testEnrichWithSubqueriesRemoteModeSucceedsEvenIfMissingOnSiblingLocalBranch() {
         setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
-        setSkipUnavailable(REMOTE_CLUSTER_2, false);
         try {
             try (EsqlQueryResponse resp = runQuery("""
                 FROM
@@ -1553,7 +1546,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         } finally {
             deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
-            setSkipUnavailable(REMOTE_CLUSTER_2, false);
         }
     }
 
@@ -1629,7 +1621,6 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
         setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
-        setSkipUnavailable(REMOTE_CLUSTER_2, false);
         try {
             try (EsqlQueryResponse resp = runQuery("""
                 FROM
@@ -1646,7 +1637,45 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich");
             deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich");
             setSkipUnavailable(REMOTE_CLUSTER_1, false);
-            setSkipUnavailable(REMOTE_CLUSTER_2, false);
+        }
+    }
+
+    /**
+     * Three ENRICH occurrences in one query, each with a different mode, each in a different subquery scope:
+     * <ul>
+     *   <li>ANY mode inside the local FROM-subquery branch — scoped to {@code _local}, needs only the local cluster.</li>
+     *   <li>REMOTE mode inside the {@code cluster-a} FROM-subquery branch — scoped to {@code cluster-a}, needs only that remote.</li>
+     *   <li>COORDINATOR mode after the union — always runs on the coordinating node, needs only the local cluster.</li>
+     * </ul>
+     * Each ENRICH uses a distinct policy name, so each resolves independently with no cross-contamination.
+     */
+    public void testEnrichWithSubqueriesMixedModes() {
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_0", 10);
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich_1", 10);
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_2", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM
+                    (FROM logs-* | ENRICH values_enrich_0 ON v WITH enrich_name),
+                    (FROM cluster-a:logs-* | ENRICH _remote:values_enrich_1 ON v WITH enrich_name)
+                | WHERE v > 1 AND v < 7
+                | ENRICH _coordinator:values_enrich_2 ON v WITH enrich_name
+                | KEEP v
+                | SORT v
+                """, false)) {
+                // local logs has v in [0,9]: {2,3,4,5,6} pass the filter.
+                // cluster-a has v = i*i for i in [0,9]: only v=4 is in (1,7).
+                assertThat(
+                    getValuesList(resp),
+                    equalTo(List.of(List.of(2L), List.of(3L), List.of(4L), List.of(4L), List.of(5L), List.of(6L)))
+                );
+            }
+        } finally {
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_0");
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich_1");
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_2");
+            setSkipUnavailable(REMOTE_CLUSTER_1, false);
         }
     }
 

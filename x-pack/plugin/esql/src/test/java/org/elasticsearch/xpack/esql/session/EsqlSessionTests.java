@@ -53,6 +53,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.containsString;
@@ -515,6 +516,20 @@ public class EsqlSessionTests extends ESTestCase {
             var resolution = createIndexResolution("remote:main", "other:sub");
             assertThat(EsqlSession.computeEnrichScope(enrichNamed(plan, "policy"), resolution), equalTo(Set.of("remote")));
         }
+        {
+            // same policy name in both the outer query and inside the IN subquery: each occurrence at its own source position
+            // gets an independent scope — outer sees the local source, the IN subquery's occurrence sees the remote source.
+            var plan = InSubqueryResolver.resolve(
+                TEST_PARSER.parseQuery("FROM main | ENRICH policy-all ON x | WHERE x IN (FROM remote:sub | ENRICH policy-all ON x)")
+            );
+            var resolution = createIndexResolution("main", "remote:sub");
+            List<Enrich> allPolicyAlls = enrichesNamed(plan, "policy-all");
+            assertThat(allPolicyAlls, hasSize(2));
+            assertThat(
+                allPolicyAlls.stream().map(e -> EsqlSession.computeEnrichScope(e, resolution)).collect(toSet()),
+                equalTo(Set.of(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY), Set.of("remote")))
+            );
+        }
     }
 
     /**
@@ -603,14 +618,23 @@ public class EsqlSessionTests extends ESTestCase {
      * exactly one - test queries give each ENRICH occurrence under test a distinct policy name to disambiguate it.
      */
     private static Enrich enrichNamed(LogicalPlan plan, String policyName) {
+        List<Enrich> matches = enrichesNamed(plan, policyName);
+        assertThat(matches, hasSize(1));
+        return matches.get(0);
+    }
+
+    /**
+     * Returns all {@link Enrich} nodes with the given (resolved) policy name in {@code plan}, in post-order traversal order.
+     * Use this when the same policy name intentionally appears multiple times (e.g. the same-policy-different-branch tests).
+     */
+    private static List<Enrich> enrichesNamed(LogicalPlan plan, String policyName) {
         List<Enrich> matches = new ArrayList<>();
         plan.forEachUp(Enrich.class, e -> {
             if (e.resolvedPolicyName().equals(policyName)) {
                 matches.add(e);
             }
         });
-        assertThat(matches, hasSize(1));
-        return matches.get(0);
+        return matches;
     }
 
     private static Map<IndexPattern, IndexResolution> createIndexResolution(String... indices) {

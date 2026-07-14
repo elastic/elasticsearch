@@ -1274,6 +1274,46 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
         }
     }
 
+    /**
+     * Three ENRICH occurrences in one query, each with a different mode, each in a different subquery scope:
+     * <ul>
+     *   <li>REMOTE mode inside the {@code cluster-a} WHERE IN subquery — scoped to {@code cluster-a}, needs only that remote.</li>
+     *   <li>ANY mode in the outer query — scoped to {@code _local} (outer source is {@code FROM logs-*}), needs only local.</li>
+     *   <li>COORDINATOR mode in the outer query — always runs on the coordinator, needs only local.</li>
+     * </ul>
+     * Each ENRICH uses a distinct policy name, so each resolves independently with no cross-contamination.
+     */
+    public void testEnrichWithMixedModesInSubqueries() {
+        setupEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich_a", 10);
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_b", 10);
+        setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_c", 10);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        try {
+            try (EsqlQueryResponse resp = runQuery("""
+                FROM logs-*
+                | WHERE v IN (
+                    FROM cluster-a:logs-*
+                    | WHERE v > 1 AND v < 7
+                    | ENRICH _remote:values_enrich_a ON v WITH enrich_name
+                    | KEEP v
+                  )
+                | ENRICH values_enrich_b ON v WITH enrich_name
+                | ENRICH _coordinator:values_enrich_c ON v WITH enrich_name
+                | KEEP v
+                | SORT v
+                """, false)) {
+                // cluster-a has v = i*i for i in [0,9]: only v=4 passes the > 1 AND < 7 filter, so IN set = {4}.
+                // Local logs has exactly one row with v=4; after the filter, enrichments, and KEEP v: [[4]].
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(4L))));
+            }
+        } finally {
+            deleteEnrichPolicy(client(REMOTE_CLUSTER_1), "values_enrich_a");
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_b");
+            deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_c");
+            clearSkipUnavailable(3);
+        }
+    }
+
     // ---- helpers ----
 
     /**

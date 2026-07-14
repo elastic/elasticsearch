@@ -1473,7 +1473,7 @@ public class EsqlSession {
      * For example for a query like `FROM (FROM cluster-1:index-1 | LOOKUP JOIN dictionary-1),(FROM cluster-2:index-2)`
      * `dictionary-1` must be found only on `cluster-1` as joining is not performed on `cluster-2`.
      * <p>
-     * Only the data-bearing left subtree of each matching LOOKUP JOIN is considered, see {@link #collectFeedingClusterScope}.
+     * Only the data-bearing left subtree of each matching LOOKUP JOIN is considered, see {@link #collectSourceClusterScope}.
      */
     static Set<String> computeLookupJoinIndexScope(
         LogicalPlan plan,
@@ -1483,7 +1483,7 @@ public class EsqlSession {
         Set<String> scope = new LinkedHashSet<>();
         plan.forEachUp(LookupJoin.class, lj -> {
             if (lj.right() instanceof UnresolvedRelation ur && ur.indexPattern().indexPattern().equals(lookupPattern)) {
-                collectFeedingClusterScope(lj.left(), scope, indexResolution);
+                collectSourceClusterScope(lj.left(), scope, indexResolution);
             }
         });
         return scope;
@@ -1495,11 +1495,11 @@ public class EsqlSession {
      * `FROM (FROM logs-*), (FROM cluster-a:logs-* | ENRICH _remote:policy ON v)`, the ENRICH is scoped to {@code cluster-a}
      * only; the sibling local branch never feeds it.
      * <p>
-     * Only the data-bearing subtree rooted at {@code enrich.child()} is considered, see {@link #collectFeedingClusterScope}.
+     * Only the data-bearing subtree rooted at {@code enrich.child()} is considered, see {@link #collectSourceClusterScope}.
      */
     static Set<String> computeEnrichScope(Enrich enrich, Map<IndexPattern, IndexResolution> indexResolution) {
         Set<String> scope = new LinkedHashSet<>();
-        collectFeedingClusterScope(enrich.child(), scope, indexResolution);
+        collectSourceClusterScope(enrich.child(), scope, indexResolution);
         return scope;
     }
 
@@ -1548,11 +1548,7 @@ public class EsqlSession {
      * {@code CrossClusterInSubqueryIT.testMissingLookupIndexInsideWhereInSubquery} and
      * {@code CrossClusterSubqueryIT.testSubqueryWithRowAndLookupIndicesMissingOnClustersReferencedBySubquery}.
      */
-    private static void collectFeedingClusterScope(
-        LogicalPlan plan,
-        Set<String> scope,
-        Map<IndexPattern, IndexResolution> indexResolution
-    ) {
+    private static void collectSourceClusterScope(LogicalPlan plan, Set<String> scope, Map<IndexPattern, IndexResolution> indexResolution) {
         switch (plan) {
             case UnresolvedRelation source -> {
                 IndexResolution resolution = indexResolution.get(source.indexPattern());
@@ -1561,10 +1557,10 @@ public class EsqlSession {
                 }
             }
             case Row row -> scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            case AbstractSubqueryJoin subqueryJoin -> collectFeedingClusterScope(subqueryJoin.left(), scope, indexResolution);
+            case AbstractSubqueryJoin subqueryJoin -> collectSourceClusterScope(subqueryJoin.left(), scope, indexResolution);
             default -> {
                 for (LogicalPlan child : plan.children()) {
-                    collectFeedingClusterScope(child, scope, indexResolution);
+                    collectSourceClusterScope(child, scope, indexResolution);
                 }
             }
         }

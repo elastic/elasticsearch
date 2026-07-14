@@ -61,6 +61,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
+import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -72,6 +74,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -83,6 +86,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -124,7 +128,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(DataStreamsPlugin.class, MapperExtrasPlugin.class)).toList();
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(DataStreamsPlugin.class, MapperExtrasPlugin.class, UnsignedLongMapperPlugin.class, VersionFieldPlugin.class)
+        ).toList();
     }
 
     public void testProjectConstant() {
@@ -1435,6 +1442,233 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         for (String fn : functions) {
             String query = String.format(Locale.ROOT, "from %s | stats s = %s by kw", indexName, fn);
             run(query).close();
+        }
+    }
+
+    /**
+     * End-to-end proof that YES pushdown is correct with no recheck: for an integer field the FilterExec is dropped, so
+     * rows come straight from the pushed range. The docs cover any-one-value-in-range (b), inclusive bounds (c, d),
+     * just-outside (a, e, f), single-valued (g), and no/empty values (h, i). The NOT query pins must_not(range) as the
+     * exact complement, including the valueless docs — mv_in_range never nulls, so their negation is true.
+     */
+    public void testMvInRangePushdownEndToEnd() {
+        String index = "mv_in_range_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=integer").get());
+        Map<String, List<Integer>> docs = new HashMap<>();
+        docs.put("a", List.of(10, 50));  // neither value in [20, 30]
+        docs.put("b", List.of(5, 25));   // 25 is in range: any one value is enough
+        docs.put("c", List.of(20));      // lower bound, inclusive
+        docs.put("d", List.of(30));      // upper bound, inclusive
+        docs.put("e", List.of(31, 40));  // just above the upper bound
+        docs.put("f", List.of(19));      // just below the lower bound
+        docs.put("g", List.of(22));      // single-valued, in range
+        docs.put("i", List.of());        // field present, zero values
+        for (var doc : docs.entrySet()) {
+            prepareIndex(index).setSource("id", doc.getKey(), "v", doc.getValue()).get();
+        }
+        prepareIndex(index).setSource("id", "h").get();  // field absent
+        client().admin().indices().prepareRefresh(index).get();
+
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(v, 20, 30) | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("b", "c", "d", "g"));
+        }
+        try (EsqlQueryResponse results = run("from " + index + " | where not mv_in_range(v, 20, 30) | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("a", "e", "f", "h", "i"));
+        }
+        // Open range (4th options arg): the bound values c (20) and d (30) drop out; b (25 interior) and g (22) stay.
+        String open = "{\"include_lower\": false, \"include_upper\": false}";
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(v, 20, 30, " + open + ") | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("b", "g"));
+        }
+    }
+
+    /**
+     * mv_in_range treats -0.0 as equal to 0.0, but Lucene sorts -0.0 below +0.0. widenZeroBound widens a 0.0 double bound
+     * outward so the pushed (inclusive, RECHECK) range is a superset that surfaces both signed zeros. An inclusive
+     * [0.0, 1.0] then matches both; an exclusive lower (0.0, 1.0] excludes both — applied by the retained evaluator, not
+     * the pushed range. Neither zero can be silently dropped by the pre-filter.
+     */
+    public void testMvInRangeNegativeZeroEndToEnd() {
+        String index = "mv_in_range_negzero_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "d", "type=double").get());
+        prepareIndex(index).setSource("id", "neg", "d", -0.0).get();
+        prepareIndex(index).setSource("id", "pos", "d", 0.0).get();
+        client().admin().indices().prepareRefresh(index).get();
+        // Inclusive lower: both signed zeros are in [0.0, 1.0].
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(d, 0.0, 1.0) | keep id | sort id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("neg", "pos"));
+        }
+        // Exclusive lower: neither zero satisfies d > 0.0, so both are excluded.
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(d, 0.0, 1.0, {\"include_lower\": false}) | keep id")) {
+            assertThat(getValuesList(results), empty());
+        }
+    }
+
+    /**
+     * A float field widens to double, and its Lucene range rounds the bound to float precision — so a naive YES would
+     * return rows the full-double evaluator rejects. 1.00000001 rounds to 1.0f, matching the {f: 1.0} doc in the pushed
+     * range, but the evaluator's 1.0 &gt;= 1.00000001 is false; double stays RECHECK, so the retained evaluator drops it.
+     */
+    public void testMvInRangeFloatPrecisionRecheckEndToEnd() {
+        String index = "mv_in_range_float_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "f", "type=float").get());
+        prepareIndex(index).setSource("id", "x", "f", 1.0f).get();
+        client().admin().indices().prepareRefresh(index).get();
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(f, 1.00000001, 2.0) | keep id")) {
+            assertThat(getValuesList(results), empty());
+        }
+        // NOT of the same: evaluator says 1.0 >= 1.00000001 is false, so NOT is true -> the row MUST be returned.
+        try (EsqlQueryResponse results = run("from " + index + " | where not mv_in_range(f, 1.00000001, 2.0) | keep id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("x"));
+        }
+    }
+
+    /**
+     * An <b>exclusive</b> bound on a float field must not be pushed as gt/lt: the float mapper rounds an exclusive bound
+     * inward (nextUp of the nearest float), so a doc whose value sits just past the bound would be dropped by the pushed
+     * range with nothing to restore it. 0.3f stores as 0.30000001192…, which is strictly greater than the double 0.3, so
+     * the evaluator matches `> 0.3` and the row must be returned. The RECHECK path pushes the range inclusive (superset)
+     * and the retained evaluator applies the exclusivity, keeping the row.
+     */
+    public void testMvInRangeFloatExclusiveRecheckEndToEnd() {
+        String index = "mv_in_range_float_excl_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "f", "type=float").get());
+        prepareIndex(index).setSource("id", "x", "f", 0.3f).get();
+        client().admin().indices().prepareRefresh(index).get();
+        try (EsqlQueryResponse results = run("from " + index + " | where mv_in_range(f, 0.3, 1.0, {\"include_lower\": false}) | keep id")) {
+            assertThat(getValuesList(results).stream().map(r -> r.get(0)).toList(), contains("x"));
+        }
+    }
+
+    /**
+     * A degenerate open range matches nothing, even over a real index where the exclusive integral bounds push an empty
+     * Lucene range (gt 5 lt 5 collapses to NO_DOCS with no error). A doc holding exactly 5 is returned by the closed
+     * [5, 5] but not by the open (5, 5), and nothing lies strictly between the adjacent integers 5 and 6.
+     */
+    public void testMvInRangeDegenerateOpenRangeEndToEnd() {
+        String index = "mv_in_range_degenerate_e2e";
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "v", "type=integer").get());
+        prepareIndex(index).setSource("id", "x", "v", 5).get();
+        client().admin().indices().prepareRefresh(index).get();
+        String open = "{\"include_lower\": false, \"include_upper\": false}";
+        try (EsqlQueryResponse r = run("from " + index + " | where mv_in_range(v, 5, 5) | keep id")) {
+            assertThat(getValuesList(r).stream().map(row -> row.get(0)).toList(), contains("x")); // closed [5, 5] matches
+        }
+        try (EsqlQueryResponse r = run("from " + index + " | where mv_in_range(v, 5, 5, " + open + ") | keep id")) {
+            assertThat(getValuesList(r), empty()); // open (5, 5) is empty
+        }
+        try (EsqlQueryResponse r = run("from " + index + " | where mv_in_range(v, 5, 6, " + open + ") | keep id")) {
+            assertThat(getValuesList(r), empty()); // no integer strictly between 5 and 6
+        }
+    }
+
+    /**
+     * The full pushdown correctness matrix over a real Lucene index: every pushable type (the integral YES types and the
+     * double/keyword/ip/version RECHECK types) crossed with every boundary mode ([], [), (], ()) and both polarities
+     * (positive and NOT). For each cell the expected ids are computed by an in-test oracle over the indexed values, so the
+     * pushed path — YES (range trusted), RECHECK (range pre-filters, evaluator re-checks), and NOT (integral must_not vs
+     * RECHECK full-filter) — must return exactly what the evaluator semantics dictate for that type, mode, and polarity.
+     */
+    public void testMvInRangePushdownMatrixEndToEnd() {
+        // Integral -> YES. The bound literals below are pinned to the field type (no implicit widening).
+        assertPushdownMatrix("mvir_mx_int", "type=integer", Object::toString, 20, 30, matrixDocs(19, 20, 25, 30, 31));
+        assertPushdownMatrix("mvir_mx_long", "type=long", v -> v + "::long", 20L, 30L, matrixDocs(19L, 20L, 25L, 30L, 31L));
+        assertPushdownMatrix("mvir_mx_ul", "type=unsigned_long", v -> v + "::unsigned_long", 20L, 30L, matrixDocs(19L, 20L, 25L, 30L, 31L));
+        // Dates: ISO-8601 strings sort chronologically, so the oracle's String order matches the type order.
+        assertPushdownMatrix(
+            "mvir_mx_date",
+            "type=date",
+            v -> "\"" + v + "\"::datetime",
+            "2020-01-01",
+            "2021-01-01",
+            matrixDocs("2019-01-01", "2020-01-01", "2020-06-15", "2021-01-01", "2022-01-01")
+        );
+        assertPushdownMatrix(
+            "mvir_mx_dn",
+            "type=date_nanos",
+            v -> "\"" + v + "\"::date_nanos",
+            "2020-01-01",
+            "2021-01-01",
+            matrixDocs("2019-01-01", "2020-01-01", "2020-06-15", "2021-01-01", "2022-01-01")
+        );
+        // RECHECK types. The chosen values keep String order equal to the type order (2-digit ip octets, single-digit
+        // version majors, plain letters) so the oracle can compare lexically.
+        assertPushdownMatrix("mvir_mx_dbl", "type=double", Object::toString, 20.0, 30.0, matrixDocs(19.0, 20.0, 25.0, 30.0, 31.0));
+        assertPushdownMatrix("mvir_mx_kw", "type=keyword", v -> "\"" + v + "\"", "d", "p", matrixDocs("c", "d", "j", "p", "q"));
+        assertPushdownMatrix(
+            "mvir_mx_ip",
+            "type=ip",
+            v -> "\"" + v + "\"::ip",
+            "20.0.0.0",
+            "30.0.0.0",
+            matrixDocs("19.0.0.0", "20.0.0.0", "25.0.0.0", "30.0.0.0", "31.0.0.0")
+        );
+        assertPushdownMatrix(
+            "mvir_mx_ver",
+            "type=version",
+            v -> "\"" + v + "\"::version",
+            "2.0.0",
+            "8.0.0",
+            matrixDocs("1.0.0", "2.0.0", "5.0.0", "8.0.0", "9.0.0")
+        );
+    }
+
+    /** Nine docs covering every boundary role: below/on-lower/interior/on-upper/above, both-out and one-in multivalues,
+     *  an empty (valueless) doc, and both bounds together. */
+    private static <T> Map<String, List<T>> matrixDocs(T below, T lo, T interior, T hi, T above) {
+        Map<String, List<T>> m = new LinkedHashMap<>();
+        m.put("a", List.of(below));
+        m.put("b", List.of(lo));
+        m.put("c", List.of(interior));
+        m.put("d", List.of(hi));
+        m.put("e", List.of(above));
+        m.put("f", List.of(below, above)); // both values out of range
+        m.put("g", List.of(below, interior)); // any-value: only the interior value is in range
+        m.put("h", List.of()); // no value -> false -> lands in the NOT complement
+        m.put("i", List.of(lo, hi)); // both bounds present
+        return m;
+    }
+
+    private <T extends Comparable<T>> void assertPushdownMatrix(
+        String index,
+        String mapping,
+        Function<T, String> lit,
+        T lo,
+        T hi,
+        Map<String, List<T>> docs
+    ) {
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping("id", "type=keyword", "f", mapping).get());
+        for (var doc : docs.entrySet()) {
+            if (doc.getValue().isEmpty()) {
+                prepareIndex(index).setSource("id", doc.getKey()).get();
+            } else {
+                prepareIndex(index).setSource("id", doc.getKey(), "f", doc.getValue()).get();
+            }
+        }
+        client().admin().indices().prepareRefresh(index).get();
+
+        boolean[][] modes = { { true, true }, { false, true }, { true, false }, { false, false } };
+        for (boolean[] mode : modes) {
+            boolean includeLower = mode[0];
+            boolean includeUpper = mode[1];
+            String options = (includeLower && includeUpper)
+                ? ""
+                : ", {\"include_lower\": " + includeLower + ", \"include_upper\": " + includeUpper + "}";
+            String predicate = "mv_in_range(f, " + lit.apply(lo) + ", " + lit.apply(hi) + options + ")";
+
+            List<String> expected = docs.entrySet().stream().filter(e -> e.getValue().stream().anyMatch(v -> {
+                boolean aboveLower = includeLower ? v.compareTo(lo) >= 0 : v.compareTo(lo) > 0;
+                boolean belowUpper = includeUpper ? v.compareTo(hi) <= 0 : v.compareTo(hi) < 0;
+                return aboveLower && belowUpper;
+            })).map(Map.Entry::getKey).sorted().toList();
+            try (EsqlQueryResponse r = run("from " + index + " | where " + predicate + " | keep id | sort id")) {
+                assertThat(predicate, getValuesList(r).stream().map(row -> row.get(0)).toList(), equalTo(expected));
+            }
+
+            List<String> expectedNot = docs.keySet().stream().filter(id -> expected.contains(id) == false).sorted().toList();
+            try (EsqlQueryResponse r = run("from " + index + " | where not " + predicate + " | keep id | sort id")) {
+                assertThat("NOT " + predicate, getValuesList(r).stream().map(row -> row.get(0)).toList(), equalTo(expectedNot));
+            }
         }
     }
 

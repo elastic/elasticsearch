@@ -574,6 +574,10 @@ public class FileSplitProvider implements SplitProvider {
         if (reader == null) {
             return false;
         }
+        if (reader.declaredNameBindingNeedsFileStart()) {
+            // Binding is resolved against the header, which only a split starting at byte 0 can read.
+            return true;
+        }
         SegmentableFormatReader seg = AsyncExternalSourceOperatorFactory.resolveSegmentableReader(reader);
         if (seg == null) {
             return false;

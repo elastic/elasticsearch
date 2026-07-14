@@ -6415,6 +6415,171 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertTrue("expected fault bytes in excerpt, got: " + msg, msg.contains("\"unterminated_field_here_"));
     }
 
+    // --- declared `path` binding under a pinned (strict) schema: esql-planning#1307 ---
+
+    /**
+     * THE SPEC: `dynamic` is orthogonal to every other dimension — it controls only whether a schema is inferred.
+     * A declared `path` must therefore bind the same way whether or not inference ran.
+     * <p>
+     * Under `dynamic:true` the reader infers `col0..colN` and a declared `path: "col2"` binds to field 2. Under
+     * `dynamic:false` the declaration is pinned as the schema and the reader consumes it POSITIONALLY, so the
+     * physical name it was handed (`col2`) is never looked at and the field reads raw field 0 instead. Same mapping,
+     * same file, two answers.
+     * <p>
+     * This is esql-planning#1307 in miniature: `ts` declares `path: "col2"` (the timestamp) but sits FIRST in the
+     * declaration, so positional binding hands it `col0` — a WatchID — and the date parse blows up on it.
+     */
+    /**
+     * The headline invariant of #1307: a declaration that names every column of the file must read the same values
+     * whether or not the reader was told to bind by name. Strict is orthogonal to how `path` works.
+     */
+    public void testDeclaredPathBindingAgreesWithPositionalWhenDeclarationIsInFileOrder() throws Exception {
+        StorageObject object = createStorageObject("7,alpha\n8,beta\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD)
+        );
+        for (boolean binding : List.of(false, true)) {
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+                .withDeclaredPathBinding(binding);
+            try (
+                CloseableIterator<Page> it = reader.read(
+                    object,
+                    FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+                )
+            ) {
+                Page page = it.next();
+                assertEquals("binding=" + binding, 2, page.getPositionCount());
+                assertEquals("binding=" + binding, 7L, ((LongBlock) page.getBlock(0)).getLong(0));
+                assertEquals("binding=" + binding, 8L, ((LongBlock) page.getBlock(0)).getLong(1));
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /** A headered declaration binds the column its `path` NAMES, not the one sitting at its declaration position. */
+    public void testStrictHeaderedPathBindsByHeaderName() throws Exception {
+        StorageObject object = createStorageObject("id,junk,ts\n42,x,2013-07-14 20:38:47\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.DATETIME),
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", true, "datetime_format", "yyyy-MM-dd HH:mm:ss")
+        ).withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(1373834327000L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(42L, ((LongBlock) page.getBlock(1)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    /** A narrow declaration may name a column far to the right of a wide file — the classic ClickBench shape. */
+    public void testDeclaredPathBindsColumnBeyondDeclarationWidth() throws Exception {
+        StorageObject object = createStorageObject("a,b,c,d,e,f,g,h,i,999\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "col9", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(999L, ((LongBlock) page.getBlock(0)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    /** A `path` that names nothing in the header is a declaration error, not a silent null column. */
+    public void testDeclaredPathMissingFromHeaderThrows() {
+        StorageObject object = createStorageObject("id,ts\n42,7\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "nope", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("declared path [nope] not found in the header"));
+    }
+
+    /** A headerless `path` must name a position; anything else cannot be bound and must not read a wrong column. */
+    public void testHeaderlessDeclaredPathThatIsNotAColumnPositionThrows() {
+        StorageObject object = createStorageObject("42,7\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "EventTime", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredPathBinding(true);
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("does not name a physical column of the headerless"));
+    }
+
+    /**
+     * The split gate: a headered path-bound read must declare that it needs the file start, or the coordinators would
+     * hand it a chunk with no header and the binding would silently fall back to positional. Headerless stays
+     * splittable — that is the shape throughput-sensitive reads use.
+     */
+    public void testDeclaredNameBindingNeedsFileStartOnlyWhenHeadered() {
+        CsvFormatReader headered = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true));
+        CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        assertFalse("no declared path -> nothing to bind by name", headered.declaredNameBindingNeedsFileStart());
+        assertTrue(
+            "headered + declared path binds against the header line",
+            headered.withDeclaredPathBinding(true).declaredNameBindingNeedsFileStart()
+        );
+        assertFalse(
+            "headerless names encode their own positions, so any split can bind",
+            headerless.withDeclaredPathBinding(true).declaredNameBindingNeedsFileStart()
+        );
+    }
+
+    public void testStrictHeaderlessPathBindsByColumnIndex() throws Exception {
+        StorageObject object = createStorageObject("9110818468285196899,x,2013-07-14 20:38:47\n");
+        // Declaration ORDER deliberately differs from the file's column order; `path` is what reconciles them.
+        // Physical names are what the reader receives after PhysicalNames.translateSchema.
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.DATETIME),  // declared ts, path: col2
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)       // declared id, path: col0
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "datetime_format", "yyyy-MM-dd HH:mm:ss")
+        ).withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(
+                "path:col2 must bind the TIMESTAMP field, not raw field 0",
+                1373834327000L,  // 2013-07-14T20:38:47Z
+                ((LongBlock) page.getBlock(0)).getLong(0)
+            );
+            assertEquals("path:col0 must bind the id field", 9110818468285196899L, ((LongBlock) page.getBlock(1)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
     // --- FormatReadContext.readSchema() honor tests ---
     // These tests prove the runtime CSV reader uses the planner-resolved read schema (passed via
     // FormatReadContext.readSchema()) as the authoritative positional column layout, overriding

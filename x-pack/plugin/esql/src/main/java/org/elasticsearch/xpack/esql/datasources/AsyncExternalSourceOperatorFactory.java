@@ -2616,6 +2616,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (seg == null) {
             return ParallelDispatchMode.NOT_PARALLELIZABLE;
         }
+        if (reader.declaredNameBindingNeedsFileStart()) {
+            // The coordinators give only chunk 0 the file's leading bytes (firstSplit(chunk.index == 0)), so a
+            // header-bound declaration cannot resolve on any other chunk. Read the file as one sequential stream.
+            return ParallelDispatchMode.NOT_PARALLELIZABLE;
+        }
         if (reader instanceof CompressionDelegatingFormatReader cdr) {
             DecompressionCodec codec = cdr.codec();
             if (codec instanceof SplittableDecompressionCodec || codec instanceof IndexedDecompressionCodec) {

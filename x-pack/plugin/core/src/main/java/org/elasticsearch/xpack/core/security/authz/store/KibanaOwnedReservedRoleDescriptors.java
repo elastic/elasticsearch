@@ -118,6 +118,12 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
+                // Context Engine system indices defined in KibanaPlugin
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".contextengine-*")
+                    .privileges("read", "write", "manage")
+                    .allowRestrictedIndices(true)
+                    .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(".management-beats").privileges("create_index", "read", "write").build(),
                 // To facilitate ML UI functionality being controlled using Kibana security

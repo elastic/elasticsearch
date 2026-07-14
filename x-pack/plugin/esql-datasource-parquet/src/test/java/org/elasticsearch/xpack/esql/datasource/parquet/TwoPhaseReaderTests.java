@@ -64,6 +64,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -1224,6 +1225,49 @@ public class TwoPhaseReaderTests extends ESTestCase {
             int engineCount = pages.stream().mapToInt(Page::getPositionCount).sum();
 
             assertThat("tiny block LIKE (nativeAsync=" + nativeAsync + ") must match oracle", engineCount, equalTo(oracleCount));
+        }
+    }
+
+    /**
+     * Verifies that {@code read_nanos} grows during two-phase iterator consumption, specifically
+     * covering the {@code drainEmptyTwoPhaseBatches()} path that skips fully-filtered batches in
+     * projection columns. A selective filter (id &lt; 10 out of 5 000 rows) produces many zero-survivor
+     * batches per row group, forcing real decompression/skip work in each drain call.
+     */
+    public void testReadNanosIncludesTwoPhaseDrain() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("test_schema");
+
+        byte[] parquetData = buildParquet(schema, 5_000, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            g.add("label", repeat('x', 256) + "_" + i);
+            return g;
+        });
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 10L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        CountingStorageObject obj = new CountingStorageObject(parquetData, true);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+
+        try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).build())) {
+            long readNanosAfterOpen = reader.statusSnapshot().readNanos();
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+            assertThat(
+                "read_nanos must grow beyond the open phase as drainEmptyTwoPhaseBatches() performs real decode work",
+                reader.statusSnapshot().readNanos(),
+                greaterThan(readNanosAfterOpen)
+            );
         }
     }
 

@@ -58,6 +58,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     private static final float LIMIT_SCALE = 1f / ((1 << 4) - 1);
 
+    // Tolerance for bulk scores produced by the native SIMD path. SIMD bulk corrections
+    // (bbq_apply_corrections_*) use fast RCP (1/x) instructions, which have a higher relative error
+    // (~2^-12) wrt the scalar Lucene reference (which uses exact division).
+    // Matches the cross-scorer tolerance used by ES940OSQVectorsScorerTests.
+    private static final float NATIVE_BULK_DELTA = 1e-2f;
+
     private final VectorSimilarityType similarityType;
 
     public Int4VectorScorerFactoryTests(VectorSimilarityType similarityType) {
@@ -504,7 +510,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 var testScorer = supplier.scorer();
                 testScorer.setScoringOrdinal(idx0);
                 testScorer.bulkScore(nodes, scores, nodes.length);
-                assertFloatArrayEquals(expected, scores, BULK_DELTA);
+                assertFloatArrayEquals(expected, scores, NATIVE_BULK_DELTA);
             }
         }
     }
@@ -552,7 +558,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                     var testScorer = supplier.scorer();
                     testScorer.setScoringOrdinal(idx0);
                     testScorer.bulkScore(nodes, scores, nodes.length);
-                    assertFloatArrayEquals(expected, scores, BULK_DELTA);
+                    assertFloatArrayEquals(expected, scores, NATIVE_BULK_DELTA);
                 }
             }
         }
@@ -622,7 +628,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                     corrections[queryIdx].quantizedComponentSum()
                 ).get();
                 scorer.bulkScore(nodes, scores, nodes.length);
-                assertFloatArrayEquals(expected, scores, BULK_DELTA);
+                assertFloatArrayEquals(expected, scores, NATIVE_BULK_DELTA);
             }
         }
     }

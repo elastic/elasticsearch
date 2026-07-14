@@ -1,0 +1,5 @@
+pr: 153836
+summary: "[ES|QL|DS] A declared `format` is the epoch unit of a numeric column"
+area: ES|QL
+type: bug
+issues: []

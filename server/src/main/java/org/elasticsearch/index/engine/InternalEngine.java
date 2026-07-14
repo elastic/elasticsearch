@@ -996,6 +996,7 @@ public class InternalEngine extends Engine {
                 if (get.isReadFromTranslog()) {
                     if (versionValue.getLocation() != null) {
                         try {
+                            // Translog.Location will contain a non-negative rowIndex when reading from a batch
                             final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
                             if (operation != null) {
                                 return getFromTranslog(get, (Translog.Index) operation, mappingLookup, documentParser, searcherWrapper);

@@ -101,6 +101,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfEncoder;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -261,6 +263,19 @@ public class InternalEngineTests extends EngineTestCase {
         }
         try (EirfBatch batch = EirfEncoder.encode(sources, xContentType)) {
             return new EirfBatch(new BytesArray(BytesReference.toBytes(batch.data())), () -> {});
+        }
+    }
+
+    private static EscfBatch encodeAsEscfBatch(List<Engine.Index> operations) throws IOException {
+        List<BytesReference> sources = new ArrayList<>(operations.size());
+        XContentType xContentType = operations.get(0).parsedDoc().getXContentType();
+        for (Engine.Index op : operations) {
+            assert op.parsedDoc().getXContentType() == xContentType
+                : "batch ops must share one XContentType, got [" + xContentType + "] and [" + op.parsedDoc().getXContentType() + "]";
+            sources.add(op.source().originalBytes());
+        }
+        try (EscfBatch batch = EscfEncoder.encode(sources, xContentType)) {
+            return EscfBatch.parse(new BytesArray(BytesReference.toBytes(batch.data())), () -> {});
         }
     }
 
@@ -8440,14 +8455,14 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.getProcessedLocalCheckpoint(), equalTo(checkpointBefore + 1));
     }
 
-    public void testBatchIndexRecordsRowIndexInVersionMapAcrossAFailure() throws IOException {
+    public void testBatchIndexRecordsRowIndex() throws IOException {
         final MapperService mapperService = createMapperService();
         final MappingLookup mappingLookup = mapperService.mappingLookup();
         final DocumentParser documentParser = mapperService.documentParser();
 
         engine.index(indexForDoc(createParsedDoc("1", null)));
         try (
-            Engine.GetResult arm = engine.get(
+            Engine.GetResult random = engine.get(
                 new Engine.Get(true, true, "1"),
                 mappingLookup,
                 documentParser,
@@ -8455,7 +8470,7 @@ public class InternalEngineTests extends EngineTestCase {
                 searcher -> searcher
             )
         ) {
-            assertTrue(arm.exists());
+            assertTrue(random.exists());
         }
 
         final List<Engine.Index> ops = new ArrayList<>();
@@ -8486,6 +8501,77 @@ public class InternalEngineTests extends EngineTestCase {
         assertEquals(loc0.generation(), loc2.generation());
         assertEquals(loc0.translogLocation(), loc2.translogLocation());
         assertNotEquals(loc0, loc2);
+    }
+
+    public void testSingleIndexRecordsNoBatchRow() throws IOException {
+        final MapperService mapperService = createMapperService();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final DocumentParser documentParser = mapperService.documentParser();
+        engine.index(indexForDoc(createParsedDoc("random", null)));
+        try (
+            Engine.GetResult res = engine.get(
+                new Engine.Get(true, true, "random"),
+                mappingLookup,
+                documentParser,
+                SplitShardCountSummary.IRRELEVANT,
+                searcher -> searcher
+            )
+        ) {
+            assertTrue(res.exists());
+        }
+
+        // A single-document index (engine.index, NOT a batch) records a whole-record location:
+        // batchRowIndex == -1, i.e. not a batch row
+        final Engine.Index op = indexForDoc(createParsedDoc("single", null));
+        engine.index(op);
+
+        final Translog.Location loc = engine.getVersionMap().get(op.uid()).getLocation();
+        assertNotNull("single-doc index must have a tracked translog location", loc);
+        assertFalse("single-doc location must not be a batch row", loc.isBatchRow());
+        assertEquals(-1, loc.batchRowIndex());
+    }
+
+    public void testRealtimeGetServesBatchedDoc() throws IOException {
+        final MapperService mapperService = createMapperService();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final DocumentParser documentParser = mapperService.documentParser();
+
+        engine.index(indexForDoc(createParsedDoc("random", null)));
+        try (
+            Engine.GetResult res = engine.get(
+                new Engine.Get(true, true, "random"),
+                mappingLookup,
+                documentParser,
+                SplitShardCountSummary.IRRELEVANT,
+                searcher -> searcher
+            )
+        ) {
+            assertTrue(res.exists());
+        }
+
+        final List<Engine.Index> ops = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            ops.add(indexForDoc(createParsedDoc("doc-" + i, null)));
+        }
+        engine.indexBatch(ops, encodeAsEscfBatch(ops));
+
+        // A realtime GET on a batched doc is served straight from the translog batch row.
+        final long refreshedCheckpointBefore = engine.lastRefreshedCheckpoint();
+        final long translogGetsBefore = engine.translogGetCount.get();
+        try (
+            Engine.GetResult get = engine.get(
+                new Engine.Get(true, true, "doc-1"),
+                mappingLookup,
+                documentParser,
+                SplitShardCountSummary.IRRELEVANT,
+                searcher -> searcher
+            )
+        ) {
+            assertTrue("doc-1 must be found", get.exists());
+            assertNotNull(get.docIdAndVersion());
+        }
+        assertEquals("served from the translog batch row", translogGetsBefore + 1, engine.translogGetCount.get());
+        assertEquals("no refresh should have been triggered", refreshedCheckpointBefore, engine.lastRefreshedCheckpoint());
     }
 
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {

@@ -489,6 +489,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
         final Translog.IndexBatch batch = buildBatch(List.of(Map.of("k", "v0"), Map.of("k", "v1")), XContentType.JSON, 0L, term);
         final Translog.Location location = translog.add(batch);
 
+        // readOperation will throw for batch records if batchRowIndex is not set in the location
         final IOException ex = expectThrows(IOException.class, () -> translog.readOperation(location));
         assertTrue("unexpected exception message: " + ex.getMessage(), ex.getMessage() != null && ex.getMessage().contains("batch"));
     }
@@ -526,6 +527,61 @@ public class TranslogIndexBatchTests extends ESTestCase {
 
         // Assertion should fail since batchA will contain seqNo 0 with a different uid.
         expectThrows(AssertionError.class, () -> translog.add(batchA));
+    }
+
+    public void testReadByLocationReturnsBatchRow() throws IOException {
+        final XContentType xContentType = XContentType.JSON;
+        final List<BytesReference> sources = List.of(
+            new BytesArray("{\"k\":\"row-0\"}"),
+            new BytesArray("{\"k\":\"row-1\"}"),
+            new BytesArray("{\"k\":\"row-2\"}")
+        );
+        final List<Translog.IndexBatch.Op> ops = new ArrayList<>(sources.size());
+        for (int i = 0; i < sources.size(); i++) {
+            ops.add(new Translog.IndexBatch.IndexOp(1L, i, 100L + i, i, xContentType, Uid.encodeId("doc-" + i), null));
+        }
+        final Translog.Location batchLocation = translog.add(buildEscfBatch(sources, xContentType, primaryTerm.get(), ops));
+        assertFalse("add() returns a whole-record location. Should not contain batchRowIndex", batchLocation.isBatchRow());
+
+        for (int i = 0; i < sources.size(); i++) {
+            // Mimic the LiveVersionMap by building a new Location with rowIndex
+            final Translog.Location rowLocation = new Translog.Location(
+                batchLocation.generation(),
+                batchLocation.translogLocation(),
+                batchLocation.size(),
+                i
+            );
+            final Translog.Operation op = translog.readOperation(rowLocation);
+            assertTrue("expected Index op, got " + (op == null ? "null" : op.getClass()), op instanceof Translog.Index);
+            final Translog.Index idx = (Translog.Index) op;
+            assertEquals(i, idx.seqNo());
+            assertEquals(Uid.encodeId("doc-" + i), idx.uid());
+            assertEquals("row-" + i, XContentHelper.convertToMap(idx.source(), false, xContentType).v2().get("k"));
+        }
+    }
+
+    public void testReadByLocationRowIndexOnNonBatchThrows() throws IOException {
+        // A single-document op
+        final Translog.Index single = new Translog.Index(
+            Uid.encodeId("doc-0"),
+            0L,
+            primaryTerm.get(),
+            1L,
+            new BytesArray("{\"k\":\"v\"}"),
+            null,
+            -1L
+        );
+        final Translog.Location opLocation = translog.add(single);
+
+        // explicitly set batchRowIndex to a non-negative value
+        final Translog.Location fakeLocation = new Translog.Location(
+            opLocation.generation(),
+            opLocation.translogLocation(),
+            opLocation.size(),
+            0
+        );
+        final IOException ex = expectThrows(IOException.class, () -> translog.readOperation(fakeLocation));
+        assertTrue("unexpected message: " + ex.getMessage(), ex.getMessage() != null && ex.getMessage().contains("not a batch record"));
     }
 
 }

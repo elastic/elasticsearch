@@ -338,10 +338,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
 
     private SnapshotInfo snapshotInfo(SnapshotState state, List<String> indices, int failedShards, int successfulShards) {
         return new SnapshotInfo(
-            new Snapshot(
-                randomAlphaOfLength(10),
-                new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10))
-            ),
+            new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10))),
             indices,
             List.of(),
             List.of(),

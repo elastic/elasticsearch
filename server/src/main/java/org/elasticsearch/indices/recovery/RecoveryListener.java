@@ -15,6 +15,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public interface RecoveryListener {
@@ -106,6 +107,35 @@ public interface RecoveryListener {
                 } finally {
                     runAfter.run();
                 }
+            }
+        };
+    }
+
+    /// Returns a listener which delegates `onRecoveryDone` and `onRecoveryAborted` unchanged to the given listener.
+    //// Before delegating `onRecoveryFailure`, it first runs `beforeFailure`.
+    static RecoveryListener runBeforeFailure(RecoveryListener listener, Consumer<RecoveryFailedException> beforeFailure) {
+        return new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                listener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                try {
+                    beforeFailure.accept(e);
+                } finally {
+                    listener.onRecoveryFailure(e, sendShardFailure);
+                }
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                listener.onRecoveryAborted();
             }
         };
     }

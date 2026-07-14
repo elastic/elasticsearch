@@ -47,8 +47,8 @@ public class EsqlLogContext extends QueryLoggerContext {
     }
 
     private static String queryType(EsqlQueryRequest request) {
-        if (request instanceof PreparedEsqlQueryRequest prepared) {
-            return prepared.getType() != null ? prepared.getType() : TYPE;
+        if (request instanceof PreparedEsqlQueryRequest prepared && prepared.getType() != null) {
+            return prepared.getType();
         }
         return TYPE;
     }

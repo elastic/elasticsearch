@@ -67,6 +67,51 @@ public class FromAggregateMetricDoubleTests extends AbstractScalarFunctionTestCa
             }));
         }
 
+        // The DEFAULT metric (index 4) has no dedicated sub-block; it's computed on the fly as sum / count.
+        suppliers.add(new TestCaseSupplier(List.of(dataType, DataType.INTEGER), () -> {
+            double sum = randomDoubleBetween(-1000, 1000, true);
+            int count = randomIntBetween(1, 1000);
+            var agg_metric = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                sum,
+                count
+            );
+            int index = AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex();
+            double expectedValue = sum / count;
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(agg_metric, dataType, "agg_metric"),
+                    new TestCaseSupplier.TypedData(index, DataType.INTEGER, "subfield_index").forceLiteral()
+                ),
+                "FromAggregateMetricDoubleEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
+                DataType.DOUBLE,
+                Matchers.closeTo(expectedValue, Math.abs(expectedValue * 0.00001))
+            );
+        }));
+
+        // DEFAULT metric with count == 0: test division with 0 is handled.
+        suppliers.add(new TestCaseSupplier(List.of(dataType, DataType.INTEGER), () -> {
+            var agg_metric = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                randomDoubleBetween(-1000, 1000, true),
+                0
+            );
+            int index = AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex();
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(agg_metric, dataType, "agg_metric"),
+                    new TestCaseSupplier.TypedData(index, DataType.INTEGER, "subfield_index").forceLiteral()
+                ),
+                "FromAggregateMetricDoubleEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
+                DataType.DOUBLE,
+                Matchers.nullValue()
+            );
+        }));
+
         return parameterSuppliersFromTypedData(
             anyNullIsNull(
                 suppliers,

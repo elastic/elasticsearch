@@ -2493,7 +2493,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 new PutDatasetAction.Request(
                     TIMEOUT,
                     TIMEOUT,
-                    "epoch_micros_annotated",
+                    "annotated_ts_micros",
                     "local_ds",
                     parquet.toUri().toString(),
                     null,
@@ -2502,7 +2502,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 )
             )
         );
-        try (var response = run(syncEsqlQueryRequest("FROM epoch_micros_annotated | EVAL ms = ts::long | KEEP ms | LIMIT 1"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM annotated_ts_micros | EVAL ms = ts::long | KEEP ms | LIMIT 1"), TIMEOUT)) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             // micros -> millis: the .456 microsecond remainder truncates away

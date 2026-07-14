@@ -20,14 +20,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
-import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -43,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
@@ -69,83 +63,7 @@ public abstract class AbstractXPackRollingUpgradeTestCase extends ParameterizedR
     private static final ElasticsearchCluster cluster = buildCluster();
 
     private static ElasticsearchCluster buildCluster() {
-        LocalClusterSpecBuilder<ElasticsearchCluster> cluster = ElasticsearchCluster.local()
-            .distribution(DistributionType.DEFAULT)
-            .version(getOldClusterVersion(), isOldClusterDetachedVersion())
-            .nodes(NODE_NUM)
-            .setting("xpack.license.self_generated.type", "trial")
-            .setting("xpack.security.enabled", "true")
-            .setting("xpack.security.transport.ssl.enabled", "true")
-            .setting("xpack.security.transport.ssl.key", "testnode.pem")
-            .setting("xpack.security.transport.ssl.certificate", "testnode.crt")
-            .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
-            .setting("xpack.security.authc.token.enabled", "true")
-            .setting("xpack.security.authc.token.timeout", "60m")
-            .setting("xpack.security.authc.api_key.enabled", "true")
-            .setting("xpack.security.audit.enabled", "true")
-            .setting("xpack.watcher.encrypt_sensitive_data", "true")
-            .setting("logger.org.elasticsearch.xpack.watcher", "DEBUG")
-            .setting("ingest.geoip.downloader.enabled.default", "true")
-            .setting("repositories.url.allowed_urls", "http://snapshot.test*")
-            .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
-            .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-            .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))
-            .user("test_user", "x-pack-test-password")
-            .setting("path.repo", new Supplier<>() {
-                @Override
-                @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
-                public String get() {
-                    return repoDirectory.getRoot().getPath();
-                }
-            });
-
-        Version oldVersion = Version.tryParse(getOldClusterVersion()).orElse(null);
-
-        if (oldVersion != null && oldVersion.onOrAfter(Version.fromString("7.0.0"))) {
-            cluster.setting("xpack.security.authc.realms.file.file1.order", "0");
-            cluster.setting("xpack.security.authc.realms.native.native1.order", "1");
-        } else if (oldVersion != null) {
-            cluster.setting("xpack.security.authc.realms.file1.type", "file");
-            cluster.setting("xpack.security.authc.realms.file1.order", "0");
-            cluster.setting("xpack.security.authc.realms.native1.type", "native");
-            cluster.setting("xpack.security.authc.realms.native1.order", "1");
-        } else {
-            cluster.setting("xpack.security.authc.realms.file.file1.order", "0");
-            cluster.setting("xpack.security.authc.realms.native.native1.order", "1");
-        }
-
-        if (oldVersion == null || oldVersion.onOrAfter(Version.fromString("6.6.0"))) {
-            cluster.setting("ccr.auto_follow.wait_for_metadata_timeout", "1s");
-        }
-
-        if (oldVersion == null || oldVersion.onOrAfter(Version.fromString("7.11.0"))) {
-            cluster.configFile("operator_users.yml", Resource.fromClasspath("operator_users.yml"));
-            cluster.setting("xpack.security.operator_privileges.enabled", "true");
-            cluster.user("non_operator", "x-pack-test-password", "superuser", false);
-        }
-
-        if (oldVersion == null || oldVersion.onOrAfter(Version.fromString("8.7.0"))) {
-            cluster.configFile("operator/settings.json", Resource.fromClasspath("operator_defined_role_mappings.json"));
-        }
-
-        if (oldVersion == null || oldVersion.onOrAfter(Version.fromString("7.14.0"))) {
-            cluster.setting("ingest.geoip.downloader.endpoint", "http://invalid.endpoint");
-        }
-
-        if (oldVersion == null || oldVersion.onOrAfter(Version.fromString("7.12.0"))) {
-            cluster.setting("xpack.searchable.snapshot.shared_cache.size", "16MB");
-            cluster.setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB");
-        }
-
-        // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is
-        // inconsistent. As usual, we operate under the premise that "versionless" clusters (serverless) are on the latest code and
-        // do not need this.
-        if (oldVersion != null && oldVersion.before(Version.fromString("8.18.0"))) {
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
-            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
-        }
-
-        return cluster.build();
+        return XPackRollingUpgradeClusterConfig.buildCluster(getOldClusterVersion(), isOldClusterDetachedVersion(), repoDirectory);
     }
 
     @ClassRule

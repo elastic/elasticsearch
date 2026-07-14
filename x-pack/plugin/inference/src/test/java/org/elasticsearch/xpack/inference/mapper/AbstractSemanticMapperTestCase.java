@@ -58,6 +58,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbe
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 /**
  * Shared base class for {@link SemanticTextFieldMapperTests} and {@link SemanticFieldMapperTests}.
@@ -349,5 +350,34 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         SemanticFieldMapper.SemanticFieldType semanticFieldType = (SemanticFieldMapper.SemanticFieldType) fieldType;
         assertEquals(expectedInferenceId, semanticFieldType.getInferenceId());
         assertEquals(expectedSearchInferenceId, semanticFieldType.getSearchInferenceId());
+    }
+
+    protected SemanticIndexOptions extractCurrentIndexOptions(MapperService mapperService, String fieldName) {
+        SemanticIndexOptions currentIndexOptions = null;
+        T sfm = getSemanticFieldMapper(mapperService, fieldName);
+        FieldMapper embeddingsMapper = sfm.fieldType().getEmbeddingsField();
+        if (embeddingsMapper instanceof DenseVectorFieldMapper dvm) {
+            IndexOptions denseIndexOptions = dvm.fieldType().getIndexOptions();
+            if (denseIndexOptions != null) {
+                currentIndexOptions = new SemanticIndexOptions(SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR, denseIndexOptions);
+            }
+        }
+
+        return currentIndexOptions;
+    }
+
+    protected void givenModelSettings(String inferenceId, MinimalServiceSettings modelSettings) {
+        when(globalModelRegistry.getMinimalServiceSettings(inferenceId)).thenReturn(modelSettings);
+    }
+
+    protected static String randomFieldName(int numLevel) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < numLevel; i++) {
+            if (i > 0) {
+                builder.append('.');
+            }
+            builder.append(randomAlphaOfLengthBetween(5, 15));
+        }
+        return builder.toString();
     }
 }

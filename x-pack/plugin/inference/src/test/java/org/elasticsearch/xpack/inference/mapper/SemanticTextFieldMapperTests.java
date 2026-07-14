@@ -61,7 +61,6 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
-import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapperTests;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests;
@@ -962,20 +961,6 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 assertThat(exc.getMessage(), containsString(expectedErrorMessage));
             }
         }
-    }
-
-    private SemanticIndexOptions extractCurrentIndexOptions(MapperService mapperService, String fieldName) {
-        SemanticIndexOptions currentIndexOptions = null;
-        SemanticTextFieldMapper sfm = getSemanticFieldMapper(mapperService, fieldName);
-        FieldMapper embeddingsMapper = sfm.fieldType().getEmbeddingsField();
-        if (embeddingsMapper instanceof DenseVectorFieldMapper dvm) {
-            IndexOptions denseIndexOptions = dvm.fieldType().getIndexOptions();
-            if (denseIndexOptions != null) {
-                currentIndexOptions = new SemanticIndexOptions(SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR, denseIndexOptions);
-            }
-        }
-
-        return currentIndexOptions;
     }
 
     /**
@@ -2583,17 +2568,6 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         }
     }
 
-    static String randomFieldName(int numLevel) {
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < numLevel; i++) {
-            if (i > 0) {
-                builder.append('.');
-            }
-            builder.append(randomAlphaOfLengthBetween(5, 15));
-        }
-        return builder.toString();
-    }
-
     private static Query generateNestedTermSparseVectorQuery(NestedLookup nestedLookup, String fieldName, List<String> tokens) {
         NestedObjectMapper mapper = nestedLookup.getNestedMappers().get(getChunksFieldName(fieldName));
         assertNotNull(mapper);
@@ -2651,10 +2625,6 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             }
         }
         assertThat(count, equalTo(expectedCount));
-    }
-
-    private void givenModelSettings(String inferenceId, MinimalServiceSettings modelSettings) {
-        when(globalModelRegistry.getMinimalServiceSettings(inferenceId)).thenReturn(modelSettings);
     }
 
     private static Throwable rootCause(Throwable t) {

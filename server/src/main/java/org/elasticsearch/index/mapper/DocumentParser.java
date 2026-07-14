@@ -498,7 +498,12 @@ public final class DocumentParser {
                 context.path().add(currentFieldName);
             } else {
                 var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
+                // Skip the _ignored_source pre-capture for fields that redirect multi_value=false violations to ._on_failure:
+                // the duplicate value must land in exactly one storage location, and on_failure=ignore already handles that write.
+                boolean redirectsMultiValueViolations = fieldMapper.isSingleValueEnforced()
+                    && fieldMapper.onFailureBehavior() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE;
                 if (context.canAddIgnoredField()
+                    && redirectsMultiValueViolations == false
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
                         || sourceKeepMode == Mapper.SourceKeepMode.ALL
                         || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope() && parsesArrayValue(mapper) == false)

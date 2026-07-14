@@ -263,8 +263,7 @@ public abstract class FieldMapper extends Mapper {
      * Parse the field value using the provided {@link DocumentParserContext}.
      */
     public void parse(DocumentParserContext context) throws IOException {
-        // Set when a multi_value=false violation is redirected to a failure column (on_failure=ignore) rather than thrown: the value is
-        // skipped entirely, so parseCreateField and multi-fields must not run for it.
+        // Set when a multi_value=false violation is redirected to a failure column (on_failure=ignore) rather than thrown
         boolean redirectedToFailureColumn = false;
         try {
             if (builderParams.hasScript) {
@@ -286,7 +285,7 @@ public abstract class FieldMapper extends Mapper {
         }
         // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
         // of the mappings
-        if (redirectedToFailureColumn == false && builderParams.multiFields.mappers.length != 0) {
+        if (builderParams.multiFields.mappers.length != 0) {
             doParseMultiFields(context);
         }
     }

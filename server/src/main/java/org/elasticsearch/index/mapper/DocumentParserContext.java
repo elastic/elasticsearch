@@ -427,6 +427,12 @@ public abstract class DocumentParserContext {
         if (singleValuedFields.add(fieldName)) {
             return false;
         }
+        XContentParser.Token currentToken = parser().currentToken();
+        assert currentToken != XContentParser.Token.START_OBJECT && currentToken != XContentParser.Token.START_ARRAY
+            : "enforceSingleValue should only be called for leaf values, but field ["
+                + fieldName
+                + "] is currently at token "
+                + currentToken;
         if (onFailure == FieldMapper.DocValuesParameter.Values.OnFailure.FAIL) {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"

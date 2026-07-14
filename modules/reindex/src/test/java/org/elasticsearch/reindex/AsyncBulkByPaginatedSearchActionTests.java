@@ -1437,10 +1437,11 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     }
 
     /**
-     * Complementary to {@link #testPartialPaginatedSearchRequestFinishing}: {@link AbstractAsyncBulkByPaginatedSearchAction#finishHim} runs first
-     * and wins {@link AbstractAsyncBulkByPaginatedSearchAction#currentPaginatedSearchResponse}'s {@code getAndSet(null)}, releasing unconsumed hits.
+     * Complementary to {@link #testPartialPaginatedSearchRequestFinishing}: {@link AbstractAsyncBulkByPaginatedSearchAction#finishHim}
+     * runs first and wins {@link AbstractAsyncBulkByPaginatedSearchAction#currentPaginatedSearchResponse}'s {@code getAndSet(null)},
+     * releasing unconsumed hits.
      * A later {@link AbstractAsyncBulkByPaginatedSearchAction#prepareBulkRequest} for the same
-     * {@link AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse} must lose
+     * {@link AbstractAsyncBulkByPaginatedSearchAction.PaginatedSearchConsumableHitsResponse} must lose
      * the {@code compareAndSet(asyncResponse, null)} race and return without consuming or releasing again.
      */
     public void testPrepareBulkRequestNoOpsWhenFinishHimAlreadyClaimedPaginatedSearchResponse() {

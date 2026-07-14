@@ -149,6 +149,38 @@ const FLAKINESS_OUTCOMES_ARTIFACT = "flakiness-outcomes.json";
 // and the bootstrap step's `artifact_paths` in pipelines/pull-request/flakiness-detection.yml.
 const FLAKINESS_SKIPPED_ARTIFACT = "flakiness-skipped.json";
 
+// Written by the pre-flight compile step (below) only when compilation fails, so
+// the analyze step can record a single `build_failed` outcome instead of the
+// batches (which are skipped) producing none. Keep in sync with entrypoints/analyze.ts.
+const FLAKINESS_PRECOMPILE_ARTIFACT = "flakiness-precompile.json";
+
+// Pre-flight compile gate. A PR that does not compile otherwise fails every
+// re-run batch identically (up to 100x fan-out), which wastes CI and floods the
+// metric with `infra_fail`. This step compiles the affected source sets once;
+// batch steps hard-depend on it (allow_failure: false) so Buildkite skips them
+// when it fails. It is intentionally NOT never-fail wrapped: it must exit
+// non-zero to make Buildkite skip the batches. That turns the step red, but only
+// ever on a PR that genuinely does not compile - which is already red from its
+// main build - so it never introduces a false failure on an otherwise-green PR.
+const PRECOMPILE_KEY = "flakiness-detection:precompile";
+const PRECOMPILE_TIMEOUT_MINUTES = 30;
+
+function precompileCommand(compileTasks: string[]): string {
+  return [
+    "set +e",
+    `.ci/scripts/run-gradle.sh ${compileTasks.join(" ")}`,
+    "rc=$?",
+    // On failure, leave a marker the analyze step folds in as `build_failed`,
+    // and annotate. `$$rc` defers past Buildkite's upload-time interpolation.
+    `if [ "$$rc" -ne 0 ]; then`,
+    `  printf '{"outcome":"build_failed","reason":"compile"}' > "${FLAKINESS_PRECOMPILE_ARTIFACT}" || true`,
+    `  buildkite-agent annotate --style error --context "flakiness-detection-precompile" "Flakiness detection could not compile the affected test source sets, so the re-runs were skipped. This reflects only the flakiness precompile step (see its log for the compile error); it makes no claim about the rest of the build." || true`,
+    "fi",
+    // Propagate the real exit code so dependent batch steps are skipped on failure.
+    "exit $$rc",
+  ].join("\n");
+}
+
 interface PipelineGroup {
   group: string;
   steps: PipelineStep[];
@@ -165,10 +197,11 @@ interface Pipeline {
 export function toBuildkitePipeline(
   commands: RunnableCommand[],
   cfg: AgentConfig,
-  // When there are BWC (`not_applicable`) tests to report, the analyze step is
-  // emitted even with zero batch steps so those records still reach the outcomes
-  // artifact.
-  opts: { hasNotApplicable?: boolean } = {}
+  // `hasNotApplicable`: emit the analyze step even with zero batch steps so BWC
+  // `not_applicable` records still reach the outcomes artifact.
+  // `compileTasks`: when non-empty, prepend a pre-flight compile gate the batch
+  // steps hard-depend on.
+  opts: { hasNotApplicable?: boolean; compileTasks?: string[] } = {}
 ): Pipeline {
   const byKey = new Map<string, RunnableCommand[]>();
   for (const c of commands) {
@@ -176,6 +209,10 @@ export function toBuildkitePipeline(
     if (list) list.push(c);
     else byKey.set(c.key, [c]);
   }
+
+  // Only gate on compile when there are batches to gate. All-BWC builds (no
+  // batches) have nothing to compile.
+  const gateOnCompile = (opts.compileTasks?.length ?? 0) > 0 && byKey.size > 0;
 
   const steps: PipelineStep[] = [];
   for (const [key, batches] of byKey) {
@@ -206,10 +243,32 @@ export function toBuildkitePipeline(
       step.parallelism = batches.length;
       step.env = env;
     }
+
+    // Hard dependency (allow_failure omitted = false) so a compile failure skips
+    // the re-run batches instead of running them all doomed.
+    if (gateOnCompile) {
+      step.depends_on = [{ step: PRECOMPILE_KEY, allow_failure: false }];
+    }
     steps.push(step);
   }
 
+  // Prepend the compile gate ahead of the batch steps it guards.
+  if (gateOnCompile) {
+    steps.unshift({
+      label: "precompile",
+      key: PRECOMPILE_KEY,
+      command: precompileCommand(opts.compileTasks!),
+      timeout_in_minutes: PRECOMPILE_TIMEOUT_MINUTES,
+      agents: { ...cfg.agents },
+      artifact_paths: FLAKINESS_PRECOMPILE_ARTIFACT,
+      retry: NO_AUTO_RETRY,
+    });
+  }
+
   if (steps.length > 0 || opts.hasNotApplicable) {
+    // allow_failure: true so the report still runs when a batch fails, is
+    // skipped (compile gate failed), or the gate itself fails - it must record
+    // the `build_failed`/`not_applicable` outcomes in those cases.
     const deps = steps.map((s) => ({ step: s.key, allow_failure: true }));
     steps.push({
       label: "flakiness report",
@@ -226,6 +285,7 @@ export function toBuildkitePipeline(
         [
           `buildkite-agent artifact download "${FLAKINESS_STATUS_ARTIFACTS}" . || true`,
           `buildkite-agent artifact download "${FLAKINESS_SKIPPED_ARTIFACT}" . || true`,
+          `buildkite-agent artifact download "${FLAKINESS_PRECOMPILE_ARTIFACT}" . || true`,
           "node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
         ].join("\n"),
         "flakiness-detection:analyze",
@@ -253,10 +313,12 @@ export function toBuildkitePipeline(
 export function uploadBuildkitePipeline(
   commands: RunnableCommand[],
   cfg: AgentConfig,
-  opts: { hasNotApplicable?: boolean; cwd?: string } = {}
+  opts: { hasNotApplicable?: boolean; compileTasks?: string[]; cwd?: string } = {}
 ): void {
   const cwd = opts.cwd ?? PROJECT_ROOT;
-  const yaml = stringify(toBuildkitePipeline(commands, cfg, { hasNotApplicable: opts.hasNotApplicable }));
+  const yaml = stringify(
+    toBuildkitePipeline(commands, cfg, { hasNotApplicable: opts.hasNotApplicable, compileTasks: opts.compileTasks })
+  );
   console.log("--- Generated pipeline");
   console.log(yaml);
 

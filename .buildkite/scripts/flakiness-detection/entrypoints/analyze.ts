@@ -43,6 +43,11 @@ const OUTCOMES_ARTIFACT_FILE = "flakiness-outcomes.json";
 // runners/buildkite.ts and entrypoints/pr.ts.
 const SKIPPED_FILE = "flakiness-skipped.json";
 
+// Written by the pre-flight compile step only when compilation fails; folded in
+// as a single `build_failed` outcome (the skipped batches produce none). Keep in
+// sync with FLAKINESS_PRECOMPILE_ARTIFACT in runners/buildkite.ts.
+const PRECOMPILE_FILE = "flakiness-precompile.json";
+
 // Self-reported by each batch job's never-fail wrapper (runners/buildkite.ts).
 interface JobStatus {
   jobId: string;
@@ -195,6 +200,35 @@ export function notApplicablePayload(t: ClassifiedTest): FlakinessPayload {
   };
 }
 
+// True when the pre-flight compile step left a failure marker.
+async function precompileFailed(): Promise<boolean> {
+  try {
+    const parsed = JSON.parse(await readFile(join(PROJECT_ROOT, PRECOMPILE_FILE), "utf8"));
+    return parsed?.outcome === "build_failed";
+  } catch {
+    return false;
+  }
+}
+
+// A single record standing in for the batches that were skipped because the PR
+// did not compile.
+export function buildFailedPayload(): FlakinessPayload {
+  return {
+    jobId: "build-failed:precompile",
+    stepKey: "flakiness-detection:precompile",
+    kind: "",
+    rc: 1,
+    durationSec: 0,
+    realFailures: 0,
+    suiteTimeouts: 0,
+    totalCases: 0,
+    outcome: "build_failed",
+    timedOut: false,
+    failingClasses: [],
+    reason: "compile",
+  };
+}
+
 function annotate(context: string, style: string, body: string): void {
   try {
     execSync(`buildkite-agent annotate --style "${style}" --context "${context}"`, {
@@ -230,6 +264,14 @@ async function run(): Promise<void> {
   }
   if (skipped.length > 0) {
     console.log(`Recorded ${skipped.length} not_applicable (BWC, not re-runnable via the bare task).`);
+  }
+
+  // If the pre-flight compile gate failed, the batches were skipped and produced
+  // no statuses; record a single `build_failed` so a non-compiling PR does not
+  // read as zero problems.
+  if (await precompileFailed()) {
+    payloads.push(buildFailedPayload());
+    console.log("Recorded build_failed (PR did not compile; re-runs were skipped).");
   }
 
   if (process.env.CI && payloads.length > 0) {

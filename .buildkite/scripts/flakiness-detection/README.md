@@ -176,6 +176,7 @@ Derived in priority order by `analyzer/outcome.ts` (`deriveOutcome`):
 | `hang`          | `rc == 0` but zero recorded test cases                                          |
 | `clean_pass`    | `rc == 0` with recorded cases and no real failures                              |
 | `not_applicable`| assigned upstream (not by `deriveOutcome`) for a test that could not be re-run at all, e.g. a BWC qa project whose bare task is disabled - "nothing to re-run", excluded from the false-failure metric |
+| `build_failed`  | assigned upstream when the pre-flight compile gate fails: the PR did not compile, so the re-run batches were skipped. One record stands in for the skipped batches; excluded from the false-failure metric (the PR is already red from its main build) |
 
 `timedOut` is reported alongside `outcome` so the two timeout shapes stay
 distinguishable: a job that times out **with** a real failure is

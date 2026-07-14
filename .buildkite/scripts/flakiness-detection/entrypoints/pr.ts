@@ -5,7 +5,7 @@ import { resolve } from "path";
 import { classifyChangedFiles } from "../detectors/changed-files.ts";
 import { partitionByBwc, defaultBuildScriptReader } from "../detectors/bwc.ts";
 import { findUnmutedTests, type UnmuteDetectionResult } from "../detectors/unmutes.ts";
-import { buildCommands, dedupeTests } from "../commands.ts";
+import { buildCommands, compileTasksFor, dedupeTests } from "../commands.ts";
 import { uploadBuildkitePipeline } from "../runners/buildkite.ts";
 import { DEFAULT_AGENT_CONFIG, DEFAULT_BATCHING_CONFIG, type ClassifiedTest } from "../domain.ts";
 
@@ -174,7 +174,7 @@ export function run(): void {
   uploadBuildkitePipeline(
     buildCommands(runnable, DEFAULT_BATCHING_CONFIG),
     DEFAULT_AGENT_CONFIG,
-    { hasNotApplicable: notApplicable.length > 0 }
+    { hasNotApplicable: notApplicable.length > 0, compileTasks: compileTasksFor(runnable) }
   );
 }
 

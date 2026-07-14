@@ -1097,13 +1097,25 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return deletionPolicy;
     }
 
-    public record Location(long generation, long translogLocation, int size) implements Comparable<Location> {
+    public record Location(long generation, long translogLocation, int size, int batchRowIndex) implements Comparable<Location> {
 
         public static final Location EMPTY = new Location(0, 0, 0);
 
+        public Location(long generation, long translogLocation, int size) {
+            this(generation, translogLocation, size, -1);
+        }
+
+        /**
+         * Whether this location pins a single document's row within a batch ({@link IndexBatch})
+         */
+        public boolean isBatchRow() {
+            return batchRowIndex >= 0;
+        }
+
         @Override
         public String toString() {
-            return "[generation: " + generation + ", location: " + translogLocation + ", size: " + size + "]";
+            final String base = "[generation: " + generation + ", location: " + translogLocation + ", size: " + size;
+            return isBatchRow() ? base + ", batchRowIndex: " + batchRowIndex + "]" : base + "]";
         }
 
         @Override

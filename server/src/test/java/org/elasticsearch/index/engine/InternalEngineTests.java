@@ -8440,6 +8440,54 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.getProcessedLocalCheckpoint(), equalTo(checkpointBefore + 1));
     }
 
+    public void testBatchIndexRecordsRowIndexInVersionMapAcrossAFailure() throws IOException {
+        final MapperService mapperService = createMapperService();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final DocumentParser documentParser = mapperService.documentParser();
+
+        engine.index(indexForDoc(createParsedDoc("1", null)));
+        try (
+            Engine.GetResult arm = engine.get(
+                new Engine.Get(true, true, "1"),
+                mappingLookup,
+                documentParser,
+                SplitShardCountSummary.IRRELEVANT,
+                searcher -> searcher
+            )
+        ) {
+            assertTrue(arm.exists());
+        }
+
+        final List<Engine.Index> ops = new ArrayList<>();
+        for (int i = 0; i < 3; ++i) {
+            var doc = createParsedDoc(Integer.toString(i), null);
+            // i = 1 will result in failure since we already indexed it
+            ops.add(new Engine.Index(newUid(doc), primaryTerm.get(), doc, Versions.MATCH_DELETED));
+        }
+        final List<Engine.IndexResult> results = engine.indexBatch(ops, encodeAsEirfBatch(ops));
+        assertEquals(Engine.Result.Type.SUCCESS, results.get(0).getResultType());
+        assertEquals(Engine.Result.Type.FAILURE, results.get(1).getResultType());
+        assertThat(results.get(1).getFailure(), instanceOf(VersionConflictEngineException.class));
+        assertEquals(Engine.Result.Type.SUCCESS, results.get(2).getResultType());
+
+        final Map<BytesRef, VersionValue> versionMap = engine.getVersionMap();
+        final Translog.Location loc0 = versionMap.get(ops.get(0).uid()).getLocation();
+        final Translog.Location loc2 = versionMap.get(ops.get(2).uid()).getLocation();
+
+        assertNotNull("0 must have a tracked batch-row location", loc0);
+        assertTrue(loc0.isBatchRow());
+        assertEquals(0, loc0.batchRowIndex());
+
+        assertNotNull("2 must have a tracked batch-row location", loc2);
+        assertTrue(loc2.isBatchRow());
+        assertEquals(2, loc2.batchRowIndex());   // crucially 2, not 1 — the failed row is not compacted
+
+        // Both point at the same physical batch record (same generation + offset), differing only by row.
+        assertEquals(loc0.generation(), loc2.generation());
+        assertEquals(loc0.translogLocation(), loc2.translogLocation());
+        assertNotEquals(loc0, loc2);
+    }
+
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {
         var releasable = commits.keySet().stream().filter(c -> c.getGeneration() == generation).findFirst();
         assertThat(releasable, isPresent());

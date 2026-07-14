@@ -157,8 +157,9 @@ public class ExternalSourceCacheService implements Closeable {
 
         // No setExpireAfterWrite on schemaCache or datasetAggregateCache: both are identity-keyed (per-file by
         // mtime, dataset by file-set fingerprint), so a changed input already misses. A timer would only
-        // discard still-valid, expensively harvested entries on a clock. Only the listing cache keeps a TTL —
-        // it discovers file identity and has no per-file key to invalidate on.
+        // discard still-valid, expensively harvested entries on a clock. The two discovery caches below
+        // (listing and file-metadata) DO keep the listing TTL — they hold current file identity with no
+        // per-file key to invalidate on, so they must refresh on a clock.
         this.schemaCache = CacheBuilder.<SchemaCacheKey, SchemaCacheEntry>builder()
             .setMaximumWeight(schemaBudget)
             .weigher((key, value) -> value.estimatedBytes())

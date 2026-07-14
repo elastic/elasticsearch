@@ -50,8 +50,8 @@ class org.elasticsearch.painless.api.Debug {
 #### ES Scripting API
 
 class org.elasticsearch.common.geo.GeoPoint {
-  ()
-  (double, double)
+  () @allocates_constant[bytes="32b"]
+  (double, double) @allocates_constant[bytes="32b"]
   double getLat()
   double getLon()
 }
@@ -96,8 +96,8 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {
   org.elasticsearch.common.geo.GeoPoint getValue()
   double getLat()
   double getLon()
-  double[] getLats()
-  double[] getLons()
+  double[] getLats() @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointsDoublesBytes"]
+  double[] getLons() @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="geoPointsDoublesBytes"]
 
   # geo distance functions
   double arcDistance(double,double)
@@ -133,7 +133,7 @@ class org.apache.lucene.util.BytesRef {
   int offset
   int length
   boolean bytesEquals(BytesRef)
-  String utf8ToString()
+  String utf8ToString() @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimators", method="utf8ToStringBytes"]
 }
 
 class org.elasticsearch.search.lookup.FieldLookup {

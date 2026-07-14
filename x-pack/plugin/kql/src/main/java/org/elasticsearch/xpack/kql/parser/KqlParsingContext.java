@@ -123,6 +123,14 @@ public class KqlParsingContext {
         return fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE);
     }
 
+    public boolean isKeywordField(String fieldName) {
+        return isKeywordField(fieldType(fieldName));
+    }
+
+    public boolean isRuntimeField(String fieldName) {
+        return isRuntimeField(fieldType(fieldName));
+    }
+
     public static boolean isSearchableField(String fieldName, MappedFieldType fieldType) {
         return IGNORED_METADATA_FIELDS.contains(fieldName) == false && fieldType.isSearchable();
     }

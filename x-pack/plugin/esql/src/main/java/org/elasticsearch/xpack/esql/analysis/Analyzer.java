@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.dsltranslate.TranslateKqlOnExternalDataset;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -315,7 +316,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // translate metric aggregates early before they are converted to nested expressions
             new TranslateTimeSeriesAggregate(),
             new ApplyWindowFilter(),
-            new UnionTypesCleanup()
+            new UnionTypesCleanup(),
+            // Everything is resolved; nothing after reshapes a dataset filter, and the verifier runs next. Translate a
+            // KQL() over a dataset into predicates here so the verifier sees the rewrite, and rejects only what stays.
+            new TranslateKqlOnExternalDataset()
         )
     );
     public static final TransportVersion ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION = TransportVersion.fromName(

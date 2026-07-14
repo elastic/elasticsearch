@@ -43,7 +43,11 @@ import java.util.Map;
  */
 public final class RequestFilterGraft {
 
-    static final TransportVersion ESQL_REQUEST_FILTER_ON_DATASET = TransportVersion.fromName("esql_request_filter_on_dataset");
+    /**
+     * The dataset-filter feature gate. The graft here and the {@code KQL()}-on-dataset analyzer rewrite both emit the
+     * same mv-function vocabulary, so both version-gate on this one transport version — below it, neither applies.
+     */
+    public static final TransportVersion ESQL_REQUEST_FILTER_ON_DATASET = TransportVersion.fromName("esql_request_filter_on_dataset");
 
     private RequestFilterGraft() {}
 

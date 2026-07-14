@@ -179,12 +179,12 @@ public final class OtelSdkSettings {
 
     // --- Logs
 
-    /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_LOGS_ENABLED} is true. */
+    /** OTLP/gRPC endpoint URL where the SDK exports audit log records. Required when {@link #TELEMETRY_LOGS_AUDIT_ENABLED} is true. */
     public static final Setting<String> TELEMETRY_LOGS_ENDPOINT = Setting.simpleString("telemetry.logs.endpoint", "", NodeScope);
 
     /** Whether the OTel SDK audit-log export path is active. When false, {@link OtelSdkExportLogsSupplier} installs nothing. */
-    public static final Setting<Boolean> TELEMETRY_LOGS_ENABLED = Setting.boolSetting(
-        "telemetry.logs.enabled",
+    public static final Setting<Boolean> TELEMETRY_LOGS_AUDIT_ENABLED = Setting.boolSetting(
+        "telemetry.logs.audit.enabled",
         false,
         new Setting.Validator<>() {
             @Override
@@ -194,7 +194,7 @@ public final class OtelSdkSettings {
             public void validate(Boolean value, Map<Setting<?>, Object> settings) {
                 if (value && ((String) settings.get(TELEMETRY_LOGS_ENDPOINT)).isEmpty()) {
                     throw new IllegalArgumentException(
-                        TELEMETRY_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.logs.enabled=true"
+                        TELEMETRY_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.logs.audit.enabled=true"
                     );
                 }
             }
@@ -217,6 +217,34 @@ public final class OtelSdkSettings {
         1,
         NodeScope
     );
+
+    /**
+     * PEM-encoded CA certificate(s) used to verify the otel-delivery-gateway's server certificate.
+     * Multiple files are concatenated in PEM order. Paths are resolved relative to the Elasticsearch
+     * config directory when not absolute. When empty, the OTel exporter's default TLS handling is used.
+     */
+    public static final Setting<List<String>> TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES = Setting.stringListSetting(
+        "telemetry.logs.ssl.certificate_authorities",
+        NodeScope
+    );
+
+    /**
+     * Path to the PEM-encoded client certificate for mTLS authentication to the otel-delivery-gateway.
+     * Must be set together with {@link #TELEMETRY_LOGS_SSL_KEY}.
+     * Path is resolved relative to the Elasticsearch config directory when not absolute.
+     */
+    public static final Setting<String> TELEMETRY_LOGS_SSL_CERTIFICATE = Setting.simpleString(
+        "telemetry.logs.ssl.certificate",
+        "",
+        NodeScope
+    );
+
+    /**
+     * Path to the PKCS#8 PEM-encoded private key for the client certificate ({@link #TELEMETRY_LOGS_SSL_CERTIFICATE}).
+     * Must be set together with {@link #TELEMETRY_LOGS_SSL_CERTIFICATE}. The key must be unencrypted.
+     * Path is resolved relative to the Elasticsearch config directory when not absolute.
+     */
+    public static final Setting<String> TELEMETRY_LOGS_SSL_KEY = Setting.simpleString("telemetry.logs.ssl.key", "", NodeScope);
 
     private static final class GreaterThanTimeValueValidator implements Setting.Validator<TimeValue> {
 

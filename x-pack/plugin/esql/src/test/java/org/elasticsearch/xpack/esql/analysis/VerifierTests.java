@@ -70,6 +70,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -448,6 +449,14 @@ public class VerifierTests extends ESTestCase {
             "from ages | FORK (where true) | where age_range is null",
             containsString("Cannot use field [age_range] with unsupported type [integer_range]")
         );
+    }
+
+    public void testForkWithSourceInOneBranch() {
+        // A FORK/UnionAll branch that lacks a _source column present in a sibling branch gets that column null-filled by
+        // Analyzer.resolveFork with a Literal(null, DataType.SOURCE). That null SOURCE literal lands in a synthesized Eval.
+        // SOURCE is excluded from DataType.isRepresentable, so Eval.postAnalysisVerification must carve out a null SOURCE
+        // literal or it wrongly fails the query with "EVAL does not support type [_source]".
+        defaultAnalyzer().query("FROM test METADATA _source | FORK (WHERE emp_no > 0) (WHERE emp_no > 0 | DROP _source)");
     }
 
     public void testRoundFunctionInvalidInputs() {
@@ -2012,6 +2021,21 @@ public class VerifierTests extends ESTestCase {
             "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match_phrase(title, \"data\")",
             containsString("[MatchPhrase] function cannot be used after FORK")
         );
+        // No KEEP here: unlike the general per-command check above, KQL/QSTR's own stricter allow-list also
+        // rejects Project (i.e. RENAME/KEEP), and since Failure equality is keyed on the failing node - not the
+        // message - that nearer failure would otherwise shadow the FORK one we're asserting on.
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | where kql(\"field_name: Meditation\")",
+            containsString("[KQL] function cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | where qstr(\"field_name: Meditation\")",
+            containsString("[QSTR] function cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep vector | where knn(vector, [1, 2, 3])",
+            containsString("[KNN] function cannot be used after FORK")
+        );
         fullText().stripErrorPrefix(false)
             .error(
                 "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
@@ -2346,6 +2370,21 @@ public class VerifierTests extends ESTestCase {
         fullText().error(
             "from test | eval name = title | where match_phrase(name, \"Meditation\")",
             containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping")
+        );
+    }
+
+    /**
+     * A computed field on a genuine (Lucene-backed) index isn't from a federated source - the "not a field from an
+     * index mapping" message must not gain the federated-source clause that {@code FullTextFunction.fieldVerifier}
+     * adds for fields sourced from an {@code ExternalRelation}. Regression guard for over-broadening that clause.
+     */
+    public void testFullTextFunctionsRejectEvalColumnsMessageOmitsFederatedClauseOnRealIndex() throws Exception {
+        fullText().error(
+            "from test | eval name = title | where match_phrase(name, \"Meditation\")",
+            allOf(
+                containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping"),
+                not(containsString("federated"))
+            )
         );
     }
 
@@ -2888,6 +2927,23 @@ public class VerifierTests extends ESTestCase {
                     + "expected one of [analyzer, output_format, similarity_threshold]"
             )
         );
+    }
+
+    public void testMvInRangeInvalidOptions() {
+        defaultAnalyzer().query("FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": false })");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lowr\": false })",
+            containsString("Invalid option [include_lowr]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": \"banana\" })",
+            containsString("Invalid option [include_lower]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_in_range(salary, 1, 2, { \"include_lower\": null })",
+            containsString("Invalid option [include_lower]")
+        );
+        defaultAnalyzer().error("FROM test | WHERE mv_in_range(salary, 1, 2, 5)", containsString("must be a map expression"));
     }
 
     public void testCategorizeOptionOutputFormat() {
@@ -4530,20 +4586,20 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightRejectsInvalidEnumOptions() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOption("encoder", "xml");
         assertInvalidHighlightOption("boundary_scanner", "chars");
         assertInvalidHighlightOption("order", "doc");
     }
 
     public void testHighlightEncoderIsCaseSensitive() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         // boundary_scanner and order are case-insensitive, but encoder mirrors Query DSL and is case-sensitive.
         assertInvalidHighlightOption("encoder", "HTML");
     }
 
     public void testHighlightRejectsWrongValueTypesAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue("pre_tags", "123", containsString("Option [pre_tags] must be a string"));
         assertInvalidHighlightOptionValue("post_tags", "true", containsString("Option [post_tags] must be a string"));
         assertInvalidHighlightOptionValue(
@@ -4556,7 +4612,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightRejectsMalformedBoundaryScannerLocaleAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue(
             "boundary_scanner_locale",
             "\"en_US\"",
@@ -4568,14 +4624,14 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testHighlightRejectsDecimalNumericsAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue("number_of_fragments", "0.9", containsString("Option [number_of_fragments] must be an integer"));
         assertInvalidHighlightOptionValue("fragment_size", "10.5", containsString("Option [fragment_size] must be an integer"));
         assertInvalidHighlightOptionValue("max_analyzed_offset", "10.9", containsString("Option [max_analyzed_offset] must be an integer"));
     }
 
     public void testHighlightRejectsOutOfRangeNumericsAtAnalysis() {
-        assumeTrue("requires HIGHLIGHT_V2 capability", EsqlCapabilities.Cap.HIGHLIGHT_V2.isEnabled());
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
         assertInvalidHighlightOptionValue("number_of_fragments", "-1", containsString("Option [number_of_fragments] must be >= 0"));
         assertInvalidHighlightOptionValue("fragment_size", "-1", containsString("Option [fragment_size] must be >= 0"));
         assertInvalidHighlightOptionValue("no_match_size", "-1", containsString("Option [no_match_size] must be >= 0"));

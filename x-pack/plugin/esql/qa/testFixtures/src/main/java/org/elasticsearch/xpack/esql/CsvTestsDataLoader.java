@@ -27,6 +27,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -137,6 +138,7 @@ public class CsvTestsDataLoader {
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
         new TestDataset("partial_mapping_mv_sample_data", "mapping-partial_mapping_sample_data.json", "partial_mapping_mv_sample_data.csv"),
+        new TestDataset("no_mapping_date_extract_fields", "mapping-no_mapping_sample_data.json", "date_extract_fields.csv"),
         new TestDataset(
             "partial_mapping_mv_no_source_sample_data",
             "mapping-partial_mapping_no_source_sample_data.json",
@@ -182,6 +184,7 @@ public class CsvTestsDataLoader {
         new TestDataset("clientips").withIndex("clientips_lookup").withSetting("lookup-settings.json"),
         new TestDataset("message_types"),
         new TestDataset("message_types").withIndex("message_types_lookup").withSetting("lookup-settings.json"),
+        new TestDataset("hash_algorithms"),
         new TestDataset("firewall_logs").noData(),
         new TestDataset("threat_list").withSetting("lookup-settings.json").noData(),
         new TestDataset("app_logs").noData(),
@@ -286,6 +289,8 @@ public class CsvTestsDataLoader {
         new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
         new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
         new TestDataset("colors"),
+        new TestDataset("colors_with_slice", "mapping-colors.json", "colors_with_slice.csv", "colors_with_slice-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.METADATA_SLICE),
         new TestDataset("colors", "mapping-colors.json", "colors.csv").withIndex("colors_unmapped")
             .withTypeMapping(removeFields("rgb_vector"))
             .withDynamic("false"),
@@ -1012,7 +1017,7 @@ public class CsvTestsDataLoader {
 
     record Column(String name, String type) {}
 
-    public record Document(String id, StringBuilder json) {}
+    public record Document(String id, String slice, StringBuilder json) {}
 
     public static List<Document> readCsvDocuments(InputStream resource, boolean allowSubFields) {
         try (BufferedReader reader = reader(resource)) {
@@ -1077,6 +1082,7 @@ public class CsvTestsDataLoader {
             int lineNumber = 1;
             Column[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
             List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
+
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
                 // ignore comments
@@ -1103,11 +1109,13 @@ public class CsvTestsDataLoader {
                     }
                     // id, document
                     var document = parseDocument(columns, entries, lineNumber, subFieldsIndices);
+
                     builder.append(
                         "{\"index\": {\"_index\":\""
                             + indexName
                             + "\""
                             + (document.id() != null ? ", \"_id\": \"" + document.id() + "\"" : "")
+                            + (document.slice() != null ? ", \"_slice\": \"" + document.slice() + "\"" : "")
                             + "}}\n"
                     );
                     builder.append(document.json());
@@ -1153,6 +1161,7 @@ public class CsvTestsDataLoader {
     private static Document parseDocument(Column[] columns, String[] entries, int lineNumber, List<Integer> subFieldsIndices) {
         StringBuilder row = new StringBuilder("{");
         String id = null;
+        String slice = null;
         for (int i = 0; i < entries.length; i++) {
             // ignore values that belong to subfields and don't add them to the bulk request
             if (subFieldsIndices.contains(i) == false) {
@@ -1165,6 +1174,11 @@ public class CsvTestsDataLoader {
                     id = entries[i];
                     continue;
                 }
+                if (columns[i] != null && SliceIndexing.PARAM_NAME.equals(columns[i].name)) {
+                    slice = entries[i];
+                    continue;
+                }
+
                 try {
                     // add a comma after the previous value, only when there was actually a value before
                     if (i > 0 && row.length() > 1) {
@@ -1195,7 +1209,7 @@ public class CsvTestsDataLoader {
             }
         }
         row.append("}\n");
-        return new Document(id, row);
+        return new Document(id, slice, row);
     }
 
     private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");

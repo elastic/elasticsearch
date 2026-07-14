@@ -88,7 +88,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         true,
         FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
         true,
-        true
+        true,
+        FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
     );
 
     private static UnsignedLongFieldMapper toType(FieldMapper in) {

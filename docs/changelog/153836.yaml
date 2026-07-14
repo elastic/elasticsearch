@@ -1,5 +1,5 @@
 pr: 153836
-summary: "[ES|QL|DS] Make `date` reachable from every temporal shape a columnar file holds"
+summary: "[ES|QL|DS] One unit rule for temporal declarations: `date` and `date_nanos` reachable from every temporal shape"
 area: ES|QL
 type: bug
 issues: []

@@ -696,10 +696,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         ) {
             try (Page page = decoder.decodePage()) {
                 assertNotNull(page);
-                assertEquals(
-                    EsqlDataTypeConverter.dateNanosToLong("2024-01-01T00:00:00.5Z"),
-                    ((LongBlock) page.getBlock(0)).getLong(0)
-                );
+                assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-01T00:00:00.5Z"), ((LongBlock) page.getBlock(0)).getLong(0));
             }
         }
     }

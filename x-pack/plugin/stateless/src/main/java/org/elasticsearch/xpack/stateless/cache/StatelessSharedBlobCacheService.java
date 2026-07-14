@@ -22,9 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -309,14 +306,5 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     public boolean isCacheBoostPreferenceEnabled() {
         return cacheBoostPreferenceEnabled;
-    }
-
-    public boolean indexHasTimestampField(ShardId shardId) {
-        final IndexService indexService = indicesService.indexService(shardId.getIndex());
-        if (indexService == null) {
-            return false;
-        }
-        final MapperService mapperService = indexService.mapperService();
-        return mapperService != null && mapperService.mappingLookup().getTimestampFieldType() != null;
     }
 }

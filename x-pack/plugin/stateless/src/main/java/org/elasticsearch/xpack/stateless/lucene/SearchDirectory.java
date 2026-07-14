@@ -12,6 +12,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
@@ -84,7 +85,17 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         MutableObjectStoreUploadTracker objectStoreUploadTracker,
         ShardId shardId
     ) {
-        super(cacheService, shardId);
+        this(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, false);
+    }
+
+    public SearchDirectory(
+        StatelessSharedBlobCacheService cacheService,
+        CacheBlobReaderService cacheBlobReaderService,
+        MutableObjectStoreUploadTracker objectStoreUploadTracker,
+        ShardId shardId,
+        boolean timeBasedCaching
+    ) {
+        super(cacheService, shardId, new LongAdder(), new LongAdder(), null, timeBasedCaching);
         this.cacheBlobReaderService = cacheBlobReaderService;
         this.objectStoreUploadTracker = objectStoreUploadTracker;
         this.generationalFilesTermAndGens = new HashMap<>();
@@ -454,17 +465,33 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     @Override
     public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming() {
-        return createNewInstance(blobContainer.get());
+        return createNewInstance(blobContainer.get(), false);
     }
 
-    private BlobStoreCacheDirectory createNewInstance(@Nullable LongFunction<BlobContainer> blobContainerFunction) {
+    @Override
+    public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead() {
+        return createNewInstance(blobContainer.get(), true);
+    }
+
+    private BlobStoreCacheDirectory createNewInstance(
+        @Nullable LongFunction<BlobContainer> blobContainerFunction,
+        boolean forMetadataRead
+    ) {
         return new BlobStoreCacheDirectory(
             cacheService,
             shardId,
             totalBytesReadFromObjectStore,
             totalBytesWarmedFromObjectStore,
-            blobContainerFunction
+            blobContainerFunction,
+            timeBasedCaching()
         ) {
+            @Override
+            protected long unknownRegionTimestampMillis() {
+                return forMetadataRead && timeBasedCaching()
+                    ? SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP
+                    : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+            }
+
             @Override
             protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
                 return SearchDirectory.this.getCacheBlobReader(
@@ -482,7 +509,12 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
             @Override
             public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming() {
-                return SearchDirectory.this.createNewInstance(this::getBlobContainer);
+                return SearchDirectory.this.createNewInstance(this::getBlobContainer, false);
+            }
+
+            @Override
+            public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead() {
+                return SearchDirectory.this.createNewInstance(this::getBlobContainer, true);
             }
         };
     }

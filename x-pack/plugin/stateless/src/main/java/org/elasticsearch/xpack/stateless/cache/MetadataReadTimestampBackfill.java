@@ -19,12 +19,12 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_
 /**
  * Helper class to accumulate the information needed to backfill the cache-region timestamps after a BCC/CC metadata read of a single blob.
  * Instances are not thread-safe; a single metadata read of one blob uses one instance from one thread.
+ * Created only for time-based indices; non-time-based indices skip backfill entirely.
  */
 public final class MetadataReadTimestampBackfill {
 
     private final StatelessSharedBlobCacheService cacheService;
     private final FileCacheKey cacheKey;
-    private final boolean indexHasTimestampField;
 
     private long mostRecentTimestamp = UNKNOWN_TIMESTAMP;
 
@@ -32,14 +32,9 @@ public final class MetadataReadTimestampBackfill {
     private long lastCommitHeaderSize;
     private long lastCommitSizeInBytes;
 
-    public MetadataReadTimestampBackfill(
-        StatelessSharedBlobCacheService cacheService,
-        FileCacheKey cacheKey,
-        boolean indexHasTimestampField
-    ) {
+    public MetadataReadTimestampBackfill(StatelessSharedBlobCacheService cacheService, FileCacheKey cacheKey) {
         this.cacheService = cacheService;
         this.cacheKey = cacheKey;
-        this.indexHasTimestampField = indexHasTimestampField;
     }
 
     public void mergeCc(BatchedCompoundCommit bcc) {
@@ -66,14 +61,7 @@ public final class MetadataReadTimestampBackfill {
         if (lastCommitOffset < 0L) {
             return;
         }
-        final long resolved;
-        if (mostRecentTimestamp != UNKNOWN_TIMESTAMP) {
-            resolved = mostRecentTimestamp;
-        } else if (indexHasTimestampField) {
-            resolved = 1L;
-        } else {
-            return;
-        }
+        final long resolved = mostRecentTimestamp != UNKNOWN_TIMESTAMP ? mostRecentTimestamp : 0L;
         int lastRegion = cacheService.getEndingRegion(lastCommitOffset + lastCommitHeaderSize);
         if (Assertions.ENABLED) {
             /// to cover for assertion-only reads in [BatchedCompoundCommit#assertPaddingComposedOfZeros]

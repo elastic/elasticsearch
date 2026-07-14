@@ -802,8 +802,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
         var session = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
         var bcc = BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, session.blobReader(), true);
-        session.backfill().mergeCc(bcc);
-        session.backfill().finalizeAndBackfill();
+        var backfill = session.backfill();
+        if (backfill != null) {
+            backfill.mergeCc(bcc);
+            backfill.finalizeAndBackfill();
+        }
         return bcc;
     }
 
@@ -846,7 +849,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 blobTermAndGen
             )
         );
-        var dir = directory.createNewBlobStoreCacheDirectoryForWarming();
+        var dir = directory.createNewBlobStoreCacheDirectoryForMetadataRead();
         dir.updateMetadata(
             Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength))),
             maxBlobLength
@@ -1326,7 +1329,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     assert Assertions.ENABLED == false || referencedInternalFiles.equals(referencedFiles)
                         : "could not find some internal file names";
                     // Reached only on a clean read; a failure propagates to the listener and fails the shard/engine, which
-                    // force-evicts the regions stamped UNKNOWN above.
+                    // force-evicts the regions stamped with a sentinel timestamp above.
                     if (backfill != null) {
                         backfill.finalizeAndBackfill();
                     }

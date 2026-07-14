@@ -50,19 +50,19 @@ public class MetadataReadTimestampBackfillTests extends ESTestCase {
         });
     }
 
-    private MetadataReadTimestampBackfill backfill(boolean indexHasTimestampField) {
-        return new MetadataReadTimestampBackfill(cacheService, cacheKey, indexHasTimestampField);
+    private MetadataReadTimestampBackfill backfill() {
+        return new MetadataReadTimestampBackfill(cacheService, cacheKey);
     }
 
     public void testMergeCcKeepsMostRecent() {
-        final var backfill = backfill(randomBoolean());
+        final var backfill = backfill();
         backfill.mergeCc(0L, cc(1L, 50L, 50L, new TimestampFieldValueRange(9000L, 9000L)));
         backfill.mergeCc(100L, cc(2L, 50L, 50L, new TimestampFieldValueRange(1000L, 1000L))); // older, must not win
         assertThat(backfill.mostRecentTimestamp(), equalTo(9000L));
     }
 
     public void testMergeCcTracksDeepestCommit() {
-        final var backfill = backfill(randomBoolean());
+        final var backfill = backfill();
         assertThat(backfill.lastCommitOffset(), equalTo(-1L));
         backfill.mergeCc(0L, cc(1L, 50L, 50L, new TimestampFieldValueRange(1000L, 1000L)));
         assertThat(backfill.lastCommitOffset(), equalTo(0L));
@@ -79,28 +79,27 @@ public class MetadataReadTimestampBackfillTests extends ESTestCase {
             )
         );
 
-        final var backfill = backfill(randomBoolean());
+        final var backfill = backfill();
         backfill.mergeCc(bcc);
 
         assertThat(backfill.mostRecentTimestamp(), equalTo(9000L));
     }
 
     public void testNullRangeKeepsUnknown() {
-        final var backfill = backfill(randomBoolean());
+        final var backfill = backfill();
         backfill.mergeCc(0L, cc(1L, 50L, 50L, null));
         assertThat(backfill.mostRecentTimestamp(), equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP));
     }
 
     public void testRealRangeWinsOverNullRange() {
-        final var backfill = backfill(randomBoolean());
+        final var backfill = backfill();
         backfill.mergeCc(0L, cc(1L, 50L, 50L, null));
         backfill.mergeCc(100L, cc(2L, 50L, 50L, new TimestampFieldValueRange(5000L, 5000L)));
         assertThat(backfill.mostRecentTimestamp(), equalTo(5000L));
     }
 
     public void testFinalizeBackfillsMostRecentOverPopulatedRange() {
-        final var backfill = backfill(randomBoolean());
-        // Single commit at offset 0 with a header spanning regions 0..1.
+        final var backfill = backfill();
         backfill.mergeCc(0L, cc(1L, 150L, 150L, new TimestampFieldValueRange(7000L, 7000L)));
 
         backfill.finalizeAndBackfill();
@@ -109,39 +108,26 @@ public class MetadataReadTimestampBackfillTests extends ESTestCase {
     }
 
     public void testFinalizeBoundsToLastCommitNotWholeBlob() {
-        final var backfill = backfill(randomBoolean());
-        // A small leading commit and a large last commit whose body is never read.
+        final var backfill = backfill();
         backfill.mergeCc(0L, cc(1L, 50L, 50L, new TimestampFieldValueRange(1000L, 1000L)));
         backfill.mergeCc(100L, cc(2L, 1000L, 50L, new TimestampFieldValueRange(9000L, 9000L)));
 
         backfill.finalizeAndBackfill();
 
-        // With assertions enabled the last commit's trailing (padding) region is covered: endingRegion(100 + 1000) = region 10.
         verify(cacheService).backfillRegionTimestamps(eq(cacheKey), eq(0), eq(10), eq(9000L));
     }
 
-    public void testFinalizeUnresolvedTimeBasedIndexEvictsFirst() {
-        final var backfill = backfill(true); // time-based index (has @timestamp)
-        backfill.mergeCc(0L, cc(1L, 50L, 50L, null)); // region 0 only, no resolvable timestamp
+    public void testFinalizeUnresolvedFallsBackToZero() {
+        final var backfill = backfill();
+        backfill.mergeCc(0L, cc(1L, 50L, 50L, null));
 
         backfill.finalizeAndBackfill();
 
-        // Unresolved timestamp for a time-based index: stamp the oldest possible timestamp so the regions are evicted first.
-        verify(cacheService).backfillRegionTimestamps(eq(cacheKey), eq(0), eq(0), eq(1L));
-    }
-
-    public void testFinalizeUnresolvedNonTimeBasedIndexLeavesPinned() {
-        final var backfill = backfill(false); // non-time-based index (no @timestamp)
-        backfill.mergeCc(0L, cc(1L, 50L, 50L, null)); // region 0 only, no resolvable timestamp
-
-        backfill.finalizeAndBackfill();
-
-        // A non-time-based index leaves the regions with their UNKNOWN timestamp (pinned): no backfill happens.
-        verify(cacheService, never()).backfillRegionTimestamps(any(), anyInt(), anyInt(), anyLong());
+        verify(cacheService).backfillRegionTimestamps(eq(cacheKey), eq(0), eq(0), eq(0L));
     }
 
     public void testFinalizeNothingReadIsNoop() {
-        final var backfill = backfill(randomBoolean());
+        final var backfill = backfill();
         backfill.finalizeAndBackfill();
         verify(cacheService, never()).backfillRegionTimestamps(any(), anyInt(), anyInt(), anyLong());
     }

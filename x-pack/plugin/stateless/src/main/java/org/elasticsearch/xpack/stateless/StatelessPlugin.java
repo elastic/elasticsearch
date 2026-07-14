@@ -82,6 +82,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -1926,7 +1927,22 @@ public class StatelessPlugin extends Plugin
         MutableObjectStoreUploadTracker objectStoreUploadTracker,
         ShardId shardId
     ) {
-        return new SearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+        boolean timeBasedCaching = resolveTimeBasedCaching(indicesService.get(), shardId);
+        return new SearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, timeBasedCaching);
+    }
+
+    /**
+     * Resolves whether cache-region timestamps for this shard should follow time-based or non-time-based semantics.
+     * The result is frozen at search-directory creation; mapping changes after shard open are intentionally stale until
+     * relocation or restart.
+     */
+    static boolean resolveTimeBasedCaching(IndicesService indicesService, ShardId shardId) {
+        final IndexService indexService = indicesService.indexService(shardId.getIndex());
+        if (indexService == null) {
+            return false;
+        }
+        final MapperService mapperService = indexService.mapperService();
+        return mapperService != null && mapperService.mappingLookup().getTimestampFieldType() != null;
     }
 
     protected IndexBlobStoreCacheDirectory createIndexBlobStoreCacheDirectory(

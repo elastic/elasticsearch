@@ -69,11 +69,11 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     private final AtomicReference<Thread> updatingCommitThread = Assertions.ENABLED ? new AtomicReference<>() : null;// only used in asserts
     protected volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
     protected volatile long currentDataSetSizeInBytes = 0L;
-    private volatile Boolean indexHasTimestampField;
+    private final boolean timeBasedCaching;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
 
     BlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
-        this(cacheService, shardId, new LongAdder(), new LongAdder(), null);
+        this(cacheService, shardId, new LongAdder(), new LongAdder(), null, false);
     }
 
     protected BlobStoreCacheDirectory(
@@ -83,11 +83,23 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         LongAdder totalBytesWarmed,
         @Nullable LongFunction<BlobContainer> blobContainerFunction
     ) {
+        this(cacheService, shardId, totalBytesRead, totalBytesWarmed, blobContainerFunction, false);
+    }
+
+    protected BlobStoreCacheDirectory(
+        StatelessSharedBlobCacheService cacheService,
+        ShardId shardId,
+        LongAdder totalBytesRead,
+        LongAdder totalBytesWarmed,
+        @Nullable LongFunction<BlobContainer> blobContainerFunction,
+        boolean timeBasedCaching
+    ) {
         super(EmptyDirectory.INSTANCE);
         this.cacheService = cacheService;
         this.shardId = shardId;
         this.totalBytesReadFromObjectStore = totalBytesRead;
         this.totalBytesWarmedFromObjectStore = totalBytesWarmed;
+        this.timeBasedCaching = timeBasedCaching;
         this.metricsHolder = cacheService.metricsHolder();
         if (blobContainerFunction != null) {
             setBlobContainer(blobContainerFunction);
@@ -150,13 +162,22 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
     }
 
-    public MetadataReadTimestampBackfill newMetadataReadTimestampBackfill(String blobName, long primaryTerm) {
-        Boolean cached = indexHasTimestampField;
-        if (cached == null) {
-            cached = cacheService.indexHasTimestampField(shardId);
-            indexHasTimestampField = cached;
+    public boolean timeBasedCaching() {
+        return timeBasedCaching;
+    }
+
+    /**
+     * Timestamp to stamp on a cache region whose {@link BlobFileRanges} carry no known data timestamp.
+     */
+    protected long unknownRegionTimestampMillis() {
+        return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+    }
+
+    public @Nullable MetadataReadTimestampBackfill newMetadataReadTimestampBackfill(String blobName, long primaryTerm) {
+        if (timeBasedCaching == false) {
+            return null;
         }
-        return new MetadataReadTimestampBackfill(cacheService, new FileCacheKey(shardId, primaryTerm, blobName), cached);
+        return new MetadataReadTimestampBackfill(cacheService, new FileCacheKey(shardId, primaryTerm, blobName));
     }
 
     StatelessSharedBlobCacheService getCacheService() {
@@ -332,6 +353,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     }
 
     private SharedBlobCacheService<FileCacheKey>.CacheFile getCacheFile(BlobFileRanges blobFileRanges) {
+        long timestampMillis = BlobFileRanges.midpointMillisOrUnknownForCache(blobFileRanges.timestampRange());
+        if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            timestampMillis = unknownRegionTimestampMillis();
+        }
         return cacheService.getCacheFile(
             new FileCacheKey(shardId, blobFileRanges.primaryTerm(), blobFileRanges.blobName()),
             // this length is a lower bound on the length of the blob, used to assert that the cache file does not try to read
@@ -342,7 +367,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             blobFileRanges.fileOffset() + blobFileRanges.fileLength(),
             // todo: time-source
             new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime),
-            BlobFileRanges.midpointMillisOrUnknownForCache(blobFileRanges.timestampRange())
+            timestampMillis
         );
     }
 
@@ -409,6 +434,14 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * Note: the bytes read using this instance are always added to {@link #totalBytesWarmedFromObjectStore}.
      */
     public abstract BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming();
+
+    /**
+     * @return the {@link BlobStoreCacheDirectory} to use when reading BCC/CC metadata through the cache.
+     * Stamps unknown regions with {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} on time-based shards only.
+     */
+    public BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForMetadataRead() {
+        return createNewBlobStoreCacheDirectoryForWarming();
+    }
 
     private static UnsupportedOperationException unsupportedException() {
         assert false : "this operation is not supported and should have not be called";

@@ -47,6 +47,8 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -95,7 +97,7 @@ public class SearchShardRecoveryCacheTimestampBackfillIT extends AbstractStatele
     /**
      * Indexes several flushes (each its own multi-region BCC blob, kept referenced by disabling merges) and verifies that a search
      * shard recovery backfills the cache-region timestamps of the BCC blobs it reads: every metadata read first stamps regions with
-     * {@code UNKNOWN_TIMESTAMP} and the backfill then resolves them to the blob's real data timestamp.
+     * {@code BACKFILL_IN_PROGRESS_TIMESTAMP} and the backfill then resolves them to the blob's real data timestamp.
      */
     public void testSearchShardRecoveryBackfillsMetadataReadRegions() throws Exception {
         var indexNode = startMasterAndIndexNode();
@@ -180,14 +182,79 @@ public class SearchShardRecoveryCacheTimestampBackfillIT extends AbstractStatele
                 var captured = cacheService.capturedTimestamps(cacheKey);
                 assertThat("recovery must have cached regions of blob " + cacheKey, captured, not(empty()));
                 assertThat(
-                    "a metadata read stamps regions with UNKNOWN_TIMESTAMP before they are backfilled",
+                    "a metadata read stamps regions with BACKFILL_IN_PROGRESS_TIMESTAMP before they are backfilled",
                     captured,
-                    hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP)
+                    hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP)
                 );
 
                 var live = cacheService.liveTimestamps(cacheKey);
                 assertThat("recovery must leave live cache regions for blob " + cacheKey, live, not(empty()));
                 assertThat("backfill must resolve the header region to the blob's data timestamp", live, hasItem(blob.dataTimestamp()));
+            }
+        });
+    }
+
+    /**
+     * Non-time-based indices (no {@code @timestamp} mapping) stamp metadata-read regions with {@code UNKNOWN_TIMESTAMP} and never
+     * backfill them to a real data timestamp.
+     */
+    public void testSearchShardRecoveryLeavesNonTimeBasedRegionsUnknown() throws Exception {
+        var indexNode = startMasterAndIndexNode();
+        var indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            ).setMapping("field", "type=keyword")
+        );
+
+        for (int i = 0; i < randomIntBetween(2, 3); i++) {
+            indexDocs(indexName, between(500, 800), UnaryOperator.identity(), null, () -> Map.of("field", randomAlphaOfLength(1024)));
+            refresh(indexName);
+            flush(indexName);
+        }
+
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
+
+        List<FileCacheKey> blobKeys = new ArrayList<>();
+        var commitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
+        for (var blob : commitsContainer.listBlobs(operationPurpose).entrySet()) {
+            var blobName = blob.getKey();
+            if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
+                blobKeys.add(new FileCacheKey(shardId, primaryTerm, blobName));
+            }
+        }
+        assertThat(blobKeys.size(), greaterThanOrEqualTo(1));
+
+        var searchNode = startSearchNode();
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+        ensureGreen(indexName);
+
+        var cacheService = (CapturingCacheService) internalCluster().getInstance(
+            StatelessPlugin.SharedBlobCacheServiceSupplier.class,
+            searchNode
+        ).get();
+
+        assertBusy(() -> {
+            for (var cacheKey : blobKeys) {
+                var captured = cacheService.capturedTimestamps(cacheKey);
+                if (captured.isEmpty() == false) {
+                    assertThat(
+                        "non-time-based metadata reads must not stamp BACKFILL_IN_PROGRESS",
+                        captured,
+                        not(hasItem(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP))
+                    );
+                    assertThat("non-time-based metadata reads stamp UNKNOWN", captured, hasItem(SharedBlobCacheService.UNKNOWN_TIMESTAMP));
+                }
+                var live = cacheService.liveTimestamps(cacheKey);
+                if (live.isEmpty() == false) {
+                    assertThat(
+                        "non-time-based regions must stay UNKNOWN",
+                        live,
+                        everyItem(equalTo(SharedBlobCacheService.UNKNOWN_TIMESTAMP))
+                    );
+                }
             }
         });
     }

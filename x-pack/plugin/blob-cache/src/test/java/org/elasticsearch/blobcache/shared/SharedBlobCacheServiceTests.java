@@ -269,16 +269,20 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ) {
             final var cacheKey = generateCacheKey();
 
-            // region 0 and region 2 start UNKNOWN and should be backfilled
-            final var region0 = cacheService.get(cacheKey, size(500), 0);
-            assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, region0.timestampMillis());
-            final var region2 = cacheService.get(cacheKey, size(500), 2);
-            assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, region2.timestampMillis());
+            // region 0 and region 2 start BACKFILL_IN_PROGRESS and should be backfilled
+            final var region0 = cacheService.get(cacheKey, size(500), 0, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
+            assertEquals(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP, region0.timestampMillis());
+            final var region2 = cacheService.get(cacheKey, size(500), 2, SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP);
+            assertEquals(SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP, region2.timestampMillis());
 
             // region 1 already carries a real timestamp; the guard must keep it
             final long realTs = randomLongBetween(1, Long.MAX_VALUE - 1);
             final var region1 = cacheService.get(cacheKey, size(500), 1, realTs);
             assertEquals(realTs, region1.timestampMillis());
+
+            // UNKNOWN regions must not be modified by backfill
+            final var unknownRegion = cacheService.get(cacheKey, size(500), 3);
+            assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, unknownRegion.timestampMillis());
 
             // Backfill the range [0, 4] with a single timestamp: regions 3 and 4 are absent and must be skipped silently.
             final long backfill = randomLongBetween(1, Long.MAX_VALUE - 1);
@@ -287,8 +291,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(backfill, region0.timestampMillis());
             assertEquals(realTs, region1.timestampMillis()); // the guard kept the pre-existing real value
             assertEquals(backfill, region2.timestampMillis());
+            assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, unknownRegion.timestampMillis());
 
-            // backfilling an already-resolved region is a no-op (transition only from UNKNOWN)
+            // backfilling an already-resolved region is a no-op (transition only from BACKFILL_IN_PROGRESS)
             cacheService.backfillRegionTimestamps(cacheKey, 0, 0, backfill + 1);
             assertEquals(backfill, region0.timestampMillis());
 

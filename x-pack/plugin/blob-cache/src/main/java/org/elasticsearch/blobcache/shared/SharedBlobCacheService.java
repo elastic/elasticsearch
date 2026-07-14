@@ -987,29 +987,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * @param cacheKey        the cache key whose regions to backfill
      * @param firstRegion     the first region index to backfill (inclusive)
      * @param lastRegion      the last region index to backfill (inclusive)
-     * @param timestampMillis the real timestamp (epoch millis, {@code > 0}) to assign
+     * @param timestampMillis the real timestamp (epoch millis, {@code >= 0}) to assign
      */
     public void backfillRegionTimestamps(KeyType cacheKey, int firstRegion, int lastRegion, long timestampMillis) {
         assert firstRegion >= 0 && lastRegion >= firstRegion : firstRegion + " > " + lastRegion;
-        assert timestampMillis > 0L : timestampMillis;
+        assert timestampMillis >= 0L : timestampMillis;
         for (int region = firstRegion; region <= lastRegion; region++) {
             final CacheEntry<CacheFileRegion<KeyType>> cacheEntry = cache.getIfPresent(cacheKey, region);
             if (cacheEntry != null) {
                 cacheEntry.chunk.backfillTimestampFromBackfillInProgress(timestampMillis);
-            }
-        }
-    }
-
-    /**
-     * Asserts that no region in the inclusive range {@code [firstRegion, lastRegion]} of {@code cacheKey} still carries
-     * {@link #BACKFILL_IN_PROGRESS_TIMESTAMP}. Only active when assertions are enabled.
-     */
-    public void assertNoBackfillInProgressTimestamps(KeyType cacheKey, int firstRegion, int lastRegion) {
-        assert firstRegion >= 0 && lastRegion >= firstRegion : firstRegion + " > " + lastRegion;
-        for (int region = firstRegion; region <= lastRegion; region++) {
-            final CacheEntry<CacheFileRegion<KeyType>> cacheEntry = cache.getIfPresent(cacheKey, region);
-            if (cacheEntry != null) {
-                assert cacheEntry.chunk.timestampMillis() != BACKFILL_IN_PROGRESS_TIMESTAMP : "region " + region;
             }
         }
     }
@@ -1327,7 +1313,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * Backfills the region timestamp, transitioning it only from {@link #BACKFILL_IN_PROGRESS_TIMESTAMP} to a real (positive) value.
          */
         void backfillTimestampFromBackfillInProgress(long newTimestampMillis) {
-            assert newTimestampMillis > 0L : newTimestampMillis;
+            assert newTimestampMillis >= 0L : newTimestampMillis;
             // There is a benign race here, but either way we end up with a valid timestamp.
             if (timestampMillis == BACKFILL_IN_PROGRESS_TIMESTAMP) {
                 timestampMillis = newTimestampMillis;

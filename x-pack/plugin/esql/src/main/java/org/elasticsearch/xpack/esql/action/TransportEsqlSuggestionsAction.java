@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
-import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.ArrayList;
@@ -128,9 +127,7 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
         CrossProjectModeDecider crossProjectModeDecider,
         IndicesService indicesService,
         ScriptService scriptService,
-        // Reuses the node-shared EnrichPolicyResolver rather than constructing a second one: its constructor
-        // registers a transport handler, and a duplicate registration fails node startup.
-        TransportEsqlQueryAction queryAction
+        EnrichPolicyResolver enrichPolicyResolver
     ) {
         super(
             EsqlSuggestionsAction.NAME,
@@ -145,7 +142,7 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
         this.viewResolver = viewResolver;
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.datasetResolver = new DatasetResolver(client, threadPool.executor(ThreadPool.Names.SEARCH), crossProjectModeDecider);
-        this.enrichPolicyResolver = queryAction.enrichPolicyResolver();
+        this.enrichPolicyResolver = enrichPolicyResolver;
         this.services = new TransportActionServices(
             transportService,
             searchService,

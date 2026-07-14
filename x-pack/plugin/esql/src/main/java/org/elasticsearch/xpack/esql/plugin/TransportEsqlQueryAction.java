@@ -141,7 +141,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         IpLocationService ipLocationService,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
-        CrossProjectModeDecider crossProjectModeDecider
+        CrossProjectModeDecider crossProjectModeDecider,
+        EnrichPolicyResolver enrichPolicyResolver
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -153,12 +154,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.datasetResolver = new DatasetResolver(client, requestExecutor, crossProjectModeDecider);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
-        this.enrichPolicyResolver = new EnrichPolicyResolver(
-            clusterService,
-            transportService,
-            planExecutor.indexResolver(),
-            projectResolver
-        );
+        enrichPolicyResolver.registerTransportHandler(transportService);
+        this.enrichPolicyResolver = enrichPolicyResolver;
         AbstractLookupService.LookupShardContextFactory lookupLookupShardContextFactory = AbstractLookupService.LookupShardContextFactory
             .fromSearchService(searchService);
         PlannerSettings.Holder plannerSettings = new PlannerSettings.Holder(clusterService);
@@ -598,16 +595,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     public ExchangeService exchangeService() {
         return exchangeService;
-    }
-
-    /**
-     * The single, node-shared {@link EnrichPolicyResolver} instance. Its constructor registers a transport
-     * request handler, so a second instance built anywhere else on the same node (e.g. {@code
-     * TransportEsqlSuggestionsAction}) would fail node startup with a duplicate-handler-registration error;
-     * callers that need one must reuse this instance rather than constructing their own.
-     */
-    public EnrichPolicyResolver enrichPolicyResolver() {
-        return enrichPolicyResolver;
     }
 
     public EnrichLookupService enrichLookupService() {

@@ -128,6 +128,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -532,21 +533,32 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             });
         }
 
+        PlanExecutor planExecutor = new PlanExecutor(
+            new IndexResolver(services.client(), flattenedDataTypeEnabled::get),
+            services.telemetryProvider().getMeterRegistry(),
+            getLicenseState(),
+            new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
+            extraCheckers,
+            services.crossProjectModeDecider(),
+            dataSourceModule,
+            functionRegistry,
+            PromqlFunctionRegistry.INSTANCE,
+            parser,
+            cacheService,
+            services.indicesService().getAnalysis()
+        );
+        // Built here (rather than inside a TransportAction constructor) because it is shared by both
+        // TransportEsqlQueryAction and TransportEsqlSuggestionsAction; the transport-dependent part of its
+        // setup (registering its request handler) happens later, via #registerTransportHandler, the same
+        // two-phase shape ExchangeService below uses for the same reason.
+        EnrichPolicyResolver enrichPolicyResolver = new EnrichPolicyResolver(
+            services.clusterService(),
+            planExecutor.indexResolver(),
+            services.projectResolver()
+        );
         return List.of(
-            new PlanExecutor(
-                new IndexResolver(services.client(), flattenedDataTypeEnabled::get),
-                services.telemetryProvider().getMeterRegistry(),
-                getLicenseState(),
-                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
-                extraCheckers,
-                services.crossProjectModeDecider(),
-                dataSourceModule,
-                functionRegistry,
-                PromqlFunctionRegistry.INSTANCE,
-                parser,
-                cacheService,
-                services.indicesService().getAnalysis()
-            ),
+            planExecutor,
+            enrichPolicyResolver,
             new ExchangeService(
                 services.clusterService().getSettings(),
                 services.threadPool(),

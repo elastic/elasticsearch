@@ -82,23 +82,28 @@ public class EnrichPolicyResolver {
 
     private final ClusterService clusterService;
     private final IndexResolver indexResolver;
-    private final TransportService transportService;
-    private final ThreadPool threadPool;
-    private final RemoteClusterService remoteClusterService;
     private final ProjectResolver projectResolver;
+    private TransportService transportService;
+    private ThreadPool threadPool;
+    private RemoteClusterService remoteClusterService;
 
-    public EnrichPolicyResolver(
-        ClusterService clusterService,
-        TransportService transportService,
-        IndexResolver indexResolver,
-        ProjectResolver projectResolver
-    ) {
+    public EnrichPolicyResolver(ClusterService clusterService, IndexResolver indexResolver, ProjectResolver projectResolver) {
         this.clusterService = clusterService;
-        this.transportService = transportService;
         this.indexResolver = indexResolver;
+        this.projectResolver = projectResolver;
+    }
+
+    /**
+     * Completes construction with the parts of this resolver that need a {@link TransportService}: derives
+     * {@code threadPool}/{@code remoteClusterService} from it and registers its request handler. Called once,
+     * by whichever {@code TransportAction} constructor runs first (Guice construction order doesn't matter:
+     * node startup finishes constructing every action, and therefore calls this, before any request can be
+     * routed) — mirrors {@code ExchangeService#registerTransportHandler}'s identical two-phase shape.
+     */
+    public void registerTransportHandler(TransportService transportService) {
+        this.transportService = transportService;
         this.threadPool = transportService.getThreadPool();
         this.remoteClusterService = transportService.getRemoteClusterService();
-        this.projectResolver = projectResolver;
         transportService.registerRequestHandler(
             RESOLVE_ACTION_NAME,
             threadPool.executor(ThreadPool.Names.SEARCH),

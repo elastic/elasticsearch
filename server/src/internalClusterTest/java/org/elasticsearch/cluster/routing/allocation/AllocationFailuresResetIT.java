@@ -146,8 +146,7 @@ public class AllocationFailuresResetIT extends ESIntegTestCase {
             internalCluster().startNode();
             awaitClusterState(cs -> {
                 var relocatedShard = cs.routingTable().index(INDEX).shard(SHARD).primaryShard();
-                return relocatedShard != null
-                    && cs.nodes().get(relocatedShard.currentNodeId()).getName().equals(node1) == false;
+                return relocatedShard != null && cs.nodes().get(relocatedShard.currentNodeId()).getName().equals(node1) == false;
             });
             mockLog.assertAllExpectationsMatched();
         }

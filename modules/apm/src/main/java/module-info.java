@@ -26,6 +26,7 @@ module org.elasticsearch.telemetry.apm {
     requires io.opentelemetry.instrumentation.runtime_telemetry;
     requires io.opentelemetry.sdk.common;
     requires org.elasticsearch.logging;
+    requires org.elasticsearch.sslconfig;
     requires opentelemetry.disk.buffering;
     requires kotlin.stdlib;
 

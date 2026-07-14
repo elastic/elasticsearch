@@ -240,8 +240,10 @@ public final class OtelSdkSettings {
     );
 
     /**
-     * Path to the PKCS#8 PEM-encoded private key for the client certificate ({@link #TELEMETRY_LOGS_SSL_CERTIFICATE}).
-     * Must be set together with {@link #TELEMETRY_LOGS_SSL_CERTIFICATE}. The key must be unencrypted.
+     * Path to the PEM-encoded private key for the client certificate ({@link #TELEMETRY_LOGS_SSL_CERTIFICATE}).
+     * Must be set together with {@link #TELEMETRY_LOGS_SSL_CERTIFICATE}.
+     * Supports PKCS#8 ({@code BEGIN PRIVATE KEY}) and PKCS#1 RSA ({@code BEGIN RSA PRIVATE KEY}) formats; encrypted keys require a
+     * {@code keystore.secure_password} entry (not currently exposed, so use unencrypted keys in practice).
      * Path is resolved relative to the Elasticsearch config directory when not absolute.
      */
     public static final Setting<String> TELEMETRY_LOGS_SSL_KEY = Setting.simpleString("telemetry.logs.ssl.key", "", NodeScope);

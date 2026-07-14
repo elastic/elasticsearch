@@ -23,17 +23,25 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.DefaultJdkTrustConfig;
+import org.elasticsearch.common.ssl.PemKeyConfig;
+import org.elasticsearch.common.ssl.PemTrustConfig;
+import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * Builds an {@link SdkLoggerProvider} that exports log records via OTLP/gRPC, then installs
@@ -189,11 +197,20 @@ public class OtelSdkExportLogsSupplier implements Closeable {
             exporterBuilder.addHeader("Authorization", authHeader);
         }
         List<String> cas = OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES.get(settings);
-        if (cas.isEmpty() == false) {
-            exporterBuilder.setTrustedCertificates(readPemFiles(cas));
-        }
-        if (cert.isEmpty() == false) {
-            exporterBuilder.setClientTls(readPemFile(key), readPemFile(cert));
+        if (cas.isEmpty() == false || cert.isEmpty() == false) {
+            try {
+                SslTrustConfig trustConfig = cas.isEmpty() ? DefaultJdkTrustConfig.DEFAULT_INSTANCE : new PemTrustConfig(cas, configDir);
+                X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
+                KeyManager[] keyManagers = null;
+                if (cert.isEmpty() == false) {
+                    keyManagers = new KeyManager[] { new PemKeyConfig(cert, key, new char[0], configDir).createKeyManager() };
+                }
+                SSLContext sslContext = SSLContext.getInstance("TLS");
+                sslContext.init(keyManagers, new TrustManager[] { trustManager }, null);
+                exporterBuilder.setSslContext(sslContext, trustManager);
+            } catch (GeneralSecurityException e) {
+                throw new RuntimeException("Failed to initialise TLS context for OTel log export", e);
+            }
         }
         int maxQueueSize = OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.get(settings);
         return SdkLoggerProvider.builder()
@@ -223,30 +240,6 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         loggerProvider = newProvider;
         oldProvider.close();
         logger.info("OTel SDK logs export reloaded; endpoint={}", OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.get(settings));
-    }
-
-    private byte[] readPemFile(String pathStr) {
-        try {
-            return Files.readAllBytes(resolvePath(pathStr));
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to read TLS file: " + pathStr, e);
-        }
-    }
-
-    private byte[] readPemFiles(List<String> paths) {
-        int total = 0;
-        byte[][] parts = new byte[paths.size()][];
-        for (int i = 0; i < paths.size(); i++) {
-            parts[i] = readPemFile(paths.get(i));
-            total += parts[i].length;
-        }
-        byte[] result = new byte[total];
-        int offset = 0;
-        for (byte[] part : parts) {
-            System.arraycopy(part, 0, result, offset, part.length);
-            offset += part.length;
-        }
-        return result;
     }
 
     private Path resolvePath(String pathStr) {

@@ -44,7 +44,6 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     protected final IndexInput input;
     protected final QuantizedByteVectorValues values;
     protected final int dims;
-    protected final int maxOrd;
     protected final int vectorPitch;
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
@@ -55,7 +54,6 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
-        this.maxOrd = values.size();
         this.vectorPitch = dims + CORRECTIONS_BYTES;
         // Scratches are sized to the full per-vector record (vector + corrections), so that the same
         // backing slice can be used for both the dot product (first dims bytes) and the corrections
@@ -89,7 +87,7 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord >= maxOrd) {
+        if (ord < 0 || ord >= values.size()) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }

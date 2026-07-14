@@ -30,6 +30,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * The out-of-band request {@code filter} is applied to an external dataset by translating the Query DSL into ES|QL
@@ -305,5 +306,20 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
      */
     public void testFieldlessMultiMatchIsImplicitlyLenient() {
         assertSelectsSameRows(QueryBuilders.multiMatchQuery("t2"));
+    }
+
+    /**
+     * Partial application: a filter mixing a supported {@code term} with an unsupported {@code wildcard} drops only the
+     * wildcard on the dataset — the term still carves its subset (the source is NOT read wholly unfiltered). On the
+     * dataset the mixed filter therefore selects exactly what the term alone selects, a superset of the index's result.
+     */
+    public void testPartialApplicationKeepsTheSupportedClause() {
+        QueryBuilder mixed = QueryBuilders.boolQuery()
+            .must(QueryBuilders.termQuery("status", 300))
+            .must(QueryBuilders.wildcardQuery("tags", "t*"));
+        List<Object> viaMixed = selectedIds(dataset, mixed);
+        List<Object> viaTermOnly = selectedIds(dataset, QueryBuilders.termQuery("status", 300));
+        assertEquals("the unsupported wildcard is dropped; the supported term still applies", viaTermOnly, viaMixed);
+        assertThat("the term really filtered — the source was not read unfiltered", viaMixed.size(), lessThan(ROWS));
     }
 }

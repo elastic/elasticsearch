@@ -30,9 +30,12 @@ import java.util.Map;
  * filter is indistinguishable from a user-written {@code WHERE}. Index leaves keep their existing path and are not
  * touched here.
  *
- * <p>A construct outside the supported subset raises {@link TranslationUnsupportedException}; consistent with the
- * leniency contract, the request filter degrades that clause to a per-source no-op (the relation is left unfiltered)
- * and a response-header warning names the source and the unsupported construct so the wider result is not silent.
+ * <p>A construct outside the supported subset is dropped per-clause with a superset substitution (partial application):
+ * every supported clause of the filter still applies, and the unsupported clause is skipped in the direction that
+ * <em>widens</em> the result — a relaxed restriction returns more rows, a relaxed exclusion returns previously-excluded
+ * rows — so the source over-matches rather than silently dropping a row it should have returned. A response-header
+ * warning names the source, the construct, and that direction. A filter with no supported clause folds to a no-op and
+ * the relation is read unfiltered.
  *
  * <p>The graft is version-gated. The translated predicate can contain {@code mv_in_range}, which older nodes do not
  * have; the grafted {@link Filter} rides inside the fragment distributed to data nodes, so on a mixed-version cluster
@@ -69,25 +72,35 @@ public final class RequestFilterGraft {
             QueryDslTranslator translator = new QueryDslTranslator(name -> {
                 Attribute a = byName.get(name);
                 return a != null ? a : Literal.NULL;
-            }, byName.keySet(), nowInMillis);
-            try {
-                Expression condition = translator.translate(requestFilter);
-                return new Filter(relation.source(), relation, condition);
-            } catch (TranslationUnsupportedException e) {
-                // Per-source degrade: an unsupported clause leaves this source unfiltered rather than failing the
-                // query. Warn so the wider (unfiltered) result is not a silent surprise.
-                HeaderWarning.addWarning(
-                    "The request filter could not be applied to external dataset [{}] (unsupported [{}]); it was read unfiltered",
-                    name(relation),
-                    e.construct()
-                );
-                return relation;
+            }, byName.keySet(), nowInMillis, true);
+            // Partial application: an unsupported clause is not fatal — the translator drops it with a superset
+            // substitution (so the result over-matches, never silently dropping rows) and records it, while every
+            // supported clause still applies. Each dropped clause is surfaced as a header warning naming its effect.
+            Expression condition = translator.translate(requestFilter);
+            for (QueryDslTranslator.DroppedClause clause : translator.droppedClauses()) {
+                warnDropped(relation, clause);
             }
+            // A wholly-unsupported filter folds to TRUE (a no-op); leave the source unfiltered rather than graft it.
+            return condition == Literal.TRUE ? relation : new Filter(relation.source(), relation, condition);
         });
         // The grafted Filter and the rebuilt spine above it are fresh nodes at stage NEW; the plan was already
         // analyzed, so mark the (idempotent for unchanged nodes) tree analyzed to satisfy the pre-optimizer.
         grafted.forEachDown(LogicalPlan.class, LogicalPlan::setAnalyzed);
         return grafted;
+    }
+
+    /**
+     * Warns that one clause of the request filter could not be applied to a dataset and was skipped, naming the
+     * construct and the direction of the resulting over-match: a relaxed restriction returns more rows, a relaxed
+     * exclusion returns previously-excluded rows. The supported clauses of the same filter still applied.
+     */
+    private static void warnDropped(ExternalRelation relation, QueryDslTranslator.DroppedClause clause) {
+        HeaderWarning.addWarning(
+            "The request filter on external dataset [{}] could not apply [{}]; it was skipped, so {} may be returned",
+            name(relation),
+            clause.construct(),
+            clause.positive() ? "more rows" : "previously-excluded rows"
+        );
     }
 
     /** Warns that the filter was not applied to the plan's dataset leaves, naming them, when there are any. */

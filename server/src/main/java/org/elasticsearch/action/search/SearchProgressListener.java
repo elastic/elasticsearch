@@ -40,13 +40,15 @@ public abstract class SearchProgressListener {
      * @param clusters The statistics for remote clusters included in the search.
      * @param fetchPhase <code>true</code> if the search needs a fetch phase, <code>false</code> otherwise.
      * @param timeProvider absolute and relative time provider for this search
+     * @param allowPartialResults <code>true</code> if the search allows partial results, <code>false</code> otherwise.
      **/
     protected void onListShards(
         List<SearchShard> shards,
         Map<String, Integer> skippedByClusterAlias,
         Clusters clusters,
         boolean fetchPhase,
-        TransportSearchAction.SearchTimeProvider timeProvider
+        TransportSearchAction.SearchTimeProvider timeProvider,
+        boolean allowPartialResults
     ) {}
 
     /**
@@ -120,6 +122,13 @@ public abstract class SearchProgressListener {
     protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
     /**
+     * Executed when a phase fails.
+     *
+     * @param exc The cause of the failure.
+     */
+    protected void onPhaseFailure(Exception exc) {}
+
+    /**
      * Indicates that a cluster has finished a search operation. Used for CCS minimize_roundtrips=true only.
      *
      * @param clusterAlias alias of cluster that has finished a search operation and returned a SearchResponse.
@@ -133,11 +142,12 @@ public abstract class SearchProgressListener {
         Map<String, Integer> skippedByClusterAlias,
         Clusters clusters,
         boolean fetchPhase,
-        TransportSearchAction.SearchTimeProvider timeProvider
+        TransportSearchAction.SearchTimeProvider timeProvider,
+        boolean allowPartialResults
     ) {
         this.shards = shards;
         try {
-            onListShards(shards, skippedByClusterAlias, clusters, fetchPhase, timeProvider);
+            onListShards(shards, skippedByClusterAlias, clusters, fetchPhase, timeProvider, allowPartialResults);
         } catch (Exception e) {
             logger.warn("Failed to execute progress listener on list shards", e);
         }
@@ -204,6 +214,14 @@ public abstract class SearchProgressListener {
             onFetchFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
             logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on fetch failure", e);
+        }
+    }
+
+    final void notifyPhaseFailure(Exception exc) {
+        try {
+            onPhaseFailure(exc);
+        } catch (Exception e) {
+            logger.warn(() -> "Failed to execute progress listener on phase failure", e);
         }
     }
 

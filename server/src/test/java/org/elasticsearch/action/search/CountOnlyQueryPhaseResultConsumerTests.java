@@ -41,7 +41,14 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
             timestamp,
             () -> timestamp + 1000
         );
-        searchProgressListener.notifyListShards(searchShards, Collections.emptyMap(), SearchResponse.Clusters.EMPTY, false, timeProvider);
+        searchProgressListener.notifyListShards(
+            searchShards,
+            Collections.emptyMap(),
+            SearchResponse.Clusters.EMPTY,
+            false,
+            timeProvider,
+            randomBoolean()
+        );
 
         try (
             CountOnlyQueryPhaseResultConsumer queryPhaseResultConsumer = new CountOnlyQueryPhaseResultConsumer(searchProgressListener, 10)
@@ -112,7 +119,8 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
             Map<String, Integer> skippedByClusterAlias,
             SearchResponse.Clusters clusters,
             boolean fetchPhase,
-            TransportSearchAction.SearchTimeProvider timeProvider
+            TransportSearchAction.SearchTimeProvider timeProvider,
+            boolean allowPartialResults
         ) {
             throw new UnsupportedOperationException();
         }

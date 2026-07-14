@@ -200,7 +200,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             skippedByClusterAlias,
             clusters,
             sourceBuilder == null || sourceBuilder.size() > 0,
-            timeProvider
+            timeProvider,
+            searchRequest.allowPartialSearchResults()
         );
     }
 
@@ -821,6 +822,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
         });
+        task.getProgressListener().notifyPhaseFailure(exception);
         listener.onFailure(exception);
     }
 

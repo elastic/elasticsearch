@@ -600,6 +600,15 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             // in which case the final response already includes results as well as shard fetch failures)
         }
 
+        @Override
+        protected void onPhaseFailure(Exception exc) {
+            // best effort to cancel expired tasks
+            checkCancellation();
+            if (delegate != null) {
+                delegate.onPhaseFailure(exc);
+            }
+        }
+
         /**
          * onListShards is guaranteed to be the first SearchProgressListener method called and
          * the search will not progress until this returns, so this is a safe place to initialize state
@@ -611,7 +620,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             Map<String, Integer> skippedByClusterAlias,
             Clusters clusters,
             boolean fetchPhase,
-            TransportSearchAction.SearchTimeProvider timeProvider
+            TransportSearchAction.SearchTimeProvider timeProvider,
+            boolean allowPartialResults
         ) {
             // best effort to cancel expired tasks
             checkCancellation();
@@ -619,7 +629,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
             if (ccsMinimizeRoundtrips == false && clusters.hasClusterObjects()) {
                 delegate = new CCSSingleCoordinatorSearchProgressListener();
-                delegate.onListShards(shards, skippedByClusterAlias, clusters, fetchPhase, timeProvider);
+                delegate.onListShards(shards, skippedByClusterAlias, clusters, fetchPhase, timeProvider, allowPartialResults);
             }
             int numSkipped = CollectionUtils.sumIntValues(skippedByClusterAlias);
             searchResponse.updateShardsAndClusters(shards.size() + numSkipped, numSkipped, clusters);

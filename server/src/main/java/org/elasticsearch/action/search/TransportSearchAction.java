@@ -631,7 +631,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                     // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local
                                     // shards)
                                     task.getProgressListener()
-                                        .notifyListShards(Collections.emptyList(), Collections.emptyMap(), clusters, false, timeProvider);
+                                        .notifyListShards(
+                                            Collections.emptyList(),
+                                            Collections.emptyMap(),
+                                            clusters,
+                                            false,
+                                            timeProvider,
+                                            rewritten.allowPartialSearchResults()
+                                        );
                                 }
                                 ccsRemoteReduce(
                                     task,

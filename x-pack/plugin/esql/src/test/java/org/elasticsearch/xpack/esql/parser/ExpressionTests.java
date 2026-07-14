@@ -421,6 +421,20 @@ public class ExpressionTests extends ESTestCase {
             new UnresolvedFunction(EMPTY, "invoke", new ArrayList<>(List.of(new Lambda(EMPTY, List.of(Literal.TRUE))))),
             whereExpression("invoke(() -> true)")
         );
+        // (x) -> body: single parenthesized param is ambiguous with a parenthesized expression; resolved by the -> lookahead
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(
+                EMPTY,
+                "invoke",
+                new ArrayList<>(
+                    List.of(
+                        new UnresolvedAttribute(EMPTY, "a"),
+                        new Lambda(EMPTY, List.of(new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "x")))
+                    )
+                )
+            ),
+            whereExpression("invoke(a, (x) -> x)")
+        );
     }
 
     public void testUnquotedIdentifiers() {

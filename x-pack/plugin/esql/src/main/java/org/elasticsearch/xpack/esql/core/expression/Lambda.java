@@ -79,6 +79,7 @@ public class Lambda extends Expression {
     public DataType dataType() {
         // No function understands lambdas yet; this placeholder makes function-signature
         // resolution reject a Lambda argument the same way it rejects any other wrong-typed one.
+        // TODO: replace with a first-class LAMBDA data type once lambda-aware functions land
         return UNSUPPORTED;
     }
 

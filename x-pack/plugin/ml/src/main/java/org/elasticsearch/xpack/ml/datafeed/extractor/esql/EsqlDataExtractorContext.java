@@ -16,5 +16,6 @@ record EsqlDataExtractorContext(
     long start,
     long end,
     Map<String, String> headers,
-    String requiredSummaryCountField
+    String requiredSummaryCountField,
+    String projectRouting
 ) {}

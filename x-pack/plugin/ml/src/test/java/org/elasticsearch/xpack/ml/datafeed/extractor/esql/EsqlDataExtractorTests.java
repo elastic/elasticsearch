@@ -336,7 +336,8 @@ public class EsqlDataExtractorTests extends ESTestCase {
             start,
             end,
             Collections.emptyMap(),
-            requiredSummaryCountField
+            requiredSummaryCountField,
+            null
         );
         return new TestDataExtractor(context);
     }

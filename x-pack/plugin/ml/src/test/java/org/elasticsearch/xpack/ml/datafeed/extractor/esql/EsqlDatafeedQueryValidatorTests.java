@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
@@ -26,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -52,7 +55,15 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         AtomicBoolean succeeded = new AtomicBoolean(false);
         AtomicReference<Exception> failure = new AtomicReference<>();
 
-        validator.runValidation(ESQL_QUERY, TIME_FIELD, SUMMARY_COUNT_FIELD, ActionListener.wrap(ok -> succeeded.set(true), failure::set));
+        validator.validateQuery(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            TIME_FIELD,
+            SUMMARY_COUNT_FIELD,
+            ActionListener.wrap(ok -> succeeded.set(true), failure::set)
+        );
 
         assertThat(succeeded.get(), is(true));
         assertThat(failure.get(), equalTo(null));
@@ -63,11 +74,16 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         TestValidator validator = new TestValidator(buildResponse(columns));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
-        validator.runValidation(
+        validator.validateQuery(
+            null,
+            Collections.emptyMap(),
             ESQL_QUERY,
+            null,
             TIME_FIELD,
             null,
-            ActionListener.wrap(ok -> succeeded.set(true), e -> { throw new AssertionError(e); })
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError(e);
+            })
         );
 
         assertThat(succeeded.get(), is(true));
@@ -78,7 +94,15 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         TestValidator validator = new TestValidator(buildResponse(columns));
 
         AtomicReference<Exception> failure = new AtomicReference<>();
-        validator.runValidation(ESQL_QUERY, TIME_FIELD, null, ActionListener.wrap(ok -> fail("expected failure"), failure::set));
+        validator.validateQuery(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(ok -> fail("expected failure"), failure::set)
+        );
 
         assertThat(failure.get(), instanceOf(IllegalArgumentException.class));
         assertThat(failure.get().getMessage(), containsString("ESQL query response is missing the required columns: " + TIME_FIELD));
@@ -89,8 +113,11 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         TestValidator validator = new TestValidator(buildResponse(columns));
 
         AtomicReference<Exception> failure = new AtomicReference<>();
-        validator.runValidation(
+        validator.validateQuery(
+            null,
+            Collections.emptyMap(),
             ESQL_QUERY,
+            null,
             TIME_FIELD,
             SUMMARY_COUNT_FIELD,
             ActionListener.wrap(ok -> fail("expected failure"), failure::set)
@@ -104,9 +131,17 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         TestValidator validator = new TestValidator(new IndexNotFoundException("logs"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
-        validator.runValidation(ESQL_QUERY, TIME_FIELD, null, ActionListener.wrap(ok -> succeeded.set(true), e -> {
-            throw new AssertionError("expected success for missing index", e);
-        }));
+        validator.validateQuery(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(ok -> succeeded.set(true), e -> {
+                throw new AssertionError("expected success for missing index", e);
+            })
+        );
 
         assertThat(succeeded.get(), is(true));
     }
@@ -116,7 +151,15 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         TestValidator validator = new TestValidator(boom);
 
         AtomicReference<Exception> failure = new AtomicReference<>();
-        validator.runValidation(ESQL_QUERY, TIME_FIELD, null, ActionListener.wrap(ok -> fail("expected failure"), failure::set));
+        validator.validateQuery(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(ok -> fail("expected failure"), failure::set)
+        );
 
         assertThat(failure.get(), notNullValue());
         assertThat(failure.get().getMessage(), containsString("query syntax error"));
@@ -126,9 +169,100 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
         TestValidator validator = new TestValidator(buildResponse(columns));
 
-        validator.runValidation(ESQL_QUERY, TIME_FIELD, null, ActionListener.wrap(ok -> {}, e -> { throw new AssertionError(e); }));
+        validator.validateQuery(null, Collections.emptyMap(), ESQL_QUERY, null, TIME_FIELD, null, ActionListener.wrap(ok -> {}, e -> {
+            throw new AssertionError(e);
+        }));
 
         assertThat(validator.capturedQuery, equalTo(ESQL_QUERY + " | LIMIT 0"));
+    }
+
+    public void testValidateQueryPassesProjectRouting() {
+        List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
+        TestValidator validator = new TestValidator(buildResponse(columns));
+
+        validator.validateQuery(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            "_alias:_origin",
+            TIME_FIELD,
+            null,
+            ActionListener.wrap(ok -> {}, e -> {
+                throw new AssertionError(e);
+            })
+        );
+
+        assertThat(validator.capturedRouting, equalTo("_alias:_origin"));
+    }
+
+    public void testValidateAccessForMintSucceeds() {
+        List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
+        TestValidator validator = new TestValidator(buildResponse(columns));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            "_alias:_origin",
+            ActionListener.wrap(ignored -> succeeded.set(true), e -> {
+                throw new AssertionError(e);
+            })
+        );
+
+        assertThat(succeeded.get(), is(true));
+        assertThat(validator.capturedQuery, equalTo(ESQL_QUERY + " | LIMIT 0"));
+        assertThat(validator.capturedRouting, equalTo("_alias:_origin"));
+    }
+
+    public void testValidateAccessForMintNoMatchingProjectIsDeferred() {
+        TestValidator validator = new TestValidator(new NoMatchingProjectException("_alias:*"));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            "_alias:*",
+            ActionListener.wrap(ignored -> succeeded.set(true), e -> {
+                throw new AssertionError("expected deferral", e);
+            })
+        );
+
+        assertThat(succeeded.get(), is(true));
+    }
+
+    public void testValidateAccessForMintIndexNotFoundIsDeferred() {
+        TestValidator validator = new TestValidator(new IndexNotFoundException("logs"));
+
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            ActionListener.wrap(ignored -> succeeded.set(true), e -> {
+                throw new AssertionError("expected deferral", e);
+            })
+        );
+
+        assertThat(succeeded.get(), is(true));
+    }
+
+    public void testValidateAccessForMintOtherFailurePropagates() {
+        RuntimeException securityFailure = new RuntimeException("auth failure");
+        TestValidator validator = new TestValidator(securityFailure);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        validator.validateAccessForMint(
+            null,
+            Collections.emptyMap(),
+            ESQL_QUERY,
+            null,
+            ActionListener.wrap(ignored -> fail("expected failure"), failure::set)
+        );
+
+        assertThat(failure.get(), equalTo(securityFailure));
     }
 
     public void testCheckRequiredColumnsGivenAllPresentSucceeds() {
@@ -256,16 +390,17 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     /**
-     * Test subclass of {@link EsqlDatafeedQueryValidator} that overrides query execution to avoid
-     * the {@code SharedSecrets} / esql-plugin dependency absent from the ml plugin test classpath.
-     * Instead of building and sending an ESQL request it either returns a pre-built response or
-     * simulates a query execution failure.
+     * Test subclass of {@link EsqlDatafeedQueryValidator} that overrides {@link #executeEsqlQueryAsync}
+     * to avoid the {@code SharedSecrets}/esql-plugin dependency absent from the ml plugin test classpath.
+     * Instead of building and sending a real ESQL request it either returns a pre-built response or
+     * simulates a query execution failure, and captures the query string and project routing for assertion.
      */
-    private class TestValidator {
+    private class TestValidator extends EsqlDatafeedQueryValidator {
 
         private final EsqlQueryResponse cannedResponse;
         private final Exception cannedFailure;
         String capturedQuery;
+        String capturedRouting;
 
         TestValidator(EsqlQueryResponse response) {
             this.cannedResponse = response;
@@ -277,42 +412,21 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             this.cannedFailure = failure;
         }
 
-        /**
-         * Runs {@code EsqlDatafeedQueryValidator.validateQuery} but intercepts the query-execution
-         * step so no real ESQL call is issued. The captured query string is stored for assertion.
-         */
-        void runValidation(String esqlQuery, String timeField, String summaryCountField, ActionListener<Boolean> listener) {
-            String limitZeroQuery = esqlQuery + " | LIMIT 0";
-            capturedQuery = limitZeroQuery;
-
-            ActionListener<EsqlQueryResponse> responseListener = buildResponseListener(timeField, summaryCountField, listener);
-
-            if (cannedFailure != null) {
-                responseListener.onFailure(cannedFailure);
-            } else {
-                responseListener.onResponse(cannedResponse);
-            }
-        }
-
-        private ActionListener<EsqlQueryResponse> buildResponseListener(
-            String timeField,
-            String summaryCountField,
-            ActionListener<Boolean> listener
+        @Override
+        protected void executeEsqlQueryAsync(
+            Client client,
+            String query,
+            Map<String, String> headers,
+            String projectRouting,
+            ActionListener<EsqlQueryResponse> listener
         ) {
-            return ActionListener.wrap(response -> {
-                try {
-                    EsqlDatafeedQueryValidator.checkRequiredColumns(response.response().columns(), timeField, summaryCountField);
-                    listener.onResponse(Boolean.TRUE);
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            }, e -> {
-                if (org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                    listener.onResponse(Boolean.TRUE);
-                } else {
-                    listener.onFailure(e);
-                }
-            });
+            capturedQuery = query;
+            capturedRouting = projectRouting;
+            if (cannedFailure != null) {
+                listener.onFailure(cannedFailure);
+            } else {
+                listener.onResponse(cannedResponse);
+            }
         }
     }
 

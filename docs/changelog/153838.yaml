@@ -1,0 +1,5 @@
+area: Reindex
+issues: []
+pr: 153838
+summary: Remote reindex response memory accounting
+type: bug

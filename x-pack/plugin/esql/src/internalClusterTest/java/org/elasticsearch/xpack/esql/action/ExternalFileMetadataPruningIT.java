@@ -112,8 +112,8 @@ public class ExternalFileMetadataPruningIT extends AbstractExternalDataSourceIT 
 
     /**
      * Variant: filter excludes ALL files. The metadata hint prunes the listing to nothing, but a filter excluding
-     * every file must return zero rows, not raise "matched no files" — the listing prune is only an optimization and
-     * the {@code WHERE} still runs on the rows. See esql-planning#1174; before that fix this threw.
+     * every file returns zero rows, not an error — the listing prune is only an optimization and the {@code WHERE}
+     * still runs on the rows, which yields zero.
      */
     public void testFileModifiedFilterExcludesAllFilesReturnsZeroRows() throws Exception {
         Path dir = createTempDir();

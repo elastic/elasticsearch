@@ -23,10 +23,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 /**
- * End-to-end coverage for the two listing-layer correctness defects fixed for esql-planning#1174, exercised through
- * real text-format queries ({@code WHERE} → hint extraction → glob rewrite → node-local listing cache), the chain the
- * unit and resolver tests inject the middle of. Run against CSV and NDJSON because the listing layer is shared by every
- * text format — the cache is one {@code ExternalSourceCacheService}, keyed identically whatever the reader.
+ * End-to-end coverage for two listing-layer correctness defects, exercised through real text-format queries
+ * ({@code WHERE} → hint extraction → glob rewrite → node-local listing cache), the chain the unit and resolver tests
+ * inject the middle of. Run against CSV and NDJSON because the listing layer is shared by every text format — the
+ * cache is one {@code ExternalSourceCacheService}, keyed identically whatever the reader.
  *
  * <p>Two conditions are load-bearing and easy to get subtly wrong:
  * <ul>
@@ -149,6 +149,41 @@ public class ExternalListingCacheHintIT extends AbstractExternalDataSourceIT {
 
             long count = count(coordinator, "FROM " + dataset + " | WHERE month == 6 | STATS c = COUNT(*)");
             assertEquals("[" + format + "] the zero-padded month=06 folder must still be read", 2L, count);
+        }
+    }
+
+    /**
+     * A comma-separated path where {@code WHERE month == 6} narrows segment A onto a zero-padded {@code month=06}
+     * folder its rewrite misses, while segment B (an unpadded {@code month=6} folder) still matches. Because B keeps
+     * the whole-path listing non-empty, the pre-fix whole-path fallback never fired and A's rows were silently
+     * dropped — the query counted only B's rows. Per-segment fallback recovers A's. (Bug found in human review of
+     * #153682.) Both segments carry the {@code month} partition so it stays a bound column over the union.
+     */
+    public void testCommaPathSegmentRewrittenToEmptyStillCounted() throws Exception {
+        for (TextFormat format : TextFormat.values()) {
+            Path base = createTempDir().resolve("comma_" + format.tag);
+            Path a = base.resolve("a");
+            Path b = base.resolve("b");
+            writePartition(a.resolve("month=06"), format, List.of(new String[] { "1", "alpha" }, new String[] { "2", "beta" }));
+            writePartition(
+                b.resolve("month=6"),
+                format,
+                List.of(new String[] { "3", "gamma" }, new String[] { "4", "delta" }, new String[] { "5", "eps" })
+            );
+
+            @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
+            String glob = StoragePath.fileUri(a)
+                + "/month=*/**/*"
+                + format.ext
+                + ","
+                + StoragePath.fileUri(b)
+                + "/month=*/**/*"
+                + format.ext;
+            String dataset = registerDataset("comma_" + format.tag, glob, Map.of("hive_partitioning", true));
+            String coordinator = internalCluster().getNodeNames()[0];
+
+            long count = count(coordinator, "FROM " + dataset + " | WHERE month == 6 | STATS c = COUNT(*)");
+            assertEquals("[" + format + "] segment a's zero-padded month=06 rows must be counted, not dropped", 5L, count);
         }
     }
 

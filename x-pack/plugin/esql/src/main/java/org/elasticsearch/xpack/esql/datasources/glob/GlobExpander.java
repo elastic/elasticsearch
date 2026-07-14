@@ -104,17 +104,10 @@ public final class GlobExpander {
     }
 
     /**
-     * Expands a whole path — glob or comma-separated list — applying the filter hints, and falls back to the
-     * un-hinted listing if the hints pruned it to nothing.
-     *
-     * <p>Hint-based pruning is only an optimisation: the query's filter is still evaluated on the rows, so
-     * listing a superset of the files is always correct, while listing a subset is a wrong answer. When the
-     * hinted listing comes back empty we therefore re-list the original pattern rather than report "matched no
-     * files", because the hint's value may simply be spelled differently on disk than
-     * {@link #rewriteSegment} spells it — {@code WHERE month == 6} narrows the glob to {@code month=6}, but the
-     * Hive convention writes a zero-padded {@code month=06}. Reporting empty there would turn an ordinary query
-     * into silent zero rows. If the un-hinted listing is empty too, the pattern genuinely matches nothing and
-     * the caller's error stands.
+     * Expands a whole path — glob or comma-separated list — applying the filter hints. Each glob (a lone pattern, or
+     * every segment of a comma list) is expanded through {@link #expandGlobWithRewriteFallback}, which recovers the
+     * files a glob rewrite can hide behind a value-spelling mismatch. A comma list is handled per segment so one
+     * segment's rewrite-to-empty cannot be masked by another segment that still matches.
      */
     public static FileList expand(
         String path,
@@ -124,44 +117,88 @@ public final class GlobExpander {
         int maxDiscoveredFiles,
         int maxGlobExpansion
     ) throws IOException {
-        if (hintsAffectListing(path, hints, hivePartitioning) == false) {
-            return doExpand(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
-        }
+        return path.indexOf(',') >= 0
+            ? doExpandCommaSeparated(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion)
+            : expandGlobWithRewriteFallback(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion);
+    }
 
+    /**
+     * Expands a single glob, falling back to the un-rewritten glob if — and only if — a partition rewrite narrowed it
+     * to nothing. Hint-based narrowing is only an optimisation: the query's filter is still evaluated on the rows, so
+     * listing a superset is always correct while listing a subset is a wrong answer.
+     *
+     * <p>Only the glob rewrite ({@link #effectivePattern}/{@link #rewriteSegment}) can hide files: it spells a value
+     * with {@link String#valueOf}, so {@code WHERE month == 6} narrows the glob to {@code month=6} while the Hive
+     * convention writes a zero-padded {@code month=06}. Reporting empty there would be silent zero rows on an ordinary
+     * dataset, so we re-list the un-rewritten glob — keeping the {@code _file.*} filters, which are exact and cannot
+     * hide anything — and let the row filter decide. If the un-rewritten glob is empty too, the pattern genuinely
+     * matches nothing and the caller's "matched no files" error stands. When the rewrite did not change the pattern
+     * there is nothing to disambiguate, so we expand once with no retry.
+     */
+    private static FileList expandGlobWithRewriteFallback(
+        String pattern,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        @Nullable PartitionConfig partitionConfig,
+        @Nullable Map<String, Object> config,
+        int maxDiscoveredFiles,
+        int maxGlobExpansion
+    ) throws IOException {
+        if (effectivePattern(pattern, hints, hivePartitioning, partitionConfig).equals(pattern)) {
+            return doExpandGlob(pattern, provider, hints, hivePartitioning, partitionConfig, config, maxDiscoveredFiles, maxGlobExpansion);
+        }
+        // The retry drops the rewrite but keeps the exact _file.* filters, so it can only come back empty when the
+        // un-rewritten glob genuinely matches nothing.
+        List<PartitionFilterHint> fileHintsOnly = fileMetadataHints(hints);
         FileList expanded;
         try {
-            expanded = doExpand(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+            expanded = doExpandGlob(
+                pattern,
+                provider,
+                hints,
+                hivePartitioning,
+                partitionConfig,
+                config,
+                maxDiscoveredFiles,
+                maxGlobExpansion
+            );
         } catch (IOException e) {
-            // A hint narrows the pattern's prefix to a folder that need not exist. Providers disagree on what that
-            // means: object stores list a missing prefix as empty, the local filesystem throws. Both say the same
-            // thing — the hints, not the dataset, emptied the listing — so retry un-hinted either way.
-            logger.debug(() -> "Hinted listing of [" + path + "] failed; retrying without hints", e);
+            // The rewritten prefix may name a folder that does not exist; the local filesystem throws where object
+            // stores return empty. Both mean the rewrite, not the dataset, emptied the listing — retry either way.
+            logger.debug(() -> "Rewritten listing of [" + pattern + "] failed; re-listing without the glob rewrite", e);
             try {
-                return doExpand(path, provider, null, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+                return doExpandGlob(
+                    pattern,
+                    provider,
+                    fileHintsOnly,
+                    hivePartitioning,
+                    partitionConfig,
+                    config,
+                    maxDiscoveredFiles,
+                    maxGlobExpansion
+                );
             } catch (IOException retryFailure) {
                 retryFailure.addSuppressed(e);
                 throw retryFailure;
             }
         }
-
         if (expanded.isResolved() && expanded.fileCount() == 0) {
-            logger.debug("Hints pruned the listing of [{}] to nothing; re-listing without hints", path);
-            return doExpand(path, provider, null, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+            logger.debug("Rewrite of [{}] narrowed to an empty listing; re-listing without the glob rewrite", pattern);
+            // A full re-list can exceed max_discovered_files and throw, exactly as the un-filtered query would; that
+            // cap error is preserved deliberately — deciding spelling-miss vs genuinely-empty needs the full listing.
+            return doExpandGlob(
+                pattern,
+                provider,
+                fileHintsOnly,
+                hivePartitioning,
+                partitionConfig,
+                config,
+                maxDiscoveredFiles,
+                maxGlobExpansion
+            );
         }
         return expanded;
-    }
-
-    private static FileList doExpand(
-        String path,
-        StorageProvider provider,
-        @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
-        int maxDiscoveredFiles,
-        int maxGlobExpansion
-    ) throws IOException {
-        return path.indexOf(',') >= 0
-            ? doExpandCommaSeparated(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion)
-            : doExpandGlob(path, provider, hints, hivePartitioning, null, null, maxDiscoveredFiles, maxGlobExpansion);
     }
 
     public static PartitionDetector resolveDetector(PartitionConfig config) {
@@ -297,7 +334,7 @@ public final class GlobExpander {
                     checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
                 }
                 if (hints != null && hints.isEmpty() == false) {
-                    matched = applyFileMetadataFilters(matched, hints);
+                    matched = applyFileFiltersRetainingAnchor(matched, hints);
                 }
                 if (matched.isEmpty()) {
                     return FileList.EMPTY;
@@ -335,7 +372,7 @@ public final class GlobExpander {
         // Apply file metadata filters from WHERE clause hints (e.g., _file.modified > X, _file.size > Y).
         // This prunes files at listing time — before any data is read.
         if (hints != null && hints.isEmpty() == false) {
-            matched = applyFileMetadataFilters(matched, hints);
+            matched = applyFileFiltersRetainingAnchor(matched, hints);
         }
 
         if (matched.isEmpty()) {
@@ -347,6 +384,18 @@ public final class GlobExpander {
         PartitionMetadata partitionMetadata = detectPartitions(matched, hivePartitioning, partitionConfig, config);
 
         return new GenericFileList(matched, pattern, partitionMetadata);
+    }
+
+    /**
+     * Applies the {@code _file.*} filters, but keeps the unfiltered listing when they prune a non-empty listing to
+     * nothing. Those filters are exact, so an all-pruned result is genuinely zero rows — but the resolver needs at
+     * least one file to anchor schema inference, and the split- and row-level filters still yield zero rows from the
+     * retained listing. A partial prune (some files survive) stands untouched; only the all-pruned case is retained,
+     * which also keeps that emptiness out of {@link #expandGlobWithRewriteFallback}'s rewrite-only retry.
+     */
+    private static List<StorageEntry> applyFileFiltersRetainingAnchor(List<StorageEntry> matched, List<PartitionFilterHint> hints) {
+        List<StorageEntry> filtered = applyFileMetadataFilters(matched, hints);
+        return filtered.isEmpty() && matched.isEmpty() == false ? matched : filtered;
     }
 
     static PartitionMetadata detectPartitions(
@@ -433,7 +482,9 @@ public final class GlobExpander {
             StoragePath segmentPath = StoragePath.of(trimmed);
             if (segmentPath.isPattern()) {
                 int remainingBudget = maxDiscoveredFiles - allEntries.size();
-                FileList expanded = doExpandGlob(
+                // Per segment, so a segment a rewrite narrows to empty falls back on its own instead of being masked
+                // by another segment that still matches.
+                FileList expanded = expandGlobWithRewriteFallback(
                     trimmed,
                     provider,
                     hints,
@@ -488,9 +539,9 @@ public final class GlobExpander {
      * the effective (post-rewrite) glob pattern, and the {@code _file.*} metadata filters. These are the inputs
      * {@link #doExpandGlob} consults beyond the storage contents themselves — the rewrite via {@link #effectivePattern}
      * and the file filters via {@link #applyFileMetadataFilters} — and this value shares those same helpers, so the
-     * cache key and the fallback gate (its only two consumers) can never disagree with each other about what a hint
-     * does. Note this binds the key and the gate, not the expansion: a new hint channel added to {@link #doExpandGlob}
-     * must be added here by hand, or that channel silently reintroduces the poisoning bug.
+     * listing cache key it feeds cannot drift from the listing it names. Note this binds only the cache key: a new
+     * hint channel added to {@link #doExpandGlob} must be added here by hand, or that channel silently reintroduces
+     * the poisoning bug.
      *
      * <p>{@link #encode} is injective — every variable-length piece is length-prefixed, so no user-controlled filter
      * literal (which may hold any character, including the delimiters) can forge a field boundary and collide two
@@ -535,19 +586,7 @@ public final class GlobExpander {
     }
 
     /**
-     * Whether the hints narrow the listing at all — i.e. whether dropping them would change the files discovered.
-     * Compares the {@link ListingIdentity} with and without the hints rather than re-deciding it, so the fallback in
-     * {@link #expand} cannot disagree with the cache key about what a hint does.
-     */
-    static boolean hintsAffectListing(String path, @Nullable List<PartitionFilterHint> hints, boolean hivePartitioning) {
-        if (hints == null || hints.isEmpty()) {
-            return false;
-        }
-        return ListingIdentity.of(path, hints, hivePartitioning).equals(ListingIdentity.of(path, null, hivePartitioning)) == false;
-    }
-
-    /**
-     * Mirrors {@link #doExpand}'s glob/comma dispatch: in a comma list only the pattern segments are rewritten, over
+     * Mirrors {@link #expand}'s glob/comma dispatch: in a comma list only the pattern segments are rewritten, over
      * the same {@link #commaSegments} decomposition the expansion walks. {@code partitionConfig} is fixed null to
      * match {@link #expand}'s signature — the production listing paths carry no {@link PartitionConfig} (see
      * {@link #expandAndCompact}), so neither does the identity that names their result.

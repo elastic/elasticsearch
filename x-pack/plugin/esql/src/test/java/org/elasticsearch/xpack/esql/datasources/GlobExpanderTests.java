@@ -533,8 +533,12 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(1, result.fileCount());
     }
 
-    /** The file-metadata channel prunes any multi-file path, so a plain glob needs the same fallback. */
-    public void testFileMetadataHintPruningToEmptyFallsBack() throws IOException {
+    /**
+     * The {@code _file.*} filters are exact — an all-pruned result is genuinely zero rows, with no spelling to
+     * disambiguate — so an all-pruned listing is retained (the resolver needs an anchor and the row filter still
+     * yields zero rows) rather than re-listed. The listing must not be recomputed a second time.
+     */
+    public void testFileMetadataPruneToEmptyRetainsAnchorWithoutRelisting() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
             Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200)))
         );
@@ -543,6 +547,105 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, hints, true, MAX, MAX);
 
         assertEquals(2, result.fileCount());
+        assertEquals("an exact _file.* prune is retained in one listing pass, not re-listed", 1, provider.listCallCount);
+    }
+
+    /**
+     * A comma segment a rewrite narrows to empty must fall back on its own, not be masked by another segment that
+     * still matches. Without per-segment fallback the {@code a/month=06} files are silently dropped while {@code b/}
+     * keeps the aggregate non-empty. (Bug found in human review of #153682.)
+     */
+    public void testCommaSegmentRewrittenToEmptyFallsBackForThatSegment() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/a/",
+                List.of(entry("s3://bucket/a/month=06/x.parquet", 100)),
+                "s3://bucket/b/",
+                List.of(entry("s3://bucket/b/y.parquet", 200))
+            )
+        );
+
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
+        FileList result = GlobExpander.expand("s3://bucket/a/month=*/*.parquet,s3://bucket/b/*.parquet", provider, hints, true, MAX, MAX);
+
+        List<String> paths = new ArrayList<>();
+        for (int i = 0; i < result.fileCount(); i++) {
+            paths.add(result.path(i).toString());
+        }
+        assertEquals("the pruned segment's zero-padded file must survive alongside the other segment", 2, result.fileCount());
+        assertTrue(paths.contains("s3://bucket/a/month=06/x.parquet"));
+        assertTrue(paths.contains("s3://bucket/b/y.parquet"));
+    }
+
+    /** The local-filesystem flavor of the per-segment fallback: the rewritten segment prefix throws. */
+    public void testCommaSegmentRewrittenPrefixThatThrowsFallsBack() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/a/",
+                List.of(entry("s3://bucket/a/month=06/x.parquet", 100)),
+                "s3://bucket/b/",
+                List.of(entry("s3://bucket/b/y.parquet", 200))
+            )
+        );
+        provider.throwOnUnknownPrefix = true;
+
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
+        FileList result = GlobExpander.expand("s3://bucket/a/month=*/*.parquet,s3://bucket/b/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertEquals(2, result.fileCount());
+    }
+
+    /**
+     * The rewrite-channel fallback drops the rewrite but must keep the exact {@code _file.*} filters, or the fallback
+     * over-lists. Here {@code month == 6} empties the rewritten glob; the fallback re-lists {@code month=*} but the
+     * {@code _file.size > 100} filter must still exclude the small file.
+     */
+    public void testRewriteFallbackKeepsFileMetadataFilter() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/month=06/big.parquet", 200),
+                    entry("s3://bucket/data/month=06/small.parquet", 10),
+                    entry("s3://bucket/data/month=07/other.parquet", 300)
+                )
+            )
+        );
+
+        var hints = List.of(
+            hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6),
+            hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 100)
+        );
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        List<String> paths = new ArrayList<>();
+        for (int i = 0; i < result.fileCount(); i++) {
+            paths.add(result.path(i).toString());
+        }
+        assertEquals("the fallback keeps the size filter, dropping the small file", 2, result.fileCount());
+        assertTrue(paths.contains("s3://bucket/data/month=06/big.parquet"));
+        assertTrue(paths.contains("s3://bucket/data/month=07/other.parquet"));
+    }
+
+    /**
+     * A query whose rewrite AND file filter both exclude everything still leaves an anchor: the rewrite fallback
+     * re-lists {@code month=*}, the exact size filter prunes it to empty, and retention keeps the file so the
+     * resolver never sees zero files (the row filter yields zero rows downstream).
+     */
+    public void testComposedPruneToEmptyRetainsAnchor() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/month=06/small.parquet", 10)))
+        );
+
+        var hints = List.of(
+            hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6),
+            hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 1_000_000)
+        );
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/month=06/small.parquet", result.path(0).toString());
     }
 
     /** A pattern that genuinely matches nothing still comes back empty — the caller's loud error is preserved. */
@@ -564,6 +667,31 @@ public class GlobExpanderTests extends ESTestCase {
 
         assertEquals(0, result.fileCount());
         assertEquals("no hints, so no fallback listing", 1, provider.listCallCount);
+    }
+
+    /**
+     * The rewrite fallback re-lists the full glob to tell a spelling-miss from a genuinely empty partition. If that
+     * full listing exceeds {@code max_discovered_files} the discovery cap fires — the same error the un-filtered
+     * query would raise. That cap error is preserved deliberately; deciding the two cases needs the full listing.
+     */
+    public void testRewriteFallbackBeyondDiscoveryCapKeepsCapError() {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/year=2024/a.parquet", 100),
+                    entry("s3://bucket/data/year=2024/b.parquet", 200),
+                    entry("s3://bucket/data/year=2024/c.parquet", 300)
+                )
+            )
+        );
+
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
+        var e = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, true, 2, MAX)
+        );
+        assertThat(e.getMessage(), containsString("discovered too many files"));
     }
 
     // -- listing cache discriminator --

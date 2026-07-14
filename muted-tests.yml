@@ -98,15 +98,6 @@ tests:
 - class: org.elasticsearch.xpack.security.transport.filter.IpFilteringIntegrationTests
   method: testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp
   issue: https://github.com/elastic/elasticsearch/issues/146102
-- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
-  method: testHAProxyModeConnectionWithSNIToCluster1Works
-  issue: https://github.com/elastic/elasticsearch/issues/139170
-- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
-  method: testHAProxyModeConnectionWithSNIToCluster2Works
-  issue: https://github.com/elastic/elasticsearch/issues/139172
-- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
-  method: testHAProxyModeConnectionWorks
-  issue: https://github.com/elastic/elasticsearch/issues/139171
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PROMQL}
   issue: https://github.com/elastic/elasticsearch/issues/146923
@@ -727,9 +718,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-multivalue.mvMinFromSplit [ndjson.zst/GCS]}
   issue: https://github.com/elastic/elasticsearch/issues/153471
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testRegistrationOnBccWithLastHollowCommitAndDifferentPrimaryTerm
-  issue: https://github.com/elastic/elasticsearch/issues/153472
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_bbq_flat/Test knn search}
   issue: https://github.com/elastic/elasticsearch/issues/153476
@@ -832,3 +820,30 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=ml/inference_crud/Test delete already-deleted model returns 404 not 409}
   issue: https://github.com/elastic/elasticsearch/issues/153812
+- class: org.elasticsearch.xpack.esql.generator.CompositeFunctionGeneratorTests
+  method: testCompositeExpressionReturnsNullWhenNoColumnsMatch
+  issue: https://github.com/elastic/elasticsearch/issues/153817
+- class: org.elasticsearch.xpack.esql.action.S3ManagedIdentityAuthIT
+  method: testManagedIdentityAuthReadsRowsAndUsesWorkloadIdentityCredential
+  issue: https://github.com/elastic/elasticsearch/issues/153820
+- class: org.elasticsearch.xpack.esql.action.S3ManagedIdentityAuthIT
+  method: testQueryFailsWhenWrongCredentialIsUsed
+  issue: https://github.com/elastic/elasticsearch/issues/153821
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testMasterFailoverDuringMountSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/153823
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testMasterFailoverDuringCleanup
+  issue: https://github.com/elastic/elasticsearch/issues/153174
+- class: org.elasticsearch.action.RejectionActionIT
+  method: testSimulatedSearchRejectionLoad
+  issue: https://github.com/elastic/elasticsearch/issues/153848
+- class: org.elasticsearch.xpack.stateless.StatelessAbortRunningMergesOnRelocationIT
+  method: testConcurrentForceMergeIsNotAborted
+  issue: https://github.com/elastic/elasticsearch/issues/153854
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecChangePointIT
+  method: test {csv-spec:change_point.values int column with all nulls}
+  issue: https://github.com/elastic/elasticsearch/issues/153871
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testMasterFailoverDuringMarkReadOnly
+  issue: https://github.com/elastic/elasticsearch/issues/153882

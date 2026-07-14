@@ -30,6 +30,7 @@ import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
@@ -294,6 +295,353 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // The flat struct leaf still publishes normally with a concrete null count.
         assertTrue(cols.containsKey("s.a"));
         assertEquals(OptionalLong.of(0L), cols.get("s.a").nullCount());
+    }
+
+    /**
+     * Regression for the Parquet MAP footer-stats crash: a {@code MAP<K,V>} has two physical leaves
+     * ({@code m.key_value.key}, {@code m.key_value.value}) that the flattener collapses to one logical
+     * name {@code m}. Folding their heterogeneously typed footer stats (String key vs Long value) into
+     * one entry threw {@link ClassCastException} in the min/max merge, surfacing as an HTTP 500 before
+     * type resolution — so even {@code STATS COUNT(*)} failed. {@code isMapDescendedLeaf} now skips
+     * every map-descended leaf, so metadata resolves, the map surfaces as {@code UNSUPPORTED} (never
+     * published as a stat), and the sibling scalar keeps its concrete stats.
+     */
+    public void testMapColumnDoesNotCrashAndPublishesNoMapStats() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group m (MAP) {
+                repeated group key_value {
+                  required binary key (UTF8);
+                  optional int64 value;
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 5; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                Group m = g.addGroup("m");
+                m.addGroup("key_value").append("key", "k" + r).append("value", (long) (r * 10));
+                m.addGroup("key_value").append("key", "j" + r).append("value", (long) (r * 10 + 1));
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+
+        // The map column is surfaced but UNSUPPORTED downstream.
+        Attribute mapAttr = metadata.schema().stream().filter(a -> a.name().equals("m")).findFirst().orElseThrow();
+        assertEquals(DataType.UNSUPPORTED, mapAttr.dataType());
+
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+        // No folded key/value stats are published under the map's logical name.
+        assertFalse("no stats must be published for the map column", cols.containsKey("m"));
+        // The sibling scalar keeps concrete stats — the footer fast path is preserved for it.
+        assertTrue(cols.containsKey("id"));
+        assertEquals(OptionalLong.of(0L), cols.get("id").nullCount());
+        assertEquals(Optional.of(0L), cols.get("id").minValue());
+        assertEquals(Optional.of(4L), cols.get("id").maxValue());
+    }
+
+    /**
+     * Reversed key/value ordering ({@code map<int,string>}): the fold is still heterogeneous (Long key
+     * vs String value). Metadata must resolve without a 500 and publish no map stats.
+     */
+    public void testMapColumnReversedKeyValueDoesNotCrash() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group m (MAP) {
+                repeated group key_value {
+                  required int64 key;
+                  optional binary value (UTF8);
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                g.addGroup("m").addGroup("key_value").append("key", (long) r).append("value", "v" + r);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+        assertFalse(cols.containsKey("m"));
+        assertTrue(cols.containsKey("id"));
+    }
+
+    /**
+     * A third value type ({@code map<string,double>}) folds a String key extremum against a Double
+     * value extremum. Metadata must resolve and publish no map stats.
+     */
+    public void testMapColumnDoubleValueDoesNotCrash() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group m (MAP) {
+                repeated group key_value {
+                  required binary key (UTF8);
+                  optional double value;
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                g.addGroup("m").addGroup("key_value").append("key", "k" + r).append("value", r + 0.5);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+        assertFalse(cols.containsKey("m"));
+        assertTrue(cols.containsKey("id"));
+    }
+
+    /**
+     * A MAP nested inside a STRUCT ({@code struct<map<string,int>>}): the skip must reach map leaves at
+     * any depth. Metadata resolves, no {@code s.m} stats are published, and the sibling struct leaf
+     * {@code s.a} keeps its concrete stats.
+     */
+    public void testStructNestedMapDoesNotCrash() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              optional group s {
+                required int64 a;
+                optional group m (MAP) {
+                  repeated group key_value {
+                    required binary key (UTF8);
+                    optional int32 value;
+                  }
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                Group s = g.addGroup("s");
+                s.add("a", (long) r);
+                s.addGroup("m").addGroup("key_value").append("key", "k" + r).append("value", r);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+        assertFalse("no stats for the nested map", cols.containsKey("s.m"));
+        assertTrue(cols.containsKey("s.a"));
+        assertEquals(OptionalLong.of(0L), cols.get("s.a").nullCount());
+    }
+
+    /**
+     * A MAP whose value is a LIST ({@code map<string,list<int>>}): a nested-collection variant that must
+     * also resolve without a 500 and publish no map stats.
+     */
+    public void testMapWithListValueDoesNotCrash() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group m (MAP) {
+                repeated group key_value {
+                  required binary key (UTF8);
+                  optional group value (LIST) {
+                    repeated group list {
+                      optional int32 element;
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                Group kv = g.addGroup("m").addGroup("key_value");
+                kv.append("key", "k" + r);
+                Group value = kv.addGroup("value");
+                value.addGroup("list").append("element", r);
+                value.addGroup("list").append("element", r + 1);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+        assertFalse(cols.containsKey("m"));
+        assertTrue(cols.containsKey("id"));
+    }
+
+    /**
+     * A homogeneous {@code map<string,string>} does not throw (both leaves compare as String), so the
+     * {@code metadata()} path is uninteresting — a MAP is UNSUPPORTED there and dropped by the publish
+     * filter regardless of the fix. The path this case actually corrupts is the split/row-group stats
+     * ({@link ParquetFormatReader#discoverSplitRanges} &rarr; {@code buildRowGroupStats}), which has no
+     * UNSUPPORTED filter: before the skip it {@code put} the value leaf's min/max over the key leaf's
+     * under the folded name {@code m}, serializing wrong per-split stats. Assert those keys are absent so
+     * this is a genuine regression guard (RED before the fix). The sibling scalar keeps its min/max.
+     */
+    public void testHomogeneousMapPublishesNoFoldedSplitStat() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group m (MAP) {
+                repeated group key_value {
+                  required binary key (UTF8);
+                  optional binary value (UTF8);
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                g.addGroup("m").addGroup("key_value").append("key", "k" + r).append("value", "v" + r);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(createStorageObject(parquetData));
+        assertEquals(1, ranges.size());
+        Map<String, Object> stats = ranges.getFirst().statistics();
+        // No folded key/value stats are serialized for the map under any of its stat keys.
+        assertNull("no folded map min in split stats", stats.get("_stats.columns.m.min"));
+        assertNull("no folded map max in split stats", stats.get("_stats.columns.m.max"));
+        assertNull("no folded map null_count in split stats", stats.get("_stats.columns.m.null_count"));
+        assertNull("no folded map size in split stats", stats.get("_stats.columns.m.size_bytes"));
+        // The sibling scalar still publishes its real per-split stats.
+        assertEquals(0L, stats.get("_stats.columns.id.min"));
+        assertEquals(2L, stats.get("_stats.columns.id.max"));
+    }
+
+    /**
+     * Control against a regression on the working LIST path: a repeated (struct-nested) {@code list<int>}
+     * leaf must still read and keep its element-spanning min/max (only its null count is unknown, per
+     * #1055). Guards against the map skip accidentally widening to non-map repeated leaves. A top-level
+     * list publishes only a size marker (no min/max, per #1056), so a struct-nested list is used here to
+     * exercise the min/max-preserving branch.
+     */
+    public void testListControlKeepsMinMax() throws Exception {
+        Type blist = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("blist");
+        Type structS = Types.optionalGroup().required(PrimitiveType.PrimitiveTypeName.INT64).named("a").addField(blist).named("s");
+        MessageType schema = new MessageType("test_schema", structS);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 5; r++) {
+                Group g = factory.newGroup();
+                Group s = g.addGroup("s");
+                s.add("a", (long) r);
+                Group list = s.addGroup("blist");
+                list.addGroup("list").append("element", r * 10);
+                list.addGroup("list").append("element", r * 10 + 1);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+        assertTrue("nested list column must still be registered", cols.containsKey("s.blist"));
+        assertEquals("nested list null count must be unknown", OptionalLong.empty(), cols.get("s.blist").nullCount());
+        assertEquals("list min spans every element", Optional.of(0), cols.get("s.blist").minValue());
+        assertEquals("list max spans every element", Optional.of(41), cols.get("s.blist").maxValue());
+    }
+
+    /**
+     * {@link ParquetFormatReader#compareStatExtremum} must never surface a raw {@link ClassCastException}
+     * for heterogeneously typed extrema (the shape a MAP fold would have produced). Reaching it with a
+     * mismatched pair is an upstream regression, so it fails loudly under {@code -ea} (tests run with
+     * assertions enabled) via {@link AssertionError}; in production it returns a safe {@code 0} instead of
+     * crashing. Same-typed extrema keep their natural ordering.
+     */
+    public void testCompareStatExtremumHeterogeneousAsserts() {
+        expectThrows(AssertionError.class, () -> ParquetFormatReader.compareStatExtremum("a", 1L));
+        expectThrows(AssertionError.class, () -> ParquetFormatReader.compareStatExtremum(1L, "a"));
+        assertTrue(ParquetFormatReader.compareStatExtremum(1L, 2L) < 0);
+        assertTrue(ParquetFormatReader.compareStatExtremum(2L, 1L) > 0);
+        assertEquals(0, ParquetFormatReader.compareStatExtremum(1L, 1L));
+        assertTrue(ParquetFormatReader.compareStatExtremum("a", "b") < 0);
+    }
+
+    /**
+     * Reverse nesting ({@code list<map<string,int64>>}): a MAP reached through an enclosing LIST rather
+     * than being the outermost group. This exercises the ordering of the {@code isMapDescendedLeaf} check
+     * ahead of the top-level-list-leaf branch — the map leaves must be skipped (not mis-keyed as a
+     * top-level list size marker), metadata must resolve, and no stats are published for the list-of-map
+     * column while the sibling scalar keeps its stats.
+     */
+    public void testTopLevelListOfMapDoesNotCrash() throws Exception {
+        MessageType schema = MessageTypeParser.parseMessageType("""
+            message test_schema {
+              required int64 id;
+              optional group ml (LIST) {
+                repeated group list {
+                  optional group element (MAP) {
+                    repeated group key_value {
+                      required binary key (UTF8);
+                      optional int64 value;
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) r);
+                Group element = g.addGroup("ml").addGroup("list").addGroup("element");
+                element.addGroup("key_value").append("key", "k" + r).append("value", (long) (r * 10));
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+        assertFalse("no stats for the list-of-map column", cols.containsKey("ml"));
+        assertTrue(cols.containsKey("id"));
+        assertEquals(OptionalLong.of(0L), cols.get("id").nullCount());
     }
 
     /**

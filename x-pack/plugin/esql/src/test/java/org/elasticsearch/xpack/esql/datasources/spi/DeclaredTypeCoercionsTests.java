@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -106,7 +107,9 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                 || from == DataType.INTEGER
                 || from == DataType.LONG
                 || from == DataType.UNSIGNED_LONG
-                || from == DataType.DOUBLE;
+                || from == DataType.DOUBLE
+                // an instant the file already typed: the unit is known, so nanos->millis narrows
+                || from == DataType.DATE_NANOS;
             // string parse, or the millis->nanos widen a date_nanos field runs on an epoch-millis
             // token at ingest (also cross-file DATETIME + DATE_NANOS unification); a raw long stays
             // out — ambiguous between millis and nanos
@@ -561,6 +564,28 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             Block cast = castStrict(src, DataType.DOUBLE, DataType.DATETIME, epochSecond)
         ) {
             assertEquals(1704067200500L, ((LongBlock) cast).getLong(0)); // 0.5s -> 500ms, >= 1e7 plain-decimal render
+        }
+    }
+
+    /**
+     * A {@code date_nanos} source declared {@code datetime} narrows nanos&rarr;millis, truncating sub-millisecond
+     * precision. This is what lets an annotated {@code TIMESTAMP(MICROS|NANOS)} parquet column — which infers as
+     * {@code date_nanos} — be declared as the conventional {@code date}. Pinned value-identical to {@code ::datetime},
+     * which maps DATE_NANOS through the same {@link DateUtils#toMilliSeconds}, so a declared read and an explicit cast
+     * cannot disagree.
+     */
+    public void testCastDateNanosToDatetimeNarrowsToMillis() {
+        long nanos = 1704067200_123_456_789L; // 2024-01-01T00:00:00.123456789Z
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { nanos }, 1).asBlock();
+            Block cast = castStrict(src, DataType.DATE_NANOS, DataType.DATETIME)
+        ) {
+            assertEquals("nanos truncate to millis", 1704067200_123L, ((LongBlock) cast).getLong(0));
+            assertEquals("must equal the ::datetime primitive", DateUtils.toMilliSeconds(nanos), ((LongBlock) cast).getLong(0));
+        }
+        // a pre-epoch nanos instant has no millis representation here: it throws and follows the read's error policy
+        try (Block src = blockFactory.newLongArrayVector(new long[] { -1L }, 1).asBlock()) {
+            expectThrows(IllegalArgumentException.class, () -> castStrict(src, DataType.DATE_NANOS, DataType.DATETIME).close());
         }
     }
 

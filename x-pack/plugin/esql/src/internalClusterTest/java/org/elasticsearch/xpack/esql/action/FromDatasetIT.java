@@ -2475,6 +2475,41 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertCompositeMs("composite_csv", "csv", csv.toUri().toString(), composite);
     }
 
+    public void testAnnotatedTimestampMicrosDeclaredDateNarrows() throws Exception {
+        // The Spark/Arrow/Iceberg shape: their parquet writers annotate a timestamp column as TIMESTAMP(MICROS), which
+        // infers as date_nanos. Declaring it `date` — the conventional dashboard type — narrows nanos->millis, so the
+        // column can be a Kibana time field. Before the narrowing this failed resolution outright ("declared type [date]
+        // cannot be read from the file's type [date_nanos]"). The annotation carries the unit, so no format is involved.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path parquet = createTempDir().resolve("ts_micros.parquet");
+        // 2024-01-01T00:00:00.123456Z in MICROS — sub-millisecond digits present, so truncation is observable
+        Files.write(parquet, timestampMicrosFixtureBytes(1704067200_123_456L));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", new DatasetFieldMapping("date", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "epoch_micros_annotated",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_micros_annotated | EVAL ms = ts::long | KEEP ms | LIMIT 1"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            // micros -> millis: the .456 microsecond remainder truncates away
+            assertThat(rows.get(0).get(0), equalTo(1704067200_123L));
+        }
+    }
+
     /** Declares {@code {ts: date, format: <the composite>}} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */
     private void assertCompositeMs(String datasetName, String format, String location, String composite) throws Exception {
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();

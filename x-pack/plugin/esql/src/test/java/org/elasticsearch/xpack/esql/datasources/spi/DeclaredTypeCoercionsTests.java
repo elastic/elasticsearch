@@ -473,6 +473,27 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         }
     }
 
+    /**
+     * A COMPOSITE format ({@code a||b}, the ES multi-format syntax — the default date format is itself
+     * {@code strict_date_optional_time||epoch_millis}) serves a column whose carrier differs per file format: the same
+     * declaration reads a calendar STRING token and a numeric EPOCH-SECOND token to the same instant. Alternatives are
+     * tried left-to-right, and string-vs-number is unambiguous, so neither can shadow the other. This is the ClickBench
+     * shape: {@code EventTime} is an int64 of Unix seconds in parquet and the string "2013-07-14 20:38:47" in NDJSON.
+     */
+    public void testCompositeFormatServesBothStringAndNumericCarriers() {
+        DateFormatter composite = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss||epoch_second");
+        long expected = 1704067200000L; // 2024-01-01T00:00:00Z
+        try (Block src = bytesBlock("2024-01-01 00:00:00"); Block cast = castStrict(src, DataType.KEYWORD, DataType.DATETIME, composite)) {
+            assertEquals("the calendar alternative parses the string carrier", expected, ((LongBlock) cast).getLong(0));
+        }
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { 1704067200L }, 1).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATETIME, composite)
+        ) {
+            assertEquals("the epoch_second alternative parses the numeric carrier", expected, ((LongBlock) cast).getLong(0));
+        }
+    }
+
     /** {@code epoch_millis} on a whole-number source is the identity reinterpret — the same value as no format. */
     public void testCastWholeNumberToDatetimeEpochMillisFormatIsIdentity() {
         DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis");

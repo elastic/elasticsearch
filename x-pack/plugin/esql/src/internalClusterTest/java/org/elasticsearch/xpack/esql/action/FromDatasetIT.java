@@ -1353,7 +1353,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 new PutDatasetAction.Request(
                     TIMEOUT,
                     TIMEOUT,
-                    "logs_deferred_epoch",
+                    "epoch_deferred",
                     "local_ds",
                     parquet.toUri().toString(),
                     null,
@@ -1365,7 +1365,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // Three kept non-sort columns crosses DEFERRED_COLUMN_MIN, so ts_epoch is materialized by the extractor.
         try (
             var response = run(
-                syncEsqlQueryRequest("FROM logs_deferred_epoch | SORT pri DESC | KEEP ts_epoch, event_ts, msg | LIMIT 2"),
+                syncEsqlQueryRequest("FROM epoch_deferred | SORT pri DESC | KEEP ts_epoch, event_ts, msg | LIMIT 2"),
                 TIMEOUT
             )
         ) {
@@ -2362,7 +2362,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 new PutDatasetAction.Request(
                     TIMEOUT,
                     TIMEOUT,
-                    "logs_parquet_epoch_second",
+                    "epoch_parquet_nonstrict",
                     "local_ds",
                     parquet.toUri().toString(),
                     null,
@@ -2373,7 +2373,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         try (
             var response = run(
-                syncEsqlQueryRequest("FROM logs_parquet_epoch_second | EVAL ms = ts::long | KEEP ms | SORT ms | LIMIT 1"),
+                syncEsqlQueryRequest("FROM epoch_parquet_nonstrict | EVAL ms = ts::long | KEEP ms | SORT ms | LIMIT 1"),
                 TIMEOUT
             )
         ) {
@@ -2397,7 +2397,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 new PutDatasetAction.Request(
                     TIMEOUT,
                     TIMEOUT,
-                    "logs_parquet_strict_epoch_second",
+                    "epoch_parquet_strict",
                     "local_ds",
                     parquet.toUri().toString(),
                     null,
@@ -2408,7 +2408,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         try (
             var response = run(
-                syncEsqlQueryRequest("FROM logs_parquet_strict_epoch_second | EVAL ms = ts::long | KEEP ms | SORT ms | LIMIT 1"),
+                syncEsqlQueryRequest("FROM epoch_parquet_strict | EVAL ms = ts::long | KEEP ms | SORT ms | LIMIT 1"),
                 TIMEOUT
             )
         ) {
@@ -2443,6 +2443,67 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Path ndjson = createTempFile("dataset-epoch-", ".ndjson");
         Files.writeString(ndjson, "{\"ts\":" + EPOCH_SECOND_TOKEN + "}\n");
         assertEpochSecondMs("epoch_ndjson", "ndjson", ndjson.toUri().toString());
+    }
+
+    /**
+     * The ClickBench shape. One COMPOSITE declaration — {@code "yyyy-MM-dd HH:mm:ss||epoch_second"} — serves a column
+     * whose CARRIER differs per file format: ClickBench's {@code EventTime} is a bare int64 of Unix seconds in parquet
+     * (the upstream file carries no logical-type annotation) but the string {@code "2013-07-14 20:38:47"} in NDJSON.
+     * ES multi-format patterns try alternatives left-to-right, and string-vs-number is unambiguous, so neither
+     * alternative can shadow the other. Both carriers must land on the identical instant under ONE mapping.
+     * <p>
+     * (Contrast {@code "epoch_second||epoch_millis"}, which would be a silent wrong-answer generator: every millis
+     * value also parses as seconds, so the first alternative always wins. Composite alternatives must be mutually
+     * unambiguous — this test pins the safe pairing.)
+     */
+    public void testCompositeFormatServesNumericAndStringCarriers() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        String composite = "yyyy-MM-dd HH:mm:ss||epoch_second";
+
+        // parquet: bare int64 Unix seconds -> the epoch_second alternative fires
+        Path parquet = writeParquetEpochSecondFixture();
+        assertCompositeMs("composite_parquet", "parquet", parquet.toUri().toString(), composite);
+
+        // ndjson: the same instant as a calendar STRING -> the calendar alternative fires
+        Path ndjson = createTempFile("dataset-composite-", ".ndjson");
+        Files.writeString(ndjson, "{\"ts\":\"2024-01-01 00:00:00\"}\n");
+        assertCompositeMs("composite_ndjson", "ndjson", ndjson.toUri().toString(), composite);
+
+        // csv: same calendar string token
+        Path csv = createTempFile("dataset-composite-", ".csv");
+        Files.writeString(csv, "ts:keyword\n2024-01-01 00:00:00\n");
+        assertCompositeMs("composite_csv", "csv", csv.toUri().toString(), composite);
+    }
+
+    /** Declares {@code {ts: date, format: <the composite>}} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */
+    private void assertCompositeMs(String datasetName, String format, String location, String composite) throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", DatasetFieldMapping.withFormat("date", null, composite));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    datasetName,
+                    "local_ds",
+                    location,
+                    null,
+                    new HashMap<>(Map.of("format", format)),
+                    mapping
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM " + datasetName + " | EVAL ms = ts::long | KEEP ms | LIMIT 1"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("composite format on [" + format + "]", rows, hasSize(1));
+            assertThat(
+                "composite format must read the same instant from the [" + format + "] carrier",
+                rows.get(0).get(0),
+                equalTo(EPOCH_SECOND_MILLIS)
+            );
+        }
     }
 
     /** Declares {ts: date, format: epoch_second} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */

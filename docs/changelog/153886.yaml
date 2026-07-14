@@ -1,0 +1,6 @@
+area: Inference
+issues:
+ - 144871
+pr: 153886
+summary: "[Inference API] Deploy text embedding models before validation call"
+type: bug

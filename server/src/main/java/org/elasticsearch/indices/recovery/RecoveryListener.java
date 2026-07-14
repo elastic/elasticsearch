@@ -125,11 +125,11 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try {
                     beforeFailure.accept(e);
                 } finally {
-                    listener.onRecoveryFailure(e, sendShardFailure);
+                    listener.onRecoveryFailure(e, failureStrategy);
                 }
             }
 

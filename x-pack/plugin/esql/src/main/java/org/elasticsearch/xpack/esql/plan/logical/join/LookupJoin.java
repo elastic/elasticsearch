@@ -101,7 +101,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
     @Override
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
-        if (isRemote()) {
+        if (isRemote() && isCoordinatorMode() == false) {
             checkRemoteJoin(failures);
         }
     }

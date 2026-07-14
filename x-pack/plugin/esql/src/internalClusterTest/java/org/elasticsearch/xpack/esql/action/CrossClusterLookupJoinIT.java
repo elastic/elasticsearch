@@ -909,17 +909,24 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         }
 
         // coordinator lookup join after pipeline breaker (limit)
-        expectThrows(
-            VerificationException.class,
-            containsString("LOOKUP JOIN with remote indices can't be executed after [LIMIT 1]"),
-            () -> runQuery("""
-                FROM *:data
-                | LIMIT 1
-                | LOOKUP JOIN _coordinator:lookup ON key
-                | KEEP key, cluster, mode
-                | SORT key
-                """, randomBoolean()).close()
-        );
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LIMIT 2
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator")
+                    )
+                )
+            );
+        }
     }
 
     @SafeVarargs

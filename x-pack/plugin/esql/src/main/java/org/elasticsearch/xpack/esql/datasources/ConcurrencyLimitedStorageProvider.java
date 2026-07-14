@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -84,14 +85,18 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
         delegate.close();
     }
 
-    private void acquirePermit() throws IOException {
+    private void acquirePermit() {
         try {
             limiter.acquire();
         } catch (TimeoutException e) {
-            throw new IOException("Failed to acquire concurrency permit for cloud API call", e);
+            // Permit pool exhausted: a node-local admission back-pressure condition, not a client error. Raise it as
+            // the retryable 503-class type the retry layer acts on (RetryableStorageProvider -> RetryPolicy.execute
+            // catches ExternalUnavailableException and re-attempts). throttling=false: this is a local semaphore, not
+            // a remote-store 429/503, so it must not feed the per-bucket adaptive backoff or the throttle budget.
+            throw new ExternalUnavailableException(e, "Timed out acquiring cloud API concurrency permit: {}", e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while waiting for concurrency permit", e);
+            throw new ExternalUnavailableException(e, "Interrupted while acquiring cloud API concurrency permit: {}", e.getMessage());
         }
     }
 

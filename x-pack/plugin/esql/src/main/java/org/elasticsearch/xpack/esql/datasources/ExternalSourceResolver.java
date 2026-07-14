@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
@@ -479,6 +481,12 @@ public class ExternalSourceResolver {
      * an {@link ElasticsearchException} carrying the path and detail. A footer read can fail <em>because</em> the
      * query was cancelled mid-read and arrive wrapped (e.g. the schema cache wraps loader failures), so the
      * cancellation state is consulted directly rather than matched on the exception type.
+     * <p>
+     * A retryable back-pressure failure (permit exhaustion / remote-store unavailability) reaches here as an
+     * {@link ExternalUnavailableException} (503), but the factory loop always re-wraps a factory failure in an
+     * {@link IllegalArgumentException} (400). So the 503 is recovered from the cause chain <em>before</em> the
+     * {@link IllegalArgumentException} branch and surfaced as a 503, otherwise a transient capacity condition would be
+     * masked as a non-retryable client error and the client's retry path would never engage.
      */
     private RuntimeException mapResolveFailure(String path, Exception e) {
         if (e instanceof TaskCancelledException tce) {
@@ -488,6 +496,24 @@ public class ExternalSourceResolver {
         if (isCancelled()) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
             return new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE);
+        }
+        // A buried 503 (retryable back-pressure) must not be masked as a 400 by the factory loop's IllegalArgumentException
+        // wrapper. unwrap walks the root + cause chain (cycle-guarded), so it catches the 503 raw or wrapped. Re-wrap so
+        // the client message keeps the path context while the 503 status and the throttling flag survive.
+        ExternalUnavailableException unavailable = (ExternalUnavailableException) ExceptionsHelper.unwrap(
+            e,
+            ExternalUnavailableException.class
+        );
+        if (unavailable != null) {
+            recordDiscoveryFailure();
+            LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+            return new ExternalUnavailableException(
+                unavailable.throttling(),
+                unavailable,
+                "Failed to resolve external source [{}]: {}",
+                path,
+                unavailable.getMessage()
+            );
         }
         if (e instanceof IllegalArgumentException || e instanceof UnsupportedOperationException) {
             recordDiscoveryFailure();

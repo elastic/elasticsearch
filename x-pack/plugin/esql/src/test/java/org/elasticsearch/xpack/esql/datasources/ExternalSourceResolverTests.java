@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -74,6 +76,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1932,6 +1935,80 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("validateConfig must fire before resolveMetadata; the format reader must not be reached", 0, readerCallCount.get());
     }
 
+    // ===== Back-pressure / unavailability during resolution =====
+
+    /**
+     * The format spec of an external source exercised by the back-pressure tests: {@code parquet} is a footer
+     * format (in {@link ExternalSourceResolver#FILE_TYPED_FORMATS}, so it takes the file-typed cache-key branch),
+     * while {@code csv} and {@code ndjson} are text formats that take the other branch. The permit-exhaustion fix
+     * lives below the format reader, so all three must behave identically; parametrizing across them guards against
+     * a future format-specific short-circuit in the resolver reintroducing the masking.
+     */
+    private static final List<String[]> BACK_PRESSURE_FORMATS = List.of(
+        new String[] { "parquet", ".parquet" },
+        new String[] { "csv", ".csv" },
+        new String[] { "ndjson", ".ndjson" }
+    );
+
+    /**
+     * A terminal permit-exhaustion / unavailability failure during metadata resolution reaches the resolver as an
+     * {@link ExternalUnavailableException} (503). The factory loop re-wraps every factory failure in an
+     * {@link IllegalArgumentException} (400), so the resolver must recover the buried 503 from the cause chain and
+     * surface it as 503, not a masked 400: otherwise the client's retry / back-pressure path is skipped. Verified
+     * for every format because the fix is format-independent (it sits at the storage layer, below the reader).
+     */
+    public void testMetadataResolutionUnavailabilitySurfacesAs503() {
+        for (String[] format : BACK_PRESSURE_FORMATS) {
+            String formatName = format[0];
+            String path = "s3://bucket/data/file" + format[1];
+            Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
+            ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+                formatName,
+                format[1],
+                schemasByPath,
+                () -> new ExternalUnavailableException("Timed out acquiring cloud API concurrency permit", (Throwable) null),
+                null
+            );
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(), future);
+
+            ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, future::actionGet);
+            assertEquals("format [" + formatName + "] must surface 503", RestStatus.SERVICE_UNAVAILABLE, e.status());
+            assertThat(e.getMessage(), containsString(path));
+        }
+    }
+
+    /**
+     * The schema cache resolves a miss by running the metadata read inside its loader and re-throwing any failure
+     * wrapped in an {@link java.util.concurrent.ExecutionException}. So on the cacheable path the 503 arrives buried
+     * one layer deeper (ExecutionException over the factory's IllegalArgumentException over the
+     * {@link ExternalUnavailableException}); the resolver must still recover it and surface a 503, not a 400 or 500.
+     * Parametrized across formats because footer ({@code parquet}) and text ({@code csv}/{@code ndjson}) formats take
+     * different file-typed cache-key branches on the way to the failing read.
+     */
+    public void testMetadataResolutionUnavailabilitySurfacesAs503ThroughSchemaCache() {
+        for (String[] format : BACK_PRESSURE_FORMATS) {
+            String formatName = format[0];
+            String path = "s3://bucket/data/file" + format[1];
+            Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
+            try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+                ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+                    formatName,
+                    format[1],
+                    schemasByPath,
+                    () -> new ExternalUnavailableException("Timed out acquiring cloud API concurrency permit", (Throwable) null),
+                    cacheService
+                );
+                PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+                resolver.resolve(List.of(path), Map.of(), future);
+
+                ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, future::actionGet);
+                assertEquals("format [" + formatName + "] must surface 503", RestStatus.SERVICE_UNAVAILABLE, e.status());
+                assertThat(e.getMessage(), containsString(path));
+            }
+        }
+    }
+
     // ===== Empty resolution =====
 
     public void testEmptyPathListReturnsEmptyResolution() throws Exception {
@@ -2762,6 +2839,89 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, null, isCancelled);
+    }
+
+    /**
+     * Builds a resolver for a source of the given {@code formatName}/{@code extension} whose format reader throws
+     * {@code failure.get()} from {@code metadata(...)}, modelling a storage read that failed after its retries were
+     * exhausted (e.g. permit exhaustion surfacing as a 503-class {@link ExternalUnavailableException}). Runs on the
+     * DIRECT executor so the resolve completes synchronously. A non-null {@code cacheService} exercises the cacheable
+     * path, where the failure is re-thrown wrapped in an {@link java.util.concurrent.ExecutionException} by the cache
+     * loader.
+     */
+    private ExternalSourceResolver createResolverWithFailingMetadata(
+        String formatName,
+        String extension,
+        Map<String, List<Attribute>> schemasByPath,
+        Supplier<? extends RuntimeException> failure,
+        @Nullable ExternalSourceCacheService cacheService
+    ) {
+        NoConfigFormatReader formatReader = new NoConfigFormatReader() {
+            @Override
+            public RowPositionStrategy rowPositionStrategy() {
+                return PassThroughRowPositionStrategy.INSTANCE;
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                throw failure.get();
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String formatName() {
+                return formatName;
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(extension);
+            }
+
+            @Override
+            public void close() {}
+        };
+        StubStorageProvider storageProvider = new StubStorageProvider(Map.of(), schemasByPath);
+
+        DataSourcePlugin plugin = new DataSourcePlugin() {
+            @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of(formatName, extension));
+            }
+
+            @Override
+            public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
+            }
+
+            @Override
+            public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+                return Map.of(formatName, (s, bf) -> formatReader);
+            }
+        };
+
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials(ENCRYPTION_SERVICE),
+            () -> false
+        );
+
+        return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);
     }
 
     /**

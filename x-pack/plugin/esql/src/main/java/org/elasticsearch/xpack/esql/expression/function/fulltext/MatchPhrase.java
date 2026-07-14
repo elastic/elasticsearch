@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -68,6 +68,8 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MatchPhrase.class)
         .ternary(MatchPhrase::new)
+        // in-development runtime search support; move to capabilities(...) when released
+        .snapshotCapabilities("runtime_filter")
         .name("match_phrase");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, NULL);
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
@@ -241,14 +243,20 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         return new MatchPhraseQuery(source(), fieldName, queryAsObject(), matchPhraseQueryOptions());
     }
 
+    /**
+     * Runtime search on non-index-mapped expressions is under development and enabled in snapshot builds only,
+     * advertised through the snapshot-only {@code fn_match_phrase_runtime_filter} function capability declared on
+     * {@link #DEFINITION}.
+     */
+    public static boolean runtimeSearchEnabled() {
+        return Build.current().isSnapshot();
+    }
+
     @Override
     protected boolean isRuntimeSearch() {
-        // Runtime match_phrase is under development (snapshot builds only) and currently supports only text
-        // expressions.
+        // Runtime match_phrase currently supports only text expressions.
         // TODO keyword expressions still require an index-mapped field.
-        return EsqlCapabilities.Cap.MATCH_PHRASE_RUNTIME_SEARCH.isEnabled()
-            && fieldAsFieldAttribute() == null
-            && (field.dataType() == TEXT || field.dataType() == NULL);
+        return runtimeSearchEnabled() && fieldAsFieldAttribute() == null && (field.dataType() == TEXT || field.dataType() == NULL);
     }
 
     @Override

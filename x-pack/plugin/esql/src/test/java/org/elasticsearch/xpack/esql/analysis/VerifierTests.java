@@ -1955,7 +1955,7 @@ public class VerifierTests extends ESTestCase {
             "MatchPhrase",
             "function",
             "match_phrase(title, \"Meditation\")",
-            EsqlCapabilities.Cap.MATCH_PHRASE_RUNTIME_SEARCH.isEnabled()
+            MatchPhrase.runtimeSearchEnabled()
         );
 
         checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
@@ -2370,7 +2370,7 @@ public class VerifierTests extends ESTestCase {
         fullText().query("from test | eval name = title | where match(name, \"Meditation\")");
         fullText().query("from test | eval name = title | where name : \"Meditation\"");
         // match_phrase supports runtime search (snapshot-only for now) on text EVAL columns
-        if (EsqlCapabilities.Cap.MATCH_PHRASE_RUNTIME_SEARCH.isEnabled()) {
+        if (MatchPhrase.runtimeSearchEnabled()) {
             fullText().query("from test | eval name = title | where match_phrase(name, \"Meditation\")");
         } else {
             fullText().error(
@@ -2406,7 +2406,7 @@ public class VerifierTests extends ESTestCase {
         fullText().query("from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match(y, \"Meditation\")");
 
         // MATCH_PHRASE supports runtime search (snapshot-only for now) on renamed text expressions
-        if (EsqlCapabilities.Cap.MATCH_PHRASE_RUNTIME_SEARCH.isEnabled()) {
+        if (MatchPhrase.runtimeSearchEnabled()) {
             fullText().query("from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")");
         } else {
             fullText().error(

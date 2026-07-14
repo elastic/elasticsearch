@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -35,7 +34,7 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
     @Before
     public void assumeRuntimeMatchPhraseEnabled() {
         // Runtime match_phrase is gated behind a snapshot-only capability; there is nothing to test in release builds.
-        assumeTrue("requires runtime match_phrase", EsqlCapabilities.Cap.MATCH_PHRASE_RUNTIME_SEARCH.isEnabled());
+        assumeTrue("requires runtime match_phrase", MatchPhrase.runtimeSearchEnabled());
     }
 
     private static MatchPhrase runtimeMatchPhrase(String queryValue) {

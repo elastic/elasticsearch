@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -34,7 +34,7 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
      * run are rejected by the verifier instead.
      */
     private static void assumeRuntimeMatchPhraseEnabled() {
-        assumeTrue("requires runtime match_phrase", EsqlCapabilities.Cap.MATCH_PHRASE_RUNTIME_SEARCH.isEnabled());
+        assumeTrue("requires runtime match_phrase", MatchPhrase.runtimeSearchEnabled());
     }
 
     public void testSimpleWhereMatchPhrase() {

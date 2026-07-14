@@ -705,7 +705,7 @@ foo                          | key2
 
 matchPhraseOnRuntimeText
 required_capability: match_phrase_function
-required_capability: match_phrase_runtime_search
+required_capability: fn_match_phrase_runtime_filter
 
 FROM books
 | EVAL content = to_text(concat(title, " ", description))
@@ -723,7 +723,7 @@ book_no:keyword | title:text
 
 matchPhraseOnRuntimeTextOrderMatters
 required_capability: match_phrase_function
-required_capability: match_phrase_runtime_search
+required_capability: fn_match_phrase_runtime_filter
 
 FROM books
 | EVAL content = to_text(concat(title, " ", description))
@@ -736,7 +736,7 @@ book_no:keyword
 
 matchPhraseOnRuntimeTextAndIndexedField
 required_capability: match_phrase_function
-required_capability: match_phrase_runtime_search
+required_capability: fn_match_phrase_runtime_filter
 
 FROM books
 | EVAL content = to_text(concat(title, " ", description))
@@ -756,7 +756,7 @@ book_no:keyword
 
 matchPhraseOnTextWithRow
 required_capability: match_phrase_function
-required_capability: match_phrase_runtime_search
+required_capability: fn_match_phrase_runtime_filter
 
 ROW content = to_text(["This is a brown fox", "This is a brown dog", "The fox is brown"])
 | MV_EXPAND content
@@ -770,7 +770,7 @@ This is a brown fox
 
 matchPhraseOnTextWithRowAndNullValues
 required_capability: match_phrase_function
-required_capability: match_phrase_runtime_search
+required_capability: fn_match_phrase_runtime_filter
 
 ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
 | MV_EXPAND content
@@ -785,7 +785,7 @@ This is a brown dog
 
 matchPhraseOnTextWithRowAndMultiValues
 required_capability: match_phrase_function
-required_capability: match_phrase_runtime_search
+required_capability: fn_match_phrase_runtime_filter
 
 ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
 | MV_EXPAND content
@@ -800,7 +800,7 @@ content:text
 
 matchPhraseOnRuntimeTextDoesNotSpanMultipleValues
 required_capability: match_phrase_function
-required_capability: match_phrase_runtime_search
+required_capability: fn_match_phrase_runtime_filter
 
 // mv_append returns keyword, so wrap it in to_text to stay on the runtime text path
 ROW content = to_text(mv_append("ends with brown", "fox starts"))

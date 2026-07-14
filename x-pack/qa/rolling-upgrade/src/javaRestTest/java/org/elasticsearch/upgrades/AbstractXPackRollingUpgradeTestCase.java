@@ -49,12 +49,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * cluster harness ({@link ParameterizedRollingUpgradeTestCase}). It replaces the previous
  * {@code AbstractUpgradeTestCase}, which relied on Gradle chaining separate old/mixed/upgraded
  * cluster test tasks and reading the cluster state from system properties.
- *
- * <p>TODO: {@code UpgradeClusterClientYamlTestSuiteIT} was dropped during the migration to this
- * class. It only ran YAML REST tests against the fully upgraded cluster and would require
- * significant work to adapt {@link org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase} to
- * the {@link ParameterizedRollingUpgradeTestCase} cluster lifecycle. See the migration task
- * description for details.
  */
 public abstract class AbstractXPackRollingUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
 

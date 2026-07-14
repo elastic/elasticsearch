@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -89,7 +90,7 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  * The dominant request objects (example {@link UnifiedChatInput}) implement {@link org.apache.lucene.util.Accountable} to give an
  * estimation of how much memory they need. We add these estimations to the circuit breaker.
  * If the circuit breaker breaks (too much memory allocated) we'll throw an exception instead of accepting a new request.
- * The circuit breaker counts down memory estimations, when {@link RequestTask} is garbage collected.
+ * The circuit breaker counts down memory estimations, when the {@link ActionListener} of {@link RequestTask} is notified.
  */
 public class RequestExecutorService implements RequestExecutor {
 
@@ -546,6 +547,7 @@ public class RequestExecutorService implements RequestExecutor {
         }
 
         var estimatedRamBytesUsed = inferenceInputs.ramBytesUsed();
+
         try {
             // Bytes are not added in the case of a CircuitBreakingException, so we do not need to release them
             circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRamBytesUsed, inferenceEntityId);
@@ -562,28 +564,46 @@ public class RequestExecutorService implements RequestExecutor {
             return;
         }
 
-        var task = new RequestTask(
-            requestManager,
-            inferenceInputs,
-            timeout,
-            threadPool,
-            // TODO when multi-tenancy (as well as batching) is implemented we need to be very careful that we preserve
-            // the thread contexts correctly to avoid accidentally retrieving the credentials for the wrong user
-            ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext()),
-            circuitBreaker,
-            estimatedRamBytesUsed
-        );
+        var releaseTrackedBytesOnce = Releasables.releaseOnce(() -> circuitBreaker.addWithoutBreaking(-estimatedRamBytesUsed));
+        RequestTask task = null;
+        try {
+            task = new RequestTask(
+                requestManager,
+                inferenceInputs,
+                timeout,
+                threadPool,
+                // TODO when multi-tenancy (as well as batching) is implemented we need to be very careful that we preserve
+                // the thread contexts correctly to avoid accidentally retrieving the credentials for the wrong user
+                ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext()),
+                circuitBreaker,
+                releaseTrackedBytesOnce
+            );
 
-        // Rate limited execution path
-        if (isEmbeddingsIngestInput(inferenceInputs) || rateLimitingEnabled(requestManager.rateLimitSettings())) {
-            submitTaskToRateLimitedExecutionPath(task);
-        } else {
-            boolean taskAccepted = requestQueue.offer(task);
+            // Rate limited execution path
+            if (isEmbeddingsIngestInput(inferenceInputs) || rateLimitingEnabled(requestManager.rateLimitSettings())) {
+                submitTaskToRateLimitedExecutionPath(task);
+            } else {
+                boolean taskAccepted = requestQueue.offer(task);
 
-            if (taskAccepted == false) {
+                if (taskAccepted == false) {
+                    task.onRejection(
+                        new EsRejectedExecutionException(
+                            format("Failed to enqueue request task for inference id [%s]", requestManager.inferenceEntityId()),
+                            false
+                        )
+                    );
+                }
+            }
+        } catch (Exception e) {
+            if (task == null) {
+                // The task wasn't setup correctly, so we need to release the tracked bytes here
+                releaseTrackedBytesOnce.close();
+                listener.onFailure(e);
+            } else {
+                // Task releases bytes on its own, so we do not need to release manually
                 task.onRejection(
                     new EsRejectedExecutionException(
-                        format("Failed to enqueue request task for inference id [%s]", requestManager.inferenceEntityId()),
+                        format("Failed to enqueue request task for inference id [%s]", inferenceEntityId),
                         false
                     )
                 );
@@ -702,14 +722,25 @@ public class RequestExecutorService implements RequestExecutor {
                 return NO_TASKS_AVAILABLE;
             }
 
-            if (rateLimitSettings.isEnabled()) {
-                // We should never have to wait because we checked above
-                var reserveRes = rateLimiter.reserve(1);
-                assert shouldExecuteImmediately(reserveRes) : "Reserving request tokens required a sleep when it should not have";
-            }
+            try {
+                if (rateLimitSettings.isEnabled()) {
+                    // We should never have to wait because we checked above
+                    var reserveRes = rateLimiter.reserve(1);
+                    assert shouldExecuteImmediately(reserveRes) : "Reserving request tokens required a sleep when it should not have";
+                }
 
-            task.getRequestManager()
-                .execute(task.getInferenceInputs(), requestSender, task.getRequestCompletedFunction(), task.getListener());
+                task.getRequestManager()
+                    .execute(task.getInferenceInputs(), requestSender, task.getRequestCompletedFunction(), task.getListener());
+            } catch (Exception e) {
+                logger.warn(format("Executor service grouping [%s] failed to execute request", rateLimitGroupingId), e);
+                // Reject the task to free up tracked bytes
+                task.onRejection(
+                    new EsRejectedExecutionException(
+                        format("Failed to execute request for inference id [%s]", task.getRequestManager().inferenceEntityId()),
+                        false
+                    )
+                );
+            }
             return EXECUTED_A_TASK;
         }
 

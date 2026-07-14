@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.Utils.noopReleasable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -78,7 +80,7 @@ public class RequestTaskTests extends ESTestCase {
             mockThreadPool,
             listener,
             new TestCircuitBreaker(),
-            0L
+            noopReleasable()
         );
 
         requestTask.getListener().onFailure(new IllegalArgumentException("failed"));
@@ -100,7 +102,7 @@ public class RequestTaskTests extends ESTestCase {
             threadPool,
             listener,
             new TestCircuitBreaker(),
-            0L
+            noopReleasable()
         );
 
         var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
@@ -126,7 +128,7 @@ public class RequestTaskTests extends ESTestCase {
             threadPool,
             listener,
             new TestCircuitBreaker(),
-            0L
+            noopReleasable()
         );
 
         calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
@@ -157,7 +159,7 @@ public class RequestTaskTests extends ESTestCase {
             threadPool,
             listener,
             new TestCircuitBreaker(),
-            0L
+            noopReleasable()
         );
 
         calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
@@ -186,7 +188,7 @@ public class RequestTaskTests extends ESTestCase {
             mockThreadPool,
             listener,
             new TestCircuitBreaker(),
-            0L
+            noopReleasable()
         );
 
         requestTask.getListener().onResponse(mock(InferenceServiceResults.class));
@@ -204,6 +206,7 @@ public class RequestTaskTests extends ESTestCase {
         var calledOnFailureLatch = new CountDownLatch(1);
         var trackingCircuitBreaker = new TrackingCircuitBreaker("request_task_test");
         var estimatedRamBytesUsed = 100L;
+        var releaseBytes = Releasables.releaseOnce(() -> trackingCircuitBreaker.addWithoutBreaking(-estimatedRamBytesUsed));
 
         doAnswer(invocation -> {
             calledOnFailureLatch.countDown();
@@ -218,7 +221,7 @@ public class RequestTaskTests extends ESTestCase {
             threadPool,
             listener,
             trackingCircuitBreaker,
-            estimatedRamBytesUsed
+            releaseBytes
         );
 
         calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
@@ -238,6 +241,7 @@ public class RequestTaskTests extends ESTestCase {
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
         var trackingCircuitBreaker = new TrackingCircuitBreaker("request_task_test");
         var estimatedRamBytesUsed = 100L;
+        var releaseBytes = Releasables.releaseOnce(() -> trackingCircuitBreaker.addWithoutBreaking(-estimatedRamBytesUsed));
 
         // Times out after 1 ms
         var requestTask = new RequestTask(
@@ -247,7 +251,7 @@ public class RequestTaskTests extends ESTestCase {
             mockThreadPool,
             listener,
             trackingCircuitBreaker,
-            estimatedRamBytesUsed
+            releaseBytes
         );
 
         requestTask.getListener().onResponse(mock(InferenceServiceResults.class));
@@ -265,6 +269,7 @@ public class RequestTaskTests extends ESTestCase {
         var calledOnFailureLatch = new CountDownLatch(1);
         var trackingCircuitBreaker = new TrackingCircuitBreaker("request_task_test");
         var estimatedRamBytesUsed = 100L;
+        var releaseBytes = Releasables.releaseOnce(() -> trackingCircuitBreaker.addWithoutBreaking(-estimatedRamBytesUsed));
 
         doAnswer(invocation -> {
             calledOnFailureLatch.countDown();
@@ -279,7 +284,7 @@ public class RequestTaskTests extends ESTestCase {
             threadPool,
             listener,
             trackingCircuitBreaker,
-            estimatedRamBytesUsed
+            releaseBytes
         );
 
         calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
@@ -296,6 +301,7 @@ public class RequestTaskTests extends ESTestCase {
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
         var trackingCircuitBreaker = new TrackingCircuitBreaker("request_task_test");
         var estimatedRamBytesUsed = 100L;
+        var releaseBytes = Releasables.releaseOnce(() -> trackingCircuitBreaker.addWithoutBreaking(-estimatedRamBytesUsed));
 
         // Times out after 1 ms
         var requestTask = new RequestTask(
@@ -305,7 +311,7 @@ public class RequestTaskTests extends ESTestCase {
             threadPool,
             listener,
             trackingCircuitBreaker,
-            estimatedRamBytesUsed
+            releaseBytes
         );
 
         requestTask.onRejection(mock(Exception.class));

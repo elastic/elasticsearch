@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,13 +31,12 @@ class RequestTask implements RejectableTask {
         ThreadPool threadPool,
         ActionListener<InferenceServiceResults> listener,
         CircuitBreaker circuitBreaker,
-        long estimatedRamBytesUsed
+        Releasable releaseBytes
     ) {
         this.requestCreator = Objects.requireNonNull(requestCreator);
         this.timedListener = new TimedListener<>(
             timeout,
-            // runAfter makes sure that this is only executed once (uses assertOnce internally)
-            ActionListener.runAfter(listener, () -> circuitBreaker.addWithoutBreaking(-estimatedRamBytesUsed)),
+            ActionListener.runAfter(listener, releaseBytes::close),
             threadPool,
             requestCreator.inferenceEntityId()
         );

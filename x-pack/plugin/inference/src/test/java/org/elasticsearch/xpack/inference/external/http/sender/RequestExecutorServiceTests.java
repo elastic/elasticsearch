@@ -12,18 +12,21 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.InputTypeTests;
+import org.elasticsearch.xpack.inference.common.AdjustableCapacityBlockingQueue;
 import org.elasticsearch.xpack.inference.common.RateLimiter;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
@@ -37,17 +40,21 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.Utils.noopReleasable;
 import static org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettingsTests.createRequestExecutorServiceSettings;
 import static org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettingsTests.createRequestExecutorServiceSettingsEmpty;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -388,7 +395,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 threadPool,
                 listener,
                 new TestCircuitBreaker(),
-                0L
+                noopReleasable()
             )
         );
 
@@ -502,7 +509,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 threadPool,
                 new PlainActionFuture<>(),
                 new TestCircuitBreaker(),
-                0L
+                noopReleasable()
             )
         );
         service.submitTaskToRateLimitedExecutionPath(
@@ -513,7 +520,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 threadPool,
                 new PlainActionFuture<>(),
                 new TestCircuitBreaker(),
-                0L
+                noopReleasable()
             )
         );
 
@@ -527,7 +534,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 threadPool,
                 listener,
                 new TestCircuitBreaker(),
-                0L
+                noopReleasable()
             )
         );
         assertThat(service.queueSize(), is(3));
@@ -760,7 +767,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 threadPool,
                 listener,
                 new TestCircuitBreaker(),
-                0L
+                noopReleasable()
             )
         );
 
@@ -779,7 +786,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 threadPool,
                 listener,
                 new TestCircuitBreaker(),
-                0L
+                noopReleasable()
             )
         );
 
@@ -934,6 +941,162 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertThat(service.queueSize(), is(2));
     }
 
+    public void testExecute_ReleasesCircuitBreakerBytes_WhenTaskCreationThrows() {
+        // Thread pool throws, when anything is scheduled (e.g. RequestTask being scheduled during node shutdown)
+        var mockThreadPool = mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(threadPool.getThreadContext());
+        when(mockThreadPool.executor(any())).thenReturn(mock(ExecutorService.class));
+        when(mockThreadPool.schedule(any(Runnable.class), any(), any())).thenThrow(
+            new EsRejectedExecutionException("failed to schedule", true)
+        );
+
+        var circuitBreaker = new BytesTrackingCircuitBreaker();
+        var service = new RequestExecutorService(
+            mockThreadPool,
+            null,
+            createRequestExecutorServiceSettingsEmpty(),
+            mock(RetryingHttpSender.class),
+            circuitBreaker
+        );
+
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.execute(
+            RequestManagerTests.createMockWithRateLimitingDisabled(INFERENCE_ID),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputType.UNSPECIFIED),
+            TimeValue.timeValueSeconds(30),
+            listener
+        );
+
+        expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+
+        // EmbeddingsInput must be charged
+        assertThat(circuitBreaker.getTotalCharged(), greaterThan(0L));
+
+        // the charge must be fully released, exactly once (a double release would leave a negative value)
+        assertThat(circuitBreaker.getUsed(), is(0L));
+    }
+
+    public void testExecute_ReleasesCircuitBreakerBytes_WhenRateLimitedPathThrows() {
+        // Rate limited execution path fails
+        var circuitBreaker = new BytesTrackingCircuitBreaker();
+        var service = new RequestExecutorService(
+            threadPool,
+            RequestExecutorService.DEFAULT_QUEUE_CREATOR,
+            null,
+            createRequestExecutorServiceSettingsEmpty(),
+            mock(RetryingHttpSender.class),
+            Clock.systemUTC(),
+            (accumulatedTokensLimit, tokensPerTimeUnit, unit) -> {
+                throw new IllegalArgumentException("failed to create rate limiter");
+            },
+            circuitBreaker
+        );
+
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.execute(
+            RequestManagerTests.createMockWithRateLimitingEnabled(INFERENCE_ID),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputType.UNSPECIFIED),
+            TimeValue.timeValueSeconds(30),
+            listener
+        );
+
+        expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+
+        // EmbeddingsInput must be charged
+        assertThat(circuitBreaker.getTotalCharged(), greaterThan(0L));
+
+        // the charge must be fully released, exactly once (a double release would leave a negative value)
+        assertThat(circuitBreaker.getUsed(), is(0L));
+    }
+
+    public void testExecute_ReleasesCircuitBreakerBytes_WhenRequestQueueOfferThrows() {
+        // Submitting the task to the fast-path queue fails
+        var throwingQueueCreator = new AdjustableCapacityBlockingQueue.QueueCreator<RejectableTask>() {
+            @Override
+            public BlockingQueue<RejectableTask> create(int capacity) {
+                return create();
+            }
+
+            @Override
+            public BlockingQueue<RejectableTask> create() {
+                return new LinkedBlockingQueue<>() {
+                    @Override
+                    public boolean offer(RejectableTask task) {
+                        throw new IllegalStateException("broken queue");
+                    }
+                };
+            }
+        };
+
+        var circuitBreaker = new BytesTrackingCircuitBreaker();
+        var service = new RequestExecutorService(
+            threadPool,
+            throwingQueueCreator,
+            null,
+            createRequestExecutorServiceSettingsEmpty(),
+            mock(RetryingHttpSender.class),
+            Clock.systemUTC(),
+            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR,
+            circuitBreaker
+        );
+
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.execute(
+            RequestManagerTests.createMockWithRateLimitingDisabled(INFERENCE_ID),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputType.UNSPECIFIED),
+            TimeValue.timeValueSeconds(30),
+            listener
+        );
+
+        expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+
+        // EmbeddingsInput must be charged
+        assertThat(circuitBreaker.getTotalCharged(), greaterThan(0L));
+
+        // the charge must be fully released, exactly once (a double release would leave a negative value)
+        assertThat(circuitBreaker.getUsed(), is(0L));
+    }
+
+    public void testExecuteEnqueuedTask_NotifiesListenerAndReleasesBytes_WhenRequestManagerExecuteThrows() {
+        var circuitBreaker = new BytesTrackingCircuitBreaker();
+        var requestSender = mock(RetryingHttpSender.class);
+        var settings = createRequestExecutorServiceSettings(1, null);
+        var service = new RequestExecutorService(
+            threadPool,
+            RequestExecutorService.DEFAULT_QUEUE_CREATOR,
+            null,
+            settings,
+            requestSender,
+            Clock.systemUTC(),
+            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR,
+            circuitBreaker
+        );
+
+        // RequestSender fails synchronously
+        doAnswer(invocation -> {
+            service.shutdown();
+            throw new IllegalStateException("failed to create request");
+        }).when(requestSender).send(any(), any(), any(), any(), any());
+
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.execute(
+            RequestManagerTests.createMockWithRateLimitingEnabled(requestSender, INFERENCE_ID),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputType.UNSPECIFIED),
+            null,
+            listener
+        );
+
+        service.start();
+
+        expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(2)));
+
+        // EmbeddingsInput must be charged
+        assertThat(circuitBreaker.getTotalCharged(), greaterThan(0L));
+
+        // the charge must be fully released, exactly once (a double release would leave a negative value)
+        assertThat(circuitBreaker.getUsed(), is(0L));
+    }
+
     private Future<?> submitShutdownRequest(
         CountDownLatch waitToShutdown,
         CountDownLatch waitToReturnFromSend,
@@ -951,6 +1114,35 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 fail(Strings.format("Failed to shutdown executor: %s", e));
             }
         });
+    }
+
+    private static class BytesTrackingCircuitBreaker extends NoopCircuitBreaker {
+        private long used = 0;
+        private long totalCharged = 0;
+
+        BytesTrackingCircuitBreaker() {
+            super("request_executor_service_test");
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            used += bytes;
+            totalCharged += bytes;
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            used += bytes;
+        }
+
+        @Override
+        public long getUsed() {
+            return used;
+        }
+
+        long getTotalCharged() {
+            return totalCharged;
+        }
     }
 
     private RequestExecutorService createRequestExecutorServiceWithMocks() {

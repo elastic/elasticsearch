@@ -141,6 +141,7 @@ import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
@@ -940,7 +941,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
     public final void ensureAllSearchContextsReleased() throws Exception {
-        // assertBusy(() -> MockSearchService.assertNoInFlightContext());
+        assertBusy(() -> MockSearchService.assertNoInFlightContext());
     }
 
     // mockdirectorywrappers currently set this boolean if checkindex fails

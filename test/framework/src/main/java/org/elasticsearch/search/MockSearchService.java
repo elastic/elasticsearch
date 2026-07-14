@@ -32,6 +32,7 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -68,15 +69,15 @@ public class MockSearchService extends SearchService {
      *     genuine context leaks remain detectable.
      */
     public static void assertNoInFlightContext() {
-        // final Map<ReaderContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
-        // if (copy.isEmpty() == false) {
-        // throw new AssertionError(
-        // "There are still ["
-        // + copy.size()
-        // + "] in-flight contexts. The first one's creation site is listed as the cause of this exception.",
-        // copy.values().iterator().next()
-        // );
-        // }
+        final Map<ReaderContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
+        if (copy.isEmpty() == false) {
+            throw new AssertionError(
+                "There are still ["
+                    + copy.size()
+                    + "] in-flight contexts. The first one's creation site is listed as the cause of this exception.",
+                copy.values().iterator().next()
+            );
+        }
     }
 
     /**

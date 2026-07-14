@@ -580,11 +580,13 @@ public class WatcherService implements WatcherEventConsumer {
      * @param newState The new state to transition to
      */
     private void validateTransitionAndApplyNewState(WatcherState newState) {
-        assert newState == state.get() || switch (newState) {
-            case STARTED -> WatcherState.STARTING == state.get();
+        assert switch (newState) {
+            case STARTED -> WatcherState.STARTING == state.get() || WatcherState.STARTED == state.get();
             case STOPPED -> WatcherState.STOPPING == state.get();
-            case STOPPING -> WatcherState.STARTED == state.get() || WatcherState.STARTING == state.get();
-            case STARTING -> WatcherState.STOPPED == state.get();
+            case STOPPING -> WatcherState.STARTED == state.get()
+                || WatcherState.STARTING == state.get()
+                || WatcherState.STOPPING == state.get();
+            case STARTING -> WatcherState.STOPPED == state.get() || WatcherState.STARTING == state.get();
         } : "Unexpected transition from state " + state.get() + " to state " + newState;
         state.set(newState);
     }

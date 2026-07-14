@@ -150,7 +150,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         int targetChunkRows,
         DriverContext driverContext
     ) {
-        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, targetChunkRows, driverContext);
+        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, targetChunkRows, null, driverContext);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
         this.outputTimeBucket = outputTimeBucket;

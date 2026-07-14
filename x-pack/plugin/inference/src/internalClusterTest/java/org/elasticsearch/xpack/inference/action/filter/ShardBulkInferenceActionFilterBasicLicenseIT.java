@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticInput;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -49,6 +50,7 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
     public static final String INDEX_NAME = "test-index";
     private static final String SPARSE_INFERENCE_ID = "sparse-endpoint";
     private static final String DENSE_INFERENCE_ID = "dense-endpoint";
+    private static final String EMBEDDING_INFERENCE_ID = "embedding-endpoint";
 
     private final boolean useLegacyFormat;
 
@@ -74,6 +76,14 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
             // TODO: Allow element type BIT once TestDenseInferenceServiceExtension supports it
             randomValueOtherThan(DenseVectorFieldMapper.ElementType.BIT, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()))
         );
+        Utils.storeEmbeddingModel(
+            EMBEDDING_INFERENCE_ID,
+            modelRegistry,
+            randomIntBetween(1, 100),
+            // dot product means that we need normalized vectors; it's not worth doing that in this test
+            randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values())),
+            randomFrom(DenseVectorFieldMapper.ElementType.values())
+        );
     }
 
     @Override
@@ -95,13 +105,11 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
     @Override
     public Settings indexSettings() {
         var settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(
-                IndexMetadata.SETTING_VERSION_CREATED,
-                SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
-            );
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10));
 
         if (useLegacyFormat) {
+            settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED,
+                SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat));
             settingsBuilder.put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat);
         }
 
@@ -173,6 +181,65 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
         Map<String, Object> source = new HashMap<>();
         source.put("sparse_field", null);
         source.put("dense_field", null);
+        for (int i = 0; i < totalBulkReqs; i++) {
+            bulkRequest.add(new IndexRequestBuilder(client()).setIndex(INDEX_NAME).setId(Long.toString(i)).setSource(source));
+        }
+
+        BulkResponse bulkResponse = bulkRequest.get();
+        assertFalse(bulkResponse.hasFailures());
+    }
+
+    public void testSemanticLicenseInvalidForInference() {
+        assumeFalse("Legacy format does not apply to the semantic field", useLegacyFormat);
+
+        prepareCreate(INDEX_NAME).setMapping(String.format(Locale.ROOT, """
+            {
+                "properties": {
+                    "semantic_field": {
+                        "type": "semantic",
+                        "inference_id": "%s"
+                    }
+                }
+            }
+            """, EMBEDDING_INFERENCE_ID)).get();
+
+        BulkRequestBuilder bulkRequest = client().prepareBulk();
+        int totalBulkReqs = randomIntBetween(2, 100);
+        for (int i = 0; i < totalBulkReqs; i++) {
+            Map<String, Object> source = new HashMap<>();
+            source.put("semantic_field", randomSemanticInput(true));
+            bulkRequest.add(new IndexRequestBuilder(client()).setIndex(INDEX_NAME).setId(Long.toString(i)).setSource(source));
+        }
+
+        BulkResponse bulkResponse = bulkRequest.get();
+        for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
+            assertTrue(bulkItemResponse.isFailed());
+            assertThat(bulkItemResponse.getFailure().getCause(), instanceOf(ElasticsearchSecurityException.class));
+            assertThat(
+                bulkItemResponse.getFailure().getCause().getMessage(),
+                containsString(Strings.format("current license is non-compliant for [%s]", XPackField.INFERENCE))
+            );
+        }
+    }
+
+    public void testSemanticNullSourceSucceeds() {
+        assumeFalse("Legacy format does not apply to the semantic field", useLegacyFormat);
+
+        prepareCreate(INDEX_NAME).setMapping(String.format(Locale.ROOT, """
+            {
+                "properties": {
+                    "semantic_field": {
+                        "type": "semantic",
+                        "inference_id": "%s"
+                    }
+                }
+            }
+            """, TestDenseInferenceServiceExtension.TestInferenceService.NAME)).get();
+
+        BulkRequestBuilder bulkRequest = client().prepareBulk();
+        int totalBulkReqs = randomIntBetween(2, 100);
+        Map<String, Object> source = new HashMap<>();
+        source.put("semantic_field", null);
         for (int i = 0; i < totalBulkReqs; i++) {
             bulkRequest.add(new IndexRequestBuilder(client()).setIndex(INDEX_NAME).setId(Long.toString(i)).setSource(source));
         }

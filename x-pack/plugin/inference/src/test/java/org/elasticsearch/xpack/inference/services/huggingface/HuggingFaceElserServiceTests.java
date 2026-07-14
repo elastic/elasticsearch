@@ -169,7 +169,7 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
             var model = HuggingFaceElserModelTests.createModel(URL_VALUE, API_KEY_VALUE);
             var inputs = List.of(new ChunkInferenceInput("abc"), new ChunkInferenceInput("another input"));
 
-            service.chunkedInfer(model, null, inputs, new HashMap<>(), InputType.INTERNAL_SEARCH, null, new PlainActionFuture<>());
+            service.chunkedInfer(model, inputs, new HashMap<>(), InputType.INTERNAL_SEARCH, null, new PlainActionFuture<>());
 
             var capturedInputs = ArgumentCaptor.forClass(InferenceInputs.class);
             verify(sender).send(any(), capturedInputs.capture(), any(), any());

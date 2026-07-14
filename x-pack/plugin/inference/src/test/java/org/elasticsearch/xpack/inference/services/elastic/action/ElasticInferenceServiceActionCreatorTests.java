@@ -258,7 +258,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var action = actionCreatorListener.actionGet(TIMEOUT);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
             listener.actionGet(TIMEOUT);
 
             var request = assertSingleRequestSent(webServer.requests());

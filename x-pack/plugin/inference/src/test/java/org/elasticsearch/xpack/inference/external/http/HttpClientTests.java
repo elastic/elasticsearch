@@ -298,7 +298,15 @@ public class HttpClientTests extends ESTestCase {
                 Settings.builder().put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), ByteSizeValue.ONE).build()
             );
             var connectionManager = createConnectionManager();
-            try (var httpClient = HttpClient.create(httpSettings, threadPool, connectionManager, mockThrottlerManager())) {
+            try (
+                var httpClient = HttpClient.create(
+                    httpSettings,
+                    threadPool,
+                    connectionManager,
+                    mockThrottlerManager(),
+                    new TestCircuitBreaker()
+                )
+            ) {
                 httpClient.start();
 
                 URI uri = new URIBuilder().setScheme("http")

@@ -12,11 +12,21 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.IndexOptions;
+import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -39,6 +49,13 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.spy;
 
@@ -47,7 +64,8 @@ import static org.mockito.Mockito.spy;
  * Holds the common setup infrastructure (thread pool, model registry, plugins) and the MapperTestCase
  * overrides that are identical for both semantic field types.
  */
-abstract class AbstractSemanticMapperTestCase extends MapperTestCase {
+abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U extends SemanticFieldMapper.SemanticFieldType> extends
+    MapperTestCase {
 
     static class VariableLicenseDiskBBQPlugin extends DiskBBQPlugin {
         private static final Settings STATELESS_SETTINGS = Settings.builder()
@@ -107,6 +125,12 @@ abstract class AbstractSemanticMapperTestCase extends MapperTestCase {
      * Called during test setup to register any default inference endpoints needed by the test subclass.
      */
     protected abstract void registerDefaultEndpoints();
+
+    /** The concrete mapper class produced for this field type */
+    protected abstract Class<T> expectedMapperClass();
+
+    /** The concrete field type class produced for this field type */
+    protected abstract Class<U> expectedFieldTypeClass();
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -182,6 +206,135 @@ abstract class AbstractSemanticMapperTestCase extends MapperTestCase {
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         // Until a doc is indexed, the query is rewritten as match no docs
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
+    }
+
+    protected T getSemanticFieldMapper(MapperService mapperService, String fieldName) {
+        Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
+        assertThat(mapper, instanceOf(expectedMapperClass()));
+        return expectedMapperClass().cast(mapper);
+    }
+
+    /**
+     * Asserts the structural invariants of a semantic field mapping: the concrete mapper and field type classes, the nested chunks
+     * field, the chunks text/offsets sub-fields (see {@link #assertChunksTextField}), the embeddings sub-mapper when model settings
+     * are expected (see {@link #assertEmbeddingsField}), and the chunking settings.
+     */
+    protected void assertSemanticField(
+        MapperService mapperService,
+        String fieldName,
+        boolean expectedModelSettings,
+        ChunkingSettings expectedChunkingSettings,
+        SemanticIndexOptions expectedIndexOptions
+    ) {
+        T semanticFieldMapper = getSemanticFieldMapper(mapperService, fieldName);
+
+        var fieldType = mapperService.fieldType(fieldName);
+        assertNotNull(fieldType);
+        assertThat(fieldType, instanceOf(expectedFieldTypeClass()));
+        U semanticFieldType = expectedFieldTypeClass().cast(fieldType);
+        assertSame(semanticFieldMapper.fieldType(), semanticFieldType);
+
+        NestedObjectMapper chunksMapper = mapperService.mappingLookup()
+            .nestedLookup()
+            .getNestedMappers()
+            .get(getChunksFieldName(fieldName));
+        assertThat(chunksMapper, equalTo(semanticFieldMapper.fieldType().getChunksField()));
+        assertThat(chunksMapper.fullPath(), equalTo(getChunksFieldName(fieldName)));
+        assertChunksTextField(semanticFieldType, chunksMapper);
+
+        if (expectedModelSettings) {
+            assertNotNull(semanticFieldType.getModelSettings());
+            Mapper embeddingsMapper = chunksMapper.getMapper(CHUNKED_EMBEDDINGS_FIELD);
+            assertNotNull(embeddingsMapper);
+            assertThat(embeddingsMapper, instanceOf(FieldMapper.class));
+            FieldMapper embeddingsFieldMapper = (FieldMapper) embeddingsMapper;
+            assertSame(embeddingsFieldMapper.fieldType(), mapperService.mappingLookup().getFieldType(getEmbeddingsFieldName(fieldName)));
+            assertThat(embeddingsMapper.fullPath(), equalTo(getEmbeddingsFieldName(fieldName)));
+            assertEmbeddingsField(mapperService, semanticFieldType, embeddingsFieldMapper, expectedIndexOptions);
+        } else {
+            assertNull(semanticFieldType.getModelSettings());
+        }
+
+        if (expectedChunkingSettings != null) {
+            assertNotNull(semanticFieldType.getChunkingSettings());
+            assertEquals(expectedChunkingSettings, semanticFieldType.getChunkingSettings());
+        } else {
+            assertNull(semanticFieldType.getChunkingSettings());
+        }
+    }
+
+    /**
+     * Asserts the text/offsets sub-fields under the chunks field. The base implementation covers the (only) format used by the
+     * {@code semantic} field: no text sub-field, offsets stored via {@link OffsetSourceFieldMapper}. {@code semantic_text} overrides
+     * this to cover its legacy format.
+     */
+    protected void assertChunksTextField(U fieldType, NestedObjectMapper chunksMapper) {
+        assertNull(chunksMapper.getMapper(TEXT_FIELD));
+        var offsetMapper = fieldType.getOffsetsField();
+        assertThat(offsetMapper, instanceOf(OffsetSourceFieldMapper.class));
+    }
+
+    /**
+     * Asserts the embeddings sub-mapper against the field's model settings and expected index options. The base implementation
+     * covers the dense task types ({@code text_embedding}, {@code embedding}); {@code semantic_text} overrides this to also cover
+     * {@code sparse_embedding}.
+     */
+    protected void assertEmbeddingsField(
+        MapperService mapperService,
+        U fieldType,
+        FieldMapper embeddingsMapper,
+        @Nullable SemanticIndexOptions expectedIndexOptions
+    ) {
+        IndexVersion indexVersion = mapperService.getIndexSettings().getIndexVersionCreated();
+        MinimalServiceSettings modelSettings = fieldType.getModelSettings();
+        TaskType taskType = modelSettings.taskType();
+        if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.EMBEDDING) {
+            assertThat(embeddingsMapper, instanceOf(DenseVectorFieldMapper.class));
+            DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) embeddingsMapper;
+
+            if (expectedIndexOptions != null) {
+                IndexOptions expectedEmbeddingFieldIndexOptions = expectedIndexOptions.indexOptions();
+                if (expectedEmbeddingFieldIndexOptions instanceof ExtendedDenseVectorIndexOptions edvio) {
+                    assertEquals(edvio.getBaseIndexOptions(), denseVectorFieldMapper.fieldType().getIndexOptions());
+                } else {
+                    assertEquals(expectedEmbeddingFieldIndexOptions, denseVectorFieldMapper.fieldType().getIndexOptions());
+                }
+            } else {
+                assertNull(denseVectorFieldMapper.fieldType().getIndexOptions());
+            }
+
+            DenseVectorFieldMapper.ElementType expectedElementType = getExpectedElementType(
+                indexVersion,
+                modelSettings.elementType(),
+                expectedIndexOptions
+            );
+            assertEquals(expectedElementType, denseVectorFieldMapper.fieldType().getElementType());
+            assertEquals(modelSettings.dimensions().intValue(), denseVectorFieldMapper.fieldType().getVectorDimensions());
+            if (modelSettings.similarity() != null && indexVersion.onOrAfter(NEW_SPARSE_VECTOR)) {
+                // We don't set similarity on pre 8.11 indices
+                assertEquals(modelSettings.similarity().vectorSimilarity(), denseVectorFieldMapper.fieldType().getSimilarity());
+            }
+        } else {
+            throw new AssertionError("Invalid task type [" + modelSettings.taskType() + "]");
+        }
+    }
+
+    protected static DenseVectorFieldMapper.ElementType getExpectedElementType(
+        IndexVersion indexVersion,
+        DenseVectorFieldMapper.ElementType modelElementType,
+        @Nullable SemanticIndexOptions semanticIndexOptions
+    ) {
+        if (semanticIndexOptions != null && semanticIndexOptions.indexOptions() instanceof ExtendedDenseVectorIndexOptions edvio) {
+            if (edvio.getElementType() != null) {
+                return edvio.getElementType();
+            }
+        }
+
+        DenseVectorFieldMapper.ElementType expectedElementType = modelElementType;
+        if (indexVersion.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16) && expectedElementType == DenseVectorFieldMapper.ElementType.FLOAT) {
+            expectedElementType = DenseVectorFieldMapper.ElementType.BFLOAT16;
+        }
+        return expectedElementType;
     }
 
     protected static void assertInferenceEndpoints(

@@ -57,7 +57,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
+public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<SemanticFieldMapper, SemanticFieldMapper.SemanticFieldType> {
     private static final String INFERENCE_ID = "inference-id";
 
     public SemanticFieldMapperTests(License.OperationMode operationMode) {
@@ -376,6 +376,16 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase {
     private static void assertSemanticFieldMapper(MapperService mapperService, String fieldName) {
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         assertThat(mapper, instanceOf(SemanticFieldMapper.class));
+    }
+
+    @Override
+    protected Class<SemanticFieldMapper> expectedMapperClass() {
+        return SemanticFieldMapper.class;
+    }
+
+    @Override
+    protected Class<SemanticFieldMapper.SemanticFieldType> expectedFieldTypeClass() {
+        return SemanticFieldMapper.SemanticFieldType.class;
     }
 
     @Override

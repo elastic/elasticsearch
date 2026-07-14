@@ -71,15 +71,20 @@ public class OtelSdkExportLogsSupplier implements Closeable {
             return;
         }
         String endpoint = OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT.get(settings);
-        OtlpGrpcLogRecordExporterBuilder exporterBuilder = OtlpGrpcLogRecordExporter.builder().setEndpoint(endpoint);
+        OtlpGrpcLogRecordExporterBuilder exporterBuilder = OtlpGrpcLogRecordExporter.builder()
+            .setEndpoint(endpoint)
+            .setTimeout(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.get(settings).toDuration())
+            .setConnectTimeout(OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT.get(settings).toDuration())
+            .setRetryPolicy(OtelSdkSettings.OTLP_RETRY_POLICY);
         String authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             exporterBuilder.addHeader("Authorization", authHeader);
         }
 
+        int maxQueueSize = OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE.get(settings);
         SdkLoggerProvider provider = SdkLoggerProvider.builder()
             .setResource(OtelSdkResource.get(settings))
-            .addLogRecordProcessor(BatchLogRecordProcessor.builder(exporterBuilder.build()).build())
+            .addLogRecordProcessor(BatchLogRecordProcessor.builder(exporterBuilder.build()).setMaxQueueSize(maxQueueSize).build())
             .build();
 
         OpenTelemetrySdk built = OpenTelemetrySdk.builder().setLoggerProvider(provider).build();

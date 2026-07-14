@@ -11,8 +11,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 
 import java.io.IOException;
 import java.util.List;
@@ -230,6 +233,33 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
 
         deleteModel(inferenceId);
         forceStopMlNodeDeployment(deploymentId);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCreatesDeploymentForNotYetDeployedModel_TextEmbedding() throws IOException {
+        // reproduces https://github.com/elastic/elasticsearch/issues/144871
+        var modelId = "text_embedding_model_not_deployed";
+        var inferenceId = "inference_starts_deployment";
+        CustomElandModelIT.createMlNodeTextEmbeddingModel(modelId, client()); // model exists, NOT deployed
+
+        var putModel = putModel(inferenceId, Strings.format("""
+            {
+              "service": "elasticsearch",
+              "service_settings": {
+                "num_allocations": 1,
+                "num_threads": 1,
+                "model_id": "%s"
+              }
+            }
+            """, modelId), TaskType.TEXT_EMBEDDING);
+        var serviceSettings = (Map<String, Object>) putModel.get(ModelConfigurations.SERVICE_SETTINGS);
+        assertNotNull(putModel.toString(), serviceSettings.get(ServiceFields.DIMENSIONS)); // set by validation
+
+        var results = infer(inferenceId, List.of("hello"));
+        assertNotNull(results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING));
+
+        deleteModel(inferenceId);
+        forceStopMlNodeDeployment(inferenceId); // endpoint's deployment id == inference id
     }
 
     public void testUpdateWhenInferenceEndpointCreatesDeployment() throws IOException {

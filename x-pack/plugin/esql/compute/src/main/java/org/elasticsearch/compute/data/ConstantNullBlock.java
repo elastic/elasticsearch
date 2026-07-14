@@ -204,6 +204,11 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public DoubleBlock defaultBlock() {
+        return this;
+    }
+
+    @Override
     public Block getMetricBlock(int index) {
         return this;
     }

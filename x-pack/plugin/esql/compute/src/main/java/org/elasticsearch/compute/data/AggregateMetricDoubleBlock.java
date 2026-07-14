@@ -109,5 +109,11 @@ public sealed interface AggregateMetricDoubleBlock extends Block permits Aggrega
 
     IntBlock countBlock();
 
+    /**
+     * @return the lazily evaluated block with the average using the sum and count block when available.
+     *         Otherwise, a {@link ConstantNullBlock}.
+     */
+    DoubleBlock defaultBlock();
+
     Block getMetricBlock(int index);
 }

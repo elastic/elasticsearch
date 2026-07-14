@@ -16,6 +16,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -27,6 +28,8 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     private final DoubleBlock maxBlock;
     private final DoubleBlock sumBlock;
     private final IntBlock countBlock;
+    // Default block is lazily computed when requested
+    private final AtomicReference<DoubleBlock> defaultBlockRef = new AtomicReference<>();
 
     public AggregateMetricDoubleArrayBlock(DoubleBlock minBlock, DoubleBlock maxBlock, DoubleBlock sumBlock, IntBlock countBlock) {
         this.minBlock = minBlock;
@@ -137,6 +140,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     @Override
     protected void closeInternal() {
         Releasables.close(getSubBlocks());
+        Releasables.close(defaultBlockRef.get());
     }
 
     @Override
@@ -328,6 +332,77 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         return countBlock;
     }
 
+    public DoubleBlock defaultBlock() {
+        DoubleBlock result = defaultBlockRef.get();
+        if (result != null) {
+            return result;
+        }
+        DoubleBlock computed = computeDefaultBlock();
+        if (defaultBlockRef.compareAndSet(null, computed)) {
+            return computed;
+        }
+        // Another thread won the CAS — discard our copy and return the winner's.
+        computed.close();
+        return defaultBlockRef.get();
+    }
+
+    /**
+     * Computes the DEFAULT metric block lazily as {@code sum / count} for each value.
+     * Multi-value positions are handled by emitting one average per input value.
+     * Values whose count is zero are omitted; if all values at a position are zero-count
+     * the position is null.
+     */
+    private DoubleBlock computeDefaultBlock() {
+        int positionCount = getPositionCount();
+        if (sumBlock.areAllValuesNull() && countBlock.areAllValuesNull()) {
+            return (DoubleBlock) blockFactory().newConstantNullBlock(positionCount);
+        }
+        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                if (sumBlock.isNull(p) && countBlock.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(p);
+                int firstValueIndex = getFirstValueIndex(p);
+                if (valueCount == 1) {
+                    int count = countBlock.isNull(p) ? 0 : countBlock.getInt(firstValueIndex);
+                    if (sumBlock.isNull(p) || count == 0) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendDouble(sumBlock.getDouble(firstValueIndex) / count);
+                    }
+                } else {
+                    // Count the non-zero counts to calculate the valid average values
+                    int validCount = 0;
+                    for (int v = 0; v < valueCount; v++) {
+                        if (countBlock.getInt(firstValueIndex + v) != 0) {
+                            validCount++;
+                        }
+                    }
+                    if (validCount == 0) {
+                        builder.appendNull();
+                    } else {
+                        if (validCount > 1) {
+                            builder.beginPositionEntry();
+                        }
+                        for (int v = 0; v < valueCount; v++) {
+                            int vi = firstValueIndex + v;
+                            int count = countBlock.getInt(vi);
+                            if (count != 0) {
+                                builder.appendDouble(sumBlock.getDouble(vi) / count);
+                            }
+                        }
+                        if (validCount > 1) {
+                            builder.endPositionEntry();
+                        }
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
     public Block getMetricBlock(int index) {
         if (index == AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex()) {
             return minBlock;
@@ -340,6 +415,9 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         }
         if (index == AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex()) {
             return countBlock;
+        }
+        if (index == AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex()) {
+            return defaultBlock();
         }
         throw new UnsupportedOperationException("Received an index (" + index + ") outside of range for AggregateMetricDoubleBlock.");
     }

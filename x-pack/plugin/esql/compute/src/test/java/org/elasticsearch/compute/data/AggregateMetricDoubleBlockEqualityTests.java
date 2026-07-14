@@ -290,6 +290,122 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
         }
     }
 
+    public void testDefaultBlockAllNull() {
+        // When both sum and count are all-null, defaultBlock() must return a constant null block.
+        try (
+            AggregateMetricDoubleBlock amdBlock = blockFactory.newAggregateMetricDoubleBlockBuilder(3)
+                .appendNull()
+                .appendNull()
+                .appendNull()
+                .build()
+        ) {
+            DoubleBlock result = amdBlock.defaultBlock();
+            assertEquals(3, result.getPositionCount());
+            assertTrue(result.areAllValuesNull());
+        }
+    }
+
+    public void testDefaultBlockSingleValue() {
+        AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(4);
+        // Position 0: avg = 100.0 / 5 = 20.0
+        appendValues(builder, 0.0, 100.0, 100.0, 5);
+        // Position 1: avg = 30.0 / 3 = 10.0
+        appendValues(builder, 0.0, 30.0, 30.0, 3);
+        // Position 2: count=0 → null
+        appendValues(builder, 0.0, 0.0, 5.0, 0);
+        // Position 3: null → null
+        builder.appendNull();
+
+        // defaultBlock() is owned by the AMD block; do NOT close it independently.
+        try (AggregateMetricDoubleBlock amdBlock = builder.build()) {
+            DoubleBlock result = amdBlock.defaultBlock();
+
+            assertFalse(result.isNull(0));
+            assertEquals(1, result.getValueCount(0));
+            assertEquals(20.0, result.getDouble(result.getFirstValueIndex(0)), 1e-5);
+
+            assertFalse(result.isNull(1));
+            assertEquals(1, result.getValueCount(1));
+            assertEquals(10.0, result.getDouble(result.getFirstValueIndex(1)), 1e-5);
+
+            assertTrue(result.isNull(2));
+            assertTrue(result.isNull(3));
+
+            // Second call must return the same cached block
+            assertSame(result, amdBlock.defaultBlock());
+        }
+    }
+
+    public void testDefaultBlockMultiValue() {
+        AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(3);
+        // Position 0: single value
+        appendValues(builder, 0.0, 100.0, 100.0, 5);
+        // Position 1: two values → [10.0/2=5.0, 30.0/3=10.0]
+        var minBuilder = builder.min();
+        minBuilder.beginPositionEntry();
+        minBuilder.appendDouble(1.0);
+        minBuilder.appendDouble(2.0);
+        minBuilder.endPositionEntry();
+        var maxBuilder = builder.max();
+        maxBuilder.beginPositionEntry();
+        maxBuilder.appendDouble(11.0);
+        maxBuilder.appendDouble(22.0);
+        maxBuilder.endPositionEntry();
+        var sumBuilder = builder.sum();
+        sumBuilder.beginPositionEntry();
+        sumBuilder.appendDouble(10.0);
+        sumBuilder.appendDouble(30.0);
+        sumBuilder.endPositionEntry();
+        var countBuilder = builder.count();
+        countBuilder.beginPositionEntry();
+        countBuilder.appendInt(2);
+        countBuilder.appendInt(3);
+        countBuilder.endPositionEntry();
+        // Position 2: two values, one with count=0 → only one avg emitted
+        var minBuilder2 = builder.min();
+        minBuilder2.beginPositionEntry();
+        minBuilder2.appendDouble(0.0);
+        minBuilder2.appendDouble(0.0);
+        minBuilder2.endPositionEntry();
+        var maxBuilder2 = builder.max();
+        maxBuilder2.beginPositionEntry();
+        maxBuilder2.appendDouble(0.0);
+        maxBuilder2.appendDouble(0.0);
+        maxBuilder2.endPositionEntry();
+        var sumBuilder2 = builder.sum();
+        sumBuilder2.beginPositionEntry();
+        sumBuilder2.appendDouble(20.0);
+        sumBuilder2.appendDouble(0.0);
+        sumBuilder2.endPositionEntry();
+        var countBuilder2 = builder.count();
+        countBuilder2.beginPositionEntry();
+        countBuilder2.appendInt(4);
+        countBuilder2.appendInt(0);
+        countBuilder2.endPositionEntry();
+
+        // defaultBlock() is owned by the AMD block; do NOT close it independently.
+        try (AggregateMetricDoubleBlock amdBlock = builder.build()) {
+            DoubleBlock result = amdBlock.defaultBlock();
+
+            // position 0: single average
+            assertFalse(result.isNull(0));
+            assertEquals(1, result.getValueCount(0));
+            assertEquals(20.0, result.getDouble(result.getFirstValueIndex(0)), 1e-5);
+
+            // position 1: two averages
+            assertFalse(result.isNull(1));
+            assertEquals(2, result.getValueCount(1));
+            int first = result.getFirstValueIndex(1);
+            assertEquals(5.0, result.getDouble(first), 1e-5);
+            assertEquals(10.0, result.getDouble(first + 1), 1e-5);
+
+            // position 2: one valid avg (the other was count=0)
+            assertFalse(result.isNull(2));
+            assertEquals(1, result.getValueCount(2));
+            assertEquals(5.0, result.getDouble(result.getFirstValueIndex(2)), 1e-5);
+        }
+    }
+
     static void appendValues(AggregateMetricDoubleBlockBuilder builder, double min, double max, double sum, int count) {
         builder.min().appendDouble(min);
         builder.max().appendDouble(max);

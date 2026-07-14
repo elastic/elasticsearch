@@ -45,7 +45,7 @@ public class SemanticClusterMetadataTests extends ESSingleNodeTestCase {
         return List.of(LocalStateInferencePlugin.class);
     }
 
-    public void testCreateIndexWithSemanticTextField() {
+    public void testCreateIndexWithSemanticField() {
         final IndexService indexService = createIndex(
             "test",
             client().admin().indices().prepareCreate("test").setMapping("field", "type=" + fieldType + ",inference_id=test_model")

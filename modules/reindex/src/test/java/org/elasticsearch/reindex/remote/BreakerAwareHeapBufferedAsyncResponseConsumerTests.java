@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCase {
 
     private static class TrackingBreaker extends NoopCircuitBreaker {
-        private final AtomicLong net = new AtomicLong();
+        private final AtomicLong used = new AtomicLong();
         private final long limit;
 
         TrackingBreaker() {
@@ -51,7 +51,7 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
 
         @Override
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
-            long projected = net.get() + bytes;
+            long projected = used.get() + bytes;
             if (projected > limit) {
                 throw new CircuitBreakingException(
                     "[" + label + "] tracking breaker tripped",
@@ -60,17 +60,17 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
                     CircuitBreaker.Durability.TRANSIENT
                 );
             }
-            net.addAndGet(bytes);
+            used.addAndGet(bytes);
         }
 
         @Override
         public void addWithoutBreaking(long bytes) {
-            net.addAndGet(bytes);
+            used.addAndGet(bytes);
         }
 
         @Override
         public long getUsed() {
-            return net.get();
+            return used.get();
         }
     }
 
@@ -104,8 +104,8 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
     }
 
     public void testKnownContentLengthReservationIsReleasedWhenEntityIsClosed() throws Exception {
-        TrackingBreaker breaker = new TrackingBreaker();
-        BreakerAwareHeapBufferedAsyncResponseConsumer consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
+        var breaker = new TrackingBreaker();
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
 
         consumer.responseReceived(responseWithContentLength(512));
         assertThat(breaker.getUsed(), equalTo(512L));
@@ -121,8 +121,8 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
     }
 
     public void testBufferingNonRepeatableEntityReleasesReservation() throws Exception {
-        TrackingBreaker breaker = new TrackingBreaker();
-        BreakerAwareHeapBufferedAsyncResponseConsumer consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
+        var breaker = new TrackingBreaker();
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
 
         consumer.responseReceived(responseWithContentLength(512));
         consumer.consumeContent(new FixedBytesContentDecoder(512), null);
@@ -137,8 +137,8 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
     }
 
     public void testChunkedResponseGrowthIsAccountedAndReleasedWhenEntityIsClosed() throws Exception {
-        TrackingBreaker breaker = new TrackingBreaker();
-        BreakerAwareHeapBufferedAsyncResponseConsumer consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 20_000);
+        var breaker = new TrackingBreaker();
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 20_000);
 
         consumer.responseReceived(responseWithContentLength(-1));
         assertThat("unknown-length responses start with the REST client default initial buffer", breaker.getUsed(), equalTo(4096L));
@@ -152,8 +152,8 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
     }
 
     public void testBreakerTripDuringChunkedGrowthIsReleasedOnFailure() throws Exception {
-        TrackingBreaker breaker = new TrackingBreaker(10_000L);
-        BreakerAwareHeapBufferedAsyncResponseConsumer consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 20_000);
+        var breaker = new TrackingBreaker(10_000L);
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 20_000);
 
         consumer.responseReceived(responseWithContentLength(-1));
         assertThat(breaker.getUsed(), equalTo(4096L));
@@ -167,8 +167,8 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
     }
 
     public void testChunkedResponseIsCappedAtBufferLimit() throws Exception {
-        TrackingBreaker breaker = new TrackingBreaker();
-        BreakerAwareHeapBufferedAsyncResponseConsumer consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 8194);
+        var breaker = new TrackingBreaker();
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 8194);
 
         consumer.responseReceived(responseWithContentLength(-1));
         ContentTooLongException thrown = expectThrows(
@@ -182,16 +182,16 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
     }
 
     public void testKnownContentLengthTooLongDoesNotReserveBytes() {
-        TrackingBreaker breaker = new TrackingBreaker();
-        BreakerAwareHeapBufferedAsyncResponseConsumer consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
+        var breaker = new TrackingBreaker();
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
 
         expectThrows(ContentTooLongException.class, () -> consumer.responseReceived(responseWithContentLength(1025)));
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
     public void testFailureBeforeResponseCompletionReleasesReservation() throws Exception {
-        TrackingBreaker breaker = new TrackingBreaker();
-        BreakerAwareHeapBufferedAsyncResponseConsumer consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
+        var breaker = new TrackingBreaker();
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
 
         consumer.responseReceived(responseWithContentLength(512));
         assertThat(breaker.getUsed(), equalTo(512L));
@@ -201,8 +201,8 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
     }
 
     public void testEntityCloseIsIdempotent() throws Exception {
-        TrackingBreaker breaker = new TrackingBreaker();
-        BreakerAwareHeapBufferedAsyncResponseConsumer consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
+        var breaker = new TrackingBreaker();
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 1024);
 
         consumer.responseReceived(responseWithContentLength(512));
         consumer.responseCompleted(null);
@@ -215,7 +215,7 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
 
     public void testNoopBreakerDoesNotTrip() throws Exception {
         CircuitBreaker noop = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
-        BreakerAwareHeapBufferedAsyncResponseConsumer consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(noop, 1024);
+        var consumer = new BreakerAwareHeapBufferedAsyncResponseConsumer(noop, 1024);
 
         consumer.responseReceived(responseWithContentLength(1024));
         assertThat(noop.getUsed(), equalTo(0L));
@@ -227,7 +227,7 @@ public class BreakerAwareHeapBufferedAsyncResponseConsumerTests extends ESTestCa
     }
 
     public void testConstructorValidation() {
-        TrackingBreaker breaker = new TrackingBreaker();
+        var breaker = new TrackingBreaker();
 
         expectThrows(IllegalArgumentException.class, () -> new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, 0));
         expectThrows(IllegalArgumentException.class, () -> new BreakerAwareHeapBufferedAsyncResponseConsumer(breaker, -1));

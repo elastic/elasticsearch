@@ -55,6 +55,7 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
 
     /** Label used when charging the REQUEST breaker for the raw HTTP response buffer. */
     static final String REMOTE_RESPONSE_BUFFER_BREAKER_LABEL = "reindex_remote_response_buffer";
+    private static final int INITIAL_BUFFER_SIZE = 4096;
 
     private final int bufferLimitBytes;
     private final AccountingByteBufferAllocator allocator;
@@ -75,6 +76,7 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
         return bufferLimitBytes;
     }
 
+    // Visible for testing
     long currentReservation() {
         return allocator.currentReservation();
     }
@@ -88,9 +90,11 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
     protected void onEntityEnclosed(HttpEntity entity, ContentType contentType) throws IOException {
         long len = entity.getContentLength();
         if (len > bufferLimitBytes) {
-            throw contentTooLong(len);
+            throw new ContentTooLongException(
+                "entity content is too long [" + len + "] for the configured buffer limit [" + bufferLimitBytes + "]"
+            );
         }
-        int initialBufferSize = len < 0 ? 4096 : Math.toIntExact(len);
+        int initialBufferSize = len < 0 ? INITIAL_BUFFER_SIZE : Math.toIntExact(len);
         try {
             contentBuffer = new AccountingSimpleInputBuffer(initialBufferSize, bufferLimitBytes, allocator);
             this.response.setEntity(new ReleasableContentBufferEntity(new ContentBufferEntity(entity, contentBuffer), allocator));
@@ -104,7 +108,7 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
         try {
             contentBuffer.consumeContent(decoder);
         } catch (ContentTooLongRuntimeException e) {
-            throw e.asIOException();
+            throw e.unwrap();
         } catch (CircuitBreakingException cbe) {
             throw new IOException(cbe);
         }
@@ -128,12 +132,6 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
         }
     }
 
-    private ContentTooLongException contentTooLong(long contentLength) {
-        return new ContentTooLongException(
-            "entity content is too long [" + contentLength + "] for the configured buffer limit [" + bufferLimitBytes + "]"
-        );
-    }
-
     private final class AccountingSimpleInputBuffer extends SimpleInputBuffer {
         private final int bufferLimitBytes;
         private final AccountingByteBufferAllocator allocator;
@@ -153,7 +151,7 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
                 );
             }
             long doubledCapacity = ((long) oldCapacity + 1) << 1;
-            int newCapacity = Math.toIntExact(Math.min(doubledCapacity, (long) bufferLimitBytes));
+            int newCapacity = Math.toIntExact(Math.min(doubledCapacity, bufferLimitBytes));
 
             ByteBuffer oldBuffer = buffer;
             ByteBuffer newBuffer = allocator.allocate(newCapacity);
@@ -269,7 +267,7 @@ final class BreakerAwareHeapBufferedAsyncResponseConsumer extends AbstractAsyncR
             this.contentTooLongException = cause;
         }
 
-        private ContentTooLongException asIOException() {
+        private ContentTooLongException unwrap() {
             return contentTooLongException;
         }
     }

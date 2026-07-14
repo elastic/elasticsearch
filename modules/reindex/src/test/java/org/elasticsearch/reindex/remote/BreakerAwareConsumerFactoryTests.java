@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class BreakerAwareConsumerFactoryTests extends ESTestCase {
 
     public void testCreateReturnsNewConsumerEachCall() {
-        BreakerAwareConsumerFactory factory = new BreakerAwareConsumerFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        var factory = new BreakerAwareConsumerFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
         HttpAsyncResponseConsumer<HttpResponse> first = factory.createHttpAsyncResponseConsumer();
         HttpAsyncResponseConsumer<HttpResponse> second = factory.createHttpAsyncResponseConsumer();
 
@@ -35,18 +35,16 @@ public class BreakerAwareConsumerFactoryTests extends ESTestCase {
 
     public void testDefaultBufferLimitMatchesRestClientDefault() {
         assertThat(DEFAULT_BUFFER_LIMIT_BYTES, equalTo(100 * 1024 * 1024));
-        BreakerAwareConsumerFactory factory = new BreakerAwareConsumerFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
-        BreakerAwareHeapBufferedAsyncResponseConsumer consumer = (BreakerAwareHeapBufferedAsyncResponseConsumer) factory
-            .createHttpAsyncResponseConsumer();
+        var factory = new BreakerAwareConsumerFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        var consumer = (BreakerAwareHeapBufferedAsyncResponseConsumer) factory.createHttpAsyncResponseConsumer();
 
         assertThat(consumer.getBufferLimit(), equalTo(DEFAULT_BUFFER_LIMIT_BYTES));
     }
 
     public void testCustomBufferLimitIsUsed() {
         int customLimit = between(1, 10_000);
-        BreakerAwareConsumerFactory factory = new BreakerAwareConsumerFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), customLimit);
-        BreakerAwareHeapBufferedAsyncResponseConsumer consumer = (BreakerAwareHeapBufferedAsyncResponseConsumer) factory
-            .createHttpAsyncResponseConsumer();
+        var factory = new BreakerAwareConsumerFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), customLimit);
+        var consumer = (BreakerAwareHeapBufferedAsyncResponseConsumer) factory.createHttpAsyncResponseConsumer();
 
         assertThat(consumer.getBufferLimit(), equalTo(customLimit));
     }

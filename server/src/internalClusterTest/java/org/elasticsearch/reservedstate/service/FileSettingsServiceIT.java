@@ -726,9 +726,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         if (reservedState == null || reservedState.errorMetadata() != null) {
             return false;
         }
-        return expectedBytesPerSec.equals(
-            state.metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
-        );
+        return expectedBytesPerSec.equals(state.metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()));
     }
 
     private static boolean hasReservedStateError(ClusterState state, AtomicLong metadataVersion, String errorSubstring) {

@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.junit.Before;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -29,6 +31,12 @@ import static org.hamcrest.Matchers.instanceOf;
  * Multivalue (any-value match) and null/missing positions are exercised too.
  */
 public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvaluatorTests {
+
+    @Before
+    public void assumeRuntimeMatchPhraseEnabled() {
+        // Runtime match_phrase is gated behind a snapshot-only capability; there is nothing to test in release builds.
+        assumeTrue("requires runtime match_phrase", EsqlCapabilities.Cap.MATCH_PHRASE_RUNTIME_SEARCH.isEnabled());
+    }
 
     private static MatchPhrase runtimeMatchPhrase(String queryValue) {
         ReferenceAttribute field = new ReferenceAttribute(Source.EMPTY, "field", TEXT);

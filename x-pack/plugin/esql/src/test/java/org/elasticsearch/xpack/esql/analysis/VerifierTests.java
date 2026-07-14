@@ -1948,16 +1948,17 @@ public class VerifierTests extends ESTestCase {
 
         checkFieldBasedFunctionNotAllowedAfterCommands(":", "operator", "title : \"Meditation\"", true);
 
-        // MATCH_PHRASE supports runtime search on text expressions only; substring/concat produce keyword,
-        // so these non-indexed columns are still rejected until keyword runtime support lands.
+        // MATCH_PHRASE supports runtime search (snapshot-only for now) on text expressions only; substring/concat
+        // produce keyword, so these non-indexed columns are still rejected until keyword runtime support lands.
         checkFieldBasedWithNonIndexedColumn("MatchPhrase", "match_phrase(text, \"cat\")", "function");
-        checkFieldBasedFunctionNotAllowedAfterCommands("MatchPhrase", "function", "match_phrase(title, \"Meditation\")", true);
+        checkFieldBasedFunctionNotAllowedAfterCommands(
+            "MatchPhrase",
+            "function",
+            "match_phrase(title, \"Meditation\")",
+            EsqlCapabilities.Cap.MATCH_PHRASE_RUNTIME_SEARCH.isEnabled()
+        );
 
         checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])", false);
-    }
-
-    private void checkFieldBasedFunctionNotAllowedAfterCommands(String functionName, String functionType, String functionInvocation) {
-        checkFieldBasedFunctionNotAllowedAfterCommands(functionName, functionType, functionInvocation, false);
     }
 
     private void checkFieldBasedFunctionNotAllowedAfterCommands(
@@ -2368,8 +2369,15 @@ public class VerifierTests extends ESTestCase {
         // match and : support runtime search and can operate on EVAL columns
         fullText().query("from test | eval name = title | where match(name, \"Meditation\")");
         fullText().query("from test | eval name = title | where name : \"Meditation\"");
-        // match_phrase supports runtime search on text EVAL columns
-        fullText().query("from test | eval name = title | where match_phrase(name, \"Meditation\")");
+        // match_phrase supports runtime search (snapshot-only for now) on text EVAL columns
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_RUNTIME_SEARCH.isEnabled()) {
+            fullText().query("from test | eval name = title | where match_phrase(name, \"Meditation\")");
+        } else {
+            fullText().error(
+                "from test | eval name = title | where match_phrase(name, \"Meditation\")",
+                containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping")
+            );
+        }
     }
 
     /**
@@ -2397,8 +2405,15 @@ public class VerifierTests extends ESTestCase {
         fullText().query("from test | dissect title \"%{extracted}\" | rename extracted as x | where match(x, \"Meditation\")");
         fullText().query("from test | eval text = substring(title, 1) | rename text as x | rename x as y | where match(y, \"Meditation\")");
 
-        // MATCH_PHRASE supports runtime search on renamed text expressions
-        fullText().query("from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")");
+        // MATCH_PHRASE supports runtime search (snapshot-only for now) on renamed text expressions
+        if (EsqlCapabilities.Cap.MATCH_PHRASE_RUNTIME_SEARCH.isEnabled()) {
+            fullText().query("from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")");
+        } else {
+            fullText().error(
+                "from test | eval name = title | rename name as x | where match_phrase(x, \"Meditation\")",
+                containsString("[MatchPhrase] function cannot operate on [x], which is not a field from an index mapping")
+            );
+        }
 
         // MATCH_PHRASE runtime search does not support keyword expressions yet (concat, grok, dissect and
         // substring all produce keyword), so these still require a field from an index mapping

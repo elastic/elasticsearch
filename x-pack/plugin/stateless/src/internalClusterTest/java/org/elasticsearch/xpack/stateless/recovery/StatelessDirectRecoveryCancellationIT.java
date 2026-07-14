@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardRecoveryCancellation;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -121,7 +122,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
 
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
@@ -163,7 +164,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
@@ -206,7 +207,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
@@ -251,7 +252,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
@@ -298,7 +299,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
 
         client(node).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
@@ -384,7 +385,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(targetNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
 
@@ -438,7 +439,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var clusterService = internalCluster().getInstance(ClusterService.class, searchNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
             clusterService.state().version(),
-            List.of(new CancelRecoveriesAction.ShardRecoveryCancellation(shardId, allocationId, true))
+            List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
         client(searchNode).execute(CancelRecoveriesAction.TYPE, cancellationRequest).get();
         proceedWithRegistration.countDown();

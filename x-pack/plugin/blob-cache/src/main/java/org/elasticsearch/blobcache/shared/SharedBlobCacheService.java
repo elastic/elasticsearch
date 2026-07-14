@@ -979,6 +979,42 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     /**
+     * Backfills the timestamps of every region in the inclusive range {@code [firstRegion, lastRegion]} of {@code cacheKey},
+     * transitioning each present region only from {@link #BACKFILL_IN_PROGRESS_TIMESTAMP} to {@code timestampMillis}.
+     * Regions that are absent (never populated or already evicted), carry {@link #UNKNOWN_TIMESTAMP}, or already carry a real
+     * timestamp are left unchanged.
+     *
+     * @param cacheKey        the cache key whose regions to backfill
+     * @param firstRegion     the first region index to backfill (inclusive)
+     * @param lastRegion      the last region index to backfill (inclusive)
+     * @param timestampMillis the real timestamp (epoch millis, {@code > 0}) to assign
+     */
+    public void backfillRegionTimestamps(KeyType cacheKey, int firstRegion, int lastRegion, long timestampMillis) {
+        assert firstRegion >= 0 && lastRegion >= firstRegion : firstRegion + " > " + lastRegion;
+        assert timestampMillis > 0L : timestampMillis;
+        for (int region = firstRegion; region <= lastRegion; region++) {
+            final CacheEntry<CacheFileRegion<KeyType>> cacheEntry = cache.getIfPresent(cacheKey, region);
+            if (cacheEntry != null) {
+                cacheEntry.chunk.backfillTimestampFromBackfillInProgress(timestampMillis);
+            }
+        }
+    }
+
+    /**
+     * Asserts that no region in the inclusive range {@code [firstRegion, lastRegion]} of {@code cacheKey} still carries
+     * {@link #BACKFILL_IN_PROGRESS_TIMESTAMP}. Only active when assertions are enabled.
+     */
+    public void assertNoBackfillInProgressTimestamps(KeyType cacheKey, int firstRegion, int lastRegion) {
+        assert firstRegion >= 0 && lastRegion >= firstRegion : firstRegion + " > " + lastRegion;
+        for (int region = firstRegion; region <= lastRegion; region++) {
+            final CacheEntry<CacheFileRegion<KeyType>> cacheEntry = cache.getIfPresent(cacheKey, region);
+            if (cacheEntry != null) {
+                assert cacheEntry.chunk.timestampMillis() != BACKFILL_IN_PROGRESS_TIMESTAMP : "region " + region;
+            }
+        }
+    }
+
+    /**
      * Demotes all active cache regions for the given shard to frequency 0.
      * Demoted entries are inserted at the front of the frequency-0 list so they are evicted before
      * other frequency-0 entries. {@code lastAccessedEpoch} is set to {@code -1} so demoted entries
@@ -1150,8 +1186,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         final RegionKey<KeyType> regionKey;
         final SparseFileTracker tracker;
-        // Representative data timestamp (epoch millis) of the content in this region, or a sentinel value.
-        private final long timestampMillis;
+        // Representative data timestamp (epoch millis) of the content in this region, or a sentinel when unknown.
+        // Written at construction and then possibly backfilled away from BACKFILL_IN_PROGRESS_TIMESTAMP to a real (positive) value via
+        // #backfillTimestampFromBackfillInProgress.
+        private volatile long timestampMillis;
         // io can be null when not init'ed or after evict/take
         // io does not need volatile access on the read path, since it goes from null to a single value (and then possbily back to null).
         // "cache.get" never returns a `CacheFileRegion` without checking the value is non-null (with a volatile read, ensuring the value is
@@ -1283,6 +1321,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         @Override
         public long timestampMillis() {
             return timestampMillis;
+        }
+
+        /**
+         * Backfills the region timestamp, transitioning it only from {@link #BACKFILL_IN_PROGRESS_TIMESTAMP} to a real (positive) value.
+         */
+        void backfillTimestampFromBackfillInProgress(long newTimestampMillis) {
+            assert newTimestampMillis > 0L : newTimestampMillis;
+            // There is a benign race here, but either way we end up with a valid timestamp.
+            if (timestampMillis == BACKFILL_IN_PROGRESS_TIMESTAMP) {
+                timestampMillis = newTimestampMillis;
+            }
         }
 
         /**

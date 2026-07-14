@@ -248,6 +248,54 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testBackfillRegionTimestamps() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+
+            // region 0 and region 2 start UNKNOWN and should be backfilled
+            final var region0 = cacheService.get(cacheKey, size(500), 0);
+            assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, region0.timestampMillis());
+            final var region2 = cacheService.get(cacheKey, size(500), 2);
+            assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, region2.timestampMillis());
+
+            // region 1 already carries a real timestamp; the guard must keep it
+            final long realTs = randomLongBetween(1, Long.MAX_VALUE - 1);
+            final var region1 = cacheService.get(cacheKey, size(500), 1, realTs);
+            assertEquals(realTs, region1.timestampMillis());
+
+            // Backfill the range [0, 4] with a single timestamp: regions 3 and 4 are absent and must be skipped silently.
+            final long backfill = randomLongBetween(1, Long.MAX_VALUE - 1);
+            cacheService.backfillRegionTimestamps(cacheKey, 0, 4, backfill);
+
+            assertEquals(backfill, region0.timestampMillis());
+            assertEquals(realTs, region1.timestampMillis()); // the guard kept the pre-existing real value
+            assertEquals(backfill, region2.timestampMillis());
+
+            // backfilling an already-resolved region is a no-op (transition only from UNKNOWN)
+            cacheService.backfillRegionTimestamps(cacheKey, 0, 0, backfill + 1);
+            assertEquals(backfill, region0.timestampMillis());
+
+            // TODO: assert region 3,4 were not created
+        }
+    }
+
     public void testFetchOverloadsStampTimestamp() throws Exception {
         final long cacheSize = size(500L);
         final long regionSize = size(100L);

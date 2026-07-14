@@ -470,7 +470,6 @@ class StatelessIndexEventListener implements IndexEventListener {
                     if (useInternalFilesReplicatedContentForSearchShards) {
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
                         Map<BlobFile, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
-                        // TODO: pass timestamps to cache regions read in this call
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
                             batchedCompoundCommit,

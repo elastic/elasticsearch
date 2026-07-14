@@ -66,6 +66,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.MetadataReadTimestampBackfill;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -799,8 +800,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         long maxBlobLength
     ) throws IOException {
         var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
-        var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
-        return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, true);
+        var session = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
+        var bcc = BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, session.blobReader(), true);
+        session.backfill().mergeCc(bcc);
+        session.backfill().finalizeAndBackfill();
+        return bcc;
     }
 
     /**
@@ -814,17 +818,18 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
      * @return                  an iterator over {@link StatelessCompoundCommit} objects that lazily reads compound commits
      *                          from the blob store with caching support
      */
-    private static Iterator<StatelessCompoundCommit> readBatchedCompoundCommitIncrementallyUsingCache(
+    private static ReferencedBlobRead readBatchedCompoundCommitIncrementallyUsingCache(
         BlobStoreCacheDirectory directory,
         IOContext context,
         BlobFile blobFile,
         long maxBlobLength
     ) {
-        var blobReader = getBlobReader(directory, context, blobFile.termAndGeneration(), maxBlobLength);
-        return BatchedCompoundCommit.readFromStoreIncrementally(blobFile.blobName(), maxBlobLength, blobReader, false);
+        var session = getBlobReader(directory, context, blobFile.termAndGeneration(), maxBlobLength);
+        var iterator = BatchedCompoundCommit.readFromStoreIncrementally(blobFile.blobName(), maxBlobLength, session.blobReader(), false);
+        return new ReferencedBlobRead(iterator, session.backfill());
     }
 
-    private static BatchedCompoundCommit.BlobReader getBlobReader(
+    private static MetadataReadSession getBlobReader(
         BlobStoreCacheDirectory directory,
         IOContext context,
         PrimaryTermAndGeneration blobTermAndGen,
@@ -846,8 +851,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength))),
             maxBlobLength
         );
+        final var backfill = dir.newMetadataReadTimestampBackfill(blobName, blobTermAndGen.primaryTerm());
 
-        return (ignored, offset, length) -> {
+        final BatchedCompoundCommit.BlobReader blobReader = (ignored, offset, length) -> {
             assert offset + length <= maxBlobLength : offset + " + " + length + " > " + maxBlobLength;
             var input = dir.openInput(blobName, context);
             try {
@@ -862,6 +868,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 throw e;
             }
         };
+        return new MetadataReadSession(blobReader, backfill);
     }
 
     /**
@@ -1262,7 +1269,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             commitFiles,
             bccHeaderReadExecutor,
             (referencedBlob, maxBlobOffset) -> bcc != null && referencedBlob.termAndGeneration().equals(bcc.primaryTermAndGeneration())
-                ? bcc.compoundCommits().iterator()
+                ? new ReferencedBlobRead(bcc.compoundCommits().iterator(), null)
                 : readBatchedCompoundCommitIncrementallyUsingCache(directory, context, referencedBlob, maxBlobOffset),
             referencedCCsConsumer,
             listener
@@ -1272,7 +1279,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     private static void readReferencedCompoundCommits(
         Map<String, BlobLocation> commitFiles,
         Executor bccHeaderReadExecutor,
-        BiFunction<BlobFile, Long, Iterator<StatelessCompoundCommit>> getCompoundCommitsIteratorForBlobFile,
+        BiFunction<BlobFile, Long, ReferencedBlobRead> getCompoundCommitsIteratorForBlobFile,
         Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
         ActionListener<Void> listener
     ) {
@@ -1282,26 +1289,34 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 var referencedBlob = referencedFilesForBlob.getKey();
                 var referencedFiles = referencedFilesForBlob.getValue().files();
                 bccHeaderReadExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> {
-                    var commitsIterator = getCompoundCommitsIteratorForBlobFile.apply(
+                    var referencedBlobRead = getCompoundCommitsIteratorForBlobFile.apply(
                         referencedBlob,
                         referencedFilesForBlob.getValue().maxBlobOffset()
                     );
+                    var commitsIterator = referencedBlobRead.iterator();
+                    // null when the in-memory bcc is reused (no cache read to backfill).
+                    var backfill = referencedBlobRead.backfill();
                     long offsetInBlob = 0L;
                     // only used for asserts
                     Set<String> referencedInternalFiles = Assertions.ENABLED ? new HashSet<>(referencedFiles.size()) : null;
                     while (commitsIterator.hasNext()) {
-                        var referencedCompoundCommit = commitsIterator.next();
+                        // iterator returns all the CCs in the blob, not just the referenced ones, but we filter them later
+                        var compoundCommit = commitsIterator.next();
                         assert offsetInBlob == BlobCacheUtils.toPageAlignedSize(offsetInBlob);
-                        var commitInternalFiles = Sets.intersection(referencedCompoundCommit.internalFiles(), referencedFiles);
+                        if (backfill != null) {
+                            // TODO: should the timestamp only come form referenced blobs?
+                            backfill.mergeCc(offsetInBlob, compoundCommit);
+                        }
+                        var commitInternalFiles = Sets.intersection(compoundCommit.internalFiles(), referencedFiles);
                         if (commitInternalFiles.isEmpty() == false) {
                             referencedCCsConsumer.accept(
                                 new StatelessCompoundCommitReferenceWithInternalFiles(
-                                    new StatelessCompoundCommitReference(referencedCompoundCommit, referencedBlob, offsetInBlob),
+                                    new StatelessCompoundCommitReference(compoundCommit, referencedBlob, offsetInBlob),
                                     commitInternalFiles
                                 )
                             );
                         }
-                        offsetInBlob += BlobCacheUtils.toPageAlignedSize(referencedCompoundCommit.sizeInBytes());
+                        offsetInBlob += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
                         if (Assertions.ENABLED) {
                             assert Sets.intersection(referencedInternalFiles, commitInternalFiles).isEmpty()
                                 : "some commits contain the same internal file names between them";
@@ -1310,6 +1325,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     }
                     assert Assertions.ENABLED == false || referencedInternalFiles.equals(referencedFiles)
                         : "could not find some internal file names";
+                    // Reached only on a clean read; a failure propagates to the listener and fails the shard/engine, which
+                    // force-evicts the regions stamped UNKNOWN above.
+                    if (backfill != null) {
+                        backfill.finalizeAndBackfill();
+                    }
                 }));
             }
         }
@@ -1341,6 +1361,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     }
 
     private record ReferencedFilesAndMaxBlobOffset(long maxBlobOffset, Set<String> files) {}
+
+    /**
+     * A metadata-read session for a single BCC blob: the {@link BatchedCompoundCommit.BlobReader} that streams (and caches)
+     * the blob, plus the {@link MetadataReadTimestampBackfill} accumulator recording the touched region range to backfill
+     * afterwards.
+     */
+    private record MetadataReadSession(BatchedCompoundCommit.BlobReader blobReader, MetadataReadTimestampBackfill backfill) {}
+
+    /**
+     * The compound-commit iterator for a referenced blob, plus the {@link MetadataReadTimestampBackfill} to backfill once the
+     * commits are parsed. {@code backfill} is {@code null} when the iterator comes from an in-memory BCC (no cache read).
+     */
+    private record ReferencedBlobRead(Iterator<StatelessCompoundCommit> iterator, @Nullable MetadataReadTimestampBackfill backfill) {}
 
     private static void logLatestBcc(BatchedCompoundCommit latestBcc, BlobContainer blobContainer) {
         if (logger.isTraceEnabled()) {

@@ -28,6 +28,7 @@ import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.ImmutableDirectoryException;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.xpack.stateless.cache.MetadataReadTimestampBackfill;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
@@ -146,6 +147,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return blobFileRanges != null
             ? BlobFileRanges.midpointMillisOrUnknownForCache(blobFileRanges.timestampRange())
             : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+    }
+
+    public MetadataReadTimestampBackfill newMetadataReadTimestampBackfill(String blobName, long primaryTerm) {
+        return new MetadataReadTimestampBackfill(cacheService, new FileCacheKey(shardId, primaryTerm, blobName));
     }
 
     StatelessSharedBlobCacheService getCacheService() {

@@ -44,7 +44,10 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneId;
+import java.time.zone.ZoneOffsetTransition;
+import java.time.zone.ZoneRules;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -82,7 +85,9 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         "esql_support_explicit_bucket_rounding_configuration"
     );
 
-    private record DateRoundingPicker(long buckets, long from, long to, ZoneId zoneId) {
+    // Package-private (rather than private) so BucketTests can exercise roundingIsOkFixedWidthUnit against
+    // roundingIsOkCalendarBasedUnit (the naive per-bucket oracle) directly.
+    record DateRoundingPicker(long buckets, long from, long to, ZoneId zoneId) {
 
         // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
         // That way you never end up with more than the target number of buckets.
@@ -188,30 +193,67 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             if (buckets <= 0) {
                 return false;
             }
-            Rounding.Prepared r = unit.rounding(zoneId).prepareForUnknown();
-            Long fixedWidthMillis = unit.fixedWidthMillis();
+            return unit.fixedWidthMillis() == null ? roundingIsOkCalendarBasedUnit(unit) : roundingIsOkFixedWidthUnit(unit);
+        }
 
-            // In a fixed-offset zone (e.g. UTC) fixed-width buckets are evenly spaced, so count
-            // them arithmetically instead of looping over all buckets.
-            if (fixedWidthMillis != null && zoneId.getRules().isFixedOffset()) {
-                return Math.ceilDiv(to - r.round(from), fixedWidthMillis) <= buckets;
-            }
-
-            // Otherwise, loop over the buckets to count the required number. This is slow for
-            // very large numbers of buckets.
-            // TODO: add fast counting for non-fixed-offset zones, by looping over periods with
-            // fixed offset (using zoneId.getRules().nextTransition), and counting within these
-            // periods and on the boundaries.
-            long bucket = r.round(from);
+        /**
+         * Whether at most {@link #buckets} buckets of {@code unit} span {@link #from}..{@link #to}.
+         * <p>
+         * Calendar-based units (day, week, month, year) vary in length across the range, so count
+         * one bucket at a time. The number of such buckets that fit before the target is exceeded
+         * is small, because the unit is large in milliseconds (minimally 1 day).
+         **/
+        boolean roundingIsOkCalendarBasedUnit(Unit unit) {
+            Rounding.Prepared rounding = unit.rounding(zoneId).prepareForUnknown();
+            long bucket = rounding.round(from);
             long used = 0;
             while (used < buckets) {
-                bucket = r.nextRoundingValue(bucket);
+                bucket = rounding.nextRoundingValue(bucket);
                 used++;
                 if (bucket >= to) {
                     return true;
                 }
             }
             return false;
+        }
+
+        /**
+         * Whether at most {@link #buckets} buckets of {@code unit} span {@link #from}..{@link #to}.
+         * <p>
+         * Within a period of constant UTC offset the bucket boundaries are evenly spaced by {@code width}, so they are
+         * counted arithmetically. Across a period (a DST transition) the offset changes and the boundaries shift, so the
+         * {@code rounding} is consulted once per transition to land on the first boundary of the next period (exactly as the
+         * naive per-bucket loop would).
+         * This makes the count independent of the (potentially enormous) number of buckets, depending only on the number of
+         * transitions in the range (a handful even for multi-year ranges).
+         * For a fixed-offset zone there are no transitions, so this reduces to a single division.
+         */
+        boolean roundingIsOkFixedWidthUnit(Unit unit) {
+            Rounding.Prepared rounding = unit.rounding(zoneId).prepareForUnknown();
+            long width = unit.fixedWidthMillis();
+
+            ZoneRules rules = zoneId.getRules();
+            long boundary = rounding.round(from);
+            long count = 0;
+            while (boundary < to) {
+                ZoneOffsetTransition transition = rules.nextTransition(Instant.ofEpochMilli(boundary));
+                long periodEnd = transition == null ? Long.MAX_VALUE : transition.getInstant().toEpochMilli();
+                long limit = Math.min(periodEnd, to);
+                // Boundaries in [boundary, limit): boundary, boundary + width, ... i.e. ceil((limit - boundary) / width).
+                long inPeriod = Math.ceilDiv(limit - boundary, width);
+                count += inPeriod;
+                if (count > buckets) {
+                    return false;
+                }
+                if (periodEnd >= to) {
+                    break;
+                }
+                // Cross the transition using the real rounding: from the last boundary before the transition, its next
+                // rounding value is the first boundary of the next constant-offset period.
+                long lastInPeriod = boundary + (inPeriod - 1) * width;
+                boundary = rounding.nextRoundingValue(lastInPeriod);
+            }
+            return count <= buckets;
         }
     }
 

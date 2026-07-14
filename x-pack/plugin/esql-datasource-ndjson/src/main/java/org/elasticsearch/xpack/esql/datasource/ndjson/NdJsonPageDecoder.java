@@ -24,7 +24,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -50,6 +49,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.time.DateTimeException;
 import java.util.ArrayList;
@@ -58,7 +58,6 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -233,15 +232,14 @@ public class NdJsonPageDecoder implements Closeable {
      * and parses that column's timestamps with it instead of {@link #datetimeFormatter}.
      */
     private final Map<String, String> declaredDateFormats;
+
     /**
-     * Physical (file) column names whose target type came from an explicit declaration. A cross-kind token
-     * (a boolean in a numeric/datetime column, a number in a boolean column, a non-string in an IP column)
-     * on such a column has no silent-null tolerance — it routes through {@link BlockDecoder#coercionFailure}
-     * per the declared-type invariant that no declared type may silently read as null. An INFERRED column
-     * (not in this set) keeps the schema-on-read {@link BlockDecoder#unexpectedValue} tolerance. Empty when
-     * no column type was declared.
+     * Set by {@link BlockDecoder#coercionFailure} while decoding the current record when the policy is
+     * {@link ErrorPolicy.Mode#SKIP_ROW}: the record carries an uncoercible value and must be dropped whole
+     * rather than committed with a null cell. Reset per record by {@link #decodePageLenient}, which is the
+     * only decode loop that can drop a record ({@code FAIL_FAST} throws instead).
      */
-    private final Set<String> declaredTypeColumns;
+    private boolean rowDroppedBySkipRow;
 
     /** Number of malformed records observed during decoding (lenient policies swallow these). */
     long errorCount() {
@@ -318,7 +316,6 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             counters,
             Map.of(),
-            Set.of(),
             null
         );
     }
@@ -334,8 +331,7 @@ public class NdJsonPageDecoder implements Closeable {
         ErrorPolicy errorPolicy,
         String sourceLocation,
         NdJsonReaderCounters counters,
-        Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns
+        Map<String, String> declaredDateFormats
     ) throws IOException {
         this(
             input,
@@ -348,7 +344,6 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             counters,
             declaredDateFormats,
-            declaredTypeColumns,
             null
         );
     }
@@ -377,7 +372,6 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             counters,
             Map.of(),
-            Set.of(),
             warningSink
         );
     }
@@ -393,7 +387,6 @@ public class NdJsonPageDecoder implements Closeable {
         String sourceLocation,
         NdJsonReaderCounters counters,
         Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns,
         @Nullable Consumer<String> warningSink
     ) throws IOException {
         this(
@@ -411,7 +404,6 @@ public class NdJsonPageDecoder implements Closeable {
             counters,
             NdJsonUtils.JSON_FACTORY,
             declaredDateFormats,
-            declaredTypeColumns,
             warningSink
         );
     }
@@ -443,7 +435,6 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             counters,
             Map.of(),
-            Set.of(),
             null
         );
     }
@@ -467,8 +458,7 @@ public class NdJsonPageDecoder implements Closeable {
         ErrorPolicy errorPolicy,
         String sourceLocation,
         NdJsonReaderCounters counters,
-        Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns
+        Map<String, String> declaredDateFormats
     ) throws IOException {
         this(
             data,
@@ -483,7 +473,6 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             counters,
             declaredDateFormats,
-            declaredTypeColumns,
             null
         );
     }
@@ -516,7 +505,6 @@ public class NdJsonPageDecoder implements Closeable {
             sourceLocation,
             counters,
             Map.of(),
-            Set.of(),
             warningSink
         );
     }
@@ -534,7 +522,6 @@ public class NdJsonPageDecoder implements Closeable {
         String sourceLocation,
         NdJsonReaderCounters counters,
         Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns,
         @Nullable Consumer<String> warningSink
     ) throws IOException {
         this(
@@ -552,7 +539,6 @@ public class NdJsonPageDecoder implements Closeable {
             counters,
             NdJsonUtils.JSON_FACTORY,
             declaredDateFormats,
-            declaredTypeColumns,
             warningSink
         );
     }
@@ -602,7 +588,6 @@ public class NdJsonPageDecoder implements Closeable {
             new NdJsonReaderCounters(),
             factory,
             Map.of(),
-            Set.of(),
             warningSink
         );
     }
@@ -622,7 +607,6 @@ public class NdJsonPageDecoder implements Closeable {
         NdJsonReaderCounters counters,
         JsonFactory factory,
         Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns,
         @Nullable Consumer<String> warningSink
     ) throws IOException {
         this.jsonFactory = factory;
@@ -651,7 +635,6 @@ public class NdJsonPageDecoder implements Closeable {
         this.counters = counters;
         this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.STRICT_DATE_OPTIONAL_TIME;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
-        this.declaredTypeColumns = declaredTypeColumns != null ? Set.copyOf(declaredTypeColumns) : Set.of();
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
             "NDJSON read from ["
@@ -1051,6 +1034,7 @@ public class NdJsonPageDecoder implements Closeable {
 
             totalRowCount++;
             this.blockTracker.clear();
+            this.rowDroppedBySkipRow = false;
             // Capture before decodeObject / recovery advance the parser. The slice-relative offset feeds
             // the max_record_size span check; the file-global offset feeds _rowPosition and truncation.
             boolean trackOffset = capEnforced || rowPositionSlot >= 0;
@@ -1108,6 +1092,13 @@ public class NdJsonPageDecoder implements Closeable {
                 if (rowPositionSlot >= 0) {
                     ((LongBlock.Builder) rowScratch[rowPositionSlot]).appendLong(recordOffset);
                     blockTracker.set(rowPositionSlot);
+                }
+                if (rowDroppedBySkipRow) {
+                    // error_mode: skip_row. An uncoercible value makes the whole record bad, so it never reaches
+                    // the page — matching CsvFormatReader, and matching ErrorPolicy.Mode.SKIP_ROW's contract
+                    // ("drop the entire bad row"). The scratch builders are released by the finally below and
+                    // rebuilt for the next record; nothing partial is committed. NULL_FIELD still null-fills.
+                    continue;
                 }
                 for (int i = 0; i < rowScratch.length; i++) {
                     if (blockTracker.get(i) == false) {
@@ -1340,17 +1331,14 @@ public class NdJsonPageDecoder implements Closeable {
         // Builders setup independently as we need to create new ones for each page.
         void setupBuilders(Block.Builder[] blockBuilders) {
             if (dataType != null) {
-                blockBuilder = switch (dataType) {
-                    // Keep in sync with NdJsonSchemaInferrer.inferValueSchema
-                    case BOOLEAN -> blockFactory.newBooleanBlockBuilder(batchSize);
-                    case NULL -> new ConstantNullBlock.Builder(blockFactory);
-                    case INTEGER -> blockFactory.newIntBlockBuilder(batchSize);
-                    case LONG -> blockFactory.newLongBlockBuilder(batchSize);
-                    case DOUBLE -> blockFactory.newDoubleBlockBuilder(batchSize);
-                    case KEYWORD, TEXT, IP -> blockFactory.newBytesRefBlockBuilder(batchSize);
-                    case DATETIME -> blockFactory.newLongBlockBuilder(batchSize); // milliseconds since epoch
-                    default -> throw unsupportedTypeForNdjson(dataType);
-                };
+                // The type -> block-shape mapping is not re-derived here: it belongs to the declared-read SPI,
+                // which delegates the enumeration to PlannerUtils.toElementType. A reader-local copy of it is
+                // exactly how unsigned_long came to pass dataset validation and then throw at page setup.
+                try {
+                    blockBuilder = DeclaredTypeCoercions.builderFor(dataType, blockFactory, batchSize);
+                } catch (IllegalArgumentException e) {
+                    throw unsupportedTypeForNdjson(dataType, e);
+                }
                 blockBuilders[blockIdx] = blockBuilder;
             }
 
@@ -1363,14 +1351,20 @@ public class NdJsonPageDecoder implements Closeable {
 
         /**
          * The declared type passed create + resolution (it is in {@code DeclaredSchemaValidator.DECLARABLE_TYPES})
-         * but NDJSON has no builder/decoder arm for it — for example {@code unsigned_long}, which no text format
-         * reads yet. Names the column and type so the failure is actionable rather than a bare internal error.
-         * Reserved for the {@code default} arm of the two type switches: an unexpected value there is a coverage
-         * gap, not a routine per-record condition.
+         * but NDJSON has no decoder arm for it, or the declared-read SPI has no block shape for it. Names the
+         * column and type so the failure is actionable rather than a bare internal error.
+         * Raised from builder setup, where the SPI rejects the type, and from the {@code default} arm of the value
+         * decode switch. Either is a coverage gap, not a routine per-record condition: a bad <em>value</em> of a
+         * supported type takes the per-cell error policy instead.
          */
         private IllegalArgumentException unsupportedTypeForNdjson(DataType type) {
+            return unsupportedTypeForNdjson(type, null);
+        }
+
+        private IllegalArgumentException unsupportedTypeForNdjson(DataType type, Throwable cause) {
             return new IllegalArgumentException(
-                "column [" + name + "] has declared type [" + type.typeName() + "] which is not supported for NDJSON reads"
+                "column [" + name + "] has declared type [" + type.typeName() + "] which is not supported for NDJSON reads",
+                cause
             );
         }
 
@@ -1500,24 +1494,24 @@ public class NdJsonPageDecoder implements Closeable {
         /**
          * Decodes the current JSON value into this decoder's block (or, for a structural prefix node, recurses into
          * its children). NDJSON is schema-on-read: the inferred/bound schema flattens nested objects to dotted leaf
-         * columns, so most value/schema shape mismatches are not a hard error and are null-filled for the affected
-         * column(s) rather than failing the query:
+         * columns. Purely STRUCTURAL shape mismatches are not errors — they are null-filled for the affected column(s)
+         * and {@code DEBUG}-logged, never failing the query regardless of {@code error_mode}:
          * <ul>
          *   <li>a JSON {@code null} where an object was expected on a structural prefix node leaves its leaf columns
          *       null for that row (e.g. an intermittently-null nested object across millions of records) — logged at
          *       {@code DEBUG} only, never {@code WARN}, since surfacing it by default would flood the log without
          *       giving the cluster admin an actionable signal;</li>
-         *   <li>a stray scalar among a heterogeneous array of objects is likewise null-filled and {@code DEBUG}-logged
-         *       (a distinct, supported shape from the point below), and symmetrically a stray object among a
-         *       heterogeneous array of scalars is simply omitted from that column's multi-value entry and
-         *       {@code DEBUG}-logged — neither direction is the record-level conflict below;</li>
-         *   <li>a scalar of the wrong primitive type is reported via {@link #unexpectedValue} and null-filled.</li>
+         *   <li>a stray scalar among a heterogeneous array of objects is likewise null-filled and {@code DEBUG}-logged,
+         *       and symmetrically a stray object among a heterogeneous array of scalars is simply omitted from that
+         *       column's multi-value entry and {@code DEBUG}-logged — neither direction is a value error.</li>
          * </ul>
-         * The one genuine hard-error case is a top-level (non-array) scalar/object shape conflict — a field that is a
-         * scalar in some records and an object in others — handled by {@link #shapeConflict}: this is routed through
-         * {@link ErrorPolicy} like any other unparseable value ({@code FAIL_FAST} fails the query, other modes
-         * null-fill and warn) rather than silently decoded, because core ES dynamic mapping treats the same ambiguity
-         * as a hard document-parsing conflict. See elastic/esql-planning#1028.
+         * A cell that genuinely cannot be REPRESENTED under the column's type, by contrast, is governed by
+         * {@code error_mode} — identically for a declared or an inferred column: a bad value or a cross-kind token
+         * ({@link #coercionFailure} / {@link #crossKindDrift}), and a top-level scalar/object shape conflict — a field
+         * that is a scalar in some records and an object in others ({@link #shapeConflict}) — all route through
+         * {@link ErrorPolicy}: {@code FAIL_FAST} fails the query, {@code SKIP_ROW} drops the whole record,
+         * {@code NULL_FIELD} nulls the cell and warns. Core ES dynamic mapping treats the shape ambiguity as a hard
+         * document-parsing conflict.
          */
         private void decodeValue(JsonParser parser, boolean inArray) throws IOException {
             JsonToken token = parser.currentToken();
@@ -1607,7 +1601,7 @@ public class NdJsonPageDecoder implements Closeable {
                         return;
                     }
                     // Scalar leaf receiving an object value outside an array: a genuine scalar/object schema
-                    // conflict (elastic/esql-planning#1028), not routine schema-on-read flattening. With
+                    // conflict, not routine schema-on-read flattening. With
                     // single-shape schema inference (see NdJsonSchemaInferrer) this can only happen when
                     // the actual data diverges from the shape observed during sampling, so — unlike the
                     // routine mismatches above — it is routed through ErrorPolicy instead of silently
@@ -1640,7 +1634,7 @@ public class NdJsonPageDecoder implements Closeable {
                             );
                         }
                     } else {
-                        // Genuine scalar/object schema conflict (elastic/esql-planning#1028): route
+                        // Genuine scalar/object schema conflict: route
                         // through ErrorPolicy instead of silently null-filling. Structural nodes never
                         // receive setAttribute(), so `name` is null here; derive the JSON path (e.g.
                         // /userIdentity/sessionContext) from the parser context to identify the field.
@@ -1670,6 +1664,7 @@ public class NdJsonPageDecoder implements Closeable {
                 case BOOLEAN -> decodeBooleanValue(parser, token, inArray);
                 case INTEGER -> decodeIntValue(parser, token, inArray);
                 case LONG -> decodeLongValue(parser, token, inArray);
+                case UNSIGNED_LONG -> decodeUnsignedLongValue(parser, token, inArray);
                 case DOUBLE -> decodeDoubleValue(parser, token, inArray);
                 case DATETIME -> decodeDatetimeValue(parser, token, inArray);
                 case KEYWORD, TEXT -> {
@@ -1677,31 +1672,28 @@ public class NdJsonPageDecoder implements Closeable {
                     ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(chars));
                 }
                 case IP -> decodeIpValue(parser, token, inArray);
-                // A NULL-typed column expects no value; a stray scalar keeps the policy-blind channel (edge case).
-                case NULL -> unexpectedValue(blockBuilder, parser, inArray);
+                // Unreachable: a NULL-typed column returns at the top of decodeValue (its cell is null-filled at
+                // end-of-page), so the switch is never entered for it.
+                case NULL -> throw new AssertionError("NULL-typed column must be handled by the early return in decodeValue");
                 default -> throw unsupportedTypeForNdjson(dataType);
             }
         }
 
         /**
-         * The scalar-coercion arms below make an NDJSON declared read match the columnar and CSV readers,
-         * drawing the same line the reader already draws between {@link #shapeConflict} (policy-routed) and
-         * {@link #unexpectedValue} (schema-on-read tolerant):
+         * The scalar-coercion arms below make an NDJSON read match the columnar and CSV readers, routing every
+         * unrepresentable cell through {@link #coercionFailure} so the outcome depends only on {@code error_mode}:
          * <ul>
          *   <li>A <b>supported</b> coercion — a JSON string for any scalar column, a fractional number for a
          *       whole-number column, an epoch number for a datetime column — is coerced through the same
          *       {@code ::} cast engine (string→number rounds like {@code ::long}; string→boolean is strict
          *       case-insensitive; string→double preserves NaN). A parse failure or numeric overflow on such a
          *       token is a genuine value error and is routed through {@link #coercionFailure} — so it fails
-         *       {@code fail_fast}, warns, and counts against the error budget exactly like a malformed CSV
-         *       value, closing the "policy-blind silent null" gap for the coercible cases.</li>
+         *       {@code fail_fast}, warns, and counts against the error budget exactly like a malformed CSV value.</li>
          *   <li>An <b>unsupported cross-kind</b> token — a boolean in a numeric/datetime column, a number in a
          *       boolean column: {@code supports(from, to)} is false, the pair the columnar readers reject at
-         *       resolution. NDJSON has no physical schema to reject upfront, so {@link #crossKindDrift} splits by
-         *       whether the column was DECLARED: a declared column routes the drift through {@link #coercionFailure}
-         *       (no declared type may silently read as null), while an inferred column keeps the pre-existing
-         *       {@link #unexpectedValue} silent null — schema-on-read tolerance of a heterogeneous JSON field,
-         *       the same tolerance {@code unexpectedValue} already gave primitive type drift.</li>
+         *       resolution. NDJSON has no physical schema to reject upfront, so {@link #crossKindDrift} routes the
+         *       drift through {@link #coercionFailure} for a declared or an inferred column alike — no silent null,
+         *       because {@code error_mode} governs the outcome regardless of where the type came from.</li>
          * </ul>
          * The common case (a JSON number in a numeric column, a JSON boolean in a boolean column) still decodes
          * straight from the parser with no string allocation.
@@ -1728,25 +1720,17 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         /**
-         * A cross-kind token — a JSON kind that has no coercion to this column's declared type (a boolean in a
-         * numeric/datetime column, a number in a boolean column, a non-string in an IP column). The columnar
-         * readers reject such a pair at schema resolution; NDJSON has no physical schema to reject upfront, so it
-         * splits by whether the target type was DECLARED:
-         * <ul>
-         *   <li>a DECLARED column has no third state — {@link DeclaredTypeCoercions} requires that a declared type
-         *       which cannot be produced from the physical value must never silently read as null — so the drift is
-         *       routed through {@link #coercionFailure} ({@code fail_fast} fails, other modes warn + null + budget);</li>
-         *   <li>an INFERRED column keeps the pre-existing {@link #unexpectedValue} silent null — schema-on-read
-         *       tolerance of a heterogeneous JSON field, the same tolerance {@code unexpectedValue} already gave
-         *       primitive type drift.</li>
-         * </ul>
+         * A cross-kind token — a JSON kind that has no coercion to this column's type (a boolean in a
+         * numeric/datetime column, a number in a boolean column, a non-string in an IP column). The columnar readers
+         * reject such a pair at schema resolution; NDJSON has no physical schema to reject upfront, so it routes the
+         * drift through {@link #coercionFailure}, the single policy sink — for a DECLARED or an INFERRED column alike,
+         * because {@code error_mode} is one axis independent of where the type came from: {@code fail_fast} fails,
+         * {@code null_field} warns + nulls + budget, {@code skip_row} drops the record + budget. (A declared type
+         * additionally may never silently read as null, per {@link DeclaredTypeCoercions}; routing every column the
+         * same way satisfies that and removes the former inferred-only silent null.)
          */
         private void crossKindDrift(JsonParser parser, boolean inArray, DataType target) throws IOException {
-            if (declaredTypeColumns.contains(name)) {
-                coercionFailure(blockBuilder, parser, inArray, target);
-            } else {
-                unexpectedValue(blockBuilder, parser, inArray);
-            }
+            coercionFailure(blockBuilder, parser, inArray, target);
         }
 
         private void decodeIntValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
@@ -1783,6 +1767,38 @@ public class NdJsonPageDecoder implements Closeable {
                 }
             } else {
                 crossKindDrift(parser, inArray, DataType.LONG); // boolean in a number column: unsupported cross-kind drift
+            }
+        }
+
+        /**
+         * The {@code unsigned_long} twin of {@link #decodeLongValue}. A JSON integer is read as a
+         * {@link BigInteger} rather than a {@code long} because the interesting half of the domain --
+         * {@code (2^63, 2^64)} -- does not fit a signed long and would trip {@code getLongValue}. Float and
+         * string tokens go through the same {@link DeclaredTypeCoercions#coerceToUnsignedLong} scalar the CSV
+         * and columnar readers use, so truncation-toward-zero and the {@code [0, 2^64-1]} range check are
+         * identical across every format. A bad value fails the cell through the error policy; only a
+         * cross-kind token (a boolean in a numeric column) takes the drift path.
+         */
+        private void decodeUnsignedLongValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
+            if (token == JsonToken.VALUE_NUMBER_INT) {
+                try {
+                    long encoded = DeclaredTypeCoercions.coerceToUnsignedLong(parser.getBigIntegerValue());
+                    ((LongBlock.Builder) blockBuilder).appendLong(encoded);
+                } catch (IllegalArgumentException | InputCoercionException e) {
+                    coercionFailure(blockBuilder, parser, inArray, DataType.UNSIGNED_LONG);
+                }
+            } else if (token == JsonToken.VALUE_NUMBER_FLOAT || token == JsonToken.VALUE_STRING) {
+                try {
+                    long encoded = DeclaredTypeCoercions.coerceToUnsignedLong(parser.getValueAsString());
+                    ((LongBlock.Builder) blockBuilder).appendLong(encoded);
+                } catch (IllegalArgumentException e) {
+                    // coerceToUnsignedLong signals every bad token with an IllegalArgumentException (its range guard,
+                    // the ArithmeticException remap, and the NumberFormatException subclass from BigDecimal); unlike
+                    // strictParseBoolean it never throws InvalidArgumentException, so one catch clause covers it.
+                    coercionFailure(blockBuilder, parser, inArray, DataType.UNSIGNED_LONG);
+                }
+            } else {
+                crossKindDrift(parser, inArray, DataType.UNSIGNED_LONG);
             }
         }
 
@@ -1847,7 +1863,7 @@ public class NdJsonPageDecoder implements Closeable {
          * Decodes a declared {@code ip} column. A {@code VALUE_STRING} is parsed and encoded to the 16-byte
          * {@link InetAddressPoint} form (matching {@code CsvFormatReader.tryParseIp} so identical bytes yield the
          * same value across formats); a string that is not a valid IP is a {@link #coercionFailure}. A cross-kind
-         * non-string token uses the declared/inferred gate ({@link #crossKindDrift}).
+         * non-string token routes through {@link #crossKindDrift} to the same policy sink.
          */
         private void decodeIpValue(JsonParser parser, JsonToken token, boolean inArray) throws IOException {
             if (token == JsonToken.VALUE_STRING) {
@@ -1864,34 +1880,32 @@ public class NdJsonPageDecoder implements Closeable {
             }
         }
 
-        private void unexpectedValue(Block.Builder builder, JsonParser parser, boolean inArray) throws IOException {
-            // Append a null and log the problem
-            if (inArray == false) {
-                // See previous comment about nulls and arrays
-                builder.appendNull();
-            }
-
-            logger.debug("Unexpected token type: {} for attribute: {} at {}", parser.currentToken(), name, parser.getTokenLocation());
-            // Ignore any children to keep reading other values
-            parser.skipChildren();
-        }
-
         /**
          * Handles a scalar value that cannot be coerced into a column's declared type — a string that is not a
          * number for a numeric column, a non-{@code true}/{@code false} token for a boolean column, a number that
          * overflows the target, a string the declared date {@code format} cannot parse, or a token whose JSON kind
-         * has no coercion to the target. Routed through {@link ErrorPolicy} exactly like {@link #shapeConflict}
-         * and {@link DeclaredTypeCoercions#onCoercionFailure} so a declared-coercion failure produces the SAME
+         * has no coercion to the target. Routed through {@link ErrorPolicy} and
+         * {@link DeclaredTypeCoercions#onCoercionFailure} so a declared-coercion failure produces the SAME
          * observable outcome across every format: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with an
-         * actionable message; other modes null this cell only and surface the message as a client warning (subject to
-         * the error budget). This is distinct from {@link #unexpectedValue}, the policy-blind channel the file-level
-         * (undeclared) datetime path and other per-field type mismatches keep.
+         * actionable message; {@link ErrorPolicy.Mode#NULL_FIELD} nulls this cell only and warns; and
+         * {@link ErrorPolicy.Mode#SKIP_ROW} drops the whole record and warns (both subject to the error budget). Every
+         * unrepresentable cell reaches this one sink — a bad value here, a cross-kind token ({@link #crossKindDrift}),
+         * or an object where a scalar was expected ({@link #shapeConflict}) — for a DECLARED or an INFERRED column
+         * alike, so the observable outcome depends only on {@code error_mode}, never on where the type came from.
          */
         private void coercionFailure(Block.Builder builder, JsonParser parser, boolean inArray, DataType target) throws IOException {
+            if (rowDroppedBySkipRow) {
+                // This record is already being dropped by an earlier skip_row error. Advance past this value but do
+                // not double-count it: CsvFormatReader charges the error budget once per dropped row (it stops at the
+                // first bad field), not once per bad field. The record's scratch is discarded, so no null-fill is
+                // needed and further coercion failures on the same doomed record must not consume the budget again.
+                parser.skipChildren();
+                return;
+            }
             String value = parser.getValueAsString();
             // Not "the declared type": this path also fires for a supported-pair failure on an INFERRED column
             // (e.g. a bad string in an inferred long), where the target type was not declared.
-            String message = "column ["
+            String base = "column ["
                 + name
                 + "] at line ["
                 + totalRowCount
@@ -1899,18 +1913,25 @@ public class NdJsonPageDecoder implements Closeable {
                 + value
                 + "] could not be coerced to type ["
                 + target.typeName()
-                + "] — this record's ["
-                + name
-                + "] is null";
+                + "]";
             parser.skipChildren();
             if (errorPolicy.isStrict()) {
                 // Mirror CsvFormatReader.onRowErrorImpl's field-error hint so the fail-fast message is actionable.
                 throw new EsqlIllegalArgumentException(
-                    message + "; set error_mode to null_field (or skip_row) in WITH options to null-fill/skip and warn instead of failing"
+                    base + "; set error_mode=null_field (or skip_row) to null-fill/skip and warn instead of failing"
                 );
             }
+            // A value coercion failure under skip_row drops the whole record (matching CsvFormatReader and the
+            // Mode.SKIP_ROW "drop the entire bad row" contract); null_field keeps the record and nulls this one cell.
+            // Both warn. crossKindDrift and shapeConflict route here too, for declared and inferred columns alike, so
+            // every unrepresentable cell drops under skip_row uniformly.
+            boolean skipRow = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
+            String message = base + (skipRow ? " — this record is skipped" : " — this record's [" + name + "] is null");
             if (inArray == false) {
                 builder.appendNull();
+            }
+            if (skipRow) {
+                rowDroppedBySkipRow = true;
             }
             errorCount++;
             skipWarnings.add(message);
@@ -1923,12 +1944,27 @@ public class NdJsonPageDecoder implements Closeable {
          * resolved to from earlier records: a scalar-typed leaf receiving {@code START_OBJECT}, or an
          * object-shaped (structural) node receiving a non-null scalar. Core ES dynamic mapping treats this
          * as a hard document-parsing conflict; here it is routed through {@link ErrorPolicy} instead of the
-         * pre-#1028 silent {@code skipChildren()}: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with
-         * an actionable message naming both shapes; other modes null-fill this field only (the row's other
-         * columns already decoded) and surface the same message as a client warning. See
-         * elastic/esql-planning#1028.
+         * pre-#1028 silent {@code skipChildren()}, exactly the same policy sink {@link #crossKindDrift} routes a
+         * cross-kind scalar value to — a DECLARED and an INFERRED column behave identically, because {@code error_mode}
+         * is one axis independent of where the type came from: {@link ErrorPolicy.Mode#FAIL_FAST} fails the query with
+         * an actionable message naming both shapes; {@link ErrorPolicy.Mode#SKIP_ROW} drops the whole record; and
+         * {@link ErrorPolicy.Mode#NULL_FIELD} nulls this field only (schema-on-read tolerance, the row's other columns
+         * already decoded — this is the mode that means "keep the record"). Both non-strict modes warn and budget. A
+         * structural-node path with no attributable field name ({@code fieldLabel == null}) cannot drop a row, so it
+         * null-fills regardless of mode.
          */
         private void shapeConflict(JsonParser parser, String fieldLabel, String actualShape, String resolvedShape) throws IOException {
+            if (rowDroppedBySkipRow) {
+                // This record is already being dropped by an earlier skip_row error; skip the conflicting value and do
+                // not double-count it against the error budget (one error per dropped record, matching CsvFormatReader).
+                parser.skipChildren();
+                return;
+            }
+            // A scalar column receiving an object cannot be represented, so error_mode decides the outcome the same
+            // way for a declared or an inferred column (crossKindDrift routes to the same coercionFailure sink): under
+            // skip_row the whole record is dropped, under null_field the cell is nulled + warned. A structural-node
+            // path with no field name cannot be attributed to a single row, so it falls back to null-fill.
+            boolean skipRow = fieldLabel != null && errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
             // Built via concatenation, not LoggerMessageFormat.format: a String-typed first vararg
             // would resolve to the ambiguous format(String prefix, String pattern, Object... args)
             // overload instead of format(String pattern, Object... args), silently mangling the message.
@@ -1942,14 +1978,17 @@ public class NdJsonPageDecoder implements Closeable {
                 + fieldLabel
                 + "] resolved to "
                 + resolvedShape
-                + " from earlier records — this record's ["
-                + fieldLabel
-                + "] is null. A field that appears as both a scalar and an object across NDJSON "
+                + " from earlier records — "
+                + (skipRow ? "this record is skipped" : "this record's [" + fieldLabel + "] is null")
+                + ". A field that appears as both a scalar and an object across NDJSON "
                 + "records cannot be represented as one type; make the field's shape consistent, or "
                 + "model it as separate fields.";
             parser.skipChildren();
             if (errorPolicy.isStrict()) {
                 throw new EsqlIllegalArgumentException(message);
+            }
+            if (skipRow) {
+                rowDroppedBySkipRow = true;
             }
             errorCount++;
             skipWarnings.add(message);

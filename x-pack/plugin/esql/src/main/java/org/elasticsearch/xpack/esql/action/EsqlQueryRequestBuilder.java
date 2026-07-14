@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder<
@@ -75,6 +76,12 @@ public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.a
     @Override
     public org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> profile(boolean profile) {
         request.profile(profile);
+        return this;
+    }
+
+    @Override
+    public EsqlQueryRequestBuilder projectRouting(String projectRouting) {
+        request.set(QuerySettings.PROJECT_ROUTING, projectRouting);
         return this;
     }
 

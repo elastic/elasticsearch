@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
@@ -124,7 +125,8 @@ public final class DatafeedManager {
             client,
             xContentRegistry,
             datafeedConfigProvider,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            new EsqlDatafeedQueryValidator()
         );
     }
 

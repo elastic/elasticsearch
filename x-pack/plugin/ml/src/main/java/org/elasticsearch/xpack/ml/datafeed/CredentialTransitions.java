@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -95,6 +96,7 @@ public final class CredentialTransitions {
     private final NamedXContentRegistry xContentRegistry;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final EsqlDatafeedQueryValidator esqlQueryValidator;
 
     public CredentialTransitions(
         AnomalyDetectionAuditor auditor,
@@ -103,7 +105,8 @@ public final class CredentialTransitions {
         Client client,
         NamedXContentRegistry xContentRegistry,
         DatafeedConfigProvider datafeedConfigProvider,
-        CrossProjectModeDecider crossProjectModeDecider
+        CrossProjectModeDecider crossProjectModeDecider,
+        EsqlDatafeedQueryValidator esqlQueryValidator
     ) {
         this.auditor = auditor;
         this.apiKeyServiceSupplier = apiKeyServiceSupplier;
@@ -112,6 +115,7 @@ public final class CredentialTransitions {
         this.xContentRegistry = xContentRegistry;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.crossProjectModeDecider = crossProjectModeDecider;
+        this.esqlQueryValidator = esqlQueryValidator;
     }
 
     public static Intent decideForUpdate(TransitionContext ctx) {
@@ -375,6 +379,22 @@ public final class CredentialTransitions {
         ActionListener<Void> listener
     ) {
         DatafeedConfig effectiveConfig = DatafeedConfig.withCrossProjectModeIfEnabled(config, crossProjectModeDecider);
+        final CloudCredentialManager credentialManager = credentialManagerSupplier.get();
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final CloudCredential callerCredential = resolveCallerCredential(carriedCredential, threadContext);
+        final Client searchClient = credentialManager.wrapClient(client, callerCredential);
+
+        if (effectiveConfig.getEsqlQuery() != null) {
+            esqlQueryValidator.validateAccessForMint(
+                searchClient,
+                headers,
+                effectiveConfig.getEsqlQuery(),
+                effectiveConfig.getProjectRouting(),
+                listener
+            );
+            return;
+        }
+
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0);
         QueryBuilder query = effectiveConfig.getParsedQuery(xContentRegistry);
         if (query != null) {
@@ -389,10 +409,6 @@ public final class CredentialTransitions {
         if (effectiveConfig.getProjectRouting() != null) {
             searchRequest.setProjectRouting(effectiveConfig.getProjectRouting());
         }
-        final CloudCredentialManager credentialManager = credentialManagerSupplier.get();
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final CloudCredential callerCredential = resolveCallerCredential(carriedCredential, threadContext);
-        final Client searchClient = credentialManager.wrapClient(client, callerCredential);
         boolean flatWorldOnly = effectiveConfig.getIndices().stream().noneMatch(RemoteClusterAware::isRemoteIndexName);
         ActionListener<Void> probeListener = listener.delegateResponse((l, e) -> {
             if (flatWorldOnly && ExceptionsHelper.unwrapCause(e) instanceof NoMatchingProjectException) {

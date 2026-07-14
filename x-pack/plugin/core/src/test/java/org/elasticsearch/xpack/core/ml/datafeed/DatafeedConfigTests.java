@@ -1819,6 +1819,17 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         config.close();
     }
 
+    public void testWithCrossProjectModeIfEnabled_EsqlDatafeedIsNoOpAndDoesNotNPE() {
+        CrossProjectModeDecider cpDecider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+        DatafeedConfig esqlDatafeed = createEsqlDatafeedBuilder().build();
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(esqlDatafeed, cpDecider, true);
+
+        assertThat(result, sameInstance(esqlDatafeed));
+    }
+
     private DatafeedConfig createDatafeedConfigFromString(String json) throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         return DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();

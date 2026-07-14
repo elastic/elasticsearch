@@ -12,6 +12,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -57,6 +58,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.same;
@@ -724,6 +726,66 @@ public class DataExtractorFactoryTests extends ESTestCase {
         ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(
             dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class))
         );
+
+        DataExtractorFactory.create(
+            client,
+            cloudCredentialManager,
+            datafeedConfig,
+            null,
+            jobBuilder.build(new Date()),
+            xContentRegistry(),
+            timingStatsReporter,
+            listener
+        );
+    }
+
+    public void testCreateDataExtractorFactoryGivenEsqlQueryUsesCredentialWrappedClient() {
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+
+        DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("esql-datafeed", "foo");
+        datafeedConfigBuilder.setEsqlQuery("FROM myIndex");
+        datafeedConfigBuilder.setChunkingConfig(ChunkingConfig.newOff());
+        Client wrappedClient = mock(Client.class);
+        PersistedCloudCredential credential = new PersistedCloudCredential("my-key-id", new SecureString("my-secret".toCharArray()));
+        when(cloudCredentialManager.wrapClient(same(client), same(credential))).thenReturn(wrappedClient);
+        datafeedConfigBuilder.setCloudInternalCredential(credential);
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(dataExtractorFactory -> {
+            assertThat(dataExtractorFactory, instanceOf(EsqlDataExtractorFactory.class));
+            assertThat(((EsqlDataExtractorFactory) dataExtractorFactory).client(), sameInstance(wrappedClient));
+        });
+
+        DataExtractorFactory.create(
+            client,
+            cloudCredentialManager,
+            datafeedConfig,
+            null,
+            jobBuilder.build(new Date()),
+            xContentRegistry(),
+            timingStatsReporter,
+            listener
+        );
+    }
+
+    public void testCreateDataExtractorFactoryGivenEsqlQueryWithNoCredentialUsesOriginalClient() {
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+
+        DatafeedConfig.Builder datafeedConfigBuilder = new DatafeedConfig.Builder("esql-datafeed", "foo");
+        datafeedConfigBuilder.setEsqlQuery("FROM myIndex");
+        datafeedConfigBuilder.setChunkingConfig(ChunkingConfig.newOff());
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+
+        ActionListener<DataExtractorFactory> listener = ActionTestUtils.assertNoFailureListener(dataExtractorFactory -> {
+            assertThat(dataExtractorFactory, instanceOf(EsqlDataExtractorFactory.class));
+            assertThat(((EsqlDataExtractorFactory) dataExtractorFactory).client(), sameInstance(client));
+        });
 
         DataExtractorFactory.create(
             client,

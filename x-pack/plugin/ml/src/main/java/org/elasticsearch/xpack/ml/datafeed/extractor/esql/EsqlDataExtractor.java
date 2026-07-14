@@ -164,6 +164,9 @@ public class EsqlDataExtractor implements DataExtractor {
             .newRequestBuilder(client)
             .query(orderedQuery)
             .filter(timeFilter);
+        if (context.projectRouting() != null) {
+            request.projectRouting(context.projectRouting());
+        }
         return execute(request);
     }
 

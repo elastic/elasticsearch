@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Change;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Intent;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.TransitionContext;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -157,7 +158,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             delegateClient,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            mock(EsqlDatafeedQueryValidator.class)
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -206,7 +208,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            mock(EsqlDatafeedQueryValidator.class)
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -258,7 +261,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            mock(EsqlDatafeedQueryValidator.class)
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -313,7 +317,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            mock(EsqlDatafeedQueryValidator.class)
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -363,7 +368,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            mock(EsqlDatafeedQueryValidator.class)
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -412,7 +418,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            mock(EsqlDatafeedQueryValidator.class)
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -461,7 +468,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            mock(EsqlDatafeedQueryValidator.class)
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -504,5 +512,118 @@ public class CredentialTransitionsTests extends ESTestCase {
             listener.onFailure(failure);
             return null;
         }).when(client).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
+    }
+
+    public void testEsqlProbeSucceedsShouldProceedToMint() {
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        EsqlDatafeedQueryValidator esqlValidator = mock(EsqlDatafeedQueryValidator.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(client.threadPool()).thenReturn(threadPool);
+
+        CloudCredential callerCredential = new CloudCredential(new SecureString("caller".toCharArray()));
+        when(credentialManager.hasCloudManagedCredential(same(threadContext))).thenReturn(true);
+        when(credentialManager.extractCloudManagedCredential(same(threadContext))).thenReturn(callerCredential);
+        Client wrappedClient = mock(Client.class);
+        when(wrappedClient.threadPool()).thenReturn(threadPool);
+        when(credentialManager.wrapClient(same(client), eq(callerCredential))).thenReturn(wrappedClient);
+
+        // validator.validateAccessForMint succeeds (calls listener.onResponse(null))
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(4);
+            listener.onResponse(null);
+            return null;
+        }).when(esqlValidator).validateAccessForMint(same(wrappedClient), any(), eq("FROM logs"), eq("_alias:_origin"), any());
+
+        RuntimeException grantFailure = new RuntimeException("stop after validate");
+        stubGrantFailsAfterValidate(apiKeyService, grantFailure);
+
+        CredentialTransitions transitions = new CredentialTransitions(
+            mock(AnomalyDetectionAuditor.class),
+            () -> apiKeyService,
+            () -> credentialManager,
+            client,
+            xContentRegistry(),
+            mock(DatafeedConfigProvider.class),
+            new CrossProjectModeDecider(Settings.EMPTY),
+            esqlValidator
+        );
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
+        builder.setEsqlQuery("FROM logs");
+        builder.setProjectRouting("_alias:_origin");
+        PutDatafeedAction.Request request = new PutDatafeedAction.Request(builder.build());
+        ClusterState clusterState = mock(ClusterState.class);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        transitions.executePut(
+            Intent.REPLACE,
+            request,
+            clusterState,
+            threadPool,
+            null,
+            (req, headers, state, listener) -> listener.onFailure(new IllegalStateException("persist should not run")),
+            ActionListener.wrap(ignored -> fail("expected mint failure"), failure::set)
+        );
+
+        assertThat(failure.get(), equalTo(grantFailure));
+        verify(apiKeyService).grantCloudAuthentication(nullable(CloudCredential.class), eq("datafeed:df"), any());
+        verify(esqlValidator).validateAccessForMint(same(wrappedClient), any(), eq("FROM logs"), eq("_alias:_origin"), any());
+    }
+
+    public void testEsqlProbeFailureShouldNotProceedToMint() {
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        EsqlDatafeedQueryValidator esqlValidator = mock(EsqlDatafeedQueryValidator.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(client.threadPool()).thenReturn(threadPool);
+
+        CloudCredential callerCredential = new CloudCredential(new SecureString("caller".toCharArray()));
+        when(credentialManager.hasCloudManagedCredential(same(threadContext))).thenReturn(true);
+        when(credentialManager.extractCloudManagedCredential(same(threadContext))).thenReturn(callerCredential);
+        when(credentialManager.wrapClient(same(client), eq(callerCredential))).thenReturn(client);
+
+        ElasticsearchSecurityException securityFailure = new ElasticsearchSecurityException("action not permitted");
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(4);
+            listener.onFailure(securityFailure);
+            return null;
+        }).when(esqlValidator).validateAccessForMint(any(), any(), any(), any(), any());
+
+        CredentialTransitions transitions = new CredentialTransitions(
+            mock(AnomalyDetectionAuditor.class),
+            () -> apiKeyService,
+            () -> credentialManager,
+            client,
+            xContentRegistry(),
+            mock(DatafeedConfigProvider.class),
+            new CrossProjectModeDecider(Settings.EMPTY),
+            esqlValidator
+        );
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
+        builder.setEsqlQuery("FROM logs");
+        PutDatafeedAction.Request request = new PutDatafeedAction.Request(builder.build());
+        ClusterState clusterState = mock(ClusterState.class);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        transitions.executePut(
+            Intent.REPLACE,
+            request,
+            clusterState,
+            threadPool,
+            null,
+            (req, headers, state, listener) -> listener.onFailure(new IllegalStateException("persist should not run")),
+            ActionListener.wrap(ignored -> fail("expected probe failure"), failure::set)
+        );
+
+        assertThat(failure.get(), equalTo(securityFailure));
+        verify(apiKeyService, never()).grantCloudAuthentication(any(), anyString(), any());
     }
 }

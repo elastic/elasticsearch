@@ -420,6 +420,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
             return datafeed;
         }
 
+        if (datafeed.getEsqlQuery() != null) {
+            return datafeed;
+        }
+
         IndicesOptions baseOptions = datafeed.getIndicesOptions();
         // Only rebuild if CPS mode is not already enabled to avoid unnecessary object creation
         if (baseOptions.resolveCrossProjectIndexExpression() == false) {

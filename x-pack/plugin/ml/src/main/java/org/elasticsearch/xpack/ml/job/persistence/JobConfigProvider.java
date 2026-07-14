@@ -754,10 +754,11 @@ public class JobConfigProvider {
                 Job job = jobBuilder.build();
                 DatafeedJobValidator.validate(config, job, xContentRegistry);
                 if (config.getEsqlQuery() != null) {
-                    EsqlDatafeedQueryValidator.validateQuery(
+                    new EsqlDatafeedQueryValidator().validateQuery(
                         client,
                         headers,
                         config.getEsqlQuery(),
+                        config.getProjectRouting(),
                         job.getDataDescription().getTimeField(),
                         EsqlDatafeedQueryValidator.requiredSummaryCountField(config, job),
                         listener

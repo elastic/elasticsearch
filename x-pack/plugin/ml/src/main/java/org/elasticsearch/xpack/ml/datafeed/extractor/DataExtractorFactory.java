@@ -140,7 +140,7 @@ public interface DataExtractorFactory {
         });
 
         if (hasEsqlQuery) {
-            EsqlDataExtractorFactory.create(client, datafeed, job, timingStatsReporter, factoryHandler);
+            EsqlDataExtractorFactory.create(searchClient, datafeed, job, timingStatsReporter, factoryHandler);
         } else if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
             // If we have remote indices in the data feed, don't bother checking for rollup support
             // Rollups + CCS is not supported

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.client.Request;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -22,21 +24,33 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-/**
- * TODO: this is a placeholder recovered from git history as a starting point for restoring this suite onto
- * {@link AbstractXPackYamlRollingUpgradeTestCase}. It is not yet wired up to select the right YAML resource
- * directory (old_cluster/mixed_cluster/upgraded_cluster) for the requested {@code upgradedNodes} count - it will
- * be rewritten to build the proper cross product of {@code upgradedNodes} x YAML test candidate.
- */
 public class UpgradeClusterClientYamlTestSuiteIT extends AbstractXPackYamlRollingUpgradeTestCase {
 
-    public UpgradeClusterClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
-        super(0, testCandidate);
+    public UpgradeClusterClientYamlTestSuiteIT(@Name("upgradedNodes") int upgradedNodes, ClientYamlTestCandidate testCandidate) {
+        super(upgradedNodes, testCandidate);
     }
 
-    @ParametersFactory
+    /**
+     * Builds the cross product of {@code upgradedNodes} (0..3, mirroring the old
+     * oldClusterTest/oneThirdUpgradedTest/twoThirdsUpgradedTest/upgradedClusterTest Gradle tasks) and the YAML
+     * test candidates from the corresponding resource directory.
+     */
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters();
+        List<Object[]> parameters = new ArrayList<>();
+        for (Object[] testCandidate : createParameters("old_cluster")) {
+            parameters.add(new Object[] { 0, testCandidate[0] });
+        }
+        for (Object[] testCandidate : createParameters("mixed_cluster")) {
+            parameters.add(new Object[] { 1, testCandidate[0] });
+        }
+        for (Object[] testCandidate : createParameters("mixed_cluster")) {
+            parameters.add(new Object[] { 2, testCandidate[0] });
+        }
+        for (Object[] testCandidate : createParameters("upgraded_cluster")) {
+            parameters.add(new Object[] { 3, testCandidate[0] });
+        }
+        return parameters;
     }
 
     /**

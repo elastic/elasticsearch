@@ -31,6 +31,24 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     systemProperty("tests.path.searchable.snapshots.repo", searchableSnapshotRepository)
     // Disable ML tests for incompatible systems, see BwcVersions#isMlCompatible
     systemProperty("tests.ml.skip", (BwcVersions.isMlCompatible(bwcVersion) == false).toString())
+    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
+      // UpgradeClusterClientYamlTestSuiteIT runs its ML-related YAML tests against all three fixture
+      // directories (old/mixed/upgraded) from a single task now, so blacklist the ML tests in all three.
+      systemProperty(
+        "tests.rest.blacklist",
+        [
+          'old_cluster/30_ml_jobs_crud/*',
+          'old_cluster/40_ml_datafeed_crud/*',
+          'old_cluster/90_ml_data_frame_analytics_crud',
+          'mixed_cluster/30_ml_jobs_crud/*',
+          'mixed_cluster/40_ml_datafeed_crud/*',
+          'mixed_cluster/90_ml_data_frame_analytics_crud',
+          'upgraded_cluster/30_ml_jobs_crud/*',
+          'upgraded_cluster/40_ml_datafeed_crud/*',
+          'upgraded_cluster/90_ml_data_frame_analytics_crud'
+        ].join(',')
+      )
+    }
     doFirst {
       delete(searchableSnapshotRepository)
     }

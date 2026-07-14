@@ -330,7 +330,8 @@ public class LocalExecutionPlanner {
             timeSeries,
             settings,
             shardContexts,
-            physicalOperationProviders.analysisRegistry()
+            physicalOperationProviders.analysisRegistry(),
+            new Holder<>()
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -780,6 +781,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
+        context.lastVisitedTopN.set(topNExec);
         final Integer rowSize = topNExec.estimatedRowSize();
         PhysicalOperation source = plan(topNExec.child(), context);
         // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
@@ -2267,7 +2269,8 @@ public class LocalExecutionPlanner {
         boolean timeSeries,
         Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts,
-        @Nullable AnalysisRegistry analysisRegistry
+        @Nullable AnalysisRegistry analysisRegistry,
+        Holder<TopNExec> lastVisitedTopN
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

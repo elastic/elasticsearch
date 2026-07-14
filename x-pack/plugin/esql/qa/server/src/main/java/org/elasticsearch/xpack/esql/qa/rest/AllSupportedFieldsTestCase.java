@@ -673,12 +673,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return ("FROM " + indexPattern + " METADATA _index").replace("%mode%", indexMode.toString()) + restOfQuery;
     }
 
-    protected String fromAllQuery(String restOfQuery) {
+    protected String fromAllQuery(String restOfQuery) throws IOException {
         return fromAllQuery(allIndexPattern(), restOfQuery);
     }
 
-    protected String allIndexPattern() {
-        if (indexMode == IndexMode.LOGSDB) {
+    protected String allIndexPattern() throws IOException {
+        if (indexMode == IndexMode.LOGSDB && minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)) {
             // logsdb* would also match logsdb_columnar* indices created by the LOGSDB_COLUMNAR test setup
             return "%mode%*,-" + IndexMode.LOGSDB_COLUMNAR.getName() + "*";
         }

@@ -157,6 +157,17 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/year={2023,2024}/*.parquet", rewritten);
     }
 
+    /**
+     * A single-digit IN value must match both its bare and zero-padded folder spelling (6 → month=6 or month=06),
+     * or a query like {@code month IN (6, 11)} silently drops the zero-padded month=06 while month=11 still matches.
+     * Multi-digit values (11, years) are emitted unchanged.
+     */
+    public void testRewriteGlobWithInHintEmitsZeroPaddedSpellings() {
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.IN, 6, 11));
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/month=*/*.parquet", hints);
+        assertEquals("s3://bucket/month={6,06,11}/*.parquet", rewritten);
+    }
+
     public void testRewriteGlobWithRangeHintNoRewrite() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020));
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);
@@ -169,7 +180,8 @@ public class GlobExpanderTests extends ESTestCase {
             hint("month", PartitionFilterHintExtractor.Operator.IN, 1, 2, 3)
         );
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/month=*/*.parquet", hints);
-        assertEquals("s3://bucket/year=2024/month={1,2,3}/*.parquet", rewritten);
+        // Single-digit IN values carry their zero-padded spelling too, so month=01/02/03 folders match.
+        assertEquals("s3://bucket/year=2024/month={1,01,2,02,3,03}/*.parquet", rewritten);
     }
 
     public void testRewriteGlobNonWildcardNotRewritten() {
@@ -238,8 +250,8 @@ public class GlobExpanderTests extends ESTestCase {
         var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.IN, 1, 2));
         PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config);
-        // Second wildcard maps to {month} → rewritten to {1,2}
-        assertEquals("s3://bucket/*/{1,2}/*.parquet", rewritten);
+        // Second wildcard maps to {month} → rewritten to {1,01,2,02} so zero-padded folders match too
+        assertEquals("s3://bucket/*/{1,01,2,02}/*.parquet", rewritten);
     }
 
     public void testRewriteGlobWithTemplateRangeHintsNoRewrite() {
@@ -575,6 +587,32 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("the pruned segment's zero-padded file must survive alongside the other segment", 2, result.fileCount());
         assertTrue(paths.contains("s3://bucket/a/month=06/x.parquet"));
         assertTrue(paths.contains("s3://bucket/b/y.parquet"));
+    }
+
+    /**
+     * A single glob with an IN-list mixing single- and multi-digit values on a zero-padded partition. `month=11`
+     * matches the rewrite so the listing is non-empty and the empty-fallback never fires; without the zero-padded
+     * spelling in the brace, `month=06` is silently dropped even though the row filter would keep it. (Same wrong-data
+     * class as the human-reviewed comma bug, single-glob form; esql-planning#1176.)
+     */
+    public void testInListMixedDigitValuesMatchZeroPaddedFolders() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(entry("s3://bucket/data/month=06/a.parquet", 100), entry("s3://bucket/data/month=11/b.parquet", 200))
+            )
+        );
+
+        var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.IN, 6, 11));
+        FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        List<String> paths = new ArrayList<>();
+        for (int i = 0; i < result.fileCount(); i++) {
+            paths.add(result.path(i).toString());
+        }
+        assertEquals("the zero-padded month=06 must be listed alongside month=11", 2, result.fileCount());
+        assertTrue(paths.contains("s3://bucket/data/month=06/a.parquet"));
+        assertTrue(paths.contains("s3://bucket/data/month=11/b.parquet"));
     }
 
     /** The local-filesystem flavor of the per-segment fallback: the rewritten segment prefix throws. */

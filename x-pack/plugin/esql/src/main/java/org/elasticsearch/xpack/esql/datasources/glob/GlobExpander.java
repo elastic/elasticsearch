@@ -33,8 +33,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Expands glob patterns and comma-separated path lists into resolved {@link FileList} instances.
@@ -734,14 +736,7 @@ public final class GlobExpander {
             if (hint.isSingleValue()) {
                 segments[segIdx] = escapeGlobMeta(String.valueOf(values.get(0)));
             } else {
-                StringBuilder sb = new StringBuilder("{");
-                for (int v = 0; v < values.size(); v++) {
-                    if (v > 0) {
-                        sb.append(',');
-                    }
-                    sb.append(escapeGlobMeta(String.valueOf(values.get(v))));
-                }
-                segments[segIdx] = sb.append('}').toString();
+                segments[segIdx] = brace(partitionValueSpellings(values));
             }
             changed = true;
         }
@@ -792,13 +787,43 @@ public final class GlobExpander {
             return key + "=" + escapeGlobMeta(String.valueOf(values.get(0)));
         }
 
-        // Multiple values: use glob brace syntax key={v1,v2,...}
-        StringBuilder sb = new StringBuilder(key).append("={");
-        for (int i = 0; i < values.size(); i++) {
-            if (i > 0) {
+        // Multiple values: use glob brace syntax key={v1,v2,...}, each value in every on-disk spelling.
+        return key + "=" + brace(partitionValueSpellings(values));
+    }
+
+    /**
+     * The on-disk spellings an {@code IN}-list of partition values can take: each value itself, plus its two-digit
+     * zero-padded form when it is a single digit — the Hive convention for {@code month}/{@code day}/{@code hour}
+     * (e.g. {@code 6 → 06}). A glob rewrite matches folder names literally, so an {@code IN} value spelled shorter
+     * than the folder ({@code 6} vs {@code 06}) would otherwise miss it and silently drop rows the row filter would
+     * keep. Emitting both spellings makes the listing a superset <b>with respect to zero-padding</b>. A single
+     * {@code EQUALS} value stays a concrete segment (it prefix-narrows the listing, and a zero-padded miss lists empty
+     * and hits the un-rewritten fallback); consistent padding wider than two digits is likewise caught by that
+     * fallback. Other folder-vs-literal normalizations (URL-escaping, boolean case, integer-vs-decimal spelling) are
+     * not covered here — that broader value-spelling class is tracked as follow-up; see the class-level notes.
+     */
+    private static Set<String> partitionValueSpellings(List<Object> values) {
+        Set<String> spellings = new LinkedHashSet<>();
+        for (Object value : values) {
+            String raw = String.valueOf(value);
+            spellings.add(raw);
+            if (raw.length() == 1 && raw.charAt(0) >= '0' && raw.charAt(0) <= '9') {
+                spellings.add("0" + raw);
+            }
+        }
+        return spellings;
+    }
+
+    /** Joins glob-escaped spellings into a brace alternation {@code {a,b,c}}. */
+    private static String brace(Set<String> spellings) {
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (String spelling : spellings) {
+            if (first == false) {
                 sb.append(',');
             }
-            sb.append(escapeGlobMeta(String.valueOf(values.get(i))));
+            sb.append(escapeGlobMeta(spelling));
+            first = false;
         }
         return sb.append('}').toString();
     }

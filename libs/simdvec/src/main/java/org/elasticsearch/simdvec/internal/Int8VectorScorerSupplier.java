@@ -14,6 +14,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -21,6 +24,10 @@ import java.lang.foreign.ValueLayout;
 
 // Scores pairs of indexed vectors (ordinal vs ordinal) for graph construction and segment merging.
 public abstract sealed class Int8VectorScorerSupplier implements RandomVectorScorerSupplier {
+
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
 
     final int dims;
     final int maxOrd;
@@ -145,12 +152,12 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return normalize(Similarities.cosineI8(a, b, dims));
+            return normalize(DISTANCE_FUNCS.cosineI8(a, b, dims));
         }
 
         @Override
         float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.cosineI8BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.cosineI8BulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
@@ -176,12 +183,12 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return VectorUtil.normalizeDistanceToUnitInterval(Similarities.squareDistanceI8(a, b, dims));
+            return VectorUtil.normalizeDistanceToUnitInterval(DISTANCE_FUNCS.squareDistanceI8(a, b, dims));
         }
 
         @Override
         float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.squareDistanceI8BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.squareDistanceI8BulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
@@ -213,12 +220,12 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return normalize(Similarities.dotProductI8(a, b, dims));
+            return normalize(DISTANCE_FUNCS.dotProductI8(a, b, dims));
         }
 
         @Override
         float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.dotProductI8BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.dotProductI8BulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
@@ -244,12 +251,12 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return VectorUtil.scaleMaxInnerProductScore(Similarities.dotProductI8(a, b, dims));
+            return VectorUtil.scaleMaxInnerProductScore(DISTANCE_FUNCS.dotProductI8(a, b, dims));
         }
 
         @Override
         float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.dotProductI8BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.dotProductI8BulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {

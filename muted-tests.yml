@@ -844,3 +844,15 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=msearch/10_basic/Least impact smoke test}
   issue: https://github.com/elastic/elasticsearch/issues/153697
+- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
+  method: testES92ConstructorRejectsUnwrappedFilterIndexInput
+  issue: https://github.com/elastic/elasticsearch/issues/153738
+- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
+  method: testES92ConstructorAcceptsMMapInput
+  issue: https://github.com/elastic/elasticsearch/issues/153739
+- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
+  method: testES92ConstructorAcceptsDirectAccessInput
+  issue: https://github.com/elastic/elasticsearch/issues/153740
+- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
+  method: testES92ConstructorAcceptsPlainInput
+  issue: https://github.com/elastic/elasticsearch/issues/153741

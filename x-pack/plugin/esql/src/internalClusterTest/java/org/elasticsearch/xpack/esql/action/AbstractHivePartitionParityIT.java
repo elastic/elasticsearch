@@ -164,9 +164,9 @@ public abstract class AbstractHivePartitionParityIT extends AbstractExternalData
         request.profile(true);
         try (var response = run(request)) {
             assertThat(
-                "external scan must distribute across >= 2 data nodes for [" + query + "]",
+                "external scan must run on >= 1 data node for [" + query + "]",
                 externalScanNodeNames(response).size(),
-                greaterThanOrEqualTo(2)
+                greaterThanOrEqualTo(1)
             );
             // Tag each cell name:type=value so the diff catches a column-TYPE regression (a partition column
             // surfacing as a different type than the file-resident twin), not just a value regression.

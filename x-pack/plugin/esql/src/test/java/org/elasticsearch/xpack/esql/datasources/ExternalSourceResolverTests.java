@@ -807,7 +807,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
     }
@@ -1281,7 +1280,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings cacheSettings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -1341,7 +1339,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings cacheSettings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -1965,7 +1962,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -2020,7 +2016,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings cacheSettings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -2272,7 +2267,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -2305,8 +2299,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * A warm single-file resolve must be zero-I/O: the file-metadata cache holds {length, mtime} within
-     * the schema TTL, so the second resolve reuses the cached metadata and issues no object probe. This
-     * is the amortization lever removing the per-query warm-path metadata probe.
+     * the file-metadata TTL, so the second resolve reuses the cached metadata and issues no object probe.
+     * This is the amortization lever removing the per-query warm-path metadata probe.
      */
     public void testSingleFileMetadataCacheEliminatesWarmProbe() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
@@ -2318,7 +2312,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -2350,9 +2343,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * The file-metadata cache is bounded by a hard {@code expireAfterWrite} TTL (the schema TTL), so once
-     * the entry expires the next resolve must re-probe the object — mtime is a version token, not a
-     * second freshness clock, and staleness is bounded by TTL alone.
+     * The file-metadata cache is bounded by a hard {@code expireAfterWrite} TTL (the listing TTL, since it
+     * is freshness-discovery like listing), so once the entry expires the next resolve must re-probe the
+     * object — mtime is a version token, not a second freshness clock, and staleness is bounded by the TTL.
      */
     public void testSingleFileMetadataCacheReprobesAfterTtlExpiry() throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.INTEGER));
@@ -2361,11 +2354,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), schemasByPath);
 
+        // The file-metadata cache is freshness-discovery (like listing) and shares the listing TTL, so a
+        // short listing TTL is what expires it and forces the re-probe.
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "500ms")
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.source.cache.listing.ttl", "500ms")
             .build();
 
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
@@ -2399,7 +2393,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", false)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -2438,7 +2431,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", false)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 
@@ -2473,7 +2465,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
 

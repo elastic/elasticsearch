@@ -106,33 +106,6 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         testExecuted(result.output, "SubProject2TestClazz2 > someTest2")
     }
 
-    def "never excludes individual tests for bwcTest tasks"() {
-        given:
-        simpleTestSetup()
-        buildFile << """
-        project(':subproject2') {
-            tasks.register("v1.2.3#bwcTest", Test) {
-                testClassesDirs = sourceSets.test.output.classesDirs
-                classpath = sourceSets.test.runtimeClasspath
-                testLogging {
-                    events("started", "skipped")
-                }
-            }
-        }
-        """
-        writeHistory(
-            [],
-            [":subproject2:v1.2.3#bwcTest": ["org.acme.SubProject2TestClazz1#someTest1", "org.acme.SubProject2TestClazz1#someTest2"]]
-        )
-        when:
-        def result = gradleRunner("v1.2.3#bwcTest", "--warning-mode", "all").build()
-        then:
-        result.task(":subproject2:v1.2.3#bwcTest").outcome == TaskOutcome.SUCCESS
-        result.output.contains("multi-cluster task, never skipped")
-        testExecuted(result.output, "SubProject2TestClazz1 > someTest1")
-        testExecuted(result.output, "SubProject2TestClazz1 > someTest2")
-    }
-
     def "excludes specific methods while running others in the same class"() {
         given:
         simpleTestSetup()

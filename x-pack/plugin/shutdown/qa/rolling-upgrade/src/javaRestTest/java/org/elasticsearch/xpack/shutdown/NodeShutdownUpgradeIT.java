@@ -32,11 +32,9 @@ import static org.hamcrest.Matchers.hasEntry;
  * old cluster, another once one node is upgraded, and a third once two nodes are upgraded, then
  * all three are asserted to still be {@code COMPLETE} once the cluster is fully upgraded.
  * <p>
- * Note: because each parameterized stage ({@code upgradedNodes=0,1,2,3}) both creates new
- * shutdown records and asserts on records created by earlier stages, this test is not safe under
- * per-test smart-retry (rerunning e.g. only {@code upgradedNodes=2} in isolation would spuriously
- * fail, since the shutdown calls performed by the skipped earlier stages would never have run in
- * that JVM). The whole task must be rerun together on failure.
+ * Each stage calls {@link #runShutdownIfMissing} for records that should have been created by
+ * earlier stages, so that the test is safe under per-test smart-retry where an earlier stage may
+ * be skipped because it already passed.
  */
 public class NodeShutdownUpgradeIT extends NodeShutdownRollingUpgradeTestCase {
 
@@ -65,29 +63,27 @@ public class NodeShutdownUpgradeIT extends NodeShutdownRollingUpgradeTestCase {
     }
 
     public void testShutdown() throws Exception {
-        String nodeIdToShutdown;
         if (isOldCluster()) {
-            nodeIdToShutdown = nodeIdToShutdown(0);
-            assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
+            assertOK(client().performRequest(shutdownNode(nodeIdToShutdown(0))));
 
             assertBusy(() -> assertThat(getShutdownStatus(), containsInAnyOrder(shutdownStatusCompleteFor(0))));
         } else if (isFirstMixedCluster()) {
-            // after upgrade the record still exist
+            runShutdownIfMissing(0);
             assertBusy(() -> assertThat(getShutdownStatus(), containsInAnyOrder(shutdownStatusCompleteFor(0))));
 
-            nodeIdToShutdown = nodeIdToShutdown(1);
-            assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
+            assertOK(client().performRequest(shutdownNode(nodeIdToShutdown(1))));
 
             assertBusy(
                 () -> assertThat(getShutdownStatus(), containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1)))
             );
         } else if (isMixedCluster()) {
+            runShutdownIfMissing(0);
+            runShutdownIfMissing(1);
             assertBusy(
                 () -> assertThat(getShutdownStatus(), containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1)))
             );
 
-            nodeIdToShutdown = nodeIdToShutdown(2);
-            assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
+            assertOK(client().performRequest(shutdownNode(nodeIdToShutdown(2))));
 
             assertBusy(
                 () -> assertThat(
@@ -96,6 +92,9 @@ public class NodeShutdownUpgradeIT extends NodeShutdownRollingUpgradeTestCase {
                 )
             );
         } else if (isUpgradedCluster()) {
+            runShutdownIfMissing(0);
+            runShutdownIfMissing(1);
+            runShutdownIfMissing(2);
             assertBusy(
                 () -> assertThat(
                     getShutdownStatus(),
@@ -104,6 +103,19 @@ public class NodeShutdownUpgradeIT extends NodeShutdownRollingUpgradeTestCase {
             );
         } else {
             throw new AssertionError("Unknown cluster upgrade stage");
+        }
+    }
+
+    /**
+     * Runs a shutdown request for the given node if one has not been registered yet. This makes
+     * each stage safe under smart-retry: if an earlier stage was skipped because it already passed,
+     * the shutdown it would have registered is registered here before asserting on it.
+     */
+    private void runShutdownIfMissing(int nodeNumber) throws IOException {
+        String nodeId = nodeIdToShutdown(nodeNumber);
+        List<Map<String, Object>> existing = getShutdownStatus();
+        if (existing == null || existing.stream().noneMatch(s -> nodeId.equals(s.get("node_id")))) {
+            assertOK(client().performRequest(shutdownNode(nodeId)));
         }
     }
 

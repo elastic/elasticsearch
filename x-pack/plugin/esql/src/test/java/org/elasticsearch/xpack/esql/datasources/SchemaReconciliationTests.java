@@ -1095,6 +1095,10 @@ public class SchemaReconciliationTests extends ESTestCase {
             assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.LONG));
             assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.LONG));
             assertThat(result.perFileInfo().get(f1).mapping().cast(0), nullValue());
+            // The pinned file carries its pre-pin (inferred) types so the resolve-side stats boundary can identify the
+            // pinned column and safe-miss its read-schema-blind cached stats. The already-LONG file is not pinned.
+            assertThat(result.perFileInfo().get(f1).inferredTypes(), equalTo(Map.of("c", DataType.INTEGER)));
+            assertThat(result.perFileInfo().get(f2).inferredTypes(), nullValue());
         }
     }
 
@@ -1131,6 +1135,8 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DATE_NANOS));
         assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.DATETIME));
         assertThat(result.perFileInfo().get(f1).mapping().cast(0), equalTo(DataType.DATE_NANOS));
+        // DATE_NANOS is a cast, not a pin, so nothing retyped the read schema: no inferredTypes snapshot.
+        assertThat(result.perFileInfo().get(f1).inferredTypes(), nullValue());
     }
 
     public void testUnionByNameColumnarSourceWidenToKeywordKeepsCast() {
@@ -1148,8 +1154,58 @@ public class SchemaReconciliationTests extends ESTestCase {
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
         assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.INTEGER));
         assertThat(result.perFileInfo().get(f1).mapping().cast(0), equalTo(DataType.KEYWORD));
+        // Columnar formats read the physically-typed value and cast afterwards; nothing pins the read schema, so the
+        // stats boundary is the split-level read-time normalize, not this resolve-side pin path: no inferredTypes here.
+        assertThat(result.perFileInfo().get(f1).inferredTypes(), nullValue());
 
         drainWarningMessages();
+    }
+
+    /**
+     * A file with one widened+pinned column ({@code a}: INTEGER widened to LONG) and one column that does not widen
+     * ({@code b}: KEYWORD in both files) must pin only the widened column in its read schema, and its inferredTypes
+     * snapshot must carry the pre-pin type for every column so the pinned-column delta is exactly {@code {a}}.
+     */
+    public void testUnionByNameTextMultiColumnPartialPinSnapshotsPrePinTypes() {
+        List<Attribute> schema1 = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD));
+        List<Attribute> schema2 = List.of(attr("a", DataType.LONG), attr("b", DataType.KEYWORD));
+
+        StoragePath f1 = path("s3://b/f1.csv");
+        StoragePath f2 = path("s3://b/f2.csv");
+
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "csv"), f2, meta(schema2, "csv"));
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+
+        // Only the widened column is retyped in the read schema; the non-widened column stays as inferred.
+        assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.LONG));
+        assertThat(result.perFileInfo().get(f1).fileSchema().get(1).dataType(), equalTo(DataType.KEYWORD));
+        // The snapshot carries the pre-pin type for every column, so the pinned delta (inferred != fileSchema) is {a}.
+        assertThat(result.perFileInfo().get(f1).inferredTypes(), equalTo(Map.of("a", DataType.INTEGER, "b", DataType.KEYWORD)));
+    }
+
+    /**
+     * A widened column contributed by both a columnar (Parquet) and a text (CSV) file must pin only the text file: the
+     * CSV file is pinned to the reconciled type and carries an inferredTypes snapshot, while the Parquet file keeps its
+     * footer type plus a post-read cast and carries no snapshot (its stats boundary is the split-level normalize).
+     */
+    public void testUnionByNameMixedParquetAndCsvPinsOnlyTextFile() {
+        List<Attribute> csvSchema = List.of(attr("val", DataType.INTEGER));
+        List<Attribute> parquetSchema = List.of(attr("val", DataType.LONG));
+
+        StoragePath csv = path("s3://b/a.csv");
+        StoragePath parquet = path("s3://b/b.parquet");
+
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(csv, meta(csvSchema, "csv"), parquet, meta(parquetSchema, "parquet"));
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+
+        assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.LONG));
+        // CSV file: pinned to LONG, no cast, carries the pre-pin snapshot.
+        assertThat(result.perFileInfo().get(csv).fileSchema().get(0).dataType(), equalTo(DataType.LONG));
+        assertThat(result.perFileInfo().get(csv).mapping().cast(0), nullValue());
+        assertThat(result.perFileInfo().get(csv).inferredTypes(), equalTo(Map.of("val", DataType.INTEGER)));
+        // Parquet file: already LONG, self-typed read, no pin, no snapshot.
+        assertThat(result.perFileInfo().get(parquet).fileSchema().get(0).dataType(), equalTo(DataType.LONG));
+        assertThat(result.perFileInfo().get(parquet).inferredTypes(), nullValue());
     }
 
     // === Warning-header helpers ===

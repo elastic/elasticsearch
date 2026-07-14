@@ -677,4 +677,45 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         Map<String, Object> stats = Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
         assertSame(stats, SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(stats, Map.of(), Set.of()));
     }
+
+    public void testOverlayPinnedColumnsPoisonsExtremaAndDropsCountsKeepingRowCount() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 3L);
+        stats.put(SourceStatisticsSerializer.columnMinKey("col"), 10L);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("col"), 20L);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey("col"), 2L);
+        stats.put(SourceStatisticsSerializer.columnNullCountKey("col"), 1L);
+        stats.put(SourceStatisticsSerializer.columnSizeBytesKey("col"), 24L);
+
+        // null_field: the pinned column's harvest was taken at a narrower read type, so its extrema and value/null
+        // counts are untrustworthy and must safe-miss. The row count is unaffected under null_field (no row dropped).
+        Map<String, Object> out = SourceStatisticsSerializer.overlayPinnedColumnsOnStats(stats, Set.of("col"), false);
+
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("col")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxKey("col")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("col")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMaxUnservableKey("col")));
+        assertNull(out.get(SourceStatisticsSerializer.columnValueCountKey("col")));
+        assertNull(out.get(SourceStatisticsSerializer.columnNullCountKey("col")));
+        assertEquals("byte signal survives", 24L, out.get(SourceStatisticsSerializer.columnSizeBytesKey("col")));
+        assertEquals("null_field keeps the row count", 3L, out.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
+    public void testOverlayPinnedColumnsDropsRowCountUnderSkipRow() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey("col"), 2L);
+
+        // skip_row: the narrow read dropped the whole row that failed to parse, so the harvested row count is short
+        // by that row and COUNT(*) must safe-miss too.
+        Map<String, Object> out = SourceStatisticsSerializer.overlayPinnedColumnsOnStats(stats, Set.of("col"), true);
+
+        assertNull(out.get(SourceStatisticsSerializer.columnValueCountKey("col")));
+        assertNull("skip_row drops the stale row count", out.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
+    public void testOverlayPinnedColumnsIdentityReturnsSameInstance() {
+        Map<String, Object> stats = Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        assertSame(stats, SourceStatisticsSerializer.overlayPinnedColumnsOnStats(stats, Set.of(), false));
+    }
 }

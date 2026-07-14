@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -129,10 +130,12 @@ public final class SchemaReconciliation {
         ExternalSchema fileSchema,
         @Nullable ColumnMapping mapping,
         @Nullable SourceStatistics statistics,
-        // PRE-overlay file types, physical-keyed; null means fileSchema IS the inferred schema (no declared overlay ran),
-        // so callers fall back to the fileSchema attributes' types (today's behavior). Populated only where the declared
-        // overlay rebuilds this info (ExternalSourceResolver.applyNonStrictOverlay) so the split-level stats boundary can
-        // normalize footer stats with the file's real inferred types instead of the overlaid declared types.
+        // PRE-retype file types, physical-keyed; null means fileSchema IS the inferred schema (nothing retyped this file),
+        // so callers fall back to the fileSchema attributes' types (today's behavior). Populated by the two paths that
+        // retype a file's read schema above its inferred types: the declared overlay (ExternalSourceResolver.applyNonStrictOverlay)
+        // and the UNION_BY_NAME pin (reconcileUnionByName / pinToReconciledTypes). It lets stats boundaries recover the file's
+        // real inferred types: the split-level boundary normalizes footer range stats with them instead of the retyped types,
+        // and the resolve-side aggregate identifies the retyped (pinned) column set to safe-miss its read-schema-blind cached stats.
         @Nullable Map<String, DataType> inferredTypes
     ) {
         public FileSchemaInfo(ExternalSchema fileSchema, @Nullable ColumnMapping mapping, @Nullable SourceStatistics statistics) {
@@ -380,6 +383,7 @@ public final class SchemaReconciliation {
             // resolveShapeConflicts for why this is what actually routes the file's real values
             // through the per-file shape-conflict/ErrorPolicy handling at read time.
             List<Attribute> fileSchema = shapeConflictOverrides.getOrDefault(filePath, meta.schema());
+            Map<String, DataType> inferredTypes = null;
             if (readsColumnsAtReconciledType(meta.sourceType())) {
                 // Text readers parse each token at the pinned read type, so pin every widened column
                 // to its reconciled type. The reader then reads at the wider type directly (raw text
@@ -387,12 +391,20 @@ public final class SchemaReconciliation {
                 // the sample never saw, which would otherwise null-fill or abort the read before the
                 // ColumnMapping cast could run. See readsColumnsAtReconciledType for why this is
                 // scoped to sample-inferring text formats.
+                List<Attribute> prePin = fileSchema;
                 fileSchema = pinToReconciledTypes(fileSchema, unified);
+                if (fileSchema != prePin) {
+                    // At least one column was pinned above its inferred type. Carry the pre-pin (inferred) types
+                    // so the resolve-side stats boundary can identify the pinned columns: their per-file stats were
+                    // harvested at the narrower read type but the cache identity is read-schema-blind, so they must
+                    // safe-miss rather than fold a stale count/extremum.
+                    inferredTypes = typeMap(prePin);
+                }
             }
             SourceStatistics stats = meta.statistics().orElse(null);
 
             ColumnMapping mapping = computeMapping(unifiedSchema, fileSchema);
-            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats));
+            perFileInfo.put(filePath, new FileSchemaInfo(new ExternalSchema(fileSchema), mapping, stats, inferredTypes));
         }
 
         return new Result(new ExternalSchema(unifiedSchema), Map.copyOf(perFileInfo));
@@ -802,6 +814,19 @@ public final class SchemaReconciliation {
             }
         }
         return pinned != null ? pinned : fileSchema;
+    }
+
+    /**
+     * Physical-name-keyed type map of the given schema attributes. Used to snapshot a file's pre-pin
+     * (inferred) column types before {@link #pinToReconciledTypes} retypes them, so downstream code can
+     * recover which columns were pinned.
+     */
+    private static Map<String, DataType> typeMap(List<Attribute> schema) {
+        Map<String, DataType> types = new HashMap<>(schema.size());
+        for (Attribute attr : schema) {
+            types.put(attr.name(), attr.dataType());
+        }
+        return types;
     }
 
     /**

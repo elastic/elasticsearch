@@ -79,17 +79,17 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
 
     public void testCacheUsageFieldsAreTransportVersionGated() throws Exception {
         final var shardCacheSizes = Map.of(randomShardId(), new BoostedAndUnboostedCacheSizes(10L, 20L));
-        final var nodeCacheUsage = Map.of(randomIdentifier(), new CurrentCacheUsage(100L, 30L));
-        final var clusterInfo = ClusterInfo.builder().shardCacheSizes(shardCacheSizes).nodeCacheUsage(nodeCacheUsage).build();
+        final var nodeCacheStats = Map.of(randomIdentifier(), new NodeCacheStats(100L, 10L, 30L));
+        final var clusterInfo = ClusterInfo.builder().shardCacheSizes(shardCacheSizes).nodeCacheStats(nodeCacheStats).build();
 
         final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
         assertThat(currentVersionCopy.getShardCacheSizes(), equalTo(shardCacheSizes));
-        assertThat(currentVersionCopy.getNodeCacheUsage(), equalTo(nodeCacheUsage));
+        assertThat(currentVersionCopy.getNodeCacheStats(), equalTo(nodeCacheStats));
 
         final var preCacheUsageVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.CACHE_METADATA_IN_CLUSTER_INFO);
         final var preCacheUsageCopy = copyInstance(clusterInfo, preCacheUsageVersion);
         assertThat(preCacheUsageCopy.getShardCacheSizes(), equalTo(Map.of()));
-        assertThat(preCacheUsageCopy.getNodeCacheUsage(), equalTo(Map.of()));
+        assertThat(preCacheUsageCopy.getNodeCacheStats(), equalTo(Map.of()));
     }
 
     private static double randomWriteLoadProportion() {
@@ -126,18 +126,18 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomShardWriteLoad(),
             randomMaxHeapSizes(),
             randomNodeIdsWriteLoadHotspottingSet(),
-            randomNodeCacheUsage(),
+            randomNodeCacheStatsMap(),
             randomShardCacheSizes()
         );
     }
 
-    private static Map<String, CurrentCacheUsage> randomNodeCacheUsage() {
+    private static Map<String, NodeCacheStats> randomNodeCacheStatsMap() {
         int numEntries = randomIntBetween(0, 128);
-        Map<String, CurrentCacheUsage> nodeCacheUsage = new HashMap<>(numEntries);
+        Map<String, NodeCacheStats> nodeCacheStats = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            nodeCacheUsage.put(randomAlphaOfLength(32), new CurrentCacheUsage(randomNonNegativeLong(), randomNonNegativeLong()));
+            nodeCacheStats.put(randomAlphaOfLength(32), NodeCacheStatsTests.randomNodeCacheStats());
         }
-        return nodeCacheUsage;
+        return nodeCacheStats;
     }
 
     private static Map<ShardId, BoostedAndUnboostedCacheSizes> randomShardCacheSizes() {

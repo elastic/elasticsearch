@@ -32,7 +32,7 @@ public interface CacheUsageAndCommitmentCollector {
         }
 
         @Override
-        public void collectNodeCacheUsage(ClusterState clusterState, ActionListener<Map<String, CurrentCacheUsage>> listener) {
+        public void collectNodeCacheStats(ClusterState clusterState, ActionListener<Map<String, NodeCacheStats>> listener) {
             listener.onResponse(Map.of());
         }
     };
@@ -46,10 +46,10 @@ public interface CacheUsageAndCommitmentCollector {
     void collectShardCacheSizes(ClusterState clusterState, ActionListener<Map<ShardId, BoostedAndUnboostedCacheSizes>> listener);
 
     /**
-     * Collects the current cache usage for every node with cache sizing information.
+     * Collects the current cache stats for every node with cache sizing information.
      *
      * @param clusterState The cluster state snapshot for this collection.
      * @param listener The listener which will receive the results.
      */
-    void collectNodeCacheUsage(ClusterState clusterState, ActionListener<Map<String, CurrentCacheUsage>> listener);
+    void collectNodeCacheStats(ClusterState clusterState, ActionListener<Map<String, NodeCacheStats>> listener);
 }

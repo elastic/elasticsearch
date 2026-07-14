@@ -102,7 +102,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             new ShardId("index", "uuid", 0),
             new BoostedAndUnboostedCacheSizes(10L, 20L)
         );
-        final Map<String, CurrentCacheUsage> nodeCacheUsage = Map.of(discoveryNode.getId(), new CurrentCacheUsage(100L, 30L));
+        final Map<String, NodeCacheStats> nodeCacheStats = Map.of(discoveryNode.getId(), new NodeCacheStats(100L, 10L, 30L));
         final CacheUsageAndCommitmentCollector mockCacheUsageAndCommitmentCollector = mock(CacheUsageAndCommitmentCollector.class);
         doAnswer(invocation -> {
             final ActionListener<Map<ShardId, BoostedAndUnboostedCacheSizes>> listener = invocation.getArgument(1);
@@ -110,10 +110,10 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             return null;
         }).when(mockCacheUsageAndCommitmentCollector).collectShardCacheSizes(any(), any());
         doAnswer(invocation -> {
-            final ActionListener<Map<String, CurrentCacheUsage>> listener = invocation.getArgument(1);
-            listener.onResponse(nodeCacheUsage);
+            final ActionListener<Map<String, NodeCacheStats>> listener = invocation.getArgument(1);
+            listener.onResponse(nodeCacheStats);
             return null;
-        }).when(mockCacheUsageAndCommitmentCollector).collectNodeCacheUsage(any(), any());
+        }).when(mockCacheUsageAndCommitmentCollector).collectNodeCacheStats(any(), any());
         final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector = spy(
             new NodeUsageStatsForThreadPoolsCollector()
         );
@@ -183,10 +183,10 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should have polled for heap usage
             verify(mockEstimatedHeapUsageCollector).collectShardHeapUsage(any());
             verify(mockCacheUsageAndCommitmentCollector).collectShardCacheSizes(any(), any());
-            verify(mockCacheUsageAndCommitmentCollector).collectNodeCacheUsage(any(), any());
+            verify(mockCacheUsageAndCommitmentCollector).collectNodeCacheStats(any(), any());
             verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
             assertThat(clusterInfoService.getClusterInfo().getShardCacheSizes(), equalTo(shardCacheSizes));
-            assertThat(clusterInfoService.getClusterInfo().getNodeCacheUsage(), equalTo(nodeCacheUsage));
+            assertThat(clusterInfoService.getClusterInfo().getNodeCacheStats(), equalTo(nodeCacheStats));
         }
 
         // ... then leaves
@@ -242,7 +242,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             verify(mockEstimatedHeapUsageCollector).collectClusterHeapUsage(any()); // Should poll for heap usage once per interval
             verify(mockEstimatedHeapUsageCollector).collectShardHeapUsage(any());
             verify(mockCacheUsageAndCommitmentCollector).collectShardCacheSizes(any(), any());
-            verify(mockCacheUsageAndCommitmentCollector).collectNodeCacheUsage(any(), any());
+            verify(mockCacheUsageAndCommitmentCollector).collectNodeCacheStats(any(), any());
             verify(nodeUsageStatsForThreadPoolsCollector).collectUsageStats(any(), any(), any());
         }
 

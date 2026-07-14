@@ -222,7 +222,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile ShardHeapUsageEstimates estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
         private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
         private volatile Map<ShardId, BoostedAndUnboostedCacheSizes> shardCacheSizes = Map.of();
-        private volatile Map<String, CurrentCacheUsage> nodeCacheUsage = Map.of();
+        private volatile Map<String, NodeCacheStats> nodeCacheStats = Map.of();
         private volatile IndicesStatsSummary indicesStatsSummary;
 
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
@@ -317,16 +317,16 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     }
                 }, fetchRefs.acquire()));
 
-                cacheUsageAndCommitmentCollector.collectNodeCacheUsage(clusterState, ActionListener.releaseAfter(new ActionListener<>() {
+                cacheUsageAndCommitmentCollector.collectNodeCacheStats(clusterState, ActionListener.releaseAfter(new ActionListener<>() {
                     @Override
-                    public void onResponse(Map<String, CurrentCacheUsage> cacheUsage) {
-                        nodeCacheUsage = cacheUsage;
+                    public void onResponse(Map<String, NodeCacheStats> cacheStats) {
+                        nodeCacheStats = cacheStats;
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn("failed to fetch cache usage for nodes", e);
-                        nodeCacheUsage = Map.of();
+                        logger.warn("failed to fetch cache stats for nodes", e);
+                        nodeCacheStats = Map.of();
                     }
                 }, fetchRefs.acquire()));
             }
@@ -557,7 +557,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 indicesStatsSummary.shardWriteLoads(),
                 maxHeapPerNode,
                 nodeIdsWriteLoadHotspotting,
-                nodeCacheUsage,
+                nodeCacheStats,
                 shardCacheSizes
             );
             currentClusterInfo = newClusterInfo;

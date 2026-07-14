@@ -24,8 +24,8 @@ public class CacheUsageAndCommitmentCollectorTests extends ESTestCase {
         CacheUsageAndCommitmentCollector.EMPTY.collectShardCacheSizes(ClusterState.EMPTY_STATE, shardCacheSizesFuture);
         assertThat(safeGet(shardCacheSizesFuture), equalTo(Map.of()));
 
-        final PlainActionFuture<Map<String, CurrentCacheUsage>> nodeCacheUsageFuture = new PlainActionFuture<>();
-        CacheUsageAndCommitmentCollector.EMPTY.collectNodeCacheUsage(ClusterState.EMPTY_STATE, nodeCacheUsageFuture);
-        assertThat(safeGet(nodeCacheUsageFuture), equalTo(Map.of()));
+        final PlainActionFuture<Map<String, NodeCacheStats>> nodeCacheStatsFuture = new PlainActionFuture<>();
+        CacheUsageAndCommitmentCollector.EMPTY.collectNodeCacheStats(ClusterState.EMPTY_STATE, nodeCacheStatsFuture);
+        assertThat(safeGet(nodeCacheStatsFuture), equalTo(Map.of()));
     }
 }

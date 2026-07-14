@@ -52,9 +52,9 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 new ShardId("index", "uuid", 0),
                 new BoostedAndUnboostedCacheSizes(10L, 20L)
             );
-            final Map<String, CurrentCacheUsage> nodeCacheUsage = Map.of("node-id", new CurrentCacheUsage(100L, 30L));
+            final Map<String, NodeCacheStats> nodeCacheStats = Map.of("node-id", new NodeCacheStats(100L, 10L, 30L));
             final AtomicBoolean failShardCacheSizes = new AtomicBoolean();
-            final AtomicBoolean failNodeCacheUsage = new AtomicBoolean();
+            final AtomicBoolean failNodeCacheStats = new AtomicBoolean();
             final CacheUsageAndCommitmentCollector cacheUsageAndCommitmentCollector = mock(CacheUsageAndCommitmentCollector.class);
             doAnswer(invocation -> {
                 final ActionListener<Map<ShardId, BoostedAndUnboostedCacheSizes>> listener = invocation.getArgument(1);
@@ -66,14 +66,14 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
                 return null;
             }).when(cacheUsageAndCommitmentCollector).collectShardCacheSizes(any(), any());
             doAnswer(invocation -> {
-                final ActionListener<Map<String, CurrentCacheUsage>> listener = invocation.getArgument(1);
-                if (failNodeCacheUsage.get()) {
-                    listener.onFailure(new IllegalStateException("simulated node cache usage failure"));
+                final ActionListener<Map<String, NodeCacheStats>> listener = invocation.getArgument(1);
+                if (failNodeCacheStats.get()) {
+                    listener.onFailure(new IllegalStateException("simulated node cache stats failure"));
                 } else {
-                    listener.onResponse(nodeCacheUsage);
+                    listener.onResponse(nodeCacheStats);
                 }
                 return null;
-            }).when(cacheUsageAndCommitmentCollector).collectNodeCacheUsage(any(), any());
+            }).when(cacheUsageAndCommitmentCollector).collectNodeCacheStats(any(), any());
 
             final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
                 settings,
@@ -90,18 +90,18 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             failShardCacheSizes.set(true);
             ClusterInfo clusterInfo = refresh(clusterInfoService);
             verify(cacheUsageAndCommitmentCollector).collectShardCacheSizes(any(), any());
-            verify(cacheUsageAndCommitmentCollector).collectNodeCacheUsage(any(), any());
+            verify(cacheUsageAndCommitmentCollector).collectNodeCacheStats(any(), any());
             assertThat(clusterInfo.getShardCacheSizes(), equalTo(Map.of()));
-            assertThat(clusterInfo.getNodeCacheUsage(), equalTo(nodeCacheUsage));
+            assertThat(clusterInfo.getNodeCacheStats(), equalTo(nodeCacheStats));
 
             Mockito.clearInvocations(cacheUsageAndCommitmentCollector);
             failShardCacheSizes.set(false);
-            failNodeCacheUsage.set(true);
+            failNodeCacheStats.set(true);
             clusterInfo = refresh(clusterInfoService);
             verify(cacheUsageAndCommitmentCollector).collectShardCacheSizes(any(), any());
-            verify(cacheUsageAndCommitmentCollector).collectNodeCacheUsage(any(), any());
+            verify(cacheUsageAndCommitmentCollector).collectNodeCacheStats(any(), any());
             assertThat(clusterInfo.getShardCacheSizes(), equalTo(shardCacheSizes));
-            assertThat(clusterInfo.getNodeCacheUsage(), equalTo(Map.of()));
+            assertThat(clusterInfo.getNodeCacheStats(), equalTo(Map.of()));
         }
     }
 }

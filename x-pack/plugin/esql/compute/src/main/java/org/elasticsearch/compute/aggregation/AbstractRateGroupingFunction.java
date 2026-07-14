@@ -38,6 +38,58 @@ class AbstractRateGroupingFunction {
      */
     static final int INITIAL_SLICE_CAPACITY = 512;
 
+    // Reusable FlushQueue and Slice pool to avoid per-group-per-flush allocations.
+    private FlushQueue reusableFlushQueue;
+    private Slice[] slicePool;
+
+    /**
+     * Populates and returns the reusable {@link FlushQueue} for the given group, reusing pooled {@link Slice}
+     * objects to avoid per-group-per-flush allocations. Returns null if the group has no data.
+     */
+    protected final FlushQueue populateReusableFlushQueue(FlushQueues flushQueues, int groupId) {
+        if (groupId < flushQueues.minGroupId() || groupId > flushQueues.maxGroupId()) {
+            return null;
+        }
+        int groupIndex = groupId - flushQueues.minGroupId();
+        int[] runningOffsets = flushQueues.runningOffsets();
+        int endIndex = runningOffsets[groupIndex];
+        int startIndex = groupIndex == 0 ? 0 : runningOffsets[groupIndex - 1];
+        int numSlices = endIndex - startIndex;
+        if (numSlices == 0) {
+            return null;
+        }
+        if (slicePool == null || numSlices > slicePool.length) {
+            int newCapacity = slicePool == null ? numSlices : Math.max(numSlices, slicePool.length * 2);
+            slicePool = slicePool == null ? new Slice[newCapacity] : Arrays.copyOf(slicePool, newCapacity);
+            reusableFlushQueue = new FlushQueue(newCapacity);
+        } else {
+            reusableFlushQueue.clear();
+            reusableFlushQueue.valueCount = 0;
+        }
+        int[] sliceOffsets = flushQueues.sliceOffsets();
+        RawBuffer buffer = flushQueues.buffer();
+        int slotIndex = 0;
+        for (int i = startIndex; i < endIndex; i++) {
+            int start = sliceOffsets[i * 2];
+            int end = sliceOffsets[i * 2 + 1];
+            if (start < end) {
+                Slice slice = slicePool[slotIndex];
+                if (slice == null) {
+                    slicePool[slotIndex] = slice = new Slice(buffer.timestamps, start, end);
+                } else {
+                    slice.reset(start, end);
+                }
+                slotIndex++;
+                reusableFlushQueue.valueCount += (end - start);
+                reusableFlushQueue.add(slice);
+            }
+        }
+        if (reusableFlushQueue.valueCount == 0) {
+            return null;
+        }
+        return reusableFlushQueue;
+    }
+
     abstract static class RawBuffer implements Releasable {
         private final CircuitBreaker breaker;
         private long acquiredBytes;
@@ -167,6 +219,13 @@ class AbstractRateGroupingFunction {
             this.start = start;
             this.end = end;
             this.nextTimestamp = timestamps.get(start);
+        }
+
+        void reset(int start, int end) {
+            this.start = start;
+            this.end = end;
+            this.nextTimestamp = timestamps.get(start);
+            this.lastTimestamp = Long.MAX_VALUE;
         }
 
         boolean exhausted() {

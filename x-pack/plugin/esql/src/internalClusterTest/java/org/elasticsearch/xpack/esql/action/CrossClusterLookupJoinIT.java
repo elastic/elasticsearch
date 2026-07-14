@@ -927,6 +927,44 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
                 )
             );
         }
+
+        // remote lookup then coordinator lookup
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LOOKUP JOIN remote-lookup ON key
+            | RENAME mode AS mode1
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | RENAME mode AS mode2
+            | KEEP key, cluster, mode1, mode2
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "remote", "coordinator"),
+                        List.of(2L, "remote-2", "remote", "coordinator")
+                    )
+                )
+            );
+        }
+
+        // can not execute coordinator lookup then remote lookup
+        // TODO fix
+        // expectThrows(
+        // VerificationException.class,
+        // containsString("TBD"),
+        // () -> runQuery("""
+        // FROM *:data
+        // | LOOKUP JOIN _coordinator:lookup ON key
+        // | RENAME mode AS mode1
+        // | LOOKUP JOIN remote-lookup ON key
+        // | RENAME mode AS mode2
+        // | KEEP key, cluster, mode1, mode2
+        // | SORT key
+        // """, randomBoolean()).close()
+        // );
     }
 
     @SafeVarargs

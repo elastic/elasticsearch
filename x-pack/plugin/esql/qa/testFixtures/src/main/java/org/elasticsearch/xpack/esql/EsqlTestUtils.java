@@ -1300,6 +1300,14 @@ public final class EsqlTestUtils {
     }
 
     public static ExponentialHistogram randomExponentialHistogram() {
+        return randomExponentialHistogram(false);
+    }
+
+    /**
+     * @param zeroThresholdIsZero when {@code true}, always use 0.0 as the zero threshold (avoids floating point inaccuracies when
+     *                            computing percentiles from histograms with non-zero thresholds)
+     */
+    public static ExponentialHistogram randomExponentialHistogram(boolean zeroThresholdIsZero) {
         // TODO(b/133393): allow (index,scale) based zero thresholds as soon as we support them in the block
         // ideally Replace this with the shared random generation in ExponentialHistogramTestUtils
         int numBuckets = randomIntBetween(4, 300);
@@ -1320,7 +1328,7 @@ public final class EsqlTestUtils {
             rawValues
         );
         // Setup a proper zeroThreshold based on a random chance
-        if (histo.zeroBucket().count() > 0 && randomBoolean()) {
+        if (zeroThresholdIsZero == false && histo.zeroBucket().count() > 0 && randomBoolean()) {
             double smallestNonZeroValue = DoubleStream.of(rawValues).map(Math::abs).filter(val -> val != 0).min().orElse(0.0);
             double zeroThreshold = smallestNonZeroValue * randomDouble();
             try (ReleasableExponentialHistogram releaseAfterCopy = histo) {

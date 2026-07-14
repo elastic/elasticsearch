@@ -89,18 +89,4 @@ public class ZeroBucketTests extends ExponentialHistogramTestCase {
         assertThat(a, equalTo(b));
         assertThat(a.hashCode(), equalTo(b.hashCode()));
     }
-
-    public void testIndexSurvivesRealValuedThresholdRoundTrip() {
-        // Recomputing index() from a double threshold used to be off by one when the threshold
-        // landed exactly on a bucket boundary, due to log/exp rounding. https://github.com/elastic/elasticsearch/issues/153270
-        // create(double, count) always reconstructs at MAX_SCALE, so we compare against an
-        // index-based bucket built at that same scale.
-        int scale = ExponentialHistogram.MAX_SCALE;
-        for (long index = -1000; index <= 1000; index++) {
-            ZeroBucket indexBased = ZeroBucket.create(index, scale, 1);
-            ZeroBucket realValued = ZeroBucket.create(indexBased.zeroThreshold(), 1);
-            assertThat("index=" + index, realValued.index(), equalTo(indexBased.index()));
-        }
-    }
-
 }

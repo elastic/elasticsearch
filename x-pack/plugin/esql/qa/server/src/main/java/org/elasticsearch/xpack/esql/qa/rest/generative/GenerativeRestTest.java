@@ -493,6 +493,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isMatchOptionsOnNonIndexMappedFieldInSubqueryBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query),
@@ -954,6 +955,27 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return SUBQUERY_IN_FROM_PATTERN.matcher(query).find() && FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN.matcher(errorMessage).matches();
+    }
+
+    private static final Pattern MATCH_OPTIONS_ON_NON_INDEX_MAPPED_FIELD_PATTERN = Pattern.compile(
+        ".*Options are not supported for \\[MATCH] function call on non-index-mapped field.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * A field produced inside a {@code FROM (...)} subquery branch (e.g. via {@code EVAL}/{@code USER_AGENT}) is
+     * non-index-mapped, so a {@code MATCH} function that carries options against it is rejected at verification with
+     * "Options are not supported for [MATCH] function call on non-index-mapped field [...]". The generator does not yet
+     * track index-mapped-ness across subquery boundaries to avoid emitting options in this case. Gated on a parenthesised
+     * inner {@code FROM} so non-subquery runs still surface the error.
+     * Reproduced by {@code GenerativeIT {feature:SUBQUERIES\}} on seed {@code 7033534A36E5A879}.
+     */
+    static boolean isMatchOptionsOnNonIndexMappedFieldInSubqueryBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return SUBQUERY_IN_FROM_PATTERN.matcher(query).find()
+            && MATCH_OPTIONS_ON_NON_INDEX_MAPPED_FIELD_PATTERN.matcher(errorMessage).matches();
     }
 
     private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(

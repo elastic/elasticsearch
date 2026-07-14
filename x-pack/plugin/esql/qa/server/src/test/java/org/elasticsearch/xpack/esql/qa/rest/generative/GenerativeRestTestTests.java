@@ -99,4 +99,28 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
 
+    /**
+     * A field created inside a {@code FROM (...)} subquery branch (here via {@code EVAL}) is non-index-mapped, so a
+     * {@code MATCH} carrying options against it is rejected with "Options are not supported for [MATCH] function call
+     * on non-index-mapped field". Reproduced by {@code GenerativeIT {feature:SUBQUERIES\}} on seed
+     * {@code 7033534A36E5A879}.
+     */
+    public void testMatchOptionsOnNonIndexMappedSubqueryFieldIsTolerated() {
+        String query = "FROM books, (FROM books | EVAL title2 = concat(title, \"x\")) "
+            + "| WHERE match(title2, \"search\", {\"lenient\": true})";
+        String error = "verification_exception: Found 1 problem\n"
+            + "line 1:88: Options are not supported for [MATCH] function call on non-index-mapped field [title2]";
+
+        assertTrue(GenerativeRestTest.isMatchOptionsOnNonIndexMappedFieldInSubqueryBug(error, query));
+    }
+
+    public void testOptionsForNonMatchFunctionOnNonIndexMappedSubqueryFieldIsNotTolerated() {
+        // The rule is pinned to [MATCH]; the same error for other full-text functions must not be tolerated yet.
+        String query = "FROM books, (FROM books | EVAL title2 = concat(title, \"x\")) "
+            + "| WHERE qstr(\"title2:search\", {\"lenient\": true})";
+        String error = "verification_exception: Found 1 problem\n"
+            + "line 1:88: Options are not supported for [QSTR] function call on non-index-mapped field [title2]";
+
+        assertFalse(GenerativeRestTest.isMatchOptionsOnNonIndexMappedFieldInSubqueryBug(error, query));
+    }
 }

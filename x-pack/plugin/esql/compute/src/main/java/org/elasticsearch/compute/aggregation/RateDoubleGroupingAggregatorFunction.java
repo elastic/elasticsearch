@@ -731,8 +731,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             long bucketEnd = tsContext.rangeEndInMillis(group) * (long) (dateFactor / 1000.0);
             assert state.firstTs() >= bucketStart
                 : "firstTs " + state.firstTs() + " is before bucket start " + bucketStart + " for group " + group;
-            assert state.lastTs() < bucketEnd
-                : "lastTs " + state.lastTs() + " is at or after bucket end " + bucketEnd + " for group " + group;
+            assert state.lastTs() <= bucketEnd
+                : "lastTs " + state.lastTs() + " is after bucket end " + bucketEnd + " for group " + group;
         }
         return true;
     }

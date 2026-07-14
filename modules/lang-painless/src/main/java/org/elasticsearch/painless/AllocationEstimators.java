@@ -9,6 +9,13 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.util.Collection;
 import java.util.Locale;
 
@@ -100,6 +107,215 @@ public final class AllocationEstimators {
     public static long linkedListCopyBytes(Collection<?> source) {
         long size = source == null ? 0 : source.size();
         return 32 + AllocSizes.mulSat(size, 40);
+    }
+
+    // ---- java.math.BigInteger: results are an object plus an int[] magnitude sized by the result's bit length. ----
+
+    /** Heap cost of a {@link BigInteger} with a {@code bits}-bit magnitude: the object plus its backing {@code int[]}. */
+    private static long bigIntegerBytes(long bits) {
+        long ints = Math.max(0L, bits) / 32 + 2; // ceil(bits/32) plus a word of slop
+        return 40 + AllocSizes.arrayBytes(ints, 4);
+    }
+
+    private static int bitLen(BigInteger value) {
+        return value == null ? 0 : value.bitLength();
+    }
+
+    /** {@code new BigInteger(String)} (radix 10): magnitude scales with the digit count (under 4 bits per digit). */
+    public static long bigIntegerFromStringBytes(String value) {
+        return bigIntegerBytes((value == null ? 0L : value.length()) * 4L);
+    }
+
+    /** {@code new BigInteger(String, radix)}: conservative bits-per-digit covering radices up to 36 (under 6 bits per digit). */
+    public static long bigIntegerFromStringRadixBytes(String value, int radix) {
+        return bigIntegerBytes((value == null ? 0L : value.length()) * 6L);
+    }
+
+    /** {@code add}/{@code subtract}: one bit wider than the larger operand. */
+    public static long bigIntegerAddBytes(BigInteger receiver, BigInteger arg) {
+        return bigIntegerBytes((long) Math.max(bitLen(receiver), bitLen(arg)) + 1);
+    }
+
+    /** {@code and}/{@code or}/{@code xor}/{@code andNot}: no wider than the larger operand. */
+    public static long bigIntegerBitwiseBytes(BigInteger receiver, BigInteger arg) {
+        return bigIntegerBytes(Math.max(bitLen(receiver), bitLen(arg)));
+    }
+
+    /** {@code multiply}: the product's width is the sum of the operand widths. */
+    public static long bigIntegerMultiplyBytes(BigInteger receiver, BigInteger arg) {
+        return bigIntegerBytes((long) bitLen(receiver) + bitLen(arg));
+    }
+
+    /** {@code divide}: the quotient is no wider than the dividend. */
+    public static long bigIntegerDivideBytes(BigInteger receiver, BigInteger arg) {
+        return bigIntegerBytes(bitLen(receiver));
+    }
+
+    /** {@code mod}/{@code remainder}/{@code modInverse}: the result is smaller than the modulus/divisor argument. */
+    public static long bigIntegerModBytes(BigInteger receiver, BigInteger arg) {
+        return bigIntegerBytes(bitLen(arg));
+    }
+
+    /** {@code gcd}: no wider than the smaller operand. */
+    public static long bigIntegerGcdBytes(BigInteger receiver, BigInteger arg) {
+        return bigIntegerBytes(Math.min(bitLen(receiver), bitLen(arg)));
+    }
+
+    /** {@code negate}/{@code abs}/{@code not}: about the receiver's width. */
+    public static long bigIntegerUnaryBytes(BigInteger receiver) {
+        return bigIntegerBytes((long) bitLen(receiver) + 1);
+    }
+
+    /** {@code shiftLeft(n)}: widens the receiver by {@code n} bits ({@code n} may be large — an allocation vector). */
+    public static long bigIntegerShiftLeftBytes(BigInteger receiver, int n) {
+        return bigIntegerBytes((long) bitLen(receiver) + Math.max(0, n));
+    }
+
+    /** {@code shiftRight(n)}: narrows the receiver by {@code n} bits. */
+    public static long bigIntegerShiftRightBytes(BigInteger receiver, int n) {
+        return bigIntegerBytes((long) bitLen(receiver) - Math.max(0, n));
+    }
+
+    /** {@code setBit}/{@code clearBit}/{@code flipBit}: at least wide enough to hold bit {@code n}. */
+    public static long bigIntegerSetBitBytes(BigInteger receiver, int n) {
+        return bigIntegerBytes(Math.max(bitLen(receiver), (long) Math.max(0, n) + 1));
+    }
+
+    /** {@code pow(exp)}: the result width is the receiver width times the exponent — the main BigInteger blow-up. */
+    public static long bigIntegerPowBytes(BigInteger receiver, int exp) {
+        return bigIntegerBytes(AllocSizes.mulSat(bitLen(receiver), Math.max(0, exp)));
+    }
+
+    /** {@code modPow(exp, mod)}: the result is smaller than the modulus. */
+    public static long bigIntegerModPowBytes(BigInteger receiver, BigInteger exp, BigInteger mod) {
+        return bigIntegerBytes(bitLen(mod));
+    }
+
+    /** {@code divideAndRemainder}: a length-2 array holding the quotient and the remainder. */
+    public static long bigIntegerDivideAndRemainderBytes(BigInteger receiver, BigInteger arg) {
+        return AllocSizes.arrayBytes(2, AllocSizes.REFERENCE_SIZE) + bigIntegerBytes(bitLen(receiver)) + bigIntegerBytes(bitLen(arg));
+    }
+
+    /** {@code toByteArray}: a {@code byte[]} holding the two's-complement representation. */
+    public static long bigIntegerToByteArrayBytes(BigInteger receiver) {
+        return AllocSizes.arrayBytes((long) bitLen(receiver) / 8 + 1, 1);
+    }
+
+    /** {@code toString(radix)}: worst case (radix 2) is one char per bit. */
+    public static long bigIntegerToStringBytes(BigInteger receiver, int radix) {
+        return newStringBytes(bitLen(receiver));
+    }
+
+    // ---- java.math.BigDecimal: the object plus, when the unscaled value exceeds long range, a backing BigInteger. ----
+    // precision() (unscaled decimal digit count) and scale() are allocation-free, so estimators size results from them.
+
+    /** Heap cost of a {@link BigDecimal} whose unscaled value has {@code digits} decimal digits. */
+    private static long bigDecimalBytes(long digits) {
+        // Up to ~18 digits the unscaled value fits in the compact long field; beyond that it is held in a BigInteger.
+        return 48 + (digits > 18 ? bigIntegerBytes(AllocSizes.mulSat(digits, 4)) : 0);
+    }
+
+    private static int bdDigits(BigDecimal value) {
+        return value == null ? 0 : value.precision();
+    }
+
+    private static int bdScale(BigDecimal value) {
+        return value == null ? 0 : value.scale();
+    }
+
+    /** {@code new BigDecimal(String[, MathContext])}: unscaled magnitude scales with the digit count. */
+    public static long bigDecimalFromStringBytes(String value) {
+        return bigDecimalBytes(value == null ? 0 : value.length());
+    }
+
+    public static long bigDecimalFromStringBytes(String value, MathContext mc) {
+        return bigDecimalFromStringBytes(value);
+    }
+
+    /** {@code abs}/{@code negate}/{@code plus}/{@code stripTrailingZeros}/{@code round}: about the receiver's digit count. */
+    public static long bigDecimalUnaryBytes(BigDecimal receiver) {
+        return bigDecimalBytes(bdDigits(receiver));
+    }
+
+    public static long bigDecimalUnaryBytes(BigDecimal receiver, MathContext mc) {
+        return bigDecimalBytes(bdDigits(receiver));
+    }
+
+    /** {@code movePointLeft}/{@code scaleByPowerOfTen}: only shift the scale, leaving the unscaled value unchanged. */
+    public static long bigDecimalUnaryBytes(BigDecimal receiver, int n) {
+        return bigDecimalBytes(bdDigits(receiver));
+    }
+
+    /**
+     * {@code add}/{@code subtract}/{@code multiply}/{@code divide}/{@code remainder}/{@code divideToIntegralValue}: the result
+     * is no wider than the sum of the operand digit counts.
+     */
+    public static long bigDecimalBinaryBytes(BigDecimal a, BigDecimal b) {
+        return bigDecimalBytes((long) bdDigits(a) + bdDigits(b));
+    }
+
+    public static long bigDecimalBinaryBytes(BigDecimal a, BigDecimal b, MathContext mc) {
+        return bigDecimalBinaryBytes(a, b);
+    }
+
+    /** {@code divideAndRemainder}: a length-2 array holding the quotient and the remainder. */
+    public static long bigDecimalDivideAndRemainderBytes(BigDecimal a, BigDecimal b) {
+        return AllocSizes.arrayBytes(2, AllocSizes.REFERENCE_SIZE) + bigDecimalBytes(bdDigits(a)) + bigDecimalBytes(bdDigits(b));
+    }
+
+    public static long bigDecimalDivideAndRemainderBytes(BigDecimal a, BigDecimal b, MathContext mc) {
+        return bigDecimalDivideAndRemainderBytes(a, b);
+    }
+
+    /** {@code pow(exp)}: the unscaled digit count grows by the exponent — the main BigDecimal blow-up. */
+    public static long bigDecimalPowBytes(BigDecimal receiver, int exp) {
+        return bigDecimalBytes(AllocSizes.mulSat(bdDigits(receiver), Math.max(0, exp)));
+    }
+
+    public static long bigDecimalPowBytes(BigDecimal receiver, int exp, MathContext mc) {
+        return bigDecimalPowBytes(receiver, exp);
+    }
+
+    /** {@code setScale(newScale)}: increasing the scale pads the unscaled value with {@code newScale - scale} digits. */
+    public static long bigDecimalSetScaleBytes(BigDecimal receiver, int newScale) {
+        return bigDecimalBytes(bdDigits(receiver) + Math.max(0L, (long) newScale - bdScale(receiver)));
+    }
+
+    public static long bigDecimalSetScaleBytes(BigDecimal receiver, int newScale, RoundingMode rm) {
+        return bigDecimalSetScaleBytes(receiver, newScale);
+    }
+
+    /** {@code movePointRight(n)}: pads the unscaled value when {@code n} exceeds the scale — a blow-up vector. */
+    public static long bigDecimalMovePointRightBytes(BigDecimal receiver, int n) {
+        return bigDecimalBytes(bdDigits(receiver) + Math.max(0L, (long) n - bdScale(receiver)));
+    }
+
+    /** {@code toBigInteger}/{@code toBigIntegerExact}: a BigInteger holding the integer part ({@code precision - scale} digits). */
+    public static long bigDecimalToBigIntegerBytes(BigDecimal receiver) {
+        long intDigits = receiver == null ? 0 : Math.max(0, receiver.precision() - receiver.scale());
+        return bigIntegerBytes(AllocSizes.mulSat(intDigits, 4));
+    }
+
+    /** {@code toEngineeringString}/{@code toPlainString}: a String of roughly the precision plus the scale in chars. */
+    public static long bigDecimalToStringBytes(BigDecimal receiver) {
+        long scale = bdScale(receiver);
+        return newStringBytes((long) bdDigits(receiver) + (scale < 0 ? -scale : scale) + 2);
+    }
+
+    /**
+     * Cost of {@code BytesRef.utf8ToString()}: a new {@link String}. Its UTF-16 character count is at most the ref's UTF-8
+     * byte length, so charging by the byte length is a safe upper bound.
+     */
+    public static long utf8ToStringBytes(BytesRef receiver) {
+        return newStringBytes(receiver == null ? 0 : receiver.length);
+    }
+
+    /**
+     * Cost of {@code ScriptDocValues.GeoPoints.getLats()}/{@code getLons()}: a new {@code double[]} sized to the number of
+     * points in the field value.
+     */
+    public static long geoPointsDoublesBytes(ScriptDocValues.GeoPoints receiver) {
+        return AllocSizes.arrayBytes(receiver == null ? 0 : receiver.size(), 8);
     }
 
     /** Cost of {@code Collection.toArray()}: a new {@code Object[]} sized to the collection. */

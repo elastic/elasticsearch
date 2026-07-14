@@ -108,6 +108,20 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
         assertThat(asm, containsString("$checkAllocBytes"));
     }
 
+    public void testNoDefConcatChargeBytecodeWhenDisabled() {
+        // A def '+' (possible runtime string concat) must be clean when tracking is off.
+        String asm = bytecode("def a = 'ab'; def b = 'cd'; def c = a + b; return 1;", -1L);
+        assertThat(asm, not(containsString("$checkAllocBytes")));
+        assertThat(asm, not(containsString("checkDefConcatAlloc")));
+        assertThat(asm, not(containsString("AllocationGuard")));
+    }
+
+    public void testDefConcatChargeBytecodePresentWhenEnabled() {
+        // With tracking on, the def '+' site charges via AllocationGuard.checkDefConcatAlloc before the dynamic add.
+        String asm = bytecode("def a = 'ab'; def b = 'cd'; def c = a + b; return 1;", 1024 * 1024L);
+        assertThat(asm, containsString("checkDefConcatAlloc"));
+    }
+
     public void testNoEmittedTrackingBytecodeForDefCallWhenDisabled() {
         // A def-dispatched call to an annotated target must be clean when tracking is off.
         String asm = bytecode("def s = 'hello'; s.substring(0, 3); return 1;", -1L);

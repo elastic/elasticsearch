@@ -86,7 +86,8 @@ import java.util.Set;
  * <pre>
  *   a.csv = [name:keyword, age:int]
  *   b.csv = [age:long, name:keyword, city:keyword]
- *   query: EXTERNAL "*.csv" WITH {"schema_resolution": "union_by_name"}
+ *   dataset "my_dataset" over *.csv, configured with schema_resolution=union_by_name
+ *   query: FROM my_dataset
  *          | KEEP name, city
  *          | SORT name
  *

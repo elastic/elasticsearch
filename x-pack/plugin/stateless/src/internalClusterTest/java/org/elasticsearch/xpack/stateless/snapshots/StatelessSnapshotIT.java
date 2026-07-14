@@ -20,6 +20,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -1243,6 +1244,110 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         for (SnapshotsCommitService commitService : internalCluster().getInstances(SnapshotsCommitService.class)) {
             assertBusy(() -> assertFalse(commitService.hasTrackingForShard(shardId)));
         }
+    }
+
+    public void testConcurrentSnapshotAndRelocationWithHollowing() throws Exception {
+        final var settings = Settings.builder()
+            .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "enabled")
+            .put(RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING.getKey(), true)
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put("thread_pool.snapshot.max", 1)
+            .build();
+        final var node0 = startMasterAndIndexNode(settings);
+        final var node1 = startMasterAndIndexNode(settings);
+        ensureStableCluster(2);
+
+        final var repoName = randomRepoName();
+        createRepository(repoName, "fs");
+
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.exclude._name", node1).build());
+        ensureGreen(indexName);
+        indexAndMaybeFlush(indexName);
+        flush(indexName);
+
+        // Block BCC upload for the hollow commit flushed by relocation
+        final var hollowBccUploadStarted = new CountDownLatch(1);
+        final var blockBccUpload = new CountDownLatch(1);
+        setNodeRepositoryStrategy(node0, new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerWriteBlobAtomic(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                if (purpose == OperationPurpose.INDICES && blobName.startsWith("stateless_commit_")) {
+                    hollowBccUploadStarted.countDown();
+                    safeAwait(blockBccUpload);
+                    super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                } else {
+                    super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                }
+            }
+        });
+
+        // Block the single SNAPSHOT thread on node0 so the shard snapshot task is queued
+        final var snapshotThreadBarrier = new CyclicBarrier(2);
+        internalCluster().getInstance(ThreadPool.class, node0).executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+            safeAwait(snapshotThreadBarrier);
+            safeAwait(snapshotThreadBarrier);
+        });
+        safeAwait(snapshotThreadBarrier);
+
+        // Start the snapshot. The shard snapshot task will be queued
+        final String snapshotName = randomSnapshotName();
+        final var snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIndices(indexName)
+            .setWaitForCompletion(true)
+            .execute();
+
+        // Wait for the master to assign the shard snapshot to node0 before triggering relocation.
+        final var node0Id = getNodeId(node0);
+        awaitClusterState(state -> {
+            final var entry = SnapshotsInProgress.get(state)
+                .asStream()
+                .filter(e -> e.snapshot().getSnapshotId().getName().equals(snapshotName))
+                .findFirst()
+                .orElse(null);
+            if (entry == null) {
+                return false;
+            }
+            final var shardStatus = entry.shards()
+                .entrySet()
+                .stream()
+                .filter(e -> e.getKey().getIndexName().equals(indexName))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(null);
+            if (shardStatus != null) {
+                assertThat(shardStatus.nodeId(), equalTo(node0Id));
+                return true;
+            }
+            return false;
+        });
+
+        // Trigger relocation which flushes a hollow commit
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node0));
+        // Wait until the hollow BCC upload has started and blocked
+        safeAwait(hollowBccUploadStarted);
+
+        // Unblock the shard snapshot
+        safeAwait(snapshotThreadBarrier);
+
+        // Stall the BCC upload a bit more to ensure the shard snapshot task wait for its completion and does not fail with
+        // NoSuchFileException for the not-yet-uploaded hollow commit.
+        safeSleep(50);
+        blockBccUpload.countDown();
+
+        final var snapshotInfo = safeGet(snapshotFuture).getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), equalTo(1));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
     }
 
     private SubscribableListener<Void> observeShardSnapshotAborted(String node, String repoName, ShardId shardId) {

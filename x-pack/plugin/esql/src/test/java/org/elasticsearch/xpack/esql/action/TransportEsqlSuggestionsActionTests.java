@@ -60,50 +60,64 @@ public class TransportEsqlSuggestionsActionTests extends ESTestCase {
 
     // Warnings wiring for the hot-tier value-sampling path.
 
-    public void testWarningsForSampleResultOnlyHotOnlyWhenComplete() {
-        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), false, false);
-        assertThat(
-            TransportEsqlSuggestionsAction.warningsForSampleResult(result),
-            matchesList(List.of(EsqlSuggestionsResponse.Warning.HOT_ONLY))
-        );
+    public void testWarningsForSampleResultEmptyWhenCompleteAndNoColdSkip() {
+        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), 100L, false, false, false);
+        assertThat(TransportEsqlSuggestionsAction.warningsForSampleResult(result, false), matchesList());
     }
 
     public void testWarningsForSampleResultAddsShardsSkippedOnPartial() {
-        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), true, false);
+        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), 100L, true, false, false);
         assertThat(
-            TransportEsqlSuggestionsAction.warningsForSampleResult(result),
-            matchesList(List.of(EsqlSuggestionsResponse.Warning.HOT_ONLY, EsqlSuggestionsResponse.Warning.SHARDS_SKIPPED))
+            TransportEsqlSuggestionsAction.warningsForSampleResult(result, false),
+            matchesList(List.of(EsqlSuggestionsResponse.Warning.SHARDS_SKIPPED))
         );
     }
 
     public void testWarningsForSampleResultAddsDlsActive() {
-        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), false, true);
+        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), 100L, false, true, false);
         assertThat(
-            TransportEsqlSuggestionsAction.warningsForSampleResult(result),
-            matchesList(List.of(EsqlSuggestionsResponse.Warning.HOT_ONLY, EsqlSuggestionsResponse.Warning.DLS_ACTIVE))
+            TransportEsqlSuggestionsAction.warningsForSampleResult(result, false),
+            matchesList(List.of(EsqlSuggestionsResponse.Warning.DLS_ACTIVE))
         );
     }
 
-    public void testWarningsForSampleResultCombinesShardsSkippedAndDlsActive() {
-        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), true, true);
+    public void testWarningsForSampleResultAddsTimedOut() {
+        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), 100L, false, false, true);
         assertThat(
-            TransportEsqlSuggestionsAction.warningsForSampleResult(result),
+            TransportEsqlSuggestionsAction.warningsForSampleResult(result, false),
+            matchesList(List.of(EsqlSuggestionsResponse.Warning.TIMED_OUT))
+        );
+    }
+
+    public void testWarningsForSampleResultAddsSkippedColdWhenColdIndexSkipped() {
+        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), 100L, false, false, false);
+        assertThat(
+            TransportEsqlSuggestionsAction.warningsForSampleResult(result, true),
+            matchesList(List.of(EsqlSuggestionsResponse.Warning.SKIPPED_COLD))
+        );
+    }
+
+    public void testWarningsForSampleResultCombinesAllFour() {
+        HotTierValueSampler.SampleResult result = new HotTierValueSampler.SampleResult(List.of(), 100L, true, true, true);
+        assertThat(
+            TransportEsqlSuggestionsAction.warningsForSampleResult(result, true),
             matchesList(
                 List.of(
-                    EsqlSuggestionsResponse.Warning.HOT_ONLY,
+                    EsqlSuggestionsResponse.Warning.SKIPPED_COLD,
                     EsqlSuggestionsResponse.Warning.SHARDS_SKIPPED,
-                    EsqlSuggestionsResponse.Warning.DLS_ACTIVE
+                    EsqlSuggestionsResponse.Warning.DLS_ACTIVE,
+                    EsqlSuggestionsResponse.Warning.TIMED_OUT
                 )
             )
         );
     }
 
-    public void testNoHotNodesShortCircuitCarriesOnlyHotOnly() {
-        // The no-fan-out short-circuit: SampleResult.NO_HOT_NODES itself carries neither shards_skipped
-        // nor dls_active signals, so only hot_only attaches.
+    public void testNoHotNodesShortCircuitCarriesNoWarningsWithoutColdSkip() {
+        // The no-fan-out short-circuit: SampleResult.NO_HOT_NODES itself carries no signals of its own;
+        // whether skipped_cold attaches depends entirely on the caller's separate coldSkipped bit.
         assertThat(
-            TransportEsqlSuggestionsAction.warningsForSampleResult(HotTierValueSampler.SampleResult.NO_HOT_NODES),
-            matchesList(List.of(EsqlSuggestionsResponse.Warning.HOT_ONLY))
+            TransportEsqlSuggestionsAction.warningsForSampleResult(HotTierValueSampler.SampleResult.NO_HOT_NODES, false),
+            matchesList()
         );
     }
 }

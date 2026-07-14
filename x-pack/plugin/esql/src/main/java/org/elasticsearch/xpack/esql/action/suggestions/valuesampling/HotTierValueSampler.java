@@ -64,6 +64,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Direct, node-grouped {@code TermsEnum} value sampling for the {@code STRING_LITERAL_EQUALITY}
@@ -77,11 +78,24 @@ import java.util.concurrent.atomic.AtomicInteger;
  * not the {@code size} most-frequent terms cluster-wide — true frequency ranking would require scanning
  * the entire term dictionary per shard, defeating the point of using a raw {@code TermsEnum} instead of
  * an aggregation. A common value that sorts late in a shard whose term count exceeds {@code size} may
- * not surface. This is a real, deliberate trade-off.
+ * not surface. This is a real, deliberate trade-off. The final merged result is presented in plain
+ * alphabetical order (matching {@code _terms_enum}), not re-sorted by count — a count-based re-sort would
+ * look like a real frequency ranking without being one, for the same reason.
  *
- * <p><b>{@code docFreq} denominator:</b> a value's {@code docFreq} is {@code sum(TermsEnum#docFreq())}
- * across the shards that contributed a sample of it, divided by {@code sum(IndexReader#numDocs())}
- * across those same shards — not a search hit count, since no search ever runs on this path.
+ * <p><b>Prefix filtering:</b> when the cursor sits inside a partially-typed string literal (e.g.
+ * {@code status == "o<caret>"}), only the text before the caret is used as a prefix filter, via a
+ * {@link org.apache.lucene.util.automaton.CompiledAutomaton} — {@link
+ * org.elasticsearch.index.mapper.MappedFieldType#getTerms} already builds one internally from the given
+ * prefix (see {@code KeywordFieldMapper#getTerms}), the same technique {@code _terms_enum} uses; this
+ * class only needs to pass the extracted prefix through instead of an empty string. Text after the caret
+ * is ignored.
+ *
+ * <p><b>{@code doc_count}:</b> each returned value carries {@code sum(TermsEnum#docFreq())} across the
+ * shards that contributed a sample of it — a raw count, not normalized into a fraction. The response's
+ * top-level {@code sampled_doc_count} (summed {@code IndexReader#numDocs()} across the same shards) is
+ * the denominator a caller can divide by if it wants a frequency; see {@link
+ * org.elasticsearch.xpack.esql.action.FieldSuggestion.ValueSuggestion}'s javadoc for the full semantics
+ * (sampled-shards-only, excludes deleted docs, not prefix-scoped).
  *
  * <p><b>Security:</b> reading a raw {@code TermsEnum} bypasses normal per-document query-time security
  * filtering entirely (there is no query for a search-authorization interceptor to attach a filter to),
@@ -132,9 +146,22 @@ public class HotTierValueSampler {
         );
     }
 
-    /** The outcome of sampling values across the hot tier for one field. */
-    public record SampleResult(List<FieldSuggestion.ValueSuggestion> values, boolean shardsSkipped, boolean dlsActive) {
-        public static final SampleResult NO_HOT_NODES = new SampleResult(List.of(), false, false);
+    /**
+     * The outcome of sampling values across the hot tier for one field. {@code sampledDocCount} is the
+     * total live-doc count across every shard actually contributing to {@code values} — the denominator
+     * a caller can divide a value's raw {@code doc_count} by, if it wants a frequency (see {@link
+     * FieldSuggestion.ValueSuggestion}'s javadoc). {@code timedOut} is {@code true} when at least one
+     * contributing node ran out of its timeout budget before finishing (distinct from {@code
+     * shardsSkipped}, which also covers per-shard errors).
+     */
+    public record SampleResult(
+        List<FieldSuggestion.ValueSuggestion> values,
+        long sampledDocCount,
+        boolean shardsSkipped,
+        boolean dlsActive,
+        boolean timedOut
+    ) {
+        public static final SampleResult NO_HOT_NODES = new SampleResult(List.of(), 0L, false, false, false);
     }
 
     /**
@@ -172,24 +199,42 @@ public class HotTierValueSampler {
     }
 
     /**
-     * Nodes carrying a hot-tier copy of any shard of {@code concreteIndices}, grouped by node id.
-     * Empty when no hot-tier node holds a copy of any target shard at all, in which case the caller
-     * skips the fan-out entirely.
+     * The outcome of resolving shard copies to sample from: {@code bundles} groups the chosen node ids to
+     * the shards to read on each; {@code coldSkipped} is {@code true} when at least one shard's only
+     * available copy was cold-tier and {@code skipCold} caused it to be left out.
      */
-    public Map<String, Set<ShardId>> hotTierNodeBundles(ProjectMetadata metadata, Set<String> concreteIndices) {
-        return hotTierNodeBundles(clusterService.state().routingTable(metadata.id()), clusterService.state().nodes(), concreteIndices);
+    public record NodeBundleResult(Map<String, Set<ShardId>> bundles, boolean coldSkipped) {}
+
+    /**
+     * Nodes carrying a copy of any shard of {@code concreteIndices} suitable for sampling, grouped by
+     * node id — preferring a hot-tier copy of each shard; when {@code skipCold} is {@code true} (the
+     * default), a shard with no hot copy is left out entirely rather than falling back to a cold-tier
+     * copy, and {@link NodeBundleResult#coldSkipped()} records that this happened. When {@code
+     * skipCold} is {@code false}, a cold-tier copy is used instead of being left out, and nothing is
+     * flagged. {@link NodeBundleResult#bundles()} is empty when no hot (or, with {@code skipCold=false},
+     * cold) copy exists for any target shard at all, in which case the caller skips the fan-out entirely.
+     */
+    public NodeBundleResult hotTierNodeBundles(ProjectMetadata metadata, Set<String> concreteIndices, boolean skipCold) {
+        return resolveNodeBundles(
+            clusterService.state().routingTable(metadata.id()),
+            clusterService.state().nodes(),
+            concreteIndices,
+            skipCold
+        );
     }
 
     /**
-     * Pure, cluster-state-driven variant of {@link #hotTierNodeBundles(ProjectMetadata, Set)}, extracted
-     * so it can be unit-tested without a live {@link ClusterService}.
+     * Pure, cluster-state-driven variant of {@link #hotTierNodeBundles(ProjectMetadata, Set, boolean)},
+     * extracted so it can be unit-tested without a live {@link ClusterService}.
      */
-    public static Map<String, Set<ShardId>> hotTierNodeBundles(
+    public static NodeBundleResult resolveNodeBundles(
         RoutingTable routingTable,
         DiscoveryNodes nodes,
-        Set<String> concreteIndices
+        Set<String> concreteIndices,
+        boolean skipCold
     ) {
         Map<String, Set<ShardId>> bundles = new HashMap<>();
+        boolean coldSkipped = false;
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = routingTable.index(index);
             if (indexRoutingTable == null) {
@@ -197,24 +242,51 @@ public class HotTierValueSampler {
             }
             for (int shard = 0; shard < indexRoutingTable.size(); shard++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shard);
+                ShardRouting hotCopy = null;
+                ShardRouting coldCopy = null;
                 for (ShardRouting copy : shardRoutingTable.assignedShards()) {
                     if (copy.active() == false) {
                         continue;
                     }
                     DiscoveryNode node = nodes.get(copy.currentNodeId());
-                    if (node != null && DataTier.isHotNode(node)) {
-                        bundles.computeIfAbsent(copy.currentNodeId(), n -> new HashSet<>()).add(copy.shardId());
-                        break; // one copy per shard is enough
+                    if (node == null) {
+                        continue;
+                    }
+                    if (DataTier.isHotNode(node)) {
+                        hotCopy = copy;
+                        break; // one hot copy per shard is enough
+                    }
+                    if (coldCopy == null && DataTier.isColdNode(node)) {
+                        coldCopy = copy;
                     }
                 }
+                if (hotCopy != null) {
+                    bundles.computeIfAbsent(hotCopy.currentNodeId(), n -> new HashSet<>()).add(hotCopy.shardId());
+                } else if (coldCopy != null) {
+                    if (skipCold) {
+                        coldSkipped = true;
+                    } else {
+                        bundles.computeIfAbsent(coldCopy.currentNodeId(), n -> new HashSet<>()).add(coldCopy.shardId());
+                    }
+                }
+                // else: no hot or cold copy at all (e.g. warm/frozen-only, or genuinely unavailable) — left
+                // out silently, same as today's no-hot-nodes short circuit; not a skip_cold concern.
             }
         }
-        return bundles;
+        return new NodeBundleResult(bundles, coldSkipped);
     }
 
-    /** Fan out to the hot-tier node bundles and merge into a capped, ranked set of value suggestions. */
+    /**
+     * Fan out to the hot-tier node bundles and merge into a capped set of value suggestions, in plain
+     * alphabetical order (see the class javadoc's ranking-choice note). {@code prefix} is the text
+     * already typed before the caret inside the string literal (empty when the caret sits before any
+     * typed text, or the literal is empty) — passed straight through to each shard's {@link
+     * org.elasticsearch.index.mapper.MappedFieldType#getTerms}, which builds the prefix automaton
+     * itself.
+     */
     public void sampleValues(
         String field,
+        String prefix,
         Map<String, Set<ShardId>> nodeBundles,
         int size,
         long timeoutMillis,
@@ -226,9 +298,11 @@ public class HotTierValueSampler {
         }
 
         long startMillis = System.currentTimeMillis();
-        Map<Object, long[]> merged = new ConcurrentHashMap<>(); // value -> [numerator, denominator]
+        Map<Object, Long> merged = new ConcurrentHashMap<>(); // value -> summed raw doc count
+        AtomicLong sampledDocCount = new AtomicLong(0);
         AtomicBoolean shardsSkipped = new AtomicBoolean(false);
         AtomicBoolean dlsActive = new AtomicBoolean(false);
+        AtomicBoolean timedOut = new AtomicBoolean(false);
         AtomicInteger remaining = new AtomicInteger(nodeBundles.size());
         var nodes = clusterService.state().nodes();
 
@@ -236,10 +310,17 @@ public class HotTierValueSampler {
             DiscoveryNode node = nodes.get(entry.getKey());
             if (node == null) {
                 shardsSkipped.set(true);
-                finishOne(remaining, merged, shardsSkipped, dlsActive, size, listener);
+                finishOne(remaining, merged, sampledDocCount, shardsSkipped, dlsActive, timedOut, size, listener);
                 continue;
             }
-            NodeSuggestValuesRequest nodeRequest = new NodeSuggestValuesRequest(field, entry.getValue(), size, timeoutMillis, startMillis);
+            NodeSuggestValuesRequest nodeRequest = new NodeSuggestValuesRequest(
+                field,
+                prefix,
+                entry.getValue(),
+                size,
+                timeoutMillis,
+                startMillis
+            );
             transportService.sendRequest(node, NODE_ACTION_NAME, nodeRequest, new TransportResponseHandler<NodeSuggestValuesResponse>() {
                 @Override
                 public NodeSuggestValuesResponse read(StreamInput in) throws IOException {
@@ -251,17 +332,21 @@ public class HotTierValueSampler {
                     if (response.partialOrErrored()) {
                         shardsSkipped.set(true);
                     }
+                    if (response.complete() == false) {
+                        timedOut.set(true);
+                    }
                     if (response.dlsActive()) {
                         dlsActive.set(true);
                     }
                     mergeInto(merged, response);
-                    finishOne(remaining, merged, shardsSkipped, dlsActive, size, listener);
+                    sampledDocCount.addAndGet(response.liveDocs());
+                    finishOne(remaining, merged, sampledDocCount, shardsSkipped, dlsActive, timedOut, size, listener);
                 }
 
                 @Override
                 public void handleException(TransportException exc) {
                     shardsSkipped.set(true);
-                    finishOne(remaining, merged, shardsSkipped, dlsActive, size, listener);
+                    finishOne(remaining, merged, sampledDocCount, shardsSkipped, dlsActive, timedOut, size, listener);
                 }
 
                 @Override
@@ -272,37 +357,30 @@ public class HotTierValueSampler {
         }
     }
 
-    private static void mergeInto(Map<Object, long[]> merged, NodeSuggestValuesResponse response) {
+    private static void mergeInto(Map<Object, Long> merged, NodeSuggestValuesResponse response) {
         for (Map.Entry<Object, Long> entry : response.docFreqByTerm().entrySet()) {
-            long[] slot = merged.computeIfAbsent(entry.getKey(), k -> new long[2]);
-            synchronized (slot) {
-                slot[0] += entry.getValue();
-                slot[1] += response.liveDocs();
-            }
+            merged.merge(entry.getKey(), entry.getValue(), Long::sum);
         }
     }
 
     private static void finishOne(
         AtomicInteger remaining,
-        Map<Object, long[]> merged,
+        Map<Object, Long> merged,
+        AtomicLong sampledDocCount,
         AtomicBoolean shardsSkipped,
         AtomicBoolean dlsActive,
+        AtomicBoolean timedOut,
         int size,
         ActionListener<SampleResult> listener
     ) {
         if (remaining.decrementAndGet() == 0) {
             List<FieldSuggestion.ValueSuggestion> values = merged.entrySet()
                 .stream()
-                .map(
-                    e -> new FieldSuggestion.ValueSuggestion(
-                        e.getKey(),
-                        e.getValue()[1] == 0 ? 0.0 : (double) e.getValue()[0] / e.getValue()[1]
-                    )
-                )
-                .sorted(Comparator.comparingDouble(FieldSuggestion.ValueSuggestion::docFreq).reversed())
+                .sorted(Comparator.comparing(e -> String.valueOf(e.getKey())))
                 .limit(size)
+                .map(e -> new FieldSuggestion.ValueSuggestion(e.getKey(), e.getValue()))
                 .toList();
-            listener.onResponse(new SampleResult(values, shardsSkipped.get(), dlsActive.get()));
+            listener.onResponse(new SampleResult(values, sampledDocCount.get(), shardsSkipped.get(), dlsActive.get(), timedOut.get()));
         }
     }
 
@@ -345,7 +423,7 @@ public class HotTierValueSampler {
                 if (fieldType == null) {
                     continue;
                 }
-                TermsEnum terms = fieldType.getTerms(searcher.getIndexReader(), "", false, null);
+                TermsEnum terms = fieldType.getTerms(searcher.getIndexReader(), request.prefix(), false, null);
                 if (terms == null) {
                     continue;
                 }

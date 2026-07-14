@@ -33,6 +33,7 @@ import java.util.Set;
 public class NodeSuggestValuesRequest extends AbstractTransportRequest implements IndicesRequest {
 
     private final String field;
+    private final String prefix;
     private final Set<ShardId> shardIds;
     private final int size;
     private final long timeoutMillis;
@@ -40,8 +41,16 @@ public class NodeSuggestValuesRequest extends AbstractTransportRequest implement
 
     private long nodeStartedTimeMillis;
 
-    public NodeSuggestValuesRequest(String field, Set<ShardId> shardIds, int size, long timeoutMillis, long coordinatorStartedTimeMillis) {
+    public NodeSuggestValuesRequest(
+        String field,
+        String prefix,
+        Set<ShardId> shardIds,
+        int size,
+        long timeoutMillis,
+        long coordinatorStartedTimeMillis
+    ) {
         this.field = field;
+        this.prefix = prefix;
         this.shardIds = shardIds;
         this.size = size;
         this.timeoutMillis = timeoutMillis;
@@ -51,6 +60,7 @@ public class NodeSuggestValuesRequest extends AbstractTransportRequest implement
     public NodeSuggestValuesRequest(StreamInput in) throws IOException {
         super(in);
         this.field = in.readString();
+        this.prefix = in.readString();
         int numShards = in.readVInt();
         shardIds = Sets.newHashSetWithExpectedSize(numShards);
         for (int i = 0; i < numShards; i++) {
@@ -65,6 +75,7 @@ public class NodeSuggestValuesRequest extends AbstractTransportRequest implement
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(field);
+        out.writeString(prefix);
         out.writeVInt(shardIds.size());
         for (ShardId shardId : shardIds) {
             shardId.writeTo(out);
@@ -76,6 +87,11 @@ public class NodeSuggestValuesRequest extends AbstractTransportRequest implement
 
     public String field() {
         return field;
+    }
+
+    /** The text already typed before the caret inside the string literal; empty for no prefix filter. */
+    public String prefix() {
+        return prefix;
     }
 
     public Set<ShardId> shardIds() {

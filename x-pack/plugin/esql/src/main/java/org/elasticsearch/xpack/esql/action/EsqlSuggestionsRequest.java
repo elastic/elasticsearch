@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -50,6 +51,11 @@ public class EsqlSuggestionsRequest extends ActionRequest implements CompositeIn
     private CursorOffset cursor = CursorOffset.utf16(0);
     private int size = DEFAULT_SIZE;
     private boolean includeSampleValues = false;
+    // No timeout by default: parse + analyze + sampling simply run to completion, matching _terms_enum's
+    // own default. Charged against by TransportEsqlSuggestionsAction starting at parse.
+    private TimeValue timeout = TimeValue.MAX_VALUE;
+    // Cold-tier indices are skipped by default; set false to include them in hot-tier value sampling.
+    private boolean skipCold = true;
 
     // Lazily computed and cached from `query`/`cursor`; not serialized.
     private transient Integer resolvedCursor;
@@ -62,6 +68,8 @@ public class EsqlSuggestionsRequest extends ActionRequest implements CompositeIn
         this.cursor = CursorOffset.readFrom(in);
         this.size = in.readVInt();
         this.includeSampleValues = in.readBoolean();
+        this.timeout = in.readTimeValue();
+        this.skipCold = in.readBoolean();
     }
 
     @Override
@@ -71,6 +79,8 @@ public class EsqlSuggestionsRequest extends ActionRequest implements CompositeIn
         cursor.writeTo(out);
         out.writeVInt(size);
         out.writeBoolean(includeSampleValues);
+        out.writeTimeValue(timeout);
+        out.writeBoolean(skipCold);
     }
 
     @Override
@@ -137,6 +147,30 @@ public class EsqlSuggestionsRequest extends ActionRequest implements CompositeIn
 
     public EsqlSuggestionsRequest includeSampleValues(boolean includeSampleValues) {
         this.includeSampleValues = includeSampleValues;
+        return this;
+    }
+
+    /** The timeout budget for parse + analyze + hot-tier sampling combined; {@link TimeValue#MAX_VALUE} (no timeout) by default. */
+    public TimeValue timeout() {
+        return timeout;
+    }
+
+    public EsqlSuggestionsRequest timeout(TimeValue timeout) {
+        this.timeout = timeout;
+        return this;
+    }
+
+    /**
+     * {@code true} (default): cold-tier indices in the resolved set are skipped for hot-tier value
+     * sampling, and {@code skipped_cold} is attached if any actually were. {@code false}: cold-tier
+     * indices are included in sampling instead (no warning).
+     */
+    public boolean skipCold() {
+        return skipCold;
+    }
+
+    public EsqlSuggestionsRequest skipCold(boolean skipCold) {
+        this.skipCold = skipCold;
         return this;
     }
 

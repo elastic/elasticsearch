@@ -98,6 +98,11 @@ public final class CursorLocation {
         return Character.offsetByCodePoints(query, lineStart[line], columnZeroBased);
     }
 
+    /** The original query string this instance was built from. */
+    public String query() {
+        return query;
+    }
+
     /**
      * The absolute {@code [start, end)} range that a node's {@link Source} occupies in the query.
      * The start comes from the source's {@link Location}; the length from the captured source text.

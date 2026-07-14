@@ -19,8 +19,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -178,6 +176,9 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
     }
 
     private void doExecuteOnSearchPool(EsqlSuggestionsRequest request, ActionListener<EsqlSuggestionsResponse> listener) {
+        // Covers parse + analyze + any hot-tier sampling: charged against request.timeout() and reported
+        // back as the response's `took`.
+        long startMillis = System.currentTimeMillis();
         LogicalPlan parsed;
         try {
             parsed = parser.parseQuery(request.query());
@@ -189,7 +190,7 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
         if (hasRemoteTarget(parsed)) {
             // Cross-cluster resolution is out of scope entirely (see class javadoc): fall back to the
             // coordinator-only, parse-only behavior rather than partially resolving local targets.
-            ActionListener.completeWith(listener, () -> suggest(parser, request));
+            ActionListener.completeWith(listener, () -> suggest(parser, request).withTook(System.currentTimeMillis() - startMillis));
             return;
         }
 
@@ -218,9 +219,20 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
             services,
             threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
             () -> false,
-            listener.delegateFailureAndWrap(
-                (l, optimizedPlan) -> completeWithValueSampling(request, optimizedPlan, suggestFromAnalyzedPlan(request, optimizedPlan), l)
-            )
+            listener.delegateFailureAndWrap((l, optimizedPlan) -> {
+                EsqlSuggestionsResponse base = suggestFromAnalyzedPlan(request, optimizedPlan);
+                long elapsed = System.currentTimeMillis() - startMillis;
+                long remainingMillis = request.timeout().millis() - elapsed;
+                if (remainingMillis <= 0) {
+                    // Parse + analyze alone already exhausted the timeout budget: skip sampling entirely
+                    // rather than attempt a fan-out with no time left for it.
+                    List<EsqlSuggestionsResponse.Warning> warnings = new ArrayList<>(base.warnings());
+                    warnings.add(EsqlSuggestionsResponse.Warning.TIMED_OUT);
+                    l.onResponse(new EsqlSuggestionsResponse(base.fields(), warnings, elapsed, null));
+                    return;
+                }
+                completeWithValueSampling(request, optimizedPlan, base, startMillis, remainingMillis, l);
+            })
         );
     }
 
@@ -236,31 +248,37 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
         EsqlSuggestionsRequest request,
         LogicalPlan optimizedPlan,
         EsqlSuggestionsResponse base,
+        long startMillis,
+        long remainingMillis,
         ActionListener<EsqlSuggestionsResponse> listener
     ) {
+        ActionListener<EsqlSuggestionsResponse> tookListener = listener.map(
+            response -> response.withTook(System.currentTimeMillis() - startMillis)
+        );
         if (request.includeSampleValues() == false) {
-            listener.onResponse(base);
+            tookListener.onResponse(base);
             return;
         }
         CursorLocation locations = new CursorLocation(request.query());
         SuggestionContext context = SuggestionContext.detect(optimizedPlan, locations, request.resolvedCursor());
         if (context.kind() != SuggestionContext.Kind.STRING_LITERAL_EQUALITY || context.targetField() == null) {
-            listener.onResponse(base);
+            tookListener.onResponse(base);
             return;
         }
         String field = context.targetField();
+        String prefix = context.prefix() == null ? "" : context.prefix();
         DataType fieldType = resolveFieldType(context.schemaSource(), field);
         // DataType.KEYWORD collapses keyword/constant_keyword/wildcard; only the plain keyword mapping is
         // supported here (see the concrete-mapping-type gate below) — everything else is unchanged.
         if (fieldType != DataType.KEYWORD) {
-            listener.onResponse(base);
+            tookListener.onResponse(base);
             return;
         }
 
         Set<String> concreteIndices = new LinkedHashSet<>();
         optimizedPlan.forEachDown(EsRelation.class, relation -> concreteIndices.addAll(relation.concreteQualifiedIndices()));
         if (concreteIndices.isEmpty()) {
-            listener.onResponse(base);
+            tookListener.onResponse(base);
             return;
         }
 
@@ -274,52 +292,68 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
             // yet supported here — skip rather than guess at a workaround (see the suggestions API spec).
         }
         if (plainKeywordIndices.isEmpty()) {
-            listener.onResponse(base);
+            tookListener.onResponse(base);
             return;
         }
 
-        Map<String, Set<ShardId>> hotNodeBundles = valueSampler.hotTierNodeBundles(metadata, Set.copyOf(plainKeywordIndices));
-        if (hotNodeBundles.isEmpty()) {
-            // No hot-tier nodes at all for this index: skip the fan-out entirely, but the result only
-            // ever reflects hot-tier data by construction, so hot_only still applies.
-            listener.onResponse(withWarnings(base, List.of(EsqlSuggestionsResponse.Warning.HOT_ONLY)));
+        HotTierValueSampler.NodeBundleResult nodeBundleResult = valueSampler.hotTierNodeBundles(
+            metadata,
+            Set.copyOf(plainKeywordIndices),
+            request.skipCold()
+        );
+        if (nodeBundleResult.bundles().isEmpty()) {
+            // Nothing to sample: either no cold-skip happened (nothing hot or cold at all for this index),
+            // in which case there's no warning to attach, or every candidate shard was a cold index skipped
+            // by skip_cold, in which case skipped_cold reports that explicitly.
+            List<EsqlSuggestionsResponse.Warning> warnings = nodeBundleResult.coldSkipped()
+                ? List.of(EsqlSuggestionsResponse.Warning.SKIPPED_COLD)
+                : List.of();
+            tookListener.onResponse(withWarnings(base, warnings));
             return;
         }
 
         valueSampler.sampleValues(
             field,
-            hotNodeBundles,
+            prefix,
+            nodeBundleResult.bundles(),
             request.size(),
-            TimeValue.timeValueSeconds(5).millis(),
-            listener.delegateFailureAndWrap((l, result) -> {
+            remainingMillis,
+            tookListener.delegateFailureAndWrap((l, result) -> {
                 Map<String, FieldSuggestion> fields = new LinkedHashMap<>(base.fields());
                 // An empty sample (e.g. the DLS gate refusing every contributing shard) is reported the
                 // same way as "statistics not populated": no `values` key at all, not an empty list.
                 List<FieldSuggestion.ValueSuggestion> values = result.values().isEmpty() ? null : result.values();
                 fields.put(field, new FieldSuggestion(SuggestionBuilder.wireType(fieldType), values, null));
-                l.onResponse(new EsqlSuggestionsResponse(fields, warningsForSampleResult(result)));
+                List<EsqlSuggestionsResponse.Warning> warnings = warningsForSampleResult(result, nodeBundleResult.coldSkipped());
+                l.onResponse(new EsqlSuggestionsResponse(fields, warnings, 0L, result.sampledDocCount()));
             })
         );
     }
 
     private static EsqlSuggestionsResponse withWarnings(EsqlSuggestionsResponse base, List<EsqlSuggestionsResponse.Warning> warnings) {
-        return new EsqlSuggestionsResponse(base.fields(), warnings);
+        return new EsqlSuggestionsResponse(base.fields(), warnings, base.tookMillis(), base.sampledDocCount());
     }
 
     /**
-     * The warnings that attach to a hot-tier value-sampling result: {@code hot_only} always, since this
-     * path only ever reflects hot-tier data; {@code shards_skipped} when any contributing node returned a
-     * partial result or an error; {@code dls_active} when the requesting user's DLS role query is not
-     * effectively {@code match_all} for the resolved index.
+     * The warnings that attach to a hot-tier value-sampling result: {@code skipped_cold} when a cold index
+     * was present and skipped (per {@code skip_cold}, default {@code true}); {@code shards_skipped} when
+     * any contributing node returned a partial result or an error; {@code dls_active} when the requesting
+     * user's DLS role query is not effectively {@code match_all} for the resolved index; {@code timed_out}
+     * when the timeout budget ran out before sampling finished.
      */
-    static List<EsqlSuggestionsResponse.Warning> warningsForSampleResult(HotTierValueSampler.SampleResult result) {
+    static List<EsqlSuggestionsResponse.Warning> warningsForSampleResult(HotTierValueSampler.SampleResult result, boolean coldSkipped) {
         List<EsqlSuggestionsResponse.Warning> warnings = new ArrayList<>();
-        warnings.add(EsqlSuggestionsResponse.Warning.HOT_ONLY);
+        if (coldSkipped) {
+            warnings.add(EsqlSuggestionsResponse.Warning.SKIPPED_COLD);
+        }
         if (result.shardsSkipped()) {
             warnings.add(EsqlSuggestionsResponse.Warning.SHARDS_SKIPPED);
         }
         if (result.dlsActive()) {
             warnings.add(EsqlSuggestionsResponse.Warning.DLS_ACTIVE);
+        }
+        if (result.timedOut()) {
+            warnings.add(EsqlSuggestionsResponse.Warning.TIMED_OUT);
         }
         return warnings;
     }

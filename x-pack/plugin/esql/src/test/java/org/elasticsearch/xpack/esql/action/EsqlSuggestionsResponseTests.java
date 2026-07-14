@@ -22,23 +22,25 @@ public class EsqlSuggestionsResponseTests extends ESTestCase {
 
     public void testToXContentShape() {
         Map<String, FieldSuggestion> fields = new LinkedHashMap<>();
-        fields.put("agent.keyword", new FieldSuggestion("keyword", List.of(new ValueSuggestion("ask", 0.65)), null));
+        fields.put("agent.keyword", new FieldSuggestion("keyword", List.of(new ValueSuggestion("ask", 650)), null));
         fields.put("@timestamp", new FieldSuggestion("date", null, new RangeSuggestion("2024-01-01T00:00:00Z", "2024-12-31T23:59:59Z")));
         fields.put("response_time", new FieldSuggestion("long", null, new RangeSuggestion(0, 50000)));
         fields.put("body", FieldSuggestion.ofType("text"));
 
-        EsqlSuggestionsResponse response = new EsqlSuggestionsResponse(fields, List.of());
+        EsqlSuggestionsResponse response = new EsqlSuggestionsResponse(fields, List.of(), 5L, 1000L);
 
         String json = toJson(response);
         assertEquals("""
             {
+              "took" : 5,
+              "sampled_doc_count" : 1000,
               "fields" : {
                 "agent.keyword" : {
                   "type" : "keyword",
                   "values" : [
                     {
                       "value" : "ask",
-                      "doc_freq" : 0.65
+                      "doc_count" : 650
                     }
                   ]
                 },
@@ -64,16 +66,24 @@ public class EsqlSuggestionsResponseTests extends ESTestCase {
             }""", json);
     }
 
+    public void testToXContentOmitsSampledDocCountWhenAbsent() {
+        EsqlSuggestionsResponse response = new EsqlSuggestionsResponse(Map.of("body", FieldSuggestion.ofType("text")), List.of());
+        String json = toJson(response);
+        assertFalse(json, json.contains("sampled_doc_count"));
+        assertTrue(json, json.contains("\"took\" : 0"));
+    }
+
     public void testWarningsWireNames() {
         EsqlSuggestionsResponse response = new EsqlSuggestionsResponse(
             Map.of("body", FieldSuggestion.ofType("text")),
-            List.of(Warning.DLS_ACTIVE, Warning.HOT_ONLY, Warning.SHARDS_SKIPPED, Warning.FALSE_POSITIVES_POSSIBLE)
+            List.of(Warning.DLS_ACTIVE, Warning.SKIPPED_COLD, Warning.SHARDS_SKIPPED, Warning.FALSE_POSITIVES_POSSIBLE, Warning.TIMED_OUT)
         );
         String json = toJson(response);
         assertTrue(json, json.contains("\"dls_active\""));
-        assertTrue(json, json.contains("\"hot_only\""));
+        assertTrue(json, json.contains("\"skipped_cold\""));
         assertTrue(json, json.contains("\"shards_skipped\""));
         assertTrue(json, json.contains("\"false_positives_possible\""));
+        assertTrue(json, json.contains("\"timed_out\""));
     }
 
     private static String toJson(EsqlSuggestionsResponse response) {

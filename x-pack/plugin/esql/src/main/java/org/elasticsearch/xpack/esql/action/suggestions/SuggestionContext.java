@@ -32,8 +32,18 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
  * ({@link #schemaSource}, computed once at construction time) and read defensively in exactly one other
  * ({@code TransportEsqlSuggestionsAction}'s {@code context.kind() != STRING_LITERAL_EQUALITY ||
  * context.targetField() == null} guard). There is no wider proliferation of null-checks for this case.
+ *
+ * <p>{@link #prefix} is only meaningful for {@code STRING_LITERAL_EQUALITY}: the text already typed
+ * between the literal's opening quote and the caret (empty when the caret sits before any typed text,
+ * or the literal is empty). Text after the caret is not part of it.
  */
-public record SuggestionContext(Kind kind, @Nullable LogicalPlan command, @Nullable String targetField, LogicalPlan schemaSource) {
+public record SuggestionContext(
+    Kind kind,
+    @Nullable LogicalPlan command,
+    @Nullable String targetField,
+    @Nullable String prefix,
+    LogicalPlan schemaSource
+) {
 
     public enum Kind {
         /** Caret inside a string literal on the right of an equality comparison — value completion for one field. */
@@ -55,7 +65,7 @@ public record SuggestionContext(Kind kind, @Nullable LogicalPlan command, @Nulla
     public static SuggestionContext detect(LogicalPlan plan, CursorLocation locations, int cursor) {
         LogicalPlan containing = findContainingCommand(plan, locations, cursor);
         if (containing == null) {
-            return new SuggestionContext(Kind.PIPE_POSITION, null, null, plan);
+            return new SuggestionContext(Kind.PIPE_POSITION, null, null, null, plan);
         }
         if (containing instanceof Filter filter) {
             SuggestionContext literalContext = detectLiteral(filter, locations, cursor);
@@ -63,7 +73,7 @@ public record SuggestionContext(Kind kind, @Nullable LogicalPlan command, @Nulla
                 return literalContext;
             }
         }
-        return new SuggestionContext(Kind.FIELD_NAME, containing, null, schemaSourceOf(containing));
+        return new SuggestionContext(Kind.FIELD_NAME, containing, null, null, schemaSourceOf(containing));
     }
 
     /**
@@ -126,12 +136,31 @@ public record SuggestionContext(Kind kind, @Nullable LogicalPlan command, @Nulla
         String field = comparedFieldName(condition, hit[0]);
         DataType type = hit[0].dataType();
         if (DataType.isString(type)) {
-            return new SuggestionContext(Kind.STRING_LITERAL_EQUALITY, filter, field, schemaSourceOf(filter));
+            String prefix = stringLiteralPrefix(locations, hit[0], cursor);
+            return new SuggestionContext(Kind.STRING_LITERAL_EQUALITY, filter, field, prefix, schemaSourceOf(filter));
         }
         if (type.isNumeric()) {
-            return new SuggestionContext(Kind.NUMERIC_LITERAL_RANGE, filter, field, schemaSourceOf(filter));
+            return new SuggestionContext(Kind.NUMERIC_LITERAL_RANGE, filter, field, null, schemaSourceOf(filter));
         }
-        return new SuggestionContext(Kind.STRING_LITERAL_EQUALITY, filter, field, schemaSourceOf(filter));
+        String prefix = stringLiteralPrefix(locations, hit[0], cursor);
+        return new SuggestionContext(Kind.STRING_LITERAL_EQUALITY, filter, field, prefix, schemaSourceOf(filter));
+    }
+
+    /**
+     * The text already typed between a string literal's opening quote and the caret. Handles both plain
+     * ({@code "..."}) and triple-quoted ({@code """..."""}) literals by counting the leading quote
+     * characters in the literal's own captured source text; clamps to the literal's content range so a
+     * caret past the closing quote (shouldn't happen, since containment was already checked) can't run
+     * off the end.
+     */
+    private static String stringLiteralPrefix(CursorLocation locations, Literal literal, int cursor) {
+        OffsetRange range = locations.range(literal.source());
+        String text = literal.source().text();
+        int quoteLength = text.startsWith("\"\"\"") ? 3 : 1;
+        int contentStart = range.start() + quoteLength;
+        int contentEnd = Math.max(contentStart, range.end() - quoteLength);
+        int cursorInContent = Math.max(contentStart, Math.min(cursor, contentEnd));
+        return locations.query().substring(contentStart, cursorInContent);
     }
 
     /**

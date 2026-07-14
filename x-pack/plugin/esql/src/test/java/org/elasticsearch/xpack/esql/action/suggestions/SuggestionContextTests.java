@@ -41,6 +41,20 @@ public class SuggestionContextTests extends ESTestCase {
         SuggestionContext context = detect(CursorMarker.of("FROM test | WHERE first_name == \"A<*>le\""));
         assertEquals(Kind.STRING_LITERAL_EQUALITY, context.kind());
         assertEquals("first_name", context.targetField());
+        assertEquals("A", context.prefix());
+    }
+
+    public void testPrefixIsEmptyWhenCursorBeforeTypedText() {
+        // Cursor sits before any typed text inside the literal: no prefix filter.
+        SuggestionContext context = detect(CursorMarker.of("FROM test | WHERE first_name == \"<*>Ale\""));
+        assertEquals(Kind.STRING_LITERAL_EQUALITY, context.kind());
+        assertEquals("", context.prefix());
+    }
+
+    public void testPrefixIsEmptyForEmptyLiteral() {
+        SuggestionContext context = detect(CursorMarker.of("FROM test | WHERE first_name == \"<*>\""));
+        assertEquals(Kind.STRING_LITERAL_EQUALITY, context.kind());
+        assertEquals("", context.prefix());
     }
 
     public void testCursorOnNumericLiteralRange() {

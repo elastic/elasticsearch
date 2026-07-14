@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -34,6 +35,8 @@ public class RestEsqlSuggestionsAction extends BaseRestHandler {
     private static final ParseField CURSOR = new ParseField("cursor");
     private static final ParseField SIZE = new ParseField("size");
     private static final ParseField INCLUDE_SAMPLE_VALUES = new ParseField("include_sample_values");
+    private static final ParseField TIMEOUT = new ParseField("timeout");
+    private static final ParseField SKIP_COLD = new ParseField("skip_cold");
 
     private static final ObjectParser<EsqlSuggestionsRequest, Void> PARSER = objectParser();
 
@@ -43,6 +46,8 @@ public class RestEsqlSuggestionsAction extends BaseRestHandler {
         parser.declareObject(EsqlSuggestionsRequest::cursor, (p, c) -> CursorOffset.fromXContent(p), CURSOR);
         parser.declareInt(EsqlSuggestionsRequest::size, SIZE);
         parser.declareBoolean(EsqlSuggestionsRequest::includeSampleValues, INCLUDE_SAMPLE_VALUES);
+        parser.declareString((req, value) -> req.timeout(TimeValue.parseTimeValue(value, TIMEOUT.getPreferredName())), TIMEOUT);
+        parser.declareBoolean(EsqlSuggestionsRequest::skipCold, SKIP_COLD);
         return parser;
     }
 

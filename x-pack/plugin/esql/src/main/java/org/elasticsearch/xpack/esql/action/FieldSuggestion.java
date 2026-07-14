@@ -27,13 +27,31 @@ public record FieldSuggestion(String type, @Nullable List<ValueSuggestion> value
         return new FieldSuggestion(type, null, null);
     }
 
-    /** A single sampled value for a field, with its document frequency in {@code [0, 1]}. */
-    public record ValueSuggestion(Object value, double docFreq) implements ToXContentObject {
+    /**
+     * A single sampled value for a field, with its raw {@code doc_count} — not a normalized fraction;
+     * divide by the response's {@code sampled_doc_count} for a frequency if one is wanted.
+     *
+     * <p>Three things to be explicit about when reading {@code doc_count}:
+     * <ul>
+     *     <li><b>Sampled shards only.</b> It's the document count across the shards that were actually
+     *     visited (hot-tier by default; see {@code skip_cold}), not a global cluster-wide count; the
+     *     {@code skipped_cold}/{@code shards_skipped} response warnings qualify this further.</li>
+     *     <li><b>Excludes deleted docs.</b> Lucene's {@code TermsEnum#docFreq()} does not count documents
+     *     that have been deleted but not yet merged away, so the response's {@code sampled_doc_count}
+     *     (live docs) excludes them too — this is expected, not a bug.</li>
+     *     <li><b>Overall field frequency, not prefix-scoped.</b> {@code doc_count} is the count across
+     *     <i>all</i> sampled documents that contain this term, regardless of any prefix the user typed
+     *     inside the string literal — it is not "count among documents matching the prefix." A
+     *     prefix-scoped count would need a real query against the postings lists (expensive); this path
+     *     only narrows which <i>terms</i> are returned (via the prefix automaton), not their counts.</li>
+     * </ul>
+     */
+    public record ValueSuggestion(Object value, long docCount) implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("value", value);
-            builder.field("doc_freq", docFreq);
+            builder.field("doc_count", docCount);
             builder.endObject();
             return builder;
         }

@@ -119,7 +119,45 @@ hot tier keyword equality samples values:
 
   - exists: fields
   - exists: fields.k.values
-  - match: { warnings: ["hot_only"] }
+  - exists: took
+  - gt: { sampled_doc_count: 0 }
+  # single-node clusters run with the generic `data` role, which counts as hot (see DataTier#isHotNode),
+  # so no cold index is ever present to skip here.
+  - match: { warnings: [ ] }
+
+---
+hot tier keyword equality respects the typed prefix:
+  - do:
+      indices.create:
+        index: test_keyword_values_prefix
+        body:
+          mappings:
+            properties:
+              k:
+                type: keyword
+  - do:
+      bulk:
+        index: "test_keyword_values_prefix"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "k": "alpha" }
+          - { "index": { } }
+          - { "k": "beta" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.suggestions:
+        body:
+          # cursor sits right after "al", inside the string literal: only "alpha" (not "beta") should match.
+          query: "FROM test_keyword_values_prefix | WHERE k == \"al\""
+          cursor: { utf16: 48 }
+          include_sample_values: true
+
+  - exists: fields.k.values
+  - match: { fields.k.values.0.value: "alpha" }
+  - length: { fields.k.values: 1 }
 
 ---
 cursor accepts a utf8 byte offset on non-ascii content:

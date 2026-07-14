@@ -26,7 +26,7 @@
     },
     "params": {},
     "body": {
-      "description": "Use `query` for the (valid) ES|QL query, `size` to bound the number of sampled values, and `include_sample_values` to opt into the data-node value/range sampling. `cursor` is a nested, tagged object naming the caret's offset unit and value; it must contain exactly one of `utf8` (byte offset into the query's UTF-8 encoding), `utf16` (code-unit offset, i.e. a plain JavaScript/Java string index), or `codepoint` (Unicode code-point offset, i.e. a plain Python string index), e.g. `{\"utf16\": 12}`.",
+      "description": "Use `query` for the (valid) ES|QL query, `size` to bound the number of sampled values, `include_sample_values` to opt into the data-node value/range sampling, `skip_cold` (default true) to exclude cold-tier indices from that sampling, and `timeout` (e.g. `\"5s\"`) to bound parse+analyze+sampling time. `cursor` is a nested, tagged object naming the caret's offset unit and value; it must contain exactly one of `utf8` (byte offset into the query's UTF-8 encoding), `utf16` (code-unit offset, i.e. a plain JavaScript/Java string index), or `codepoint` (Unicode code-point offset, i.e. a plain Python string index), e.g. `{\"utf16\": 12}`.",
       "required": true
     }
   }

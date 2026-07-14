@@ -152,7 +152,7 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
             ClusterService clusterService,
             IndicesService indicesService
         ) {
-            return new CapturingCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
+            return new CapturingCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics, indicesService);
         }
     }
 
@@ -160,8 +160,14 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
 
         private final TimestampCapturingEvictionPolicy capturingPolicy;
 
-        CapturingCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, BlobCacheMetrics blobCacheMetrics) {
-            this(environment, settings, threadPool, blobCacheMetrics, new TimestampCapturingEvictionPolicy());
+        CapturingCacheService(
+            NodeEnvironment environment,
+            Settings settings,
+            ThreadPool threadPool,
+            BlobCacheMetrics blobCacheMetrics,
+            IndicesService indicesService
+        ) {
+            this(environment, settings, threadPool, blobCacheMetrics, indicesService, new TimestampCapturingEvictionPolicy());
         }
 
         private CapturingCacheService(
@@ -169,6 +175,7 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
             Settings settings,
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
+            IndicesService indicesService,
             TimestampCapturingEvictionPolicy capturingPolicy
         ) {
             super(
@@ -177,6 +184,7 @@ public class SearchCommitPrefetcherCacheTimestampIT extends AbstractStatelessPlu
                 threadPool,
                 blobCacheMetrics,
                 capturingPolicy,
+                indicesService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
             this.capturingPolicy = capturingPolicy;

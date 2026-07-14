@@ -69,6 +69,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     private final AtomicReference<Thread> updatingCommitThread = Assertions.ENABLED ? new AtomicReference<>() : null;// only used in asserts
     protected volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
     protected volatile long currentDataSetSizeInBytes = 0L;
+    private volatile Boolean indexHasTimestampField;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
 
     BlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
@@ -150,7 +151,12 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     }
 
     public MetadataReadTimestampBackfill newMetadataReadTimestampBackfill(String blobName, long primaryTerm) {
-        return new MetadataReadTimestampBackfill(cacheService, new FileCacheKey(shardId, primaryTerm, blobName));
+        Boolean cached = indexHasTimestampField;
+        if (cached == null) {
+            cached = cacheService.indexHasTimestampField(shardId);
+            indexHasTimestampField = cached;
+        }
+        return new MetadataReadTimestampBackfill(cacheService, new FileCacheKey(shardId, primaryTerm, blobName), cached);
     }
 
     StatelessSharedBlobCacheService getCacheService() {

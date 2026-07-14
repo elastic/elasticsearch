@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.blobcache.BlobCacheUtils;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 
 /**
  * Helper class to accumulate the information needed to backfill the cache-region timestamps after a BCC/CC metadata read of a single blob.
@@ -23,16 +24,22 @@ public final class MetadataReadTimestampBackfill {
 
     private final StatelessSharedBlobCacheService cacheService;
     private final FileCacheKey cacheKey;
+    private final boolean indexHasTimestampField;
 
-    private long mostRecentTimestamp = SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+    private long mostRecentTimestamp = UNKNOWN_TIMESTAMP;
 
     private long lastCommitOffset = -1L;
     private long lastCommitHeaderSize;
     private long lastCommitSizeInBytes;
 
-    public MetadataReadTimestampBackfill(StatelessSharedBlobCacheService cacheService, FileCacheKey cacheKey) {
+    public MetadataReadTimestampBackfill(
+        StatelessSharedBlobCacheService cacheService,
+        FileCacheKey cacheKey,
+        boolean indexHasTimestampField
+    ) {
         this.cacheService = cacheService;
         this.cacheKey = cacheKey;
+        this.indexHasTimestampField = indexHasTimestampField;
     }
 
     public void mergeCc(BatchedCompoundCommit bcc) {
@@ -59,8 +66,14 @@ public final class MetadataReadTimestampBackfill {
         if (lastCommitOffset < 0L) {
             return;
         }
-        // TODO: resolve to NO_TIMESTAMP constant.
-        final long resolved = mostRecentTimestamp != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? mostRecentTimestamp : 1L;
+        final long resolved;
+        if (mostRecentTimestamp != UNKNOWN_TIMESTAMP) {
+            resolved = mostRecentTimestamp;
+        } else if (indexHasTimestampField) {
+            resolved = 1L;
+        } else {
+            return;
+        }
         int lastRegion = cacheService.getEndingRegion(lastCommitOffset + lastCommitHeaderSize);
         if (Assertions.ENABLED) {
             /// to cover for assertion-only reads in [BatchedCompoundCommit#assertPaddingComposedOfZeros]

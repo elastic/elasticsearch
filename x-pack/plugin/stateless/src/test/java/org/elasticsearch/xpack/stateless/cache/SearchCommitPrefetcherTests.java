@@ -23,6 +23,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.FileTimestampResolver;
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
 
 public class SearchCommitPrefetcherTests extends ESTestCase {
     public void testInitialGetPendingRangesToPrefetch() {
@@ -279,6 +281,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                 threadPool,
                 BlobCacheMetrics.NOOP,
                 new DefaultEvictionPolicy<FileCacheKey>(),
+                mock(IndicesService.class),
                 System::nanoTime,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             ) {

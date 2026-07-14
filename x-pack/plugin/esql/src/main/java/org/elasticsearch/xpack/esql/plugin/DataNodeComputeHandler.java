@@ -583,7 +583,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         configuration,
                         configuration.newFoldContext(),
                         null,
-                        () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
+                        () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet),
+                        request.runNodeLevelReduction()
                     );
                     computeService.runCompute(
                         parentTask,
@@ -749,7 +750,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         request.configuration(),
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
                         exchangeSource::createExchangeSource,
-                        () -> externalSink.createExchangeSink(() -> {})
+                        () -> externalSink.createExchangeSink(() -> {}),
+                        false
                     ),
                     reducePlan,
                     plannerSettings,
@@ -898,7 +900,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     configuration,
                     configuration.newFoldContext(),
                     null,
-                    () -> externalSink.createExchangeSink(() -> {})
+                    () -> externalSink.createExchangeSink(() -> {}),
+                    false
                 );
                 computeService.runCompute(
                     task,

@@ -207,12 +207,12 @@ public abstract class AbstractPhysicalOperationProviders {
                 QueryPragmas pragmas = context.queryPragmas();
                 PlannerSettings plannerSettings = context.plannerSettings();
                 int partitionCount = pragmas.partitionedAggPartitionCount(plannerSettings.partitionedAggPartitionCount());
-                // TODO: add transport-version guard before enabling in production
                 if (aggregatorMode == AggregatorMode.INITIAL
                     && groupSpecs.size() == 1
                     && groupSpecs.get(0).channel() != null
                     && groupSpecs.get(0).elementType() == ElementType.LONG
-                    && partitionCount > 1) {
+                    && partitionCount > 1
+                    && context.nodeLevelReductionActive() == false) {
                     List<PartitionedHashAggregationOperator.AggregatorSpec> aggSpecs = new ArrayList<>();
                     aggregatesToFactory(
                         aggregateExec,

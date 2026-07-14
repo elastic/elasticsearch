@@ -630,7 +630,8 @@ public class ComputeService {
             configuration,
             foldContext,
             mainExchangeSource::createExchangeSource,
-            null
+            null,
+            false
         );
 
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
@@ -869,7 +870,8 @@ public class ComputeService {
                 configuration,
                 foldContext,
                 null,
-                exchangeSinkSupplier
+                exchangeSinkSupplier,
+                false
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (
@@ -987,7 +989,8 @@ public class ComputeService {
                             configuration,
                             foldContext,
                             exchangeSource::createExchangeSource,
-                            exchangeSinkSupplier
+                            exchangeSinkSupplier,
+                            false
                         ),
                         coordinatorPlan,
                         plannerSettings.get(),
@@ -1131,7 +1134,8 @@ public class ComputeService {
                     configuration,
                     foldContext,
                     exchangeSource::createExchangeSource,
-                    exchangeSinkSupplier
+                    exchangeSinkSupplier,
+                    false
                 ),
                 coordinatorPlan,
                 plannerSettings.get(),
@@ -1353,7 +1357,14 @@ public class ComputeService {
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            var localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plannerSettings, planToExecute, shardContexts);
+            var localExecutionPlan = planner.plan(
+                context.description(),
+                context.foldCtx(),
+                plannerSettings,
+                planToExecute,
+                shardContexts,
+                context.nodeLevelReductionActive()
+            );
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }

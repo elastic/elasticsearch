@@ -319,6 +319,17 @@ public class LocalExecutionPlanner {
         PhysicalPlan localPhysicalPlan,
         IndexedByShardId<? extends ShardContext> shardContexts
     ) {
+        return plan(description, foldCtx, plannerSettings, localPhysicalPlan, shardContexts, false);
+    }
+
+    public LocalExecutionPlan plan(
+        String description,
+        FoldContext foldCtx,
+        PlannerSettings plannerSettings,
+        PhysicalPlan localPhysicalPlan,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        boolean nodeLevelReductionActive
+    ) {
         final boolean timeSeries = localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec);
         var context = new LocalExecutionPlannerContext(
             description,
@@ -332,7 +343,8 @@ public class LocalExecutionPlanner {
             timeSeries,
             settings,
             shardContexts,
-            physicalOperationProviders.analysisRegistry()
+            physicalOperationProviders.analysisRegistry(),
+            nodeLevelReductionActive
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -2267,7 +2279,8 @@ public class LocalExecutionPlanner {
         boolean timeSeries,
         Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts,
-        @Nullable AnalysisRegistry analysisRegistry
+        @Nullable AnalysisRegistry analysisRegistry,
+        boolean nodeLevelReductionActive
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

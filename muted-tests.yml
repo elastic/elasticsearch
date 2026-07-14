@@ -775,9 +775,6 @@ tests:
 - class: org.elasticsearch.geometry.utils.CircleUtilsTests
   method: testCreateRegularGeoShapePolygon
   issue: https://github.com/elastic/elasticsearch/issues/153600
-- class: org.elasticsearch.search.telemetry.SearchCoordinatorPhaseShardBytesMetricsIT
-  method: testBatchedQueryPhaseShardErrorRecordsBothRequestAndResultBytes
-  issue: https://github.com/elastic/elasticsearch/issues/153109
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.selectAdditionalColumns [ndjson.gz/GCS]}
   issue: https://github.com/elastic/elasticsearch/issues/153612

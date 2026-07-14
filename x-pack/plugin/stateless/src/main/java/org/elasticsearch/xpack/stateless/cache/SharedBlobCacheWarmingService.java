@@ -704,32 +704,34 @@ public class SharedBlobCacheWarmingService {
         @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
         ActionListener<Void> resumeRecoveryListener
     ) {
-        final long startedMillis = threadPool.rawRelativeTimeInMillis();
         SearchRecoveryTimeout plan = endTargetsToWarm != null
             ? searchRecoveryTimeout(clusterState, indexShard)
             : SearchRecoveryTimeout.skip();
         if (plan.awaitWarming()) {
-            warmCache(
+            warmCacheAndTimeIt(
                 Type.SEARCH,
                 indexShard,
                 commit,
                 directory,
                 endTargetsToWarm,
                 false,
-                timeSearchRecoveryWarming(
-                    startedMillis,
-                    searchRecoveryWarmingListener(plan.timeout(), plan.timeoutContext(), indexShard, startedMillis, resumeRecoveryListener)
+                searchRecoveryWarmingListener(
+                    plan.timeout(),
+                    plan.timeoutContext(),
+                    indexShard,
+                    threadPool.rawRelativeTimeInMillis(),
+                    resumeRecoveryListener
                 )
             );
         } else {
-            warmCache(
+            warmCacheAndTimeIt(
                 Type.SEARCH,
                 indexShard,
                 commit,
                 directory,
                 endTargetsToWarm,
                 false,
-                timeSearchRecoveryWarming(startedMillis, ActionListener.noop())
+                ActionListener.noop()
             );
             searchRecoveryWaitDurationMetric.record(
                 0.0,
@@ -737,6 +739,27 @@ public class SharedBlobCacheWarmingService {
             );
             resumeRecoveryListener.onResponse(null);
         }
+    }
+
+    // this indirection is for test purposes (some tests check the listener type that's passed in to warmCache)
+    protected void warmCacheAndTimeIt(
+        Type type,
+        IndexShard indexShard,
+        StatelessCompoundCommit commit,
+        BlobStoreCacheDirectory directory,
+        @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+        boolean preWarmForIdLookup,
+        ActionListener<Void> listener
+    ) {
+        warmCache(
+            type,
+            indexShard,
+            commit,
+            directory,
+            endTargetsToWarm,
+            preWarmForIdLookup,
+            timeSearchRecoveryWarming(threadPool.rawRelativeTimeInMillis(), listener)
+        );
     }
 
     /**

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.SearchRecoveryTimeout;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -92,7 +94,7 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
         }
 
         @Override
-        protected void warmCache(
+        protected void warmCacheAndTimeIt(
             Type type,
             IndexShard indexShard,
             StatelessCompoundCommit commit,

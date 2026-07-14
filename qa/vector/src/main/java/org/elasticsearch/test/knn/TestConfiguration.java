@@ -924,9 +924,7 @@ public record TestConfiguration(
                 throw new IllegalArgumentException("auto_calibrate is only supported when index_type is ivf");
             }
             if (exactQuantized.contains(Boolean.TRUE) && quantizeBits == null && indexType != KnnIndexTester.IndexType.IVF) {
-                throw new IllegalArgumentException(
-                    "exact_quantized requires a quantized index; set quantize_bits or use index_type: ivf"
-                );
+                throw new IllegalArgumentException("exact_quantized requires a quantized index; set quantize_bits or use index_type: ivf");
             }
             if (numDeletedDocs < 0) {
                 throw new IllegalArgumentException("num_deleted_docs must be >= 0, but got: " + numDeletedDocs);

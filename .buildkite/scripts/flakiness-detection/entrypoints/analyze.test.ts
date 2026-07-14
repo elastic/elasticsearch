@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import type { ClassifiedTest } from "../domain.ts";
 
-import { notApplicablePayload } from "./analyze.ts";
+import { buildFailedPayload, notApplicablePayload } from "./analyze.ts";
 
 describe("notApplicablePayload", () => {
   test("maps a skipped BWC javaRestTest to a zeroed not_applicable record", () => {
@@ -42,5 +42,24 @@ describe("notApplicablePayload", () => {
     expect(payload.outcome).toBe("not_applicable");
     expect(payload.jobId).toContain("org.elasticsearch.SomeYamlIT.test {yaml=10_basic/Foo}");
     expect(payload.stepKey).toBe("flakiness-detection:yaml-case");
+  });
+});
+
+describe("buildFailedPayload", () => {
+  test("is a single build_failed record attributed to the precompile gate", () => {
+    expect(buildFailedPayload()).toEqual({
+      jobId: "build-failed:precompile",
+      stepKey: "flakiness-detection:precompile",
+      kind: "",
+      rc: 1,
+      durationSec: 0,
+      realFailures: 0,
+      suiteTimeouts: 0,
+      totalCases: 0,
+      outcome: "build_failed",
+      timedOut: false,
+      failingClasses: [],
+      reason: "compile",
+    });
   });
 });

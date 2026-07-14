@@ -61,7 +61,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     @After
-    public void verifyRecoveryStatsAndMetrics() {
+    public void verifyNoOutstandingRecoveriesInStatsAndMetrics() {
         final var nodes = internalCluster().getNodeNames();
         final Predicate<RecoveryStats> noMoreRecoveriesInStats = RecoveryStats::noCurrentRecoveries;
         awaitRecoveryCountStats(Arrays.stream(nodes).collect(Collectors.toMap(node -> node, ignored -> noMoreRecoveriesInStats)));

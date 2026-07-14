@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
@@ -114,8 +115,6 @@ public class PromqlFunctionRegistry {
         Percentile.PROMQL_DEFINITION,
         PromqlHistogramQuantile.PROMQL_DEFINITION,
         //
-        PromqlBuiltinFunctionDefinitions.TOPK,
-        //
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_SUM,
@@ -170,6 +169,9 @@ public class PromqlFunctionRegistry {
         for (PromqlFunctionDefinition def : FUNCTION_DEFINITIONS) {
             String normalized = normalize(def.name());
             promqlFunctions.put(normalized, def);
+        }
+        if (EsqlCapabilities.Cap.PROMQL_TOPK.isEnabled()) {
+            promqlFunctions.put(normalize(PromqlBuiltinFunctionDefinitions.TOPK.name()), PromqlBuiltinFunctionDefinitions.TOPK);
         }
     }
 

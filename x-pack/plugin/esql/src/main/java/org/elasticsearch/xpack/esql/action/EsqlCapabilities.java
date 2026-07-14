@@ -3398,7 +3398,6 @@ public class EsqlCapabilities {
         EMPTY_LIST_PARAM_AS_NULL,
 
         /**
-<<<<<<< HEAD
          * Invalid BBOX envelopes (e.g. maxY &lt; minY, or maxX &lt; minX for cartesian coordinates) are now
          * consistently handled as a null result with a registered warning, both at fold time and at
          * runtime, instead of either being silently accepted (cartesian x-ordering was never validated) or
@@ -3419,11 +3418,11 @@ public class EsqlCapabilities {
          * See: <a href="https://github.com/elastic/elasticsearch/issues/153389">#153389</a>
          */
         FIX_BUCKET_LARGE_NUMBER_OF_BUCKETS,
-=======
+
+        /**
          * Support for the PromQL {@code topk()} order-statistic aggregation.
          */
         PROMQL_TOPK,
->>>>>>> e0d95ac81f4c (PromQL: Support topk function)
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

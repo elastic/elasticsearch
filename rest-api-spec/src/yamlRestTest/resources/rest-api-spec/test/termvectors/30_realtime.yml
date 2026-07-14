@@ -1,3 +1,22 @@
+---
+setup:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            logger.org.elasticsearch.index.shard.IndexShard: TRACE
+            logger.org.elasticsearch.index.engine.Engine: TRACE
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            logger.org.elasticsearch.index.shard.IndexShard: null
+            logger.org.elasticsearch.index.engine.Engine: null
+
+---
 "Realtime Term Vectors":
 
  - do:

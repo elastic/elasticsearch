@@ -102,6 +102,17 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private static final int MAX_PENDING_DATASET_AGGREGATES = 64;
     private static final int MAX_PENDING_TOTAL_PATHS = 65_536;
+
+    /**
+     * Entry-count cap for the file-metadata cache. Unlike the schema and listing caches (byte-weighted,
+     * variable-size values), a {@link FileMetadata} is two {@code long}s behind a small path key, so the
+     * cache is bounded by count rather than bytes — no per-entry byte weigher. 100k tiny entries is a few
+     * tens of MB worst case, and, being hard-TTL-bounded by the schema TTL, the live set is normally far
+     * smaller. Kept a constant rather than a cluster setting: no workload has needed to tune it, and a
+     * public setting is a permanent support surface — it can be promoted to a setting later if a real need
+     * appears.
+     */
+    private static final int FILE_METADATA_CACHE_MAX_ENTRIES = 100_000;
     private final LinkedHashMap<SchemaCacheKey, PendingDatasetAggregate> pendingDatasetAggregates = new LinkedHashMap<>();
 
     /**
@@ -127,7 +138,6 @@ public class ExternalSourceCacheService implements Closeable {
 
         TimeValue schemaTtl = ExternalSourceCacheSettings.SCHEMA_TTL.get(settings);
         TimeValue listingTtl = ExternalSourceCacheSettings.LISTING_TTL.get(settings);
-        int fileMetadataMaxEntries = ExternalSourceCacheSettings.FILE_METADATA_MAX_ENTRIES.get(settings);
 
         long schemaBudget = maxTotalBytes / 5; // 20%
         long listingBudget = maxTotalBytes - schemaBudget; // 80%
@@ -142,7 +152,7 @@ public class ExternalSourceCacheService implements Closeable {
         // its freshness horizon must match the schema entry it gates. No byte weigher — entries are tiny and
         // fixed-size, so the cache is bounded by a generous entry count instead of the byte budget.
         this.fileMetadataCache = CacheBuilder.<FileMetadataCacheKey, FileMetadata>builder()
-            .setMaximumWeight(fileMetadataMaxEntries)
+            .setMaximumWeight(FILE_METADATA_CACHE_MAX_ENTRIES)
             .setExpireAfterWrite(schemaTtl)
             .build();
 
@@ -158,7 +168,7 @@ public class ExternalSourceCacheService implements Closeable {
             totalBudget,
             ByteSizeValue.ofBytes(schemaBudget),
             ByteSizeValue.ofBytes(listingBudget),
-            fileMetadataMaxEntries,
+            FILE_METADATA_CACHE_MAX_ENTRIES,
             schemaTtl,
             listingTtl
         );

@@ -51,22 +51,6 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Entry-count cap for the file-metadata cache. Unlike the schema and listing caches (byte-weighted,
-     * variable-size values), a {@code FileMetadata} is two {@code long}s behind a small path key, so it is
-     * bounded by count rather than bytes — no per-entry byte weigher. The default of 100k tiny entries is a
-     * few tens of MB worst case, and, being hard-TTL-bounded by the schema TTL, the live set is normally far
-     * smaller. Exposed so operators with a much larger (or smaller) working set of distinct single-file paths
-     * can tune the cap; restart-only, like the other cache dimensions.
-     */
-    public static final Setting<Integer> FILE_METADATA_MAX_ENTRIES = Setting.intSetting(
-        "esql.source.cache.file_metadata.max_entries",
-        100_000,
-        1,
-        10_000_000,
-        Setting.Property.NodeScope
-    );
-
-    /**
      * Canonical stripe size for row-format external-source statistics, in file/decompressed-stream
      * bytes. A stripe is a pure ADDRESSING grid over file content: the reader attributes each record to
      * stripe {@code floor(recordStartOffset / B)} as it parses, and stats are captured, deduplicated,
@@ -121,6 +105,6 @@ public final class ExternalSourceCacheSettings {
     );
 
     public static List<Setting<?>> settings() {
-        return List.of(CACHE_SIZE, CACHE_ENABLED, SCHEMA_TTL, LISTING_TTL, FILE_METADATA_MAX_ENTRIES, STRIPE_SIZE, STRIPE_COLUMNS);
+        return List.of(CACHE_SIZE, CACHE_ENABLED, SCHEMA_TTL, LISTING_TTL, STRIPE_SIZE, STRIPE_COLUMNS);
     }
 }

@@ -322,25 +322,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testFileMetadataMaxEntriesSettingBoundsCapacity() throws Exception {
-        // The count cap comes straight from esql.source.cache.file_metadata.max_entries: with room for two
-        // entries, inserting a third must evict, proving the setting is wired into the cache capacity.
-        Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.file_metadata.max_entries", 2)
-            .build();
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            for (int i = 0; i < 3; i++) {
-                FileMetadataCacheKey key = FileMetadataCacheKey.build("s3://bucket/data/file" + i + ".parquet", Map.of());
-                service.getOrComputeFileMetadata(key, k -> new FileMetadata(1L, 1L));
-            }
-            Map<String, Object> stats = service.usageStats();
-            assertEquals("capacity must stay at the configured cap", 2, stats.get("file_metadata_cache.count"));
-            assertEquals("the over-capacity insert must evict one entry", 1L, stats.get("file_metadata_cache.evictions"));
-        }
-    }
-
     public void testFileMetadataDifferentEndpointSeparateEntries() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();

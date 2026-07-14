@@ -4104,6 +4104,58 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertTrue("fail_fast must not emit coercion warnings", drainWarnings().isEmpty());
     }
 
+    /**
+     * A LIST&lt;int64&gt; declared {@code datetime} with a declared {@code format} honors it per ELEMENT.
+     * {@code ParquetColumnDecoding.readListColumn} is its own routing site — it consults
+     * {@code fusedInDecode(fileElementType, declared, info.dateFormatter() != null)} independently of the scalar
+     * sites — so the element type must defuse off the fused epoch-millis reinterpret onto castBlock exactly as a
+     * scalar column does. Without this the list arm would silently read epoch SECONDS as epoch MILLIS.
+     */
+    public void testListLongDeclaredDatetimeHonorsEpochSecondFormat() throws Exception {
+        long token = 1704067200L; // 2024-01-01T00:00:00Z in seconds
+        Type listType = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT64).named("vals");
+        MessageType schema = new MessageType("test_schema", listType);
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group list = g.addGroup("vals");
+            list.addGroup("list").append("element", token);
+            list.addGroup("list").append("element", token + 1);
+            return List.of(g);
+        });
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "vals", DataType.DATETIME));
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        ParquetFormatReader withFormat = (ParquetFormatReader) declaredReader("vals").withDeclaredDateFormats(
+            Map.of("vals", "epoch_second")
+        );
+        try (
+            CloseableIterator<Page> it = withFormat.readRange(
+                storageObject,
+                new RangeReadContext(List.of("vals"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
+            )
+        ) {
+            Page page = it.next();
+            LongBlock longs = (LongBlock) page.getBlock(0);
+            int first = longs.getFirstValueIndex(0);
+            assertEquals("epoch_second must scale every list ELEMENT", 1704067200000L, longs.getLong(first));
+            assertEquals("epoch_second must scale every list ELEMENT", 1704067201000L, longs.getLong(first + 1));
+            page.releaseBlocks();
+        }
+
+        // no format: the fused epoch-millis reinterpret, unchanged
+        try (
+            CloseableIterator<Page> it = declaredReader("vals").readRange(
+                createStorageObject(parquetData),
+                new RangeReadContext(List.of("vals"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
+            )
+        ) {
+            Page page = it.next();
+            LongBlock longs = (LongBlock) page.getBlock(0);
+            assertEquals("no format stays the fused reinterpret", token, longs.getLong(longs.getFirstValueIndex(0)));
+            page.releaseBlocks();
+        }
+    }
+
     public void testListStringDeclaredDatetimeBadTokenNullsWholePosition() throws Exception {
         // LIST<string> declared datetime: castBlock's bulk semantics on the fused list arm — a bad
         // element nulls the WHOLE position + warns under the default policy, the clean row still

@@ -1077,7 +1077,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), null);
         var join = switch (randomIntBetween(0, 2)) {
-            case 0 -> new Join(EMPTY, leftChild, rightChild, joinConfig);
+            case 0 -> new Join(Source.EMPTY, leftChild, rightChild, joinConfig, false);
             case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, false);
             case 2 -> new InlineJoin(EMPTY, leftChild, rightChild, joinConfig);
             default -> throw new IllegalArgumentException();
@@ -7761,6 +7761,23 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         assertTrue(lastOverTime.hasFilter());
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
+    }
+
+    public void testTranslateNoFalsePositiveTimeBucketWhenEvalAliasOverridden() {
+        // Regression: when EVAL defines date_trunc(@timestamp) in a variable that is later overridden
+        // as a non-grouping STATS output, TranslateTimeSeriesAggregate incorrectly counted it as a
+        // second time bucket and threw "expected at most one time bucket" (#143697).
+        var plan = planMetrics("""
+            TS k8s
+            | EVAL tbucket = date_trunc(1h, @timestamp)
+            | STATS tbucket = max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)
+            | LIMIT 10
+            """);
+        Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+        plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
+        assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
+        assertNotNull(tsHolder.get().timeBucket());
+        assertThat(tsHolder.get().timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
     }
 
     public void testTranslateWithInlineFilterWithImplicitLastOverTime() {

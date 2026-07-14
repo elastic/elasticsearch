@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -37,6 +38,13 @@ final class HiveFileList implements FileList {
     @Nullable
     private final PartitionMetadata partitionMetadata;
     private final int fileCount;
+    /**
+     * File-set fingerprint carried over from the raw list this was compacted from — compaction preserves
+     * the file set exactly and the fingerprint is order-independent, so the pass-through value equals what
+     * a recomputation over the compacted representation would produce, without re-materializing paths.
+     */
+    @Nullable
+    private final FileSetFingerprint fileSetFingerprint;
 
     HiveFileList(
         String basePath,
@@ -51,7 +59,8 @@ final class HiveFileList implements FileList {
         @Nullable String sharedExtension,
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
-        int fileCount
+        int fileCount,
+        @Nullable FileSetFingerprint fileSetFingerprint
     ) {
         this.basePath = basePath;
         this.partitionColumnNames = partitionColumnNames;
@@ -66,6 +75,13 @@ final class HiveFileList implements FileList {
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
         this.fileCount = fileCount;
+        this.fileSetFingerprint = fileSetFingerprint;
+    }
+
+    @Override
+    @Nullable
+    public FileSetFingerprint fileSetFingerprint() {
+        return fileSetFingerprint;
     }
 
     private int findGroup(int fileIndex) {

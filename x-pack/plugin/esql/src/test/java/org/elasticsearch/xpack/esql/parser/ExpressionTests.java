@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -377,6 +378,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testLambdaExpressions() {
+        assumeTrue("Requires lambda syntax", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
         assertEqualsIgnoringIds(
             new UnresolvedFunction(
                 EMPTY,

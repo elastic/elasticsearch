@@ -491,6 +491,30 @@ public class WatcherServiceTests extends ESTestCase {
         verify(triggeredWatchStore, never()).findTriggeredWatches(any(), any());
     }
 
+    public void testShutdownIsTerminal() {
+        final TriggerService triggerService = mock(TriggerService.class);
+        final ExecutionService executionService = mock(ExecutionService.class);
+        final QueuedExecutorService executor = new QueuedExecutorService();
+        final WatcherService service = createWatcherService(triggerService, mock(TriggeredWatchStore.class), executionService, executor);
+        doAnswer(invocation -> {
+            invocation.<Runnable>getArgument(0).run();
+            return 0;
+        }).when(executionService).pause(any());
+
+        service.setDesiredShutdown();
+        executor.runNext();
+        assertThat(service.getState(), is(WatcherState.STOPPED));
+        clearInvocations(triggerService, executionService);
+
+        service.setDesiredRunning(ClusterState.builder(new ClusterName("_name")).build(), List.of(), "too late");
+        service.setDesiredPaused("too late");
+        service.setDesiredStopped("too late");
+
+        assertThat(executor.tasks, hasSize(0));
+        assertThat(service.getState(), is(WatcherState.STOPPED));
+        verifyNoMoreInteractions(triggerService, executionService);
+    }
+
     public void testReconcilerShutdownSupersedesInProgressStop() {
         final TriggerService triggerService = mock(TriggerService.class);
         final ExecutionService executionService = mock(ExecutionService.class);

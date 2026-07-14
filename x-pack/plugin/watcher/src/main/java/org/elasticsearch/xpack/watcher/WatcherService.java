@@ -197,8 +197,9 @@ public class WatcherService implements WatcherEventConsumer {
 
     /** Requests terminal shutdown and then drains the lifecycle executor. */
     void setDesiredShutdown() {
-        setDesiredState(new Shutdown());
-        stopExecutor();
+        if (setDesiredState(new Shutdown())) {
+            stopExecutor();
+        }
     }
 
     void stopExecutor() {
@@ -360,12 +361,17 @@ public class WatcherService implements WatcherEventConsumer {
         return ReconcileResult.COMPLETE;
     }
 
-    private void setDesiredState(DesiredState newState) {
-        if (newState.equals(desiredState.get())) {
-            return;
+    private boolean setDesiredState(DesiredState newState) {
+        while (true) {
+            final DesiredState currentState = desiredState.get();
+            if (currentState instanceof Shutdown || newState.equals(currentState)) {
+                return false;
+            }
+            if (desiredState.compareAndSet(currentState, newState)) {
+                scheduleReconciliation();
+                return true;
+            }
         }
-        desiredState.set(newState);
-        scheduleReconciliation();
     }
 
     private void scheduleReconciliation() {

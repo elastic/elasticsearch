@@ -115,7 +115,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     }
 
     @Override
-    public boolean isNoop(DataType inputType) {
+    public boolean isNoop() {
         // Extracts a single subfield, so it never passes its input through unchanged.
         return false;
     }

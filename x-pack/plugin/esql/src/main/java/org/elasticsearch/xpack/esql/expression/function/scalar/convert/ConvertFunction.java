@@ -36,7 +36,7 @@ public interface ConvertFunction {
      * holds when the input already has the output type. Widening conversions (e.g., {@code half_float} to {@code double}) are not no-ops
      * even though they share a representation, since the declared type changes.
      */
-    default boolean isNoop(DataType inputType) {
-        return inputType == dataType();
+    default boolean isNoop() {
+        return field().dataType() == dataType();
     }
 }

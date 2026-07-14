@@ -109,7 +109,7 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
     }
 
     @Override
-    public boolean isNoop(DataType inputType) {
+    public boolean isNoop() {
         // Computes even when the input is already double, so it's never a no-op.
         return false;
     }

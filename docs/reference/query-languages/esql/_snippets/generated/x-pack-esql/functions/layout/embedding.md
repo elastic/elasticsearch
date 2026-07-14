@@ -4,6 +4,10 @@
 stack: preview 9.5.0
 ```
 
+
+:::{include} ../briefSummary/embedding.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/embedding.svg

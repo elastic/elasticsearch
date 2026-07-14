@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 152855
+summary: Preserve Parquet micros/nanos timestamp precision
+type: enhancement

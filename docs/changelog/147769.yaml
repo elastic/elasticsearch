@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 143518
+pr: 147769
+summary: Prune constant sort keys from TopN
+type: feature

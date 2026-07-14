@@ -33,6 +33,8 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -57,6 +59,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -66,6 +69,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
@@ -83,6 +87,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
@@ -114,6 +119,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ProjectResolver projectResolver;
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
     private final TransformParsingContext transformParsingContext;
@@ -121,12 +127,14 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     public IndexBasedTransformConfigManager(
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         Client client,
         NamedXContentRegistry xContentRegistry,
         TransformParsingContext transformParsingContext
     ) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.projectResolver = projectResolver;
         this.client = client;
         this.xContentRegistry = xContentRegistry;
         this.transformParsingContext = transformParsingContext;
@@ -193,7 +201,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         // in some cases, the System Index gets reindexed and LATEST_INDEX_NAME is now an alias pointing to that reindexed index
         // this mostly likely happens after the SystemIndexMigrator ran
         // we need to check if the LATEST_INDEX_NAME is now an alias and points to the indexName
-        var metadata = clusterService.state().projectState().metadata();
+        ProjectMetadata metadata = currentProjectMetadata();
         var indicesForAlias = metadata.aliasedIndices(TransformInternalIndexConstants.LATEST_INDEX_NAME);
         var index = metadata.index(indexName);
         return index != null && indicesForAlias.contains(index.getIndex());
@@ -675,7 +683,23 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         DeleteByQueryRequest request = createDeleteByQueryRequest();
 
         request.indices(TransformInternalIndexConstants.INDEX_NAME_PATTERN, TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED);
-        QueryBuilder query = QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId);
+        // Config / checkpoints / stats / authorization-state all carry the transform id under the "id"
+        // field. Cloud credential docs key the storage doc by the UIAM tokenId (not transformId), so
+        // they instead carry the owning transform id under "transform_id" — match both shapes so a
+        // delete still leaves no orphans.
+        QueryBuilder query = QueryBuilders.boolQuery()
+            .should(QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId))
+            .should(
+                QueryBuilders.boolQuery()
+                    .filter(
+                        QueryBuilders.termQuery(
+                            TransformField.INDEX_DOC_TYPE.getPreferredName(),
+                            TransformConfigManager.CLOUD_CREDENTIAL_DOC_TYPE
+                        )
+                    )
+                    .filter(QueryBuilders.termQuery(TransformConfigManager.CLOUD_CREDENTIAL_TRANSFORM_ID_FIELD, transformId))
+            )
+            .minimumShouldMatch(1);
         request.setQuery(query);
         request.setRefresh(true);
 
@@ -849,6 +873,203 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         );
     }
 
+    @Override
+    public void putTransformCloudCredential(String transformId, PersistedCloudCredential credential, ActionListener<Boolean> listener) {
+        if (isUpgrading()) {
+            listener.onFailure(
+                conflictStatusException("Cannot store Transform cloud credential while the Transform feature is upgrading.")
+            );
+            return;
+        }
+        var tokenId = credential.id();
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), CLOUD_CREDENTIAL_DOC_TYPE);
+            // owning transform id (recorded for future sweep-by-transform; not the storage key)
+            builder.field(TransformConfigManager.CLOUD_CREDENTIAL_TRANSFORM_ID_FIELD, transformId);
+            // UIAM token id, mirrored into the body so it is queryable independent of the doc id
+            builder.field(TransformConfigManager.CLOUD_CREDENTIAL_TOKEN_ID_FIELD, tokenId);
+            builder.field("persisted_credential", credential);
+            builder.endObject();
+
+            // op_type=create so a duplicate tokenId fails fast with a version conflict — callers can
+            // then surface the failure rather than silently overwriting a credential they did not
+            // intend to displace.
+            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).opType(
+                DocWriteRequest.OpType.CREATE
+            )
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .id(TransformConfigManager.cloudCredentialDocumentId(tokenId))
+                .source(builder);
+
+            executeAsyncWithOrigin(TransportIndexAction.TYPE, indexRequest, listener.delegateFailureAndWrap((l, r) -> l.onResponse(true)));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    @Override
+    public void getTransformCloudCredentialByTokenId(
+        String tokenId,
+        boolean allowNoMatch,
+        ActionListener<PersistedCloudCredential> listener
+    ) {
+        QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformConfigManager.cloudCredentialDocumentId(tokenId));
+        SearchRequest searchRequest = client.prepareSearch(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        ).setQuery(queryBuilder).addSort("_index", SortOrder.DESC).setSize(1).setAllowPartialSearchResults(false).request();
+
+        executeAsyncWithOrigin(TransportSearchAction.TYPE, searchRequest, listener.delegateFailureAndWrap((l, searchResponse) -> {
+            if (searchResponse.getHits().getHits().length == 0) {
+                if (allowNoMatch) {
+                    l.onResponse(null);
+                } else {
+                    l.onFailure(new ResourceNotFoundException("No cloud credential found for token [" + tokenId + "]"));
+                }
+                return;
+            }
+            BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+                    source,
+                    XContentType.JSON
+                )
+            ) {
+                XContentParser.Token token = parser.nextToken();
+                assert token == XContentParser.Token.START_OBJECT;
+                String fieldName;
+                PersistedCloudCredential credential = null;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        fieldName = parser.currentName();
+                        if ("persisted_credential".equals(fieldName)) {
+                            parser.nextToken();
+                            credential = PersistedCloudCredential.fromXContent(parser);
+                        } else {
+                            parser.nextToken();
+                            parser.skipChildren();
+                        }
+                    }
+                }
+                if (credential == null) {
+                    l.onFailure(new ElasticsearchParseException("Failed to parse cloud credential for token [" + tokenId + "]"));
+                } else {
+                    l.onResponse(credential);
+                }
+            } catch (Exception e) {
+                logger.error("Failed to parse cloud credential for token [{}]", tokenId);
+                l.onFailure(e);
+            }
+        }));
+    }
+
+    @Override
+    public void deleteCloudCredentialByTokenId(String tokenId, ActionListener<Boolean> listener) {
+        if (isUpgrading()) {
+            listener.onFailure(
+                conflictStatusException("Cannot delete Transform cloud credential while the Transform feature is upgrading.")
+            );
+            return;
+        }
+        DeleteByQueryRequest deleteByQueryRequest = createDeleteByQueryRequest();
+        deleteByQueryRequest.indices(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        );
+        deleteByQueryRequest.setQuery(QueryBuilders.termQuery("_id", TransformConfigManager.cloudCredentialDocumentId(tokenId)));
+
+        executeAsyncWithOrigin(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener.delegateFailureAndWrap((l, response) -> {
+            if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {
+                Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
+                l.onFailure(
+                    new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2())
+                );
+                return;
+            }
+            l.onResponse(response.getDeleted() > 0);
+        }));
+    }
+
+    @Override
+    public void forEachTransformCloudCredential(
+        String transformId,
+        Consumer<PersistedCloudCredential> action,
+        ActionListener<Void> listener
+    ) {
+        forEachCredentialPage(transformId, action, null, listener);
+    }
+
+    private void forEachCredentialPage(
+        String transformId,
+        Consumer<PersistedCloudCredential> action,
+        Object[] searchAfter,
+        ActionListener<Void> listener
+    ) {
+        QueryBuilder queryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), CLOUD_CREDENTIAL_DOC_TYPE))
+            .filter(QueryBuilders.termQuery(TransformConfigManager.CLOUD_CREDENTIAL_TRANSFORM_ID_FIELD, transformId));
+
+        var requestBuilder = client.prepareSearch(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        )
+            .setQuery(queryBuilder)
+            .setFetchSource(new String[] { "persisted_credential" }, null)
+            .addSort(TransformConfigManager.CLOUD_CREDENTIAL_TOKEN_ID_FIELD, SortOrder.ASC)
+            .setSize(1_000)
+            .setAllowPartialSearchResults(false);
+
+        if (searchAfter != null) {
+            requestBuilder.searchAfter(searchAfter);
+        }
+
+        executeAsyncWithOrigin(
+            TransportSearchAction.TYPE,
+            requestBuilder.request(),
+            listener.delegateFailureAndWrap((l, searchResponse) -> {
+                SearchHit[] hits = searchResponse.getHits().getHits();
+                for (SearchHit hit : hits) {
+                    BytesReference source = hit.getSourceRef();
+                    try (
+                        XContentParser parser = XContentHelper.createParserNotCompressed(
+                            LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+                            source,
+                            XContentType.JSON
+                        )
+                    ) {
+                        assert parser.nextToken() == XContentParser.Token.START_OBJECT;
+                        PersistedCloudCredential credential = null;
+                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                            if (parser.currentToken() == XContentParser.Token.FIELD_NAME
+                                && "persisted_credential".equals(parser.currentName())) {
+                                parser.nextToken();
+                                credential = PersistedCloudCredential.fromXContent(parser);
+                            } else {
+                                parser.nextToken();
+                                parser.skipChildren();
+                            }
+                        }
+                        if (credential != null) {
+                            action.accept(credential);
+                        } else {
+                            logger.warn("cloud credential document [{}] missing persisted_credential field", hit.getId());
+                        }
+                    } catch (IOException e) {
+                        logger.atWarn().withThrowable(e).log("failed to parse cloud credential document [{}]", hit.getId());
+                    }
+                }
+
+                if (hits.length == 1_000) {
+                    forEachCredentialPage(transformId, action, hits[hits.length - 1].getSortValues(), l);
+                } else {
+                    l.onResponse(null);
+                }
+            })
+        );
+    }
+
     private <Request, Response> void executeAsyncWithOrigin(
         Request request,
         ActionListener<Response> listener,
@@ -1003,8 +1224,15 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         }), client::search);
     }
 
+    private ProjectMetadata currentProjectMetadata() {
+        assert projectResolver.supportsMultipleProjects() == false
+            || client.threadPool().getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER) != null
+            : "project id must be on the thread context when resolving project metadata in multi-project mode";
+        return projectResolver.getProjectMetadata(clusterService.state());
+    }
+
     private boolean isUpgrading() {
-        return TransformMetadata.isUpgradeMode(clusterService.state());
+        return TransformMetadata.isUpgradeMode(currentProjectMetadata());
     }
 
     private Exception conflictStatusException(String message) {

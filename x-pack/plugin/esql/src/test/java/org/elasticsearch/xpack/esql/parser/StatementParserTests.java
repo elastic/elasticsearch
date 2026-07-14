@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -86,6 +87,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -142,6 +144,8 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -1245,6 +1249,127 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testDedupNotInReleaseBuild() {
         assumeFalse("only runs on release build", Build.current().isSnapshot());
         expectThrows(ParsingException.class, containsString("mismatched input 'DEDUP'"), () -> query("FROM foo | DEDUP"));
+    }
+
+    public void testHighlightOnFields() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo("highlight_"));
+        Literal q = as(highlight.query(), Literal.class);
+        assertThat(BytesRefs.toString(q.value()), equalTo("elasticsearch"));
+        assertThat(highlight.fields().size(), equalTo(2));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("title"));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(1)).name(), equalTo("body"));
+        assertThat(highlight.options(), nullValue());
+        UnresolvedRelation relation = as(highlight.child(), UnresolvedRelation.class);
+        assertThat(relation.indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testHighlightRequiresQueryAndOnClause() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        // Query and ON are currently required by grammar.
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT ON title"));
+    }
+
+    public void testHighlightCustomPrefix() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"h_\" \"elasticsearch\" ON title, body");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo("h_"));
+        List<String> generated = highlight.generatedAttributes().stream().map(NamedExpression::name).toList();
+        assertThat(generated, equalTo(List.of("h_title", "h_body")));
+    }
+
+    public void testHighlightEmptyPrefixParses() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        // Empty prefix overwrites the source column name.
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT prefix = \"\" \"elasticsearch\" ON content");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo(""));
+        List<String> generated = highlight.generatedAttributes().stream().map(NamedExpression::name).toList();
+        assertThat(generated, equalTo(List.of("content")));
+    }
+
+    public void testHighlightFieldNamedPrefix() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        // `prefix` can be used as a field name and is not a reserved keyword.
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON prefix");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.prefix(), equalTo("highlight_"));
+        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("prefix"));
+        List<String> generated = highlight.generatedAttributes().stream().map(NamedExpression::name).toList();
+        assertThat(generated, equalTo(List.of("highlight_prefix")));
+    }
+
+    public void testPrefixIsNotAReservedKeyword() {
+        as(query("FROM foo | EVAL prefix = 1"), Eval.class);
+        as(query("FROM foo | STATS x = COUNT(*) BY prefix"), Aggregate.class);
+        as(query("ROW prefix = 1"), Row.class);
+        as(query("FROM foo | KEEP prefix"), Keep.class);
+        as(query("FROM foo | WHERE prefix > 0"), Filter.class);
+    }
+
+    public void testHighlightRejectsUnknownModifier() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid modifier [bogus] in HIGHLIGHT, expected [prefix]"),
+            () -> query("FROM foo | HIGHLIGHT bogus = \"h_\" \"elasticsearch\" ON title")
+        );
+    }
+
+    public void testHighlightWithOptions() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        LogicalPlan plan = query(
+            "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
+        );
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.options(), notNullValue());
+        assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.of("fragment_size", "number_of_fragments")));
+    }
+
+    public void testHighlightAcceptsAllOptions() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        LogicalPlan plan = query("""
+            FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
+              "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
+              "number_of_fragments": 2, "fragment_size": 150, "no_match_size": 100,
+              "boundary_scanner": "word", "boundary_scanner_locale": "en-US",
+              "boundary_chars": ".,!?", "boundary_max_scan": 10, "order": "score",
+              "max_analyzed_offset": 500, "phrase_limit": 64 }""");
+        Highlight highlight = as(plan, Highlight.class);
+        assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.copyOf(Highlight.validOptionNames())));
+    }
+
+    public void testHighlightRejectsUnknownOption() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid option [bogus] in HIGHLIGHT"),
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"bogus\": 1 }")
+        );
+    }
+
+    public void testHighlightRejectsExpressionQuery() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT MATCH(title, \"x\") ON title"));
+    }
+
+    public void testHighlightRejectsWildcardFields() {
+        assumeTrue("requires HIGHLIGHT_V3 capability", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
+    }
+
+    public void testHighlightNotInReleaseBuild() {
+        assumeFalse("only runs on release build", EsqlCapabilities.Cap.HIGHLIGHT_V3.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("mismatched input 'HIGHLIGHT'"),
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title")
+        );
     }
 
     public void testBasicSortCommand() {
@@ -2501,17 +2626,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         : "Query parameter [?f1] with value [" + pattern + "] declared as a constant, cannot be used as an identifier"
                 );
             }
-            // nulls
-            if (invalidParamPosition.contains("rename")) {
-                // rename null as null is allowed, there is no ParsingException or VerificationException thrown
-                // named parameter doesn't change this behavior, it will need to be revisited
-                continue;
+            // null params: rejected via unresolvedAttributeNameInParam for eval/stats/mv_expand
+            // (those positions use visitIdentifierOrParameter, not visitQualifiedNamePattern).
+            // For RENAME, KEEP, DROP, and ENRICH, the null param goes through visitQualifiedNamePattern
+            // which silently skips the empty segment; see testNullParamInIdentifierPatternPosition.
+            if (invalidParamPosition.contains("rename") == false) {
+                expectError(
+                    "from test | " + invalidParamPosition,
+                    List.of(paramAsConstant("f1", null), paramAsConstant("f2", null)),
+                    "Query parameter [?f1] is null or undefined"
+                );
             }
-            expectError(
-                "from test | " + invalidParamPosition,
-                List.of(paramAsConstant("f1", null), paramAsConstant("f2", null)),
-                "Query parameter [?f1] is null or undefined"
-            );
+        }
+        // double-parameter markers (??): null param produces a "is null" error rather than an NPE or empty identifier
+        if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
+            for (String identifierPosition : List.of("drop ??f1", "keep ??f1", "rename ??f1 as color")) {
+                expectError("from test | " + identifierPosition, List.of(paramAsConstant("f1", null)), "Query parameter [??f1] is null");
+            }
         }
         // enrich with wildcard as pattern or constant is not supported
         String enrich = "ENRICH idx2 ON ?f1 WITH ?f2 = ?f3";
@@ -2527,6 +2658,32 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "Query parameter [?f1] with value [" + pattern + "] declared as a constant, cannot be used as an identifier or pattern"
             );
         }
+    }
+
+    /**
+     * Null params in RENAME/KEEP/DROP/ENRICH identifier-pattern positions are silently skipped
+     * by {@code visitQualifiedNamePattern}, so no {@code ParsingException} is thrown at parse time.
+     * This is a bug, but we can't fix it without breaking some queries.
+     * <p>
+     * Contrast with eval/stats/mv_expand which use {@code unresolvedAttributeNameInParam} and
+     * do produce a parse-time error for null params.
+     */
+    public void testNullParamInIdentifierPatternPosition() {
+        List<QueryParam> params = List.of(paramAsConstant("f1", null), paramAsConstant("f2", null));
+        for (String cmd : List.of(
+            "rename ?f1 as color",
+            "rename foo as ?f2",
+            "rename ?f1 as ?f2",
+            "keep ?f1",
+            "drop ?f1",
+            "enrich idx2 ON ?f1"
+        )) {
+            assertNotNull(query("from test | " + cmd, new QueryParams(params)));
+        }
+        // ENRICH WITH: null param as alias or field name
+        assertNotNull(query("from idx1 | enrich idx2 ON f1 WITH ?f2", new QueryParams(List.of(paramAsConstant("f2", null)))));
+        assertNotNull(query("from idx1 | enrich idx2 ON f1 WITH ?f2 = src_field", new QueryParams(List.of(paramAsConstant("f2", null)))));
+        assertNotNull(query("from idx1 | enrich idx2 ON f1 WITH dst = ?f3", new QueryParams(List.of(paramAsConstant("f3", null)))));
     }
 
     public void testMissingParam() {
@@ -2658,15 +2815,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("ROW false::doesnotexist", "line 1:12: Unknown data type named [doesnotexist]");
         expectError("ROW abs(1)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
         expectError("ROW (1+2)::doesnotexist", "line 1:12: Unknown data type named [doesnotexist]");
-    }
-
-    public void testInlineConvertToSnapshotOnlyType() {
-        assumeFalse("date_range is exposed on snapshot builds", Build.current().isSnapshot());
-        expectError(
-            "ROW str = \"2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z\" | EVAL range = str::date_range",
-            "Unknown data type named [date_range]"
-        );
-        expectError("ROW range = \"x\"::date_range", "Unknown data type named [date_range]");
     }
 
     public void testLookup() {
@@ -2878,14 +3026,26 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:25: mismatched input 'another_field_or_value' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
         );
         expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+'");
-        expectError(
-            "from test | WHERE \"field\":\"value\"",
-            "line 1:26: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
-        );
-        expectError(
-            "from test | WHERE CONCAT(\"field\", 1):\"value\"",
-            "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
-        );
+    }
+
+    public void testMatchOperatorWithFunctionLhs() {
+        var plan = query("FROM test | WHERE CONCAT(first_name, \" \", last_name):\"Anneke Preusig\"");
+        var filter = as(plan, Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var concat = (UnresolvedFunction) match.field();
+        assertThat(concat.name(), equalTo("CONCAT"));
+        assertThat(concat.children().size(), equalTo(3));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("Anneke Preusig")));
+    }
+
+    public void testMatchOperatorWithNestedFunctionLhs() {
+        var plan = query("FROM test | WHERE TO_UPPER(CONCAT(first_name, \" \", last_name)):\"ANNEKE PREUSIG\"");
+        var filter = as(plan, Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var toUpper = (UnresolvedFunction) match.field();
+        assertThat(toUpper.name(), equalTo("TO_UPPER"));
+        var concat = (UnresolvedFunction) toUpper.children().get(0);
+        assertThat(concat.name(), equalTo("CONCAT"));
     }
 
     public void testMatchFunctionFieldCasting() {
@@ -3215,30 +3375,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 : "no viable alternative at input 'fn(f1,";
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":1}, {\"option\":2})"),
-                LoggerMessageFormat.format(null, "line 1:{}: {}", error, errorMessage)
-            );
-        }
-    }
-
-    public void testFunctionNamedParameterNotInMap() {
-        Map<String, String> commands = Map.ofEntries(
-            Map.entry("eval x = {}", "38"),
-            Map.entry("where {}", "35"),
-            Map.entry("stats {}", "35"),
-            Map.entry("stats agg() by {}", "44"),
-            Map.entry("sort {}", "34"),
-            Map.entry("dissect {} \"%{bar}\"", "37"),
-            Map.entry("grok {} \"%{WORD:foo}\"", "34")
-        );
-
-        for (Map.Entry<String, String> command : commands.entrySet()) {
-            String cmd = command.getKey();
-            String error = command.getValue();
-            String errorMessage = cmd.startsWith("dissect") || cmd.startsWith("grok")
-                ? "extraneous input ':' expecting {',', ')'}"
-                : "no viable alternative at input 'fn(f1, \"option1\":'";
-            expectError(
-                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, \"option1\":\"string\")"),
                 LoggerMessageFormat.format(null, "line 1:{}: {}", error, errorMessage)
             );
         }
@@ -4491,10 +4627,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd()) {
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
-            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled() == false) {
-                // Some types do not have a converter function if the capability is disabled
-                namesAndAliases.removeAll(List.of("date_range"));
-            }
             Collections.sort(namesAndAliases);
             for (String nameOrAlias : namesAndAliases) {
                 DataType expectedType = DataType.fromNameOrAlias(nameOrAlias);
@@ -4794,5 +4926,65 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"original\": true }");
         UserAgent ua = as(cmd, UserAgent.class);
         assertEqualsIgnoringIds(attribute("a"), ua.getInput());
+    }
+
+    // --- IP_LOCATION tests ---
+
+    public void testIpLocationCommand() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("ip_location g = a");
+        UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+        assertEqualsIgnoringIds(attribute("a"), ip.input());
+        assertEquals("GeoLite2-City.mmdb", ip.databaseFile());
+        assertTrue(ip.firstOnly());
+        assertNull(ip.properties());
+    }
+
+    public void testIpLocationCommandWithOptions() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand(
+            "ip_location g = a WITH { \"database_file\": \"GeoLite2-Country.mmdb\", \"first_only\": false }"
+        );
+        UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+        assertEqualsIgnoringIds(attribute("a"), ip.input());
+        assertEquals("GeoLite2-Country.mmdb", ip.databaseFile());
+        assertFalse(ip.firstOnly());
+    }
+
+    public void testIpLocationCommandWithProperties() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("ip_location g = a WITH { \"properties\": [\"city_name\", \"country_iso_code\"] }");
+        UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+        assertEquals(List.of("city_name", "country_iso_code"), ip.properties());
+    }
+
+    public void testIpLocationCommandUnknownOption() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        expectError("row a = \"test\" | ip_location g = a WITH { \"unknown_option\": \"value\" }", "Invalid option");
+    }
+
+    public void testIpLocationCommandEmptyPropertiesRejected() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        // ES|QL has no empty-array literal; an empty list is rejected as a syntax error rather than producing zero columns.
+        expectError("row a = \"test\" | ip_location g = a WITH { \"properties\": [] }", "no viable alternative at input '[]'");
+    }
+
+    public void testIpLocationCommandFirstOnlyAcceptsBothValues() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        LogicalPlan cmdTrue = processingCommand("ip_location g = a WITH { \"first_only\": true }");
+        UnresolvedIpLocation ipTrue = as(cmdTrue, UnresolvedIpLocation.class);
+        assertTrue(ipTrue.firstOnly());
+
+        LogicalPlan cmdFalse = processingCommand("ip_location g = a WITH { \"first_only\": false }");
+        UnresolvedIpLocation ipFalse = as(cmdFalse, UnresolvedIpLocation.class);
+        assertFalse(ipFalse.firstOnly());
+    }
+
+    public void testIpLocationCommandFirstOnlyTypeMismatch() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        expectError(
+            "row a = \"test\" | ip_location g = a WITH { \"first_only\": \"yes\" }",
+            "Option [first_only] must be a boolean literal"
+        );
     }
 }

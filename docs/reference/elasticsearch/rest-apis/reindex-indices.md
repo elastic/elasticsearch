@@ -618,7 +618,7 @@ Setting `_version` to `null` or clearing it from the `ctx` map is like not sendi
 ## Reindex from remote [reindex-from-remote]
 ```{applies_to}
 stack: ga
-serverless: preview
+serverless: ga
 ```
 
 Reindex supports reindexing from a remote {{es}} cluster:
@@ -658,7 +658,7 @@ It is also possible (and encouraged) to authenticate with the remote cluster thr
 
 ::::{applies-switch}
 
-:::{applies-item} { "stack": "ga 9.3+", "serverless": "preview" }
+:::{applies-item} { "stack": "ga 9.3+", "serverless": "ga" }
 ```console
 POST _reindex
 {
@@ -731,7 +731,7 @@ The remote hosts that you can use depend on whether you're using the versioned {
 
   The list of allowed hosts must be configured on any node that will coordinate the reindex.
 
-* In {{serverless-full}}, all remote hosts in any {{ecloud}} region are allowed, including {{ech}} deployments and {{serverless-short}} projects. {applies_to}`serverless: preview`
+* In {{serverless-full}}, all remote hosts in any {{ecloud}} region are allowed, including {{ech}} deployments and {{serverless-short}} projects.
 
 ### Compatibility [reindex-remote-compatibility]
 

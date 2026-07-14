@@ -47,6 +47,7 @@ public abstract class StoredFieldSortedBinaryIndexFieldData extends StoredFieldI
         private int docValueCount;
 
         SourceValueFetcherSortedBinaryDocValues(LeafStoredFieldLoader loader) {
+            super(null);
             this.loader = loader;
         }
 

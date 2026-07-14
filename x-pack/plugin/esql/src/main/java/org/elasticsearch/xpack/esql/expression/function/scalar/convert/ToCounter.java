@@ -64,6 +64,7 @@ public class ToCounter extends AbstractConvertFunction {
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.5.0") },
         returnType = { "counter_long", "counter_integer", "counter_double" },
+        briefSummary = "Converts a numeric value to its counter type equivalent.",
         description = """
             Converts a numeric value to its counter equivalent. The output type is determined by the input:
             `long` converts to `counter_long`, `integer` to `counter_integer`, and `double` to `counter_double`.

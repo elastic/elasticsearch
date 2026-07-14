@@ -36,10 +36,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -51,6 +53,7 @@ import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -368,11 +371,18 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             if (lit.value() instanceof Collection<?>) {
                 return Translatable.NO;
             }
+            // date_range fields don't support scalar term/range queries; equality must be evaluated in the compute engine
+            if (left().dataType() == DataType.DATE_RANGE) {
+                return Translatable.NO;
+            }
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
                 return Translatable.YES;
             }
             if (LucenePushdownPredicates.isPushableMetadataAttribute(left())) {
                 return this instanceof Equals || this instanceof NotEquals ? Translatable.YES : Translatable.NO;
+            }
+            if (left() instanceof FieldExtract fe && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
+                return Translatable.YES;
             }
         }
         return Translatable.NO;
@@ -403,9 +413,50 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             Expressions.name(right()),
             symbol()
         );
+        if (left() instanceof FieldExtract fe) {
+            Optional<String> keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
+            if (keyedName.isPresent()) {
+                return translateFieldExtractRange(keyedName.get());
+            }
+        }
 
         Query translated = translateOutOfRangeComparisons();
         return translated != null ? translated : translate(handler);
+    }
+
+    /**
+     * Build a {@link SingleValueQuery}-wrapped {@link RangeQuery} against the synthetic
+     * {@code <root>.<key>} sub-field for a {@code field_extract(...)} LHS. The keyed flattened
+     * mapper substitutes the missing side with a key-prefix sentinel so the resulting Lucene
+     * range stays inside this key's portion of the term namespace, which lets us push the
+     * one-sided shape that the original mapper rejected.
+     * <p>
+     * Only the range comparators ({@code >}, {@code >=}, {@code <}, {@code <=}) reach this
+     * helper. {@link Equals} and {@link NotEquals} override {@link #asQuery} so they never
+     * delegate here, and reaching the {@code throw} at the end of the method would mean a new
+     * comparison subclass was added without explicit handling.
+     */
+    private Query translateFieldExtractRange(String keyedName) {
+        Object value = literalValueOf(right());
+        if (value instanceof BytesRef br) {
+            value = br.utf8ToString();
+        }
+        RangeQuery inner;
+        if (this instanceof GreaterThan) {
+            inner = new RangeQuery(source(), keyedName, value, false, null, false, null, null);
+        } else if (this instanceof GreaterThanOrEqual) {
+            inner = new RangeQuery(source(), keyedName, value, true, null, false, null, null);
+        } else if (this instanceof LessThan) {
+            inner = new RangeQuery(source(), keyedName, null, false, value, false, null, null);
+        } else if (this instanceof LessThanOrEqual) {
+            inner = new RangeQuery(source(), keyedName, null, false, value, true, null, null);
+        } else {
+            throw new QlIllegalArgumentException(
+                "Unexpected comparison [{}] for field_extract range pushdown",
+                this.getClass().getSimpleName()
+            );
+        }
+        return new SingleValueQuery(inner, keyedName, false);
     }
 
     @Override

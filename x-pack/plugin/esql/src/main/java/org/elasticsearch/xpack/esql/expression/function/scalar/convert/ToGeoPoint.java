@@ -45,6 +45,7 @@ public class ToGeoPoint extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "geo_point",
+        briefSummary = "Converts a value to a geo_point.",
         description = """
             Converts an input value to a `geo_point` value.
             A string will only be successfully converted if it respects the
@@ -69,6 +70,11 @@ public class ToGeoPoint extends AbstractConvertFunction {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    public String functionName() {
+        return "TO_GEOPOINT";
     }
 
     @Override

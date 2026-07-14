@@ -4,6 +4,10 @@
 stack: preview 9.2.0, ga 9.4.0
 ```
 
+
+:::{include} ../briefSummary/knn.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/knn.svg

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
@@ -32,10 +33,6 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
  * Azure OpenAI service setting types (e.g. completion, embeddings).
  */
 public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject implements ServiceSettings {
-
-    private static final String OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR =
-        "Cannot update OAuth2 fields as the service was not configured with OAuth2 settings. "
-            + "Please create a new Inference Endpoint with the OAuth2 settings instead.";
 
     /**
      * Common settings parsed from a map, shared by all Azure OpenAI service setting types.
@@ -117,29 +114,23 @@ public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject 
     }
 
     protected CommonSettings updateCommonSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
+        var extractedOAuth2Settings = oAuth2Settings;
         // If the endpoint was not initially configured with OAuth2 settings,
         // we do not allow OAuth2 fields in request map as that would lead to an invalid configuration and fail early.
         if (oAuth2Settings == null && AzureOpenAiOAuth2Settings.hasAnyOAuth2Fields(serviceSettings)) {
-            throw validationException.addValidationError(OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR);
+            validationException.addValidationError(OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR);
+        } else if (oAuth2Settings != null) {
+            extractedOAuth2Settings = oAuth2Settings.updateServiceSettings(serviceSettings, validationException);
         }
 
-        var extractedOAuth2Settings = oAuth2Settings != null
-            ? oAuth2Settings.updateServiceSettings(serviceSettings, validationException)
-            : null;
         var extractedRateLimitSettings = RateLimitSettings.of(
             serviceSettings,
-            this.rateLimitSettings,
+            rateLimitSettings,
             validationException,
             ConfigurationParseContext.REQUEST
         );
 
-        return new CommonSettings(
-            this.resourceName,
-            this.deploymentId,
-            this.apiVersion,
-            extractedRateLimitSettings,
-            extractedOAuth2Settings
-        );
+        return new CommonSettings(resourceName, deploymentId, apiVersion, extractedRateLimitSettings, extractedOAuth2Settings);
     }
 
     @Override

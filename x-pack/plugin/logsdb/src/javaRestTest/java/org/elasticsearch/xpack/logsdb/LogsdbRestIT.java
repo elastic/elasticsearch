@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +25,9 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
 import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -31,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -43,8 +48,19 @@ public class LogsdbRestIT extends ESRestTestCase {
     private static final String USER = "x_pack_rest_user";
     private static final String PASS = "x-pack-test-password";
 
+    private static boolean columnarEnabled;
+
+    private static final ExternalResource randomizeColumnarRule = new ExternalResource() {
+        @Override
+        protected void before() {
+            columnarEnabled = randomBoolean();
+        }
+    };
+
+    private static final ElasticsearchCluster cluster = createCluster();
+
     @ClassRule
-    public static final ElasticsearchCluster cluster = createCluster();
+    public static TestRule ruleChain = RuleChain.outerRule(randomizeColumnarRule).around(cluster);
 
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
@@ -52,7 +68,8 @@ public class LogsdbRestIT extends ESRestTestCase {
             .setting("xpack.security.enabled", "true")
             .user(USER, PASS)
             .keystore("bootstrap.password", "x-pack-test-password")
-            .setting("xpack.license.self_generated.type", "trial");
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnarEnabled));
         boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {
             clusterBuilder.nodes(1);
@@ -147,42 +164,45 @@ public class LogsdbRestIT extends ESRestTestCase {
 
         String index = getDataStreamBackingIndexNames("logs-test-foo").getFirst();
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
-        assertEquals("logsdb", settings.get("index.mode"));
+        // The provider only auto-selects logsdb_columnar in snapshot builds; mirror that here so this
+        // assertion holds in both snapshot and release-build test runs.
+        boolean expectColumnar = columnarEnabled && Build.current().isSnapshot();
+        assertEquals(expectColumnar ? "logsdb_columnar" : "logsdb", settings.get("index.mode"));
         assertNull(settings.get("index.mapping.source.mode"));
     }
 
     public void testEsqlRuntimeFields() throws IOException {
-        String mappings = """
+        String dataStreamName = "logs-test-esql-runtime-foo";
+        var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-runtime-template");
+        templateRequest.setJsonEntity("""
             {
-                "runtime": {
-                    "message_length": {
-                        "type": "long"
+                "index_patterns": ["logs-test-esql-runtime-*"],
+                "data_stream": {},
+                "priority": 1000,
+                "template": {
+                    "settings": {
+                        "index.mode": "logsdb"
                     },
-                    "log.offset": {
-                        "type": "long"
-                    }
-                },
-                "dynamic": false,
-                "properties": {
-                    "@timestamp": {
-                        "type": "date"
-                    },
-                    "log" : {
+                    "mappings": {
+                        "runtime": {
+                            "message_length": { "type": "long" },
+                            "log.offset": { "type": "long" }
+                        },
+                        "dynamic": false,
                         "properties": {
-                            "level": {
-                                "type": "keyword"
-                            },
-                            "file": {
-                                "type": "keyword"
+                            "@timestamp": { "type": "date" },
+                            "log": {
+                                "properties": {
+                                    "level": { "type": "keyword" },
+                                    "file": { "type": "keyword" }
+                                }
                             }
                         }
                     }
                 }
             }
-            """;
-        String indexName = "test-foo";
-        String indexMode = Build.current().isSnapshot() && randomBoolean() ? "logsdb_columnar" : "logsdb";
-        createIndex(indexName, Settings.builder().put("index.mode", indexMode).build(), mappings);
+            """);
+        assertOK(client().performRequest(templateRequest));
 
         int numDocs = 500;
         var sb = new StringBuilder();
@@ -219,19 +239,21 @@ public class LogsdbRestIT extends ESRestTestCase {
         }
         var expectedMaxTimestamp = now;
 
-        var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+        var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
         bulkRequest.setJsonEntity(sb.toString());
         bulkRequest.addParameter("refresh", "true");
         var bulkResponse = client().performRequest(bulkRequest);
         var bulkResponseBody = responseAsMap(bulkResponse);
         assertThat(bulkResponseBody, Matchers.hasEntry("errors", false));
 
-        var forceMergeRequest = new Request("POST", "/" + indexName + "/_forcemerge");
+        var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
         forceMergeRequest.addParameter("max_num_segments", "1");
         var forceMergeResponse = client().performRequest(forceMergeRequest);
         assertOK(forceMergeResponse);
 
-        String query = "FROM test-foo | STATS count(*), min(@timestamp), max(@timestamp), min(message_length), max(message_length)"
+        String query = "FROM "
+            + dataStreamName
+            + " | STATS count(*), min(@timestamp), max(@timestamp), min(message_length), max(message_length)"
             + " ,sum(message_length), avg(message_length), min(log.offset), max(log.offset) | LIMIT 1";
         final Request esqlRequest = new Request("POST", "/_query");
         esqlRequest.setJsonEntity("""
@@ -262,29 +284,63 @@ public class LogsdbRestIT extends ESRestTestCase {
         assertThat(sumLength, equalTo(20 * numDocs));
     }
 
-    public void testEsqlScanWildcardField() throws IOException {
-        String mappings = """
+    public void testEsqlRuntimeFieldsRejectedInLogsdbColumnar() throws IOException {
+        var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-runtime-rejected-template");
+        templateRequest.setJsonEntity("""
             {
-                "properties": {
-                    "@timestamp": {
-                        "type": "date"
+                "index_patterns": ["logs-test-esql-runtime-rejected-*"],
+                "data_stream": {},
+                "priority": 1000,
+                "template": {
+                    "settings": {
+                        "index.mode": "logsdb_columnar"
                     },
-                    "message": {
-                        "type": "wildcard"
-                    },
-                    "log" : {
+                    "mappings": {
+                        "runtime": {
+                            "message_length": { "type": "long" },
+                            "log.offset": { "type": "long" }
+                        },
+                        "dynamic": false,
                         "properties": {
-                            "level": {
-                                "type": "keyword"
+                            "@timestamp": { "type": "date" },
+                            "log": {
+                                "properties": {
+                                    "level": { "type": "keyword" },
+                                    "file": { "type": "keyword" }
+                                }
                             }
                         }
                     }
                 }
             }
-            """;
-        String indexName = "test-foo";
-        String indexMode = Build.current().isSnapshot() && randomBoolean() ? "logsdb_columnar" : "logsdb";
-        createIndex(indexName, Settings.builder().put("index.mode", indexMode).build(), mappings);
+            """);
+        assertTemplateRejectsRuntimeFieldsInLogsdbColumnar(templateRequest);
+    }
+
+    public void testEsqlScanWildcardField() throws IOException {
+        String dataSteamName = "logs-test-esql-wildcard-foo";
+        var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-wildcard-template");
+        templateRequest.setJsonEntity("""
+            {
+                "index_patterns": ["logs-test-esql-wildcard-*"],
+                "data_stream": {},
+                "priority": 1000,
+                "template": {
+                    "mappings": {
+                        "properties": {
+                            "@timestamp": { "type": "date" },
+                            "message": { "type": "wildcard" },
+                            "log": {
+                                "properties": {
+                                    "level": { "type": "keyword" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        assertOK(client().performRequest(templateRequest));
 
         int messageSize = 256;
         int numBulks = 40;
@@ -306,7 +362,7 @@ public class LogsdbRestIT extends ESRestTestCase {
                 }
             }
 
-            var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+            var bulkRequest = new Request("POST", "/" + dataSteamName + "/_bulk");
             bulkRequest.setJsonEntity(sb.toString());
             bulkRequest.addParameter("refresh", "true");
             var bulkResponse = client().performRequest(bulkRequest);
@@ -316,7 +372,12 @@ public class LogsdbRestIT extends ESRestTestCase {
 
         int documentsFound = 0;
         for (String level : new String[] { "info", "warning", "error", "fatal" }) {
-            String query = "FROM test-foo | WHERE log.level == \\\"" + level + "\\\" | KEEP message | LIMIT " + numDocs * numBulks;
+            String query = "FROM "
+                + dataSteamName
+                + " | WHERE log.level == \\\""
+                + level
+                + "\\\" | KEEP message | LIMIT "
+                + numDocs * numBulks;
             final Request esqlRequest = new Request("POST", "/_query");
             esqlRequest.setJsonEntity("{\"query\": \"$query\"}".replace("$query", query));
             var esqlResponse = client().performRequest(esqlRequest);
@@ -449,31 +510,35 @@ public class LogsdbRestIT extends ESRestTestCase {
     }
 
     public void testSyntheticSourceRuntimeFieldQueries() throws IOException {
-        String mappings = """
+        String dataStreamName = "logs-test-esql-synthetic-foo";
+        var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-synthetic-template");
+        templateRequest.setJsonEntity("""
             {
-                "runtime": {
-                    "message_length": {
-                        "type": "long"
-                    }
-                },
-                "dynamic": false,
-                "properties": {
-                    "@timestamp": {
-                        "type": "date"
+                "index_patterns": ["logs-test-esql-synthetic-*"],
+                "data_stream": {},
+                "priority": 1000,
+                "template": {
+                    "settings": {
+                        "index.mode": "logsdb"
                     },
-                    "log" : {
+                    "mappings": {
+                        "runtime": {
+                            "message_length": { "type": "long" }
+                        },
+                        "dynamic": false,
                         "properties": {
-                            "level": {
-                                "type": "keyword"
+                            "@timestamp": { "type": "date" },
+                            "log": {
+                                "properties": {
+                                    "level": { "type": "keyword" }
+                                }
                             }
                         }
                     }
                 }
             }
-            """;
-        String indexName = "test-foo";
-        String indexMode = Build.current().isSnapshot() && randomBoolean() ? "logsdb_columnar" : "logsdb";
-        createIndex(indexName, Settings.builder().put("index.mode", indexMode).build(), mappings);
+            """);
+        assertOK(client().performRequest(templateRequest));
 
         int numDocs = 1000;
         var sb = new StringBuilder();
@@ -498,18 +563,18 @@ public class LogsdbRestIT extends ESRestTestCase {
             }
         }
 
-        var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+        var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
         bulkRequest.setJsonEntity(sb.toString());
         bulkRequest.addParameter("refresh", "true");
         var bulkResponse = client().performRequest(bulkRequest);
         var bulkResponseBody = responseAsMap(bulkResponse);
         assertThat(bulkResponseBody, Matchers.hasEntry("errors", false));
 
-        var forceMergeRequest = new Request("POST", "/" + indexName + "/_forcemerge");
+        var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
         var forceMergeResponse = client().performRequest(forceMergeRequest);
         assertOK(forceMergeResponse);
 
-        var searchRequest = new Request("POST", "/" + indexName + "/_search");
+        var searchRequest = new Request("POST", "/" + dataStreamName + "/_search");
 
         searchRequest.setJsonEntity("""
             {
@@ -558,5 +623,45 @@ public class LogsdbRestIT extends ESRestTestCase {
         assertThat(shardsHeader.get("failed"), equalTo(0));
         assertThat((Integer) shardsHeader.get("successful"), greaterThanOrEqualTo(1));
         assertThat(shardsHeader.get("skipped"), equalTo(0));
+    }
+
+    public void testSyntheticSourceRuntimeFieldQueriesRejectedInLogsdbColumnar() throws IOException {
+        var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-synthetic-rejected-template");
+        templateRequest.setJsonEntity("""
+            {
+                "index_patterns": ["logs-test-esql-synthetic-rejected-*"],
+                "data_stream": {},
+                "priority": 1000,
+                "template": {
+                    "settings": {
+                        "index.mode": "logsdb_columnar"
+                    },
+                    "mappings": {
+                        "runtime": {
+                            "message_length": { "type": "long" }
+                        },
+                        "dynamic": false,
+                        "properties": {
+                            "@timestamp": { "type": "date" },
+                            "log": {
+                                "properties": {
+                                    "level": { "type": "keyword" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        assertTemplateRejectsRuntimeFieldsInLogsdbColumnar(templateRequest);
+    }
+
+    private void assertTemplateRejectsRuntimeFieldsInLogsdbColumnar(Request templateRequest) {
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(templateRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(
+            e.getMessage(),
+            containsString("mapping-level runtime fields are not allowed in index using [logsdb_columnar] index mode")
+        );
     }
 }

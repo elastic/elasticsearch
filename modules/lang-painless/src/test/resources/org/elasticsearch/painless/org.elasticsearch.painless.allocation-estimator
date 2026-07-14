@@ -1,0 +1,24 @@
+#
+ # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ # or more contributor license agreements. Licensed under the "Elastic License
+ # 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ # Public License v 1"; you may not use this file except in compliance with, at
+ # your election, the "Elastic License 2.0", the "GNU Affero General Public
+ # License v3.0 only", or the "Server Side Public License, v 1".
+#
+
+# Allowlist for @allocates_dynamic tests: methods paired with deliberately misbehaving estimators.
+
+class org.elasticsearch.painless.AllocationEstimatorTestObject {
+  ()
+  int negativeEstimated() @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="negativeEstimate"]
+  int hugeEstimated() @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="hugeEstimate"]
+  int constantAllocating() @allocates_constant[bytes="48b"]
+  int zeroAllocating() @allocates_constant[bytes="0"]
+  int hugeAllocatingInstance() @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="hugeEstimateInstance"]
+}
+
+# An augmented method's estimator matches the underlying Java static signature (receiver first), not the Painless surface.
+class java.lang.String {
+  int org.elasticsearch.painless.AllocationEstimatorTestObject augmentedEstimated(int) @allocates_dynamic[class="org.elasticsearch.painless.AllocationEstimatorTestObject", method="augmentedEstimate"]
+}

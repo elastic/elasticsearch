@@ -1,0 +1,282 @@
+// End-to-end PromQL csv-spec coverage for histogram_count and histogram_sum on native histograms.
+
+///////////////////////////////////////////////////////////////////////////////
+// histogram_count on exponential histograms
+///////////////////////////////////////////////////////////////////////////////
+
+histogram_count_exp_histo_single_instance
+required_capability: promql_histogram_sum_count_avg
+PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_count(responseTime{instance="instance-1"}));
+
+result:double | step:datetime            | _timeseries:keyword
+43.0          | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-1""}"
+;
+
+histogram_count_exp_histo_all_instances
+required_capability: promql_histogram_sum_count_avg
+PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_count(responseTime{instance=~"instance-.*"}))
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+87.0          | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-0""}"
+43.0          | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-1""}"
+33.0          | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-2""}"
+;
+
+histogram_count_exp_histo_multi_step
+required_capability: promql_histogram_sum_count_avg
+PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:04:00.000Z" result=(histogram_count(responseTime{instance="instance-1"}))
+| SORT step;
+
+result:double | step:datetime            | _timeseries:keyword
+43.0          | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-1""}"
+27.0          | 2025-09-25T00:04:00.000Z | "{""instance"":""instance-1""}"
+;
+
+histogram_count_exp_histo_sum_across_series
+required_capability: promql_histogram_sum_count_avg
+PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(sum(histogram_count(responseTime{instance=~"instance-.*"})));
+
+result:double | step:datetime
+163.0         | 2025-09-25T00:02:00.000Z
+;
+
+///////////////////////////////////////////////////////////////////////////////
+// histogram_sum on exponential histograms
+///////////////////////////////////////////////////////////////////////////////
+
+histogram_sum_exp_histo_single_instance
+required_capability: promql_histogram_sum_count_avg
+PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_sum(responseTime{instance="instance-1"}));
+
+result:double        | step:datetime            | _timeseries:keyword
+0.051368000000000004 | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-1""}"
+;
+
+histogram_sum_exp_histo_all_instances
+required_capability: promql_histogram_sum_count_avg
+PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_sum(responseTime{instance=~"instance-.*"}))
+| SORT _timeseries;
+
+result:double        | step:datetime            | _timeseries:keyword
+17.58986500000001    | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-0""}"
+0.051368000000000004 | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-1""}"
+0.24387799999999998  | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-2""}"
+;
+
+///////////////////////////////////////////////////////////////////////////////
+// histogram_avg on exponential histograms
+///////////////////////////////////////////////////////////////////////////////
+
+histogram_avg_exp_histo_single_instance
+required_capability: promql_histogram_sum_count_avg
+PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_avg(responseTime{instance="instance-1"}));
+
+result:double         | step:datetime            | _timeseries:keyword
+0.0011946046511627907 | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-1""}"
+;
+
+histogram_avg_exp_histo_all_instances
+required_capability: promql_histogram_sum_count_avg
+PROMQL index=exp_histo_sample step=2m start="2025-09-25T00:02:00.000Z" end="2025-09-25T00:02:00.000Z" result=(histogram_avg(responseTime{instance=~"instance-.*"}))
+| SORT _timeseries;
+
+result:double         | step:datetime            | _timeseries:keyword
+0.2021823563218392    | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-0""}"
+0.0011946046511627907 | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-1""}"
+0.007390242424242424  | 2025-09-25T00:02:00.000Z | "{""instance"":""instance-2""}"
+;
+
+///////////////////////////////////////////////////////////////////////////////
+// histogram_count with increase on exponential histograms
+// Uses same time range as ES|QL TS test "timeseriesAllAggsFilteredAndBucketed"
+// (TRANGE 00:30:00-01:00:00, TBUCKET 10m) so results should match COUNT column.
+///////////////////////////////////////////////////////////////////////////////
+
+histogram_count_increase_exp_histo_single_bucket
+required_capability: promql_increase_on_histogram
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_count(increase(responseTime{instance="instance-1"}[2h])));
+
+result:double | step:datetime            | _timeseries:keyword
+3250.0        | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+;
+
+histogram_count_increase_exp_histo_all_instances
+required_capability: promql_increase_on_histogram
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_count(increase(responseTime{instance=~"instance-.*"}[2h])))
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+8841.0        | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
+3250.0        | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+3380.0        | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
+;
+
+histogram_count_increase_exp_histo_multi_step
+required_capability: promql_increase_on_histogram
+PROMQL index=exp_histo_sample step=30m start="2025-09-25T00:30:00.000Z" end="2025-09-25T01:30:00.000Z" result=(histogram_count(increase(responseTime{instance="instance-1"}[30m])))
+| SORT step;
+
+result:double | step:datetime            | _timeseries:keyword
+1126.0        | 2025-09-25T00:30:00.000Z | "{""instance"":""instance-1""}"
+890.0         | 2025-09-25T01:00:00.000Z | "{""instance"":""instance-1""}"
+919.0         | 2025-09-25T01:30:00.000Z | "{""instance"":""instance-1""}"
+;
+
+///////////////////////////////////////////////////////////////////////////////
+// histogram_sum with increase on exponential histograms
+///////////////////////////////////////////////////////////////////////////////
+
+histogram_sum_increase_exp_histo_single_bucket
+required_capability: promql_increase_on_histogram
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_sum(increase(responseTime{instance="instance-1"}[2h])));
+
+result:double     | step:datetime            | _timeseries:keyword
+36.19848400000001 | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+;
+
+histogram_sum_increase_exp_histo_all_instances
+required_capability: promql_increase_on_histogram
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_sum(increase(responseTime{instance=~"instance-.*"}[2h])))
+| SORT _timeseries;
+
+result:double      | step:datetime            | _timeseries:keyword
+1472.744209000001  | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
+36.19848400000001  | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+27.706021000000007 | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
+;
+
+///////////////////////////////////////////////////////////////////////////////
+// histogram_avg with increase on exponential histograms
+///////////////////////////////////////////////////////////////////////////////
+
+histogram_avg_increase_exp_histo_single_bucket
+required_capability: promql_increase_on_histogram
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_avg(increase(responseTime{instance="instance-1"}[2h])));
+
+result:double        | step:datetime            | _timeseries:keyword
+0.011137995076923079 | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+;
+
+histogram_avg_increase_exp_histo_all_instances
+required_capability: promql_increase_on_histogram
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_avg(increase(responseTime{instance=~"instance-.*"}[2h])))
+| SORT _timeseries;
+
+result:double        | step:datetime            | _timeseries:keyword
+0.16658117961769042  | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
+0.011137995076923079 | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+0.008197047633136096 | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
+;
+
+histogram_count_aggsum_increase_exp_histo
+required_capability: promql_sum_on_histogram
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_count(sum(increase(responseTime{instance=~"instance-.*"}[2h]))));
+
+result:double | step:datetime
+15471.0       | 2025-09-25T02:00:00.000Z
+;
+
+histogram_count_aggsum_by_increase_exp_histo
+required_capability: promql_sum_on_histogram
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_count(sum by (instance)(increase(responseTime{instance=~"instance-.*"}[2h]))))
+| SORT instance;
+
+result:double | step:datetime            | instance:keyword
+8841.0        | 2025-09-25T02:00:00.000Z | instance-0
+3250.0        | 2025-09-25T02:00:00.000Z | instance-1
+3380.0        | 2025-09-25T02:00:00.000Z | instance-2
+;
+
+///////////////////////////////////////////////////////////////////////////////
+// histogram_quantile on exponential histograms
+///////////////////////////////////////////////////////////////////////////////
+
+// --- min (quantile 0.0) ---
+
+histogram_quantile_min_exp_histo_no_bucket
+required_capability: promql_histogram_quantile_exponential
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_quantile(0.0, increase(responseTime{instance=~"instance-.*"}[2h])))
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+2.4E-4        | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
+2.17E-4       | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+2.2E-4        | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
+;
+
+// --- max (quantile 1.0) ---
+
+histogram_quantile_max_exp_histo_no_bucket
+required_capability: promql_histogram_quantile_exponential
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_quantile(1.0, increase(responseTime{instance=~"instance-.*"}[2h])))
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+6.786232      | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
+3.190723      | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+2.744054      | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
+;
+
+// --- median (quantile 0.5) ---
+
+histogram_quantile_median_exp_histo_no_bucket
+required_capability: promql_histogram_quantile_exponential
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_quantile(0.5, increase(responseTime{instance=~"instance-.*"}[2h])))
+| SORT _timeseries;
+
+result:double            | step:datetime            | _timeseries:keyword
+0.0211401..0.0211407     | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-0""}"
+0.000646929..0.0006608   | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-1""}"
+0.000646929..0.0006608   | 2025-09-25T02:00:00.000Z | "{""instance"":""instance-2""}"
+;
+
+// --- min with time bucketing (30m steps, same pattern as histogram_count_increase_exp_histo_multi_step) ---
+
+histogram_quantile_min_exp_histo_multi_step
+required_capability: promql_histogram_quantile_exponential
+PROMQL index=exp_histo_sample step=30m start="2025-09-25T00:30:00.000Z" end="2025-09-25T01:30:00.000Z" result=(histogram_quantile(0.0, increase(responseTime{instance="instance-1"}[30m])))
+| SORT step;
+
+result:double | step:datetime            | _timeseries:keyword
+2.24E-4       | 2025-09-25T00:30:00.000Z | "{""instance"":""instance-1""}"
+2.29E-4       | 2025-09-25T01:00:00.000Z | "{""instance"":""instance-1""}"
+2.21E-4       | 2025-09-25T01:30:00.000Z | "{""instance"":""instance-1""}"
+;
+
+// --- max with time bucketing ---
+
+histogram_quantile_max_exp_histo_multi_step
+required_capability: promql_histogram_quantile_exponential
+PROMQL index=exp_histo_sample step=30m start="2025-09-25T00:30:00.000Z" end="2025-09-25T01:30:00.000Z" result=(histogram_quantile(1.0, increase(responseTime{instance="instance-1"}[30m])))
+| SORT step;
+
+result:double | step:datetime            | _timeseries:keyword
+3.190723      | 2025-09-25T00:30:00.000Z | "{""instance"":""instance-1""}"
+0.252402      | 2025-09-25T01:00:00.000Z | "{""instance"":""instance-1""}"
+1.451866      | 2025-09-25T01:30:00.000Z | "{""instance"":""instance-1""}"
+;
+
+// --- median with time bucketing ---
+
+histogram_quantile_median_exp_histo_multi_step
+required_capability: promql_histogram_quantile_exponential
+PROMQL index=exp_histo_sample step=30m start="2025-09-25T00:30:00.000Z" end="2025-09-25T01:30:00.000Z" result=(histogram_quantile(0.5, increase(responseTime{instance="instance-1"}[30m])))
+| SORT step;
+
+result:double              | step:datetime            | _timeseries:keyword
+7.2E-4..7.21E-4            | 2025-09-25T00:30:00.000Z | "{""instance"":""instance-1""}"
+6.19E-4..6.2E-4            | 2025-09-25T01:00:00.000Z | "{""instance"":""instance-1""}"
+6.05E-4..6.06E-4           | 2025-09-25T01:30:00.000Z | "{""instance"":""instance-1""}"
+;
+
+// --- sum (merge) of increase across series, then quantile ---
+
+histogram_quantile_median_exp_histo_sum_across_series
+required_capability: promql_histogram_quantile_exponential
+required_capability: promql_sum_on_histogram
+PROMQL index=exp_histo_sample step=2h start="2025-09-25T02:00:00.000Z" end="2025-09-25T02:00:00.000Z" result=(histogram_quantile(0.5, sum(increase(responseTime{instance=~"instance-.*"}[2h]))));
+
+result:double          | step:datetime
+0.00169649..0.001714   | 2025-09-25T02:00:00.000Z
+;

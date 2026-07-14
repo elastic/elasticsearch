@@ -14,9 +14,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING;
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING;
@@ -115,9 +122,98 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
         assertThat(real.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
+    public void testCloseBalancesMemoryHeldUnderPreallocateLabel() {
+        final RecordingMeterRegistry meter = new RecordingMeterRegistry();
+        final HierarchyCircuitBreakerService real = realWithMeter(meter);
+
+        final long preallocate = 4096L;
+        try (
+            PreallocatedCircuitBreakerService preallocated = new PreallocatedCircuitBreakerService(
+                real,
+                CircuitBreaker.REQUEST,
+                preallocate,
+                "test"
+            )
+        ) {
+            assertThat(preallocated.getBreaker(CircuitBreaker.REQUEST).getName(), equalTo(CircuitBreaker.REQUEST));
+        }
+
+        final Map<String, Object> preallocateAttrs = Map.of(
+            ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
+            CircuitBreaker.REQUEST,
+            ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
+            ChildMemoryCircuitBreaker.CATEGORY_PREALLOCATE
+        );
+        final Map<String, Object> uncategorizedAttrs = Map.of(
+            ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
+            CircuitBreaker.REQUEST,
+            ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
+            ChildMemoryCircuitBreaker.CATEGORY_UNCATEGORIZED
+        );
+
+        final Map<Map<String, Object>, Long> heldByAttrs = meter.getRecorder()
+            .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
+            .stream()
+            .collect(Collectors.groupingBy(Measurement::attributes, Collectors.summingLong(Measurement::getLong)));
+
+        assertTrue("expected preallocate admission to be recorded", heldByAttrs.containsKey(preallocateAttrs));
+        assertEquals(Long.valueOf(0L), heldByAttrs.get(preallocateAttrs));
+        assertNull("preallocate close() must not bucket releases under \"uncategorized\"", heldByAttrs.get(uncategorizedAttrs));
+        assertThat(real.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+    }
+
+    public void testCloseBalancesMemoryHeldUnderPreallocateLabelWhenFullyConsumed() {
+        final RecordingMeterRegistry meter = new RecordingMeterRegistry();
+        final HierarchyCircuitBreakerService real = realWithMeter(meter);
+
+        final long preallocate = 4096L;
+        try (
+            PreallocatedCircuitBreakerService preallocated = new PreallocatedCircuitBreakerService(
+                real,
+                CircuitBreaker.REQUEST,
+                preallocate,
+                "test"
+            )
+        ) {
+            final CircuitBreaker b = preallocated.getBreaker(CircuitBreaker.REQUEST);
+            // Allocate more than was preallocated to drive the breaker into the "used all" state, then release it.
+            b.addEstimateBytesAndMaybeBreak(preallocate * 2, "test");
+            b.addWithoutBreaking(-(preallocate * 2), "test");
+        }
+
+        final Map<String, Object> preallocateAttrs = Map.of(
+            ChildMemoryCircuitBreaker.BREAKER_METRIC_TYPE_ATTRIBUTE,
+            CircuitBreaker.REQUEST,
+            ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
+            ChildMemoryCircuitBreaker.CATEGORY_PREALLOCATE
+        );
+
+        final Map<Map<String, Object>, Long> heldByAttrs = meter.getRecorder()
+            .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
+            .stream()
+            .collect(Collectors.groupingBy(Measurement::attributes, Collectors.summingLong(Measurement::getLong)));
+
+        assertTrue("expected preallocate admission to be recorded", heldByAttrs.containsKey(preallocateAttrs));
+        assertEquals("preallocate label must return to zero even when fully consumed", Long.valueOf(0L), heldByAttrs.get(preallocateAttrs));
+        assertThat(real.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+    }
+
     private HierarchyCircuitBreakerService real() {
+        return realWithMetrics(CircuitBreakerMetrics.NOOP);
+    }
+
+    private HierarchyCircuitBreakerService realWithMeter(RecordingMeterRegistry meter) {
+        return realWithMetrics(new CircuitBreakerMetrics(new TelemetryProvider.NoopTelemetryProvider() {
+            @Override
+            public MeterRegistry getMeterRegistry() {
+                return meter;
+            }
+        }));
+    }
+
+    private HierarchyCircuitBreakerService realWithMetrics(CircuitBreakerMetrics metrics) {
         return new HierarchyCircuitBreakerService(
-            CircuitBreakerMetrics.NOOP,
+            metrics,
             Settings.builder()
                 // Pin the limit to something that'll totally fit in the heap we use for the tests
                 .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100mb")

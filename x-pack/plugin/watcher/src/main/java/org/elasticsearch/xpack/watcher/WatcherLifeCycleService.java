@@ -180,6 +180,16 @@ public class WatcherLifeCycleService implements ClusterStateListener {
                         clearAllocationIds();
                         this.state.set(WatcherState.STOPPED);
                     });
+                } else if (state.get() == WatcherState.STARTING) {
+                    // A routing change arrived while watcher is still starting up (reloadInner is in
+                    // flight). Re-invoke start() with the current cluster state so that
+                    // processedClusterStateVersion is bumped: the stale reloadInner will fail its
+                    // version guard and exit early, and a new one with the correct shard-allocation
+                    // partition (shardCount/idx for hostsWatch) will be submitted in its place.
+                    watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED), (exception) -> {
+                        clearAllocationIds();
+                        this.state.set(WatcherState.STOPPED);
+                    });
                 }
             } else {
                 clearAllocationIds();
@@ -204,7 +214,6 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         return watcherMetadata != null && watcherMetadata.manuallyStopped();
     }
 
-    /**
     /**
      * clear out current allocation ids if not already happened
      * @return true, if existing allocation ids were cleaned out, false otherwise

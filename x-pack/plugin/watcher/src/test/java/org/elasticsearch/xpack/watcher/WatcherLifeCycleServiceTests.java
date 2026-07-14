@@ -271,6 +271,80 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         assertThat(lifeCycleService.getState().get(), equalTo(WatcherState.STARTED));
     }
 
+    public void testRoutingChangeWhileStartingTriggersStart() {
+        /*
+         * Regression test for a race where a replica shard transitions to STARTED while watcher
+         * is mid-start (state=STARTING, reloadInner in flight). Without handling this case the
+         * stale reloadInner completes with shardCount=1, causing every node to schedule all
+         * watches and producing an alternating throttled/executed history pattern.
+         *
+         * The STARTING state is reached here via validate() returning false on the first
+         * cluster-changed event (e.g. index not yet ready), which drives state to STOPPED; the
+         * next event with the same routing but validate()=true then transitions STOPPED→STARTING.
+         */
+        Index watchIndex = new Index(Watch.INDEX, "uuid");
+        ShardId shardId = new ShardId(watchIndex, 0);
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder().masterNodeId("node_1")
+            .localNodeId("node_1")
+            .add(newNode("node_1"))
+            .add(newNode("node_2"))
+            .build();
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        ProjectMetadata metadata = ProjectMetadata.builder(projectId)
+            .put(IndexTemplateMetadata.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+            .put(indexMetadataBuilder)
+            .build();
+
+        // CS_S: only the primary on the local node (replica not yet allocated)
+        IndexRoutingTable primaryOnly = IndexRoutingTable.builder(watchIndex)
+            .addShard(TestShardRouting.newShardRouting(shardId, "node_1", true, STARTED))
+            .build();
+        ClusterState csWithPrimary = ClusterState.builder(new ClusterName("my-cluster"))
+            .nodes(nodes)
+            .putRoutingTable(projectId, RoutingTable.builder().add(primaryOnly).build())
+            .putProjectMetadata(metadata)
+            .build();
+
+        // CS_3: primary on node_1, replica now STARTED on node_2
+        IndexRoutingTable primaryAndReplica = IndexRoutingTable.builder(watchIndex)
+            .addShard(TestShardRouting.newShardRouting(shardId, "node_1", true, STARTED))
+            .addShard(TestShardRouting.newShardRouting(shardId, "node_2", false, STARTED))
+            .build();
+        ClusterState csWithReplica = ClusterState.builder(new ClusterName("my-cluster"))
+            .nodes(nodes)
+            .putRoutingTable(projectId, RoutingTable.builder().add(primaryAndReplica).build())
+            .putProjectMetadata(metadata)
+            .build();
+
+        ClusterState emptyState = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).putProjectMetadata(metadata).build();
+
+        // Step 1: validate() returns false (e.g. index not ready) → state driven to STOPPED
+        // This is to put the lifecycle service in STOPPED state, the bug is in the transition from STOPPED to STARTED
+        when(watcherService.validate(csWithPrimary)).thenReturn(false);
+        lifeCycleService.clusterChanged(new ClusterChangedEvent(randomIdentifier(), csWithPrimary, emptyState));
+        assertThat(lifeCycleService.getState().get(), is(WatcherState.STOPPED));
+
+        // Step 2: same routing, validate() now returns true → STOPPED→STARTING, start(CS_S).
+        // The success callback is intentionally not invoked, simulating an in-flight reloadInner.
+        when(watcherService.validate(csWithPrimary)).thenReturn(true);
+        lifeCycleService.clusterChanged(new ClusterChangedEvent(randomIdentifier(), csWithPrimary, emptyState));
+        assertThat(lifeCycleService.getState().get(), is(WatcherState.STARTING));
+        verify(watcherService, times(1)).start(eq(csWithPrimary), any(), any());
+
+        // Step 3: replica becomes STARTED while reloadInner(CS_S) is still in flight.
+        // localAffectedShardRoutings changes from [primary] to [primary, replica], so the routing
+        // differs. The fix must call start(CS_3) to bump processedClusterStateVersion so the
+        // stale reloadInner exits early and a new one uses the correct shardCount=2.
+        reset(watcherService);
+        when(watcherService.validate(csWithReplica)).thenReturn(true);
+        lifeCycleService.clusterChanged(new ClusterChangedEvent(randomIdentifier(), csWithReplica, csWithPrimary));
+        verify(watcherService, times(1)).start(eq(csWithReplica), any(), any());
+        assertThat(lifeCycleService.getState().get(), is(WatcherState.STARTING));
+    }
+
     public void testReloadWithIdenticalRoutingTable() {
         /*
          * This tests that the identical routing table causes reload only once.

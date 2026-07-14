@@ -77,7 +77,7 @@ public final class RequestFilterGraft {
                 // Per-source degrade: an unsupported clause leaves this source unfiltered rather than failing the
                 // query. Warn so the wider (unfiltered) result is not a silent surprise.
                 HeaderWarning.addWarning(
-                    "The request filter could not be applied to external dataset [{}] (unsupported [{}]); " + "it was read unfiltered",
+                    "The request filter could not be applied to external dataset [{}] (unsupported [{}]); it was read unfiltered",
                     name(relation),
                     e.construct()
                 );

@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -254,8 +253,8 @@ public final class QueryDslTranslator {
             // would satisfy (40,60) even though no single value lies inside it. mv_in_range is the exact predicate,
             // but it is closed/inclusive on both ends — so an exclusive bound is first normalized to the equivalent
             // inclusive one, which is only exact on whole-number types (there is no predecessor for a double).
-            Object lower = coerce(field, range.from(), formatter);
-            Object upper = coerce(field, range.to(), formatter);
+            Object lower = coerce(field, range.from());
+            Object upper = coerce(field, range.to());
             // The exclusive→inclusive normalization only matters for a PRESENT field. A missing field is null-bound and
             // the leaf folds to false regardless of the bounds, so skip it — otherwise an exclusive bound over a missing
             // field would wrongly degrade (unfiltered) where the index path's unmapped-field range matches nothing.
@@ -287,7 +286,7 @@ public final class QueryDslTranslator {
         // composes like the other leaves (missing field: must → nothing, must_not → all).
         if (hasLower) {
             Expression max = new MvMax(Source.EMPTY, field);
-            Literal lo = literalFor(field, range.from(), formatter);
+            Literal lo = literalFor(field, range.from());
             return checkedLeaf(
                 field,
                 twoValued(
@@ -298,7 +297,7 @@ public final class QueryDslTranslator {
             );
         }
         Expression min = new MvMin(Source.EMPTY, field);
-        Literal hi = literalFor(field, range.to(), formatter);
+        Literal hi = literalFor(field, range.to());
         return checkedLeaf(
             field,
             twoValued(range.includeUpper() ? new LessThanOrEqual(Source.EMPTY, min, hi, null) : new LessThan(Source.EMPTY, min, hi, null))
@@ -374,19 +373,20 @@ public final class QueryDslTranslator {
         DateFieldMapper.Resolution resolution = type == DataType.DATE_NANOS
             ? DateFieldMapper.Resolution.NANOSECONDS
             : DateFieldMapper.Resolution.MILLISECONDS;
-        if (value instanceof Number n) {
-            return resolution.convert(Instant.ofEpochMilli(n.longValue()));
-        }
-        DateFormatter effective = formatter != null
-            ? formatter
-            : (type == DataType.DATE_NANOS
-                ? DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER
-                : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
         try {
+            if (value instanceof Number n) {
+                return resolution.convert(Instant.ofEpochMilli(n.longValue()));
+            }
+            DateFormatter effective = formatter != null
+                ? formatter
+                : (type == DataType.DATE_NANOS
+                    ? DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER
+                    : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
             Instant instant = effective.toDateMathParser().parse(String.valueOf(value), () -> nowInMillis, roundUp, null);
             return resolution.convert(instant);
         } catch (RuntimeException e) {
-            // An unparseable bound or a date-math expression we cannot resolve cannot be translated faithfully.
+            // An unparseable bound, a date-math expression we cannot resolve, or a numeric epoch out of the type's
+            // representable range (e.g. a pre-1970 date_nanos) cannot be translated faithfully — degrade this clause.
             throw new TranslationUnsupportedException("range[date bound on " + type.typeName() + "]");
         }
     }
@@ -467,17 +467,13 @@ public final class QueryDslTranslator {
     }
 
     private Literal literalFor(Expression field, Object value) {
-        return literalFor(field, value, null);
-    }
-
-    private Literal literalFor(Expression field, Object value, DateFormatter formatter) {
-        return new Literal(Source.EMPTY, coerce(field, value, formatter), literalType(field, value));
+        return new Literal(Source.EMPTY, coerce(field, value), literalType(field, value));
     }
 
     private Literal listLiteralFor(Expression field, List<Object> values) {
         List<Object> coerced = new ArrayList<>(values.size());
         for (Object v : values) {
-            coerced.add(coerce(field, v, null));
+            coerced.add(coerce(field, v));
         }
         return new Literal(Source.EMPTY, coerced, literalType(field, values.get(0)));
     }
@@ -492,8 +488,12 @@ public final class QueryDslTranslator {
         return DataType.isNull(type) ? DataType.fromJava(sample) : type;
     }
 
-    /** Convert a JSON value from the DSL into the internal representation of the field's type. */
-    private static Object coerce(Expression field, Object value, DateFormatter formatter) {
+    /**
+     * Convert a JSON value from the DSL into the internal representation of the field's type. Date types never reach
+     * here — {@code term}/{@code terms}/{@code range} on a date route through {@link #dateBound}, which owns the date
+     * math and rounding — so a date field falls through to the {@code default} and would degrade, defensively.
+     */
+    private static Object coerce(Expression field, Object value) {
         DataType type = field.dataType();
         // Missing field: the leaf folds to false regardless of the literal, so keep the value as-is.
         if (DataType.isNull(type)) {
@@ -506,18 +506,12 @@ public final class QueryDslTranslator {
                 case INTEGER -> value instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(value));
                 case LONG -> value instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(value));
                 case DOUBLE -> value instanceof Number n ? n.doubleValue() : Double.parseDouble(String.valueOf(value));
-                case DATETIME -> value instanceof Number n
-                    ? n.longValue()
-                    : EsqlDataTypeConverter.dateTimeToLong(String.valueOf(value), formatter);
-                case DATE_NANOS -> value instanceof Number n
-                    ? n.longValue()
-                    : EsqlDataTypeConverter.dateNanosToLong(String.valueOf(value), formatter);
-                // ip, version, unsigned_long and friends have encodings we do not reproduce here; rejecting keeps us
-                // from handing the evaluator a value it cannot read.
+                // ip, version, unsigned_long, dates and friends have encodings we do not reproduce here; rejecting keeps
+                // us from handing the evaluator a value it cannot read.
                 default -> throw new TranslationUnsupportedException("literal on " + type.typeName());
             };
         } catch (IllegalArgumentException e) {
-            // An unparseable bound (a malformed date, a non-numeric string) cannot be translated faithfully.
+            // An unparseable bound (a non-numeric string) cannot be translated faithfully.
             throw new TranslationUnsupportedException("literal on " + type.typeName());
         }
     }

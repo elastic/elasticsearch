@@ -443,4 +443,9 @@ public class QueryDslTranslatorTests extends ESTestCase {
         Literal bound = (Literal) ((GreaterThanOrEqual) cmp).right();
         assertEquals(millis * 1_000_000L, bound.value());
     }
+
+    /** A numeric date_nanos bound before the epoch is outside the type's representable range; it degrades, not 500s. */
+    public void testOutOfRangeNumericDateNanosBoundDegrades() {
+        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("ts_nanos").gte(-5000)));
+    }
 }

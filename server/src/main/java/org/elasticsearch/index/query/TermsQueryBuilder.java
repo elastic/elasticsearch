@@ -30,15 +30,20 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -51,20 +56,25 @@ import java.util.stream.IntStream;
  */
 public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
+    public static final String BITMAP_FORMAT = "bitmap";
+
+    private static final TransportVersion TERMS_QUERY_BITMAP_FORMAT = TransportVersion.fromName("terms_query_bitmap_format");
 
     private final String fieldName;
     private final BinaryValues values;
     private final TermsLookup termsLookup;
     private final Supplier<List<?>> supplier;
+    @Nullable
+    private final String format;
 
     public TermsQueryBuilder(String fieldName, TermsLookup termsLookup) {
-        this(fieldName, null, termsLookup);
+        this(fieldName, null, termsLookup, null);
     }
 
     /**
      * constructor used internally for serialization of both value / termslookup variants
      */
-    private TermsQueryBuilder(String fieldName, List<Object> values, TermsLookup termsLookup) {
+    private TermsQueryBuilder(String fieldName, List<Object> values, TermsLookup termsLookup, @Nullable String format) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name cannot be null.");
         }
@@ -79,6 +89,7 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         this.values = values == null ? null : new BinaryValues(values, false);
         this.termsLookup = termsLookup;
         this.supplier = null;
+        this.format = format;
     }
 
     /**
@@ -162,6 +173,7 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         }
         this.termsLookup = null;
         this.supplier = null;
+        this.format = null;
     }
 
     private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier) {
@@ -169,6 +181,7 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         this.values = null;
         this.termsLookup = null;
         this.supplier = supplier;
+        this.format = null;
     }
 
     /**
@@ -180,6 +193,11 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         this.termsLookup = in.readOptionalWriteable(TermsLookup::new);
         this.values = in.readOptionalWriteable(BinaryValues::new);
         this.supplier = null;
+        if (in.getTransportVersion().supports(TERMS_QUERY_BITMAP_FORMAT)) {
+            this.format = in.readOptionalString();
+        } else {
+            this.format = null;
+        }
     }
 
     @Override
@@ -190,6 +208,9 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         out.writeString(fieldName);
         out.writeOptionalWriteable(termsLookup);
         out.writeOptionalWriteable(values);
+        if (out.getTransportVersion().supports(TERMS_QUERY_BITMAP_FORMAT)) {
+            out.writeOptionalString(format);
+        }
     }
 
     public String fieldName() {
@@ -224,6 +245,9 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
             builder.startObject(fieldName);
             termsLookup.toXContent(builder, params);
             builder.endObject();
+        } else if (format != null) {
+            builder.field(fieldName, values().get(0));
+            builder.field("format", format);
         } else {
             builder.field(fieldName, values());
         }
@@ -235,6 +259,8 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         String fieldName = null;
         List<Object> values = null;
         TermsLookup termsLookup = null;
+        String format = null;
+        String bitmapString = null;
 
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -274,6 +300,11 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
                     boost = parser.floatValue();
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
+                } else if ("format".equals(currentFieldName)) {
+                    format = parser.text();
+                } else if (fieldName == null && token == XContentParser.Token.VALUE_STRING) {
+                    fieldName = currentFieldName;
+                    bitmapString = parser.text();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -298,7 +329,17 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
             );
         }
 
-        TermsQueryBuilder builder = new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName);
+        if (bitmapString != null) {
+            if (BITMAP_FORMAT.equals(format) == false) {
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + TermsQueryBuilder.NAME + "] string value for field [" + fieldName + "] is only supported with [format: bitmap]"
+                );
+            }
+            values = List.of(bitmapString);
+        }
+
+        TermsQueryBuilder builder = new TermsQueryBuilder(fieldName, values, termsLookup, format).boost(boost).queryName(queryName);
 
         return builder;
     }
@@ -325,6 +366,9 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
+        if (BITMAP_FORMAT.equals(format)) {
+            return doBitmapQuery(context);
+        }
         int maxTermsCount = context.getIndexSettings().getMaxTermsCount();
         if (values.size() > maxTermsCount) {
             throw new IllegalArgumentException(
@@ -346,6 +390,40 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         return fieldType.termsQuery(values, context);
     }
 
+    private Query doBitmapQuery(SearchExecutionContext context) throws IOException {
+        if (values.size() != 1) {
+            throw new IllegalArgumentException("[bitmap] format requires exactly one base64-encoded bitmap value");
+        }
+        MappedFieldType fieldType = context.getFieldType(fieldName);
+        if (fieldType == null) {
+            throw new IllegalStateException("Rewrite first");
+        }
+        if (fieldType instanceof NumberFieldMapper.NumberFieldType == false) {
+            throw new IllegalArgumentException(
+                "[bitmap] format is only supported for [integer] field type, not [" + fieldType.typeName() + "]"
+            );
+        }
+        NumberFieldMapper.NumberFieldType numberFieldType = (NumberFieldMapper.NumberFieldType) fieldType;
+        String encoded = values().get(0).toString();
+        byte[] bitmapBytes;
+        try {
+            bitmapBytes = Base64.getDecoder().decode(encoded);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("[bitmap] format expects a base64-encoded RoaringBitmap value", e);
+        }
+        RoaringBitmap bitmap = new RoaringBitmap();
+        try {
+            bitmap.deserialize(ByteBuffer.wrap(bitmapBytes).order(ByteOrder.LITTLE_ENDIAN));
+            bitmap.validate();
+        } catch (Exception e) {
+            throw new IllegalArgumentException("[bitmap] format value is not a valid serialized RoaringBitmap", e);
+        }
+        if (bitmap.isEmpty() == false && bitmap.last() < 0) {
+            throw new IllegalArgumentException("[bitmap] format on [integer] field only supports non-negative values (0 to 2147483647)");
+        }
+        return numberFieldType.bitmapQuery(bitmap, context);
+    }
+
     private static void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
         GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
@@ -361,7 +439,7 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, values, termsLookup, supplier);
+        return Objects.hash(fieldName, values, termsLookup, supplier, format);
     }
 
     @Override
@@ -369,7 +447,8 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(values, other.values)
             && Objects.equals(termsLookup, other.termsLookup)
-            && Objects.equals(supplier, other.supplier);
+            && Objects.equals(supplier, other.supplier)
+            && Objects.equals(format, other.format);
     }
 
     @Override

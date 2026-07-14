@@ -38,6 +38,7 @@ module org.elasticsearch.server {
 
     requires hppc;
     requires HdrHistogram;
+    requires roaringbitmap;
     requires jopt.simple;
     requires log4j2.ecs.layout;
     requires org.lz4.java;

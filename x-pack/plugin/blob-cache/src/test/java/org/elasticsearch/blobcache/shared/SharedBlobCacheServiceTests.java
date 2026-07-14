@@ -122,7 +122,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         });
     }
 
-
     public void testBasicEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")

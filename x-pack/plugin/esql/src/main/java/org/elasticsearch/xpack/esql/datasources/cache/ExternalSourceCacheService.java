@@ -40,18 +40,21 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 
 /**
- * Coordinator-only, in-memory cache service for external source metadata. Maintains three independent
- * caches, each with its own weight budget:
+ * Coordinator-only, in-memory cache service for external source metadata. Maintains four independent caches:
  * <ul>
- *   <li>Per-file schema cache (~20%) — schema + the per-file {@code _stats.*} overlay, keyed by
+ *   <li>Per-file schema cache (~20% of budget) — schema + the per-file {@code _stats.*} overlay, keyed by
  *       {@code (path, mtime, config)}. No time expiry: a changed file has a new mtime, hence a new key.</li>
- *   <li>Dataset-aggregate cache (~2%) — the memoized whole-dataset row count, keyed by the file-set
- *       fingerprint. No time expiry; kept separate so per-file churn cannot evict it.</li>
- *   <li>Listing cache (~78%, 30s TTL) — the file set under a prefix, isolated by credential hash. This is
- *       the only cache with a TTL: it discovers file identity and has no per-file key to invalidate on.</li>
+ *   <li>Dataset-aggregate cache (~2% of budget) — the memoized whole-dataset row count, keyed by the
+ *       file-set fingerprint. No time expiry; kept separate so per-file churn cannot evict it.</li>
+ *   <li>File-metadata cache (count-bounded, 30s TTL) — {@code {length, mtime}} per path, so a repeated
+ *       resolve skips the stat. Like listing it is freshness-discovery (it holds the CURRENT mtime, which
+ *       gates the identity-keyed caches above), so it keeps a short TTL.</li>
+ *   <li>Listing cache (~78% of budget, 30s TTL) — the file set under a prefix, isolated by credential
+ *       hash. Discovers file identity and has no per-file key to invalidate on, hence the TTL.</li>
  * </ul>
- * The identity-keyed caches are bounded by weight + LRU, never by a clock — a timer would only discard
- * still-valid, expensively harvested entries.
+ * The identity-keyed caches (schema, dataset-aggregate) are bounded by weight + LRU, never by a clock — a
+ * timer would only discard still-valid, expensively harvested entries. The discovery caches (file-metadata,
+ * listing) keep a short TTL because they hold current-mtime freshness with no identity key to key on.
  */
 public class ExternalSourceCacheService implements Closeable {
 
@@ -65,6 +68,7 @@ public class ExternalSourceCacheService implements Closeable {
      * fingerprint is a correct-or-miss identity key; only weight/LRU reclaims it.
      */
     private final Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache;
+    private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
     private final Cache<ListingCacheKey, FileList> listingCache;
     private final long maxTotalBytes;
     private volatile boolean enabled;
@@ -111,6 +115,17 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private static final int MAX_PENDING_DATASET_AGGREGATES = 64;
     private static final int MAX_PENDING_TOTAL_PATHS = 65_536;
+
+    /**
+     * Entry-count cap for the file-metadata cache. Unlike the schema and listing caches (byte-weighted,
+     * variable-size values), a {@link FileMetadata} is two {@code long}s behind a small path key, so the
+     * cache is bounded by count rather than bytes — no per-entry byte weigher. 100k tiny entries is a few
+     * tens of MB worst case, and, being hard-TTL-bounded by the schema TTL, the live set is normally far
+     * smaller. Kept a constant rather than a cluster setting: no workload has needed to tune it, and a
+     * public setting is a permanent support surface — it can be promoted to a setting later if a real need
+     * appears.
+     */
+    private static final int FILE_METADATA_CACHE_MAX_ENTRIES = 100_000;
     private final LinkedHashMap<SchemaCacheKey, PendingDatasetAggregate> pendingDatasetAggregates = new LinkedHashMap<>();
 
     /**
@@ -154,6 +169,15 @@ public class ExternalSourceCacheService implements Closeable {
             .weigher((key, value) -> value.estimatedBytes())
             .build();
 
+        // Freshness-discovery, like listing: this holds a file's CURRENT {length, mtime} (the version token
+        // that rebuilds the identity keys), so it must refresh on a clock — it shares the listing TTL. No
+        // byte weigher: entries are tiny and fixed-size, so it is bounded by a generous entry count instead
+        // of the byte budget.
+        this.fileMetadataCache = CacheBuilder.<FileMetadataCacheKey, FileMetadata>builder()
+            .setMaximumWeight(FILE_METADATA_CACHE_MAX_ENTRIES)
+            .setExpireAfterWrite(listingTtl)
+            .build();
+
         this.listingCache = CacheBuilder.<ListingCacheKey, FileList>builder()
             .setMaximumWeight(listingBudget)
             .setExpireAfterWrite(listingTtl)
@@ -161,11 +185,13 @@ public class ExternalSourceCacheService implements Closeable {
             .build();
 
         logger.info(
-            "External source cache initialized: total=[{}], schema=[{}], datasetAggregate=[{}], listing=[{}], listingTTL=[{}]",
+            "External source cache initialized: total=[{}], schema=[{}], datasetAggregate=[{}], listing=[{}], "
+                + "fileMetadataMaxEntries=[{}], listingTTL=[{}]",
             totalBudget,
             ByteSizeValue.ofBytes(schemaBudget),
             ByteSizeValue.ofBytes(datasetAggregateBudget),
             ByteSizeValue.ofBytes(listingBudget),
+            FILE_METADATA_CACHE_MAX_ENTRIES,
             listingTtl
         );
     }
@@ -179,6 +205,21 @@ public class ExternalSourceCacheService implements Closeable {
             return loader.load(key);
         }
         return schemaCache.computeIfAbsent(key, loader);
+    }
+
+    /**
+     * Returns cached {@link FileMetadata} or computes it via the loader. The loader — a single object
+     * probe (mtime + length), on S3 one {@code bytes=-1} GET — is only invoked on a miss. When the cache
+     * is disabled, the loader is called directly (bypassing the cache), so the probe still happens every
+     * query. Mirrors {@link #getOrComputeSchema}: this is the amortization lever that removes the
+     * per-query warm-path metadata probe for single-file sources.
+     */
+    public FileMetadata getOrComputeFileMetadata(FileMetadataCacheKey key, CacheLoader<FileMetadataCacheKey, FileMetadata> loader)
+        throws Exception {
+        if (enabled == false) {
+            return loader.load(key);
+        }
+        return fileMetadataCache.computeIfAbsent(key, loader);
     }
 
     /**
@@ -1329,6 +1370,7 @@ public class ExternalSourceCacheService implements Closeable {
     public void clearAll() {
         schemaCache.invalidateAll();
         datasetAggregateCache.invalidateAll();
+        fileMetadataCache.invalidateAll();
         listingCache.invalidateAll();
         synchronized (pendingDatasetAggregates) {
             pendingDatasetAggregates.clear();
@@ -1344,6 +1386,11 @@ public class ExternalSourceCacheService implements Closeable {
         stats.put("schema_cache.hits", schemaCache.stats().getHits());
         stats.put("schema_cache.misses", schemaCache.stats().getMisses());
         stats.put("schema_cache.evictions", schemaCache.stats().getEvictions());
+
+        stats.put("file_metadata_cache.count", fileMetadataCache.count());
+        stats.put("file_metadata_cache.hits", fileMetadataCache.stats().getHits());
+        stats.put("file_metadata_cache.misses", fileMetadataCache.stats().getMisses());
+        stats.put("file_metadata_cache.evictions", fileMetadataCache.stats().getEvictions());
 
         stats.put("listing_cache.count", listingCache.count());
         stats.put("listing_cache.hits", listingCache.stats().getHits());
@@ -1375,6 +1422,11 @@ public class ExternalSourceCacheService implements Closeable {
     // Visible for testing
     Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache() {
         return datasetAggregateCache;
+    }
+
+    // Visible for testing
+    Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache() {
+        return fileMetadataCache;
     }
 
     // Visible for testing

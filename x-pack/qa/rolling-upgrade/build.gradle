@@ -5,6 +5,7 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -28,6 +29,8 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
     systemProperty("tests.path.searchable.snapshots.repo", searchableSnapshotRepository)
+    // Disable ML tests for incompatible systems, see BwcVersions#isMlCompatible
+    systemProperty("tests.ml.skip", (BwcVersions.isMlCompatible(bwcVersion) == false).toString())
     doFirst {
       delete(searchableSnapshotRepository)
     }

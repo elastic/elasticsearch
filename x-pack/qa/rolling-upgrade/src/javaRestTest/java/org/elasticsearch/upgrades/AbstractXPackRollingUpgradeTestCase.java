@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.XContentTestUtils;
@@ -183,6 +184,15 @@ public abstract class AbstractXPackRollingUpgradeTestCase extends ParameterizedR
                 basicAuthHeaderValue("test_user", new SecureString("x-pack-test-password".toCharArray()))
             )
             .build();
+    }
+
+    /**
+     * ML tests may need to be skipped on hosts where the old cluster version and the installed glibc are incompatible,
+     * see {@code BwcVersions#isMlCompatible} in the build logic. The build wires this into the {@code tests.ml.skip}
+     * system property per BWC version.
+     */
+    protected static boolean skipMlTests() {
+        return Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
     }
 
     protected Collection<String> templatesToWaitFor() {

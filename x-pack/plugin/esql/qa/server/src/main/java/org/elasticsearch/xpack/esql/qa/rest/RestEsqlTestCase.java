@@ -1647,7 +1647,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             profileLogger.extractProfile(result, profileEnabled);
         }
         assertWarnings(response, assertWarnings, result);
-        assertDeleteRemovesResult(id);
+        assertAsyncQueryResultDeleted(id);
         return removeAsyncProperties(result);
     }
 
@@ -2082,7 +2082,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
      * Removes the result of an async esql query. Asserts that it returned {@code 200 OK}
      * and that deleting it a second time gives a {@code 404 Not Found}.
      */
-    static void assertDeleteRemovesResult(String id) throws IOException {
+    static void assertAsyncQueryResultDeleted(String id) throws IOException {
         var request = prepareAsyncDeleteRequest(id);
         performRequest(request);
 
@@ -2198,7 +2198,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertEquals(initialValue, newValue);
         }
 
-        assertDeleteRemovesResult(id);
+        assertAsyncQueryResultDeleted(id);
         return newValue;
     }
 

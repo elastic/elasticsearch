@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -21,6 +22,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.hamcrest.Matchers;
@@ -29,11 +33,11 @@ import org.junit.After;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Targeted unit tests for {@link NdJsonPageDecoder}'s keyword-decode path. Sibling
@@ -291,7 +295,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * e.g. {@code address.city}/{@code address.zip}, but a row's {@code address} is a plain string) is a genuine
      * scalar/object schema conflict: core ES dynamic mapping treats the same ambiguity as a hard document-parsing
      * conflict, so under {@link ErrorPolicy#STRICT} it must fail the query with an actionable message naming the
-     * field and both shapes rather than silently null-filling (elastic/esql-planning#1028). Before that fix, this
+     * field and both shapes rather than silently null-filling. Before that fix, this
      * mismatch was silently null-filled even under {@code STRICT} (see the pre-#1028 revision of
      * {@code testNullOrScalarWhereNestedObjectExpected}).
      */
@@ -312,12 +316,12 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * Same conflict as {@link #testScalarWhereNestedObjectExpectedStrictFails}, but under a non-strict policy: the
-     * conflicting field is null-filled and a client warning is surfaced, while the row's other columns (and other
-     * rows) still decode normally. This is a per-field null-fill, not a whole-row skip — elastic/esql-planning#1028
-     * notes the conflict path already decodes the rest of the record, so there is no need to drop it wholesale.
+     * Same conflict as {@link #testScalarWhereNestedObjectExpectedStrictFails}, but under skip_row: the conflicting
+     * record is dropped whole and a client warning is surfaced, while the other records still decode. error_mode
+     * governs the outcome the same for a bound/declared or an inferred schema; null_field keeps the record and nulls
+     * the conflicting field instead (see the NdJsonPageIteratorTests null_field pin).
      */
-    public void testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills() throws IOException {
+    public void testScalarWhereNestedObjectExpectedSkipRowDropsRecordAndWarns() throws IOException {
         String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}, \"id\": 1}\n"
             + "{\"address\": \"unstructured\", \"id\": 2}\n"
             + "{\"address\": {\"city\": \"London\", \"zip\": \"SW1A\"}, \"id\": 3}\n";
@@ -334,18 +338,17 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             )
         ) {
             assertNotNull(page);
-            assertEquals(3, page.getPositionCount());
+            // The scalar-where-object record is dropped whole under skip_row; the two structured records survive.
+            assertEquals(2, page.getPositionCount());
             BytesRefBlock city = page.getBlock(0);
             BytesRefBlock zip = page.getBlock(1);
             IntBlock id = page.getBlock(2);
             BytesRef scratch = new BytesRef();
             assertEquals(new BytesRef("NYC"), BytesRef.deepCopyOf(city.getBytesRef(0, scratch)));
-            assertTrue("scalar-where-object row -> city null", city.isNull(1));
-            assertTrue("scalar-where-object row -> zip null", zip.isNull(1));
-            assertFalse("scalar-where-object row's sibling column must still decode", id.isNull(1));
-            assertEquals(2, id.getInt(id.getFirstValueIndex(1)));
-            assertEquals(new BytesRef("London"), BytesRef.deepCopyOf(city.getBytesRef(2, scratch)));
-            assertEquals(new BytesRef("SW1A"), BytesRef.deepCopyOf(zip.getBytesRef(2, scratch)));
+            assertEquals(1, id.getInt(id.getFirstValueIndex(0)));
+            assertEquals(new BytesRef("London"), BytesRef.deepCopyOf(city.getBytesRef(1, scratch)));
+            assertEquals(new BytesRef("SW1A"), BytesRef.deepCopyOf(zip.getBytesRef(1, scratch)));
+            assertEquals(3, id.getInt(id.getFirstValueIndex(1)));
         }
 
         List<String> warnings = drainWarnings();
@@ -354,7 +357,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * Same shape conflict as {@link #testScalarWhereNestedObjectExpectedLenientWarnsAndNullFills}, but with a
+     * Same shape conflict as {@link #testScalarWhereNestedObjectExpectedSkipRowDropsRecordAndWarns}, but with a
      * {@code warningSink} supplied: the decoder must route every emitted message through the sink instead of
      * {@link HeaderWarning}, since {@link NdJsonPageDecoder}'s decode loop can run on a background reader thread
      * whose thread-local response headers never reach the client (see {@link SkipWarnings}).
@@ -470,7 +473,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * Mirror of {@link #testArrayOfObjectsWithScalarElements}: an array of scalars on a leaf column whose
      * elements are occasionally objects (e.g. {@code ["a", {"x":1}, "b"]}). A stray object among array
      * scalars is a distinct, supported shape — not the record-level scalar/object conflict
-     * elastic/esql-planning#1028 targets — so it must be silently omitted from the multi-value entry under
+     * the record-level shape-conflict path targets — so it must be silently omitted from the multi-value entry under
      * every {@link ErrorPolicy}, including {@code STRICT}; only a genuine top-level (non-array) conflict
      * (see {@link #testScalarWhereNestedObjectExpectedStrictFails}) fails the query. Covers leading-object,
      * mid-object, and all-object arrays against a scalar {@code id} column that pins the expected row count.
@@ -536,8 +539,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 "test://declared-date",
                 new NdJsonReaderCounters(),
-                Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"),
-                Set.of()
+                Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z")
             )
         ) {
             try (Page page = decoder.decodePage()) {
@@ -587,5 +589,148 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         f.setAccessible(true);
         BytesRef ref = (BytesRef) f.get(decoder);
         return ref.bytes.length;
+    }
+
+    // --- declared unsigned_long reads ---
+
+    private static long encoded(String magnitude) {
+        return NumericUtils.asLongUnsigned(new BigInteger(magnitude));
+    }
+
+    private Page decodeOneColumn(String ndjson, DataType type, ErrorPolicy policy) throws IOException {
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", type)),
+                null,
+                10,
+                blockFactory,
+                policy,
+                "test://ul",
+                new NdJsonReaderCounters()
+            )
+        ) {
+            return decoder.decodePage();
+        }
+    }
+
+    /**
+     * Before this change setupBuilders threw for a declared unsigned_long at block-builder construction — up
+     * front, per page — so the read failed regardless of error_mode. The full [0, 2^64-1] domain must now decode,
+     * from JSON integer tokens that overflow a signed long and from string tokens alike.
+     */
+    public void testDeclaredUnsignedLongDecodesFullDomain() throws IOException {
+        String ndjson =
+            "{\"v\":0}\n{\"v\":12345}\n{\"v\":9223372036854775808}\n{\"v\":18446744073709551615}\n{\"v\":\"18446744073709551614\"}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.UNSIGNED_LONG, ErrorPolicy.STRICT)) {
+            assertNotNull(page);
+            LongBlock block = page.getBlock(0);
+            assertEquals(5, block.getPositionCount());
+            assertEquals(encoded("0"), block.getLong(0));
+            assertEquals(encoded("12345"), block.getLong(1));
+            assertEquals(encoded("9223372036854775808"), block.getLong(2));   // 2^63 — getLongValue would overflow
+            assertEquals(encoded("18446744073709551615"), block.getLong(3));  // 2^64-1
+            assertEquals(encoded("18446744073709551614"), block.getLong(4));  // string token
+        }
+    }
+
+    /** Fractional and scientific tokens truncate toward zero, matching ::unsigned_long and the CSV reader. */
+    public void testDeclaredUnsignedLongTruncatesTowardZero() throws IOException {
+        try (Page page = decodeOneColumn("{\"v\":42.9}\n{\"v\":\"1e3\"}\n", DataType.UNSIGNED_LONG, ErrorPolicy.STRICT)) {
+            LongBlock block = page.getBlock(0);
+            assertEquals(encoded("42"), block.getLong(0));
+            assertEquals(encoded("1000"), block.getLong(1));
+        }
+    }
+
+    /** A missing field nulls the cell, exactly as for a declared long. */
+    public void testDeclaredUnsignedLongNullsMissingField() throws IOException {
+        try (Page page = decodeOneColumn("{\"other\":1}\n{\"v\":7}\n", DataType.UNSIGNED_LONG, ErrorPolicy.STRICT)) {
+            LongBlock block = page.getBlock(0);
+            assertTrue("absent field must null the cell", block.isNull(0));
+            assertEquals(encoded("7"), block.getLong(1));
+        }
+    }
+
+    /**
+     * A bad VALUE is a per-cell data failure the error policy governs — never the blanket
+     * unsupportedTypeForNdjson throw that used to fire before any cell was even looked at.
+     */
+    public void testDeclaredUnsignedLongBadValueIsPerCellUnderNullField() throws IOException {
+        String ndjson = "{\"v\":-1}\n{\"v\":18446744073709551616}\n{\"v\":\"abc\"}\n{\"v\":5}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.UNSIGNED_LONG, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertEquals(4, block.getPositionCount());
+            assertTrue("negative nulls the cell", block.isNull(0));
+            assertTrue("2^64 nulls the cell", block.isNull(1));
+            assertTrue("garbage nulls the cell", block.isNull(2));
+            assertEquals("the good cell still decodes", encoded("5"), block.getLong(3));
+        }
+    }
+
+    /**
+     * "1e999999999" makes BigDecimal.toBigInteger() throw ArithmeticException -- not an IllegalArgumentException, so
+     * an unhandled one escapes the per-cell catch and hard-fails the read on every error_mode. It must be an
+     * ordinary out-of-range cell instead.
+     */
+    public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
+        String ndjson = "{\"v\":\"1e999999999\"}\n{\"v\":1e999999999}\n{\"v\":5}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.UNSIGNED_LONG, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertTrue("string exotic exponent nulls the cell", block.isNull(0));
+            assertTrue("numeric exotic exponent nulls the cell", block.isNull(1));
+            assertEquals("the good cell still decodes", encoded("5"), block.getLong(2));
+        }
+    }
+
+    /** Multivalue unsigned_long arrays decode element-by-element through the same coercer. */
+    public void testDeclaredUnsignedLongMultivalue() throws IOException {
+        try (Page page = decodeOneColumn("{\"v\":[1,18446744073709551615]}\n", DataType.UNSIGNED_LONG, ErrorPolicy.STRICT)) {
+            LongBlock block = page.getBlock(0);
+            assertEquals(2, block.getValueCount(0));
+            int first = block.getFirstValueIndex(0);
+            assertEquals(encoded("1"), block.getLong(first));
+            assertEquals(encoded("18446744073709551615"), block.getLong(first + 1));
+        }
+    }
+
+    /**
+     * Drift pin. setupBuilders no longer enumerates the type -> shape mapping; it derives it from the shared
+     * authority. Every declarable type must therefore build, with the shape that authority prescribes, and no
+     * type may reach unsupportedTypeForNdjson. This is what stops the next declarable type repeating the
+     * unsigned_long bug.
+     */
+    public void testEveryDeclarableTypeBuildsTheAuthorityShape() throws IOException {
+        Map<DataType, String> token = Map.of(
+            DataType.KEYWORD,
+            "\"abc\"",
+            DataType.TEXT,
+            "\"abc\"",
+            DataType.LONG,
+            "123",
+            DataType.INTEGER,
+            "123",
+            DataType.DOUBLE,
+            "1.5",
+            DataType.BOOLEAN,
+            "true",
+            DataType.DATETIME,
+            "\"2020-01-01T00:00:00.000Z\"",
+            DataType.UNSIGNED_LONG,
+            "18446744073709551615",
+            DataType.IP,
+            "\"192.168.0.1\""
+        );
+        for (DataType type : DeclaredSchemaValidator.declarableTypes()) {
+            String cell = token.get(type);
+            assertNotNull("no fixture token for declarable type [" + type + "] — add one", cell);
+            try (Page page = decodeOneColumn("{\"v\":" + cell + "}\n", type, ErrorPolicy.STRICT)) {
+                assertNotNull("no page for declared [" + type + "]", page);
+                Block block = page.getBlock(0);
+                assertEquals("shape drift for declared [" + type + "]", DeclaredTypeCoercions.elementTypeFor(type), block.elementType());
+                assertFalse("declared [" + type + "] produced a null cell — missing decode arm?", block.isNull(0));
+            }
+        }
     }
 }

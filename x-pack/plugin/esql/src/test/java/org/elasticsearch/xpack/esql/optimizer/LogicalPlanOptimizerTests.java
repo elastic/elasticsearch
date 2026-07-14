@@ -7763,6 +7763,23 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
     }
 
+    public void testTranslateNoFalsePositiveTimeBucketWhenEvalAliasOverridden() {
+        // Regression: when EVAL defines date_trunc(@timestamp) in a variable that is later overridden
+        // as a non-grouping STATS output, TranslateTimeSeriesAggregate incorrectly counted it as a
+        // second time bucket and threw "expected at most one time bucket" (#143697).
+        var plan = planMetrics("""
+            TS k8s
+            | EVAL tbucket = date_trunc(1h, @timestamp)
+            | STATS tbucket = max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)
+            | LIMIT 10
+            """);
+        Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+        plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
+        assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
+        assertNotNull(tsHolder.get().timeBucket());
+        assertThat(tsHolder.get().timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+    }
+
     public void testTranslateWithInlineFilterWithImplicitLastOverTime() {
         var query = """
             TS k8s | STATS avg(network.bytes_in) WHERE cluster == "prod" BY bucket(@timestamp, 1 minute)

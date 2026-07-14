@@ -1740,6 +1740,50 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         );
     }
 
+    public void testSourceLoadProfileCounters() throws IOException {
+        initMapping();
+        testSourceLoadProfileCounters(fieldInfo(mapperService.fieldType("source_text"), ElementType.BYTES_REF));
+    }
+
+    public void testSourceLoadProfileCountersForUnmappedField() throws IOException {
+        testSourceLoadProfileCounters(
+            fieldInfo(new KeywordFieldMapper.KeywordFieldType("source_text", false, false, Collections.emptyMap()), ElementType.BYTES_REF)
+        );
+    }
+
+    private void testSourceLoadProfileCounters(ValuesSourceReaderOperator.FieldInfo fieldInfo) throws IOException {
+        initMapping();
+        int docCount = between(ValuesFromSingleReader.SEQUENTIAL_BOUNDARY, ValuesFromSingleReader.SEQUENTIAL_BOUNDARY * 2);
+        var runner = new TestDriverRunner().builder(driverContext());
+        List<Page> source = CannedSourceOperator.collectPages(simpleInput(runner.context(), docCount, docCount, docCount));
+        assertThat(source, hasSize(1));
+        assertTrue(source.get(0).<DocBlock>getBlock(0).asVector().singleSegmentNonDecreasing());
+        runner.input(source)
+            .run(
+                new ValuesSourceReaderOperator.Factory(
+                    ByteSizeValue.ofGb(1),
+                    List.of(fieldInfo),
+                    new IndexedByShardIdFromSingleton<>(
+                        new ValuesSourceReaderOperator.ShardContext(
+                            reader,
+                            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                            STORED_FIELDS_SEQUENTIAL_PROPORTIONS
+                        )
+                    ),
+                    randomBoolean(),
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true),
+                    docSequenceBytesRefFieldThreshold(),
+                    () -> 0L
+                )
+            );
+        ValuesSourceReaderOperatorStatus status = (ValuesSourceReaderOperatorStatus) runner.statuses().getFirst();
+        assertThat(status.sourceDocsLoaded(), equalTo((long) docCount));
+        assertThat(status.sourceFieldReads(), equalTo((long) docCount));
+        assertThat(status.sourceBytesLoaded(), greaterThan(0L));
+        assertDriverContext(runner.context());
+    }
+
     private void testSequentialStoredFields(boolean sequential, int docCount) throws IOException {
         initMapping();
         var runner = new TestDriverRunner().builder(driverContext());

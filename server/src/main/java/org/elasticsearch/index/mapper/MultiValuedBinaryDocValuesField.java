@@ -15,10 +15,12 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -550,5 +552,126 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             }
             return extreme;
         }
+    }
+
+    /**
+     * Format for flattened fields in strictly columnar index mode. Stores keyed slots ({@code key\0value} pairs) in DOCUMENT ORDER with
+     * inline null markers and no {@code .offsets} sidecar. Each slot carries its key inline so readers can reconstruct per-key arrays.
+     * <p>
+     * The companion {@code .counts} numeric doc values field (suffix {@link SeparateCount#COUNT_FIELD_SUFFIX}) stores the total number of
+     * slots, INCLUDING null slots. Every slot uses the same uniform encoding: {@code [valueLen+1][key\0value]}. A real value of length
+     * {@code L} is stored with a {@code L+1} prefix, so a stored prefix of {@code 0} means a null slot ({@code [0][key\0]}).
+     */
+    public static class KeyedArrayOrderInlineNull extends MultiValuedBinaryDocValuesField {
+
+        // slotBytesList.get(i) is key\0value for non-null slots, key\0 for null slots.
+        // nullMarkers.get(i) is true when slot i is null (needed to distinguish null from empty-string value).
+        // TODO: benchmark whether the lazy single-slot optimization from ArrayOrderInlineNull is worth porting here.
+        private final ArrayList<BytesRef> slotBytesList = new ArrayList<>();
+        private final BitSet nullMarkers = new BitSet();
+
+        // Held so record* helpers can update the count on each slot without re-deriving the companion from the document.
+        private NumericDocValuesField countField;
+
+        public KeyedArrayOrderInlineNull(String name) {
+            // Use eagerAllocate=false so the base-class `values` field stays null; slot state is managed here.
+            super(name, ValueOrdering.UNSORTED, false);
+        }
+
+        public String countFieldName() {
+            return name() + SeparateCount.COUNT_FIELD_SUFFIX;
+        }
+
+        /**
+         * Records a non-null keyed slot for {@code fieldName}. {@code keyedValue} must be {@code key\0value}.
+         */
+        public static void recordValue(LuceneDocument doc, String fieldName, BytesRef keyedValue) {
+            var field = getOrCreate(doc, fieldName);
+            field.addSlot(keyedValue, false);
+            field.countField.setLongValue(field.count());
+        }
+
+        /**
+         * Records a null slot for {@code fieldName}. {@code keyPlusSep} must be {@code key\0} (key bytes followed by the separator byte).
+         * The key is preserved inline so synthetic source can reconstruct which key had a null value.
+         */
+        public static void recordNull(LuceneDocument doc, String fieldName, BytesRef keyPlusSep) {
+            var field = getOrCreate(doc, fieldName);
+            field.addSlot(keyPlusSep, true);
+            field.countField.setLongValue(field.count());
+        }
+
+        /**
+         * Looks up the per-field accumulator on the document, creating it on first use. Unlike {@link ArrayOrderInlineNull}, both the
+         * binary field and the {@code .counts} companion are added immediately, because a null-only document still needs the binary blob
+         * to preserve key associations (null slots carry their key inline).
+         */
+        private static KeyedArrayOrderInlineNull getOrCreate(LuceneDocument doc, String fieldName) {
+            return (KeyedArrayOrderInlineNull) doc.getOrAddWithKey(fieldName, key -> {
+                var field = new KeyedArrayOrderInlineNull(fieldName);
+                field.countField = NumericDocValuesField.indexedField(field.countFieldName(), 0);
+                // Add both binary field and counts companion immediately; null-only docs also write a binary blob.
+                doc.addAll(List.of(field, field.countField));
+                return field;
+            });
+        }
+
+        private void addSlot(BytesRef slotBytes, boolean isNull) {
+            int idx = slotBytesList.size();
+            slotBytesList.add(slotBytes);
+            if (isNull) {
+                nullMarkers.set(idx);
+            }
+        }
+
+        @Override
+        public int count() {
+            return slotBytesList.size();
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            assert slotBytesList.isEmpty() == false : "binaryValue called on an empty KeyedArrayOrderInlineNull field";
+            return encode(slotBytesList, nullMarkers);
+        }
+
+        /**
+         * Encodes one or more keyed slots into the wire format: {@code [valueLen+1][key\0value]...}.
+         * Null slots are encoded as {@code [0][key\0]}.
+         * <p>
+         * The length prefix measures only the VALUE portion (not {@code key\0value}). Readers locate the key by scanning forward
+         * to the first {@code 0x00} byte after the prefix; the value immediately follows the separator for {@code valueLen} bytes.
+         */
+        static BytesRef encode(ArrayList<BytesRef> slots, BitSet nullMarkers) {
+            int slotCount = slots.size();
+            assert slotCount >= 1 : "encode(list) requires at least one slot";
+            int byteCount = 0;
+            for (BytesRef slot : slots) {
+                byteCount += slot.length;
+            }
+            int streamSize = byteCount + slotCount * VINT_MAX_BYTES;
+            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
+                for (int i = 0; i < slotCount; i++) {
+                    BytesRef slot = slots.get(i);
+                    if (nullMarkers.get(i)) {
+                        // Null slot: [0]key\0
+                        out.writeVInt(0);
+                        out.writeBytes(slot.bytes, slot.offset, slot.length);
+                    } else {
+                        // Non-null slot: [valueLen+1]key\0value
+                        // Scan for the \0 separator to compute valueLen = slot.length - keyLen - 1.
+                        int keyLen = ESVectorUtil.indexOf(slot.bytes, slot.offset, slot.length, (byte) 0);
+                        assert keyLen != -1 : "KeyedArrayOrderInlineNull slot has no separator byte: " + slot.utf8ToString();
+                        int valueLen = slot.length - keyLen - 1;
+                        out.writeVInt(valueLen + 1);
+                        out.writeBytes(slot.bytes, slot.offset, slot.length);
+                    }
+                }
+                return out.bytes().toBytesRef();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to encode keyed inline null binary value", e);
+            }
+        }
+
     }
 }

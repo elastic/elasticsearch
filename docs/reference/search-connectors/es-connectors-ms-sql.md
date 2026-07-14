@@ -266,7 +266,7 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 * If the `last_user_update` of `sys.dm_db_index_usage_stats` table is not available for a specific table and database then all data in that table will be synced.
 
 ::::{note}
-* Files bigger than 10 MB won’t be extracted.
+* Files bigger than 8 MiB won’t be extracted.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::

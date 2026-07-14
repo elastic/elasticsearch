@@ -1,0 +1,8 @@
+Limit[1000[INTEGER],false,false]
+\_UnionAll[[a{r}#0, b{r}#1]]
+  |_Project[[a{r}#2, b{r}#3]]
+  | \_Subquery[]
+  |   \_Row[[1[INTEGER] AS a#2, [10, 20][INTEGER] AS b#3]]
+  \_Project[[a{r}#4, b{r}#5]]
+    \_Subquery[]
+      \_Row[[[100, 200][INTEGER] AS a#4, 1[INTEGER] AS b#5]]

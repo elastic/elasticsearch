@@ -15,7 +15,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
+import org.elasticsearch.telemetry.apm.internal.instrumentation.APMHttpServerInstrumentation;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -25,11 +27,13 @@ public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
     private final APMLoggingService loggingService;
+    private final APMHttpServerInstrumentation apmHttpServerInstrumentation;
 
     public APMTelemetryProvider(Settings settings, Path diskBufferPath) {
         apmMeterService = new APMMeterService(settings, diskBufferPath);
         apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
         loggingService = new APMLoggingService(settings);
+        apmHttpServerInstrumentation = new APMHttpServerInstrumentation(apmTracer);
     }
 
     // visible for testing: pre-built service/tracer instances with stubbed suppliers
@@ -37,6 +41,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
         this.apmMeterService = apmMeterService;
         this.apmTracer = apmTracer;
         this.loggingService = loggingService;
+        apmHttpServerInstrumentation = new APMHttpServerInstrumentation(apmTracer);
     }
 
     @Override
@@ -51,6 +56,11 @@ public class APMTelemetryProvider implements TelemetryProvider {
     @Override
     public APMMeterRegistry getMeterRegistry() {
         return apmMeterService.getMeterRegistry();
+    }
+
+    @Override
+    public HttpServerInstrumentation getHttpServerInstrumentation() {
+        return apmHttpServerInstrumentation;
     }
 
     @Override

@@ -133,7 +133,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             indexMode.isStrictColumnar(),
             FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
             true,
-            true
+            true,
+            FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
         );
     }
 
@@ -189,7 +190,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.docValuesParameters = FieldMapper.DocValuesParameter.of(
                 () -> defaultDocValuesParameters(indexMode),
                 defaultDocValuesParameters(indexMode),
-                m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters
+                m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters,
+                indexMode.isStrictColumnar()
             );
         }
 
@@ -209,14 +211,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         protected Parameter<?>[] getParameters() {
             List<Parameter<?>> params = new ArrayList<>();
             params.add(meta);
-            // when COLUMNAR_FEATURE_FLAG is disabled, exclude docValuesParameters from parsing
-            // so doc_values configuration in the mapping is ignored and the default (disabled) is used
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-                params.add(docValuesParameters);
-            }
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-                params.add(indexed);
-            }
+            params.add(docValuesParameters);
+            params.add(indexed);
             return params.toArray(Parameter[]::new);
         }
 
@@ -389,7 +385,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 IndexVersion.current(),
                 true,
                 false,
-                new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true, true),
+                new FieldMapper.DocValuesParameter.Values(
+                    false,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                    true,
+                    true,
+                    FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+                ),
                 false
             );
         }

@@ -93,22 +93,18 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
     }
 
     public void testFieldValueRangeForColumnarModeWithCFS() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         testFieldValueRange(true, IndexMode.COLUMNAR);
     }
 
     public void testFieldValueRangeForColumnarModeNoCFS() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         testFieldValueRange(false, IndexMode.COLUMNAR);
     }
 
     public void testFieldValueRangeForColumnarLogsdbModeWithCFS() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         testFieldValueRange(true, IndexMode.LOGSDB_COLUMNAR);
     }
 
     public void testFieldValueRangeForColumnarLogsdbModeNoCFS() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         testFieldValueRange(false, IndexMode.LOGSDB_COLUMNAR);
     }
 

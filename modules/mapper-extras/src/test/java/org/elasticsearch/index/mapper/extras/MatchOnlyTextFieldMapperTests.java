@@ -116,12 +116,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             b -> { b.field("meta", Collections.singletonMap("format", "mysql.access")); },
             m -> assertEquals(Collections.singletonMap("format", "mysql.access"), m.fieldType().meta())
         );
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
-        }
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            checker.registerConflictCheck("index", b -> b.field("index", false));
-        }
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
     @Override
@@ -720,15 +716,12 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesEnabled() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertTrue("doc_values should be enabled", fieldType.hasDocValues());
     }
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
             settings,
@@ -751,7 +744,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * introduction in 9.4.0. This test pins that contract for the current index version.
      */
     public void testDocValuesUsesSeparateCountFormat() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
@@ -768,7 +760,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * doc values write path must produce SeparateCount output so the read path can decode it.
      */
     public void testDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
         DocumentMapper mapper = createMapperService(
             legacyVersion,
@@ -785,12 +776,10 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnar() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.COLUMNAR);
     }
 
     public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnarLogsdb() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.LOGSDB_COLUMNAR);
     }
 
@@ -822,8 +811,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testKeepsOwnDocValuesInColumnarMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         // In columnar mode a match_only_text field always keeps its own doc values and reconstructs _source from them,
         // regardless of any keyword multi-field. A keyword multi-field is never used as a doc-values delegate.
         assertKeepsOwnDocValues(b -> {});
@@ -874,14 +861,12 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesExplicitlyDisabled() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", false)));
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertFalse("doc_values should be disabled", fieldType.hasDocValues());
     }
 
     public void testPhraseQueryWithDocValuesEnabled() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
 
         try (Directory directory = newDirectory()) {
@@ -938,7 +923,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * {@link MatchOnlyTextFieldMapper.MatchOnlyTextFieldType#getValueFetcherProvider}.
      */
     public void testPhraseQueryMatchesValueInMultiValueArrayColumnarArrayOrder() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = columnarArrayOrderMapperService();
 
         withLuceneIndex(mapperService, iw -> {
@@ -958,7 +942,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testPhraseQueryMatchesSingleValueDocumentColumnarArrayOrder() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = columnarArrayOrderMapperService();
 
         withLuceneIndex(mapperService, iw -> {
@@ -977,7 +960,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * slot; the decoder must skip those nulls and correctly expose the non-null values for the phrase-confirmation scan.
      */
     public void testPhraseQueryWithNullsInArrayColumnarArrayOrder() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = columnarArrayOrderMapperService();
 
         withLuceneIndex(mapperService, iw -> {
@@ -1003,7 +985,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * All-null array: the {@code ArrayOrderInlineNull} encoder writes no binary blob; the phrase query must not match.
      */
     public void testPhraseQueryDoesNotMatchAllNullArrayColumnarArrayOrder() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = columnarArrayOrderMapperService();
 
         withLuceneIndex(mapperService, iw -> {

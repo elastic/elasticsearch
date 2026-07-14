@@ -1,6 +1,6 @@
 area: Machine Learning
-issues:
-  - 147686
+issues: []
 pr: 153755
-summary: Add .reindexed-*-ml-anomalies-* wildcard to anomaly results template index pattern
+summary: Add .reindexed-*-ml-anomalies-* wildcard to anomaly results template index
+  pattern
 type: bug

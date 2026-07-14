@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -32,9 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -226,37 +223,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     }
 
     public void verify(Failures failures) {
-        // The relation(s) driving this aggregation must be backed exclusively by time-series
-        // indices - a relation partly (or entirely) backed by non-time-series indices (e.g. a
-        // wildcard pattern spanning both) cannot supply the per-document dimension/metric semantics
-        // (_tsid, etc.) that time-series aggregation unconditionally injects further down the
-        // analyzer pipeline (TranslateTimeSeriesWithout/TranslateTimeSeriesAggregate). Catching this
-        // here, before that injection ever runs, turns what would otherwise be a confusing failure
-        // (either a "missing references" crash deep in the optimizer, or - for a single relation
-        // spanning mixed-mode indices - a silent wrong result surfacing only at physical execution)
-        // into a clear, actionable analysis-time error.
-        for (EsRelation relation : findEsRelations(child())) {
-            if (relation.isFullyTimeSeries() == false) {
-                List<String> nonTimeSeries = relation.indexNameWithModes()
-                    .entrySet()
-                    .stream()
-                    .filter(e -> e.getValue() != IndexMode.TIME_SERIES)
-                    .map(Map.Entry::getKey)
-                    .toList();
-                failures.add(
-                    nonTimeSeries.isEmpty()
-                        ? fail(this, "TS command requires a time-series index, but no index matched pattern [{}]", relation.indexPattern())
-                        : fail(
-                            this,
-                            "TS command requires all matched indices to be time-series indices, "
-                                + "found non-time-series index(es) [{}] in [{}]",
-                            String.join(", ", nonTimeSeries),
-                            relation.indexPattern()
-                        )
-                );
-            }
-        }
-
         if (origin != Origin.PROMQL_COMMAND) {
             // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
             groupings().forEach(g -> g.forEachDown(e -> {
@@ -314,29 +280,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                 });
             }
         }
-    }
-
-    /**
-     * Collects the {@link EsRelation}(s) that actually feed this time-series aggregation, walking
-     * the main input path. The right-hand side of a {@link BinaryPlan} (a lookup index, or an
-     * {@code IN}-subquery rewritten to a {@link org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin})
-     * is intentionally skipped - it's a separate, independent source with its own semantics, not
-     * part of the relation this aggregation groups by {@code _tsid} over. Mirrors the traversal in
-     * {@code TranslateTimeSeriesUtils#transformTimeSeriesSource}, which injects the synthetic
-     * {@code _tsid}/{@code _timeseries} attributes along this same path.
-     */
-    private static List<EsRelation> findEsRelations(LogicalPlan plan) {
-        if (plan instanceof EsRelation relation) {
-            return List.of(relation);
-        }
-        if (plan instanceof BinaryPlan binary) {
-            return findEsRelations(binary.left());
-        }
-        List<EsRelation> found = new ArrayList<>();
-        for (LogicalPlan child : plan.children()) {
-            found.addAll(findEsRelations(child));
-        }
-        return found;
     }
 
     @Override

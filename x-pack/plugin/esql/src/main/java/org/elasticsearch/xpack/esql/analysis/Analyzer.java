@@ -3103,9 +3103,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // example, an expression like multiTypeEsField(synthetic=false, date_nanos)::date_nanos::datetime is rewritten to
                     // multiTypeEsField(synthetic=true, date_nanos)::datetime, the implicit casting is overwritten by explicit casting and
                     // the multiTypeEsField is not casted to datetime directly.
-                    // TODO: clean-up once we can detect that a convert function is a no-op.
-                    // See https://github.com/elastic/elasticsearch/issues/150376
-                    if (convertExpression.dataType() == fa.field().getDataType()
+                    if (convert.isNoop()
                         && (unionTypeEsField.getUnmappedConversionExpression() == null || convert.supportedTypes().contains(KEYWORD))) {
                         return createIfDoesNotAlreadyExist(fa, fa.field(), unionFieldAttributes);
                     }

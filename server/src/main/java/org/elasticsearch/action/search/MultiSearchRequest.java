@@ -261,7 +261,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
             /*
              * This `ccsMinimizeRoundtrips` refers to the value specified as the query parameter and is extracted in
              * `RestMultiSearchAction#parseMultiLineRequest()`. If in a Cross Project Search environment, it is
-             * guaranteed to be `true`. Otherwise, its value is whatever that the user is provided.
+             * guaranteed to be `false`. Otherwise, its value is whatever that the user is provided.
              */
             if (ccsMinimizeRoundtrips != null) {
                 searchRequest.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
@@ -299,7 +299,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
-                            searchRequest.setCcsMinimizeRoundtrips(crossProjectEnabled.orElse(false) || nodeBooleanValue(value));
+                            searchRequest.setCcsMinimizeRoundtrips(crossProjectEnabled.orElse(false) ? false : nodeBooleanValue(value));
                             if (crossProjectEnabled.orElse(false) && warnedMrtForCps == false) {
                                 HeaderWarning.addWarning(SearchParamsParser.MRT_SET_IN_CPS_WARN);
                                 warnedMrtForCps = true;

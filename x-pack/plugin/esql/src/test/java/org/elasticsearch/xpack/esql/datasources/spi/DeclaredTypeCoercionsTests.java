@@ -103,10 +103,15 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             case LONG, INTEGER, DOUBLE, UNSIGNED_LONG -> fromString || fromWhole || from == DataType.DOUBLE;
             case BOOLEAN -> fromString; // number->boolean does not ingest
             case DATETIME -> fromString || from == DataType.INTEGER || from == DataType.LONG || from == DataType.UNSIGNED_LONG;
-            // string parse, or the millis->nanos widen a date_nanos field runs on an epoch-millis
-            // token at ingest (also cross-file DATETIME + DATE_NANOS unification); a raw long stays
-            // out — ambiguous between millis and nanos
-            case DATE_NANOS -> fromString || from == DataType.DATETIME;
+            // string parse, the millis->nanos widen a date_nanos field runs on an epoch-millis
+            // token at ingest (also cross-file DATETIME + DATE_NANOS unification), or the
+            // whole-number epoch-NANOS identity reinterpret — the declared type names the unit
+            // (datetime = millis, date_nanos = nanos), the deliberate mapper-ingest divergence
+            case DATE_NANOS -> fromString
+                || from == DataType.DATETIME
+                || from == DataType.INTEGER
+                || from == DataType.LONG
+                || from == DataType.UNSIGNED_LONG;
             case IP -> fromString;
             default -> false;
         };
@@ -701,6 +706,126 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                 assertThat(((LongBlock) cast).getLong(0), equalTo(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z")));
             }
         }
+    }
+
+    /**
+     * A whole-number source declared {@code date_nanos} is an identity epoch-NANOS reinterpret — the declared
+     * type names the numeric unit (datetime = millis, date_nanos = nanos), matching the shipped CSV
+     * inline-schema numeric read and keeping footer stats, pushdown, and scan values bit-identical for a raw
+     * column. NOT the mapper-ingest millis reading — see the class Javadoc's deliberate divergence.
+     */
+    public void testCastWholeNumberToDateNanosIsIdentityNanos() {
+        long nanos = 1_700_000_000_123_456_789L;
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { 0L, nanos }, 2).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATE_NANOS)
+        ) {
+            LongBlock out = (LongBlock) cast;
+            assertEquals(0L, out.getLong(out.getFirstValueIndex(0)));
+            assertEquals("identity reinterpret, no scaling", nanos, out.getLong(out.getFirstValueIndex(1)));
+        }
+        try (
+            Block src = blockFactory.newIntArrayVector(new int[] { 42 }, 1).asBlock();
+            Block cast = castStrict(src, DataType.INTEGER, DataType.DATE_NANOS)
+        ) {
+            assertEquals(42L, ((LongBlock) cast).getLong(0));
+        }
+    }
+
+    /**
+     * A negative epoch has no {@code date_nanos} representation (the {@code TO_DATE_NANOS} range rule): the
+     * lenient read nulls the cell and warns — never a negative nanos long — and the strict read fails.
+     */
+    public void testCastNegativeWholeNumberToDateNanosFailsPerValue() {
+        List<String> warnings = new ArrayList<>();
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { -1L, 5L }, 2).asBlock();
+            Block cast = DeclaredTypeCoercions.castBlock(
+                src,
+                DataType.LONG,
+                DataType.DATE_NANOS,
+                null,
+                blockFactory,
+                "ts",
+                capturing(warnings)
+            )
+        ) {
+            assertTrue("negative epoch nulls the cell", cast.isNull(0));
+            LongBlock out = (LongBlock) cast;
+            assertEquals("the good cell still decodes", 5L, out.getLong(out.getFirstValueIndex(1)));
+        }
+        assertThat(warnings, hasSize(1));
+        assertThat(warnings.get(0), containsString("declared type [date_nanos]"));
+        try (Block src = blockFactory.newLongArrayVector(new long[] { -1L }, 1).asBlock()) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> DeclaredTypeCoercions.castBlock(src, DataType.LONG, DataType.DATE_NANOS, null, blockFactory, null, null).close()
+            );
+        }
+    }
+
+    /**
+     * An {@code unsigned_long} source decodes through valueReader's sign-flip decode to the true Number, so a
+     * magnitude &ge; 2^63 arrives as a BigInteger whose longValue() is negative and the non-negative domain
+     * check rejects it per value — a wrapped positive cannot leak. In-domain magnitudes pass identically.
+     */
+    public void testCastUnsignedLongToDateNanosRejectsAboveSignedRangePerValue() {
+        long inRange = NumericUtils.asLongUnsigned(BigInteger.valueOf(1_700_000_000_123_456_789L));
+        long aboveSigned = NumericUtils.asLongUnsigned(new BigInteger("9223372036854775808")); // 2^63
+        List<String> warnings = new ArrayList<>();
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { inRange, aboveSigned }, 2).asBlock();
+            Block cast = DeclaredTypeCoercions.castBlock(
+                src,
+                DataType.UNSIGNED_LONG,
+                DataType.DATE_NANOS,
+                null,
+                blockFactory,
+                "ts",
+                capturing(warnings)
+            )
+        ) {
+            LongBlock out = (LongBlock) cast;
+            assertEquals(1_700_000_000_123_456_789L, out.getLong(out.getFirstValueIndex(0)));
+            assertTrue("2^63 has no date_nanos representation — per-value failure, not a wrap", cast.isNull(1));
+        }
+        assertThat(warnings, hasSize(1));
+    }
+
+    /** Multi-value positions coerce element-by-element; a failing element nulls the whole position (bulk semantics). */
+    public void testCastLongToDateNanosMultiValue() {
+        List<String> warnings = new ArrayList<>();
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
+            builder.beginPositionEntry();
+            builder.appendLong(1L);
+            builder.appendLong(2L);
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendLong(3L);
+            builder.appendLong(-1L);
+            builder.endPositionEntry();
+            try (Block source = builder.build()) {
+                try (
+                    Block cast = DeclaredTypeCoercions.castBlock(
+                        source,
+                        DataType.LONG,
+                        DataType.DATE_NANOS,
+                        null,
+                        blockFactory,
+                        "ts",
+                        capturing(warnings)
+                    )
+                ) {
+                    LongBlock out = (LongBlock) cast;
+                    assertThat(out.getValueCount(0), equalTo(2));
+                    int first = out.getFirstValueIndex(0);
+                    assertEquals(1L, out.getLong(first));
+                    assertEquals(2L, out.getLong(first + 1));
+                    assertTrue("bulk semantics null the whole position on a negative element", cast.isNull(1));
+                }
+            }
+        }
+        assertThat(warnings, hasSize(1));
     }
 
     // ---- per-cell bulk leniency ----

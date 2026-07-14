@@ -86,10 +86,20 @@ import java.util.function.IntFunction;
  *       column's declared {@code format} (else the ISO default), whole-number sources
  *       reinterpret as epoch milliseconds (the {@code epoch_millis} half of the default date
  *       format);</li>
- *   <li><b>{@code date_nanos}</b>: string sources parse ISO, {@code datetime} sources widen
- *       millis&rarr;nanos (what an epoch-millis token ingests to in a {@code date_nanos} field;
- *       out-of-nanos-range instants fail per value). Plain whole numbers stay out — a raw long
- *       is ambiguous between a millis and a nanos payload;</li>
+ *   <li><b>{@code date_nanos}</b>: string sources parse via the column's declared {@code format}
+ *       (else the ISO nanos default), {@code datetime} sources widen millis&rarr;nanos (what an
+ *       epoch-millis token ingests to in a {@code date_nanos} field; out-of-nanos-range instants
+ *       fail per value), and whole-number sources reinterpret as epoch <b>nanoseconds</b> — the
+ *       declared type names the numeric unit ({@code datetime} = millis above, {@code date_nanos}
+ *       = nanos here), matching the shipped CSV inline-schema numeric read. This deliberately
+ *       diverges from mapper ingest, whose default date format reads a numeric token into a
+ *       {@code date_nanos} field as epoch-<i>millis</i>: under a millis reading a raw nanos
+ *       payload — the one raw-int64 timestamp shape with no other declarable expression — would be
+ *       silently misread, and the identity reading keeps footer stats, filter pushdown, and scan
+ *       values bit-identical for a raw column. The composition rule with a declared {@code format}:
+ *       the format, when present, is the authoritative parse dialect; when absent, the declared
+ *       type names the numeric unit. A negative epoch has no {@code date_nanos} representation
+ *       (the {@code TO_DATE_NANOS} range rule) and fails per value — never a negative nanos long;</li>
  *   <li><b>{@code ip}</b>: string sources only, parsed with the same underlying primitive the ip
  *       mapper delegates to ({@code InetAddresses} parse + the 16-byte doc-values encoding).</li>
  * </ul>
@@ -167,10 +177,16 @@ public final class DeclaredTypeCoercions {
             // Epoch-millis reinterpret for whole numbers; a nanos payload is NOT millis, so
             // date_nanos sources don't reinterpret into datetime.
             case DATETIME -> fromString || from == DataType.INTEGER || from == DataType.LONG || from == DataType.UNSIGNED_LONG;
-            // String parse, or the millis->nanos widen an epoch-millis token gets when ingested
-            // into a date_nanos field (also the cross-file DATETIME + DATE_NANOS unification).
-            // Plain whole numbers stay out: a raw long is ambiguous between millis and nanos.
-            case DATE_NANOS -> fromString || from == DataType.DATETIME;
+            // String parse, the millis->nanos widen an epoch-millis token gets when ingested into
+            // a date_nanos field (also the cross-file DATETIME + DATE_NANOS unification), or the
+            // whole-number epoch-NANOS reinterpret: the declared type names the numeric unit
+            // (datetime = millis above, date_nanos = nanos), matching the CSV inline-schema numeric
+            // read — see the class Javadoc for the deliberate divergence from mapper ingest.
+            case DATE_NANOS -> fromString
+                || from == DataType.DATETIME
+                || from == DataType.INTEGER
+                || from == DataType.LONG
+                || from == DataType.UNSIGNED_LONG;
             case IP -> fromString;
             default -> false;
         };
@@ -373,6 +389,24 @@ public final class DeclaredTypeCoercions {
                     // on pre-epoch and post-2262 instants — the same range rule as TO_DATE_NANOS —
                     // so an unrepresentable instant nulls the cell instead of silently overflowing.
                     yield v -> DateUtils.toNanoSeconds((Long) v);
+                }
+                if (from == DataType.INTEGER || from == DataType.LONG || from == DataType.UNSIGNED_LONG) {
+                    // Whole-number source: identity epoch-NANOS reinterpret — the declared type names the
+                    // unit (see the class Javadoc for the deliberate divergence from mapper ingest). A
+                    // negative epoch has no date_nanos representation (the TO_DATE_NANOS range rule), so it
+                    // fails per value through onCoercionFailure rather than ever emitting a negative nanos
+                    // long. An unsigned_long source arrives from valueReader as the true Number
+                    // (unsignedLongAsNumber), so a magnitude >= 2^63 longValue()s with bit 63 set — negative
+                    // — and the same domain check rejects it; a wrapped positive cannot leak.
+                    yield v -> {
+                        long nanos = ((Number) v).longValue();
+                        if (nanos < 0) {
+                            throw new IllegalArgumentException(
+                                "Value [" + v + "] is out of range for a date_nanos epoch-nanoseconds read"
+                            );
+                        }
+                        return nanos;
+                    };
                 }
                 throw new IllegalArgumentException(
                     "cannot coerce from [" + from.typeName() + "] to [" + to.typeName() + "]; supports() must gate castBlock callers"

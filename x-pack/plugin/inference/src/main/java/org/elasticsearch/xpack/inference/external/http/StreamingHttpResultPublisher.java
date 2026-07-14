@@ -183,7 +183,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             }
             if (pendingRequests.get() > 0 && pendingError != null) {
                 pendingRequests.decrementAndGet();
-                backpressure.releaseTrackedBytes();
+                cancelUpstream();
                 downstream.onError(pendingError);
                 return;
             }
@@ -222,15 +222,19 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
 
                 @Override
                 public void cancel() {
-                    if (subscriptionCanceled.compareAndSet(false, true)) {
-                        backpressure.releaseTrackedBytes();
-                        // If the producer was paused for backpressure, Apache will never call consumeContent again, so the
-                        // subscriptionCanceled check there cannot fire. Shut the producer down here to release the leased connection.
-                        backpressure.shutdownProducer();
-                        taskRunner.cancel();
-                    }
+                    cancelUpstream();
                 }
             });
+        }
+
+        private void cancelUpstream() {
+            if (subscriptionCanceled.compareAndSet(false, true)) {
+                backpressure.releaseTrackedBytes();
+                // If the producer was paused for backpressure, Apache will never call consumeContent again, so the
+                // subscriptionCanceled check there cannot fire. Shut the producer down here to release the leased connection.
+                backpressure.shutdownProducer();
+                taskRunner.cancel();
+            }
         }
 
         @Override
@@ -306,8 +310,14 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         }
 
         private void subtractBytesAndMaybeUnpause(long count) {
-            circuitBreaker.addWithoutBreaking(-count);
-            var currentBytesInQueue = bytesInQueue.updateAndGet(current -> Long.max(0, current - count));
+            // claim from the accumulator first, and only what is actually there — a concurrent releaseTrackedBytes()
+            // may already have returned these bytes to the breaker
+            var before = bytesInQueue.getAndUpdate(current -> Long.max(0, current - count));
+            var claimed = Long.min(count, before);
+            if (claimed > 0) {
+                circuitBreaker.addWithoutBreaking(-claimed);
+            }
+            var currentBytesInQueue = before - claimed;
             if (savedIoControl != null) {
                 var maxBytes = settings.getMaxResponseSize().getBytes() * 0.5;
                 if (currentBytesInQueue <= maxBytes) {

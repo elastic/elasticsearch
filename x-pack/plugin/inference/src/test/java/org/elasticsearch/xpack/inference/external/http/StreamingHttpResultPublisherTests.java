@@ -773,6 +773,27 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         assertThat("bytes should not be released twice", circuitBreaker.getTracked(), equalTo(0L));
     }
 
+    public void testConsumeContentAfterErrorDeliveredDoesNotLeakCircuitBreakerBytes() throws IOException {
+        var exception = new NullPointerException("test");
+        var subscriber = subscribe();
+
+        publisher.failed(exception);
+        subscriber.requestData();
+        assertThat("subscriber received the terminal error", subscriber.throwable, is(exception));
+        assertThat("all tracked bytes were released with the error", circuitBreaker.getTracked(), equalTo(0L));
+
+        // Apache does not know about the delivered error and keeps streaming chunks
+        var ioControl = mock(IOControl.class);
+        publisher.consumeContent(contentDecoder(message), ioControl);
+
+        assertThat(
+            "chunks consumed after the terminal error must not stay charged on the circuit breaker",
+            circuitBreaker.getTracked(),
+            equalTo(0L)
+        );
+        verify(ioControl).shutdown();
+    }
+
     public void testCancelledSubscriberReleasesCircuitBreakerBytes() throws IOException {
         publisher.responseReceived(mock(HttpResponse.class));
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));

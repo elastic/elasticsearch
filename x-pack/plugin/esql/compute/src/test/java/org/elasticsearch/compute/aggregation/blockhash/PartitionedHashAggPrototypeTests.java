@@ -142,19 +142,17 @@ public class PartitionedHashAggPrototypeTests extends ESTestCase {
         checkAgainstExpected(keys, values, partitionCount, conversionThreshold, expected);
     }
 
-    private void checkAgainstExpected(
-        long[] keys,
-        long[] values,
-        int partitionCount,
-        int conversionThreshold,
-        Map<Long, Long> expected
-    ) {
+    private void checkAgainstExpected(long[] keys, long[] values, int partitionCount, int conversionThreshold, Map<Long, Long> expected) {
         int batchSize = 512;
         assertEquals(expected, resultOf(BaselineSumAgg::new, keys, values, batchSize));
-        assertEquals(expected, resultOf(recyclerBreaker -> newSkipScan(partitionCount, conversionThreshold, recyclerBreaker), keys,
-            values, batchSize));
-        assertEquals(expected, resultOf(recyclerBreaker -> newBucketSort(partitionCount, conversionThreshold, recyclerBreaker), keys,
-            values, batchSize));
+        assertEquals(
+            expected,
+            resultOf(recyclerBreaker -> newSkipScan(partitionCount, conversionThreshold, recyclerBreaker), keys, values, batchSize)
+        );
+        assertEquals(
+            expected,
+            resultOf(recyclerBreaker -> newBucketSort(partitionCount, conversionThreshold, recyclerBreaker), keys, values, batchSize)
+        );
     }
 
     private static SkipScanPartitionedSumAgg newSkipScan(int partitionCount, int conversionThreshold, RecyclerBreaker rb) {

@@ -36,7 +36,7 @@ import org.elasticsearch.core.ReleasableIterator;
 $if(BytesRef)$
 import org.elasticsearch.swisshash.BytesRefSwissHash;
 $endif$
-$if(long)$
+$if(long || int || double)$
 import org.elasticsearch.swisshash.LongSwissHash;
 $endif$
 import java.util.BitSet;
@@ -379,6 +379,83 @@ $if(long)$
                     }
                     long key = (($Type$Block) keyBlock).getLong(position);
                     return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
+                }
+            };
+        }
+        return null;
+    }
+
+$endif$
+$if(int)$
+    @Override
+    public Router router() {
+        if (hash instanceof LongSwissHash swiss) {
+            return new Router() {
+                @Override
+                public int partitionHashOfKey(Block keyBlock, int position) {
+                    return LongSwissHash.hash((long) ((IntBlock) keyBlock).getInt(position));
+                }
+
+                @Override
+                public int addKey(Block keyBlock, int position, int hash) {
+                    if (keyBlock.isNull(position)) {
+                        seenNull = true;
+                        return 0;
+                    }
+                    long key = (long) ((IntBlock) keyBlock).getInt(position);
+                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
+                }
+            };
+        }
+        return null;
+    }
+
+$endif$
+$if(double)$
+    @Override
+    public Router router() {
+        if (hash instanceof LongSwissHash swiss) {
+            return new Router() {
+                @Override
+                public int partitionHashOfKey(Block keyBlock, int position) {
+                    return LongSwissHash.hash(Double.doubleToRawLongBits(((DoubleBlock) keyBlock).getDouble(position)));
+                }
+
+                @Override
+                public int addKey(Block keyBlock, int position, int hash) {
+                    if (keyBlock.isNull(position)) {
+                        seenNull = true;
+                        return 0;
+                    }
+                    long key = Double.doubleToRawLongBits(((DoubleBlock) keyBlock).getDouble(position));
+                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
+                }
+            };
+        }
+        return null;
+    }
+
+$endif$
+$if(BytesRef)$
+    @Override
+    public Router router() {
+        if (hash instanceof BytesRefSwissHash swiss) {
+            return new Router() {
+                private final BytesRef scratch = new BytesRef();
+
+                @Override
+                public int partitionHashOfKey(Block keyBlock, int position) {
+                    return (int) BytesRefSwissHash.hash64(((BytesRefBlock) keyBlock).getBytesRef(position, scratch));
+                }
+
+                @Override
+                public int addKey(Block keyBlock, int position, int hash) {
+                    if (keyBlock.isNull(position)) {
+                        seenNull = true;
+                        return 0;
+                    }
+                    BytesRef key = ((BytesRefBlock) keyBlock).getBytesRef(position, scratch);
+                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, BytesRefSwissHash.hash64(key))));
                 }
             };
         }

@@ -210,7 +210,6 @@ public abstract class AbstractPhysicalOperationProviders {
                 if (aggregatorMode == AggregatorMode.INITIAL
                     && groupSpecs.size() == 1
                     && groupSpecs.get(0).channel() != null
-                    && groupSpecs.get(0).elementType() == ElementType.LONG
                     && partitionCount > 1
                     && context.nodeLevelReductionActive() == false) {
                     List<PartitionedHashAggregationOperator.AggregatorSpec> aggSpecs = new ArrayList<>();

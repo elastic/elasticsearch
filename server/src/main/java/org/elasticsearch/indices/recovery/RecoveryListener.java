@@ -47,29 +47,6 @@ public interface RecoveryListener {
     /// Called when recovery has been internally aborted, usually due to shard closure or shard relocation
     void onRecoveryAborted();
 
-    enum FailureStrategy {
-        RETRY(false, true),
-        RETRY_BACKOFF(false, true),
-        FAIL_SILENT(false, false),
-        FAIL_SEND(true, false);
-
-        private final boolean sendShardFailure;
-        private final boolean retry;
-
-        FailureStrategy(boolean sendShardFailure, boolean retry) {
-            this.sendShardFailure = sendShardFailure;
-            this.retry = retry;
-        }
-
-        public boolean sendShardFailure() {
-            return sendShardFailure;
-        }
-
-        public boolean retry() {
-            return retry;
-        }
-    }
-
     static RecoveryListener wrapPreservingContext(RecoveryListener listener, Supplier<ThreadContext.StoredContext> context) {
         return new RecoveryListener() {
             @Override

@@ -611,8 +611,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         private final IndexInput readAhead;
         private long lastBlockId = -1;
         private final int[] uncompressedDocStarts;
-        private final byte[] uncompressedBlock;
-        private final BytesRef uncompressedBytesRef;
+        private final int biggestUncompressedBlockSize;
+        private byte[] uncompressedBlock;  // Lazily allocated on the first value decode to avoid eagerly over-consuming memory under a
+                                           // large query fan-out.
+        private BytesRef uncompressedBytesRef;
         private long startDocNumForBlock = -1;
         private long limitDocNumForBlock = -1;
         private final Decompressor decompressor;
@@ -632,8 +634,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             this.docOffsets = docOffsets;
             this.compressedData = compressedData;
             this.readAhead = compressedData.clone();
-            this.uncompressedBlock = new byte[biggestUncompressedBlockSize];
-            uncompressedBytesRef = new BytesRef(uncompressedBlock);
+            this.biggestUncompressedBlockSize = biggestUncompressedBlockSize;
             uncompressedDocStarts = new int[maxNumDocsInAnyBlock + 1];
             this.docOffsetsDecoder = docOffsetsDecoder;
         }
@@ -666,6 +667,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
          * decoder since the offsets were loaded.
          */
         private void decompressValues(boolean compressed, int numDocsInBlock) throws IOException {
+            if (uncompressedBlock == null) {
+                uncompressedBlock = new byte[biggestUncompressedBlockSize];
+                uncompressedBytesRef = new BytesRef(uncompressedBlock);
+            }
             int uncompressedBlockLength = uncompressedDocStarts[numDocsInBlock];
             assert uncompressedBlockLength <= uncompressedBlock.length;
             uncompressedBytesRef.offset = 0;

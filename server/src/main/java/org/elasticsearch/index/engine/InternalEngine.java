@@ -1633,13 +1633,14 @@ public class InternalEngine extends Engine {
                 if (plan.indexIntoLucene && isSuccess) {
                     final Translog.Location location = (trackTranslogLocation.get() && batchLocation != null)
                         ? new Translog.Location(
-                        batchLocation.generation(),
-                        batchLocation.translogLocation(),
-                        batchLocation.size(),
-                        // same rowIndex recorded in Translog.IndexBatch.IndexOp for this document in the write loop above
-                        // because batch data retains every row
-                        i
-                    ) : null;
+                            batchLocation.generation(),
+                            batchLocation.translogLocation(),
+                            batchLocation.size(),
+                            // same rowIndex recorded in Translog.IndexBatch.IndexOp for this document in the write loop above
+                            // because batch data retains every row
+                            i
+                        )
+                        : null;
                     versionMap.maybePutIndexUnderLock(
                         index.uid(),
                         new IndexVersionValue(location, plan.versionForIndexing, index.seqNo(), index.primaryTerm())

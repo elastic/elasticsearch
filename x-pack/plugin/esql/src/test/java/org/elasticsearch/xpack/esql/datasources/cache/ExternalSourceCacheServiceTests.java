@@ -41,15 +41,9 @@ import static org.hamcrest.Matchers.lessThan;
 public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     private static Settings defaultSettings() {
-        return schemaTtlSettings("5m");
-    }
-
-    /** {@link #defaultSettings()} with a chosen schema TTL — shrunk by the expiry-sweep tests. */
-    private static Settings schemaTtlSettings(String schemaTtl) {
         return Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", schemaTtl)
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
     }
@@ -683,157 +677,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 untouched.safeMetadata()
             );
         }
-    }
-
-    /**
-     * Regression test for the scale mechanism behind the ndjson warm-COUNT loss seen at ClickBench-100M scale:
-     * a cold multi-file scan LONGER than the schema TTL (multi-minute external scans vs the 5m default)
-     * reconciles into a cache whose entries for the scanned glob have ALL expired. Expired entries are
-     * still forEach-visible, but the first commit's {@code put()} prunes every expired entry from the
-     * LRU tail; pre-fix, files #2..N's deltas then matched nothing and were silently dropped — the
-     * multi-file whole-source fold is all-or-nothing, so the warm {@code COUNT(*)} re-scanned the
-     * entire source. Single-file sources self-healed (no sibling entry to sweep), which is exactly the
-     * bench signature: every 1file cell short-circuited even at cold ≫ TTL while multi-file cells with
-     * cold > TTL full-re-scanned. The TTL here is shrunk so the seeded entries are expired by reconcile
-     * time, standing in for "the scan outlived the TTL".
-     */
-    public void testMultiFileStripeCommitSurvivesSchemaTtlExpiry() throws Exception {
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("500ms"))) {
-            long mtime = 1000L;
-            String pathA = "s3://bucket/data/hits_00.ndjson";
-            String pathB = "s3://bucket/data/hits_01.ndjson";
-            SchemaCacheKey keyA = SchemaCacheKey.build(pathA, mtime, ".ndjson", Map.of("format", "ndjson"));
-            SchemaCacheKey keyB = SchemaCacheKey.build(pathB, mtime, ".ndjson", Map.of("format", "ndjson"));
-            seedSchemaCache(service, keyA, pathA, "fp");
-            seedSchemaCache(service, keyB, pathB, "fp");
-
-            // Let both entries expire (but remain physically cached — expiry evicts lazily), exactly
-            // the state a scan longer than the TTL leaves behind at reconcile time.
-            Thread.sleep(1200);
-
-            Map<String, List<Map<String, Object>>> contributions = new LinkedHashMap<>();
-            contributions.put(pathA, List.of(stripeFragment(mtime, "fp", 100L, 1024L, 0, 0, 100, true, true, true)));
-            contributions.put(pathB, List.of(stripeFragment(mtime, "fp", 200L, 1024L, 0, 0, 100, true, true, true)));
-            service.reconcileSourceStatsFromContributions(contributions);
-
-            // BOTH files must retain their committed row counts: losing either forfeits the whole
-            // source's warm COUNT(*) (aggregateFileStatistics is all-or-nothing across the glob).
-            assertEquals("first-committed file must keep its stats", 100L, schemaRowCount(service, pathA));
-            assertEquals("sibling file's delta must survive the expiry sweep", 200L, schemaRowCount(service, pathB));
-        }
-    }
-
-    /** Whole-file-contribution twin of {@link #testMultiFileStripeCommitSurvivesSchemaTtlExpiry}. */
-    public void testMultiFileWholeFileCommitSurvivesSchemaTtlExpiry() throws Exception {
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("500ms"))) {
-            long mtime = 1000L;
-            String pathA = "s3://bucket/data/hits_00.csv";
-            String pathB = "s3://bucket/data/hits_01.csv";
-            SchemaCacheKey keyA = SchemaCacheKey.build(pathA, mtime, ".csv", Map.of("format", "csv"));
-            SchemaCacheKey keyB = SchemaCacheKey.build(pathB, mtime, ".csv", Map.of("format", "csv"));
-            seedSchemaCache(service, keyA, pathA, "fp");
-            seedSchemaCache(service, keyB, pathB, "fp");
-
-            Thread.sleep(1200);
-
-            Map<String, List<Map<String, Object>>> contributions = new LinkedHashMap<>();
-            contributions.put(pathA, List.of(wholeFileStats(mtime, "fp", 100L)));
-            contributions.put(pathB, List.of(wholeFileStats(mtime, "fp", 200L)));
-            service.reconcileSourceStatsFromContributions(contributions);
-
-            assertEquals("first-committed file must keep its stats", 100L, schemaRowCount(service, pathA));
-            assertEquals("sibling file's whole-file stats must survive the expiry sweep", 200L, schemaRowCount(service, pathB));
-        }
-    }
-
-    /**
-     * A single-file reconcile whose sole entry has expired must still commit its stats. There is no sibling
-     * to sweep, so the pre-write snapshot is never consulted — the lone path's live sweep finds the
-     * expired-but-still-visible entry and revives it — and {@link ExternalSourceCacheService#snapshotEntriesByPath}
-     * skips the whole-cache forEach entirely. This guards that the skip is behavior-preserving for the common
-     * single-file case (the one that would otherwise pay a doubled full-cache scan).
-     */
-    public void testSingleFileStripeCommitSurvivesSchemaTtlExpiry() throws Exception {
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("500ms"))) {
-            long mtime = 1000L;
-            String path = "s3://bucket/data/hits_00.ndjson";
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of("format", "ndjson"));
-            seedSchemaCache(service, key, path, "fp");
-
-            // Let the entry expire (but remain physically cached — expiry evicts lazily).
-            Thread.sleep(1200);
-
-            service.reconcileSourceStatsFromContributions(
-                Map.of(path, List.of(stripeFragment(mtime, "fp", 100L, 1024L, 0, 0, 100, true, true, true)))
-            );
-
-            assertEquals("single-file stats must survive the expiry, snapshot-skip notwithstanding", 100L, schemaRowCount(service, path));
-        }
-    }
-
-    /**
-     * The same {@code (path, mtime, fingerprint)} can live under SEVERAL cache keys — endpoint/region are
-     * {@link SchemaCacheKey} components but not config-fingerprint inputs — and a commit applies its delta to
-     * every one of them. A sibling path's earlier commit can sweep ONE twin (the older, expired one) while the
-     * other is still live; the snapshot recovery must be per key, not all-or-nothing on the live sweep, or the
-     * swept twin's delta is silently lost. Staggered seeding makes the sweep partial deterministically: the
-     * first twin outlives the TTL by reconcile time, the second does not. (If a CI stall expires the second
-     * twin too, both are recovered from the snapshot and the test still passes — it degrades to the
-     * all-swept case rather than false-failing. The one stall that WOULD false-fail is between the two
-     * seeds: a second seed landing past the first twin's TTL sweeps the first twin at seed time, before
-     * any snapshot exists to recover it from. The 3s TTL keeps that window a &gt;2.3s stall inside a
-     * two-statement gap.)
-     */
-    public void testPartialTwinSweepRecoversSweptTwinEntry() throws Exception {
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("3s"))) {
-            long mtime = 1000L;
-            String pathA = "s3://bucket/data/hits_00.csv";
-            String pathB = "s3://bucket/data/hits_01.csv";
-            SchemaCacheKey keyA = SchemaCacheKey.build(pathA, mtime, ".csv", Map.of("format", "csv"));
-            SchemaCacheKey twinB1 = SchemaCacheKey.build(pathB, mtime, ".csv", Map.of("format", "csv", "endpoint", "https://e1"));
-            SchemaCacheKey twinB2 = SchemaCacheKey.build(pathB, mtime, ".csv", Map.of("format", "csv", "endpoint", "https://e2"));
-            seedSchemaCache(service, keyA, pathA, "fp");
-            seedSchemaCache(service, twinB1, pathB, "fp");
-            Thread.sleep(700);
-            seedSchemaCache(service, twinB2, pathB, "fp"); // still inside the TTL: seeding must not sweep the first twin
-            Thread.sleep(2500); // now twinB1 and keyA have expired; twinB2 has not
-
-            // Order matters and is honored: pathA must commit before pathB so pathA's put sweeps the expired
-            // twinB1 from the LRU tail BEFORE pathB is collected (that is the partial sweep under test). The
-            // reconcile commits whole-file entries in this LinkedHashMap's insertion order (see the
-            // LinkedHashMap in reconcileSourceStatsFromContributions), so pathA-before-pathB is deterministic
-            // here, not a filename-hashCode accident.
-            Map<String, List<Map<String, Object>>> contributions = new LinkedHashMap<>();
-            contributions.put(pathA, List.of(wholeFileStats(mtime, "fp", 100L)));
-            contributions.put(pathB, List.of(wholeFileStats(mtime, "fp", 200L)));
-            service.reconcileSourceStatsFromContributions(contributions);
-
-            assertEquals("first-committed file must keep its stats", 100L, schemaRowCount(service, keyA));
-            assertEquals("live twin must receive the delta", 200L, schemaRowCount(service, twinB2));
-            assertEquals("twin swept by the sibling commit must be recovered per key", 200L, schemaRowCount(service, twinB1));
-        }
-    }
-
-    /** The committed row count of {@code path}'s entry, read expiry-blind via forEach (get() would hide expired entries). */
-    private static Object schemaRowCount(ExternalSourceCacheService service, String path) {
-        AtomicReference<Object> found = new AtomicReference<>();
-        service.schemaCache().forEach((k, e) -> {
-            if (path.equals(k.canonicalPath())) {
-                found.set(e.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
-            }
-        });
-        return found.get();
-    }
-
-    /** Key-precise variant of {@link #schemaRowCount(ExternalSourceCacheService, String)} for paths cached under twin keys. */
-    private static Object schemaRowCount(ExternalSourceCacheService service, SchemaCacheKey key) {
-        AtomicReference<Object> found = new AtomicReference<>();
-        service.schemaCache().forEach((k, e) -> {
-            if (key.equals(k)) {
-                found.set(e.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
-            }
-        });
-        return found.get();
     }
 
     public void testReconcileSingleCompleteStripe() throws Exception {
@@ -1803,6 +1646,59 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * The headline fix, red on the shared-cache parent: a dataset aggregate lives in its OWN cache, so
+     * churning the per-file schema cache far past its budget cannot evict it. On the parent both populations
+     * shared one budget, so this churn evicted the aggregate and the warm dataset COUNT re-scanned.
+     */
+    public void testDatasetAggregateSurvivesPerFileCacheEviction() throws Exception {
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "512kb") // small: a burst of per-file entries overflows the schema slice
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            SchemaCacheKey dsKey = datasetKey();
+            service.putDatasetAggregate(dsKey, 42L, "csv", "s3://bucket/data/*.csv");
+            assertNotNull("aggregate present right after put", service.getDatasetAggregate(dsKey));
+            assertEquals(1, service.usageStats().get("dataset_aggregate_cache.count"));
+
+            // Churn the per-file schema cache far past its budget.
+            for (int i = 0; i < 3000; i++) {
+                SchemaCacheKey k = SchemaCacheKey.build("s3://bucket/data/file" + i + ".csv", 1000L + i, ".csv", Map.of("format", "csv"));
+                service.getOrComputeSchema(k, kk -> testSchemaEntry());
+            }
+            // The per-file cache evicted heavily; the dataset aggregate, in its own store, is untouched.
+            assertThat("per-file cache must have evicted under the churn", service.schemaCache().count(), lessThan(3000));
+            Map<String, Object> served = service.getDatasetAggregate(dsKey);
+            assertNotNull("dataset aggregate must survive per-file churn — it has its own cache", served);
+            assertEquals(42L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
+    /**
+     * B1: {@code esql.source.cache.schema.ttl} shipped in released versions, so it must stay REGISTERED — a
+     * node carrying it in {@code elasticsearch.yml} would fail startup on an unregistered setting. It is now
+     * a deprecated no-op: wired to nothing, ignored.
+     */
+    public void testDeprecatedSchemaTtlSettingStaysRegisteredAndInert() throws Exception {
+        assertTrue(
+            "schema.ttl must stay registered (deprecated no-op) so upgrades don't fail startup",
+            ExternalSourceCacheSettings.settings().stream().anyMatch(s -> s.getKey().equals("esql.source.cache.schema.ttl"))
+        );
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m") // carried over from an earlier version
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            SchemaCacheKey key = SchemaCacheKey.build("s3://bucket/f.parquet", 1000L, ".parquet", Map.of());
+            service.getOrComputeSchema(key, k -> testSchemaEntry());
+            assertEquals(1, service.usageStats().get("schema_cache.count"));
+        }
+    }
+
     public void testPendingDatasetAggregateRefusedWhenSingleGlobExceedsPathBudget() {
         // A single glob whose file count exceeds the whole registry's path budget is refused up front
         // (safe-miss) — never registered, so it cannot pin the heap. Observable via the pending gauge.
@@ -2072,29 +1968,25 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testPendingDatasetAggregateOutlivesSchemaTtl() throws Exception {
-        // The promise is registered BEFORE the scan and fulfilled AFTER it, so its expiry horizon must
-        // be decoupled from the schema TTL: with a promise horizon tied to the schema TTL, a scan
-        // longer than the TTL (the motivating 20-minute ClickBench cell vs the 5m default) would expire
-        // its OWN promise before its own reconcile — making the whole mechanism inert exactly where it
-        // matters. Shrink the schema TTL far below the register→fulfill gap and prove fulfillment
-        // still materializes the aggregate.
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(schemaTtlSettings("50ms"))) {
+    public void testPendingDatasetAggregateFulfilledAcrossSlowScan() throws Exception {
+        // The promise is registered BEFORE the scan and fulfilled AFTER it. Its horizon is a fixed,
+        // cache-independent constant (PENDING_DATASET_AGGREGATE_TTL_NANOS), so a scan that spans a long
+        // gap still fulfills. (This survives the removal of the schema TTL: the caches no longer expire on
+        // a clock at all, and the dataset aggregate lands in its own dedicated store.)
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             SchemaCacheKey key = datasetKey();
             service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", "csv", "slow-scan-glob");
 
-            Thread.sleep(200); // the "cold scan": several schema TTLs long
+            Thread.sleep(200); // stand in for a multi-minute cold scan between register and fulfill
 
             service.reconcileSourceStatsFromContributions(
                 Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L)), pathB, List.of(wholeFileStats(2000L, "fp", 200L)))
             );
 
-            // Read immediately: the entry was written by the reconcile just above (its own TTL starts
-            // at write), so only the PROMISE's age is under test here.
             Map<String, Object> served = service.getDatasetAggregate(key);
-            assertNotNull("a promise must outlive a scan longer than the schema TTL", served);
+            assertNotNull("a promise must be fulfilled after a slow scan", served);
             assertEquals(300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         }
     }

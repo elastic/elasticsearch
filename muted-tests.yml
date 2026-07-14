@@ -98,15 +98,6 @@ tests:
 - class: org.elasticsearch.xpack.security.transport.filter.IpFilteringIntegrationTests
   method: testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp
   issue: https://github.com/elastic/elasticsearch/issues/146102
-- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
-  method: testHAProxyModeConnectionWithSNIToCluster1Works
-  issue: https://github.com/elastic/elasticsearch/issues/139170
-- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
-  method: testHAProxyModeConnectionWithSNIToCluster2Works
-  issue: https://github.com/elastic/elasticsearch/issues/139172
-- class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
-  method: testHAProxyModeConnectionWorks
-  issue: https://github.com/elastic/elasticsearch/issues/139171
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:PROMQL}
   issue: https://github.com/elastic/elasticsearch/issues/146923
@@ -844,3 +835,12 @@ tests:
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testMasterFailoverDuringMountSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/153823
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testMasterFailoverDuringCleanup
+  issue: https://github.com/elastic/elasticsearch/issues/153174
+- class: org.elasticsearch.action.RejectionActionIT
+  method: testSimulatedSearchRejectionLoad
+  issue: https://github.com/elastic/elasticsearch/issues/153848
+- class: org.elasticsearch.xpack.stateless.StatelessAbortRunningMergesOnRelocationIT
+  method: testConcurrentForceMergeIsNotAborted
+  issue: https://github.com/elastic/elasticsearch/issues/153854

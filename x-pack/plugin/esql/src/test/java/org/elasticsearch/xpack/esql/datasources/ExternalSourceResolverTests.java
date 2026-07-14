@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -2004,6 +2006,61 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
                 ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, future::actionGet);
                 assertEquals("format [" + formatName + "] must surface 503", RestStatus.SERVICE_UNAVAILABLE, e.status());
+                assertThat(e.getMessage(), containsString(path));
+            }
+        }
+    }
+
+    /**
+     * An interrupt during permit acquisition reaches the resolver as an {@link EsRejectedExecutionException} (429). Like
+     * the 503 case, the factory loop re-wraps it in an {@link IllegalArgumentException} (400), so the resolver must
+     * recover the buried 429 from the cause chain and surface a node-level rejection as 429 rather than a masked 400.
+     * Verified for every format because the recovery is format-independent.
+     */
+    public void testMetadataResolutionInterruptSurfacesAs429() {
+        for (String[] format : BACK_PRESSURE_FORMATS) {
+            String formatName = format[0];
+            String path = "s3://bucket/data/file" + format[1];
+            Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
+            ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+                formatName,
+                format[1],
+                schemasByPath,
+                () -> new EsRejectedExecutionException("Interrupted while acquiring cloud API concurrency permit"),
+                null
+            );
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(path), Map.of(), future);
+
+            EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
+            assertEquals("format [" + formatName + "] must surface 429", RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(e));
+            assertThat(e.getMessage(), containsString(path));
+        }
+    }
+
+    /**
+     * The cacheable path buries the {@link EsRejectedExecutionException} one layer deeper (the schema cache re-throws the
+     * loader failure wrapped in an {@link java.util.concurrent.ExecutionException} over the factory's
+     * {@link IllegalArgumentException}); the resolver must still recover it and surface a 429, not a 400 or 500.
+     */
+    public void testMetadataResolutionInterruptSurfacesAs429ThroughSchemaCache() {
+        for (String[] format : BACK_PRESSURE_FORMATS) {
+            String formatName = format[0];
+            String path = "s3://bucket/data/file" + format[1];
+            Map<String, List<Attribute>> schemasByPath = Map.of(path, List.of(attr("x", DataType.INTEGER)));
+            try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+                ExternalSourceResolver resolver = createResolverWithFailingMetadata(
+                    formatName,
+                    format[1],
+                    schemasByPath,
+                    () -> new EsRejectedExecutionException("Interrupted while acquiring cloud API concurrency permit"),
+                    cacheService
+                );
+                PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+                resolver.resolve(List.of(path), Map.of(), future);
+
+                EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
+                assertEquals("format [" + formatName + "] must surface 429", RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(e));
                 assertThat(e.getMessage(), containsString(path));
             }
         }

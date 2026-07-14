@@ -226,8 +226,13 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             // Interrupt is a shutdown/cancellation signal, not back-pressure: throw non-retryable so the
-            // retry layer does not loop on an interrupt flag that will fire again immediately.
-            throw new EsRejectedExecutionException("Interrupted while acquiring cloud API concurrency permit");
+            // retry layer does not loop on an interrupt flag that will fire again immediately. The interrupt
+            // is preserved as the cause so the origin survives in diagnostics (the type has no cause constructor).
+            EsRejectedExecutionException rejected = new EsRejectedExecutionException(
+                "Interrupted while acquiring cloud API concurrency permit"
+            );
+            rejected.initCause(e);
+            throw rejected;
         }
     }
 

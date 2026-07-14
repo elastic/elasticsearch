@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
@@ -488,7 +489,9 @@ public class ExternalSourceResolver {
      * {@link ExternalUnavailableException} (503), but the factory loop always re-wraps a factory failure in an
      * {@link IllegalArgumentException} (400). So the 503 is recovered from the cause chain <em>before</em> the
      * {@link IllegalArgumentException} branch and surfaced as a 503, otherwise a transient capacity condition would be
-     * masked as a non-retryable client error and the client's retry path would never engage.
+     * masked as a non-retryable client error and the client's retry path would never engage. An interrupt during permit
+     * acquisition arrives the same way as an {@link EsRejectedExecutionException} (429) and is recovered identically so a
+     * node-level rejection is not masked as a 400.
      */
     private RuntimeException mapResolveFailure(String path, Exception e) {
         if (e instanceof TaskCancelledException tce) {
@@ -516,6 +519,23 @@ public class ExternalSourceResolver {
                 path,
                 unavailable.getMessage()
             );
+        }
+        // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
+        // in an IllegalArgumentException (400), so recover it from the cause chain before the IllegalArgumentException
+        // branch: a node-level rejection must keep its 429 status instead of being masked as a client error. Re-wrap
+        // so the client message keeps the path context while the 429 status survives (the type has no cause constructor).
+        EsRejectedExecutionException rejected = (EsRejectedExecutionException) ExceptionsHelper.unwrap(
+            e,
+            EsRejectedExecutionException.class
+        );
+        if (rejected != null) {
+            recordDiscoveryFailure();
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+            EsRejectedExecutionException wrapped = new EsRejectedExecutionException(
+                String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, rejected.getMessage())
+            );
+            wrapped.initCause(rejected);
+            return wrapped;
         }
         if (e instanceof IllegalArgumentException || e instanceof UnsupportedOperationException) {
             recordDiscoveryFailure();

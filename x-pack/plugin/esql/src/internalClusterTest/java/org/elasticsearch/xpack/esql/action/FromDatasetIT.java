@@ -385,6 +385,68 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testStrictDeclaredDateNanosReadsWholeNumberAsEpochNanos() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // The headline user story: a lake column holding a raw epoch-nanoseconds whole number can now be pinned to
+        // date_nanos. Inference would have produced LONG (a bare number carries no unit), so declaring the column is
+        // the only way to present it at its real precision — and the declared type is what names the unit: under
+        // `date_nanos` the number IS epoch-nanos (under `datetime` it would be epoch-millis).
+        Path nanosFixture = createTempDir().resolve("events.csv");
+        Files.writeString(
+            nanosFixture,
+            String.join(
+                "\n",
+                "id,event_time",
+                "1,1700000000123456789",
+                "2,1700000000000000000",
+                // sub-millisecond digits survive: the whole point of the type
+                "3,1700000000999999999"
+            ) + "\n"
+        );
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("integer", null));
+        properties.put("event_time", new DatasetFieldMapping("date_nanos", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "events_nanos",
+                    "local_ds",
+                    nanosFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM events_nanos | SORT id | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(1).name(), equalTo("event_time"));
+            assertThat(
+                "the column presents as date_nanos, not the long inference would have given",
+                response.columns().get(1).type().typeName(),
+                equalTo("date_nanos")
+            );
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            // Rendered at nanosecond precision — the identity epoch-nanos reinterpret, no rescaling. (The renderer
+            // trims trailing zeros, so a whole-second instant shows as .000Z; the sub-millisecond digits below are
+            // the ones that would have been lost had the number been read as epoch-millis.)
+            assertThat(rows.get(0).get(1).toString(), equalTo("2023-11-14T22:13:20.123456789Z"));
+            assertThat(rows.get(1).get(1).toString(), equalTo("2023-11-14T22:13:20.000Z"));
+            assertThat(rows.get(2).get(1).toString(), equalTo("2023-11-14T22:13:20.999999999Z"));
+        }
+    }
+
     public void testNonStrictDeclaredSchemaOverridesDeclaredColumnsAndKeepsInferredRest() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 

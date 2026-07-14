@@ -211,7 +211,7 @@ setup:
               g: { type: geo_point }
 
   - do:
-      catch: /\[format\] on column \[msg\] is only supported on \[date\] columns/
+      catch: /\[format\] on column \[msg\] is only supported on \[date\] and \[date_nanos\] columns/
       esql.put_dataset:
         name: ds
         body:
@@ -220,6 +220,22 @@ setup:
           mappings:
             properties:
               msg: { type: keyword, format: "yyyy-MM-dd" }
+
+  # date_nanos IS declarable and accepts a `format` (the string-parse dialect), so the pattern is validated the
+  # same way it is on a date column — a bad one fails the PUT rather than the first query. Only the rejection is
+  # asserted here: every PUT in this file is deliberately a rejection, so that `cluster-state-visibility` can
+  # assert the esql_dataset custom is absent. Acceptance of `{type: date_nanos}` is covered by
+  # DeclaredSchemaValidatorTests and end-to-end by FromDatasetIT (real PUT + real read).
+  - do:
+      catch: /invalid \[format\] \[not-a-pattern-\{\{\{\] on column \[ts\]/
+      esql.put_dataset:
+        name: ds_bad_nanos_format
+        body:
+          data_source: parent
+          resource: "s3://x/*.csv"
+          mappings:
+            properties:
+              ts: { type: date_nanos, format: "not-a-pattern-{{{" }
 
   - do:
       esql.delete_data_source:

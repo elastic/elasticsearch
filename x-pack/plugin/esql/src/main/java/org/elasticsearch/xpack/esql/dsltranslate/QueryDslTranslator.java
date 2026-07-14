@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
@@ -68,9 +69,12 @@ import java.util.function.Supplier;
  * {@code date} column must become a {@code datetime} literal here or the evaluator is handed the wrong block type.
  *
  * <p>The supported subset is the structural floor: {@code bool}, {@code term}, {@code terms}, {@code range},
- * {@code exists}, and {@code match_all}/{@code match_none}. Anything outside it — including a construct that carries an
- * option we cannot honor faithfully — raises {@link TranslationUnsupportedException} rather than silently
- * mis-translating; the caller decides the policy (the request filter degrades; a query function errors).
+ * {@code exists}, and {@code match_all}/{@code match_none}, plus {@code match}/{@code multi_match} — as equality on an
+ * exact-typed field, and as an analyzed runtime {@link Match} on a {@code text} field (see {@link #analyzedMatch}).
+ * Anything outside it — including a construct that carries an option we cannot honor faithfully, or {@code term}/
+ * {@code terms}/{@code range}/{@code match_phrase} on a {@code text} field (analyzed-token / positional semantics with
+ * no faithful leaf) — raises {@link TranslationUnsupportedException} rather than silently mis-translating; the caller
+ * decides the policy (the request filter degrades; a query function errors).
  */
 public final class QueryDslTranslator {
 
@@ -209,7 +213,24 @@ public final class QueryDslTranslator {
         if (match.analyzer() != null || match.fuzziness() != null || match.minimumShouldMatch() != null) {
             throw new TranslationUnsupportedException("match[unsupported option]");
         }
-        return equality(fieldBinder.apply(match.fieldName()), match.value(), match.lenient());
+        Expression field = fieldBinder.apply(match.fieldName());
+        if (field.dataType() == DataType.TEXT) {
+            return analyzedMatch(field, match.value());
+        }
+        return equality(field, match.value(), match.lenient());
+    }
+
+    /**
+     * A {@code match} on an analyzed {@code text} field is real full-text matching, not equality, so it cannot be an
+     * {@code mv_contains} leaf. We emit a runtime {@link Match}: on a dataset the field is a {@code ReferenceAttribute}
+     * (never Lucene-mapped), so {@code Match} takes its runtime-search path and is evaluated per row with the standard
+     * analyzer — {@link org.elasticsearch.xpack.esql.expression.function.fulltext.QueryBuilderResolver} skips it because
+     * a runtime match needs no Lucene {@code QueryBuilder}. The query is a keyword literal (a {@code text} field accepts a
+     * keyword query value); options are already rejected by the callers, and a runtime {@code Match} carries none.
+     */
+    private static Expression analyzedMatch(Expression field, Object value) {
+        Literal query = new Literal(Source.EMPTY, new BytesRef(String.valueOf(value)), DataType.KEYWORD);
+        return new Match(Source.EMPTY, field, query, null, null);
     }
 
     /**
@@ -253,14 +274,18 @@ public final class QueryDslTranslator {
             return Literal.FALSE;
         }
         // An all-fields multi_match is implicitly lenient on the index (MultiMatchQueryBuilder.doToQuery sets it), so a
-        // value that cannot be a value of a given field's type just drops that field from the OR rather than failing
-        // the whole clause — while a text field (or a type we cannot encode) still degrades it, since dropping that is
-        // an under-match, not a skipped bad value.
+        // value that cannot be a value of a given exact field's type just drops that field from the OR rather than
+        // failing the whole clause. A text field becomes an analyzed MATCH leaf under best_fields; under the phrase type
+        // it still degrades the whole clause, since a runtime match is OR-token, not positional.
         boolean lenient = fields.isEmpty() || multiMatch.lenient();
+        boolean bestFields = type == MultiMatchQueryBuilder.Type.BEST_FIELDS;
         Object value = multiMatch.value();
         Expression or = null;
         for (String name : resolved) {
-            Expression leaf = equality(fieldBinder.apply(name), value, lenient);
+            Expression field = fieldBinder.apply(name);
+            Expression leaf = field.dataType() == DataType.TEXT && bestFields
+                ? analyzedMatch(field, value)
+                : equality(field, value, lenient);
             or = or == null ? leaf : new Or(Source.EMPTY, or, leaf);
         }
         return or;

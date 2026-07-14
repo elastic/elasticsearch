@@ -78,6 +78,15 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         return DateTimeFormatter.ISO_INSTANT.format(BASE.plus(Duration.ofDays(i))); // 12:34:56 on 2020-01-(i+1)
     }
 
+    /** A multi-word analyzed value (no commas, so it survives the CSV) — match on it exercises real per-token analysis. */
+    private static String body(int i) {
+        return switch (i % 3) {
+            case 0 -> "the quick brown fox";
+            case 1 -> "lazy sleeping dog";
+            default -> "quick red racecar";
+        };
+    }
+
     @Before
     public void loadBothSources() throws Exception {
         // The index: one shard so the result order is trivial to reason about; ESQL sorts explicitly anyway.
@@ -86,15 +95,30 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                 .indices()
                 .prepareCreate(INDEX)
                 .setSettings(Settings.builder().put("index.number_of_shards", 1))
-                .setMapping("id", "type=integer", "status", "type=integer", "tags", "type=keyword", "bytes", "type=long", "ts", "type=date")
+                .setMapping(
+                    "id",
+                    "type=integer",
+                    "status",
+                    "type=integer",
+                    "tags",
+                    "type=keyword",
+                    "bytes",
+                    "type=long",
+                    "ts",
+                    "type=date",
+                    "body",
+                    "type=text"
+                )
         );
         for (int i = 0; i < ROWS; i++) {
-            client().prepareIndex(INDEX).setSource("id", i, "status", status(i), "tags", tag(i), "bytes", bytes(i), "ts", ts(i)).get();
+            client().prepareIndex(INDEX)
+                .setSource("id", i, "status", status(i), "tags", tag(i), "bytes", bytes(i), "ts", ts(i), "body", body(i))
+                .get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
 
         // The dataset: identical rows as a strict declared-schema CSV, types matching the index mapping exactly.
-        StringBuilder csv = new StringBuilder("id:integer,status:integer,tags:keyword,bytes:long,ts:date\n");
+        StringBuilder csv = new StringBuilder("id:integer,status:integer,tags:keyword,bytes:long,ts:date,body:text\n");
         for (int i = 0; i < ROWS; i++) {
             csv.append(i)
                 .append(',')
@@ -105,6 +129,8 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
                 .append(bytes(i))
                 .append(',')
                 .append(ts(i))
+                .append(',')
+                .append(body(i))
                 .append('\n');
         }
         Path csvFile = createTempDir().resolve("conformance.csv");
@@ -119,6 +145,7 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
         properties.put("tags", new DatasetFieldMapping("keyword", null));
         properties.put("bytes", new DatasetFieldMapping("long", null));
         properties.put("ts", new DatasetFieldMapping("date", null));
+        properties.put("body", new DatasetFieldMapping("text", null));
         return properties;
     }
 
@@ -298,5 +325,35 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
      */
     public void testFieldlessMultiMatchIsImplicitlyLenient() {
         assertSelectsSameRows(QueryBuilders.multiMatchQuery("t2"));
+    }
+
+    // A match on an analyzed text field runs as a Lucene query on the index and as a runtime MatchTextEvaluator on the
+    // dataset (a ReferenceAttribute is never Lucene-mapped) — both the standard analyzer, so the selected rows agree.
+    // Single-token queries keep this independent of the match operator (OR vs AND); the token either is present or not.
+
+    /** A content token selects every row whose body contains it: "quick" → "the quick brown fox" + "quick red racecar". */
+    public void testMatchOnTextSingleToken() {
+        assertSelectsSameRows(QueryBuilders.matchQuery("body", "quick"));
+    }
+
+    /** Tokens that each select a single body group — the analyzed match has teeth, not a whole-string compare. */
+    public void testMatchOnTextTokenSelectsOneGroup() {
+        assertSelectsSameRows(QueryBuilders.matchQuery("body", "fox")); // only "the quick brown fox"
+        assertSelectsSameRows(QueryBuilders.matchQuery("body", "dog")); // only "lazy sleeping dog"
+    }
+
+    /** Case-insensitive on both paths, because the standard analyzer lowercases the field and the query alike. */
+    public void testMatchOnTextIsCaseInsensitive() {
+        assertSelectsSameRows(QueryBuilders.matchQuery("body", "QUICK"));
+    }
+
+    /** A token present in no row selects nothing on both paths. */
+    public void testMatchOnTextNoHits() {
+        assertSelectsSameRows(QueryBuilders.matchQuery("body", "zebra"));
+    }
+
+    /** best_fields multi_match over a keyword and a text field ORs equality with an analyzed match — same on both. */
+    public void testMultiMatchOverKeywordAndTextField() {
+        assertSelectsSameRows(QueryBuilders.multiMatchQuery("quick", "tags", "body"));
     }
 }

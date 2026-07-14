@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.dsltranslate;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
@@ -474,9 +476,19 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(Literal.NULL, ((MvContains) e).children().get(0));
     }
 
-    /** A match on an analyzed text field needs real analysis we do not do here — degrade, never approximate. */
-    public void testMatchOnAnalyzedTextDegrades() {
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.matchQuery("body", "quick")));
+    /**
+     * A match on an analyzed text field is real full-text matching — we emit a runtime {@link Match} over the field with
+     * the query as a keyword literal, not an {@code mv_contains} equality leaf.
+     */
+    public void testMatchOnTextEmitsRuntimeMatch() {
+        Expression e = translate(QueryBuilders.matchQuery("body", "quick"));
+        assertThat(e, instanceOf(Match.class));
+        Match match = (Match) e;
+        assertThat(match.field(), instanceOf(ReferenceAttribute.class));
+        assertEquals("body", ((ReferenceAttribute) match.field()).name());
+        assertEquals(DataType.TEXT, match.field().dataType());
+        assertEquals(new BytesRef("quick"), ((Literal) match.query()).value());
+        assertNull(match.options());
     }
 
     /** Options that change what matches (analyzer, fuzziness, minimum_should_match) cannot be honored as equality. */
@@ -540,15 +552,43 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertThat(translate(QueryBuilders.multiMatchQuery(200, "status")), instanceOf(MvContains.class));
     }
 
+    /** A best_fields multi_match mixing an exact and a text field ORs an equality leaf with an analyzed runtime Match. */
+    public void testMultiMatchBestFieldsRoutesTextToMatch() {
+        Expression e = translate(QueryBuilders.multiMatchQuery("x", "tags", "body"));
+        assertThat(e, instanceOf(Or.class)); // tags (keyword) → equality, body (text) → analyzed MATCH (either OR side)
+        assertOrOf((Or) e, MvContains.class, Match.class);
+        // A text field alone resolves to a single Match leaf.
+        assertThat(translate(QueryBuilders.multiMatchQuery("x", "body")), instanceOf(Match.class));
+    }
+
+    /** Asserts an Or's two sides are one instance of each given type, in either order (OR side follows schema order). */
+    private static void assertOrOf(Or or, Class<?> a, Class<?> b) {
+        boolean ab = a.isInstance(or.left()) && b.isInstance(or.right());
+        boolean ba = b.isInstance(or.left()) && a.isInstance(or.right());
+        assertTrue("expected OR of " + a.getSimpleName() + " and " + b.getSimpleName() + " but was " + or, ab || ba);
+    }
+
+    /** Under the phrase type a text field cannot be an OR-token Match — the clause degrades rather than under-matching. */
+    public void testMultiMatchPhraseTypeOnTextDegrades() {
+        expectThrows(
+            TranslationUnsupportedException.class,
+            () -> translate(QueryBuilders.multiMatchQuery("x", "body").type(MultiMatchQueryBuilder.Type.PHRASE))
+        );
+    }
+
     /** multi_match field patterns are expanded against the schema; a pattern matching nothing matches nothing. */
     public void testMultiMatchExpandsPatternsAndEmptyMatchesNothing() {
         assertThat(translate(QueryBuilders.multiMatchQuery(1000L, "byte*")), instanceOf(MvContains.class));
         assertEquals(Literal.FALSE, translate(QueryBuilders.multiMatchQuery("x", "no_such_field*")));
     }
 
-    /** A text field among the resolved set degrades the whole multi_match rather than silently dropping it. */
-    public void testMultiMatchOverTextFieldDegrades() {
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.multiMatchQuery(200, "status", "body")));
+    /** A numeric value across an exact and a text field ORs the exact-field equality with an analyzed Match on the text. */
+    public void testMultiMatchNumericValueOverExactAndTextField() {
+        Expression e = translate(QueryBuilders.multiMatchQuery(200, "status", "body"));
+        assertThat(e, instanceOf(Or.class)); // status (integer) → equality; body (text) → analyzed MATCH of "200"
+        assertOrOf((Or) e, MvContains.class, Match.class);
+        Match match = (Match) (((Or) e).left() instanceof Match ? ((Or) e).left() : ((Or) e).right());
+        assertEquals(new BytesRef("200"), ((Literal) match.query()).value());
     }
 
     /**

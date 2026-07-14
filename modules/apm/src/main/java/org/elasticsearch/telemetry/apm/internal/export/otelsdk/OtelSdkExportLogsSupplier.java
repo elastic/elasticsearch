@@ -27,6 +27,7 @@ import org.elasticsearch.common.ssl.DefaultJdkTrustConfig;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.PemTrustConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -243,7 +244,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     }
 
     private Path resolvePath(String pathStr) {
-        Path p = Path.of(pathStr);
+        Path p = PathUtils.get(pathStr);
         return p.isAbsolute() ? p : configDir.resolve(p);
     }
 

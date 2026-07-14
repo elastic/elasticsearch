@@ -79,103 +79,50 @@ public class CrossClusterEnrichAndLookupJoinIT extends AbstractEnrichBasedCrossC
         Arrays.asList(2L, null, null)
     );
 
-    public void testLookupJoinThenEnrich() {
-        // both remote and coordinator mode enrich can be executed after remote lookup join
-        try (EsqlQueryResponse resp = runQuery("""
-            FROM *:events
-            | EVAL ip = TO_STR(host)
-            | LOOKUP JOIN ip_lookup ON ip
-            | ENRICH _remote:hosts ON ip
-            | STATS c = COUNT(*) BY os, location
-            | SORT os
-            """, null)) {
-            assertThat(getValuesList(resp), equalTo(EXPECTED_ROWS));
-            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
-        }
-        try (EsqlQueryResponse resp = runQuery("""
-            FROM *:events
-            | EVAL ip = TO_STR(host)
-            | LOOKUP JOIN ip_lookup ON ip
-            | ENRICH _coordinator:hosts ON ip
-            | STATS c = COUNT(*) BY os, location
-            | SORT os
-            """, null)) {
-            assertThat(getValuesList(resp), equalTo(EXPECTED_ROWS));
-            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
-        }
-        // only coordinator enrich could be executed after coordinator lookup join
-        expectThrows(
-            VerificationException.class,
-            containsString("ENRICH with remote policy can't be executed after [LOOKUP JOIN _coordinator:ip_lookup ON ip]"),
-            () -> runQuery("""
+    public void testLookupJoinAndEnrich() {
+        for (var test : List.of(
+            // remote and then remote
+            new String[] { "LOOKUP JOIN ip_lookup", "ENRICH _remote:hosts" },
+            new String[] { "ENRICH _remote:hosts", "LOOKUP JOIN ip_lookup" },
+            // remote and then local
+            new String[] { "LOOKUP JOIN ip_lookup", "ENRICH _coordinator:hosts" },
+            new String[] { "ENRICH _remote:hosts", "LOOKUP JOIN _coordinator:ip_lookup" },
+            // local and then local
+            new String[] { "LOOKUP JOIN _coordinator:ip_lookup", "ENRICH _coordinator:hosts" },
+            new String[] { "ENRICH _coordinator:hosts", "LOOKUP JOIN _coordinator:ip_lookup" }
+        )) {
+            try (EsqlQueryResponse resp = runQuery("""
                 FROM *:events
                 | EVAL ip = TO_STR(host)
-                | LOOKUP JOIN _coordinator:ip_lookup ON ip
-                | ENRICH _remote:hosts ON ip
+                | %s ON ip
+                | %s ON ip
                 | STATS c = COUNT(*) BY os, location
                 | SORT os
-                """, null).close()
-        );
-        try (EsqlQueryResponse resp = runQuery("""
-            FROM *:events
-            | EVAL ip = TO_STR(host)
-            | LOOKUP JOIN _coordinator:ip_lookup ON ip
-            | ENRICH _coordinator:hosts ON ip
-            | STATS c = COUNT(*) BY os, location
-            | SORT os
-            """, null)) {
-            assertThat(getValuesList(resp), equalTo(EXPECTED_ROWS));
-            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
+                """.formatted(test[0], test[1]), null)) {
+                assertThat(getValuesList(resp), equalTo(EXPECTED_ROWS));
+                assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
+            }
         }
-    }
 
-    public void testEnrichThenLookupJoin() {
-        // both remote and coordinator mode lookup join can be executed after remote enrich
-        try (EsqlQueryResponse resp = runQuery("""
-            FROM *:events
-            | EVAL ip = TO_STR(host)
-            | ENRICH _remote:hosts ON ip
-            | LOOKUP JOIN ip_lookup ON ip
-            | STATS c = COUNT(*) BY os, location
-            | SORT os
-            """, null)) {
-            assertThat(getValuesList(resp), equalTo(EXPECTED_ROWS));
-            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
-        }
-        try (EsqlQueryResponse resp = runQuery("""
-            FROM *:events
-            | EVAL ip = TO_STR(host)
-            | ENRICH _remote:hosts ON ip
-            | LOOKUP JOIN _coordinator:ip_lookup ON ip
-            | STATS c = COUNT(*) BY os, location
-            | SORT os
-            """, null)) {
-            assertThat(getValuesList(resp), equalTo(EXPECTED_ROWS));
-            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
-        }
-        // only coordinator lookup join could be executed after coordinator enrich
-        expectThrows(
-            VerificationException.class,
-            containsString("LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:hosts ON ip]"),
-            () -> runQuery("""
+        for (var test : List.of(
+            // local and then remote is not supported
+            new String[] {
+                "LOOKUP JOIN _coordinator:ip_lookup",
+                "ENRICH _remote:hosts",
+                "ENRICH with remote policy can't be executed after [LOOKUP JOIN _coordinator:ip_lookup ON ip]" },
+            new String[] {
+                "ENRICH _coordinator:hosts",
+                "LOOKUP JOIN ip_lookup",
+                "LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:hosts ON ip]" }
+        )) {
+            expectThrows(VerificationException.class, containsString(test[2]), () -> runQuery("""
                 FROM *:events
                 | EVAL ip = TO_STR(host)
-                | ENRICH _coordinator:hosts ON ip
-                | LOOKUP JOIN ip_lookup ON ip
+                | %s ON ip
+                | %s ON ip
                 | STATS c = COUNT(*) BY os, location
                 | SORT os
-                """, null).close()
-        );
-        try (EsqlQueryResponse resp = runQuery("""
-            FROM *:events
-            | EVAL ip = TO_STR(host)
-            | ENRICH _coordinator:hosts ON ip
-            | LOOKUP JOIN _coordinator:ip_lookup ON ip
-            | STATS c = COUNT(*) BY os, location
-            | SORT os
-            """, null)) {
-            assertThat(getValuesList(resp), equalTo(EXPECTED_ROWS));
-            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
+                """.formatted(test[0], test[1]), null).close());
         }
     }
 }

@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -191,31 +190,28 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             }
             Rounding.Prepared r = unit.rounding(zoneId).prepareForUnknown();
             Long fixedWidthMillis = unit.fixedWidthMillis();
-            if (fixedWidthMillis != null) {
-                long roundedFrom = r.round(from);
-                // Compensate local time span for potential DST changes in the span.
-                long localSpan = (to - roundedFrom) + (offsetMillis(to) - offsetMillis(roundedFrom));
-                return (localSpan + fixedWidthMillis - 1) / fixedWidthMillis <= buckets;
-            } else {
-                long bucket = r.round(from);
-                long used = 0;
-                while (used < buckets) {
-                    bucket = r.nextRoundingValue(bucket);
-                    used++;
-                    if (bucket >= to) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-        }
 
-        /**
-         * The zone offset, in milliseconds, that applies at the given instant. Used to convert an elapsed UTC span into
-         * a wall-clock span so that fixed-interval bucket counts remain correct across DST transitions.
-         */
-        private long offsetMillis(long epochMillis) {
-            return zoneId.getRules().getOffset(Instant.ofEpochMilli(epochMillis)).getTotalSeconds() * 1000L;
+            // In a fixed-offset zone (e.g. UTC) fixed-width buckets are evenly spaced, so count
+            // them arithmetically instead of looping over all buckets.
+            if (fixedWidthMillis != null && zoneId.getRules().isFixedOffset()) {
+                return Math.ceilDiv(to - r.round(from), fixedWidthMillis) <= buckets;
+            }
+
+            // Otherwise, loop over the buckets to count the required number. This is slow for
+            // very large numbers of buckets.
+            // TODO: add fast counting for non-fixed-offset zones, by looping over periods with
+            // fixed offset (using zoneId.getRules().nextTransition), and counting within these
+            // periods and on the boundaries.
+            long bucket = r.round(from);
+            long used = 0;
+            while (used < buckets) {
+                bucket = r.nextRoundingValue(bucket);
+                used++;
+                if (bucket >= to) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 

@@ -15,7 +15,7 @@ dependencies {
   javaRestTestImplementation testArtifact(project(':server'))
   javaRestTestImplementation testArtifact(project(xpackModule('core')))
   javaRestTestImplementation project(':x-pack:qa')
-  javaRestTestImplementation project(xpackModule('inference'))
+  javaRestTestImplementation testArtifact(project(xpackModule('inference')))
   javaRestTestImplementation project(':modules:reindex')
   javaRestTestImplementation testArtifact(project(':qa:rolling-upgrade'), 'javaRestTest')
 }

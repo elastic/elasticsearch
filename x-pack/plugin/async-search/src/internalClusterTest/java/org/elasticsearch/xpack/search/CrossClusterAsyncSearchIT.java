@@ -81,13 +81,16 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -561,8 +564,9 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     }
 
     /**
-     * This tests the specific case where allow_partial_search_results=false and ccs_minimize_roundtrips=false. Previously, this combination of
-     * settings would result in the cluster status getting stuck as {@link SearchResponse.Cluster.Status#RUNNING} on the local cluster
+     * This tests the specific case where allow_partial_search_results=false and ccs_minimize_roundtrips=false. Previously, this
+     * combination of settings would result in the cluster status getting stuck as {@link SearchResponse.Cluster.Status#RUNNING} on the
+     * local cluster
      */
     public void testClusterDetailsAfterCCSWithFailuresOnOneClusterOnly_AllowPartialResultsFalse_MinimizeRoundtripsFalse() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
@@ -1006,8 +1010,9 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     }
 
     /**
-     * This tests the specific case where allow_partial_search_results=false and ccs_minimize_roundtrips=false. Previously, this combination of
-     * settings would result in the cluster status getting stuck as {@link SearchResponse.Cluster.Status#RUNNING} on the local cluster
+     * This tests the specific case where allow_partial_search_results=false and ccs_minimize_roundtrips=false. Previously, this
+     * combination of settings would result in the cluster status getting stuck as {@link SearchResponse.Cluster.Status#RUNNING} on the
+     * local cluster
      */
     public void testRemoteClusterOnlyCCSWithFailuresOnOneShardOnly_AllowPartialResultsFalse_MinimizeRoundtripsFalse() throws Exception {
         // for remote-only queries, we can't use the SearchListenerPlugin since that listens for search

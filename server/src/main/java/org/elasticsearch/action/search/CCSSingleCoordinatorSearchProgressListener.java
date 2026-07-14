@@ -128,9 +128,11 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         if (clusters.hasClusterObjects()) {
             clusters.swapCluster(clusterAlias, (k, v) -> {
                 int numSuccessfulShards = v.getSuccessfulShards() == null ? 1 : v.getSuccessfulShards() + 1;
-                return new SearchResponse.Cluster.Builder(v).setSuccessfulShards(numSuccessfulShards)
-                    .setTimedOut(queryResult.searchTimedOut())
-                    .build();
+                SearchResponse.Cluster.Builder builder = new SearchResponse.Cluster.Builder(v).setSuccessfulShards(numSuccessfulShards);
+                if (queryResult.searchTimedOut()) {
+                    builder.setTimedOut(true);
+                }
+                return builder.build();
             });
         }
     }

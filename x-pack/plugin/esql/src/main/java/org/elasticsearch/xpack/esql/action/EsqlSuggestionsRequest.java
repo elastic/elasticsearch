@@ -9,24 +9,15 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.parser.EsqlConfig;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.io.IOException;
-import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -39,25 +30,22 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * <ul>
  *     <li>{@code false} (default): coordinator-only, field-name/type completion, no data-node visit.</li>
  *     <li>{@code true}: additionally samples {@code values} from hot-tier data nodes for a
- *     {@code STRING_LITERAL_EQUALITY}/{@code keyword} target (Steps 18–20); {@code range} sampling and
- *     every other context/type remain deferred — see the suggestions API spec.</li>
+ *     {@code STRING_LITERAL_EQUALITY}/{@code keyword} target; {@code range} sampling and every other
+ *     context/type remain deferred — see the suggestions API spec.</li>
  * </ul>
+ *
+ * <p>Implements {@link CompositeIndicesRequest} (a marker only) rather than declaring its own
+ * {@code indices()}: see {@link EsqlSuggestionsAction}'s javadoc for why a static text parse of
+ * {@code query()} cannot reliably determine the indices actually read.
  */
-public class EsqlSuggestionsRequest extends ActionRequest implements IndicesRequest {
+public class EsqlSuggestionsRequest extends ActionRequest implements CompositeIndicesRequest {
 
     public static final int DEFAULT_SIZE = 10;
-
-    // A stateless parser used only to extract FROM target(s) for IndicesRequest#indices(); it never consults
-    // cluster state, so it is safe to share across requests/nodes as a static instance.
-    private static final EsqlParser INDICES_PARSER = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
 
     private String query;
     private int cursor;
     private int size = DEFAULT_SIZE;
     private boolean includeSampleValues = false;
-
-    // Lazily computed and cached from `query`; not serialized.
-    private transient String[] indices;
 
     public EsqlSuggestionsRequest() {}
 
@@ -129,48 +117,6 @@ public class EsqlSuggestionsRequest extends ActionRequest implements IndicesRequ
     public EsqlSuggestionsRequest includeSampleValues(boolean includeSampleValues) {
         this.includeSampleValues = includeSampleValues;
         return this;
-    }
-
-    /**
-     * The {@code FROM} target(s) parsed from {@link #query()}, so RBAC has a declared index set to check
-     * privileges against independent of the query body. Parsing happens once and is cached; a malformed
-     * query yields an empty index set here rather than throwing,
-     * deferring the actual parse error to {@code TransportEsqlSuggestionsAction} so an authenticated-but-
-     * unprivileged user sees the same validation error an unauthenticated request would get post-auth,
-     * not a different failure shape leaking whether parsing itself succeeded.
-     */
-    @Override
-    public String[] indices() {
-        if (indices == null) {
-            indices = parseIndices();
-        }
-        return indices;
-    }
-
-    private String[] parseIndices() {
-        if (query == null || query.isEmpty()) {
-            return Strings.EMPTY_ARRAY;
-        }
-        try {
-            LogicalPlan parsed = INDICES_PARSER.parseQuery(query);
-            Set<String> targets = new LinkedHashSet<>();
-            parsed.forEachDown(UnresolvedRelation.class, relation -> {
-                for (String index : relation.indexPattern().indexPattern().split(",")) {
-                    String trimmed = index.trim();
-                    if (trimmed.isEmpty() == false) {
-                        targets.add(trimmed);
-                    }
-                }
-            });
-            return targets.toArray(Strings.EMPTY_ARRAY);
-        } catch (Exception e) {
-            return Strings.EMPTY_ARRAY;
-        }
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return IndicesOptions.DEFAULT;
     }
 
     /**

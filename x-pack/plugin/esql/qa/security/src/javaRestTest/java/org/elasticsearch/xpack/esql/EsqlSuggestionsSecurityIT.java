@@ -49,6 +49,15 @@ import static org.hamcrest.Matchers.not;
  * analysis only resolves mappings, not rows — so DLS has no bearing on that path's output; the
  * hot-tier value-sampling path is the first one DLS/FLS interact with at the document level, covered
  * separately below.
+ *
+ * <p>{@code EsqlSuggestionsRequest} implements {@code CompositeIndicesRequest} rather than declaring
+ * static {@code indices()} (see {@code EsqlSuggestionsAction}'s javadoc), so {@code
+ * testUnauthorizedIndexIsDenied} below proves the denial comes from dataset/field-caps resolution
+ * rejecting the unauthorized index, the same mechanism a plain {@code EsqlQueryRequest} relies on — not
+ * from an upfront RBAC index check. A further case this authorization model motivates — a {@code FROM}
+ * targeting a view that expands to an index the user cannot read — needs a view fixture this suite does
+ * not yet have; that case is deferred rather than built here, and is noted as an open gap rather than
+ * silently skipped.
  */
 public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
 
@@ -129,10 +138,18 @@ public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
         return client().performRequest(request);
     }
 
+    /**
+     * {@code EsqlSuggestionsRequest} declares no {@code indices()} of its own (see the class javadoc), so
+     * this denial comes from dataset/field-caps resolution rejecting the unauthorized index during
+     * analysis — the same mechanism, and the same {@code Unknown index}/400 shape, {@code EsqlQueryAction}
+     * itself uses for the identical case (see {@code EsqlSecurityIT#testUnauthorizedIndices}), not an
+     * upfront RBAC index check returning 403.
+     */
     public void testUnauthorizedIndexIsDenied() {
         String query = "FROM index-user2 | KEEP val*";
         ResponseException e = expectThrows(ResponseException.class, () -> runSuggestions("user1", query, query.length()));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e.getMessage(), containsString("Unknown index [index-user2]"));
     }
 
     public void testFieldLevelSecurityRestrictsFieldsMap() throws IOException {

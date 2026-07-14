@@ -305,6 +305,10 @@ public class RBACEngine implements AuthorizationEngine {
             case "indices:data/read/sql/translate":
             case "indices:data/read/esql":
             case "indices:data/read/esql/compute":
+                // ES|QL suggestions: EsqlSuggestionsRequest is a CompositeIndicesRequest marker only — real
+                // per-index enforcement happens later, in dataset/field-caps resolution and the hot-tier
+                // value-sampling path's own FLS/DLS gate (see the suggestions API spec for the reasoning).
+            case "indices:data/read/esql/suggestions":
                 if (request instanceof BulkShardRequest) {
                     return false;
                 }

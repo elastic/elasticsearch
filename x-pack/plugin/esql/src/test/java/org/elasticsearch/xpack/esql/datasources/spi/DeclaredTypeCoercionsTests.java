@@ -928,6 +928,49 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
      * A negative epoch has no {@code date_nanos} representation (the {@code TO_DATE_NANOS} range rule): the
      * lenient read nulls the cell and warns — never a negative nanos long — and the strict read fails.
      */
+    /**
+     * A whole-number source declared {@code date_nanos} WITH a declared {@code format} parses THROUGH the format —
+     * the unit rule, identical to the DATETIME arm: the format names the unit, and only in its absence does the type
+     * ({@code date_nanos} = nanos). Without this a column declared {@code {date_nanos, format: epoch_second}} would
+     * silently reinterpret seconds as nanos: 1704067200 would read as 1970-01-01T00:00:01.37Z instead of 2024-01-01.
+     * <p>
+     * This is the pair that was jointly unreachable before the datetime and date_nanos work were reconciled — the
+     * resolver rejected a format on a numeric physical, so the combination could not be expressed; once it could, the
+     * numeric arm had to honor it.
+     */
+    public void testCastWholeNumberToDateNanosHonorsDeclaredFormat() {
+        DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
+        long token = 1704067200L;                    // 2024-01-01T00:00:00Z, in SECONDS
+        long expectedNanos = 1704067200_000_000_000L; // the same instant, in nanos
+        for (DataType from : List.of(DataType.INTEGER, DataType.LONG)) {
+            Block src = from == DataType.INTEGER
+                ? blockFactory.newIntArrayVector(new int[] { (int) token }, 1).asBlock()
+                : blockFactory.newLongArrayVector(new long[] { token }, 1).asBlock();
+            try (src; Block cast = castStrict(src, from, DataType.DATE_NANOS, epochSecond)) {
+                assertEquals(
+                    "[" + from.typeName() + "] declared date_nanos with epoch_second must read SECONDS, not nanos",
+                    expectedNanos,
+                    ((LongBlock) cast).getLong(0)
+                );
+            }
+        }
+        // unsigned_long rides the same arm (values held sign-flip-encoded in a LongBlock)
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { NumericUtils.asLongUnsigned(BigInteger.valueOf(token)) }, 1).asBlock();
+            Block cast = castStrict(src, DataType.UNSIGNED_LONG, DataType.DATE_NANOS, epochSecond)
+        ) {
+            assertEquals(expectedNanos, ((LongBlock) cast).getLong(0));
+        }
+        // and a calendar dialect reads the digits, not an epoch
+        DateFormatter yyyyMMdd = DateFormatter.forPattern("yyyyMMdd");
+        try (
+            Block src = blockFactory.newLongArrayVector(new long[] { 20260101L }, 1).asBlock();
+            Block cast = castStrict(src, DataType.LONG, DataType.DATE_NANOS, yyyyMMdd)
+        ) {
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2026-01-01T00:00:00Z"), ((LongBlock) cast).getLong(0));
+        }
+    }
+
     public void testCastNegativeWholeNumberToDateNanosFailsPerValue() {
         List<String> warnings = new ArrayList<>();
         try (

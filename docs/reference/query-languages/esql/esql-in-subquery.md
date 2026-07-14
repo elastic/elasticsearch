@@ -106,8 +106,10 @@ result:
 :::{include} _snippets/generated/x-pack-esql/commands/examples/in_subquery.csv-spec/not_in_subquery.md
 :::
 
-Here the subquery returns the three lowest `emp_no` values, and `NOT IN` excludes
-them, so the first surviving rows start at `emp_no` `10004`.
+Here the subquery selects every employee earning less than `10000`. No employee
+matches, so the subquery returns an empty result. `NOT IN` therefore excludes
+nothing and every employee is kept, so the first three rows by `emp_no` are
+`10001` through `10003`.
 
 ### Aggregate data inside the subquery
 
@@ -229,12 +231,12 @@ filtered with an `IN` subquery that itself nests a `NOT IN` subquery:
 
 The first `FROM` branch keeps every employee earning more than `70000`. The second
 branch keeps employees who speak language one and whose `emp_no` is returned by
- the `IN` subquery, which in turn excludes the three highest salaries with a nested
+the `IN` subquery, which in turn excludes the three highest salaries with a nested
 `NOT IN` subquery. The outer query reports the union of both branches.
 
 ### Combine an `IN` subquery with `FORK`
 
-IN subqueries can be used inside [`FORK`](/reference/query-languages/esql/commands/fork.md)
+`IN` subqueries can be used inside [`FORK`](/reference/query-languages/esql/commands/fork.md)
 branches, so each branch can apply its own subquery-based filter:
 
 :::{include} _snippets/generated/x-pack-esql/commands/examples/in_subquery.csv-spec/in_subquery_with_fork.md

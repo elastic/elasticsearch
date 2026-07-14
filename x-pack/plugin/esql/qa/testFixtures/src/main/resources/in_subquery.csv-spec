@@ -18,21 +18,17 @@ emp_no:integer | first_name:keyword
 basicNotInSubquery
 required_capability: where_in_subquery_without_view
 
-// tag::not_in_subquery[]
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
 | SORT emp_no
 | KEEP emp_no, first_name
 | LIMIT 3
-// end::not_in_subquery[]
 ;
 
-// tag::not_in_subquery-result[]
 emp_no:integer | first_name:keyword
 10004          | Chirstian
 10005          | Kyoichi
 10006          | Anneke
-// end::not_in_subquery-result[]
 ;
 
 inSubqueryEmptyResults
@@ -50,17 +46,21 @@ emp_no:integer
 notInSubqueryEmptyResults
 required_capability: where_in_subquery_without_view
 
+// tag::not_in_subquery[]
 FROM employees
 | WHERE emp_no NOT IN (FROM employees | WHERE salary < 10000 | KEEP emp_no)
 | SORT emp_no
 | KEEP emp_no
 | LIMIT 3
+// end::not_in_subquery[]
 ;
 
+// tag::not_in_subquery-result[]
 emp_no:integer
 10001
 10002
 10003
+// end::not_in_subquery-result[]
 ;
 
 inSubqueryWithStatsInsideInSubquery

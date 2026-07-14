@@ -2,14 +2,14 @@
 
 ```esql
 FROM employees
-| WHERE emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| WHERE emp_no NOT IN (FROM employees | WHERE salary < 10000 | KEEP emp_no)
 | SORT emp_no
-| KEEP emp_no, first_name
+| KEEP emp_no
 | LIMIT 3
 ```
 
-| emp_no:integer | first_name:keyword |
-| --- | --- |
-| 10004 | Chirstian |
-| 10005 | Kyoichi |
-| 10006 | Anneke |
+| emp_no:integer |
+| --- |
+| 10001 |
+| 10002 |
+| 10003 |

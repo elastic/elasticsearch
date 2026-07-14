@@ -288,6 +288,31 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     @Override
+    public Router router() {
+        if (hash instanceof BytesRefSwissHash swiss) {
+            return new Router() {
+                private final BytesRef scratch = new BytesRef();
+
+                @Override
+                public int partitionHashOfKey(Block keyBlock, int position) {
+                    return (int) BytesRefSwissHash.hash64(((BytesRefBlock) keyBlock).getBytesRef(position, scratch));
+                }
+
+                @Override
+                public int addKey(Block keyBlock, int position, int hash) {
+                    if (keyBlock.isNull(position)) {
+                        seenNull = true;
+                        return 0;
+                    }
+                    BytesRef key = ((BytesRefBlock) keyBlock).getBytesRef(position, scratch);
+                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, BytesRefSwissHash.hash64(key))));
+                }
+            };
+        }
+        return null;
+    }
+
+    @Override
     public void close() {
         prefetchBarrier.flush();
         hash.close();

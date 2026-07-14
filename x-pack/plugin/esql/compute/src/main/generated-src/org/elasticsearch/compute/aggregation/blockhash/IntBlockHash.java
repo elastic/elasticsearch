@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.swisshash.LongSwissHash;
 import java.util.BitSet;
 // end generated imports
 
@@ -177,6 +178,29 @@ final class IntBlockHash extends BlockHash {
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1)).seenGroupIds(bigArrays);
+    }
+
+    @Override
+    public Router router() {
+        if (hash instanceof LongSwissHash swiss) {
+            return new Router() {
+                @Override
+                public int partitionHashOfKey(Block keyBlock, int position) {
+                    return LongSwissHash.hash((long) ((IntBlock) keyBlock).getInt(position));
+                }
+
+                @Override
+                public int addKey(Block keyBlock, int position, int hash) {
+                    if (keyBlock.isNull(position)) {
+                        seenNull = true;
+                        return 0;
+                    }
+                    long key = (long) ((IntBlock) keyBlock).getInt(position);
+                    return Math.toIntExact(hashOrdToGroupNullReserved(swiss.addWithHash(key, hash)));
+                }
+            };
+        }
+        return null;
     }
 
     @Override

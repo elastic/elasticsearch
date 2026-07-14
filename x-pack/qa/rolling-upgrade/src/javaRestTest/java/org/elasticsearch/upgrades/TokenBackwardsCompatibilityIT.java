@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
@@ -36,9 +38,13 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNot.not;
 
-public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
+public class TokenBackwardsCompatibilityIT extends AbstractXPackRollingUpgradeTestCase {
 
     private Collection<RestClient> twoClients = null;
+
+    public TokenBackwardsCompatibilityIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     @Before
     private void collectClientsByVersion() throws IOException {
@@ -65,7 +71,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testGeneratingTokensInOldCluster() throws Exception {
-        assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
+        assumeTrue("this test should only run against the old cluster", isOldCluster());
         // Creates two access and refresh tokens and stores them in the token_backwards_compatibility_it index to be used for tests in the
         // mixed/upgraded clusters
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
@@ -88,7 +94,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testRefreshingTokensInOldCluster() throws Exception {
-        assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
+        assumeTrue("this test should only run against the old cluster", isOldCluster());
         // Creates access and refresh tokens and uses the refresh token. The new resulting tokens are used in different phases
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
         String accessToken = (String) responseMap.get("access_token");
@@ -114,7 +120,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testInvalidatingTokensInOldCluster() throws Exception {
-        assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
+        assumeTrue("this test should only run against the old cluster", isOldCluster());
         // Creates access and refresh tokens and tries to use the access tokens several times
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
         String accessToken = (String) responseMap.get("access_token");
@@ -135,7 +141,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testAccessTokensWorkInMixedCluster() throws Exception {
         // Verify that an old token continues to work during all stages of the rolling upgrade
-        assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
+        assumeTrue("this test should only run against the mixed cluster", isMixedCluster());
         extendExpirationTimeForAllTokens();
         for (int tokenIdx : Arrays.asList(1, 3, 4)) { // 2 is invalidated in another mixed-cluster test, 5 is invalidated in the old cluster
             Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
@@ -145,14 +151,14 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testTokensStayInvalidatedInMixedCluster() throws Exception {
         // Verify that an old, invalidated token remains invalidated during all stages of the rolling upgrade
-        assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
+        assumeTrue("this test should only run against the mixed cluster", isMixedCluster());
         Map<String, Object> source = retrieveStoredTokens(client(), 5);
         assertAccessTokenDoesNotWork((String) source.get("token"));
         assertRefreshTokenInvalidated((String) source.get("refresh_token"));
     }
 
     public void testGeneratingTokensInMixedCluster() throws Exception {
-        assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
+        assumeTrue("this test should only run against the mixed cluster", isMixedCluster());
         // Creates two access and refresh tokens and stores them in the token_backwards_compatibility_it index to be used for tests in the
         // mixed/upgraded clusters
         int generatedTokenIdxDuringMixed = 10;
@@ -179,7 +185,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testRefreshingTokensInMixedCluster() throws Exception {
         // verify new nodes can refresh tokens created by old nodes and vice versa
-        assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
+        assumeTrue("this test should only run against the mixed cluster", isMixedCluster());
         for (RestClient client1 : twoClients) {
             Map<String, Object> responseMap = createTokens(client1, "test_user", "x-pack-test-password");
             String accessToken = (String) responseMap.get("access_token");
@@ -200,7 +206,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testInvalidatingTokensInMixedCluster() throws Exception {
         // Verify that we can invalidate an access and refresh token in a mixed cluster
-        assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
+        assumeTrue("this test should only run against the mixed cluster", isMixedCluster());
         Map<String, Object> source = retrieveStoredTokens(client(), 2);
         String accessToken = (String) source.get("token");
         String refreshToken = (String) source.get("refresh_token");
@@ -214,7 +220,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testTokensStayInvalidatedInUpgradedCluster() throws Exception {
-        assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
+        assumeTrue("this test should only run against the upgraded cluster", isUpgradedCluster());
         for (int tokenIdx : Arrays.asList(2, 5)) {
             Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
             assertAccessTokenDoesNotWork((String) source.get("token"));
@@ -223,7 +229,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testAccessTokensWorkInUpgradedCluster() throws Exception {
-        assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
+        assumeTrue("this test should only run against the upgraded cluster", isUpgradedCluster());
         extendExpirationTimeForAllTokens();
         for (int tokenIdx : Arrays.asList(3, 4, 10, 12)) {
             Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
@@ -232,7 +238,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testGeneratingTokensInUpgradedCluster() throws Exception {
-        assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
+        assumeTrue("this test should only run against the upgraded cluster", isUpgradedCluster());
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
         String accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
@@ -242,7 +248,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testRefreshingTokensInUpgradedCluster() throws Exception {
-        assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
+        assumeTrue("this test should only run against the upgraded cluster", isUpgradedCluster());
         for (int tokenIdx : Arrays.asList(4, 10, 12)) {
             Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
             Map<String, Object> refreshedResponseMap = refreshToken(client(), (String) source.get("refresh_token"));
@@ -255,7 +261,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testInvalidatingTokensInUpgradedCluster() throws Exception {
-        assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
+        assumeTrue("this test should only run against the upgraded cluster", isUpgradedCluster());
         for (int tokenIdx : Arrays.asList(1, 11, 13)) {
             Map<String, Object> source = retrieveStoredTokens(client(), tokenIdx);
             String accessToken = (String) source.get("token");

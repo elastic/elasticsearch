@@ -6,9 +6,10 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -17,13 +18,19 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.XContentTestUtils;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -33,111 +40,134 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
+/**
+ * Base class for x-pack rolling upgrade tests running against the parameterized rolling upgrade
+ * cluster harness ({@link ParameterizedRollingUpgradeTestCase}). It replaces the previous
+ * {@code AbstractUpgradeTestCase}, which relied on Gradle chaining separate old/mixed/upgraded
+ * cluster test tasks and reading the cluster state from system properties.
+ *
+ * <p>TODO: {@code UpgradeClusterClientYamlTestSuiteIT} was dropped during the migration to this
+ * class. It only ran YAML REST tests against the fully upgraded cluster and would require
+ * significant work to adapt {@link org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase} to
+ * the {@link ParameterizedRollingUpgradeTestCase} cluster lifecycle. See the migration task
+ * description for details.
+ */
+public abstract class AbstractXPackRollingUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
 
-    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
-        "test_user",
-        new SecureString(SecuritySettingsSourceField.TEST_PASSWORD)
-    );
+    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
-    protected static final String UPGRADE_FROM_VERSION = System.getProperty("tests.upgrade_from_version");
-    protected static final boolean FIRST_MIXED_ROUND = Booleans.parseBoolean(System.getProperty("tests.first_round", "false"));
-    protected static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
+    private static final ElasticsearchCluster cluster = buildCluster();
 
-    protected static boolean isOriginalCluster(String clusterVersion) {
-        return UPGRADE_FROM_VERSION.equals(clusterVersion);
+    private static ElasticsearchCluster buildCluster() {
+        var cluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .version(getOldClusterVersion(), isOldClusterDetachedVersion())
+            .nodes(NODE_NUM)
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("xpack.security.enabled", "true")
+            .setting("xpack.security.transport.ssl.enabled", "true")
+            .setting("xpack.security.transport.ssl.key", "testnode.pem")
+            .setting("xpack.security.transport.ssl.certificate", "testnode.crt")
+            .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
+            .setting("xpack.security.authc.token.enabled", "true")
+            .setting("xpack.security.authc.token.timeout", "60m")
+            .setting("xpack.security.authc.api_key.enabled", "true")
+            .setting("xpack.security.audit.enabled", "true")
+            .setting("xpack.watcher.encrypt_sensitive_data", "true")
+            .setting("logger.org.elasticsearch.xpack.watcher", "DEBUG")
+            .setting("ingest.geoip.downloader.enabled.default", "true")
+            .setting("repositories.url.allowed_urls", "http://snapshot.test*")
+            .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
+            .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+            .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))
+            .user("test_user", "x-pack-test-password")
+            .setting("path.repo", new Supplier<>() {
+                @Override
+                @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
+                public String get() {
+                    return repoDirectory.getRoot().getPath();
+                }
+            });
+
+        Version oldVersion = Version.tryParse(getOldClusterVersion()).orElse(null);
+
+        if (oldVersion != null && oldVersion.onOrAfter(Version.fromString("7.0.0"))) {
+            cluster.setting("xpack.security.authc.realms.file.file1.order", "0");
+            cluster.setting("xpack.security.authc.realms.native.native1.order", "1");
+        } else if (oldVersion != null) {
+            cluster.setting("xpack.security.authc.realms.file1.type", "file");
+            cluster.setting("xpack.security.authc.realms.file1.order", "0");
+            cluster.setting("xpack.security.authc.realms.native1.type", "native");
+            cluster.setting("xpack.security.authc.realms.native1.order", "1");
+        } else {
+            cluster.setting("xpack.security.authc.realms.file.file1.order", "0");
+            cluster.setting("xpack.security.authc.realms.native.native1.order", "1");
+        }
+
+        if (oldVersion == null || oldVersion.onOrAfter(Version.fromString("6.6.0"))) {
+            cluster.setting("ccr.auto_follow.wait_for_metadata_timeout", "1s");
+        }
+
+        if (oldVersion == null || oldVersion.onOrAfter(Version.fromString("7.11.0"))) {
+            cluster.configFile("operator_users.yml", Resource.fromClasspath("operator_users.yml"));
+            cluster.setting("xpack.security.operator_privileges.enabled", "true");
+            cluster.user("non_operator", "x-pack-test-password", "superuser", false);
+        }
+
+        if (oldVersion == null || oldVersion.onOrAfter(Version.fromString("8.7.0"))) {
+            cluster.configFile("operator/settings.json", Resource.fromClasspath("operator_defined_role_mappings.json"));
+        }
+
+        if (oldVersion == null || oldVersion.onOrAfter(Version.fromString("7.14.0"))) {
+            cluster.setting("ingest.geoip.downloader.endpoint", "http://invalid.endpoint");
+        }
+
+        if (oldVersion == null || oldVersion.onOrAfter(Version.fromString("7.12.0"))) {
+            cluster.setting("xpack.searchable.snapshot.shared_cache.size", "16MB");
+            cluster.setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB");
+        }
+
+        // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is
+        // inconsistent. As usual, we operate under the premise that "versionless" clusters (serverless) are on the latest code and
+        // do not need this.
+        if (oldVersion != null && oldVersion.before(Version.fromString("8.18.0"))) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+
+        return cluster.build();
     }
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
     protected RestClient oldVersionClient = null;
     protected RestClient newVersionClient = null;
 
-    /**
-     * Upgrade tests by design are also executed with the same version. We might want to skip some checks if that's the case, see
-     * for example gh#39102.
-     * @return true if the cluster version is the current version.
-     */
-    protected static boolean isOriginalClusterCurrent() {
-        return UPGRADE_FROM_VERSION.equals(Build.current().version());
+    protected AbstractXPackRollingUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
     }
 
     @Override
-    protected boolean resetFeatureStates() {
-        return false;
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
-
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveReposUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveSnapshotsUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveTemplatesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveRollupJobsUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveILMPoliciesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveDataStreamsUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveSearchableSnapshotsIndicesUponCompletion() {
-        return true;
-    }
-
-    enum ClusterType {
-        OLD,
-        MIXED,
-        UPGRADED;
-
-        public static ClusterType parse(String value) {
-            return switch (value) {
-                case "old_cluster" -> OLD;
-                case "mixed_cluster" -> MIXED;
-                case "upgraded_cluster" -> UPGRADED;
-                default -> throw new AssertionError("unknown cluster type: " + value);
-            };
-        }
-    }
-
-    protected static final ClusterType CLUSTER_TYPE = ClusterType.parse(System.getProperty("tests.rest.suite"));
 
     @Override
     protected Settings restClientSettings() {
         return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
-
-            // increase the timeout here to 90 seconds to handle long waits for a green
-            // cluster health. the waits for green need to be longer than a minute to
-            // account for delayed shards
-            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
-
+            .put(super.restClientSettings())
+            .put(
+                ThreadContext.PREFIX + ".Authorization",
+                basicAuthHeaderValue("test_user", new SecureString("x-pack-test-password".toCharArray()))
+            )
             .build();
     }
 
@@ -282,7 +312,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         String restEndpoint
     ) {
         public boolean isOriginalVersionCluster() {
-            return AbstractUpgradeTestCase.isOriginalCluster(this.version());
+            return getOldClusterVersion().equals(this.version());
         }
 
         public boolean isUpgradedVersionCluster() {
@@ -293,5 +323,4 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             return features().contains(feature);
         }
     }
-
 }

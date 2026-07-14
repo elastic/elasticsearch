@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -100,19 +101,9 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     @Before
     public void setup() throws Exception {
         modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
-        DenseVectorFieldMapper.ElementType elementType = randomValueOtherThan(
-            DenseVectorFieldMapper.ElementType.BFLOAT16,
-            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
-        );
-        // dot product means that we need normalized vectors; it's not worth doing that in this test
-        SimilarityMeasure similarity = randomValueOtherThan(
-            SimilarityMeasure.DOT_PRODUCT,
-            () -> randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
-        );
-        int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
-        Utils.storeSparseModel(SPARSE_INFERENCE_ID, modelRegistry);
-        Utils.storeDenseModel(DENSE_INFERENCE_ID, modelRegistry, dimensions, similarity, elementType);
-        Utils.storeEmbeddingModel(EMBEDDING_INFERENCE_ID, modelRegistry, dimensions, similarity, elementType);
+        registerModel(modelRegistry, SPARSE_INFERENCE_ID, TaskType.SPARSE_EMBEDDING);
+        registerModel(modelRegistry, DENSE_INFERENCE_ID, TaskType.TEXT_EMBEDDING);
+        registerModel(modelRegistry, EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING);
     }
 
     @Override
@@ -433,6 +424,57 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         });
     }
 
+    public void testRestartSemantic() throws Exception {
+        assumeFalse("Legacy format does not apply to the semantic field", useLegacyFormat);
+
+        String indexName = "index_restart_semantic";
+        registerModel(modelRegistry, "another_semanatic_inference_endpoint", TaskType.EMBEDDING);
+        prepareCreate(indexName).setMapping("""
+            {
+                "properties": {
+                    "semantic_field": {
+                        "type": "semantic",
+                        "inference_id": "another_semanatic_inference_endpoint"
+                    },
+                    "other_field": {
+                        "type": "semantic",
+                        "inference_id": "new_semantic_inference_endpoint"
+                    }
+                }
+            }
+            """).get();
+
+        assertItemFailures(
+            indexName,
+            () -> Map.of("semantic_field", randomSemanticInput(true), "other_field", randomSemanticInput(true)),
+            r -> assertThat(
+                rootCause(r.getFailure().getCause()).getMessage(),
+                containsString("Inference id [new_semantic_inference_endpoint] not found for field [other_field]")
+            )
+        );
+
+        registerModel(modelRegistry, "new_semantic_inference_endpoint", TaskType.EMBEDDING);
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
+        ensureGreen(InferenceIndex.INDEX_NAME, indexName, InferenceSecretsIndex.INDEX_NAME);
+
+        assertRandomBulkOperations(indexName, isIndexRequest -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("semantic_field", isIndexRequest && rarely() ? null : randomSemanticInput(true));
+            map.put("other_field", isIndexRequest && rarely() ? null : randomSemanticInput(true));
+            return map;
+        });
+
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
+        ensureGreen(InferenceIndex.INDEX_NAME, indexName, InferenceSecretsIndex.INDEX_NAME);
+
+        assertRandomBulkOperations(indexName, isIndexRequest -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("semantic_field", isIndexRequest && rarely() ? null : randomSemanticInput(true));
+            map.put("other_field", isIndexRequest && rarely() ? null : randomSemanticInput(true));
+            return map;
+        });
+    }
+
     private void assertRandomBulkOperations(String indexName, Function<Boolean, Map<String, Object>> sourceSupplier) throws Exception {
         int numHits = numHits(indexName);
         int totalBulkReqs = randomIntBetween(2, 10);
@@ -555,5 +597,30 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
             cause = cause.getCause();
         }
         return cause;
+    }
+
+    private static void registerModel(ModelRegistry modelRegistry, String inferenceId, TaskType taskType) throws Exception {
+        switch (taskType) {
+            case SPARSE_EMBEDDING -> Utils.storeSparseModel(inferenceId, modelRegistry);
+            case TEXT_EMBEDDING, EMBEDDING -> {
+                DenseVectorFieldMapper.ElementType elementType = randomValueOtherThan(
+                    DenseVectorFieldMapper.ElementType.BFLOAT16,
+                    () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
+                );
+                // dot product means that we need normalized vectors; it's not worth doing that in this test
+                SimilarityMeasure similarity = randomValueOtherThan(
+                    SimilarityMeasure.DOT_PRODUCT,
+                    () -> randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
+                );
+                int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
+
+                if (taskType.equals(TaskType.TEXT_EMBEDDING)) {
+                    Utils.storeDenseModel(inferenceId, modelRegistry, dimensions, similarity, elementType);
+                } else {
+                    Utils.storeEmbeddingModel(inferenceId, modelRegistry, dimensions, similarity, elementType);
+                }
+            }
+            default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
+        }
     }
 }

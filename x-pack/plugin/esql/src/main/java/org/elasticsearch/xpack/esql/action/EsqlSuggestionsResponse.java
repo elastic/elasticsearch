@@ -26,16 +26,37 @@ import java.util.Map;
  * otherwise the field carries just its resolved {@code type}. {@code warnings} is a closed
  * vocabulary describing why statistics may be missing or partial.
  *
- * <p>Examples of the {@code fields} shape:
- * <ul>
- *     <li>A {@code keyword} field with sampled values: {@code "status": {"type": "keyword",
- *     "values": [{"value": "ok", "docFreq": 0.9}]}}.</li>
- *     <li>A numeric field with a sampled range: {@code "latency": {"type": "long", "range":
- *     {"min": 0, "max": 500}}}.</li>
- *     <li>A field whose statistics were not populated (data nodes not visited): {@code
- *     "message": {"type": "text"}} — no {@code values}/{@code range} key present at all, not
- *     {@code null}.</li>
- * </ul>
+ * <p>A {@code keyword} field with sampled values:
+ * {@snippet lang="json" :
+ * {
+ *   "status": {
+ *     "type": "keyword",
+ *     "values": [
+ *       { "value": "ok", "docFreq": 0.9 }
+ *     ]
+ *   }
+ * }
+ * }
+ *
+ * <p>A numeric field with a sampled range:
+ * {@snippet lang="json" :
+ * {
+ *   "latency": {
+ *     "type": "long",
+ *     "range": { "min": 0, "max": 500 }
+ *   }
+ * }
+ * }
+ *
+ * <p>A field whose statistics were not populated (data nodes not visited) — no {@code values}/
+ * {@code range} key present at all, not {@code null}:
+ * {@snippet lang="json" :
+ * {
+ *   "message": {
+ *     "type": "text"
+ *   }
+ * }
+ * }
  */
 public class EsqlSuggestionsResponse extends ActionResponse implements ToXContentObject {
 

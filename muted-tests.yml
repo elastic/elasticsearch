@@ -796,9 +796,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.lookupJoinWithExpression [ndjson.bz2/HTTP]}
   issue: https://github.com/elastic/elasticsearch/issues/153744
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:inlinestats.doubleInlineStatsPrunning_With_MV_Functions2}
-  issue: https://github.com/elastic/elasticsearch/issues/153750
 - class: org.elasticsearch.xpack.transform.transforms.TransformIndexerStateTests
   method: testRunOneJobAtATime
   issue: https://github.com/elastic/elasticsearch/issues/153770

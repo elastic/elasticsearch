@@ -96,8 +96,41 @@ The response includes:
 [Project routing](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md) limits the scope of a query to specific projects, based on tag values.
 Project routing happens before query execution, so excluded projects are never queried. This can help reduce cost and latency.
 
+Project routing expressions use Lucene query syntax, so you're not limited to a single tag or an exact match. The colon (`:`) separates a tag from its value. For example, `_csp:aws` matches projects on Amazon Web Services (AWS).
+
+You can route on any project tag:
+
+- Predefined tags, such as `_alias`, `_csp`, and `_region`. For the full list, refer to [Tags in CPS](docs-content://explore-analyze/cross-project-search/cross-project-search-tags.md).
+- Custom tags that you define in the {{ecloud}} UI.
+
+In an expression, you can:
+
+- Combine tags with the `AND`, `OR`, and `NOT` operators.
+- Group terms with parentheses.
+- Match part of a tag value with a prefix or suffix wildcard (`*`).
+
+Tag value matching is case-insensitive, so `_csp:AWS` matches the value `aws`. Tag names are case-sensitive, so use `_csp`, not `_CSP`. The syntax is the same for {{esql}} and the `_search` API.
+
 :::{note}
-Project routing expressions use Lucene query syntax. The `:` operator matches a tag value, equivalent to `=` in other query languages. For example, `_alias:my-project` matches projects whose alias is `my-project`.
+You can optionally add the `_project.` prefix to a tag name, for example `_project._csp:aws`. This is the same prefix used to reference tags in queries. In project routing the prefix is optional, so `_csp:aws` and `_project._csp:aws` are equivalent.
+:::
+
+The following expressions are all valid:
+
+| Expression | Projects matched |
+| --- | --- |
+| `_csp:azure` | Projects on Azure |
+| `_alias:lin*` | Projects whose alias starts with `lin` |
+| `_csp:aws AND _region:us*` | AWS projects in a US region |
+| `(_region:us-* AND _csp:aws) OR _csp:gcp` | AWS projects in a US region, or any project on Google Cloud |
+| `_csp:GCP` | Google Cloud projects (value matching is case-insensitive, so this also matches `gcp`) |
+
+:::{note}
+Every term in an expression needs a tag name, and every tag must be defined. These expressions fail:
+
+- `_csp:aws OR gcp` fails because the bare term `gcp` has no tag name. Use `_csp:aws OR _csp:gcp` instead.
+- `_foo:bar` fails because `_foo` isn't a defined tag.
+- `NOT _csp:azure` fails because an expression can't be only a negation. To match every project except Azure, include first and then exclude: `_csp:* AND NOT _csp:azure`.
 :::
 
 You can specify project routing in two ways:
@@ -114,12 +147,12 @@ If both options are combined, `SET project_routing` takes precedence.
 `SET project_routing` embeds project routing directly within the {{esql}} query. You can use this approach wherever you write {{esql}}. [`SET`](/reference/query-languages/esql/directives/set.md) must appear before other {{esql}} commands. The semicolon after the last parameter separates it from the rest of the query. The order of parameters within `SET` does not matter.
 
 ```esql
-SET project_routing="_alias:my-project";    <1>
+SET project_routing="_csp:aws AND _region:us*";    <1>
 FROM data
 | STATS COUNT(*)
 ```
 
-1. Routes the query to the project with alias `my-project`.
+1. Routes the query to projects on AWS in a US region.
 
 ### Option 2: Pass `project_routing` in the API request body
 
@@ -129,11 +162,11 @@ If you are constructing the full `_query` request, you can pass the `project_rou
 GET /_query
 {
   "query": "FROM data | STATS COUNT(*)",
-  "project_routing": "_alias:my-project"    <1>
+  "project_routing": "_csp:aws AND _region:us*"    <1>
 }
 ```
 
-1. Routes the query to projects whose alias matches `my-project`.
+1. Routes the query to projects on AWS in a US region.
 
 ### Reference a named project routing expression
 
@@ -162,6 +195,10 @@ FROM logs
 :::
 
 ::::
+
+:::{note}
+Reference a named expression on its own. You can't combine it with a direct expression or with another named expression. For example, both `@custom-expression OR _csp:aws` and `@custom-expression OR @another-expression` fail.
+:::
 
 ## Use index expressions
 
@@ -313,12 +350,12 @@ Filtering with `WHERE` on a project tag happens after all projects are queried. 
 #### Restrict with project routing (pre-query)
 
 ```esql
-SET project_routing="_alias:aws-project";    <1>
+SET project_routing="_csp:aws";    <1>
 FROM logs*
 | STATS COUNT(*)
 ```
 
-1. Only `aws-project` is queried. No data is fetched from other projects. For supported project routing tags, refer to [Limitations](#limitations).
+1. Only projects on AWS are queried. No data is fetched from other projects.
 
 ### Use project routing and METADATA together
 
@@ -339,11 +376,6 @@ FROM logs METADATA _project._alias        <2>
 2. Declares `_project._alias` so it can be used in `STATS`. Results show a count per matched project.
 
 ## Limitations
-
-### Project routing supports alias only
-
-Initially, project routing only supports the `_alias` tag.
-Other predefined tags (`_csp`, `_region`, and so on) and custom tags are not yet supported as project routing criteria.
 
 ### LOOKUP JOIN across projects
 

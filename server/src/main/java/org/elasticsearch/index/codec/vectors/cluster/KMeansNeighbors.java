@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
+/**
+ * A {@code KMeansResult} with pre-computed neighbor information
+ */
 public record KMeansNeighbors<V>(KMeansResult<V> result, NeighborHood[] neighborHoods) {
 
     public V[] centroids() {

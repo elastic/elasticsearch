@@ -177,8 +177,12 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
 
-            SubscribableListener.newForked(indexShard::preRecovery).andThenApply(unused -> {
+            SubscribableListener.<Void>newForked(l -> {
+                indexShard.ensureRecoveryNotCancelled();
+                indexShard.preRecovery(l);
+            }).andThenApply(unused -> {
                 logger.trace("{} preparing unpromotable shard for recovery", recoveryTarget.shardId());
+                indexShard.ensureRecoveryNotCancelled();
                 indexShard.prepareForIndexRecovery();
                 // Skip unnecessary intermediate stages
                 recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
@@ -387,12 +391,12 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
 
     private void getOpenPITContextInfos(ShardId shardId, ActionListener<PITHandoffResponse> listener) {
         List<PitReaderContext> activeContexts = searchService.getActivePITContexts(shardId);
-        logger.info("getting pit context infos for shard {}. Active contexts: {}", shardId, activeContexts.size());
+        logger.debug("getting pit context infos for shard {}. Active contexts: {}", shardId, activeContexts.size());
         List<OpenPITContextInfo> pitContextInfos = Collections.synchronizedList(new ArrayList<>(activeContexts.size()));
         AtomicLong warningCounter = new AtomicLong();
 
         try (var listeners = new RefCountingListener(listener.map(r -> {
-            logger.info("returning {} context infos for shard {}. Warnings: {}", pitContextInfos.size(), shardId, warningCounter.get());
+            logger.debug("returning {} context infos for shard {}. Warnings: {}", pitContextInfos.size(), shardId, warningCounter.get());
             return new PITHandoffResponse(pitContextInfos);
         }))) {
             for (PitReaderContext context : activeContexts) {

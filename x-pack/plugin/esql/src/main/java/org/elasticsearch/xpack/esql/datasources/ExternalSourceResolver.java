@@ -7,12 +7,14 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
@@ -26,6 +28,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.FileMetadata;
+import org.elasticsearch.xpack.esql.datasources.cache.FileMetadataCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
@@ -34,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.ListingHint;
@@ -479,6 +484,14 @@ public class ExternalSourceResolver {
      * an {@link ElasticsearchException} carrying the path and detail. A footer read can fail <em>because</em> the
      * query was cancelled mid-read and arrive wrapped (e.g. the schema cache wraps loader failures), so the
      * cancellation state is consulted directly rather than matched on the exception type.
+     * <p>
+     * A retryable back-pressure failure (permit exhaustion / remote-store unavailability) reaches here as an
+     * {@link ExternalUnavailableException} (503), but the factory loop always re-wraps a factory failure in an
+     * {@link IllegalArgumentException} (400). So the 503 is recovered from the cause chain <em>before</em> the
+     * {@link IllegalArgumentException} branch and surfaced as a 503, otherwise a transient capacity condition would be
+     * masked as a non-retryable client error and the client's retry path would never engage. An interrupt during permit
+     * acquisition arrives the same way as an {@link EsRejectedExecutionException} (429) and is recovered identically so a
+     * node-level rejection is not masked as a 400.
      */
     private RuntimeException mapResolveFailure(String path, Exception e) {
         if (e instanceof TaskCancelledException tce) {
@@ -488,6 +501,41 @@ public class ExternalSourceResolver {
         if (isCancelled()) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
             return new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE);
+        }
+        // A buried 503 (retryable back-pressure) must not be masked as a 400 by the factory loop's IllegalArgumentException
+        // wrapper. unwrap walks the root + cause chain (cycle-guarded), so it catches the 503 raw or wrapped. Re-wrap so
+        // the client message keeps the path context while the 503 status and the throttling flag survive.
+        ExternalUnavailableException unavailable = (ExternalUnavailableException) ExceptionsHelper.unwrap(
+            e,
+            ExternalUnavailableException.class
+        );
+        if (unavailable != null) {
+            recordDiscoveryFailure();
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+            return new ExternalUnavailableException(
+                unavailable.throttling(),
+                unavailable,
+                "Failed to resolve external source [{}]: {}",
+                path,
+                unavailable.getMessage()
+            );
+        }
+        // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
+        // in an IllegalArgumentException (400), so recover it from the cause chain before the IllegalArgumentException
+        // branch: a node-level rejection must keep its 429 status instead of being masked as a client error. Re-wrap
+        // so the client message keeps the path context while the 429 status survives (the type has no cause constructor).
+        EsRejectedExecutionException rejected = (EsRejectedExecutionException) ExceptionsHelper.unwrap(
+            e,
+            EsRejectedExecutionException.class
+        );
+        if (rejected != null) {
+            recordDiscoveryFailure();
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+            EsRejectedExecutionException wrapped = new EsRejectedExecutionException(
+                String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, rejected.getMessage())
+            );
+            wrapped.initCause(rejected);
+            return wrapped;
         }
         if (e instanceof IllegalArgumentException || e instanceof UnsupportedOperationException) {
             recordDiscoveryFailure();
@@ -564,26 +612,25 @@ public class ExternalSourceResolver {
         }
 
         ExternalSourceMetadata extMetadata;
-        StorageObject object;
+        StorageEntry storageEntry;
         if (isCacheable(provider)) {
-            // Stat the file first (cheap HEAD/stat) to get mtime for the cache key.
-            // Null mtime (e.g. gRPC/Flight, GCS/Azure fixtures) falls back to EPOCH so the
-            // cache key is stable; providers that never report trustworthy mtime should
-            // eventually return supportsStableMetadata() == false to bypass caching entirely.
-            object = provider.newObject(storagePath);
-            Instant lastMod = object.lastModified();
-            long mtime = lastMod != null ? lastMod.toEpochMilli() : Instant.EPOCH.toEpochMilli();
+            // Warm path is zero-I/O: the file-metadata cache holds {length, mtime} within the schema TTL, so a warm
+            // single-file resolve never touches a live object (fileMetadataOf). mtime is the cache key's version token;
+            // length + mtime rebuild the singleton FileList.
+            FileMetadata meta = fileMetadataOf(storagePath, provider, config);
             String formatType = detectFormatType(storagePath);
-            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtime, formatType, config);
+            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), meta.mtimeMillis(), formatType, config);
             SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
                 return SchemaCacheEntry.from(resolveSingleSource(path, config));
             });
             List<Attribute> schema = schemaEntry.toAttributes();
             extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
+            storageEntry = new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()));
         } else {
             SourceMetadata metadata = resolveSingleSource(path, config);
             extMetadata = wrapAsExternalSourceMetadata(metadata, config, declaredReadSpecOf(declaredMapping));
-            object = provider.newObject(storagePath);
+            StorageObject object = provider.newObject(storagePath);
+            storageEntry = new StorageEntry(storagePath, object.length(), object.lastModified());
         }
 
         // Capture the raw file schema: schemaMap describes the physical schema each reader actually
@@ -592,10 +639,7 @@ public class ExternalSourceResolver {
         // shim that injects them into the relation's metadataFields). See ResolveExternalRelations.
         List<Attribute> fileSchema = extMetadata.schema();
 
-        FileList singletonList = GlobExpander.fileListOf(
-            List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
-            path
-        );
+        FileList singletonList = GlobExpander.fileListOf(List.of(storageEntry), path);
         // Single-file: degenerate case of the general flow — one-entry schemaMap, identity mapping.
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, fileSchema);
         listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
@@ -923,6 +967,35 @@ public class ExternalSourceResolver {
      */
     private boolean isCacheable(StorageProvider provider) {
         return cacheService != null && cacheService.isEnabled() && provider.supportsStableMetadata();
+    }
+
+    /**
+     * The single file's {@link FileMetadata} ({@code {length, mtime}}), shared by both single-file rails (inferred
+     * {@link #resolveSingleFileSource} and strict {@link #resolveStrictSingleFile}). A cacheable provider serves it
+     * from the file-metadata cache within the schema TTL, so a warm resolve is zero-I/O; a miss — or a non-cacheable
+     * provider — probes the live object exactly once via {@link #probeFileMetadata(StoragePath, StorageProvider)}. The
+     * mtime is the version token that rebuilds the {@link SchemaCacheKey}; length + mtime rebuild the singleton
+     * {@code StorageEntry}.
+     */
+    private FileMetadata fileMetadataOf(StoragePath storagePath, StorageProvider provider, Map<String, Object> config) throws Exception {
+        if (isCacheable(provider)) {
+            FileMetadataCacheKey metaKey = FileMetadataCacheKey.build(storagePath.toString(), config);
+            return cacheService.getOrComputeFileMetadata(metaKey, k -> probeFileMetadata(storagePath, provider));
+        }
+        return probeFileMetadata(storagePath, provider);
+    }
+
+    /**
+     * One live object probe: a cheap HEAD/stat that on S3 is a single {@code bytes=-1} GET serving both length and
+     * mtime. Null mtime (e.g. gRPC/Flight, GCS/Azure fixtures) falls back to EPOCH so the derived cache key is stable;
+     * providers that never report a trustworthy mtime should return {@code supportsStableMetadata() == false} to bypass
+     * caching entirely.
+     */
+    private static FileMetadata probeFileMetadata(StoragePath storagePath, StorageProvider provider) throws Exception {
+        StorageObject probe = provider.newObject(storagePath);
+        Instant lastMod = probe.lastModified();
+        long mtime = lastMod != null ? lastMod.toEpochMilli() : Instant.EPOCH.toEpochMilli();
+        return new FileMetadata(probe.length(), mtime);
     }
 
     private StorageProvider resolveProvider(StoragePath storagePath, Map<String, Object> config) {
@@ -2024,7 +2097,8 @@ public class ExternalSourceResolver {
         // Stamp the partition column names into the serialized sourceMetadata. The fileList that carries
         // PartitionMetadata is coordinator-only (ExternalRelation deserializes it to UNRESOLVED), so the data-node
         // fold reads this key instead to safe-miss COUNT(partition_col). Read by
-        // ExternalSourceAggregatePushdown.partitionColumnNames.
+        // SourceStatisticsSerializer.partitionColumnNames (via the partitionColumnNames() accessors on
+        // ExternalSourceExec / ExternalRelation, which every node-agnostic consumer goes through).
         Map<String, Object> stampedMetadata = new HashMap<>(schemaEnriched.sourceMetadata());
         stampedMetadata.put(SourceStatisticsSerializer.PARTITION_COLUMNS_KEY, List.copyOf(partitionNames));
         return replaceSourceMetadata(schemaEnriched, Map.copyOf(stampedMetadata));
@@ -2125,7 +2199,11 @@ public class ExternalSourceResolver {
         Map<String, Object> config,
         DatasetMapping declaredMapping
     ) throws Exception {
-        StorageObject object = provider.newObject(storagePath);
+        // Same warm-probe amortization as the inferred single-file rail (resolveSingleFileSource): a cacheable
+        // provider serves {length, mtime} from the file-metadata cache within the schema TTL, so a warm strict
+        // resolve never probes the live object; a miss (or a non-cacheable provider) probes exactly once. Strict
+        // resolution reads no file body, so length + mtime are the only per-query object metadata it needs.
+        FileMetadata meta = fileMetadataOf(storagePath, provider, config);
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
@@ -2138,8 +2216,7 @@ public class ExternalSourceResolver {
         // Cheap no-I/O guard first (no partitions on a single file), then the columnar coercibility check which reads
         // this file's footer (cached when the provider is).
         rejectDeclaredMappingViolations(null, declaredMapping);
-        Instant singleMtime = object.lastModified();
-        long mtimeMillis = singleMtime != null ? singleMtime.toEpochMilli() : Instant.EPOCH.toEpochMilli();
+        long mtimeMillis = meta.mtimeMillis();
         rejectStrictColumnarUncoercibleTypes(sourceType, provider, storagePath, mtimeMillis, config, declaredMapping);
         ExternalSourceMetadata extMetadata = strictSingleFileMetadata(
             path,
@@ -2152,7 +2229,7 @@ public class ExternalSourceResolver {
             mtimeMillis
         );
         FileList singletonList = GlobExpander.fileListOf(
-            List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
+            List.of(new StorageEntry(storagePath, meta.length(), Instant.ofEpochMilli(meta.mtimeMillis()))),
             path
         );
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, logicalSchema);

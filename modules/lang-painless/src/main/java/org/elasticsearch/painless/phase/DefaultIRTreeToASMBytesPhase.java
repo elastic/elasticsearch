@@ -1120,21 +1120,60 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 );
             }
         } else {
-            visit(irLeftNode, writeScope);
-            visit(irRightNode, writeScope);
-
             Class<?> expressionType = irBinaryMathNode.getDecorationValue(IRDExpressionType.class);
-
-            if (irBinaryMathNode.getDecorationValue(IRDBinaryType.class) == def.class
+            Class<?> leftType = irLeftNode.getDecorationValue(IRDExpressionType.class);
+            Class<?> rightType = irRightNode.getDecorationValue(IRDExpressionType.class);
+            boolean dynamic = irBinaryMathNode.getDecorationValue(IRDBinaryType.class) == def.class
                 || (irBinaryMathNode.getDecoration(IRDShiftType.class) != null
-                    && irBinaryMathNode.getDecorationValue(IRDShiftType.class) == def.class)) {
+                    && irBinaryMathNode.getDecorationValue(IRDShiftType.class) == def.class);
+            int flags = irBinaryMathNode.getDecorationValueOrDefault(IRDFlags.class, 0);
+
+            // A def '+' may be a string concat at runtime, allocating its result inside the dynamic call. Like the
+            // statically-typed concat pre-check, spill the operands, charge the estimate (checkDefConcatAlloc charges only if an
+            // operand is actually a String), then reload and run the real add. Other ops keep the zero-overhead emission.
+            if (dynamic && operation == Operation.ADD && isAllocationTrackingActive(writeScope)) {
+                visit(irLeftNode, writeScope);
+                Variable left = writeScope.defineInternalVariable(leftType, "defConcatLeft");
+                methodWriter.visitVarInsn(left.getAsmType().getOpcode(Opcodes.ISTORE), left.getSlot());
+                visit(irRightNode, writeScope);
+                Variable right = writeScope.defineInternalVariable(rightType, "defConcatRight");
+                methodWriter.visitVarInsn(right.getAsmType().getOpcode(Opcodes.ISTORE), right.getSlot());
+
+                loadScriptPointer(writeScope, methodWriter);
+                methodWriter.visitVarInsn(left.getAsmType().getOpcode(Opcodes.ILOAD), left.getSlot());
+                if (leftType.isPrimitive()) {
+                    methodWriter.box(MethodWriter.getType(leftType));
+                }
+                methodWriter.visitVarInsn(right.getAsmType().getOpcode(Opcodes.ILOAD), right.getSlot());
+                if (rightType.isPrimitive()) {
+                    methodWriter.box(MethodWriter.getType(rightType));
+                }
+                methodWriter.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.CHECK_DEF_CONCAT_ALLOC);
+
+                methodWriter.visitVarInsn(left.getAsmType().getOpcode(Opcodes.ILOAD), left.getSlot());
+                methodWriter.visitVarInsn(right.getAsmType().getOpcode(Opcodes.ILOAD), right.getSlot());
                 methodWriter.writeDynamicBinaryInstruction(
                     irBinaryMathNode.getLocation(),
                     expressionType,
-                    irLeftNode.getDecorationValue(IRDExpressionType.class),
-                    irRightNode.getDecorationValue(IRDExpressionType.class),
+                    leftType,
+                    rightType,
                     operation,
-                    irBinaryMathNode.getDecorationValueOrDefault(IRDFlags.class, 0)
+                    flags
+                );
+                return;
+            }
+
+            visit(irLeftNode, writeScope);
+            visit(irRightNode, writeScope);
+
+            if (dynamic) {
+                methodWriter.writeDynamicBinaryInstruction(
+                    irBinaryMathNode.getLocation(),
+                    expressionType,
+                    leftType,
+                    rightType,
+                    operation,
+                    flags
                 );
             } else {
                 methodWriter.writeBinaryInstruction(irBinaryMathNode.getLocation(), expressionType, operation);

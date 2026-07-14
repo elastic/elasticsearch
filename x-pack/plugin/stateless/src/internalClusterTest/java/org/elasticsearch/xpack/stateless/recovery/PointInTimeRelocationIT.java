@@ -140,7 +140,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 MutableObjectStoreUploadTracker objectStoreUploadTracker,
                 ShardId shardId
             ) {
-                super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+                super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, randomBoolean());
             }
 
             @Override

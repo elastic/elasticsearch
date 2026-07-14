@@ -253,7 +253,7 @@ public class AllocationService {
                 final UnassignedInfo updatedUnassignedInfo = new UnassignedInfo(
                     cancelledByMaster ? UnassignedInfo.Reason.RECOVERY_CANCELLED : UnassignedInfo.Reason.ALLOCATION_FAILED,
                     message,
-                    cancelledByMaster ? cause : null, // no need to preserve the failure if we know it was cancelled
+                    cancelledByMaster ? null : cause, // no need to preserve the failure if we know it was cancelled
                     cancelledByMaster ? failedAllocations : failedAllocations + 1,
                     currentNanoTime,
                     System.currentTimeMillis(),

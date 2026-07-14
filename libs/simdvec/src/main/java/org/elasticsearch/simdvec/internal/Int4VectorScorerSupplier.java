@@ -55,7 +55,7 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
         }
         this.scorerImpl = new Int4VectorScorer.ScorerImpl(
             input,
-            values.size(),
+            values,
             dims,
             packedDims,
             vectorPitch,

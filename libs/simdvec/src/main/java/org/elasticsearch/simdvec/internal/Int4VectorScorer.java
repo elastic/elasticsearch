@@ -111,7 +111,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
 
         this.scorerImpl = new ScorerImpl(
             input,
-            values.size(),
+            values,
             dims,
             packedDims,
             vectorPitch,
@@ -146,7 +146,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
      */
     static class ScorerImpl {
         private final IndexInput input;
-        private final int maxOrd;
+        private final QuantizedByteVectorValues values;
         private final int dims;
         private final int packedDims;
         private final int vectorPitch;
@@ -159,7 +159,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
 
         ScorerImpl(
             IndexInput input,
-            int maxOrd,
+            QuantizedByteVectorValues values,
             int dims,
             int packedDims,
             int vectorPitch,
@@ -168,7 +168,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             Int4Corrections.SingleCorrection correction
         ) {
             this.input = input;
-            this.maxOrd = maxOrd;
+            this.values = values;
             this.dims = dims;
             this.packedDims = packedDims;
             this.vectorPitch = vectorPitch;
@@ -179,7 +179,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
         }
 
         void checkOrdinal(int ord) {
-            if (ord < 0 || ord >= maxOrd) {
+            if (ord < 0 || ord >= values.size()) {
                 throw new IllegalArgumentException("illegal ordinal: " + ord);
             }
         }

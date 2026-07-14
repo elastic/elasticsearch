@@ -51,11 +51,32 @@ public class RequestFilterGraftTests extends ESTestCase {
         assertThat(((Filter) result).child(), sameInstance(relation));
     }
 
-    public void testUnsupportedFilterDegradesToTheUntouchedRelation() {
+    public void testWhollyUnsupportedFilterLeavesTheRelationUnfiltered() {
         ExternalRelation relation = relation();
         LogicalPlan result = RequestFilterGraft.graft(relation, QueryBuilders.wildcardQuery("a", "x*"), NOW, CURRENT);
-        assertSame(relation, result);
-        assertWarnings("The request filter could not be applied to external dataset [ds] (unsupported [wildcard]); it was read unfiltered");
+        assertSame(relation, result); // the filter folds to a no-op, so the relation is untouched
+        assertWarnings(
+            "The request filter on external dataset [ds] could not apply [wildcard]; it was skipped, so more rows may be returned"
+        );
+    }
+
+    /**
+     * Partial application: a filter mixing a supported term with an unsupported wildcard still grafts the term (the
+     * source is NOT left wholly unfiltered), and warns only about the dropped wildcard.
+     */
+    public void testPartialFilterGraftsTheSupportedClauseAndWarnsOnTheRest() {
+        ExternalRelation relation = relation();
+        LogicalPlan result = RequestFilterGraft.graft(
+            relation,
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("a", 1)).must(QueryBuilders.wildcardQuery("a", "x*")),
+            NOW,
+            CURRENT
+        );
+        assertThat(result, instanceOf(Filter.class));
+        assertThat(((Filter) result).child(), sameInstance(relation));
+        assertWarnings(
+            "The request filter on external dataset [ds] could not apply [wildcard]; it was skipped, so more rows may be returned"
+        );
     }
 
     /** The critical version gate: below the feature version the graft is skipped, so no plan an old node can't read ships. */

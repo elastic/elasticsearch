@@ -69,15 +69,34 @@ import java.util.function.Supplier;
  * {@code date} column must become a {@code datetime} literal here or the evaluator is handed the wrong block type.
  *
  * <p>The supported subset is the structural floor: {@code bool}, {@code term}, {@code terms}, {@code range},
- * {@code exists}, and {@code match_all}/{@code match_none}. Anything outside it — including a construct that carries an
- * option we cannot honor faithfully — raises {@link TranslationUnsupportedException} rather than silently
- * mis-translating; the caller decides the policy (the request filter degrades; a query function errors).
+ * {@code exists}, {@code match_all}/{@code match_none}, and {@code match}/{@code match_phrase}/{@code multi_match} as
+ * equality on an exact-typed field. We never mis-translate anything outside it — an unhonored option, or an analyzed
+ * {@code text}-field construct — and the caller picks what happens instead. A fail-closed translator raises {@link
+ * TranslationUnsupportedException} (a query function errors on it). A {@code partial} translator instead absorbs the
+ * unsupported subtree with a polarity-aware superset substitution (TRUE in a conjunctive position, FALSE under
+ * {@code must_not}) and records it in {@link #droppedClauses()}, so every supported clause still applies and the result
+ * over-matches rather than silently dropping rows — the request filter's contract.
  */
 public final class QueryDslTranslator {
 
     private final Function<String, Expression> fieldBinder;
     private final Set<String> fieldNames;
     private final long nowInMillis;
+    private final boolean partial;
+    private final List<DroppedClause> dropped = new ArrayList<>();
+
+    /**
+     * A clause the translator could not honor and dropped in partial mode, with the polarity of its position: {@code
+     * positive} means it was a restriction (a conjunct) that was relaxed — more rows may be returned; {@code
+     * positive=false} means it was under {@code must_not}, an exclusion that was relaxed — previously-excluded rows may
+     * be returned. Either direction is a superset of the true filter, never a silent drop of matching rows.
+     */
+    public record DroppedClause(String construct, boolean positive) {}
+
+    /** A fail-closed translator: an unsupported construct raises {@link TranslationUnsupportedException}. */
+    public QueryDslTranslator(Function<String, Expression> fieldBinder, Set<String> fieldNames, long nowInMillis) {
+        this(fieldBinder, fieldNames, nowInMillis, false);
+    }
 
     /**
      * @param fieldBinder resolves a DSL field name to the ES|QL expression standing for it on this source — the
@@ -86,17 +105,49 @@ public final class QueryDslTranslator {
      *                    function binder cannot be enumerated). Leaves still bind through {@code fieldBinder}.
      * @param nowInMillis the query's start time, epoch millis — the anchor for {@code now} date math on date bounds, so
      *                    that {@code "now-15m"} resolves to the same instant the index path would use for this request.
+     * @param partial     when true, an unsupported subtree is not fatal: it is replaced by a polarity-appropriate
+     *                    constant (a superset substitution) and recorded in {@link #droppedClauses()}, so the rest of
+     *                    the filter still applies. When false, it raises {@link TranslationUnsupportedException}.
      */
-    public QueryDslTranslator(Function<String, Expression> fieldBinder, Set<String> fieldNames, long nowInMillis) {
+    public QueryDslTranslator(Function<String, Expression> fieldBinder, Set<String> fieldNames, long nowInMillis, boolean partial) {
         this.fieldBinder = fieldBinder;
         this.fieldNames = fieldNames;
         this.nowInMillis = nowInMillis;
+        this.partial = partial;
     }
 
-    /** Translate a DSL query into an ES|QL boolean predicate. */
+    /** The clauses dropped during a partial translation, in the order encountered. Empty after a full translation. */
+    public List<DroppedClause> droppedClauses() {
+        return dropped;
+    }
+
+    /** Translate a DSL query into an ES|QL boolean predicate. The top level sits in positive (conjunctive) polarity. */
     public Expression translate(QueryBuilder query) {
+        return translate(query, true);
+    }
+
+    /**
+     * Dispatch a query, and in partial mode absorb an unsupported subtree with a <em>superset substitution</em>: TRUE in
+     * a positive (conjunctive) position removes a restriction, FALSE in a negative ({@code must_not}) position lifts an
+     * exclusion — either way the result is a superset of the true filter, so it over-matches and never silently drops a
+     * matching row. We only catch at this dispatch boundary, never inside a leaf, so a leaf's own exact-false paths (a
+     * malformed value, an empty terms set) keep their exact meaning instead of being widened.
+     */
+    private Expression translate(QueryBuilder query, boolean positive) {
+        if (partial == false) {
+            return dispatch(query, positive);
+        }
+        try {
+            return dispatch(query, positive);
+        } catch (TranslationUnsupportedException e) {
+            dropped.add(new DroppedClause(e.construct(), positive));
+            return positive ? Literal.TRUE : Literal.FALSE;
+        }
+    }
+
+    private Expression dispatch(QueryBuilder query, boolean positive) {
         if (query instanceof BoolQueryBuilder bool) {
-            return bool(bool);
+            return bool(bool, positive);
         }
         if (query instanceof TermQueryBuilder term) {
             return term(term);
@@ -305,7 +356,7 @@ public final class QueryDslTranslator {
         return checkedLeaf(field, new MvIntersects(Source.EMPTY, field, listLiteralFor(field, values)));
     }
 
-    private Expression bool(BoolQueryBuilder bool) {
+    private Expression bool(BoolQueryBuilder bool, boolean positive) {
         // How many should-clauses must match. Only two values have a faithful image as a plain OR: 1 (at least one
         // should clause is required) and 0 (should is optional, so in a filter context it drops out). Anything else
         // ("2", "50%", ...) needs real n-of-m counting, which an OR cannot express.
@@ -336,21 +387,23 @@ public final class QueryDslTranslator {
             throw new TranslationUnsupportedException("bool[adjust_pure_negative=false]");
         }
 
+        // Polarity threads down for the superset substitution in partial mode: must/filter/should keep the parent's
+        // polarity; a must_not child sits under a NOT, so its polarity flips.
         List<Expression> conjuncts = new ArrayList<>();
         for (QueryBuilder q : bool.must()) {
-            conjuncts.add(translate(q));
+            conjuncts.add(translate(q, positive));
         }
         for (QueryBuilder q : bool.filter()) {
-            conjuncts.add(translate(q));
+            conjuncts.add(translate(q, positive));
         }
         for (QueryBuilder q : bool.mustNot()) {
-            conjuncts.add(new Not(Source.EMPTY, translate(q)));
+            conjuncts.add(new Not(Source.EMPTY, translate(q, positive == false)));
         }
 
         if (bool.should().isEmpty() == false) {
             Expression or = null;
             for (QueryBuilder q : bool.should()) {
-                Expression e = translate(q);
+                Expression e = translate(q, positive);
                 or = or == null ? e : new Or(Source.EMPTY, or, e);
             }
             // The DSL default is 1 when the bool carries no must/filter, and 0 otherwise — must_not does NOT count

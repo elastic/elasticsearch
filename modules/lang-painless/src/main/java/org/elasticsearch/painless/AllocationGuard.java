@@ -35,6 +35,22 @@ public final class AllocationGuard {
     }
 
     /**
+     * Charges a {@code def}-dispatched {@code +} before it runs, but only when it is actually a string concat (an operand is a
+     * {@link String}, per {@link DefMath}'s rule) — so numeric {@code def + def} rebox is left untracked by design. The estimate
+     * reuses the statically-typed concat bound (see {@link AllocSizes#stringConcatOperandBytes}). Caller boxes primitive
+     * operands so both arrive as {@link Object}; emitted only when tracking is enabled.
+     */
+    public static void checkDefConcatAlloc(PainlessScript script, Object left, Object right) {
+        if (left instanceof String || right instanceof String) {
+            script.$checkAllocBytes(
+                AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + AllocSizes.stringConcatOperandBytes(left) + AllocSizes.stringConcatOperandBytes(
+                    right
+                )
+            );
+        }
+    }
+
+    /**
      * Logs a {@code WARN} and throws a {@link PainlessError} describing an allocation that pushed a script over its limit.
      * {@link PainlessError} is an {@link Error}, so it cannot be caught from Painless source. Never returns normally. The
      * specific allocation that crossed the limit is not reported: it is whichever happened to tip the running total, not

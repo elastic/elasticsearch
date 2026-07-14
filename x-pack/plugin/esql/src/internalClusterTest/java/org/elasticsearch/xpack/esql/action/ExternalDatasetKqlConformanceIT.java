@@ -94,7 +94,8 @@ public class ExternalDatasetKqlConformanceIT extends AbstractExternalDataSourceI
 
     /** The KQL and the equivalent native ES|QL WHERE must select the identical id set over the same dataset. */
     private void assertKqlMatchesNative(String kql, String nativeWhere) {
-        List<Object> viaKql = selectedIds("WHERE KQL(\"" + kql + "\")");
+        // Escape any double-quotes in the KQL so an inner quoted value (a date) does not close the ES|QL string.
+        List<Object> viaKql = selectedIds("WHERE KQL(\"" + kql.replace("\"", "\\\"") + "\")");
         List<Object> viaNative = selectedIds("WHERE " + nativeWhere);
         assertEquals("KQL [" + kql + "] must select the same rows as WHERE [" + nativeWhere + "]", viaNative, viaKql);
     }
@@ -134,8 +135,21 @@ public class ExternalDatasetKqlConformanceIT extends AbstractExternalDataSourceI
         assertKqlMatchesNative("tags: *", "tags IS NOT NULL");
     }
 
+    public void testDateRange() {
+        // A coarse KQL date bound rounds to the edge of its unit, exactly as the translator's date path does; the native
+        // comparison against the day's start selects the same rows (the data sits at 12:34:56 each day).
+        assertKqlMatchesNative("ts >= \"2020-01-10\"", "ts >= \"2020-01-10T00:00:00Z\"::datetime");
+    }
+
     /** A KQL clause over a field the dataset does not have matches nothing — there is no native equivalent to compare. */
     public void testUnknownFieldMatchesNothing() {
         assertThat(selectedIds("WHERE KQL(\"nope: x\")"), empty());
+    }
+
+    /** Fail-closed: a KQL construct outside the translatable subset (a wildcard) errors on a dataset — never unfiltered. */
+    public void testUntranslatableKqlErrors() {
+        String query = "FROM " + dataset + " | WHERE KQL(\"tags: t*\") | KEEP id";
+        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TIMEOUT).close());
+        assertThat(ex.getMessage() + ex.getCause(), org.hamcrest.Matchers.containsString("not supported on federated data sources"));
     }
 }

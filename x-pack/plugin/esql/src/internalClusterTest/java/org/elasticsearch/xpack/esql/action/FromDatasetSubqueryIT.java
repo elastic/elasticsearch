@@ -931,12 +931,23 @@ public class FromDatasetSubqueryIT extends AbstractExternalDataSourceIT {
         );
     }
 
-    public void testKQLOnDatasetRejected() {
+    /** A KQL that translates to the supported subset now applies to a dataset (here inside a subquery). */
+    public void testKQLOnDatasetTranslatesSupportedQuery() {
+        registerEmployees();
+
+        try (var response = run(syncEsqlQueryRequest("FROM (FROM employees | WHERE KQL(\"first_name: Alice\"))"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1)); // only Alice, of Alice/Bob/Carol
+        }
+    }
+
+    /** A KQL outside the translatable subset (a wildcard) still errors on a dataset — fail-closed, never silently unfiltered. */
+    public void testKQLOnDatasetRejectsUntranslatableQuery() {
         registerEmployees();
 
         Exception ex = expectThrows(
             Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE KQL(\"first_name: Alice\"))"), TIMEOUT)
+            () -> run(syncEsqlQueryRequest("FROM (FROM employees | WHERE KQL(\"first_name: Ali*\"))"), TIMEOUT)
         );
         assertCauseMessageContains(
             ex,

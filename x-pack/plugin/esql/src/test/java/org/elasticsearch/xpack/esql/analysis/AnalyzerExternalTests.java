@@ -163,8 +163,11 @@ public class AnalyzerExternalTests extends ESTestCase {
     public void testWithKqlFunctionRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
+        // A wildcard KQL is outside the translatable subset, so it always falls through to the federated-source error,
+        // independent of the analyzer's transport version. (A KQL that DOES translate — e.g. `first_name: foo` — now
+        // applies to the dataset instead; that path is covered by FromDatasetSubqueryIT and ExternalDatasetKqlConformanceIT.)
         external().error(
-            "EXTERNAL \"" + S3_PATH + "\" | WHERE KQL(\"first_name: foo\")",
+            "EXTERNAL \"" + S3_PATH + "\" | WHERE KQL(\"first_name: fo*\")",
             containsString(
                 "[KQL] function is not supported on federated data sources [EXTERNAL \""
                     + S3_PATH

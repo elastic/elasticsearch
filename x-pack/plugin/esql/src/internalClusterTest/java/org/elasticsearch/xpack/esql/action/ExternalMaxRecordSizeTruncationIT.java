@@ -106,7 +106,10 @@ public class ExternalMaxRecordSizeTruncationIT extends AbstractExternalDataSourc
             EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas(4, MAX_RECORD_SIZE)).allowPartialResults(false);
             Exception e = expectThrows(Exception.class, () -> run(request, TimeValue.timeValueMinutes(2)).close());
             String trace = ExceptionsHelper.stackTrace(e);
-            assertTrue("strict policy must hard-fail on the cap-hit, got: " + trace, trace.contains("record exceeded external_max_record_size"));
+            assertTrue(
+                "strict policy must hard-fail on the cap-hit, got: " + trace,
+                trace.contains("record exceeded external_max_record_size")
+            );
         } finally {
             Files.deleteIfExists(file);
         }

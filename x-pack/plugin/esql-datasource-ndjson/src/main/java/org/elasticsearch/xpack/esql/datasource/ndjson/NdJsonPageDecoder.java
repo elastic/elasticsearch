@@ -887,7 +887,9 @@ public class NdJsonPageDecoder implements Closeable {
      * appends the decode-time span for diagnostics.
      */
     private IOException recordTooLarge(long spanBytes) {
-        return new IOException("NDJSON line exceeded external_max_record_size [" + maxRecordBytes + "]: spans at least [" + spanBytes + "] bytes");
+        return new IOException(
+            "NDJSON line exceeded external_max_record_size [" + maxRecordBytes + "]: spans at least [" + spanBytes + "] bytes"
+        );
     }
 
     /**

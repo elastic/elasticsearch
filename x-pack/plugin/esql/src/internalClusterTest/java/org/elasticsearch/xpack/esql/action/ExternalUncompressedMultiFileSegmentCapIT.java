@@ -71,7 +71,9 @@ public class ExternalUncompressedMultiFileSegmentCapIT extends AbstractExternalD
         // external_parsing_parallelism > 1 selects the parallel-parse paths; the cap of 2, below the per-file segment
         // count, makes the sliding window bind for the TSV (plain) and NDJSON arms. Default-quoted CSV reads
         // sequentially through the streaming coordinator, which does not use this cap.
-        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 8).put("external_max_concurrent_open_segments", 2).build());
+        return new QueryPragmas(
+            Settings.builder().put("external_parsing_parallelism", 8).put("external_max_concurrent_open_segments", 2).build()
+        );
     }
 
     public void testCsvMultiFileGlobAggregatesAllRows() throws Exception {

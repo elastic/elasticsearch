@@ -70,7 +70,10 @@ public abstract class AbstractExternalRowDropParityIT extends AbstractExternalDa
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("esql.external.cache.stripe.size", "64kb").build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("esql.external.cache.stripe.size", "64kb")
+            .build();
     }
 
     @Override

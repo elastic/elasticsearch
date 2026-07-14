@@ -178,7 +178,10 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
                 it.next().releaseBlocks();
             }
         }
-        assertNull("byte-array cap-drop must publish no stats (external_max_record_size is not fingerprinted)", sink.get(o.path().toString()));
+        assertNull(
+            "byte-array cap-drop must publish no stats (external_max_record_size is not fingerprinted)",
+            sink.get(o.path().toString())
+        );
     }
 
     /**

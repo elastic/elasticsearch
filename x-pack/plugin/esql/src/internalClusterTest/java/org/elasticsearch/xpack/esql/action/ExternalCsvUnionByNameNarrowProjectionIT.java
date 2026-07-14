@@ -74,12 +74,17 @@ public class ExternalCsvUnionByNameNarrowProjectionIT extends AbstractExternalDa
      */
     @Override
     protected QueryPragmas getPragmas() {
-        return new QueryPragmas(Settings.builder().put("external_distribution", "round_robin").put("external_parsing_parallelism", 4).build());
+        return new QueryPragmas(
+            Settings.builder().put("external_distribution", "round_robin").put("external_parsing_parallelism", 4).build()
+        );
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("esql.external.cache.stripe.size", "64kb").build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("esql.external.cache.stripe.size", "64kb")
+            .build();
     }
 
     public void testUnionByNameNarrowMinProjection() throws Exception {

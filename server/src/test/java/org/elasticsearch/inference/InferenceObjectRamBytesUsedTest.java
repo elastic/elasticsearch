@@ -17,10 +17,12 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.junit.Assume.assumeTrue;
 
 /**
- * {@link InferenceObjectRamBytesUsedTest} tests, whether objects tracked by the inference {@link org.elasticsearch.common.breaker.CircuitBreaker}
- * implement a sensible {@link Accountable#ramBytesUsed()} estimation by checking the following invariants:
+ * {@link InferenceObjectRamBytesUsedTest} tests, whether objects tracked by the
+ * inference {@link org.elasticsearch.common.breaker.CircuitBreaker} implement a sensible
+ * {@link Accountable#ramBytesUsed()} estimation by checking the following invariants:
  * - Each object's bytes estimation should be larger than 0
  * - Objects with more and/or larger inputs should have a higher estimation than an object with fewer and/or smaller inputs
  * - Objects should not "under account" meaning their estimate should not be smaller than what the deep object graph
@@ -68,7 +70,8 @@ public abstract class InferenceObjectRamBytesUsedTest<T extends Accountable> ext
         assumeTrue(
             "testRamBytesUsed_DoesNotUnderAccount is skipped, "
                 + "as the difference between the object's ramBytesUsed() implementation and "
-                + "the return value of RamUsageTester.ramUsed(...) is negligible and cannot be meaningfully captured in the object's ramBytesUsed() implementation",
+                + "the return value of RamUsageTester.ramUsed(...) is negligible and "
+                + "cannot be meaningfully captured in the object's ramBytesUsed() implementation",
             checkDoNotUnderAccount()
         );
         assertThat(objectToEstimate().ramBytesUsed(), greaterThanOrEqualTo(RamUsageTester.ramUsed(objectToEstimate())));

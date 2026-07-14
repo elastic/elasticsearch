@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.suggestions.CursorOffset;
 import org.elasticsearch.xpack.esql.action.suggestions.valuesampling.HotTierValueSampler;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -30,7 +31,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class TransportEsqlSuggestionsActionTests extends ESTestCase {
 
     public void testPipePositionReturnsEmptyWarnings() {
-        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query("FROM foo | KEEP a\n").cursor("FROM foo | KEEP a\n".length());
+        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query("FROM foo | KEEP a\n")
+            .cursor(CursorOffset.utf16("FROM foo | KEEP a\n".length()));
         EsqlSuggestionsResponse response = TransportEsqlSuggestionsAction.suggest(TEST_PARSER, request);
         assertNotNull(response.fields());
         assertThat(response.warnings(), matchesList());
@@ -38,7 +40,7 @@ public class TransportEsqlSuggestionsActionTests extends ESTestCase {
 
     public void testStringLiteralContextReturnsSkeleton() {
         String query = "FROM foo | WHERE agent == \"as\"";
-        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query(query).cursor(query.indexOf("as\"") + 1);
+        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query(query).cursor(CursorOffset.utf16(query.indexOf("as\"") + 1));
         EsqlSuggestionsResponse response = TransportEsqlSuggestionsAction.suggest(TEST_PARSER, request);
         // Single-field literal context: no coordinator-side type is known, so the field map is empty
         // (values would come from a deferred data-node visit).

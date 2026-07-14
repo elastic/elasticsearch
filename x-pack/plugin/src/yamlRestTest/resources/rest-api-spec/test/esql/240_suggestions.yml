@@ -20,7 +20,7 @@ pipe position lists fields:
       esql.suggestions:
         body:
           query: "FROM test | KEEP agent, response_time\n"
-          cursor: 37
+          cursor: { utf16: 37 }
 
   - exists: fields
   - length: { warnings: 0 }
@@ -33,7 +33,7 @@ field name slot after WHERE:
       esql.suggestions:
         body:
           query: "FROM test | WHERE response_time > 10"
-          cursor: 18
+          cursor: { utf16: 18 }
 
   - exists: fields
   - length: { warnings: 0 }
@@ -46,7 +46,7 @@ cursor inside a WHERE equality literal on an ip field does not choke:
       esql.suggestions:
         body:
           query: "FROM test | WHERE ip == \"\""
-          cursor: 25
+          cursor: { utf16: 25 }
 
   - exists: fields
   - length: { warnings: 0 }
@@ -61,7 +61,7 @@ field name slot after IP_LOCATION lists dotted output fields:
           # KEEP g.* (rather than one dotted field) keeps every IP_LOCATION output field in
           # scope for the assertions below even after column pruning.
           query: "FROM test\n| IP_LOCATION g = ip\n| KEEP g.*"
-          cursor: 39
+          cursor: { utf16: 39 }
 
   - exists: fields
   - length: { warnings: 0 }
@@ -80,7 +80,7 @@ multiline query via block scalar:
             FROM test
             | WHERE agent == "chr"
             | KEEP agent
-          cursor: 31
+          cursor: { utf16: 31 }
 
   - exists: fields
   - length: { warnings: 0 }
@@ -114,7 +114,7 @@ hot tier keyword equality samples values:
         body:
           # cursor sits inside the empty string literal, right after the opening quote
           query: "FROM test_keyword_values | WHERE k == \"\""
-          cursor: 39
+          cursor: { utf16: 39 }
           include_sample_values: true
 
   - exists: fields
@@ -122,12 +122,79 @@ hot tier keyword equality samples values:
   - match: { warnings: ["hot_only"] }
 
 ---
+cursor accepts a utf8 byte offset on non-ascii content:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.suggestions:
+        body:
+          # "caf\u00e9" is 5 bytes in utf-8 (the \u00e9 is 2 bytes); cursor lands right after it.
+          query: "FROM test | WHERE agent == \"caf\u00e9\""
+          cursor: { utf8: 33 }
+
+  - exists: fields
+
+---
+cursor accepts a code point offset on non-ascii content:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.suggestions:
+        body:
+          # "caf\u00e9" is 4 code points; cursor lands right after it (same position utf16 would use here,
+          # since \u00e9 is in the Basic Multilingual Plane).
+          query: "FROM test | WHERE agent == \"caf\u00e9\""
+          cursor: { codepoint: 32 }
+
+  - exists: fields
+
+---
+cursor object with no unit is rejected:
+  - do:
+      catch: bad_request
+      esql.suggestions:
+        body:
+          query: "FROM test"
+          cursor: { }
+
+---
+cursor object with multiple units is rejected:
+  - do:
+      catch: bad_request
+      esql.suggestions:
+        body:
+          query: "FROM test"
+          cursor: { utf8: 1, utf16: 2 }
+
+---
+cursor object with unknown unit is rejected:
+  - do:
+      catch: bad_request
+      esql.suggestions:
+        body:
+          query: "FROM test"
+          cursor: { byte: 1 }
+
+---
+crlf line ending is not collapsed:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.suggestions:
+        body:
+          # cursor is right after the \r on line 1, before the \n that starts line 2.
+          query: "FROM test\r\n| WHERE response_time > 10"
+          cursor: { utf16: 10 }
+
+  - exists: fields
+
+---
 missing query is rejected:
   - do:
       catch: bad_request
       esql.suggestions:
         body:
-          cursor: 0
+          cursor: { utf16: 0 }
 
 ---
 cursor out of range is rejected:
@@ -136,4 +203,4 @@ cursor out of range is rejected:
       esql.suggestions:
         body:
           query: "FROM test"
-          cursor: 999
+          cursor: { utf16: 999 }

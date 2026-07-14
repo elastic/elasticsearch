@@ -125,7 +125,7 @@ public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
         XContentBuilder json = JsonXContent.contentBuilder();
         json.startObject();
         json.field("query", query);
-        json.field("cursor", cursor);
+        json.startObject("cursor").field("utf16", cursor).endObject();
         json.field("include_sample_values", includeSampleValues);
         json.endObject();
         request.setJsonEntity(Strings.toString(json));
@@ -205,7 +205,7 @@ public class EsqlSuggestionsSecurityIT extends ESRestTestCase {
         String query = "FROM index | KEEP val*";
         ResponseException e = expectThrows(ResponseException.class, () -> runSuggestions("user1", query, query.length() + 999));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e.getMessage(), containsString("[cursor] must be within"));
+        assertThat(e.getMessage(), containsString("[cursor.utf16] must be within"));
     }
 
     /**

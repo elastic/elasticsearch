@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.suggestions.CursorMarker;
+import org.elasticsearch.xpack.esql.action.suggestions.CursorOffset;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -29,24 +30,27 @@ public class EsqlSuggestionsRequestTests extends ESTestCase {
 
     public void testValidateAcceptsCursorAtBounds() {
         String query = "FROM foo | KEEP a";
-        assertThat(new EsqlSuggestionsRequest().query(query).cursor(0).validate(), nullValue());
-        assertThat(new EsqlSuggestionsRequest().query(query).cursor(query.length()).validate(), nullValue());
+        assertThat(new EsqlSuggestionsRequest().query(query).cursor(CursorOffset.utf16(0)).validate(), nullValue());
+        assertThat(new EsqlSuggestionsRequest().query(query).cursor(CursorOffset.utf16(query.length())).validate(), nullValue());
     }
 
     public void testValidateRejectsMissingQuery() {
-        ActionRequestValidationException e = new EsqlSuggestionsRequest().cursor(0).validate();
+        ActionRequestValidationException e = new EsqlSuggestionsRequest().cursor(CursorOffset.utf16(0)).validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[query] is required"));
     }
 
     public void testValidateRejectsOutOfRangeCursor() {
-        ActionRequestValidationException e = new EsqlSuggestionsRequest().query("FROM foo").cursor(999).validate();
+        ActionRequestValidationException e = new EsqlSuggestionsRequest().query("FROM foo").cursor(CursorOffset.utf16(999)).validate();
         assertThat(e, notNullValue());
-        assertThat(e.getMessage(), containsString("[cursor] must be within"));
+        assertThat(e.getMessage(), containsString("[cursor.utf16] must be within"));
     }
 
     public void testValidateRejectsNonPositiveSize() {
-        ActionRequestValidationException e = new EsqlSuggestionsRequest().query("FROM foo").cursor(0).size(0).validate();
+        ActionRequestValidationException e = new EsqlSuggestionsRequest().query("FROM foo")
+            .cursor(CursorOffset.utf16(0))
+            .size(0)
+            .validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[size] must be greater than 0"));
     }
@@ -55,7 +59,7 @@ public class EsqlSuggestionsRequestTests extends ESTestCase {
         // Cursor sits right before the 'x' literal, matching the position used pre-marker.
         CursorMarker marker = CursorMarker.of("FROM foo | WHERE a == \"<*>x\"");
         EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query(marker.query())
-            .cursor(marker.cursor())
+            .cursor(CursorOffset.utf16(marker.cursor()))
             .size(25)
             .includeSampleValues(true);
         assertRoundTrip(request);
@@ -65,10 +69,19 @@ public class EsqlSuggestionsRequestTests extends ESTestCase {
         // Confirms serialization doesn't mangle an embedded real newline in the query text.
         CursorMarker marker = CursorMarker.of("FROM foo\n| WHERE a == \"<*>x\"\n| KEEP a");
         EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query(marker.query())
-            .cursor(marker.cursor())
+            .cursor(CursorOffset.utf16(marker.cursor()))
             .size(25)
             .includeSampleValues(true);
         assertRoundTrip(request);
+    }
+
+    public void testSerializationRoundTripWithNonUtf16Units() throws Exception {
+        // Confirms the other two tagged units survive a round trip, not just the default utf16 factory.
+        EsqlSuggestionsRequest utf8Request = new EsqlSuggestionsRequest().query("FROM foo").cursor(CursorOffset.utf8(4));
+        assertRoundTrip(utf8Request);
+
+        EsqlSuggestionsRequest codePointRequest = new EsqlSuggestionsRequest().query("FROM foo").cursor(CursorOffset.codePoint(4));
+        assertRoundTrip(codePointRequest);
     }
 
     private void assertRoundTrip(EsqlSuggestionsRequest request) throws Exception {

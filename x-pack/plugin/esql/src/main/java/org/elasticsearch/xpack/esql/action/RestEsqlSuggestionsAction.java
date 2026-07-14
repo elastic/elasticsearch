@@ -17,6 +17,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.esql.action.suggestions.CursorOffset;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,7 +40,7 @@ public class RestEsqlSuggestionsAction extends BaseRestHandler {
     private static ObjectParser<EsqlSuggestionsRequest, Void> objectParser() {
         ObjectParser<EsqlSuggestionsRequest, Void> parser = new ObjectParser<>("esql_suggestions", EsqlSuggestionsRequest::new);
         parser.declareString(EsqlSuggestionsRequest::query, QUERY);
-        parser.declareInt(EsqlSuggestionsRequest::cursor, CURSOR);
+        parser.declareObject(EsqlSuggestionsRequest::cursor, (p, c) -> CursorOffset.fromXContent(p), CURSOR);
         parser.declareInt(EsqlSuggestionsRequest::size, SIZE);
         parser.declareBoolean(EsqlSuggestionsRequest::includeSampleValues, INCLUDE_SAMPLE_VALUES);
         return parser;

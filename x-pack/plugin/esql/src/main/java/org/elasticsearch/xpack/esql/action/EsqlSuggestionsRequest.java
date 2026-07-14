@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.esql.action.suggestions.CursorOffset;
 
 import java.io.IOException;
 import java.util.Map;
@@ -24,7 +25,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request for the cursor-aware autocomplete endpoint {@code POST /_esql/suggestions}.
  *
- * <p>{@code cursor} is a character offset into {@code query}.
+ * <p>{@code cursor} is a tagged, unit-explicit offset into {@code query} (see {@link CursorOffset}):
+ * the wire form names which offset unit it is speaking (UTF-8 bytes, UTF-16 code units, or Unicode
+ * code points) rather than assuming one. {@link #resolvedCursor()} resolves it to the plain UTF-16
+ * offset every downstream consumer works in.
  *
  * <p>{@code includeSampleValues} selects between two modes:
  * <ul>
@@ -43,16 +47,19 @@ public class EsqlSuggestionsRequest extends ActionRequest implements CompositeIn
     public static final int DEFAULT_SIZE = 10;
 
     private String query;
-    private int cursor;
+    private CursorOffset cursor = CursorOffset.utf16(0);
     private int size = DEFAULT_SIZE;
     private boolean includeSampleValues = false;
+
+    // Lazily computed and cached from `query`/`cursor`; not serialized.
+    private transient Integer resolvedCursor;
 
     public EsqlSuggestionsRequest() {}
 
     public EsqlSuggestionsRequest(StreamInput in) throws IOException {
         super(in);
         this.query = in.readString();
-        this.cursor = in.readVInt();
+        this.cursor = CursorOffset.readFrom(in);
         this.size = in.readVInt();
         this.includeSampleValues = in.readBoolean();
     }
@@ -61,7 +68,7 @@ public class EsqlSuggestionsRequest extends ActionRequest implements CompositeIn
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(query == null ? "" : query);
-        out.writeVInt(cursor);
+        cursor.writeTo(out);
         out.writeVInt(size);
         out.writeBoolean(includeSampleValues);
     }
@@ -71,11 +78,12 @@ public class EsqlSuggestionsRequest extends ActionRequest implements CompositeIn
         ActionRequestValidationException validationException = null;
         if (query == null || query.isEmpty()) {
             validationException = addValidationError("[query] is required", validationException);
-        } else if (cursor < 0 || cursor > query.length()) {
-            validationException = addValidationError(
-                "[cursor] must be within [0, " + query.length() + "], got [" + cursor + "]",
-                validationException
-            );
+        } else {
+            try {
+                resolvedCursor = cursor.resolve(query);
+            } catch (IllegalArgumentException e) {
+                validationException = addValidationError(e.getMessage(), validationException);
+            }
         }
         if (size <= 0) {
             validationException = addValidationError("[size] must be greater than 0, got [" + size + "]", validationException);
@@ -92,13 +100,26 @@ public class EsqlSuggestionsRequest extends ActionRequest implements CompositeIn
         return this;
     }
 
-    public int cursor() {
+    public CursorOffset cursor() {
         return cursor;
     }
 
-    public EsqlSuggestionsRequest cursor(int cursor) {
+    public EsqlSuggestionsRequest cursor(CursorOffset cursor) {
         this.cursor = cursor;
+        this.resolvedCursor = null;
         return this;
+    }
+
+    /**
+     * The plain UTF-16 offset {@link #cursor()} resolves to against {@link #query()}, cached after
+     * {@link #validate()} runs (which resolves it to surface conversion failures as a normal validation
+     * error rather than an uncaught exception). Every downstream consumer reads this, not {@link #cursor()}.
+     */
+    public int resolvedCursor() {
+        if (resolvedCursor == null) {
+            resolvedCursor = cursor.resolve(query);
+        }
+        return resolvedCursor;
     }
 
     public int size() {

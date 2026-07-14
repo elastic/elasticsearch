@@ -243,7 +243,7 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
             return;
         }
         CursorLocation locations = new CursorLocation(request.query());
-        SuggestionContext context = SuggestionContext.detect(optimizedPlan, locations, request.cursor());
+        SuggestionContext context = SuggestionContext.detect(optimizedPlan, locations, request.resolvedCursor());
         if (context.kind() != SuggestionContext.Kind.STRING_LITERAL_EQUALITY || context.targetField() == null) {
             listener.onResponse(base);
             return;
@@ -354,7 +354,7 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
      */
     static EsqlSuggestionsResponse suggestFromAnalyzedPlan(EsqlSuggestionsRequest request, LogicalPlan optimizedPlan) {
         CursorLocation locations = new CursorLocation(request.query());
-        SuggestionContext context = SuggestionContext.detect(optimizedPlan, locations, request.cursor());
+        SuggestionContext context = SuggestionContext.detect(optimizedPlan, locations, request.resolvedCursor());
         Map<String, FieldSuggestion> fields = switch (context.kind()) {
             // The values/range come from a data-node visit that is deferred; emit an empty skeleton.
             case STRING_LITERAL_EQUALITY, NUMERIC_LITERAL_RANGE -> Map.of();
@@ -371,7 +371,7 @@ public class TransportEsqlSuggestionsAction extends HandledTransportAction<EsqlS
     static EsqlSuggestionsResponse suggest(EsqlParser parser, EsqlSuggestionsRequest request) {
         LogicalPlan parsed = parser.parseQuery(request.query());
         CursorLocation locations = new CursorLocation(request.query());
-        SuggestionContext context = SuggestionContext.detect(parsed, locations, request.cursor());
+        SuggestionContext context = SuggestionContext.detect(parsed, locations, request.resolvedCursor());
 
         Map<String, FieldSuggestion> fields = switch (context.kind()) {
             case STRING_LITERAL_EQUALITY, NUMERIC_LITERAL_RANGE -> Map.of();

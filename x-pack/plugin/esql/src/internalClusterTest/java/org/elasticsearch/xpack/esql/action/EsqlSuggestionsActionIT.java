@@ -14,6 +14,7 @@ import org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor;
 import org.elasticsearch.ingest.geoip.GeoIpTestUtils;
 import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.action.suggestions.CursorOffset;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -65,7 +66,7 @@ public class EsqlSuggestionsActionIT extends AbstractEsqlIntegTestCase {
         client().admin().indices().prepareRefresh("suggestions_test").get();
 
         String query = "FROM suggestions_test | KEEP *";
-        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query(query).cursor(query.length());
+        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query(query).cursor(CursorOffset.utf16(query.length()));
         EsqlSuggestionsResponse response = client().execute(EsqlSuggestionsAction.INSTANCE, request).actionGet(DEFAULT_REQUEST_TIMEOUT);
 
         assertMap(
@@ -76,7 +77,7 @@ public class EsqlSuggestionsActionIT extends AbstractEsqlIntegTestCase {
 
     public void testRemoteQualifiedTargetFallsBackToCoordinatorOnlyWithoutError() {
         String query = "FROM remote_cluster:suggestions_test | KEEP val*";
-        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query(query).cursor(query.length());
+        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query(query).cursor(CursorOffset.utf16(query.length()));
         // No error, no attempted remote-cluster resolution: falls back to the parse-only skeleton.
         EsqlSuggestionsResponse response = client().execute(EsqlSuggestionsAction.INSTANCE, request).actionGet(DEFAULT_REQUEST_TIMEOUT);
         assertMap(response.fields(), matchesMap());
@@ -91,7 +92,7 @@ public class EsqlSuggestionsActionIT extends AbstractEsqlIntegTestCase {
     public void testIpLocationFieldNameCompletionResolvesDottedOutputFields() {
         String query = "ROW ip = \"89.160.20.128\" | IP_LOCATION g = ip | KEEP g.*";
         int cursor = query.indexOf("g.*") + 1; // on the field-name slot after IP_LOCATION, not a literal
-        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query(query).cursor(cursor);
+        EsqlSuggestionsRequest request = new EsqlSuggestionsRequest().query(query).cursor(CursorOffset.utf16(cursor));
         EsqlSuggestionsResponse response = client().execute(EsqlSuggestionsAction.INSTANCE, request).actionGet(DEFAULT_REQUEST_TIMEOUT);
 
         assertMap(

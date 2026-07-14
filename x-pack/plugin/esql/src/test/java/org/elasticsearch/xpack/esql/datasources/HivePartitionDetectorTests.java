@@ -58,6 +58,57 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, HivePartitionDetector.inferType(List.of("us-east", "eu-west")));
     }
 
+    /**
+     * The other half of the inference/cast symmetry: a token that is not {@code true}/{@code false} in any
+     * case (here {@code yes}, and a whitespace-padded {@code " true"}) infers {@code KEYWORD}, so it never
+     * routes to the BOOLEAN cast branch. Guards against a future edit widening the cast's accepted set past
+     * what inference admits.
+     */
+    public void testTypeInferenceRejectsNonBooleanTokens() {
+        assertEquals(DataType.KEYWORD, HivePartitionDetector.inferType(List.of("true", "yes")));
+        assertEquals(DataType.KEYWORD, HivePartitionDetector.inferType(List.of(" true", "false")));
+    }
+
+    /**
+     * A hive tree with capitalized boolean folders ({@code flag=True/}, {@code flag=False/}) types the column
+     * {@code BOOLEAN} and casts each folder to its boolean value.
+     */
+    public void testCapitalizedBooleanPartitionFoldersInferAndCast() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/flag=True/file1.parquet"),
+            entry("s3://bucket/data/flag=False/file2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.BOOLEAN, result.partitionColumns().get("flag"));
+
+        assertEquals(true, result.filePartitionValues().get(StoragePath.of("s3://bucket/data/flag=True/file1.parquet")).get("flag"));
+        assertEquals(false, result.filePartitionValues().get(StoragePath.of("s3://bucket/data/flag=False/file2.parquet")).get("flag"));
+    }
+
+    /**
+     * A capitalized boolean folder mixed with the Hive null sentinel: the column still infers {@code BOOLEAN},
+     * the sentinel casts to {@code null} (the null short-circuit precedes the boolean branch), and {@code True}
+     * casts to {@code true}.
+     */
+    public void testCapitalizedBooleanPartitionWithNullSentinel() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/flag=True/file1.parquet"),
+            entry("s3://bucket/data/flag=__HIVE_DEFAULT_PARTITION__/file2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.BOOLEAN, result.partitionColumns().get("flag"));
+        assertEquals(true, result.filePartitionValues().get(StoragePath.of("s3://bucket/data/flag=True/file1.parquet")).get("flag"));
+        assertNull(
+            result.filePartitionValues().get(StoragePath.of("s3://bucket/data/flag=__HIVE_DEFAULT_PARTITION__/file2.parquet")).get("flag")
+        );
+    }
+
     public void testMixedTypesInferKeyword() {
         assertEquals(DataType.KEYWORD, HivePartitionDetector.inferType(List.of("2024", "hello")));
     }
@@ -209,6 +260,19 @@ public class HivePartitionDetectorTests extends ESTestCase {
     public void testCastValueBoolean() {
         assertEquals(true, HivePartitionDetector.castValue("true", DataType.BOOLEAN));
         assertEquals(false, HivePartitionDetector.castValue("false", DataType.BOOLEAN));
+    }
+
+    /**
+     * Capitalized boolean partition folders ({@code flag=True/}, {@code flag=False/}) are accepted by
+     * {@code tryAllBoolean} case-insensitively, so the cast agrees: any casing of {@code true}/{@code false}
+     * casts to the boolean value, keeping inference and cast symmetric.
+     */
+    public void testCastValueBooleanCaseInsensitive() {
+        assertEquals(true, HivePartitionDetector.castValue("True", DataType.BOOLEAN));
+        assertEquals(false, HivePartitionDetector.castValue("FALSE", DataType.BOOLEAN));
+        assertEquals(true, HivePartitionDetector.castValue("TrUe", DataType.BOOLEAN));
+        assertEquals(false, HivePartitionDetector.castValue("False", DataType.BOOLEAN));
+        assertEquals(true, HivePartitionDetector.castValue("TRUE", DataType.BOOLEAN));
     }
 
     public void testCastValueKeyword() {

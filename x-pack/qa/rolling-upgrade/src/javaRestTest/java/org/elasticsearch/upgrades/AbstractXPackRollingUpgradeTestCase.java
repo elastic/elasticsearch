@@ -10,6 +10,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -153,6 +154,15 @@ public abstract class AbstractXPackRollingUpgradeTestCase extends ParameterizedR
 
     protected static boolean isOriginalCluster(String clusterVersion) {
         return getOldClusterVersion().equals(clusterVersion);
+    }
+
+    /**
+     * Upgrade tests by design are also executed with the same version. We might want to skip some checks if that's the case, see
+     * for example gh#39102.
+     * @return true if the cluster version is the current version.
+     */
+    protected static boolean isOriginalClusterCurrent() {
+        return getOldClusterVersion().equals(Build.current().version());
     }
 
     protected AbstractXPackRollingUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {

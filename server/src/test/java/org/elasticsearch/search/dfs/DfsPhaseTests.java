@@ -163,7 +163,7 @@ public class DfsPhaseTests extends IndexShardTestCase {
                     );
                 context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
                 context.parsedQuery(new ParsedQuery(query));
-                executeKnnVectorQuery(context);
+                executeKnnVectorQuery(context, null);
                 assertTrue(queryCount.get() > 0);
                 assertTrue(queryTime.get() > 0);
                 reader.close();

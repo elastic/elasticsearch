@@ -297,6 +297,22 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testFromDatasetWhereMvInRange() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        // mv_in_range is source-agnostic: over a dataset there is no Lucene pushdown, so it runs in the compute engine
+        // over the blocks the CSV reader produces. emp_no in [2,3] keeps Bob(2) and Carol(3), drops Alice(1).
+        try (var response = run(syncEsqlQueryRequest("FROM employees | WHERE mv_in_range(emp_no, 2, 3) | SORT emp_no"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
+            assertThat(rows.get(1).get(0), equalTo(3));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
     public void testFromExtensionlessResourceDrivenByExplicitFormat() throws Exception {
         // The headline fix: a resource with no file extension carries no inferable format, so the dataset's
         // explicit `format` setting is the only thing that can select the reader. The fixture is pipe-delimited

@@ -643,7 +643,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
     }
 
     /**
-     * Mimicks search timeouts.
+     * Mimics search timeouts.
      */
     public void testSearchTimeoutsAbortRequest() throws Exception {
         boolean usePit = configurePitOrScroll();

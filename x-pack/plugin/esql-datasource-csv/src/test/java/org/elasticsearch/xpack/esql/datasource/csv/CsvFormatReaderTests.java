@@ -8191,6 +8191,8 @@ public class CsvFormatReaderTests extends ESTestCase {
             "true",
             DataType.DATETIME,
             "2020-01-01T00:00:00.000Z",
+            DataType.DATE_NANOS,
+            "2020-01-01T00:00:00.000Z",
             DataType.UNSIGNED_LONG,
             "18446744073709551615",
             DataType.IP,

@@ -84,24 +84,43 @@ import java.util.function.IntFunction;
  *       fails loudly). This deliberately diverges from {@code ::boolean}, which maps a non-{@code true}
  *       token silently to {@code false} — a silent wrong answer this read must not introduce;</li>
  *   <li><b>{@code datetime}</b>: string sources parse via {@link #parseDatetimeMillis} with the
- *       column's declared {@code format} (else the ISO default). A numeric source (whole number or
- *       {@code double}) with no declared format reinterprets as epoch milliseconds (the
- *       {@code epoch_millis} half of the default date format; a double rounds to the nearest milli).
- *       A numeric source <b>with</b> a declared format parses through it as the epoch unit / parse
- *       dialect ({@code epoch_second} reads seconds, {@code yyyyMMdd} reads {@code 20260101}) — the
- *       same semantic the CSV/NDJSON readers already apply to a numeric token. A {@code date_nanos}
- *       source narrows nanos&rarr;millis ({@link DateUtils#toMilliSeconds}, truncating sub-millisecond
- *       precision): unlike a raw number it is an instant the file already typed, so the unit is known
- *       and the narrowing is the one {@code ::datetime} performs. This is what lets an annotated
+ *       column's declared {@code format} (else the ISO default). A {@code date_nanos} source narrows
+ *       nanos&rarr;millis ({@link DateUtils#toMilliSeconds}, truncating sub-millisecond precision) —
+ *       the narrowing {@code ::datetime} performs. This is what lets an annotated
  *       {@code TIMESTAMP(MICROS|NANOS)} column (which infers as {@code date_nanos}) be declared
- *       {@code date} — the conventional dashboard type;</li>
- *   <li><b>{@code date_nanos}</b>: string sources parse ISO, {@code datetime} sources widen
- *       millis&rarr;nanos (what an epoch-millis token ingests to in a {@code date_nanos} field;
- *       out-of-nanos-range instants fail per value). Plain whole numbers stay out — a raw long
- *       is ambiguous between a millis and a nanos payload;</li>
+ *       {@code date}, the conventional dashboard type. Numeric sources follow the unit rule below
+ *       ({@code date} = millis when no format is declared; a {@code double} rounds to the nearest
+ *       milli, the {@code ::datetime} semantic);</li>
+ *   <li><b>{@code date_nanos}</b>: string sources parse via the column's declared {@code format}
+ *       (else the ISO nanos default), {@code datetime} sources widen millis&rarr;nanos (what an
+ *       epoch-millis token ingests to in a {@code date_nanos} field; out-of-nanos-range instants
+ *       fail per value). Numeric sources follow the unit rule below ({@code date_nanos} = nanos when
+ *       no format is declared, matching the shipped CSV inline-schema numeric read). A negative epoch
+ *       has no {@code date_nanos} representation (the {@code TO_DATE_NANOS} range rule) and fails per
+ *       value — never a negative nanos long;</li>
  *   <li><b>{@code ip}</b>: string sources only, parsed with the same underlying primitive the ip
  *       mapper delegates to ({@code InetAddresses} parse + the 16-byte doc-values encoding).</li>
  * </ul>
+ *
+ * <h2>The unit rule: what a raw number in a temporal column means</h2>
+ * A raw whole number carries no unit — the file says nothing, so the declaration must. One rule
+ * decides it, and it is the same rule for every temporal target:
+ * <ol>
+ *   <li><b>The file's annotation wins.</b> A physically-typed temporal column (a parquet
+ *       {@code TIMESTAMP(unit)}) is already an instant, not a raw number: its unit is known, a
+ *       {@code format} on it is rejected at resolution rather than obeyed, and the declaration only
+ *       chooses the target precision (nanos&rarr;millis narrows, millis&rarr;nanos widens).</li>
+ *   <li><b>Else the declared {@code format} wins</b>, naming the unit / parse dialect of the number
+ *       ({@code epoch_second} reads seconds, {@code yyyyMMdd} reads {@code 20260101} as a calendar
+ *       date) — the semantic the CSV/NDJSON readers already apply to a numeric token.</li>
+ *   <li><b>Else the declared type names the unit</b>: {@code datetime} = milliseconds,
+ *       {@code date_nanos} = nanoseconds. This is the identity read — the number is assumed to be
+ *       already in the type's own storage unit, so nothing is scaled.</li>
+ * </ol>
+ * The type always fixes what is <i>stored</i> ({@code datetime} is a millis long, {@code date_nanos}
+ * a nanos long); the format only says what was <i>given</i>. So {@code {date, epoch_second}} still
+ * stores millis — it scales the input, it does not make a "seconds column".
+ * <p>
  * {@code NULL}/{@code UNSUPPORTED} physical columns support nothing (the readers cannot decode a
  * value to coerce). An unsupported pair is rejected at resolution with an actionable error;
  * there is no third state — a declared type that cannot be produced from the physical column
@@ -174,7 +193,8 @@ public final class DeclaredTypeCoercions {
             case KEYWORD, TEXT -> fromString || fromNumeric || from == DataType.BOOLEAN || from == DataType.IP;
             case LONG, INTEGER, DOUBLE, UNSIGNED_LONG -> fromString || fromNumeric;
             case BOOLEAN -> fromString; // the boolean mapper accepts only true/false tokens, never numbers
-            // Epoch-millis reinterpret for whole numbers, and a double rounds to epoch millis (the
+            // Numeric sources follow the unit rule (class Javadoc): the format names the unit when
+            // declared, else the type does — datetime = millis. A double rounds to epoch millis (the
             // ::datetime semantic). A date_nanos source narrows nanos -> millis: it is not a raw
             // number whose unit is unknown but an instant the file already typed, so the conversion
             // is unambiguous — the same narrowing ::datetime performs.
@@ -184,10 +204,15 @@ public final class DeclaredTypeCoercions {
                 || from == DataType.UNSIGNED_LONG
                 || from == DataType.DOUBLE
                 || from == DataType.DATE_NANOS;
-            // String parse, or the millis->nanos widen an epoch-millis token gets when ingested
-            // into a date_nanos field (also the cross-file DATETIME + DATE_NANOS unification).
-            // Plain whole numbers stay out: a raw long is ambiguous between millis and nanos.
-            case DATE_NANOS -> fromString || from == DataType.DATETIME;
+            // String parse, the millis->nanos widen an epoch-millis token gets when ingested into a
+            // date_nanos field (also the cross-file DATETIME + DATE_NANOS unification), or a numeric
+            // source under the same unit rule — the format names the unit when declared, else the
+            // type does: date_nanos = nanos, matching the CSV inline-schema numeric read.
+            case DATE_NANOS -> fromString
+                || from == DataType.DATETIME
+                || from == DataType.INTEGER
+                || from == DataType.LONG
+                || from == DataType.UNSIGNED_LONG;
             case IP -> fromString;
             default -> false;
         };
@@ -441,6 +466,27 @@ public final class DeclaredTypeCoercions {
                     // on pre-epoch and post-2262 instants — the same range rule as TO_DATE_NANOS —
                     // so an unrepresentable instant nulls the cell instead of silently overflowing.
                     yield v -> DateUtils.toNanoSeconds((Long) v);
+                }
+                if (from == DataType.INTEGER || from == DataType.LONG || from == DataType.UNSIGNED_LONG) {
+                    if (declaredFormat != null) {
+                        // The unit rule, same as the DATETIME arm: a declared format names the unit / parse
+                        // dialect of the number, overriding the type's default. Without this a column declared
+                        // {date_nanos, format: epoch_second} would silently reinterpret seconds as nanos.
+                        yield v -> EsqlDataTypeConverter.dateNanosToLong(String.valueOf(v), declaredFormat);
+                    }
+                    // No format: identity epoch-NANOS reinterpret — the declared type names the unit. A
+                    // negative epoch has no date_nanos representation (the TO_DATE_NANOS range rule), so it
+                    // fails per value through onCoercionFailure rather than ever emitting a negative nanos
+                    // long. An unsigned_long source arrives from valueReader as the true Number
+                    // (unsignedLongAsNumber), so a magnitude >= 2^63 longValue()s with bit 63 set — negative
+                    // — and the same domain check rejects it; a wrapped positive cannot leak.
+                    yield v -> {
+                        long nanos = ((Number) v).longValue();
+                        if (nanos < 0) {
+                            throw new IllegalArgumentException("Value [" + v + "] is out of range for a date_nanos epoch-nanoseconds read");
+                        }
+                        return nanos;
+                    };
                 }
                 throw new IllegalArgumentException(
                     "cannot coerce from [" + from.typeName() + "] to [" + to.typeName() + "]; supports() must gate castBlock callers"

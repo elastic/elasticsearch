@@ -47,8 +47,9 @@ public final class BatchMappingContext implements ColumnBatchProvider {
     private long[] primaryTerm;
     private long[] version;
     private BytesRef[] uids;
+    private BytesRef[] routings;
 
-    // Not stored in translog
+    private boolean routingsInitialized;
 
     public BatchMappingContext(IndexRequest[] requests, MappingLookup mappingLookup, IndexSettings indexSettings) {
         this.requests = requests;
@@ -68,16 +69,6 @@ public final class BatchMappingContext implements ColumnBatchProvider {
     /** The chunk-local index request for document {@code doc}. */
     public IndexRequest request(int doc) {
         return requests[doc];
-    }
-
-    /** Convenience accessor for {@code request(doc).id()}. */
-    public String id(int doc) {
-        return requests[doc].id();
-    }
-
-    /** Convenience accessor for {@code request(doc).routing()}. */
-    public String routing(int doc) {
-        return requests[doc].routing();
     }
 
     /** Attaches a fully-assembled Lucene column covering all {@code docCount} documents. */
@@ -108,6 +99,27 @@ public final class BatchMappingContext implements ColumnBatchProvider {
             version = new long[docCount];
         }
         return version;
+    }
+
+    /**
+     * Lazily computes and returns the routing array, or {@code null} if no document in the chunk
+     * has an explicit routing (the common case). When non-null, individual entries may still be
+     * {@code null} for documents without routing.
+     */
+    public BytesRef[] routings() {
+        if (routingsInitialized == false) {
+            for (int d = 0; d < docCount; d++) {
+                final String routing = requests[d].routing();
+                if (routing != null) {
+                    if (routings == null) {
+                        routings = new BytesRef[docCount];
+                    }
+                    routings[d] = new BytesRef(routing);
+                }
+            }
+            routingsInitialized = true;
+        }
+        return routings;
     }
 
     /**

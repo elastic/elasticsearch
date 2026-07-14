@@ -411,17 +411,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preColumnarParse(BatchMappingContext context) {
-        final int docCount = context.docCount();
-        final BytesRef[] routings = new BytesRef[docCount];
-        boolean any = false;
-        for (int d = 0; d < docCount; d++) {
-            final String routing = context.routing(d);
-            if (routing != null) {
-                routings[d] = new BytesRef(routing);
-                any = true;
-            }
-        }
-        if (any == false) {
+        final BytesRef[] routings = context.routings();
+        if (routings == null) {
             return;
         }
         if (docValues) {

@@ -472,8 +472,8 @@ public class AnalyzerExternalTests extends ESTestCase {
     /**
      * {@code _tier} (canonical name {@code DataTierFieldMapper.NAME}) is snapshot-only in the
      * standard metadata registry. The binding rule must mirror that: in non-snapshot builds, the
-     * name is unknown, so requesting it via {@code METADATA _tier} fails verification with the usual
-     * "Unknown column" diagnostic; in snapshot builds it binds normally.
+     * name is unresolved, so requesting it via {@code METADATA _tier} fails verification with the
+     * usual "Unresolved metadata pattern" diagnostic; in snapshot builds it binds normally.
      */
     public void testStandardMetadataTierSnapshotOnly() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
@@ -483,7 +483,7 @@ public class AnalyzerExternalTests extends ESTestCase {
         String query = "FROM " + DATASET_NAME + " METADATA _tier";
 
         if (snapshotOnly) {
-            datasetError(external(), S3_PATH, query, containsString("Unknown column [_tier]"));
+            datasetError(external(), S3_PATH, query, containsString("Unresolved metadata pattern [_tier]"));
         } else {
             var leafOutput = externalLeafOutput(analyzeDataset(external(), S3_PATH, query));
             boolean bound = leafOutput.stream().anyMatch(a -> a.name().equals("_tier"));

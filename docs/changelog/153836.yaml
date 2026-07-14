@@ -1,5 +1,5 @@
 pr: 153836
-summary: "[ES|QL|DS] A declared `format` is the epoch unit of a numeric column"
+summary: "[ES|QL|DS] Make `date` reachable from every temporal shape a columnar file holds"
 area: ES|QL
 type: bug
 issues: []

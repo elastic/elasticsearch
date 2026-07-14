@@ -2276,6 +2276,61 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(3, provider.discoverSplits(ctx).splits().size());
     }
 
+    // -- the matcher may only ever fail to prune; these pin the cases where it used to prune a matching file --
+
+    /**
+     * Integral partition values must be compared as longs, not doubles. Above 2^53 a double cannot separate adjacent
+     * longs, so {@code 9007199254740992 == 9007199254740993} came out TRUE, {@code !=} came out FALSE, and a file
+     * whose every row matches the filter was pruned away. A LONG partition column holding epoch-micros or snowflake
+     * ids reaches this range routinely.
+     */
+    public void testLargeLongPartitionValuesAreNotCollapsedByDoublePrecision() {
+        Map<String, Object> values = Map.of("ts", 9007199254740992L);
+        Literal adjacent = new Literal(SRC, 9007199254740993L, DataType.LONG);
+
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(new Equals(SRC, fieldAttr("ts"), adjacent), values));
+        assertTrue(
+            "ts != <adjacent long> is TRUE, so the file must be kept — pruning it drops every matching row",
+            FileSplitProvider.matchesPartitionFilters(values, List.of(new NotEquals(SRC, fieldAttr("ts"), adjacent)))
+        );
+        assertTrue(
+            "ts < <adjacent long> is TRUE, so the file must be kept",
+            FileSplitProvider.matchesPartitionFilters(values, List.of(new LessThan(SRC, fieldAttr("ts"), adjacent)))
+        );
+    }
+
+    /**
+     * Keyword ranges must order by UTF-8 bytes, the way ES|QL orders keywords. {@link String#compareTo} orders by
+     * UTF-16 code units, which puts a supplementary-plane character (its leading surrogate, 0xD83D) <em>below</em>
+     * a private-use char like U+E000 — the opposite of the engine's answer. The file would be pruned while its rows
+     * satisfy the predicate.
+     */
+    public void testKeywordRangeUsesUtf8ByteOrderNotUtf16() {
+        Map<String, Object> values = Map.of("region", "\uD83D\uDE00"); // U+1F600 GRINNING FACE, above the BMP
+        Literal privateUse = new Literal(SRC, new BytesRef("\uE000"), DataType.KEYWORD); // U+E000, top of the BMP
+
+        assertEquals(
+            "U+1F600 > U+E000 by code point, so the row matches and the file must be kept",
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(new GreaterThan(SRC, fieldAttr("region"), privateUse), values)
+        );
+    }
+
+    /**
+     * A literal on the left of an asymmetric operator keeps its side. Applying the comparator with the column first
+     * would evaluate {@code year > 2024} for {@code 2024 > year} — the exact inverse, pruning precisely the files
+     * that match. {@code LiteralsOnTheRight} normalizes this away upstream, so the matcher is never handed this shape
+     * today; it must still not be wrong if it is.
+     */
+    public void testLiteralOnTheLeftKeepsOperandOrder() {
+        Map<String, Object> values = Map.of("year", 2020);
+
+        // 2024 > year -> 2024 > 2020 -> TRUE (the file matches, and must be kept)
+        assertEquals(Boolean.TRUE, FileSplitProvider.evaluateFilter(new GreaterThan(SRC, intLiteral(2024), fieldAttr("year")), values));
+        // 2024 < year -> 2024 < 2020 -> FALSE (the file cannot match, and may be pruned)
+        assertEquals(Boolean.FALSE, FileSplitProvider.evaluateFilter(new LessThan(SRC, intLiteral(2024), fieldAttr("year")), values));
+    }
+
     // -- helpers --
 
     private static final Source SRC = Source.EMPTY;

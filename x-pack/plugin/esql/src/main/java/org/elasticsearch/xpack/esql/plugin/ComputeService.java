@@ -819,14 +819,13 @@ public class ComputeService {
             // (or any discovery failure) is surfaced through the listener rather than thrown raw.
             splitPlan = discoverSplits(physicalPlan, configuration, execInfo, rootTask::isCancelled);
             distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo, rootTask::isCancelled);
+            if (execInfo != null
+                && (distributionResult.coordinatorSplits.isEmpty() == false || distributionResult.distributionPlan() != null)) {
+                execInfo.queryProfile().addSplitDiscoveryNanos(System.nanoTime() - splitDiscoveryStart);
+            }
         } catch (Exception e) {
             listener.onFailure(e);
             return;
-        } finally {
-            if (execInfo != null && execInfo.queryProfile().splitsScanned() > 0) {
-                // Record time only if there are any splits scanned
-                execInfo.queryProfile().addSplitDiscoveryNanos(System.nanoTime() - splitDiscoveryStart);
-            }
         }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(

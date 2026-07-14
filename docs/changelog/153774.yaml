@@ -1,0 +1,6 @@
+area: ILM
+issues:
+ - 153643
+pr: 153774
+summary: "ILM & DLM should create snapshots with `partial: true` [#153643]"
+type: enhancement

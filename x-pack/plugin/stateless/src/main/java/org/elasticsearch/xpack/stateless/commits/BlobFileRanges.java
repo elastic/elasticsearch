@@ -217,7 +217,7 @@ public class BlobFileRanges implements Writeable {
     }
 
     /**
-     * Returns a positive epoch millis timestamp representing the midpoint of the given range, or
+     * Returns a non-negative epoch millis timestamp representing the midpoint of the given range, or
      * {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} if the range is null.
      */
     public static long midpointMillisOrUnknownForCache(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
@@ -225,15 +225,17 @@ public class BlobFileRanges implements Writeable {
             return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
         }
         long midpointMillis = range.midpointMillis();
-        // Cache-region timestamps must be positive epoch millis or a negative sentinel value.
-        return midpointMillis > 0L ? midpointMillis : 1L;
+        // Cache-region timestamps must be non-negative epoch millis or a negative sentinel value.
+        return midpointMillis >= 0L ? midpointMillis : 1L;
     }
 
     /**
      * Returns the most recent known timestamp between two timestamps, treating {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} as the
-     * lesser-known value so any known timestamp wins.
+     * lesser-known value so any non-negative timestamp wins.
      */
     public static long mostRecentKnownTimestamp(long a, long b) {
+        assert a != SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP : a;
+        assert b != SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP : b;
         if (a == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
             return b;
         }

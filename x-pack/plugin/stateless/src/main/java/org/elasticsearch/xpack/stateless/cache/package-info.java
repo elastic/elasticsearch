@@ -37,11 +37,10 @@
 /// current state and is expected to evolve.
 ///
 ///   - BCC metadata reads (`readBatchedCompoundCommitUsingCache` and `readReferencedCompoundCommitsUsingCache` in
-///     [org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService]) are not handled yet: these regions are populated with
-///     [org.elasticsearch.blobcache.shared.SharedBlobCacheService#UNKNOWN_TIMESTAMP]. See the TODOs at the call sites in
-///     [org.elasticsearch.xpack.stateless.StatelessIndexEventListener] and
-///     [org.elasticsearch.xpack.stateless.engine.SearchEngine]. These are also the header reads for which the set-once timestamp
-///     is intended to be backfilled later.
+///     [org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService]) are not handled yet: these regions should be populated with
+///     [org.elasticsearch.blobcache.shared.SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP] and backfilled to a resolved value
+///     after parsing. See the TODOs at the call sites in [org.elasticsearch.xpack.stateless.StatelessIndexEventListener] and
+///     [org.elasticsearch.xpack.stateless.engine.SearchEngine].
 ///
 ///   - Offline prewarming, driven by [org.elasticsearch.xpack.stateless.StatelessIndexEventListener] through
 ///     [org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService#warmBlobOffsets], uses a single timestamp per blob,

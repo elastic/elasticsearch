@@ -122,14 +122,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         });
     }
 
-    public void testIsRealCacheTimestamp() {
-        assertTrue(SharedBlobCacheService.isRealCacheTimestamp(1L));
-        assertTrue(SharedBlobCacheService.isRealCacheTimestamp(System.currentTimeMillis()));
-        assertTrue(SharedBlobCacheService.isRealCacheTimestamp(Long.MAX_VALUE));
-        assertFalse(SharedBlobCacheService.isRealCacheTimestamp(0L));
-        assertFalse(SharedBlobCacheService.isRealCacheTimestamp(SharedBlobCacheService.UNKNOWN_TIMESTAMP));
-        assertFalse(SharedBlobCacheService.isRealCacheTimestamp(SharedBlobCacheService.NO_TIMESTAMP));
-    }
 
     public void testBasicEviction() throws IOException {
         Settings settings = Settings.builder()

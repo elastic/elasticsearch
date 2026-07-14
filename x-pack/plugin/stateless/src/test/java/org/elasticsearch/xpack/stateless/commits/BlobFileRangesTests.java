@@ -74,9 +74,9 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
             equalTo(1L)
         );
         assertThat(
-            "a zero midpoint (content at the epoch) is floored to the oldest representable instant",
+            "a zero midpoint (content at the epoch) is preserved",
             BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(0L, 0L)),
-            equalTo(1L)
+            equalTo(0L)
         );
         assertThat(
             "a negative midpoint (content before the epoch) is floored to the oldest representable instant",
@@ -88,6 +88,12 @@ public class BlobFileRangesTests extends AbstractWireSerializingTestCase<BlobFil
             BlobFileRanges.midpointMillisOrUnknownForCache(new StatelessCompoundCommit.TimestampFieldValueRange(-2L, 0L)),
             equalTo(1L)
         );
+    }
+
+    public void testMostRecentKnownTimestampPrefersNonNegativeOverUnknown() {
+        assertThat(BlobFileRanges.mostRecentKnownTimestamp(SharedBlobCacheService.UNKNOWN_TIMESTAMP, 1000L), equalTo(1000L));
+        assertThat(BlobFileRanges.mostRecentKnownTimestamp(2000L, SharedBlobCacheService.UNKNOWN_TIMESTAMP), equalTo(2000L));
+        assertThat(BlobFileRanges.mostRecentKnownTimestamp(1000L, 3000L), equalTo(3000L));
     }
 
     private static BlobLocation randomBlobLocation() {

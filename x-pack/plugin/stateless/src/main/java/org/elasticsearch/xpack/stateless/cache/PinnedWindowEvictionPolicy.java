@@ -25,14 +25,9 @@ import java.util.function.Predicate;
 /// falls within a configurable pinned window.
 ///
 /// Regions are classified by their [CacheRegion#timestampMillis()] (for shards present on this node):
-///   - a real timestamp (see [SharedBlobCacheService#isRealCacheTimestamp(long)]) is pinned iff it falls within
-///   the pinned window;
-///   - [SharedBlobCacheService#UNKNOWN_TIMESTAMP] is always pinned, until a content timestamp becomes
-///   available (e.g. via backfill); this avoids evicting data whose age cannot yet be determined;
-///   - [SharedBlobCacheService#NO_TIMESTAMP] is evictable only on shards where a region timestamp is
-///   derivable (i.e. the index maps a usable `@timestamp` field): such regions are genuinely
-///   out-of-window/anomalous. On shards without a derivable timestamp there is no age signal at all, so these
-///   regions are pinned rather than evicted.
+///   - a non-negative timestamp (`>= 0`) is pinned iff it falls within the pinned window;
+///   - [SharedBlobCacheService#UNKNOWN_TIMESTAMP] is always pinned (no representative timestamp);
+///   - [SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP] is always pinned until backfill completes.
 ///
 public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 
@@ -48,36 +43,22 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
     );
 
     private final Predicate<ShardId> hasShardPredicate;
-    private final Predicate<ShardId> hasDerivableTimestampPredicate;
     private final ThreadPool threadPool;
 
     private volatile TimeValue pinnedWindowDuration = PINNED_WINDOW_DURATION_SETTING.getDefault(Settings.EMPTY);
 
-    public PinnedWindowEvictionPolicy(
-        ClusterSettings clusterSettings,
-        ThreadPool threadPool,
-        Predicate<ShardId> hasShardPredicate,
-        Predicate<ShardId> hasDerivableTimestampPredicate
-    ) {
+    public PinnedWindowEvictionPolicy(ClusterSettings clusterSettings, ThreadPool threadPool, Predicate<ShardId> hasShardPredicate) {
         this.hasShardPredicate = Objects.requireNonNull(hasShardPredicate);
-        this.hasDerivableTimestampPredicate = Objects.requireNonNull(hasDerivableTimestampPredicate);
         this.threadPool = Objects.requireNonNull(threadPool);
         Objects.requireNonNull(clusterSettings)
             .initializeAndWatchIfRegistered(PINNED_WINDOW_DURATION_SETTING, value -> this.pinnedWindowDuration = value);
     }
 
     /**
-     * For test subclasses that override {@link #hasShard(ShardId)}, {@link #hasDerivableTimestamp(ShardId)} and optionally
-     * {@link #currentTimeMillis()}.
+     * For test subclasses that override {@link #hasShard(ShardId)} and optionally {@link #currentTimeMillis()}.
      */
-    protected PinnedWindowEvictionPolicy(
-        ThreadPool threadPool,
-        Predicate<ShardId> hasShardPredicate,
-        Predicate<ShardId> hasDerivableTimestampPredicate,
-        TimeValue pinnedWindowDuration
-    ) {
+    protected PinnedWindowEvictionPolicy(ThreadPool threadPool, Predicate<ShardId> hasShardPredicate, TimeValue pinnedWindowDuration) {
         this.hasShardPredicate = Objects.requireNonNull(hasShardPredicate);
-        this.hasDerivableTimestampPredicate = Objects.requireNonNull(hasDerivableTimestampPredicate);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.pinnedWindowDuration = pinnedWindowDuration;
     }
@@ -91,14 +72,6 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
      */
     protected boolean hasShard(ShardId shardId) {
         return hasShardPredicate.test(shardId);
-    }
-
-    /**
-     * Returns {@code true} if a region timestamp is derivable for this shard, i.e. its index maps a usable
-     * {@code @timestamp} field.
-     */
-    protected boolean hasDerivableTimestamp(ShardId shardId) {
-        return hasDerivableTimestampPredicate.test(shardId);
     }
 
     protected long currentTimeMillis() {
@@ -121,16 +94,12 @@ public class PinnedWindowEvictionPolicy implements EvictionPolicy<FileCacheKey> 
                 return true;
             }
             final long timestampMillis = region.timestampMillis();
-            // Protect regions for shards present on this node until their content age can be evaluated.
+            if (timestampMillis == SharedBlobCacheService.BACKFILL_IN_PROGRESS_TIMESTAMP) {
+                return false;
+            }
             if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
                 return false;
             }
-            // Regions with no timestamp are evictable only where a timestamp is derivable (the index maps a usable
-            // @timestamp field): there such regions are genuinely out-of-window. Otherwise, there is no age signal, so pin them.
-            if (timestampMillis == SharedBlobCacheService.NO_TIMESTAMP) {
-                return hasDerivableTimestamp(region.key().shardId());
-            }
-            assert SharedBlobCacheService.isRealCacheTimestamp(timestampMillis) : timestampMillis;
             // TODO: regions of unboosted shards, and of shards with a boost multiplier of less than 1, should be
             // evicted irrespective of their timestamp.
             return isWithinPinnedWindow(timestampMillis, pinnedWindowCutoffMillis) == false;

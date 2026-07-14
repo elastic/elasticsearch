@@ -683,9 +683,7 @@ public class ExternalSourceResolver {
             int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
             int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
             long discoveryStartNanos = System.nanoTime();
-            FileList raw = path.indexOf(',') >= 0
-                ? GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion)
-                : GlobExpander.expandGlob(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+            FileList raw = GlobExpander.expand(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
             recordDiscovery(raw, discoveryStartNanos, storagePath.scheme());
             if (raw.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
@@ -697,11 +695,7 @@ public class ExternalSourceResolver {
         FileList listing;
         long discoveryStartNanos = System.nanoTime();
         if (cacheable) {
-            ListingCacheKey listingKey = ListingCacheKey.build(storagePath.scheme(), storagePath.host(), storagePath.path(), config);
-            listing = cacheService.getOrComputeListing(
-                listingKey,
-                k -> expandAndCompact(path, provider, hints, hivePartitioning, storagePath)
-            );
+            listing = cachedListing(path, storagePath, provider, hints, hivePartitioning, config);
         } else {
             listing = expandAndCompact(path, provider, hints, hivePartitioning, storagePath);
         }
@@ -958,6 +952,31 @@ public class ExternalSourceResolver {
         int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
         int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
         return GlobExpander.expandAndCompact(path, provider, hints, hivePartitioning, storagePath, maxDiscoveredFiles, maxGlobExpansion);
+    }
+
+    /**
+     * Looks up, or computes and caches, the compacted listing for a cacheable provider. The cache-key build and the
+     * compute lambda are kept together on purpose: the discriminator folded into the key must describe exactly the
+     * {@code (path, hints, hivePartitioning)} the lambda expands, or a filtered query's narrowed listing can be
+     * served to a later unfiltered one. Every cacheable resolution rail routes through here so that pairing lives in
+     * one place. See {@link ListingCacheKey}.
+     */
+    private FileList cachedListing(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        boolean hivePartitioning,
+        Map<String, Object> config
+    ) throws Exception {
+        ListingCacheKey listingKey = ListingCacheKey.build(
+            storagePath.scheme(),
+            storagePath.host(),
+            storagePath.path(),
+            config,
+            GlobExpander.listingCacheDiscriminator(path, hints, hivePartitioning)
+        );
+        return cacheService.getOrComputeListing(listingKey, k -> expandAndCompact(path, provider, hints, hivePartitioning, storagePath));
     }
 
     /**
@@ -2396,13 +2415,9 @@ public class ExternalSourceResolver {
         if (path.indexOf(',') >= 0) {
             int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
             int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
-            listing = GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+            listing = GlobExpander.expand(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
         } else if (isCacheable(provider)) {
-            ListingCacheKey listingKey = ListingCacheKey.build(storagePath.scheme(), storagePath.host(), storagePath.path(), config);
-            listing = cacheService.getOrComputeListing(
-                listingKey,
-                k -> expandAndCompact(path, provider, hints, hivePartitioning, storagePath)
-            );
+            listing = cachedListing(path, storagePath, provider, hints, hivePartitioning, config);
         } else {
             listing = expandAndCompact(path, provider, hints, hivePartitioning, storagePath);
         }

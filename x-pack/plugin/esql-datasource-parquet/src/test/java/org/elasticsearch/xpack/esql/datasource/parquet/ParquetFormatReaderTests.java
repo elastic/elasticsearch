@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -109,6 +110,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ParquetFormatReaderTests extends ESTestCase {
 
@@ -1468,6 +1470,37 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals(100, ((IntBlock) page.getBlock(0)).getInt(0));
             assertEquals(200, ((IntBlock) page.getBlock(0)).getInt(1));
             assertEquals(300, ((IntBlock) page.getBlock(0)).getInt(2));
+        }
+    }
+
+    public void testReadNanosIncludesIteratorConsumption() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("count").named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 500; i++) {
+                Group group = factory.newGroup();
+                group.add("count", i);
+                groups.add(group);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 50)) {
+            long readNanosAfterOpen = reader.statusSnapshot().readNanos();
+            int pages = 0;
+            while (iterator.hasNext()) {
+                try (Page page = iterator.next()) {
+                    pages++;
+                }
+            }
+            assertThat(pages, greaterThan(0));
+            // read_nanos must grow as the iterator is consumed (row-group transitions + per-batch
+            // decode), not just cover the read()/readRange() setup phase measured before the loop.
+            assertThat(reader.statusSnapshot().readNanos(), greaterThan(readNanosAfterOpen));
         }
     }
 
@@ -3992,6 +4025,68 @@ public class ParquetFormatReaderTests extends ESTestCase {
             "warning must name the incompatibility, got: " + warnings,
             warnings.toString().contains("incompatible with planner type")
         );
+    }
+
+    /**
+     * Fixture of {@code count} rows in a single {@code ts} keyword column, every value a DISTINCT
+     * unparseable date token (namespaced by {@code offset} so tokens never repeat across fixtures).
+     * Declared as {@code datetime}, each value fails the fused string-&gt;datetime coercion and, under a
+     * non-strict policy, nulls its cell and emits a distinct per-value {@code Warning} detail.
+     */
+    private byte[] badDatetimeTokenFixture(int offset, int count) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("ts")
+            .named("test_schema");
+        return createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                Group g = factory.newGroup();
+                g.add("ts", "not-a-date-" + (offset + i));
+                groups.add(g);
+            }
+            return groups;
+        });
+    }
+
+    public void testDeclaredCoercionWarningsRouteToSuppliedSink() throws Exception {
+        // A declared datetime over unparseable keyword tokens nulls each bad cell under a non-strict
+        // policy and records a per-value coercion Warning. When the caller supplies an
+        // informationalWarningSink, every such warning must be relayed to that sink, not emitted to
+        // this thread's HeaderWarning response context: an async read runs the decode loop on a
+        // background thread whose ThreadContext is never merged into the client response, so a warning
+        // emitted there is silently lost. Cover both columnar decode paths: the optimized
+        // PageColumnReader and the baseline row-at-a-time reader.
+        int distinctBad = SkipWarnings.MAX_ADDED_WARNINGS + 5;
+        byte[] data = badDatetimeTokenFixture(0, distinctBad);
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        for (ParquetFormatReader reader : List.of(declaredReader("ts"), declaredReader("ts").withBaselinePath())) {
+            List<String> sink = new ArrayList<>();
+            StorageObject storageObject = createStorageObject(data);
+            try (
+                CloseableIterator<Page> it = reader.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("ts"), 10_000, 0, data.length, plannerTypes, ErrorPolicy.PERMISSIVE, sink::add)
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next().releaseBlocks();
+                }
+            }
+            long coercionDetails = sink.stream().filter(w -> w.contains("cannot coerce value")).count();
+            assertThat("per-value coercion warnings must reach the supplied sink", coercionDetails, greaterThan(0L));
+            assertThat(
+                "each reader instance caps its per-value coercion details at MAX_ADDED_WARNINGS",
+                coercionDetails,
+                lessThanOrEqualTo((long) SkipWarnings.MAX_ADDED_WARNINGS)
+            );
+            List<String> leaked = drainWarnings();
+            assertTrue(
+                "no coercion warning may leak to this thread's HeaderWarning context when a sink is supplied, got: " + leaked,
+                leaked.stream().noneMatch(w -> w.contains("cannot coerce value"))
+            );
+        }
     }
 
     /** Fixture for the fused string->datetime tests: good ISO, bad token, good ISO. */

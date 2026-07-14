@@ -2139,6 +2139,131 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * A filtered query must not poison the listing cache for a later unfiltered one. The filter's hints narrow the
+     * listing to a subset of the files; keyed only on the path, that subset would be served back to a query that
+     * carries no filter, which then silently sees fewer files than the dataset holds. Here the {@code _file.name}
+     * hint on a plain glob prunes the listing to one file; the unfiltered follow-up must still see all three.
+     */
+    public void testListingCacheNotPoisonedByFileMetadataHint() throws Exception {
+        String glob = "s3://bucket/data/*.parquet";
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        schemas.put("s3://bucket/data/a.parquet", schema);
+        schemas.put("s3://bucket/data/b.parquet", schema);
+        schemas.put("s3://bucket/data/c.parquet", schema);
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/a.parquet", 100),
+            entry("s3://bucket/data/b.parquet", 200),
+            entry("s3://bucket/data/c.parquet", 300)
+        );
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemas);
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            FileMetadataColumns.NAME,
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of("a.parquet")
+        );
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+
+            ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)));
+            assertEquals(1, filtered.resolvedSource(glob).fileList().fileCount());
+
+            ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of());
+            assertEquals(
+                "the unfiltered query must see every file, not the filtered query's cached subset",
+                3,
+                unfiltered.resolvedSource(glob).fileList().fileCount()
+            );
+        }
+    }
+
+    /**
+     * The keyed-glob form of the same defect: {@code WHERE year == 2024} rewrites the glob to a single partition
+     * folder, so the cached listing enumerates only that folder. An unfiltered follow-up must not be served that
+     * narrowed listing.
+     */
+    public void testListingCacheNotPoisonedByPartitionHint() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", schema);
+        schemas.put("s3://bucket/data/year=2025/b.parquet", schema);
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(
+            "s3://bucket/data/",
+            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2025/b.parquet", 200))
+        );
+        listingsByPrefix.put("s3://bucket/data/year=2024/", List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)));
+        CountingStorageProvider provider = new CountingStorageProvider(listingsByPrefix, schemas);
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2024)
+        );
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+
+            ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)));
+            assertEquals(1, filtered.resolvedSource(glob).fileList().fileCount());
+
+            ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of());
+            assertEquals(
+                "the unfiltered query must enumerate every partition, not the filtered query's single folder",
+                2,
+                unfiltered.resolvedSource(glob).fileList().fileCount()
+            );
+        }
+    }
+
+    /**
+     * A filter that rewrites the glob to a folder that does not exist must resolve to the full listing, not raise
+     * "Glob pattern matched no files". The rewrite spells the value literally ({@code year=2099}); the row filter
+     * still runs, so listing the whole dataset is correct and the query returns zero rows on its own. This is also
+     * what protects a zero-padded {@code month=06} folder from a {@code month == 6} predicate.
+     */
+    public void testZeroMatchPartitionFilterResolvesToFullListingNotError() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", schema);
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put("s3://bucket/data/", List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)));
+        // The narrowed prefix s3://bucket/data/year=2099/ is deliberately absent: an object store lists it as empty.
+        CountingStorageProvider provider = new CountingStorageProvider(listingsByPrefix, schemas);
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2099)
+        );
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+
+            ExternalSourceResolution resolution = resolveWith(resolver, glob, Map.of(glob, List.of(hint)));
+            assertEquals(1, resolution.resolvedSource(glob).fileList().fileCount());
+        }
+    }
+
+    private ExternalSourceResolution resolveWith(
+        ExternalSourceResolver resolver,
+        String glob,
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints
+    ) {
+        Map<String, Map<String, Object>> pathConfigs = Map.of(
+            glob,
+            new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), pathConfigs, filterHints, null, null, future);
+        return future.actionGet();
+    }
+
+    /**
      * Invariant: every schema-resolution mode must consult the schema cache on the per-file
      * resolve. A second resolve of the same glob across the same paths must add zero schema-loader
      * calls. Parameterized over {@link #MULTI_FILE_STRATEGIES} so any new mode inherits the

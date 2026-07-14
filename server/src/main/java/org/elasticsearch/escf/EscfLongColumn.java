@@ -20,10 +20,6 @@ final class EscfLongColumn extends AbstractFixed64Column {
         super(docCount, absent, data);
     }
 
-    private EscfLongColumn(int docCount, FixedBitSet absent, BytesReference data, int base) {
-        super(docCount, absent, data, base);
-    }
-
     @Override
     byte kind() {
         return EscfColumnKind.LONG;
@@ -41,13 +37,14 @@ final class EscfLongColumn extends AbstractFixed64Column {
 
     @Override
     EscfColumn sliceInternal(int from, int count) {
-        return new EscfLongColumn(count, absent, data, base + from);
+        // data.slice is a zero-copy view sharing the same backing array; the engine writes
+        // to the correct absolute byte offset, which is visible through the sliced view.
+        return new EscfLongColumn(count, windowBitSet(absent, from, count), data.slice(from * 8, count * 8));
     }
 
     @Override
     EscfColumnData toColumnData() {
-        FixedBitSet newAbsent = windowBitSet(absent, base, docCount);
-        BytesReference newData = data.slice(base * 8, docCount * 8);
-        return EscfColumnData.ofFixed64(kind(), docCount, newAbsent, newData);
+        // absent and data are already windowed and zero-based; return them directly.
+        return EscfColumnData.ofFixed64(kind(), docCount, absent, data);
     }
 }

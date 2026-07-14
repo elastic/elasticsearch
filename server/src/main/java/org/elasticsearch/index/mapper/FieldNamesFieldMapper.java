@@ -194,7 +194,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // TODO: NEED MORE WORK
+        // TODO: NEED TO IMPLEMENT
         return true;
     }
 }

@@ -14,19 +14,18 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
  * An column whose values are all booleans, held as the value bitset directly (bit set = {@code true}).
+ * Both the {@code absent} and {@code values} bitsets are always zero-based and cover {@code [0, docCount)}.
  */
 final class EscfBoolColumn extends EscfColumn {
 
-    /** Value bitset (bit set = {@code true}), or {@code null} when every value is {@code false}. Indexed by absolute position. */
+    /**
+     * Value bitset (bit set = {@code true}), or {@code null} when every value is {@code false}.
+     * Always zero-based and covers {@code [0, docCount)} when non-null.
+     */
     private final FixedBitSet values;
 
     EscfBoolColumn(int docCount, FixedBitSet absent, FixedBitSet values) {
         super(docCount, absent);
-        this.values = values;
-    }
-
-    private EscfBoolColumn(int docCount, FixedBitSet absent, FixedBitSet values, int base) {
-        super(docCount, absent, base);
         this.values = values;
     }
 
@@ -46,22 +45,18 @@ final class EscfBoolColumn extends EscfColumn {
     }
 
     private boolean bitSet(int d) {
-        // The value bitset is sized only to the last true document (and is null when there are none),
-        // so any doc beyond its length reads false. Uses the absolute index (base + d) since the
-        // backing bitset is shared with parent windows.
-        int idx = base + d;
-        return values != null && idx < values.length() && values.get(idx);
+        // values is null or covers [0, docCount), so no length guard is needed.
+        return values != null && values.get(d);
     }
 
     @Override
     EscfColumn sliceInternal(int from, int count) {
-        return new EscfBoolColumn(count, absent, values, base + from);
+        return new EscfBoolColumn(count, windowBitSet(absent, from, count), windowBitSet(values, from, count));
     }
 
     @Override
     EscfColumnData toColumnData() {
-        FixedBitSet newAbsent = windowBitSet(absent, base, docCount);
-        FixedBitSet newValues = windowBitSet(values, base, docCount);
-        return EscfColumnData.ofBool(docCount, newAbsent, newValues);
+        // absent and values are already windowed and zero-based; return them directly.
+        return EscfColumnData.ofBool(docCount, absent, values);
     }
 }

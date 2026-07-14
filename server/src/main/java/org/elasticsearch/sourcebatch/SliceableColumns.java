@@ -9,12 +9,14 @@
 
 package org.elasticsearch.sourcebatch;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.BytesRefValuesCursor;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
@@ -41,7 +43,8 @@ import java.util.List;
  * slice. Slicing calls {@link SliceableColumn#slice} on each registered column (adjusting their
  * internal window) and adjusts the {@code from} offset for the engine byte-write methods. Engine
  * writes use the offset ({@code array[(from + doc) * 8]}); the column cursors read from the same
- * absolute slot via the column's {@code base} (set to {@code from} after slicing). No copying occurs.
+ * absolute slot via the sliced {@link org.elasticsearch.common.bytes.BytesReference} view. No
+ * copying occurs for the backing arrays.
  *
  * <h2>Metadata long backing</h2>
  * <p>Engine-assigned long fields ({@code _seq_no}, {@code _primary_term}, {@code _version}) are
@@ -171,11 +174,22 @@ public final class SliceableColumns {
         return new SliceableColumnBatch(luceneColumns, count);
     }
 
-    // -------------------------------------------------------------------------
-    // Lucene ColumnBatch wrapper
-    // -------------------------------------------------------------------------
+    /**
+     * Creates one {@link SliceableColumn.RowFieldCursor} per registered column for the row/soft-update
+     * indexing path. The returned cursors are positioned before document 0; callers advance them
+     * via {@link SliceableColumn.RowFieldCursor#nextDoc()} and collect fields into a shared list via
+     * {@link SliceableColumn.RowFieldCursor#appendCurrentFields} to build per-doc Lucene documents.
+     */
+    public List<SliceableColumn.RowFieldCursor> rowFieldCursors() {
+        final List<SliceableColumn.RowFieldCursor> cursors = new ArrayList<>(columns.size());
+        for (SliceableColumn col : columns) {
+            cursors.add(col.rowFieldCursor());
+        }
+        return cursors;
+    }
 
     private static final class SliceableColumnBatch extends ColumnBatch {
+
         private final List<Column> columns;
         private final int numDocs;
 
@@ -194,10 +208,6 @@ public final class SliceableColumns {
             return columns;
         }
     }
-
-    // =========================================================================
-    // Column factories (replace LuceneColumns.arrayLongColumn / arrayBinaryColumn)
-    // =========================================================================
 
     /**
      * A {@link SliceableColumn} backed by a mutable {@code byte[]} of length {@code docCount * 8}
@@ -273,6 +283,38 @@ public final class SliceableColumns {
         @Override
         public Column toLuceneColumn() {
             return this;
+        }
+
+        @Override
+        public RowFieldCursor rowFieldCursor() {
+            // A reusable mutable field whose bytes value is updated per document. Using the public
+            // Field(String, BytesRef, IndexableFieldType) constructor sets fieldsData to the given
+            // BytesRef; subsequent setBytesValue calls update fieldsData in place. The IndexWriter
+            // reads binaryValue() synchronously during addDocument, so the same field object is safe
+            // to reuse across documents.
+            final BytesRef sentinel = new BytesRef(); // placeholder; overwritten in appendCurrentFields
+            final Field field = new Field(name(), sentinel, fieldType);
+            return new RowFieldCursor() {
+                private int doc = DocIdSetIterator.NO_MORE_DOCS;
+                private int srcIdx = from - 1;
+
+                @Override
+                public int nextDoc() {
+                    srcIdx++;
+                    final int end = from + count;
+                    while (srcIdx < end && values[srcIdx] == null) {
+                        srcIdx++;
+                    }
+                    doc = srcIdx < end ? srcIdx - from : DocIdSetIterator.NO_MORE_DOCS;
+                    return doc;
+                }
+
+                @Override
+                public void appendCurrentFields(List<? super IndexableField> out) {
+                    field.setBytesValue(values[srcIdx]);
+                    out.add(field);
+                }
+            };
         }
 
         @Override

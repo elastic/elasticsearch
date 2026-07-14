@@ -20,10 +20,6 @@ final class EscfDoubleColumn extends AbstractFixed64Column {
         super(docCount, absent, data);
     }
 
-    private EscfDoubleColumn(int docCount, FixedBitSet absent, BytesReference data, int base) {
-        super(docCount, absent, data, base);
-    }
-
     @Override
     byte kind() {
         return EscfColumnKind.DOUBLE;
@@ -41,13 +37,12 @@ final class EscfDoubleColumn extends AbstractFixed64Column {
 
     @Override
     EscfColumn sliceInternal(int from, int count) {
-        return new EscfDoubleColumn(count, absent, data, base + from);
+        return new EscfDoubleColumn(count, windowBitSet(absent, from, count), data.slice(from * 8, count * 8));
     }
 
     @Override
     EscfColumnData toColumnData() {
-        FixedBitSet newAbsent = windowBitSet(absent, base, docCount);
-        BytesReference newData = data.slice(base * 8, docCount * 8);
-        return EscfColumnData.ofFixed64(kind(), docCount, newAbsent, newData);
+        // absent and data are already windowed and zero-based; return them directly.
+        return EscfColumnData.ofFixed64(kind(), docCount, absent, data);
     }
 }

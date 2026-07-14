@@ -9,14 +9,20 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.sourcebatch.SliceableColumn;
+
+import java.util.List;
 
 /**
  * A {@link SliceableColumn} that binds an {@link EscfLongColumn} to a Lucene {@link LongColumn}.
@@ -29,10 +35,11 @@ import org.elasticsearch.sourcebatch.SliceableColumn;
  * {@link BytesArray#get} reads directly from the backing array on every call. No copies occur and
  * no deferred construction is needed.
  *
- * <p>Slicing ({@link #slice}) delegates to {@link EscfColumn#sliceInternal} which adjusts the
- * inner column's {@code base} offset. The mutable backing array is shared across all slices; the
- * engine writes to the correct absolute slot ({@code (base + doc) * 8}) and the cursor reads from
- * the same absolute slot.
+ * <p>Slicing ({@link #slice}) delegates to {@link EscfColumn#sliceInternal} which calls
+ * {@link org.elasticsearch.common.bytes.BytesReference#slice} on the inner column's {@code data}.
+ * {@link org.elasticsearch.common.bytes.BytesArray#slice} returns a live view sharing the same
+ * backing array, so the engine's post-mapping writes to the absolute byte slot
+ * {@code (from + doc) * 8} are immediately visible through the sliced column's cursors.
  *
  * <p>Use the static factory {@link #longColumn} to create instances; the constructor is private.
  */
@@ -75,6 +82,27 @@ public final class EscfLuceneColumn implements SliceableColumn {
         // Safe cast: EscfColumn.sliceInternal always returns an EscfColumn subtype.
         EscfColumn sliced = values.sliceInternal(from, count);
         return new EscfLuceneColumn(sliced, name, fieldType, kind);
+    }
+
+    @Override
+    public RowFieldCursor rowFieldCursor() {
+        // EscfLuceneColumn is always DENSE (no absent set): every doc in [0, docCount) has a value.
+        final ColumnLongField field = new ColumnLongField(name, fieldType, kind);
+        final int docCount = values.docCount;
+        return new RowFieldCursor() {
+            private int doc = -1;
+
+            @Override
+            public int nextDoc() {
+                return ++doc < docCount ? doc : DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public void appendCurrentFields(List<? super IndexableField> out) {
+                field.setDocValue(values.getLongValue(doc));
+                out.add(field);
+            }
+        };
     }
 
     @Override
@@ -125,5 +153,39 @@ public final class EscfLuceneColumn implements SliceableColumn {
                 };
             }
         };
+    }
+
+    private static final class ColumnLongField extends Field {
+
+        private final LongColumn.NumericKind kind;
+
+        ColumnLongField(String name, IndexableFieldType fieldType, LongColumn.NumericKind kind) {
+            super(name, fieldType);
+            this.fieldsData = 0L;
+            this.kind = kind;
+        }
+
+        /** Updates this field's long value to {@code v} for the next document. */
+        void setDocValue(long v) {
+            fieldsData = v;
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            // Consulted by the indexing chain only when fieldType.pointDimensionCount() > 0.
+            final long raw = (Long) fieldsData;
+            return switch (kind) {
+                case LONG, DOUBLE -> {
+                    final byte[] buf = new byte[Long.BYTES];
+                    NumericUtils.longToSortableBytes(raw, buf, 0);
+                    yield new BytesRef(buf);
+                }
+                case INT, FLOAT -> {
+                    final byte[] buf = new byte[Integer.BYTES];
+                    NumericUtils.intToSortableBytes((int) raw, buf, 0);
+                    yield new BytesRef(buf);
+                }
+            };
+        }
     }
 }

@@ -11,34 +11,37 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  * Shared base for the variable-length columns (STRING and BINARY), whose values are a contiguous
- * {@code data} payload delimited by a {@code (fullDocCount + 1)}-entry offset vector. Document
- * {@code d}'s value occupies bytes {@code [offsets[base + d], offsets[base + d + 1])} within
- * {@code data}. Slicing adjusts {@code base}; the full offset vector and data are shared.
+ * {@code data} payload delimited by an {@link IntsRef} offset window. Document {@code d}'s value
+ * occupies bytes {@code [offsets.ints[offsets.offset + d], offsets.ints[offsets.offset + d + 1])}
+ * within {@code data} (which is kept full/shared across slices). Slicing adjusts
+ * {@code offsets.offset}; the backing arrays are shared.
  */
 abstract class AbstractVarColumn extends EscfColumn {
 
+    /** Full (shared) data payload. Addressed via the absolute byte offsets in {@code offsets}. */
     final BytesReference data;
-    final int[] offsets;
 
-    AbstractVarColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets) {
+    /**
+     * Windowed offset vector: {@code offsets.ints[offsets.offset + d]} is the absolute byte start
+     * of document {@code d}'s value. The window covers {@code docCount + 1} entries so that the
+     * end of the last document can be computed as {@code offsets.ints[offsets.offset + docCount]}.
+     */
+    final IntsRef offsets;
+
+    AbstractVarColumn(int docCount, FixedBitSet absent, BytesReference data, IntsRef offsets) {
         super(docCount, absent);
-        this.data = data;
-        this.offsets = offsets;
-    }
-
-    AbstractVarColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets, int base) {
-        super(docCount, absent, base);
         this.data = data;
         this.offsets = offsets;
     }
 
     @Override
     final BytesRef getBinaryValue(int d) {
-        int off = offsets[base + d];
-        return data.slice(off, offsets[base + d + 1] - off).toBytesRef();
+        int off = offsets.ints[offsets.offset + d];
+        return data.slice(off, offsets.ints[offsets.offset + d + 1] - off).toBytesRef();
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowBuilder;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
@@ -102,7 +103,15 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             assertNotNull("empty documents have no leaves to resolve", resolution);
             assertThat(resolution.columnMappers(), org.hamcrest.Matchers.emptyArray());
 
-            EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(items, batch, shard, 0, numDocs, resolution);
+            EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
+                items,
+                batch,
+                shard,
+                0,
+                numDocs,
+                resolution,
+                Engine.Operation.Origin.PRIMARY
+            );
             assertNotNull("columnar mapping should engage for documents with no field leaves", engineBatch);
             assertThat(engineBatch.operations(), hasSize(numDocs));
             final SliceableColumns sliceableColumns = engineBatch.columns();
@@ -149,7 +158,15 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
             assertNotNull("empty documents have no leaves to resolve", resolution);
 
-            EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(items, batch, shard, 0, numDocs, resolution);
+            EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
+                items,
+                batch,
+                shard,
+                0,
+                numDocs,
+                resolution,
+                Engine.Operation.Origin.PRIMARY
+            );
             assertNull("stored source is not supported by the columnar batch path", engineBatch);
         }
 
@@ -174,7 +191,15 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
                 BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), shard.mapperService().mappingLookup());
                 assertNotNull("keyword mapper supports batch indexing", resolution);
 
-                EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(items, batch, shard, 0, items.length, resolution);
+                EngineBatch engineBatch = ShardBatchMapper.mapColumnBatch(
+                    items,
+                    batch,
+                    shard,
+                    0,
+                    items.length,
+                    resolution,
+                    Engine.Operation.Origin.PRIMARY
+                );
                 assertNull("no field mapper supports columnar parsing yet, so a schema leaf must fall back", engineBatch);
             }
         }

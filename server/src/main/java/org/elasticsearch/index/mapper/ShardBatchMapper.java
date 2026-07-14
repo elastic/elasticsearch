@@ -10,10 +10,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -39,7 +41,7 @@ import java.util.List;
  *     outside the v1 support matrix — runtime fields, index-time scripts, dynamic mapping,
  *     unsupported mapper types, etc. — causes the method to return {@code null}, at which point
  *     {@link ShardBatchIndexer} falls back to the sequential path.</li>
- *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution)}
+ *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution, Engine.Operation.Origin)}
  *     runs per chunk. It invokes each metadata mapper once for the whole chunk — see
  *     {@link MetadataFieldMapper#preColumnarParse} / {@link MetadataFieldMapper#postColumnarParse} —
  *     attaching one Lucene column per batch-wide value (id, source, engine-assigned seq-no/version,
@@ -151,20 +153,28 @@ public final class ShardBatchMapper {
     }
 
     /**
-     * Attempts the columnar batch-mapping fast path for one chunk. Returns {@code null} (the
+     * Executes the columnar batch-mapping fast path for one chunk. Returns {@code null} (the
      * fallback signal — same contract as {@link #resolveMappers}) if any resolved field mapper or
      * any sorted metadata mapper does not support columnar parsing, or if mapping hits an
      * unexpected exception.
+     *
+     * <p>When {@code origin} is {@link Engine.Operation.Origin#PRIMARY}, each {@link Engine.Index}
+     * operation is built with {@code UNASSIGNED_SEQ_NO} and version/versionType from the request,
+     * leaving seq-no and version assignment to the engine. When {@code origin} is
+     * {@link Engine.Operation.Origin#REPLICA}, the pre-assigned values from the primary response
+     * ({@code _seq_no}, {@code _primary_term}, {@code _version}) are used instead; the caller
+     * must ensure every item in {@code [chunkStart, chunkEnd)} has a successful primary response.
      */
     public static EngineBatch mapColumnBatch(
         BulkItemRequest[] items,
         SourceBatch batch,
-        IndexShard primary,
+        IndexShard shard,
         int chunkStart,
         int chunkEnd,
-        BatchMapperResolution resolution
+        BatchMapperResolution resolution,
+        Engine.Operation.Origin origin
     ) {
-        final IndexSettings indexSettings = primary.indexSettings();
+        final IndexSettings indexSettings = shard.indexSettings();
         for (FieldMapper mapper : resolution.columnMappers()) {
             if (mapper != null && mapper.supportsColumnarParse(indexSettings) == false) {
                 logger.debug("columnar batch mapping disabled: mapper of type [{}] does not support columnar parsing", mapper.typeName());
@@ -172,7 +182,7 @@ public final class ShardBatchMapper {
             }
         }
 
-        final MappingLookup mappingLookup = primary.mapperService().mappingLookup();
+        final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
         for (MetadataFieldMapper mapper : metadataMappers) {
             if (mapper.supportsColumnarParse(indexSettings) == false) {
@@ -201,7 +211,7 @@ public final class ShardBatchMapper {
                 metadataMapper.postColumnarParse(context);
             }
         } catch (Exception e) {
-            logger.warn("columnar batch mapping failed, falling back", e);
+            logger.warn("columnar batch mapping failed on [{}], falling back", origin, e);
             return null;
         }
 
@@ -210,7 +220,7 @@ public final class ShardBatchMapper {
         // engine fills post-mapping (see BatchMappingContext#seqNoArray et al.); this LuceneDocument
         // is otherwise empty this pass since no field mapper has added anything to it.
         final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
-            primary.indexSettings().seqNoIndexOptions()
+            shard.indexSettings().seqNoIndexOptions()
         );
         // Uid-encoded ids were already computed once by the id mapper's preColumnarParse.
         final BytesRef[] encodedIds = context.uids();
@@ -228,20 +238,44 @@ public final class ShardBatchMapper {
                 null,
                 XContentMeteringParserDecorator.UNKNOWN_SIZE
             );
+
+            final long seqNo;
+            final long primaryTerm;
+            final long version;
+            final VersionType versionType;
+            final long ifSeqNo;
+            final long ifPrimaryTerm;
+            if (origin == Engine.Operation.Origin.REPLICA) {
+                final DocWriteResponse resp = items[chunkStart + d].getPrimaryResponse().getResponse();
+                seqNo = resp.getSeqNo();
+                primaryTerm = resp.getPrimaryTerm();
+                version = resp.getVersion();
+                versionType = null;
+                ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                ifPrimaryTerm = 0;
+            } else {
+                seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                primaryTerm = shard.getOperationPrimaryTerm();
+                version = request.version();
+                versionType = request.versionType();
+                ifSeqNo = request.ifSeqNo();
+                ifPrimaryTerm = request.ifPrimaryTerm();
+            }
+
             operations.add(
                 new Engine.Index(
                     encodedIds[d],
                     parsedDoc,
-                    SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    primary.getOperationPrimaryTerm(),
-                    request.version(),
-                    request.versionType(),
-                    Engine.Operation.Origin.PRIMARY,
-                    primary.getRelativeTimeInNanos(),
+                    seqNo,
+                    primaryTerm,
+                    version,
+                    versionType,
+                    origin,
+                    shard.getRelativeTimeInNanos(),
                     request.getAutoGeneratedTimestamp(),
                     request.isRetry(),
-                    request.ifSeqNo(),
-                    request.ifPrimaryTerm()
+                    ifSeqNo,
+                    ifPrimaryTerm
                 )
             );
         }

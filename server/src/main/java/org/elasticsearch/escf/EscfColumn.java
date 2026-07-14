@@ -12,6 +12,7 @@ package org.elasticsearch.escf;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
@@ -21,62 +22,72 @@ import org.elasticsearch.xcontent.Text;
 
 /**
  * A direct-access view over a single ESCF leaf column, windowed to a contiguous sub-range
- * {@code [base, base + docCount)} of the column's backing data. Each kind is a subtype that reads
- * its payload in place from the column's native, possibly-paged {@link BytesReference}
- * (plus native {@code int[]} offsets / {@link FixedBitSet} metadata).
+ * of the column's backing data. Each kind is a subtype that reads its payload in place from
+ * the column's native, possibly-paged {@link BytesReference} (plus {@link IntsRef} offsets /
+ * {@link org.apache.lucene.util.BytesRef} type vector / {@link FixedBitSet} metadata).
+ *
+ * <p>All backing arrays are shared between a parent column and its slices; windowing for
+ * array-backed fields is expressed via the {@code offset} and {@code length} of the
+ * appropriate Ref. The {@link FixedBitSet}s ({@code absent} and the BOOL {@code values}
+ * bitset) do not support an offset, so they are rewritten to a zero-based window on each
+ * {@link #slice} call. Fixed-width data payloads are windowed via a zero-copy
+ * {@link BytesReference#slice}; variable-width data payloads are kept full and addressed
+ * through the windowed offsets.
  *
  * <p>Layout is shared further down via {@link AbstractFixed64Column} (long/double) and
- * {@link AbstractVarColumn} (string/binary). Typed value getters default to throwing; each subtype
- * overrides only what it supports.
- *
- * <p>Implements {@link SliceableColumn}: {@link #slice} returns a new same-subtype view sharing
- * all backing data, with {@code base'} = {@code base + from}; no copying occurs. Direct
- * ESCF→Lucene conversion ({@link #toLuceneColumn}) is not yet implemented and throws; use
- * {@link EscfLuceneColumn} for engine-metadata longs.
+ * {@link AbstractVarColumn} (string/binary). Typed value getters default to throwing; each
+ * subtype overrides only what it supports.
  */
 abstract class EscfColumn implements SliceableColumn {
 
-    /** Number of documents in this window (may be smaller than the full backing column). */
     final int docCount;
 
     /**
      * Absent set (bit set = absent), or {@code null} when every document is present (dense).
-     * Indexed by absolute position ({@code base + d}) — shared with parent windows.
+     * Always zero-based and covers {@code [0, docCount)} — either {@code null}, or a
+     * {@link FixedBitSet} of size {@code Math.max(1, docCount)}.
      */
     final FixedBitSet absent;
 
-    /**
-     * Absolute start offset into the backing data. All reads use {@code base + d} as the
-     * absolute index. For freshly-parsed columns this is 0; for slices it equals the parent
-     * column's {@code base + from}.
-     */
-    final int base;
-
     EscfColumn(int docCount, FixedBitSet absent) {
-        this(docCount, absent, 0);
-    }
-
-    EscfColumn(int docCount, FixedBitSet absent, int base) {
         this.docCount = docCount;
         this.absent = absent;
-        this.base = base;
     }
 
     /** The column kind (see {@link EscfColumnKind}). */
     abstract byte kind();
 
-    /** Builds the typed column view for {@code col}, dispatching on its kind. The fields are already native. */
+    /**
+     * Builds the typed column view for {@code col}, dispatching on its kind. The fields are
+     * already in their native (zero-based, full-window) form. Array-backed factors are wrapped
+     * into Refs so slicing can adjust {@code offset}/{@code length} without copying.
+     * The {@code absent} bitset is normalized to {@code null} (no absent documents) or a
+     * {@link FixedBitSet} that covers {@code [0, docCount)}.
+     */
     static EscfColumn from(EscfColumnData col) {
         int docCount = col.docCount();
-        FixedBitSet absent = col.absent();
+        // Normalize the absent bitset to [0, docCount): windowBitSet returns null when no bits
+        // are set (same semantics) and a properly-sized FixedBitSet otherwise.
+        FixedBitSet absent = windowBitSet(col.absent(), 0, docCount);
         return switch (col.kind()) {
             case EscfColumnKind.LONG -> new EscfLongColumn(docCount, absent, col.data());
             case EscfColumnKind.DOUBLE -> new EscfDoubleColumn(docCount, absent, col.data());
-            case EscfColumnKind.BOOL -> new EscfBoolColumn(docCount, absent, col.values());
-            case EscfColumnKind.STRING -> new EscfStringColumn(docCount, absent, col.data(), col.offsets());
-            case EscfColumnKind.BINARY -> new EscfBinaryColumn(docCount, absent, col.data(), col.offsets());
-            case EscfColumnKind.ARRAY -> new EscfArrayColumn(docCount, absent, from(col.child()), col.offsets());
-            case EscfColumnKind.UNION -> new EscfUnionColumn(docCount, absent, col.typeVector(), col.offsets(), col.data());
+            case EscfColumnKind.BOOL -> new EscfBoolColumn(docCount, absent, windowBitSet(col.values(), 0, docCount));
+            case EscfColumnKind.STRING -> new EscfStringColumn(docCount, absent, col.data(), new IntsRef(col.offsets(), 0, docCount + 1));
+            case EscfColumnKind.BINARY -> new EscfBinaryColumn(docCount, absent, col.data(), new IntsRef(col.offsets(), 0, docCount + 1));
+            case EscfColumnKind.ARRAY -> new EscfArrayColumn(
+                docCount,
+                absent,
+                from(col.child()),
+                new IntsRef(col.offsets(), 0, docCount + 1)
+            );
+            case EscfColumnKind.UNION -> new EscfUnionColumn(
+                docCount,
+                absent,
+                new BytesRef(col.typeVector(), 0, docCount),
+                new IntsRef(col.offsets(), 0, docCount + 1),
+                col.data()
+            );
             default -> throw new IllegalStateException("Unknown ESCF column kind: " + EscfColumnKind.name(col.kind()));
         };
     }
@@ -85,10 +96,8 @@ abstract class EscfColumn implements SliceableColumn {
         if (d < 0 || d >= docCount) {
             return true;
         }
-        // The absent bitset is indexed by the absolute position (base + d) and only sized to the last
-        // absent document (it may be narrower than the full column), so any position beyond its length is present.
-        int idx = base + d;
-        return absent != null && idx < absent.length() && absent.get(idx);
+        // absent is always null or a FixedBitSet covering [0, docCount), so no length guard is needed.
+        return absent != null && absent.get(d);
     }
 
     final byte getTypeByte(int d) {
@@ -153,14 +162,11 @@ abstract class EscfColumn implements SliceableColumn {
         return new IllegalStateException("Column kind=" + EscfColumnKind.name(kind()) + " has no " + what + " values");
     }
 
-    // =========================================================================
-    // SliceableColumn implementation
-    // =========================================================================
-
     /**
      * Returns a new column of the same subtype sharing this column's backing data, windowed to
-     * {@code [base + from, base + from + count)}. No copying occurs. {@code from} is relative to
-     * this column's current window {@code [0, docCount)}.
+     * the sub-range {@code [from, from + count)} of this column's current window {@code [0, docCount)}.
+     * Array-backed factors (offsets, type vector) are re-windowed via Ref adjustment; the
+     * {@code absent} bitset is rewritten zero-based for the new window.
      */
     @Override
     public final SliceableColumn slice(int from, int count) {
@@ -181,28 +187,38 @@ abstract class EscfColumn implements SliceableColumn {
     }
 
     /**
-     * Returns a new column of the same subtype sharing all backing data, windowed to
-     * {@code [base + from, base + from + count)}. Package-private: callers outside this package
-     * use {@link #slice} via the {@link SliceableColumn} interface.
+     * Throws {@link UnsupportedOperationException} — ESCF user-data column → per-doc Lucene field
+     * conversion is not yet implemented. Use {@link EscfLuceneColumn} for engine-metadata longs.
+     */
+    @Override
+    public RowFieldCursor rowFieldCursor() {
+        throw new UnsupportedOperationException(
+            "ESCF user-data column to row-field cursor is not yet implemented for kind "
+                + EscfColumnKind.name(kind())
+                + "; use EscfLuceneColumn for engine-metadata columns"
+        );
+    }
+
+    /**
+     * Returns a new column of the same subtype sharing all backing data, windowed to the
+     * sub-range {@code [from, from + count)} of this column's current window. Package-private:
+     * callers outside this package use {@link #slice} via the {@link SliceableColumn} interface.
      */
     abstract EscfColumn sliceInternal(int from, int count);
 
     /**
-     * Materializes this column's current window {@code [base, base + docCount)} as a zero-based,
-     * dense {@link EscfColumnData} suitable for serialization via {@link EscfBatchCodec}. For
-     * columns with {@code base == 0} and no window adjustment, the original backing data may be
-     * returned directly to avoid copies. Package-private.
+     * Materializes this column's current window as a zero-based {@link EscfColumnData} suitable
+     * for serialization via {@link EscfBatchCodec}. Variable-width columns rebase their offset
+     * vectors and slice their data payload; fixed-width and bool columns return their already-windowed
+     * {@code data} / bitsets directly. Package-private.
      */
     abstract EscfColumnData toColumnData();
 
-    // =========================================================================
-    // Static helpers shared by subtypes
-    // =========================================================================
-
     /**
      * Returns a new {@link FixedBitSet} covering bits {@code [base, base + count)} of {@code src},
-     * rebased to {@code [0, count)}. Returns {@code null} when no bits are set in the range (same
-     * semantics as a null absent/values bitset).
+     * rebased to {@code [0, count)}, sized to {@code Math.max(1, count)}. Returns {@code null}
+     * when {@code src} is {@code null} or no bits are set in the range (same semantics as a null
+     * absent/values bitset).
      */
     static FixedBitSet windowBitSet(FixedBitSet src, int base, int count) {
         if (src == null) {
@@ -222,15 +238,21 @@ abstract class EscfColumn implements SliceableColumn {
     }
 
     /**
-     * Returns a new {@code int[count + 1]} offset array that covers entries {@code [base, base + count]}
-     * of {@code offsets}, rebased so that {@code out[0] == 0}. Used by variable-width and union
-     * columns when materializing a window for serialization.
+     * Returns a new {@code int[count + 1]} offset array covering entries {@code [ir.offset,
+     * ir.offset + count]} of {@code ir.ints}, rebased so that {@code out[0] == 0}. Used by
+     * variable-width, union, and array columns when materializing a window for serialization.
+     *
+     * @param ir    a windowed ref whose {@code offset} locates the first entry and whose backing
+     *              {@code ints} array holds absolute byte/element offsets
+     * @param count the number of documents in the window (the offset array has {@code count + 1}
+     *              entries)
      */
-    static int[] rebasedOffsets(int[] offsets, int base, int count) {
-        int rebase = offsets[base];
+    static int[] rebasedOffsets(IntsRef ir, int count) {
+        int base = ir.offset;
+        int rebase = ir.ints[base];
         int[] out = new int[count + 1];
         for (int i = 0; i <= count; i++) {
-            out[i] = offsets[base + i] - rebase;
+            out[i] = ir.ints[base + i] - rebase;
         }
         return out;
     }

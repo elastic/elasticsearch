@@ -11,6 +11,7 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.Text;
@@ -19,12 +20,8 @@ import org.elasticsearch.xcontent.XContentString;
 /** An ESCF column whose values are all UTF-8 strings (variable-length layout: offset vector + dense byte payload). */
 final class EscfStringColumn extends AbstractVarColumn {
 
-    EscfStringColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets) {
+    EscfStringColumn(int docCount, FixedBitSet absent, BytesReference data, IntsRef offsets) {
         super(docCount, absent, data, offsets);
-    }
-
-    private EscfStringColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets, int base) {
-        super(docCount, absent, data, offsets, base);
     }
 
     @Override
@@ -45,15 +42,20 @@ final class EscfStringColumn extends AbstractVarColumn {
 
     @Override
     EscfColumn sliceInternal(int from, int count) {
-        return new EscfStringColumn(count, absent, data, offsets, base + from);
+        // data is kept full/shared; the slice is expressed by adjusting offsets.offset.
+        return new EscfStringColumn(
+            count,
+            windowBitSet(absent, from, count),
+            data,
+            new IntsRef(offsets.ints, offsets.offset + from, count + 1)
+        );
     }
 
     @Override
     EscfColumnData toColumnData() {
-        FixedBitSet newAbsent = windowBitSet(absent, base, docCount);
-        int byteFrom = offsets[base];
-        BytesReference newData = data.slice(byteFrom, offsets[base + docCount] - byteFrom);
-        int[] newOffsets = rebasedOffsets(offsets, base, docCount);
-        return EscfColumnData.ofVarWidth(kind(), docCount, newAbsent, newOffsets, newData);
+        int byteFrom = offsets.ints[offsets.offset];
+        BytesReference newData = data.slice(byteFrom, offsets.ints[offsets.offset + docCount] - byteFrom);
+        int[] newOffsets = rebasedOffsets(offsets, docCount);
+        return EscfColumnData.ofVarWidth(kind(), docCount, absent, newOffsets, newData);
     }
 }

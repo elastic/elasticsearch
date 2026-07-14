@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -21,6 +23,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomExponentialHistogram;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomHistogram;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomTDigest;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
 
 public class NotEqualsTests extends AbstractScalarFunctionTestCase {
@@ -315,6 +321,100 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
                 );
             })
         );
+
+        // TDigest cases
+        FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.6.0", "", false);
+        suppliers.add(new TestCaseSupplier("<tdigest>, <tdigest>", List.of(DataType.TDIGEST, DataType.TDIGEST), () -> {
+            var tdigest = randomTDigest();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(tdigest, DataType.TDIGEST, "lhs").withAppliesTo(histogramAppliesTo),
+                    new TestCaseSupplier.TypedData(tdigest, DataType.TDIGEST, "rhs").withAppliesTo(histogramAppliesTo)
+                ),
+                "NotEqualsTDigestEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataType.BOOLEAN,
+                org.hamcrest.Matchers.equalTo(false)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("<tdigest>, <different tdigest>", List.of(DataType.TDIGEST, DataType.TDIGEST), () -> {
+            var left = randomTDigest();
+            var right = randomValueOtherThan(left, () -> randomTDigest());
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(left, DataType.TDIGEST, "lhs").withAppliesTo(histogramAppliesTo),
+                    new TestCaseSupplier.TypedData(right, DataType.TDIGEST, "rhs").withAppliesTo(histogramAppliesTo)
+                ),
+                "NotEqualsTDigestEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataType.BOOLEAN,
+                org.hamcrest.Matchers.equalTo(true)
+            );
+        }));
+
+        // Exponential histogram cases
+        suppliers.add(
+            new TestCaseSupplier(
+                "<exponential_histogram>, <exponential_histogram>",
+                List.of(DataType.EXPONENTIAL_HISTOGRAM, DataType.EXPONENTIAL_HISTOGRAM),
+                () -> {
+                    var histo = randomExponentialHistogram();
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(histo, DataType.EXPONENTIAL_HISTOGRAM, "lhs").withAppliesTo(histogramAppliesTo),
+                            new TestCaseSupplier.TypedData(histo, DataType.EXPONENTIAL_HISTOGRAM, "rhs").withAppliesTo(histogramAppliesTo)
+                        ),
+                        "NotEqualsExponentialHistogramEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.BOOLEAN,
+                        org.hamcrest.Matchers.equalTo(false)
+                    );
+                }
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "<exponential_histogram>, <different exponential_histogram>",
+                List.of(DataType.EXPONENTIAL_HISTOGRAM, DataType.EXPONENTIAL_HISTOGRAM),
+                () -> {
+                    var left = randomExponentialHistogram();
+                    var right = randomValueOtherThan(left, () -> randomExponentialHistogram());
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(left, DataType.EXPONENTIAL_HISTOGRAM, "lhs").withAppliesTo(histogramAppliesTo),
+                            new TestCaseSupplier.TypedData(right, DataType.EXPONENTIAL_HISTOGRAM, "rhs").withAppliesTo(histogramAppliesTo)
+                        ),
+                        "NotEqualsExponentialHistogramEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.BOOLEAN,
+                        org.hamcrest.Matchers.equalTo(true)
+                    );
+                }
+            )
+        );
+
+        // Histogram cases
+        suppliers.add(new TestCaseSupplier("<histogram>, <histogram>", List.of(DataType.HISTOGRAM, DataType.HISTOGRAM), () -> {
+            var histo = randomHistogram();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(histo, DataType.HISTOGRAM, "lhs").withAppliesTo(histogramAppliesTo),
+                    new TestCaseSupplier.TypedData(histo, DataType.HISTOGRAM, "rhs").withAppliesTo(histogramAppliesTo)
+                ),
+                "NotEqualsBytesRefEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataType.BOOLEAN,
+                org.hamcrest.Matchers.equalTo(false)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("<histogram>, <different histogram>", List.of(DataType.HISTOGRAM, DataType.HISTOGRAM), () -> {
+            var left = randomHistogram();
+            var right = randomValueOtherThan(left, () -> randomHistogram());
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(left, DataType.HISTOGRAM, "lhs").withAppliesTo(histogramAppliesTo),
+                    new TestCaseSupplier.TypedData(right, DataType.HISTOGRAM, "rhs").withAppliesTo(histogramAppliesTo)
+                ),
+                "NotEqualsBytesRefEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataType.BOOLEAN,
+                org.hamcrest.Matchers.equalTo(true)
+            );
+        }));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }

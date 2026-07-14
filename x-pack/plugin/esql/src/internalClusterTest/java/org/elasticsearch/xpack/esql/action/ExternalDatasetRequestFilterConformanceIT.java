@@ -258,4 +258,32 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
             QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 300)).must(QueryBuilders.termQuery("nope", "x"))
         );
     }
+
+    /** A match on an exact-typed field selects the same rows as a term — on the index a match there IS a term query. */
+    public void testMatchOnIntegerEqualsTerm() {
+        assertSelectsSameRows(QueryBuilders.matchQuery("status", 300));
+    }
+
+    public void testMatchOnKeyword() {
+        assertSelectsSameRows(QueryBuilders.matchQuery("tags", "t2"));
+    }
+
+    /** A match on a field neither source has matches nothing on both — the same leniency as term. */
+    public void testMatchOnMissingFieldMatchesNothing() {
+        assertSelectsSameRows(QueryBuilders.matchQuery("nope", "x"));
+    }
+
+    /** A match_phrase on a keyword field is the whole value — equality — the same rows on both. */
+    public void testMatchPhraseOnKeyword() {
+        assertSelectsSameRows(QueryBuilders.matchPhraseQuery("tags", "t2"));
+    }
+
+    /** multi_match over exact fields is an OR of per-field equality, matching the index's multi_match. */
+    public void testMultiMatchOverExactFields() {
+        assertSelectsSameRows(QueryBuilders.multiMatchQuery(300, "status", "bytes"));
+    }
+
+    public void testMultiMatchSingleField() {
+        assertSelectsSameRows(QueryBuilders.multiMatchQuery(300, "status"));
+    }
 }

@@ -69,7 +69,7 @@ public final class RequestFilterGraft {
             QueryDslTranslator translator = new QueryDslTranslator(name -> {
                 Attribute a = byName.get(name);
                 return a != null ? a : Literal.NULL;
-            }, nowInMillis);
+            }, byName.keySet(), nowInMillis);
             try {
                 Expression condition = translator.translate(requestFilter);
                 return new Filter(relation.source(), relation, condition);

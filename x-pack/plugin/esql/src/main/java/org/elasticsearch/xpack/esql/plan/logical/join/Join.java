@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -398,8 +400,17 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
 
     @Override
     public void postOptimizationVerification(Failures failures) {
-        if (isRemote()) {
+        if (isRemote() && isCoordinatorMode() == false) {
             checkRemoteJoin(failures);
         }
+    }
+
+    /**
+     * Whether this join should run on the coordinator against its local copy of the lookup index
+     */
+    public boolean isCoordinatorMode() {
+        return right().anyMatch(
+            node -> node instanceof EsRelation rel && rel.indexMode() == IndexMode.LOOKUP && rel.indexPattern().startsWith("_coordinator:")
+        );
     }
 }

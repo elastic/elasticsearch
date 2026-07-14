@@ -796,6 +796,132 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         );
     }
 
+    public void testCoordinatorLookupJoin() throws IOException {
+        setupClusters(3);
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, false);
+
+        var defaultSettings = Settings.builder();
+        createIndexWithDocument(REMOTE_CLUSTER_1, "data", defaultSettings, Map.of("key", 1, "cluster", "remote-1"));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "data", defaultSettings, Map.of("key", 2, "cluster", "remote-2"));
+
+        var lookupSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP);
+        createIndexWithDocument(
+            LOCAL_CLUSTER,
+            "lookup",
+            lookupSettings,
+            Map.of("key", 1, "mode", "coordinator"),
+            Map.of("key", 2, "mode", "coordinator")
+        );
+        createIndexWithDocument(REMOTE_CLUSTER_1, "remote-lookup", lookupSettings, Map.of("key", 1, "mode", "remote"));
+        createIndexWithDocument(REMOTE_CLUSTER_2, "remote-lookup", lookupSettings, Map.of("key", 2, "mode", "remote"));
+
+        // remote data node lookup join
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LOOKUP JOIN remote-lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "remote"),
+                        List.of(2L, "remote-2", "remote")
+                    )
+                )
+            );
+        }
+
+        // remote data node lookup on local index
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [cluster-a:lookup,remote-b:lookup]"),
+            () -> runQuery("FROM *:data | LOOKUP JOIN lookup ON key", randomBoolean()).close()
+        );
+
+        // coordinator lookup join
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator")
+                    )
+                )
+            );
+        }
+
+        // coordinator lookup index is not found
+        expectThrows(
+            VerificationException.class,
+            containsString("Unknown index [remote-lookup]"),
+            () -> runQuery("FROM *:data | LOOKUP JOIN _coordinator:remote-lookup ON key", randomBoolean()).close()
+        );
+
+        // coordinator lookup join after pipeline breaker (stats)
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | STATS c = count() BY key, cluster
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator")
+                    )
+                )
+            );
+        }
+
+        // coordinator lookup join after pipeline breaker (limit by)
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:data
+            | LIMIT 1 BY key
+            | LOOKUP JOIN _coordinator:lookup ON key
+            | KEEP key, cluster, mode
+            | SORT key
+            """, randomBoolean())) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        //
+                        List.of(1L, "remote-1", "coordinator"),
+                        List.of(2L, "remote-2", "coordinator")
+                    )
+                )
+            );
+        }
+
+        // coordinator lookup join after pipeline breaker (limit)
+        expectThrows(
+            VerificationException.class,
+            containsString("LOOKUP JOIN with remote indices can't be executed after [LIMIT 1]"),
+            () -> runQuery("""
+                FROM *:data
+                | LIMIT 1
+                | LOOKUP JOIN _coordinator:lookup ON key
+                | KEEP key, cluster, mode
+                | SORT key
+                """, randomBoolean()).close()
+        );
+    }
+
     @SafeVarargs
     private void createIndexWithDocument(String clusterAlias, String indexName, Settings.Builder settings, Map<String, Object>... sources) {
         var client = client(clusterAlias);
@@ -849,5 +975,4 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         assertAcked(client.admin().indices().prepareCreate(indexName + "_map").setMapping());
         client.admin().indices().prepareRefresh(indexName + "_map").get();
     }
-
 }

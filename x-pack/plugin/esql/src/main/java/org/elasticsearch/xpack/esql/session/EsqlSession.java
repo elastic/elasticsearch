@@ -1433,9 +1433,6 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
     ) {
-        String localPattern = lookupIndexPattern.indexPattern();
-        assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
-            : "Lookup index name should not include remote, but got: " + localPattern;
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION,
@@ -1445,23 +1442,42 @@ public class EsqlSession {
             // indices) the resolver's continuation reaches this on the external blob-store pool.
             EsqlPlugin.externalBlobStorePool()
         );
+
+        String indexPattern = lookupIndexPattern.indexPattern();
+        String qualifiedPattern;
+        Set<String> lookupIndexScope;
+
+        var split = RemoteClusterAware.splitIndexName(indexPattern);
+        switch (split.clusterAlias()) {
+            // default mode, lookup index needs to be found on every remote
+            case null -> {
+                lookupIndexScope = EsqlCCSUtils.onlyRunning(
+                    executionInfo,
+                    computeLookupJoinIndexScope(plan, indexPattern, result.indexResolution())
+                );
+                qualifiedPattern = EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, indexPattern);
+            }
+            // coordinator mode, lookup index needs to be found only locally
+            case "_coordinator" -> {
+                lookupIndexScope = Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                qualifiedPattern = split.indexExpression();
+            }
+            // any other qualifier is not supported
+            default -> throw new AssertionError("Lookup index name should not include remote, but got: " + indexPattern);
+        }
+        executionInfo.queryProfile().incFieldCapsCalls();
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
-        executionInfo.queryProfile().incFieldCapsCalls();
-        var lookupIndexScope = EsqlCCSUtils.onlyRunning(
-            executionInfo,
-            computeLookupJoinIndexScope(plan, localPattern, result.indexResolution())
-        );
         indexResolver.resolveLookupIndices(
-            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, localPattern),
-            result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
+            qualifiedPattern,
+            result.wildcardJoinIndices().contains(indexPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should
             // be reflected in result.minimumTransportVersion().
             result.minimumTransportVersion(),
             listener.map(
-                indexResolution -> receiveLookupIndexResolution(result, lookupIndexScope, localPattern, executionInfo, indexResolution)
+                indexResolution -> receiveLookupIndexResolution(result, lookupIndexScope, indexPattern, executionInfo, indexResolution)
             )
         );
     }
@@ -1759,8 +1775,8 @@ public class EsqlSession {
                 index,
                 lookupIndexResolution.get().mapping(),
                 Map.of(indexName, IndexMode.LOOKUP),
-                Map.of(),
-                Map.of()
+                lookupIndexResolution.get().originalIndices(),
+                lookupIndexResolution.get().concreteIndices()
             );
             return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());
         }

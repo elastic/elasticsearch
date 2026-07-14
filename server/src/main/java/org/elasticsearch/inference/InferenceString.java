@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.cluster.metadata.InferenceFieldMetadata.SEMANTIC_REFERENCE_VALUES;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -249,7 +250,8 @@ public class InferenceString implements Writeable, ToXContentObject {
                 RestStatus.BAD_REQUEST
             );
         }
-        if (dataFormat == DataFormat.REFERENCE && out.getTransportVersion().supports(DataFormat.REFERENCE_DATA_FORMAT) == false) {
+        // TODO: Use dedicated transport version for reference data format
+        if (dataFormat == DataFormat.REFERENCE && out.getTransportVersion().supports(SEMANTIC_REFERENCE_VALUES) == false) {
             // TODO: Should this be a 400 or 500 error?
             throw new IllegalStateException(
                 "Cannot serialize a [" + DataFormat.REFERENCE + "] data format, one or or more nodes is too old to support it"

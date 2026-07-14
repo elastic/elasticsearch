@@ -41,9 +41,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     private static final String REFERENCE_VALUES_REQUIRED_FIELD = "reference_values_required";
 
     private static final TransportVersion SEMANTIC_TEXT_CHUNKING_CONFIG = TransportVersion.fromName("semantic_text_chunking_config");
-    private static final TransportVersion SEMANTIC_REFERENCE_VALUES_REQUIRED = TransportVersion.fromName(
-        "semantic_reference_values_required"
-    );
+    public static final TransportVersion SEMANTIC_REFERENCE_VALUES = TransportVersion.fromName("semantic_reference_values");
 
     private final String name;
     private final String inferenceId;
@@ -82,7 +80,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         } else {
             this.chunkingSettings = null;
         }
-        if (input.getTransportVersion().supports(SEMANTIC_REFERENCE_VALUES_REQUIRED)) {
+        if (input.getTransportVersion().supports(SEMANTIC_REFERENCE_VALUES)) {
             this.referenceValuesRequired = input.readBoolean();
         } else {
             this.referenceValuesRequired = false;
@@ -98,7 +96,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         if (out.getTransportVersion().supports(SEMANTIC_TEXT_CHUNKING_CONFIG)) {
             out.writeGenericMap(chunkingSettings);
         }
-        if (out.getTransportVersion().supports(SEMANTIC_REFERENCE_VALUES_REQUIRED)) {
+        if (out.getTransportVersion().supports(SEMANTIC_REFERENCE_VALUES)) {
             out.writeBoolean(referenceValuesRequired);
         }
     }

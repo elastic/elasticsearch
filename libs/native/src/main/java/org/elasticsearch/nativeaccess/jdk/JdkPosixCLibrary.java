@@ -10,6 +10,7 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.foreign.CloseableByteBuffer;
+import org.elasticsearch.foreign.LinkerHelper;
 import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -121,7 +122,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         FunctionDescriptor.of(JAVA_LONG, JAVA_INT, ADDRESS, JAVA_LONG, JAVA_INT)
     );
 
-    static final MemorySegment errnoState = Arena.ofAuto().allocate(CAPTURE_ERRNO_LAYOUT);
+    static final MemorySegment errnoState = LinkerHelper.ERRNO_STATE;
 
     static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor) {
         return downcallHandle(function, functionDescriptor, CAPTURE_ERRNO_OPTION);

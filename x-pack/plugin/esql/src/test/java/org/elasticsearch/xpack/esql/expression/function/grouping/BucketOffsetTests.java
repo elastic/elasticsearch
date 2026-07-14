@@ -40,7 +40,6 @@ public class BucketOffsetTests extends ESTestCase {
         assertEquals(Instant.parse("2024-01-01T01:30:00Z").toEpochMilli(), rounded);
     }
 
-
     public void testAutoSpanIgnoresOffset() {
         // The auto-span (numeric bucket count) path does not support offset yet.
         // TSTEP only uses the duration span path where offset is applied.

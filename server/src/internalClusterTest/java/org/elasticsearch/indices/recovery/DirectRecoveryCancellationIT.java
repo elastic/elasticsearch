@@ -712,9 +712,9 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             final var unassignedInfo = unassignedShards.getFirst().unassignedInfo();
             assertNotNull("Replica should have non-null unassigned info", unassignedInfo);
             assertThat(
-                "Expected unassignment reason to be ALLOCATION_FAILED",
+                "Expected unassignment reason to be RECOVERY_CANCELLED",
                 unassignedInfo.reason(),
-                equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED)
+                equalTo(UnassignedInfo.Reason.RECOVERY_CANCELLED)
             );
 
             final var failure = unassignedInfo.failure();

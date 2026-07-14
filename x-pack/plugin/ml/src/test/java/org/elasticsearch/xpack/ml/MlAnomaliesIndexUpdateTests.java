@@ -171,9 +171,9 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
     }
 
     public void testHealReindexedV7_NoOp_WhenMappingAlreadyKeyword() {
-        // job_id is already keyword — do NOT touch this index (operator has fixed it manually)
+        // job_id and anomaly_score_explanation fields are already correct — do NOT touch this index
         String badIndex = ".reindexed-v7-ml-anomalies-shared-000001";
-        ClusterState cs = clusterStateWithBadIndex(badIndex, IndexVersion.current(), List.of("jobA"), keywordJobIdMapping());
+        ClusterState cs = clusterStateWithBadIndex(badIndex, IndexVersion.current(), List.of("jobA"), healthyResultsMapping());
         var client = mock(Client.class);
         AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
         SystemAuditor systemAuditor = mock(SystemAuditor.class);
@@ -185,6 +185,28 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         verify(client, never()).execute(same(TransportIndicesAliasesAction.TYPE), any(), any());
         verify(auditor, never()).warning(any(), any());
         verify(systemAuditor, never()).warning(anyString());
+    }
+
+    public void testHealReindexedV7_HealWhenJobIdKeywordButAnomalyScoreExplanationFloat() {
+        String badIndex = ".reindexed-v7-ml-anomalies-shared-000001";
+        String targetIndex = ".ml-anomalies-shared-000001";
+        ClusterState cs = clusterStateWithBadIndex(
+            badIndex,
+            IndexVersion.current(),
+            List.of("jobA"),
+            keywordJobIdWithFloatAnomalyScoreExplanationMapping()
+        );
+
+        AnomalyDetectionAuditor auditor = mock(AnomalyDetectionAuditor.class);
+        SystemAuditor systemAuditor = mock(SystemAuditor.class);
+        var client = mockClientForHeal(targetIndex);
+
+        updater(client, cs, auditor, systemAuditor, HEAL_ENABLED).runUpdate(cs);
+
+        verify(client).execute(same(TransportCreateIndexAction.TYPE), any(), any());
+        verify(client).execute(same(TransportIndicesAliasesAction.TYPE), any(), any());
+        verify(systemAuditor).warning(anyString());
+        verify(auditor).warning(eq("jobA"), anyString());
     }
 
     public void testHealReindexedV7_NoOp_WhenAliasesAlreadyMoved() {
@@ -331,7 +353,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid_old")
             )
-            .putMapping(keywordJobIdMapping())
+            .putMapping(healthyResultsMapping())
             .putAlias(AliasMetadata.builder(readAlias).isHidden(true).build());
 
         IndexMetadata.Builder newMeta = IndexMetadata.builder(newCanonical)
@@ -342,7 +364,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid_new")
             )
-            .putMapping(keywordJobIdMapping())
+            .putMapping(healthyResultsMapping())
             .putAlias(AliasMetadata.builder(readAlias).isHidden(true).build())
             .putAlias(AliasMetadata.builder(writeAlias).writeIndex(true).isHidden(true).build());
 
@@ -447,7 +469,27 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
         return "{\"properties\":{\"job_id\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\"}}}}}";
     }
 
-    /** Mapping JSON where job_id is keyword (healthy). */
+    /** Mapping JSON where job_id is keyword and anomaly_score_explanation doubles are correct. */
+    private static String healthyResultsMapping() {
+        return """
+            {"properties":{"job_id":{"type":"keyword"},"anomaly_score_explanation":{"properties":{\
+            "lower_confidence_bound":{"type":"double"},\
+            "typical_value":{"type":"double"},\
+            "upper_confidence_bound":{"type":"double"},\
+            "by_field_relative_rarity":{"type":"double"}}}}}""";
+    }
+
+    /** Mapping JSON where job_id is keyword but by_field_relative_rarity was dynamically mapped as float. */
+    private static String keywordJobIdWithFloatAnomalyScoreExplanationMapping() {
+        return """
+            {"properties":{"job_id":{"type":"keyword"},"anomaly_score_explanation":{"properties":{\
+            "lower_confidence_bound":{"type":"double"},\
+            "typical_value":{"type":"double"},\
+            "upper_confidence_bound":{"type":"double"},\
+            "by_field_relative_rarity":{"type":"float"}}}}}""";
+    }
+
+    /** Mapping JSON where job_id is keyword (healthy) without anomaly_score_explanation fields. */
     private static String keywordJobIdMapping() {
         return "{\"properties\":{\"job_id\":{\"type\":\"keyword\"}}}";
     }

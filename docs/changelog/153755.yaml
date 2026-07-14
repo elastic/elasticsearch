@@ -1,6 +1,6 @@
 area: Machine Learning
-issues: []
+issues:
+  - 147686
 pr: 153755
-summary: Add .reindexed-*-ml-anomalies-* wildcard to anomaly results template index
-  pattern
+summary: Extend AD results template for reindexed indices and generalize heal beyond job_id mapping
 type: bug

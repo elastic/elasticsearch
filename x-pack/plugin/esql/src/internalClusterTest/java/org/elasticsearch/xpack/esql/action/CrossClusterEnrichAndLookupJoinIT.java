@@ -106,10 +106,7 @@ public class CrossClusterEnrichAndLookupJoinIT extends AbstractEnrichBasedCrossC
         // only coordinator enrich could be executed after coordinator lookup join
         expectThrows(
             VerificationException.class,
-            containsString(
-                "Physical plan contains remote executing operation [EnrichExec] in local part. "
-                    + "This usually means this command is incompatible with some of the preceding commands."
-            ),
+            containsString("ENRICH with remote policy can't be executed after [LOOKUP JOIN _coordinator:ip_lookup ON ip]"),
             () -> runQuery("""
                 FROM *:events
                 | EVAL ip = TO_STR(host)

@@ -951,20 +951,19 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         }
 
         // can not execute coordinator lookup then remote lookup
-        // TODO fix
-        // expectThrows(
-        // VerificationException.class,
-        // containsString("TBD"),
-        // () -> runQuery("""
-        // FROM *:data
-        // | LOOKUP JOIN _coordinator:lookup ON key
-        // | RENAME mode AS mode1
-        // | LOOKUP JOIN remote-lookup ON key
-        // | RENAME mode AS mode2
-        // | KEEP key, cluster, mode1, mode2
-        // | SORT key
-        // """, randomBoolean()).close()
-        // );
+        expectThrows(
+            VerificationException.class,
+            containsString("LOOKUP JOIN with remote indices can't be executed after [LOOKUP JOIN _coordinator:lookup ON key]"),
+            () -> runQuery("""
+                FROM *:data
+                | LOOKUP JOIN _coordinator:lookup ON key
+                | RENAME mode AS mode1
+                | LOOKUP JOIN remote-lookup ON key
+                | RENAME mode AS mode2
+                | KEEP key, cluster, mode1, mode2
+                | SORT key
+                """, randomBoolean()).close()
+        );
     }
 
     @SafeVarargs

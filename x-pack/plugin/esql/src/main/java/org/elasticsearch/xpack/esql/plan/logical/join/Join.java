@@ -371,7 +371,10 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
 
     @Override
     public ExecuteLocation executesOn() {
-        return isRemote ? ExecuteLocation.REMOTE : ExecuteLocation.ANY;
+        if (isRemote) {
+            return isCoordinatorMode() ? ExecuteLocation.COORDINATOR : ExecuteLocation.REMOTE;
+        }
+        return ExecuteLocation.ANY;
     }
 
     private void checkRemoteJoin(Failures failures) {
@@ -400,7 +403,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
 
     @Override
     public void postOptimizationVerification(Failures failures) {
-        if (isRemote() && isCoordinatorMode() == false) {
+        if (executesOn() == ExecuteLocation.REMOTE) {
             checkRemoteJoin(failures);
         }
     }

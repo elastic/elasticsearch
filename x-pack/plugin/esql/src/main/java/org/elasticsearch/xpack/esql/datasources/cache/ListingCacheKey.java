@@ -68,16 +68,15 @@ public record ListingCacheKey(
         Map<String, Object> config,
         String listingDiscriminator
     ) {
-        String endpoint = config != null ? String.valueOf(config.getOrDefault("endpoint", "")) : "";
-        String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
+        EndpointRegion location = EndpointRegion.of(config);
         long[] hash = computeCredentialHash(config);
         long[] discriminatorHash = sha256Truncated(listingDiscriminator);
         return new ListingCacheKey(
             scheme,
             bucket,
             prefixAndGlob,
-            endpoint,
-            region,
+            location.endpoint(),
+            location.region(),
             hash[0],
             hash[1],
             discriminatorHash[0],

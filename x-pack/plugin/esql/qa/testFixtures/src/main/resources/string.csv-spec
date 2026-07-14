@@ -596,6 +596,15 @@ emp_no:integer |job_positions:keyword |nil:keyword |is_in:boolean
 10026          |Reporting Analyst     |null        |null
 ;
 
+// A keyword field used as one of the candidates inside the IN list itself, rather than
+// only as the value being tested for membership.
+inKeywordFieldInList
+from employees | where "Bezalel" in (first_name, "Georgi") | keep emp_no, first_name;
+
+emp_no:integer |first_name:keyword
+10002          |Bezalel
+;
+
 split
 // tag::split[]
 ROW words="foo;bar;baz;qux;quux;corge"

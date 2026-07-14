@@ -10,18 +10,24 @@ package org.elasticsearch.xpack.inference.mapper;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -33,6 +39,7 @@ import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
@@ -209,6 +216,74 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
     }
 
+    /** Whether the field type under test uses the legacy {@code semantic_text} storage format. */
+    protected boolean useLegacyFormat() {
+        return false;
+    }
+
+    protected MapperService createSemanticMapperService(XContentBuilder mappings) throws IOException {
+        IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat());
+        return createSemanticMapperService(mappings, indexVersion, indexVersion);
+    }
+
+    protected MapperService createSemanticMapperService(XContentBuilder mappings, IndexVersion minIndexVersion) throws IOException {
+        IndexVersion maxIndexVersion = useLegacyFormat()
+            ? IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+            : IndexVersion.current();
+        return createSemanticMapperService(mappings, minIndexVersion, maxIndexVersion);
+    }
+
+    protected MapperService createSemanticMapperService(
+        XContentBuilder mappings,
+        IndexVersion minIndexVersion,
+        IndexVersion maxIndexVersion
+    ) throws IOException {
+        validateIndexVersion(minIndexVersion, useLegacyFormat());
+        validateIndexVersion(maxIndexVersion, useLegacyFormat());
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(minIndexVersion, maxIndexVersion);
+        return createSemanticMapperServiceWithIndexVersion(mappings, indexVersion);
+    }
+
+    protected MapperService createSemanticMapperServiceWithIndexVersion(XContentBuilder mappings, IndexVersion indexVersion)
+        throws IOException {
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat())
+            .build();
+        return createMapperService(indexVersion, settings, mappings);
+    }
+
+    /**
+     * Creates a (non-legacy) mapper service at the given index version and source mode. With {@code synthetic} or
+     * {@code columnar_stored}, the field stores its original input value(s) in the internal binary doc values field; with
+     * {@code stored}, the original value is kept in {@code _source}.
+     */
+    protected MapperService createSemanticMapperServiceWithSourceMode(
+        XContentBuilder mappings,
+        IndexVersion indexVersion,
+        SourceFieldMapper.Mode mode
+    ) throws IOException {
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false)
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), mode)
+            .build();
+        return createMapperService(indexVersion, settings, mappings);
+    }
+
+    protected MapperService createSemanticMapperServiceWithIndexMode(
+        XContentBuilder mappings,
+        IndexVersion indexVersion,
+        IndexMode indexMode
+    ) throws IOException {
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false)
+            .put(IndexSettings.MODE.getKey(), indexMode.getName())
+            .build();
+        return createMapperService(indexVersion, settings, mappings);
+    }
+
     protected T getSemanticFieldMapper(MapperService mapperService, String fieldName) {
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         assertThat(mapper, instanceOf(expectedMapperClass()));
@@ -379,5 +454,17 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             builder.append(randomAlphaOfLengthBetween(5, 15));
         }
         return builder.toString();
+    }
+
+    private static void validateIndexVersion(IndexVersion indexVersion, boolean useLegacyFormat) {
+        if (useLegacyFormat == false
+            && indexVersion.before(IndexVersions.INFERENCE_METADATA_FIELDS)
+            && indexVersion.between(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0) == false) {
+            throw new IllegalArgumentException("Index version " + indexVersion + " does not support new semantic text format");
+        }
+
+        if (useLegacyFormat && indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)) {
+            throw new IllegalArgumentException("Index version " + indexVersion + " does not support legacy semantic text format");
+        }
     }
 }

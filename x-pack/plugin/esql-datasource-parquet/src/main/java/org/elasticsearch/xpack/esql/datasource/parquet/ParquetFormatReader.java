@@ -1951,7 +1951,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 dynamicThreshold,
                 resolveDynamicThresholdColumn(fileSchema, dynamicThreshold),
                 counters,
-                errorPolicy
+                errorPolicy,
+                warningSink
             );
             // Constructor succeeded — iterator now owns preloadedMetadata. Set the flag after
             // construction so that a throw inside the constructor does not suppress cleanup.
@@ -2710,6 +2711,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         private SkipWarnings coercionWarnings;
         /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
         private final ErrorPolicy errorPolicy;
+        /**
+         * Relay for this read's per-value coercion warnings, or {@code null} to fall back to emitting
+         * directly via {@code HeaderWarning}. Under the async source
+         * this iterator runs on a background reader thread, so a non-null sink (the source buffer
+         * relay) is required for the warnings to reach the response; see {@link #coercionWarnings()}.
+         */
+        @Nullable
+        private final Consumer<String> warningSink;
 
         /**
          * The coercion-failure sink for this read, or {@code null} under {@code fail_fast} — the
@@ -2727,7 +2736,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     "Parquet file ["
                         + fileLocation
                         + "] has values that could not be coerced to the declared column type; "
-                        + "they are returned as null"
+                        + "they are returned as null",
+                    warningSink
                 );
             }
             return coercionWarnings;
@@ -2751,6 +2761,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             @Nullable Consumer<String> warningSink
         ) {
             this.errorPolicy = errorPolicy;
+            this.warningSink = warningSink;
             this.reader = reader;
             this.projectedSchema = projectedSchema;
             this.attributes = attributes;

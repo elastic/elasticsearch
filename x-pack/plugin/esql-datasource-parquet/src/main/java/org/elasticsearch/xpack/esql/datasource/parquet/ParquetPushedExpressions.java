@@ -697,13 +697,16 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * Builds a predicate for an ESQL {@code DATE_NANOS} column, whose query literal is epoch-nanoseconds. A
-     * {@code DATE_NANOS} column is only ever INFERRED from a physical {@code TIMESTAMP(MICROS)} (×1_000 to nanos) or
-     * {@code TIMESTAMP(NANOS)} (identity) column — {@code date_nanos} is not a declarable type, and {@code
-     * TIMESTAMP(MILLIS)} infers to {@code datetime} — so the nanosecond bound is converted to microseconds (or left
-     * as nanos), rounded outward via {@link #boundToPhysicalUnit} so the pushed predicate is never stricter than the
-     * true nanosecond predicate. Safe because temporal pushdown is always RECHECK (see
-     * {@link ParquetFilterPushdownSupport#isFullyEvaluable}), so {@code FilterExec} re-applies the exact semantics.
+     * Builds a predicate for an ESQL {@code DATE_NANOS} column, whose query literal is epoch-nanoseconds. Since
+     * {@code date_nanos} became declarable, this column can sit over any physical INT64 a declared read admits —
+     * not only the inferred {@code TIMESTAMP(MICROS|NANOS)} shapes — so the divisor comes from the explicit
+     * allow-list {@link ParquetColumnDecoding#dateNanosPushdownDivisor} (timestamps in all three units plus the
+     * un-annotated signed INT64 identity case; everything else — TIME, unsigned, unknown — declines rather than
+     * pushing a raw-unit predicate that silently prunes matching row groups). The nanosecond bound is converted
+     * to the stored unit, rounded outward via {@link #boundToPhysicalUnit} so the pushed predicate is never
+     * stricter than the true nanosecond predicate. Safe because temporal pushdown is always RECHECK (see
+     * {@link ParquetFilterPushdownSupport#isFullyEvaluable}), so {@code FilterExec} re-applies the exact
+     * semantics — while a decline merely loses pruning, never rows.
      */
     private static FilterPredicate buildDateNanosPredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
@@ -711,12 +714,14 @@ final class ParquetPushedExpressions {
             return null;
         }
         if (value == null) {
+            // IS NULL / IS NOT NULL reason over null counts only — unit-independent, so no divisor gate.
             return orderedPredicate(FilterApi.longColumn(columnName), null, op);
         }
+        Long divisor = ParquetColumnDecoding.dateNanosPushdownDivisor(ptype);
+        if (divisor == null) {
+            return null;
+        }
         long nanos = ((Number) value).longValue();
-        long divisor = ParquetColumnDecoding.isMicrosTimestamp(ptype.getLogicalTypeAnnotation())
-            ? ParquetColumnDecoding.NANOS_PER_MICRO
-            : 1L;
         Long bound = boundToPhysicalUnit(nanos, op, divisor);
         return bound == null ? null : orderedPredicate(FilterApi.longColumn(columnName), bound, op);
     }
@@ -874,29 +879,35 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * {@code IN} counterpart to {@link #buildDateNanosPredicate}. The query literals are epoch-nanoseconds. For a
-     * physical {@code NANOS} column each value is pushed exactly. For a {@code MICROS} column, an element can only
-     * equal a stored value when it is an exact multiple of 1_000 ns; non-multiples are dropped (they can never match,
-     * so omitting them keeps the pushed set a correct subset). If every element is dropped, no predicate is pushed and
+     * {@code IN} counterpart to {@link #buildDateNanosPredicate}. The query literals are epoch-nanoseconds. The
+     * divisor comes from the same {@link ParquetColumnDecoding#dateNanosPushdownDivisor} allow-list, so the two
+     * {@code DATE_NANOS} push paths cannot disagree: an identity column (NANOS, or the un-annotated signed INT64
+     * a declared {@code date_nanos} reads as raw epoch-nanos) pushes each value exactly; a scaled column (MICROS,
+     * MILLIS) can only match an element that is an exact multiple of the stored tick — non-multiples are dropped
+     * (they can never match, so omitting them keeps the pushed set a correct subset); an un-pushable physical
+     * (TIME, unsigned INT64, unknown) declines entirely. If every element is dropped, no predicate is pushed and
      * the scan + recheck yields the (empty) result.
      */
     private static FilterPredicate translateDateNanosIn(String columnName, List<Object> rawValues, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
-        if (ptype == null || ptype.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+        if (ptype == null) {
             return null;
         }
-        // A DATE_NANOS column is only ever inferred from TIMESTAMP(MICROS) (÷1_000) or TIMESTAMP(NANOS) (identity).
-        if (ParquetColumnDecoding.isMicrosTimestamp(ptype.getLogicalTypeAnnotation()) == false) {
+        Long divisor = ParquetColumnDecoding.dateNanosPushdownDivisor(ptype);
+        if (divisor == null) {
+            return null;
+        }
+        if (divisor == 1L) {
             return inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
         }
-        List<Object> micros = new ArrayList<>();
+        List<Object> ticks = new ArrayList<>();
         for (Object v : rawValues) {
             long nanos = ((Number) v).longValue();
-            if (nanos % ParquetColumnDecoding.NANOS_PER_MICRO == 0) {
-                micros.add(nanos / ParquetColumnDecoding.NANOS_PER_MICRO);
+            if (nanos % divisor == 0) {
+                ticks.add(nanos / divisor);
             }
         }
-        return micros.isEmpty() ? null : inPredicate(FilterApi.longColumn(columnName), micros, v -> (Long) v);
+        return ticks.isEmpty() ? null : inPredicate(FilterApi.longColumn(columnName), ticks, v -> (Long) v);
     }
 
     private static <T extends Comparable<T>, C extends Operators.Column<T> & Operators.SupportsEqNotEq> FilterPredicate inPredicate(

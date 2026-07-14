@@ -91,6 +91,55 @@ final class ParquetColumnDecoding {
     }
 
     /**
+     * The nanoseconds-per-stored-tick divisor for pushing an epoch-nanoseconds ({@code DATE_NANOS}) filter
+     * literal against a physical column's raw footer statistics, or {@code null} when the raw statistics are
+     * not expressible as epoch-nanoseconds and the predicate must NOT be pushed (a wrongly-pruned row group is
+     * never read — RECHECK guards false positives, not rows that were never decoded).
+     * <p>
+     * Now that {@code date_nanos} is declarable, a {@code DATE_NANOS} predicate can sit over ANY physical column
+     * a declared read admits — not only the inferred {@code TIMESTAMP(MICROS|NANOS)} shapes this used to assume.
+     * So this is an explicit ALLOW-list over what is provably pushable, not a decline-list of known-bad
+     * annotations (a decline-list is exactly what would miss the next TIME-like case):
+     * <ul>
+     *   <li>{@code TIMESTAMP(NANOS)} &rarr; 1 (identity);</li>
+     *   <li>{@code TIMESTAMP(MICROS)} &rarr; {@link #NANOS_PER_MICRO};</li>
+     *   <li>{@code TIMESTAMP(MILLIS)} &rarr; {@link #NANOS_PER_MILLI} — a declared {@code date_nanos} over a
+     *       millis column rides the {@code DATETIME -> DATE_NANOS} coercion, so every decoded value is exactly
+     *       {@code t x 1_000_000} (or null, which no filter matches);</li>
+     *   <li>no annotation on a signed {@code INT64} &rarr; 1 — the declared-read unit convention's identity
+     *       case: a raw whole number declared {@code date_nanos} IS epoch-nanos, so raw stats equal scan
+     *       values bit-for-bit;</li>
+     *   <li><b>everything else declines</b>: {@code TIME} (nanos-of-day, not an epoch — and {@code TIME(MICROS)}
+     *       additionally scales x1_000 at decode while its stats stay raw), unsigned {@code INT64} (sign-wrap
+     *       ordering), {@code DECIMAL}, non-{@code INT64} primitives, and any annotation this method has never
+     *       heard of.</li>
+     * </ul>
+     * Lives here, next to the decode transforms it summarizes, for the same no-drift reason as
+     * {@link #integralDecodeScalesRelativeToRawStats}. Consulted by both {@code
+     * ParquetPushedExpressions.buildDateNanosPredicate} and {@code translateDateNanosIn} so the comparison and
+     * {@code IN} paths cannot disagree; the same built predicate also drives page-level pruning
+     * ({@code ColumnIndexRowRangesComputer}), which is therefore guarded by the same divisor.
+     */
+    @Nullable
+    static Long dateNanosPushdownDivisor(PrimitiveType primitiveType) {
+        if (primitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+            return null;
+        }
+        LogicalTypeAnnotation logical = primitiveType.getLogicalTypeAnnotation();
+        if (logical == null) {
+            return 1L;
+        }
+        if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            return switch (ts.getUnit()) {
+                case NANOS -> 1L;
+                case MICROS -> NANOS_PER_MICRO;
+                case MILLIS -> NANOS_PER_MILLI;
+            };
+        }
+        return null;
+    }
+
+    /**
      * Whether decoding a physical column with logical annotation {@code annotation} into an ESQL integral value
      * ({@code long}/{@code integer}) applies a scaling factor that the raw parquet footer statistics do NOT carry, so
      * a raw integral predicate pushed against those stats would mis-prune. This is the ground truth for the pushdown

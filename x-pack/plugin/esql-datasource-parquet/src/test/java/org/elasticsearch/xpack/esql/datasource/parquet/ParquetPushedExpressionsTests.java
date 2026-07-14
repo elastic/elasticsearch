@@ -446,6 +446,131 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(repr, containsString(String.valueOf(nanos2 / 1_000)));
     }
 
+    // --- Declared DATE_NANOS over other physical units (newly reachable: date_nanos is declarable) ---
+
+    /**
+     * A column DECLARED {@code date_nanos} over a physical {@code TIMESTAMP(MILLIS)} column decodes each stored
+     * milli as {@code t x 1_000_000} nanos (the {@code DATETIME -> DATE_NANOS} coercion), so the raw footer
+     * statistics are 10^6 smaller than the query literal. Without the unit allow-list the divisor fell through
+     * to 1 and the raw NANOS literal was pushed against MILLIS stats: {@code WHERE ts > <instant>} pruned every
+     * row group and returned silently empty results — pruning is unrecoverable, RECHECK only re-filters rows
+     * that were read. The guard pushes the bound converted to the stored milli unit, rounded outward.
+     */
+    public void testDeclaredDateNanosOverTimestampMillisPushesMillisBound() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts")
+            .named("test");
+
+        long nanos = 1_700_000_000_123_456_789L; // not a milli tick: GT must floor to the stored unit
+        long expectedMillis = Math.floorDiv(nanos, 1_000_000L);
+        Expression expr = new GreaterThan(Source.EMPTY, attr("ts", DataType.DATE_NANOS), lit(nanos, DataType.DATE_NANOS), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull("declared date_nanos over TIMESTAMP(MILLIS) pushes the millis-converted bound", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(expectedMillis)));
+        // The load-bearing red-without-the-guard assertion: the raw nanos literal must never reach the footer.
+        assertThat(fp.toString(), not(containsString(String.valueOf(nanos))));
+    }
+
+    /** The Range path (both bounds) rides buildDateNanosPredicate and must convert both bounds to millis. */
+    public void testDeclaredDateNanosRangeOverTimestampMillisConvertsBothBounds() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts")
+            .named("test");
+
+        long lowerNanos = 1_700_000_000_000_000_000L; // exact milli ticks: GTE/LTE stay exact
+        long upperNanos = 1_700_000_100_000_000_000L;
+        Expression range = new Range(
+            Source.EMPTY,
+            attr("ts", DataType.DATE_NANOS),
+            lit(lowerNanos, DataType.DATE_NANOS),
+            true,
+            lit(upperNanos, DataType.DATE_NANOS),
+            true,
+            ZoneOffset.UTC
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(range)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(lowerNanos / 1_000_000L)));
+        assertThat(fp.toString(), containsString(String.valueOf(upperNanos / 1_000_000L)));
+        // RED without the guard: the raw nanos bounds would appear verbatim.
+        assertThat(fp.toString(), not(containsString(String.valueOf(lowerNanos))));
+        assertThat(fp.toString(), not(containsString(String.valueOf(upperNanos))));
+    }
+
+    /**
+     * The IN path has the same unit hazard: elements convert to the stored milli unit; an element that is not
+     * an exact milli tick can never match a stored value and is dropped from the pushed set (a correct subset).
+     */
+    public void testDeclaredDateNanosInOverTimestampMillisConvertsAndDropsNonTicks() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts")
+            .named("test");
+
+        long tick = 1_700_000_000_123_000_000L;    // exact milli tick -> pushed as 1_700_000_000_123
+        long nonTick = 1_700_000_000_123_456_789L; // no stored milli equals it -> dropped
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("ts", DataType.DATE_NANOS),
+            List.of(lit(tick, DataType.DATE_NANOS), lit(nonTick, DataType.DATE_NANOS))
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(tick / 1_000_000L)));
+        // RED without the guard: both raw nanos values were pushed verbatim against millis stats.
+        assertThat(fp.toString(), not(containsString(String.valueOf(tick))));
+        assertThat(fp.toString(), not(containsString(String.valueOf(nonTick))));
+    }
+
+    /**
+     * A physical {@code TIME(MICROS)} column maps to LONG at inference, so a declared {@code date_nanos} over
+     * it is reachable once {@code supports(LONG, DATE_NANOS)} holds. TIME is nanos-of-day, not an epoch — and
+     * {@code isMicrosTimestamp} tests the Timestamp annotation, so before the allow-list a Time annotation fell
+     * through to divisor 1 while the scan separately scales x1_000: a guaranteed mis-prune. Both the comparison
+     * and the IN path must decline.
+     */
+    public void testDeclaredDateNanosOverTimeColumnDeclinesPushdown() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("t")
+            .named("test");
+
+        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.DATE_NANOS), lit(43_200_000_000_000L, DataType.DATE_NANOS), null);
+        assertNull("date_nanos over TIME(MICROS) must not push", new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema));
+
+        Expression inExpr = new In(Source.EMPTY, attr("t", DataType.DATE_NANOS), List.of(lit(43_200_000_000_000L, DataType.DATE_NANOS)));
+        assertNull(
+            "date_nanos IN over TIME(MICROS) must not push",
+            new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema)
+        );
+    }
+
+    /**
+     * The allow-list's identity case and its unsigned decline: an un-annotated signed INT64 declared
+     * {@code date_nanos} is the unit convention's identity read (raw stats == scan values bit-for-bit), so it
+     * pushes with divisor 1 — declining it would be a needless lost-pruning cost; an unsigned INT64
+     * ({@code intType(64, false)}) decodes sign-wrapped and must decline.
+     */
+    public void testDeclaredDateNanosOverPlainInt64PushesIdentityAndUnsignedDeclines() {
+        long nanos = 1_700_000_000_123_456_789L;
+        MessageType plain = Types.buildMessage().required(INT64).named("n").named("test");
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("n", DataType.DATE_NANOS, nanos))).toFilterPredicate(plain);
+        assertNotNull("un-annotated signed INT64 is the identity case and must push", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(nanos)));
+
+        MessageType unsigned = Types.buildMessage().required(INT64).as(LogicalTypeAnnotation.intType(64, false)).named("n").named("test");
+        assertNull(
+            "date_nanos over unsigned INT64 must not push",
+            new ParquetPushedExpressions(List.of(eq("n", DataType.DATE_NANOS, nanos))).toFilterPredicate(unsigned)
+        );
+    }
+
     // --- DATE (INT32) ---
 
     public void testToFilterPredicateDateInt32() {

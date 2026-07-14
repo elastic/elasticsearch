@@ -139,9 +139,7 @@ public final class DeclaredSchemaValidator {
         }
         DataType resolved = DataType.fromNameOrAlias(type);
         if (resolved != DataType.DATETIME && resolved != DataType.DATE_NANOS) {
-            throw new IllegalArgumentException(
-                "[format] on column [" + column + "] is only supported on [date] and [date_nanos] columns"
-            );
+            throw new IllegalArgumentException("[format] on column [" + column + "] is only supported on [date] and [date_nanos] columns");
         }
         try {
             DateFormatter.forPattern(format);

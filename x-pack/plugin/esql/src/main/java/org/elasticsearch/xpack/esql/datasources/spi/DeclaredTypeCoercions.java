@@ -401,9 +401,7 @@ public final class DeclaredTypeCoercions {
                     yield v -> {
                         long nanos = ((Number) v).longValue();
                         if (nanos < 0) {
-                            throw new IllegalArgumentException(
-                                "Value [" + v + "] is out of range for a date_nanos epoch-nanoseconds read"
-                            );
+                            throw new IllegalArgumentException("Value [" + v + "] is out of range for a date_nanos epoch-nanoseconds read");
                         }
                         return nanos;
                     };

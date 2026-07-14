@@ -571,9 +571,6 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.DISIAccumulatorTests
   method: testRandom
   issue: https://github.com/elastic/elasticsearch/issues/152677
-- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
-  method: testUnreferencedCommitsAreReleasedAfterRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/152730
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testCloseWhileShardsAreHollowed
   issue: https://github.com/elastic/elasticsearch/issues/151861
@@ -808,3 +805,30 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=msearch/10_basic/Least impact smoke test}
   issue: https://github.com/elastic/elasticsearch/issues/153697
+- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
+  method: testES92ConstructorRejectsUnwrappedFilterIndexInput
+  issue: https://github.com/elastic/elasticsearch/issues/153738
+- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
+  method: testES92ConstructorAcceptsMMapInput
+  issue: https://github.com/elastic/elasticsearch/issues/153739
+- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
+  method: testES92ConstructorAcceptsDirectAccessInput
+  issue: https://github.com/elastic/elasticsearch/issues/153740
+- class: org.elasticsearch.simdvec.internal.IndexInputUtilsTests
+  method: testES92ConstructorAcceptsPlainInput
+  issue: https://github.com/elastic/elasticsearch/issues/153741
+- class: org.elasticsearch.xpack.esql.parser.ParamsParserTests
+  method: testMixedSingleDoubleParams
+  issue: https://github.com/elastic/elasticsearch/issues/153746
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  method: testRotationCompletesWithMultipleHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/153747
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
+  method: testResumableWrite
+  issue: https://github.com/elastic/elasticsearch/issues/153748
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.inlineStatsMaxSalary [ndjson.zst/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/153749
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:inlinestats.groupByMultipleRenamedColumns_AndComplexEval}
+  issue: https://github.com/elastic/elasticsearch/issues/153752

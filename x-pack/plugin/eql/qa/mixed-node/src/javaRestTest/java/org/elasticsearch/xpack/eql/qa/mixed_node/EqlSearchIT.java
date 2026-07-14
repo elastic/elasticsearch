@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.eql.qa.mixed_node;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
@@ -284,8 +284,7 @@ public class EqlSearchIT extends ESRestTestCase {
             Request request = new Request("POST", index + "/_eql/search?" + filterPath);
             StringBuilder payload = new StringBuilder("{\"query\":\"" + event + " where true\",\"size\":15");
             // Older versions don't support this option
-            if (nodesList.stream()
-                .allMatch(x -> x.transportVersion() != null && x.transportVersion().supports(TransportVersions.V_8_18_0))) {
+            if (Version.fromString(Clusters.OLD_CLUSTER_VERSION).onOrAfter("8.18.0")) {
                 if (randomBoolean()) {
                     payload.append(", \"allow_partial_search_results\": " + randomBoolean());
                 }
@@ -311,8 +310,7 @@ public class EqlSearchIT extends ESRestTestCase {
 
             StringBuilder payload = new StringBuilder("{\"query\":\"" + query + "\",\"filter\":" + filter);
             // Older versions don't support this option
-            if (nodesList.stream()
-                .allMatch(x -> x.transportVersion() != null && x.transportVersion().supports(TransportVersions.V_8_18_0))) {
+            if (Version.fromString(Clusters.OLD_CLUSTER_VERSION).onOrAfter("8.18.0")) {
                 if (randomBoolean()) {
                     payload.append(", \"allow_partial_search_results\": " + randomBoolean());
                 }

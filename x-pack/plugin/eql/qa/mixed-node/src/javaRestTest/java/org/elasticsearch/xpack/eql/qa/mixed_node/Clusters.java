@@ -41,11 +41,10 @@ public class Clusters {
      * Note: xpack.eql.enabled is intentionally omitted — it is deprecated since 7.9.2 and always enabled.
      */
     public static ElasticsearchCluster mixedVersionCluster() {
-        boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .withNode(node -> node.version(OLD_CLUSTER_VERSION_STRING, isDetachedVersion)) // index 0: old
-            .withNode(node -> node.version(OLD_CLUSTER_VERSION_STRING, isDetachedVersion)) // index 1: old
+            .withNode(node -> node.version(OLD_CLUSTER_VERSION_STRING)) // index 0: old
+            .withNode(node -> node.version(OLD_CLUSTER_VERSION_STRING)) // index 1: old
             .withNode(node -> node.version(Version.CURRENT)) // index 2: new
             .setting("xpack.security.enabled", "false")
             .setting("xpack.watcher.enabled", "false")

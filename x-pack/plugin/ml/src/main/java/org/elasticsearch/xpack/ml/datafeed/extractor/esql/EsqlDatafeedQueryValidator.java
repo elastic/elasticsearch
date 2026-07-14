@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
@@ -32,8 +34,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
  */
 public class EsqlDatafeedQueryValidator {
 
-    private EsqlDatafeedQueryValidator() {}
-
     /**
      * Returns the summary count field name that the ESQL query must output, or {@code null} if it is
      * not required. The field is only required when the job configures a {@code summary_count_field_name}
@@ -53,10 +53,11 @@ public class EsqlDatafeedQueryValidator {
      * Calls {@code listener.onResponse(true)} on success or when the target index does not exist;
      * calls {@code listener.onFailure} for all other problems.
      */
-    public static void validateQuery(
+    public void validateQuery(
         Client client,
         Map<String, String> headers,
         String esqlQuery,
+        @Nullable String projectRouting,
         String timeField,
         String summaryCountField,
         ActionListener<Boolean> listener
@@ -79,7 +80,41 @@ public class EsqlDatafeedQueryValidator {
             }
         });
 
-        executeEsqlQueryAsync(client, limitZeroQuery, headers, responseListener);
+        executeEsqlQueryAsync(client, limitZeroQuery, headers, projectRouting, responseListener);
+    }
+
+    /**
+     * Probe run before minting a CPS internal credential: executes {@code esqlQuery | LIMIT 0} under
+     * the caller's credential to confirm access. Does NOT check output columns (that is done by
+     * {@link #validateQuery}). Tolerates {@link NoMatchingProjectException} (a project may be linked
+     * later) and {@link IndexNotFoundException} (the index may be created later).
+     * Calls {@code listener.onResponse(null)} on success or for those tolerated failures, and
+     * {@code listener.onFailure} for all other problems.
+     */
+    public void validateAccessForMint(
+        Client client,
+        Map<String, String> headers,
+        String esqlQuery,
+        @Nullable String projectRouting,
+        ActionListener<Void> listener
+    ) {
+        String limitZeroQuery = esqlQuery + " | LIMIT 0";
+
+        ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> listener.onResponse(null), e -> {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof NoMatchingProjectException) {
+                // Flat-world (unqualified) routing matched no project right now; a project may be
+                // linked later. Defer to runtime — consistent with the classic SearchRequest probe.
+                listener.onResponse(null);
+            } else if (cause instanceof IndexNotFoundException) {
+                // The target index may not exist yet; tolerate and defer to runtime.
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(e);
+            }
+        });
+
+        executeEsqlQueryAsync(client, limitZeroQuery, headers, projectRouting, responseListener);
     }
 
     static void checkRequiredColumns(List<? extends ColumnInfo> columns, String timeField, String requiredSummaryCountField) {
@@ -111,15 +146,19 @@ public class EsqlDatafeedQueryValidator {
     }
 
     @SuppressWarnings("unchecked")
-    private static void executeEsqlQueryAsync(
+    protected void executeEsqlQueryAsync(
         Client client,
         String query,
         Map<String, String> headers,
+        @Nullable String projectRouting,
         ActionListener<EsqlQueryResponse> listener
     ) {
         EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = (EsqlQueryRequestBuilder<
             EsqlQueryRequest,
             EsqlQueryResponse>) EsqlQueryRequestBuilder.newRequestBuilder(client).query(query);
+        if (projectRouting != null) {
+            builder.projectRouting(projectRouting);
+        }
         ClientHelper.executeWithHeadersAsync(
             client.threadPool().getThreadContext(),
             headers,

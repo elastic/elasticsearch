@@ -98,6 +98,26 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         assertThat(extractor.getContext().headers(), equalTo(headers));
     }
 
+    public void testNewExtractorCopiesProjectRoutingIntoContext() {
+        Job job = buildJob("job-1", TIME_FIELD, null);
+        DatafeedConfig datafeed = buildDatafeedWithProjectRouting("datafeed-1", "job-1", "_alias:_origin");
+        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
+
+        EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
+
+        assertThat(extractor.getContext().projectRouting(), equalTo("_alias:_origin"));
+    }
+
+    public void testNewExtractorNullProjectRoutingWhenNotSet() {
+        Job job = buildJob("job-1", TIME_FIELD, null);
+        DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", null, null);
+        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
+
+        EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
+
+        assertThat(extractor.getContext().projectRouting(), nullValue());
+    }
+
     public void testCreateInvokesListenerWithEsqlFactory() {
         Job job = buildJob("job-1", TIME_FIELD, null);
         DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", null, null);
@@ -142,6 +162,13 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         if (headers != null) {
             builder.setHeaders(headers);
         }
+        return builder.build();
+    }
+
+    private static DatafeedConfig buildDatafeedWithProjectRouting(String datafeedId, String jobId, String projectRouting) {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
+        builder.setEsqlQuery(ESQL_QUERY);
+        builder.setProjectRouting(projectRouting);
         return builder.build();
     }
 }

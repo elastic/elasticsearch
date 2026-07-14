@@ -39,7 +39,8 @@ public record EsqlDataExtractorFactory(Client client, DatafeedConfig datafeed, J
             start,
             end,
             datafeed.getHeaders(),
-            EsqlDatafeedQueryValidator.requiredSummaryCountField(datafeed, job)
+            EsqlDatafeedQueryValidator.requiredSummaryCountField(datafeed, job),
+            datafeed.getProjectRouting()
         );
         return new EsqlDataExtractor(client, ctx, timingStatsReporter);
     }

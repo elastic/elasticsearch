@@ -153,7 +153,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -1117,7 +1116,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
-                case Insist i -> resolveInsist(i, childrenOutput);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
@@ -1653,7 +1651,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (loadAlignAcrossBranches
                         && forkLoadableUnmappedKeywordNames.contains(attr.name())
                         && branchCanSurfaceLoadedField(logicalPlan)) {
-                        toLoad.add(insistKeyword(attr));
+                        toLoad.add(unmappedKeyword(attr));
                         continue;
                     }
                     // We cannot assign an alias with an UNSUPPORTED data type, so we use another type that is
@@ -1857,27 +1855,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput) {
-            List<Attribute> list = new ArrayList<>();
-            for (Attribute a : insist.insistedAttributes()) {
-                list.add(resolveInsistAttribute(a, childrenOutput));
-            }
-            return insist.withAttributes(list);
-        }
-
-        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput) {
-            Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) attribute, childrenOutput);
-            // Field isn't mapped anywhere.
-            if (resolvedCol instanceof UnresolvedAttribute) {
-                return insistKeyword(attribute);
-            }
-
-            // Partially unmapped fields are already wrapped during index resolution:
-            // keyword → PotentiallyUnmappedKeywordEsField, non-keyword → TypeConflictedField.potentiallyUnmapped.
-            return resolvedCol;
-        }
-
-        public static FieldAttribute insistKeyword(Attribute attribute) {
+        public static FieldAttribute unmappedKeyword(Attribute attribute) {
             return new FieldAttribute(
                 attribute.source(),
                 null,

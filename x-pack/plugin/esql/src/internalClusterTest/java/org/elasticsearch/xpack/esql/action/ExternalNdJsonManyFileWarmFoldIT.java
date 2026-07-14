@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
  * {@code FROM <many-file-glob> | STATS COUNT(*)} that RE-SCANS every file instead of serving the
  * cached row count. The warm multi-file fold is all-or-nothing (the per-file stats aggregate fails the
  * moment ONE file lacks {@code _stats.row_count}), so under schema-cache LRU pressure — simulated here
- * with a deliberately tiny {@code esql.source.cache.size} — a single evicted per-file entry used to
+ * with a deliberately tiny {@code esql.external.cache.size} — a single evicted per-file entry used to
  * force every file to re-scan. The fix is the DATASET-LEVEL row-count aggregate: a single entry keyed
  * by the listing's file-set fingerprint (path+mtime+size of every file), materialized by the cold scan's
  * reconcile and served when the per-file merge comes back incomplete, so warm {@code COUNT(*)} needs
@@ -58,10 +58,10 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // Small stripe grid so every file spans many canonical stripes across multiple read chunks.
-            .put("esql.source.cache.stripe.size", "64kb")
+            .put("esql.external.cache.stripe.size", "64kb")
             // Simulate the cache pressure a loaded cluster creates: a tiny budget so the 40 per-file
             // entries cannot all coexist, forcing LRU eviction of already-committed siblings.
-            .put("esql.source.cache.size", "48kb")
+            .put("esql.external.cache.size", "48kb")
             .build();
     }
 

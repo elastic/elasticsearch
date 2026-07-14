@@ -130,7 +130,7 @@ public final class QueryPragmas implements Writeable {
      * Defaults to allocated processors. Set to 1 to disable parallel parsing.
      */
     public static final Setting<Integer> PARSING_PARALLELISM = Setting.intSetting(
-        "parsing_parallelism",
+        "external_parsing_parallelism",
         EsExecutors.allocatedProcessors(Settings.EMPTY),
         1
     );
@@ -141,19 +141,19 @@ public final class QueryPragmas implements Writeable {
      * {@code GetObject}) plus, for buffering readers like NDJSON, a per-segment {@code byte[]}; the
      * consumer emits a segment's pages as soon as that segment finishes parsing (completion order, not
      * strict segment order), so this is a shallow read-ahead width, not a parallelism. It is deliberately
-     * not {@code parsing_parallelism}: a file is already split into about
-     * {@code parsing_parallelism} segments and many files read concurrently, so aligning this with the
+     * not {@code external_parsing_parallelism}: a file is already split into about
+     * {@code external_parsing_parallelism} segments and many files read concurrently, so aligning this with the
      * thread count would fan a wide multi-file glob into far too many concurrent object-store reads.
      * A small default bounds that fan-out independent of file count/length. Safeguard in the spirit of
      * {@link #BRANCH_PARALLEL_DEGREE}.
      * <p>
      * This is a <b>per-file</b> cap. The node-wide bound on concurrently-open segment streams is roughly
-     * {@code (data-node driver instances) × max_concurrent_open_segments × (files open per driver)} — tune
+     * {@code (data-node driver instances) × external_max_concurrent_open_segments × (files open per driver)} — tune
      * with that product in mind, not this value alone. The default is sourced from
      * {@link SourceOperatorContext#DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS}.
      */
     public static final Setting<Integer> MAX_CONCURRENT_OPEN_SEGMENTS = Setting.intSetting(
-        "max_concurrent_open_segments",
+        "external_max_concurrent_open_segments",
         SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
         1
     );
@@ -166,7 +166,7 @@ public final class QueryPragmas implements Writeable {
      * time rather than overflowing later.
      */
     public static final Setting<ByteSizeValue> MAX_RECORD_SIZE = Setting.byteSizeSetting(
-        "max_record_size",
+        "external_max_record_size",
         ByteSizeValue.ofBytes(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
         ByteSizeValue.ofBytes(1),
         ByteSizeValue.ofBytes(Integer.MAX_VALUE)

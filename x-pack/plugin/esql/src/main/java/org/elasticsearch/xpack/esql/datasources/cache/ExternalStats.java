@@ -126,7 +126,7 @@ public final class ExternalStats {
      * The stripe grid (bytes) the entry's committed {@code _stats.stripe.<k>} state was accumulated on —
      * the entry-level twin of the fragment-level {@link #STRIPE_SIZE_KEY}. Ordinals are only comparable
      * within one grid: without this stamp, commits from data nodes running different
-     * {@code esql.source.cache.stripe.size} values (rolling restart, config drift) would interleave
+     * {@code esql.external.cache.stripe.size} values (rolling restart, config drift) would interleave
      * ordinals from different grids into one entry and the {@code 0..K} fold would serve a silently
      * wrong count over a "complete" cover. A delta whose grid differs from the stamp CLEARS the entry's
      * stripe state and re-stamps — accumulation restarts on the new grid (safe-miss, never mixed).

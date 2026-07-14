@@ -26,26 +26,26 @@ public final class ExternalSourceCacheSettings {
     private ExternalSourceCacheSettings() {}
 
     public static final Setting<ByteSizeValue> CACHE_SIZE = Setting.memorySizeSetting(
-        "esql.source.cache.size",
+        "esql.external.cache.size",
         "0.4%",
         Setting.Property.NodeScope
     );
 
     public static final Setting<Boolean> CACHE_ENABLED = Setting.boolSetting(
-        "esql.source.cache.enabled",
+        "esql.external.cache.enabled",
         true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> SCHEMA_TTL = Setting.positiveTimeSetting(
-        "esql.source.cache.schema.ttl",
+        "esql.external.cache.schema.ttl",
         TimeValue.timeValueMinutes(5),
         Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> LISTING_TTL = Setting.positiveTimeSetting(
-        "esql.source.cache.listing.ttl",
+        "esql.external.cache.listing.ttl",
         TimeValue.timeValueSeconds(30),
         Setting.Property.NodeScope
     );
@@ -68,7 +68,7 @@ public final class ExternalSourceCacheSettings {
      * pruning. 8 MB is the knee.
      */
     public static final Setting<ByteSizeValue> STRIPE_SIZE = Setting.byteSizeSetting(
-        "esql.source.cache.stripe.size",
+        "esql.external.cache.stripe.size",
         ByteSizeValue.ofMb(8),
         ByteSizeValue.ofKb(64),
         ByteSizeValue.ofGb(1),
@@ -99,7 +99,7 @@ public final class ExternalSourceCacheSettings {
      */
     public static final Setting<StripeColumnScope> STRIPE_COLUMNS = Setting.enumSetting(
         StripeColumnScope.class,
-        "esql.source.cache.stripe.columns",
+        "esql.external.cache.stripe.columns",
         StripeColumnScope.PROJECTED,
         Setting.Property.NodeScope
     );

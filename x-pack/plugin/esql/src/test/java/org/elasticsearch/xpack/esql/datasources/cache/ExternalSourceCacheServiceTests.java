@@ -47,10 +47,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     /** {@link #defaultSettings()} with a chosen schema TTL — shrunk by the expiry-sweep tests. */
     private static Settings schemaTtlSettings(String schemaTtl) {
         return Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", schemaTtl)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.schema.ttl", schemaTtl)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
     }
 

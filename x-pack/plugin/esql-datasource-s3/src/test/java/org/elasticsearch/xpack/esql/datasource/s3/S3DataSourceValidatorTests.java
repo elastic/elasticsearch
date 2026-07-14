@@ -155,7 +155,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "managed_identity", "region", "us-east-1"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.managed_identity.enabled"));
     }
 
     public void testValidateDatasourceRejectsDeprecatedWorkloadIdentityWhenDisabled() {
@@ -164,7 +164,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.managed_identity.enabled"));
         assertWarnings("auth value [workload_identity] is deprecated; the canonical value is [managed_identity]");
     }
 
@@ -200,7 +200,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             "us-east-1"
         );
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
-        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
@@ -214,7 +214,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             "us-east-1"
         );
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
-        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsFederatedWhenEnabled() {

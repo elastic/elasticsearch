@@ -55,11 +55,11 @@ public class ExternalWarmDatasetAggregatePartialEvictionIT extends AbstractWarmD
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // Small stripe grid so every file spans many canonical stripes across multiple read chunks.
-            .put("esql.source.cache.stripe.size", "64kb")
+            .put("esql.external.cache.stripe.size", "64kb")
             // GENEROUS budget — the opposite end of the spectrum from ExternalNdJsonManyFileWarmFoldIT:
             // every per-file entry fits, so the ONLY missing entries are the ones each test evicts
             // explicitly, making "exactly one file missing" a deterministic construction.
-            .put("esql.source.cache.size", "10mb")
+            .put("esql.external.cache.size", "10mb")
             .build();
     }
 

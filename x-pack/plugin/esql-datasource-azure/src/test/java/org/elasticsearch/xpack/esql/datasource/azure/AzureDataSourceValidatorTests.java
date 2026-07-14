@@ -106,7 +106,7 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "managed_identity"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.managed_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
@@ -143,7 +143,7 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
                 )
             )
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
@@ -154,7 +154,7 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
                 Map.of("tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
             )
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsFederatedWhenEnabled() {

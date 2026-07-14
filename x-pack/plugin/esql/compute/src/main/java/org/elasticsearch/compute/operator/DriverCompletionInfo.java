@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *                               {@code SourceStatisticsSerializer.mergeStatistics} which depends on
  *                               esql-module types this compute module cannot reach.
  * @param partial Whether any driver returned partial results because a lenient policy dropped data during
- *                the read (e.g. a {@code max_record_size} truncation under a non-strict {@code error_mode}).
+ *                the read (e.g. a {@code external_max_record_size} truncation under a non-strict {@code error_mode}).
  *                OR-aggregated across drivers/nodes and consumed by the coordinator to flip the response's
  *                {@code is_partial} flag — the structured counterpart of the client-visible truncation warning.
  */
@@ -201,7 +201,7 @@ public record DriverCompletionInfo(
 
     /**
      * ORs the {@link CapturingExternalSourceStatus#partial()} flag across every completed operator. True when
-     * any external-source read on any driver dropped data under a lenient policy (e.g. {@code max_record_size}
+     * any external-source read on any driver dropped data under a lenient policy (e.g. {@code external_max_record_size}
      * truncation), so the coordinator can flip the response's {@code is_partial} flag.
      */
     private static boolean collectPartial(List<Driver> drivers) {

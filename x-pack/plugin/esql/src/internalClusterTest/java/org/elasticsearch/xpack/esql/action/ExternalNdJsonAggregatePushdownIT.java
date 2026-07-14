@@ -39,7 +39,7 @@ public class ExternalNdJsonAggregatePushdownIT extends AbstractExternalDataSourc
     @Override
     protected QueryPragmas getPragmas() {
         // See parallel comment in ExternalCsvCountPushdownIT.getPragmas.
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 1).build());
     }
 
     /**

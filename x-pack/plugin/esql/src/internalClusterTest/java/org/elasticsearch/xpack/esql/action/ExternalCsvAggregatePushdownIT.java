@@ -43,8 +43,8 @@ public class ExternalCsvAggregatePushdownIT extends AbstractExternalDataSourceIT
 
     @Override
     protected QueryPragmas getPragmas() {
-        // parsing_parallelism=1 keeps the file on the single-thread path; record-aligned chunks bypass the capture-hook gate.
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
+        // external_parsing_parallelism=1 keeps the file on the single-thread path; record-aligned chunks bypass the capture-hook gate.
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 1).build());
     }
 
     /**

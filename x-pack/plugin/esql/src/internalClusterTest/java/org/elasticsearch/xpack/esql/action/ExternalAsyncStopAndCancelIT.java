@@ -462,10 +462,10 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
      */
     public void testAsyncStopReturnsBufferedRowsAndMarksPartial() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-        assumeTrue("parsing_parallelism / page_size pragmas are snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_parsing_parallelism / page_size pragmas are snapshot-only", Build.current().isSnapshot());
 
         String uri = SCHEME + "://" + StoragePath.fileUri(slowFile).substring("file://".length());
-        // LIMIT well above LEADING_ROWS so natural completion never wins the race with STOP. parsing_parallelism=1
+        // LIMIT well above LEADING_ROWS so natural completion never wins the race with STOP. external_parsing_parallelism=1
         // pins the deterministic single-thread CSV path; page_size=5 keeps pages small so several pages emit from the
         // leading prefix and STOP's cut is observably below the total fixture row count.
         String query = "EXTERNAL \"" + uri + "\" | LIMIT 1000000";
@@ -535,7 +535,7 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
      */
     public void testSyncTaskCancelHardFailsWithNoRows() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-        assumeTrue("parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_parsing_parallelism pragma is snapshot-only", Build.current().isSnapshot());
 
         String uri = SCHEME + "://" + StoragePath.fileUri(slowFile).substring("file://".length());
         // Embed a unique marker in the query so findEsqlTask can latch onto this specific task even when other ES|QL
@@ -599,7 +599,7 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
      */
     public void testAsyncDeleteHardFailsWithNoRows() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-        assumeTrue("parsing_parallelism / page_size pragmas are snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_parsing_parallelism / page_size pragmas are snapshot-only", Build.current().isSnapshot());
 
         String uri = SCHEME + "://" + StoragePath.fileUri(slowFile).substring("file://".length());
         String query = "EXTERNAL \"" + uri + "\" | LIMIT 1000000";
@@ -673,7 +673,7 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
      */
     public void testAsyncTaskCancelHardFailsWithNoRows() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
-        assumeTrue("parsing_parallelism / page_size pragmas are snapshot-only", Build.current().isSnapshot());
+        assumeTrue("external_parsing_parallelism / page_size pragmas are snapshot-only", Build.current().isSnapshot());
 
         String uri = SCHEME + "://" + StoragePath.fileUri(slowFile).substring("file://".length());
         String query = "EXTERNAL \"" + uri + "\" | LIMIT 1000000";

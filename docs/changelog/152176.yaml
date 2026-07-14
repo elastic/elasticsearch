@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 152176
-summary: Lenient truncate on `max_record_size` cap-hit
+summary: Lenient truncate on `external_max_record_size` cap-hit
 type: enhancement

@@ -25,7 +25,7 @@ import java.io.InputStream;
  * <p>Under lenient error policies on the wrapped non-bracket-aware path, a thrown
  * {@link CsvRecordTooLargeException} surfaces as a stream-fatal abort because the underlying
  * stream position is undefined after the trip; the cause chain still carries the original
- * {@code "max_record_size [N]"} message.
+ * {@code "external_max_record_size [N]"} message.
  *
  * @see RecordCappingInputStream for the shared CRLF / cap state machine.
  */

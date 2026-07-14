@@ -288,11 +288,11 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             // notFound (no responses) before per-cluster skip logic runs, so both remotes
             // end up in a VerificationException rather than being skipped cleanly.
             // FIXME: ideally this should return 0 rows with both remotes SKIPPED.
-            var ex = expectThrows(
+            expectThrows(
                 VerificationException.class,
+                containsString("Unknown index [cluster-a:values_lookup,remote-b:values_lookup]"),
                 () -> runQuery("FROM *:logs-* | EVAL lookup_key = v | LOOKUP JOIN values_lookup ON lookup_key", randomBoolean())
             );
-            assertThat(ex.getMessage(), containsString("Unknown index [cluster-a:values_lookup,remote-b:values_lookup]"));
         } finally {
             clearSkipUnavailable(3);
         }

@@ -61,30 +61,6 @@ public class ExternalSourceCacheService implements Closeable {
     private volatile boolean enabled;
 
     /**
-     * A single object's cheap physical metadata: byte {@code length} and last-modified epoch millis.
-     * mtime is stored purely as the version token that rebuilds the {@link SchemaCacheKey} and populates
-     * the resolved {@code StorageEntry}; staleness is bounded by the file-metadata cache's hard TTL alone,
-     * never by mtime acting as a second freshness clock. {@code length} is cached alongside because the
-     * warm single-file resolve rebuilds its singleton file list from both, so caching mtime without length
-     * would still force the per-query object probe.
-     */
-    public record FileMetadata(long length, long mtimeMillis) {}
-
-    /**
-     * Key for a cached {@link FileMetadata}. Deliberately credential-INDEPENDENT (endpoint + region only,
-     * no access key / token) so the entry is shared across users exactly like the schema cache — the same
-     * canonical path on the same endpoint/region resolves to the same object regardless of who asks. The
-     * same canonical path on a different endpoint resolves to a different object, so endpoint and region
-     * are part of the identity.
-     */
-    public record FileMetadataCacheKey(String canonicalPath, String endpoint, String region) {
-        public static FileMetadataCacheKey build(String canonicalPath, Map<String, Object> config) {
-            EndpointRegion location = EndpointRegion.of(config);
-            return new FileMetadataCacheKey(canonicalPath, location.endpoint(), location.region());
-        }
-    }
-
-    /**
      * Per-file-path lock serializing the read-modify-write of a schema-cache entry's stripe metadata,
      * so concurrent commits of different stripes for the same file accumulate instead of the later
      * write dropping the earlier stripe (lost update). Coordinator-side commits are infrequent, so
@@ -140,14 +116,6 @@ public class ExternalSourceCacheService implements Closeable {
      */
     private static final long PENDING_DATASET_AGGREGATE_TTL_NANOS = TimeUnit.HOURS.toNanos(1);
 
-    /**
-     * Entry-count cap for the file-metadata cache. Unlike the schema and listing caches (byte-weighted,
-     * variable-size values), a {@link FileMetadata} is two {@code long}s behind a small path key, so it is
-     * bounded by count rather than bytes — no per-entry byte weigher. {@value} tiny entries is a few tens of
-     * MB worst case, and, being hard-TTL-bounded by the schema TTL, the live set is normally far smaller.
-     */
-    private static final int FILE_METADATA_CACHE_MAX_ENTRIES = 100_000;
-
     private final LongAdder datasetAggregateHits = new LongAdder();
     private final LongAdder datasetAggregateMisses = new LongAdder();
     private final LongAdder statsAggregateIncomplete = new LongAdder();
@@ -159,6 +127,7 @@ public class ExternalSourceCacheService implements Closeable {
 
         TimeValue schemaTtl = ExternalSourceCacheSettings.SCHEMA_TTL.get(settings);
         TimeValue listingTtl = ExternalSourceCacheSettings.LISTING_TTL.get(settings);
+        int fileMetadataMaxEntries = ExternalSourceCacheSettings.FILE_METADATA_MAX_ENTRIES.get(settings);
 
         long schemaBudget = maxTotalBytes / 5; // 20%
         long listingBudget = maxTotalBytes - schemaBudget; // 80%
@@ -173,7 +142,7 @@ public class ExternalSourceCacheService implements Closeable {
         // its freshness horizon must match the schema entry it gates. No byte weigher — entries are tiny and
         // fixed-size, so the cache is bounded by a generous entry count instead of the byte budget.
         this.fileMetadataCache = CacheBuilder.<FileMetadataCacheKey, FileMetadata>builder()
-            .setMaximumWeight(FILE_METADATA_CACHE_MAX_ENTRIES)
+            .setMaximumWeight(fileMetadataMaxEntries)
             .setExpireAfterWrite(schemaTtl)
             .build();
 
@@ -189,7 +158,7 @@ public class ExternalSourceCacheService implements Closeable {
             totalBudget,
             ByteSizeValue.ofBytes(schemaBudget),
             ByteSizeValue.ofBytes(listingBudget),
-            FILE_METADATA_CACHE_MAX_ENTRIES,
+            fileMetadataMaxEntries,
             schemaTtl,
             listingTtl
         );

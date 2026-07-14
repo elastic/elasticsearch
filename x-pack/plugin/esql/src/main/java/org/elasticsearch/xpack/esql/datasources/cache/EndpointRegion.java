@@ -13,7 +13,7 @@ import java.util.Map;
  * The object-identity dimensions shared by every external-source cache key: the storage {@code endpoint}
  * and {@code region} pulled from the WITH config. The same canonical path on a different endpoint (or
  * region) resolves to a different physical object, so both participate in key identity. Extracted so
- * {@link SchemaCacheKey} and {@link ExternalSourceCacheService.FileMetadataCacheKey} read them identically
+ * {@link SchemaCacheKey}, {@link FileMetadataCacheKey}, and {@link ListingCacheKey} read them identically
  * and cannot drift on these dimensions.
  */
 record EndpointRegion(String endpoint, String region) {

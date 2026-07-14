@@ -279,22 +279,19 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testFileMetadataHitMiss() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
-            ExternalSourceCacheService.FileMetadataCacheKey key = ExternalSourceCacheService.FileMetadataCacheKey.build(
-                "s3://bucket/data/file.parquet",
-                Map.of()
-            );
+            FileMetadataCacheKey key = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", Map.of());
 
-            ExternalSourceCacheService.FileMetadata meta1 = service.getOrComputeFileMetadata(key, k -> {
+            FileMetadata meta1 = service.getOrComputeFileMetadata(key, k -> {
                 loaderCalls.incrementAndGet();
-                return new ExternalSourceCacheService.FileMetadata(4096L, 1000L);
+                return new FileMetadata(4096L, 1000L);
             });
             assertEquals(4096L, meta1.length());
             assertEquals(1000L, meta1.mtimeMillis());
             assertEquals(1, loaderCalls.get());
 
-            ExternalSourceCacheService.FileMetadata meta2 = service.getOrComputeFileMetadata(key, k -> {
+            FileMetadata meta2 = service.getOrComputeFileMetadata(key, k -> {
                 loaderCalls.incrementAndGet();
-                return new ExternalSourceCacheService.FileMetadata(9999L, 2000L);
+                return new FileMetadata(9999L, 2000L);
             });
             assertSame(meta1, meta2);
             assertEquals("warm hit must not invoke the loader", 1, loaderCalls.get());
@@ -310,32 +307,48 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             service.setEnabled(false);
             AtomicInteger loaderCalls = new AtomicInteger();
-            ExternalSourceCacheService.FileMetadataCacheKey key = ExternalSourceCacheService.FileMetadataCacheKey.build(
-                "s3://bucket/data/file.parquet",
-                Map.of()
-            );
+            FileMetadataCacheKey key = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", Map.of());
 
             service.getOrComputeFileMetadata(key, k -> {
                 loaderCalls.incrementAndGet();
-                return new ExternalSourceCacheService.FileMetadata(1L, 1L);
+                return new FileMetadata(1L, 1L);
             });
             service.getOrComputeFileMetadata(key, k -> {
                 loaderCalls.incrementAndGet();
-                return new ExternalSourceCacheService.FileMetadata(1L, 1L);
+                return new FileMetadata(1L, 1L);
             });
             assertEquals("disabled cache calls the loader every time", 2, loaderCalls.get());
             assertEquals(0, service.usageStats().get("file_metadata_cache.count"));
         }
     }
 
+    public void testFileMetadataMaxEntriesSettingBoundsCapacity() throws Exception {
+        // The count cap comes straight from esql.source.cache.file_metadata.max_entries: with room for two
+        // entries, inserting a third must evict, proving the setting is wired into the cache capacity.
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.file_metadata.max_entries", 2)
+            .build();
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
+            for (int i = 0; i < 3; i++) {
+                FileMetadataCacheKey key = FileMetadataCacheKey.build("s3://bucket/data/file" + i + ".parquet", Map.of());
+                service.getOrComputeFileMetadata(key, k -> new FileMetadata(1L, 1L));
+            }
+            Map<String, Object> stats = service.usageStats();
+            assertEquals("capacity must stay at the configured cap", 2, stats.get("file_metadata_cache.count"));
+            assertEquals("the over-capacity insert must evict one entry", 1L, stats.get("file_metadata_cache.evictions"));
+        }
+    }
+
     public void testFileMetadataDifferentEndpointSeparateEntries() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
-            ExternalSourceCacheService.FileMetadataCacheKey key1 = ExternalSourceCacheService.FileMetadataCacheKey.build(
+            FileMetadataCacheKey key1 = FileMetadataCacheKey.build(
                 "s3://bucket/data/file.parquet",
                 Map.of("endpoint", "us-east-1.amazonaws.com")
             );
-            ExternalSourceCacheService.FileMetadataCacheKey key2 = ExternalSourceCacheService.FileMetadataCacheKey.build(
+            FileMetadataCacheKey key2 = FileMetadataCacheKey.build(
                 "s3://bucket/data/file.parquet",
                 Map.of("endpoint", "eu-west-1.amazonaws.com")
             );
@@ -343,11 +356,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.getOrComputeFileMetadata(key1, k -> {
                 loaderCalls.incrementAndGet();
-                return new ExternalSourceCacheService.FileMetadata(1L, 1L);
+                return new FileMetadata(1L, 1L);
             });
             service.getOrComputeFileMetadata(key2, k -> {
                 loaderCalls.incrementAndGet();
-                return new ExternalSourceCacheService.FileMetadata(2L, 2L);
+                return new FileMetadata(2L, 2L);
             });
             assertEquals(2, loaderCalls.get());
         }
@@ -356,11 +369,11 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     public void testFileMetadataCredentialIndependentKey() {
         // The file-metadata key is credential-independent so entries are shared across users, exactly
         // like the schema cache — only endpoint/region participate in identity.
-        ExternalSourceCacheService.FileMetadataCacheKey withCredA = ExternalSourceCacheService.FileMetadataCacheKey.build(
+        FileMetadataCacheKey withCredA = FileMetadataCacheKey.build(
             "s3://bucket/data/file.parquet",
             Map.of("access_key", "userA", "endpoint", "e", "region", "r")
         );
-        ExternalSourceCacheService.FileMetadataCacheKey withCredB = ExternalSourceCacheService.FileMetadataCacheKey.build(
+        FileMetadataCacheKey withCredB = FileMetadataCacheKey.build(
             "s3://bucket/data/file.parquet",
             Map.of("access_key", "userB", "endpoint", "e", "region", "r")
         );
@@ -369,11 +382,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     public void testClearAllEmptiesFileMetadataCache() throws Exception {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            ExternalSourceCacheService.FileMetadataCacheKey key = ExternalSourceCacheService.FileMetadataCacheKey.build(
-                "s3://bucket/data/file.parquet",
-                Map.of()
-            );
-            service.getOrComputeFileMetadata(key, k -> new ExternalSourceCacheService.FileMetadata(1L, 1L));
+            FileMetadataCacheKey key = FileMetadataCacheKey.build("s3://bucket/data/file.parquet", Map.of());
+            service.getOrComputeFileMetadata(key, k -> new FileMetadata(1L, 1L));
             assertEquals(1, service.usageStats().get("file_metadata_cache.count"));
 
             service.clearAll();

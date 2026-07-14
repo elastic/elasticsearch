@@ -75,7 +75,7 @@ public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalD
     }
 
     private static String ts(int i) {
-        return DateTimeFormatter.ISO_INSTANT.format(BASE.plus(Duration.ofDays(i))); // midnight of 2020-01-(i+1)
+        return DateTimeFormatter.ISO_INSTANT.format(BASE.plus(Duration.ofDays(i))); // 12:34:56 on 2020-01-(i+1)
     }
 
     @Before

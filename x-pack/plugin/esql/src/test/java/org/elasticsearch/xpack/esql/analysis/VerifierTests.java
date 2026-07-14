@@ -2378,10 +2378,12 @@ public class VerifierTests extends ESTestCase {
      * adds for fields sourced from an {@code ExternalRelation}. Regression guard for over-broadening that clause.
      */
     public void testFullTextFunctionsRejectEvalColumnsMessageOmitsFederatedClauseOnRealIndex() throws Exception {
+        // Uses KNN because it is the only field-based full-text function left without runtime search support; if
+        // that lands too, this guard needs another way to trigger the "not a field from an index mapping" failure.
         fullText().error(
-            "from test | eval name = title | where match_phrase(name, \"Meditation\")",
+            "from test | eval v = vector | where knn(v, [1, 2, 3])",
             allOf(
-                containsString("[MatchPhrase] function cannot operate on [name], which is not a field from an index mapping"),
+                containsString("[KNN] function cannot operate on [v], which is not a field from an index mapping"),
                 not(containsString("federated"))
             )
         );

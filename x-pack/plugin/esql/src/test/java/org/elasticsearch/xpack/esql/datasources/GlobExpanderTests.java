@@ -179,6 +179,45 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/region=*/*.parquet", rewritten);
     }
 
+    /**
+     * An IN value with characters Hive/Spark percent-escape in folder names (`:` `/` etc.) must emit both the bare and
+     * escaped spelling — the on-disk folder is `category=ns%3Aclick`, so a rewrite to bare `ns:click` would miss it.
+     */
+    public void testRewriteGlobWithInHintEmitsHiveEscapedSpellings() {
+        var hints = List.of(hint("category", PartitionFilterHintExtractor.Operator.IN, "login", "ns:click"));
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/category=*/*.parquet", hints);
+        assertThat(rewritten, containsString("ns:click"));
+        assertThat(rewritten, containsString("ns%3Aclick"));
+        assertThat(rewritten, containsString("login"));
+    }
+
+    /**
+     * End-to-end: an IN over a Hive-escaped partition folder lists it. Folders `category=login/` and the escaped
+     * `category=ns%3Aclick/` (Spark's on-disk spelling of value `ns:click`); `WHERE category IN ("login","ns:click")`
+     * must list both, not silently drop the escaped one. Red before the escape-spelling fix (esql-planning#1176).
+     */
+    public void testInListMatchesHiveEscapedFolder() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/data/",
+                List.of(
+                    entry("s3://bucket/data/category=login/a.parquet", 100),
+                    entry("s3://bucket/data/category=ns%3Aclick/b.parquet", 200)
+                )
+            )
+        );
+
+        var hints = List.of(hint("category", PartitionFilterHintExtractor.Operator.IN, "login", "ns:click"));
+        FileList result = GlobExpander.expand("s3://bucket/data/category=*/*.parquet", provider, hints, true, MAX, MAX);
+
+        List<String> paths = new ArrayList<>();
+        for (int i = 0; i < result.fileCount(); i++) {
+            paths.add(result.path(i).toString());
+        }
+        assertEquals("the escaped category=ns%3Aclick folder must be listed alongside category=login", 2, result.fileCount());
+        assertTrue(paths.contains("s3://bucket/data/category=ns%3Aclick/b.parquet"));
+    }
+
     public void testRewriteGlobWithRangeHintNoRewrite() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020));
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);

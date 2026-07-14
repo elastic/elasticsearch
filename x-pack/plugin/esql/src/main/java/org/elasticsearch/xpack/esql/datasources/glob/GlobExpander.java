@@ -800,31 +800,78 @@ public final class GlobExpander {
         return key + "=" + brace(spellings);
     }
 
+    private static final char[] HEX = "0123456789ABCDEF".toCharArray();
+
     /**
-     * The on-disk spellings an {@code IN}-list of partition values can take: each value itself, plus its two-digit
-     * zero-padded form when it is a single digit — the Hive convention for {@code month}/{@code day}/{@code hour}
-     * (e.g. {@code 6 → 06}). A glob rewrite matches folder names literally, so an {@code IN} value spelled shorter
-     * than the folder ({@code 6} vs {@code 06}) would otherwise miss it and silently drop rows the row filter would
-     * keep. Emitting both spellings makes the listing a superset <b>with respect to zero-padding</b>. A single
-     * {@code EQUALS} value stays a concrete segment (it prefix-narrows the listing, and a zero-padded miss lists empty
-     * and hits the un-rewritten fallback); consistent padding wider than two digits is likewise caught by that
-     * fallback.
+     * The ASCII characters Hive/Spark percent-escape in a partition folder name ({@code FileUtils.escapePathName} /
+     * {@code ExternalCatalogUtils.escapePathName}): the C0 control range, {@code DEL}, and a fixed punctuation set.
+     * Space, {@code ,} and {@code }} are deliberately NOT escaped by those writers (so {@link #braceExpressible}
+     * still vetoes comma/brace values to a full-glob listing). Non-ASCII passes through literally, matching the writer.
+     */
+    private static final java.util.BitSet HIVE_ESCAPE = new java.util.BitSet(128);
+    static {
+        for (int c = 0; c < 0x20; c++) {
+            HIVE_ESCAPE.set(c);
+        }
+        HIVE_ESCAPE.set(0x7F);
+        for (char c : new char[] { '"', '#', '%', '\'', '*', '/', ':', '=', '?', '\\', '{', '[', ']', '^' }) {
+            HIVE_ESCAPE.set(c);
+        }
+    }
+
+    /**
+     * The on-disk spellings an {@code IN}-list of partition value can take, so the glob rewrite (which matches folder
+     * names literally) lists every folder the row filter would keep instead of silently dropping some. For each value:
+     * the value itself; its two-digit zero-padded form when a single digit (Hive convention for
+     * {@code month}/{@code day}/{@code hour}, {@code 6 → 06}); and the Hive/Spark percent-escaped form of each
+     * ({@code ns:click → ns%3Aclick}, the everyday shape for string partitions holding {@code :} or {@code /}, e.g.
+     * timestamps). Every spelling only <b>widens</b> the brace, so the listing is always a superset and the row filter
+     * narrows — a wrong spelling can never drop rows, only add a folder that is then filtered out.
      *
-     * <p>This does not cover every folder-vs-literal normalization — URL-escaping, boolean case, integer-vs-decimal
-     * spelling, or a value the brace syntax cannot express (see {@link #braceExpressible}). Those either list empty
-     * and hit the fallback, or are vetoed to a full-glob listing, so they never drop rows; the broader value-spelling
-     * class (matching folders by typed value rather than name) is tracked separately.
+     * <p>A single {@code EQUALS} value stays a concrete segment (it prefix-narrows the listing; a spelling miss lists
+     * empty and hits the un-rewritten fallback). Remaining gaps — integer-vs-decimal spelling ({@code 6} vs
+     * {@code 6.0}, a typing mismatch better fixed by matching folders by typed value), boolean case, padding wider
+     * than two digits, and mixed-width padding within one column — either hit the empty-listing fallback or are the
+     * value-aware follow-up; they cannot be solved cleanly by widening spellings (e.g. blindly emitting {@code 6.0}
+     * for every integer would list nonsense {@code year=2024.0}).
      */
     private static Set<String> partitionValueSpellings(List<Object> values) {
         Set<String> spellings = new LinkedHashSet<>();
         for (Object value : values) {
-            String raw = String.valueOf(value);
-            spellings.add(raw);
-            if (raw.length() == 1 && raw.charAt(0) >= '0' && raw.charAt(0) <= '9') {
-                spellings.add("0" + raw);
+            for (String variant : valueVariants(String.valueOf(value))) {
+                spellings.add(variant);
+                String escaped = hiveEscape(variant);
+                if (escaped.equals(variant) == false) {
+                    spellings.add(escaped);
+                }
             }
         }
         return spellings;
+    }
+
+    /** A value's unescaped on-disk forms before writer escaping: itself and its 2-zero-padded single-digit form. */
+    private static List<String> valueVariants(String raw) {
+        if (raw.length() == 1 && raw.charAt(0) >= '0' && raw.charAt(0) <= '9') {
+            return List.of(raw, "0" + raw);
+        }
+        return List.of(raw);
+    }
+
+    /** Percent-escapes {@code value} the way Hive/Spark write partition folder names (see {@link #HIVE_ESCAPE}). */
+    private static String hiveEscape(String value) {
+        StringBuilder sb = null;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c < 128 && HIVE_ESCAPE.get(c)) {
+                if (sb == null) {
+                    sb = new StringBuilder(value.length() + 6).append(value, 0, i);
+                }
+                sb.append('%').append(HEX[(c >> 4) & 0xF]).append(HEX[c & 0xF]);
+            } else if (sb != null) {
+                sb.append(c);
+            }
+        }
+        return sb == null ? value : sb.toString();
     }
 
     /**

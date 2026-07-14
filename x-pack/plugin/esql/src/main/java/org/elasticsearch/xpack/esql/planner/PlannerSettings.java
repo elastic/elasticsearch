@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.PartitionedHashAggregationOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -287,6 +288,44 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Number of partitions used by {@link PartitionedHashAggregationOperator} for INITIAL-mode grouping aggregations.
+     * Default {@code 1} disables partitioning. Set to a value greater than 1 (e.g. 32) to enable.
+     */
+    public static final Setting<Integer> PARTITIONED_AGGREGATION_PARTITION_COUNT = Setting.intSetting(
+        "esql.partitioned_agg_partition_count",
+        1,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Number of unique grouping keys the legacy (pre-conversion) single table must accumulate before
+     * {@link PartitionedHashAggregationOperator} splits it into N independent partitions.
+     */
+    public static final Setting<Integer> PARTITIONED_AGGREGATION_CONVERSION_THRESHOLD = Setting.intSetting(
+        "esql.partitioned_agg_conversion_threshold",
+        PartitionedHashAggregationOperator.DEFAULT_PARTITION_CONVERSION_THRESHOLD,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Per-partition key-count threshold for early intermediate emission in
+     * {@link PartitionedHashAggregationOperator}. When a single partition accumulates this many keys
+     * it emits an intermediate page and resets, analogous to the cluster-wide
+     * {@link #PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD}.
+     */
+    public static final Setting<Integer> PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD = Setting.intSetting(
+        "esql.partitioned_agg_per_partition_emit_threshold",
+        PartitionedHashAggregationOperator.DEFAULT_PER_PARTITION_EMIT_THRESHOLD,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -308,7 +347,10 @@ public class PlannerSettings {
             DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
             PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS,
             PARALLEL_OPERATOR_MAX_WORKERS,
-            IN_SUBQUERY_HASH_JOIN_THRESHOLD
+            IN_SUBQUERY_HASH_JOIN_THRESHOLD,
+            PARTITIONED_AGGREGATION_PARTITION_COUNT,
+            PARTITIONED_AGGREGATION_CONVERSION_THRESHOLD,
+            PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD
         );
     }
 
@@ -369,6 +411,18 @@ public class PlannerSettings {
                 IN_SUBQUERY_HASH_JOIN_THRESHOLD,
                 v -> settings.updateAndGet(s -> s.inSubqueryHashJoinThreshold(v))
             );
+            clusterSettings.initializeAndWatch(
+                PARTITIONED_AGGREGATION_PARTITION_COUNT,
+                v -> settings.updateAndGet(s -> s.partitionedAggPartitionCount(v))
+            );
+            clusterSettings.initializeAndWatch(
+                PARTITIONED_AGGREGATION_CONVERSION_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.partitionedAggConversionThreshold(v))
+            );
+            clusterSettings.initializeAndWatch(
+                PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.partitionedAggPerPartitionEmitThreshold(v))
+            );
         }
 
         public PlannerSettings get() {
@@ -395,6 +449,9 @@ public class PlannerSettings {
     private final long parallelTopNPromotionThresholdRows;
     private final int parallelTopNMaxWorkers;
     private final int inSubqueryHashJoinThreshold;
+    private final int partitionedAggPartitionCount;
+    private final int partitionedAggConversionThreshold;
+    private final int partitionedAggPerPartitionEmitThreshold;
 
     /**
      * Defaults.
@@ -418,7 +475,10 @@ public class PlannerSettings {
         DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
         PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
         PARALLEL_OPERATOR_MAX_WORKERS.getDefault(Settings.EMPTY),
-        IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY)
+        IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
+        PARTITIONED_AGGREGATION_PARTITION_COUNT.getDefault(Settings.EMPTY),
+        PARTITIONED_AGGREGATION_CONVERSION_THRESHOLD.getDefault(Settings.EMPTY),
+        PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -443,7 +503,10 @@ public class PlannerSettings {
         int docSequenceBytesRefFieldThreshold,
         long parallelTopNPromotionThresholdRows,
         int parallelTopNMaxWorkers,
-        int inSubqueryHashJoinThreshold
+        int inSubqueryHashJoinThreshold,
+        int partitionedAggPartitionCount,
+        int partitionedAggConversionThreshold,
+        int partitionedAggPerPartitionEmitThreshold
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.docsThresholdForAutoPartitioning = docsThresholdForAutoPartitioning;
@@ -464,6 +527,9 @@ public class PlannerSettings {
         this.parallelTopNPromotionThresholdRows = parallelTopNPromotionThresholdRows;
         this.parallelTopNMaxWorkers = parallelTopNMaxWorkers;
         this.inSubqueryHashJoinThreshold = inSubqueryHashJoinThreshold;
+        this.partitionedAggPartitionCount = partitionedAggPartitionCount;
+        this.partitionedAggConversionThreshold = partitionedAggConversionThreshold;
+        this.partitionedAggPerPartitionEmitThreshold = partitionedAggPerPartitionEmitThreshold;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -486,7 +552,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -514,7 +583,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -542,7 +614,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -584,7 +659,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -612,7 +690,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -640,7 +721,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -668,7 +752,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -696,7 +783,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -731,7 +821,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -762,7 +855,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -793,7 +889,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -821,7 +920,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -849,7 +951,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -877,7 +982,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -905,7 +1013,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -933,7 +1044,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -961,7 +1075,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -989,7 +1106,10 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
@@ -1017,11 +1137,107 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
         );
     }
 
     public int inSubqueryHashJoinThreshold() {
         return inSubqueryHashJoinThreshold;
+    }
+
+    public PlannerSettings partitionedAggPartitionCount(int partitionedAggPartitionCount) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
+        );
+    }
+
+    public int partitionedAggPartitionCount() {
+        return partitionedAggPartitionCount;
+    }
+
+    public PlannerSettings partitionedAggConversionThreshold(int partitionedAggConversionThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
+        );
+    }
+
+    public int partitionedAggConversionThreshold() {
+        return partitionedAggConversionThreshold;
+    }
+
+    public PlannerSettings partitionedAggPerPartitionEmitThreshold(int partitionedAggPerPartitionEmitThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            partitionedAggPartitionCount,
+            partitionedAggConversionThreshold,
+            partitionedAggPerPartitionEmitThreshold
+        );
+    }
+
+    public int partitionedAggPerPartitionEmitThreshold() {
+        return partitionedAggPerPartitionEmitThreshold;
     }
 }

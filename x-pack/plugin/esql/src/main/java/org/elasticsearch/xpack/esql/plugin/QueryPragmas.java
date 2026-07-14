@@ -214,7 +214,10 @@ public final class QueryPragmas implements Writeable {
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
-        PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS
+        PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
+        PlannerSettings.PARTITIONED_AGGREGATION_PARTITION_COUNT,
+        PlannerSettings.PARTITIONED_AGGREGATION_CONVERSION_THRESHOLD,
+        PlannerSettings.PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -414,6 +417,27 @@ public final class QueryPragmas implements Writeable {
     public int minDocsPerSlice(int defaultMinDocsPerSlice) {
         int override = MIN_DOCS_PER_SLICE.get(settings);
         return override > 0 ? override : defaultMinDocsPerSlice;
+    }
+
+    public int partitionedAggPartitionCount(int defaultPartitionCount) {
+        if (settings.hasValue(PlannerSettings.PARTITIONED_AGGREGATION_PARTITION_COUNT.getKey())) {
+            return PlannerSettings.PARTITIONED_AGGREGATION_PARTITION_COUNT.get(settings);
+        }
+        return defaultPartitionCount;
+    }
+
+    public int partitionedAggConversionThreshold(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.PARTITIONED_AGGREGATION_CONVERSION_THRESHOLD.getKey())) {
+            return PlannerSettings.PARTITIONED_AGGREGATION_CONVERSION_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
+    }
+
+    public int partitionedAggPerPartitionEmitThreshold(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD.getKey())) {
+            return PlannerSettings.PARTITIONED_AGGREGATION_PER_PARTITION_EMIT_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
     }
 
     public boolean isEmpty() {

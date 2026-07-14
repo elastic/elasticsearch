@@ -129,6 +129,8 @@ public record TestConfiguration(
     static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
     static final ParseField NUM_DELETED_DOCS_FIELD = new ParseField("num_deleted_docs");
     static final ParseField DELETE_SEED_FIELD = new ParseField("delete_seed");
+    static final ParseField EXACT_FIELD = new ParseField("exact");
+    static final ParseField EXACT_QUANTIZED_FIELD = new ParseField("exact_quantized");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -203,6 +205,13 @@ public record TestConfiguration(
         PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
         PARSER.declareInt(Builder::setNumDeletedDocs, NUM_DELETED_DOCS_FIELD);
         PARSER.declareLong(Builder::setDeleteSeed, DELETE_SEED_FIELD);
+        PARSER.declareFieldArray(Builder::setExact, (p, c) -> p.booleanValue(), EXACT_FIELD, ObjectParser.ValueType.VALUE_ARRAY);
+        PARSER.declareFieldArray(
+            Builder::setExactQuantized,
+            (p, c) -> p.booleanValue(),
+            EXACT_QUANTIZED_FIELD,
+            ObjectParser.ValueType.VALUE_ARRAY
+        );
     }
 
     public int numberOfSearchRuns() {
@@ -286,6 +295,17 @@ public record TestConfiguration(
             new ParameterHelp("filter_cache", "array[boolean]", "Search: whether filters are cached."),
             new ParameterHelp("early_termination", "array[boolean]", "Search: allow early termination when possible."),
             new ParameterHelp("seed", "array[long]", "Search: random seed used random filters."),
+            new ParameterHelp(
+                "exact",
+                "array[boolean]",
+                "Search: run exact (brute-force) search via DenseVectorQuery instead of the index's "
+                    + "approximate search, regardless of index_type."
+            ),
+            new ParameterHelp(
+                "exact_quantized",
+                "array[boolean]",
+                "Search: when exact is true, score against the codec's quantized representation " + "instead of raw full-precision vectors."
+            ),
             new ParameterHelp(
                 "search_params",
                 "array[object]",
@@ -444,6 +464,8 @@ public record TestConfiguration(
         private String directoryType = "default";
         private int numDeletedDocs = 0;
         private long deleteSeed = 1751900822751L;
+        private List<Boolean> exact = List.of(Boolean.FALSE);
+        private List<Boolean> exactQuantized = List.of(Boolean.FALSE);
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -676,6 +698,16 @@ public record TestConfiguration(
 
         public Builder setDeleteSeed(long deleteSeed) {
             this.deleteSeed = deleteSeed;
+            return this;
+        }
+
+        public Builder setExact(List<Boolean> exact) {
+            this.exact = exact;
+            return this;
+        }
+
+        public Builder setExactQuantized(List<Boolean> exactQuantized) {
+            this.exactQuantized = exactQuantized;
             return this;
         }
 
@@ -928,7 +960,9 @@ public record TestConfiguration(
                     filterSelectivity.getFirst(),
                     filterCached.getFirst(),
                     earlyTermination.getFirst(),
-                    seed.getFirst()
+                    seed.getFirst(),
+                    exact.getFirst(),
+                    exactQuantized.getFirst()
                 );
 
                 for (var so : searchParams) {
@@ -1038,6 +1072,8 @@ public record TestConfiguration(
             if (deleteSeed != 1751900822751L) {
                 builder.field(DELETE_SEED_FIELD.getPreferredName(), deleteSeed);
             }
+            builder.field(EXACT_FIELD.getPreferredName(), exact);
+            builder.field(EXACT_QUANTIZED_FIELD.getPreferredName(), exactQuantized);
             return builder.endObject();
         }
 
@@ -1052,7 +1088,9 @@ public record TestConfiguration(
                 filterSelectivity.size(),
                 filterCached.size(),
                 earlyTermination.size(),
-                seed.size()
+                seed.size(),
+                exact.size(),
+                exactQuantized.size()
             );
             return lengths.stream().max(Integer::compareTo).get();
         }
@@ -1069,7 +1107,9 @@ public record TestConfiguration(
                     filterSelectivity,
                     filterCached,
                     earlyTermination,
-                    seed
+                    seed,
+                    exact,
+                    exactQuantized
                 )
             ).stream()
                 .map(
@@ -1083,9 +1123,12 @@ public record TestConfiguration(
                         (Float) params.get(6),
                         (Boolean) params.get(7),
                         (Boolean) params.get(8),
-                        (Long) params.get(9)
+                        (Long) params.get(9),
+                        (Boolean) params.get(10),
+                        (Boolean) params.get(11)
                     )
                 )
+                .filter(sp -> sp.exact() || sp.exactQuantized() == false)
                 .toList();
         }
 

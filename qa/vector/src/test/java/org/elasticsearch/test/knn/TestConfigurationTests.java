@@ -71,6 +71,40 @@ public class TestConfigurationTests extends ESTestCase {
         }
     }
 
+    public void testExactSearchParsingDefaults() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertEquals(1, config.searchParams().size());
+            assertFalse(config.searchParams().get(0).exact());
+            assertFalse(config.searchParams().get(0).exactQuantized());
+        }
+    }
+
+    public void testExactSearchParsing() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128,
+              "exact": [true],
+              "exact_quantized": [true]
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertEquals(1, config.searchParams().size());
+            assertTrue(config.searchParams().get(0).exact());
+            assertTrue(config.searchParams().get(0).exactQuantized());
+        }
+    }
+
     public void testQueryQuantizeBitsParsing() throws Exception {
         String json = """
             {

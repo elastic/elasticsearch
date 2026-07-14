@@ -1064,6 +1064,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
                 String[] path = col.getPath().toArray();
                 ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
+                if (desc != null && isMapDescendedLeaf(parquetSchema, path)) {
+                    // A MAP's key and value leaves collapse to the same logical name (both stop at the
+                    // enclosing MAP group) and are heterogeneously typed, so folding their footer stats into
+                    // one entry throws in the min/max merge. A MAP is UNSUPPORTED downstream and its stats are
+                    // never consumed, so skip every map-descended leaf entirely. See isMapDescendedLeaf.
+                    continue;
+                }
                 if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
                     // Top-level list column: its leaf null_count/min/max are element-level and don't
                     // answer row-level COUNT / IS NOT NULL. Publish only a size marker under the attribute
@@ -1078,10 +1085,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 }
                 // Key non-top-level leaves on the flattener's logical leaf name so the stats bind to the
                 // same attribute name the planner uses (a struct-nested list leaf answers.text.list.element
-                // is surfaced as answers.text). NB: a MAP's key and value leaves share this name (both stop
-                // at the enclosing MAP group), so their stats merge into one entry here. That is harmless
-                // while MAP is UNSUPPORTED downstream and never projected; revisit if MAP columns become
-                // readable.
+                // is surfaced as answers.text). MAP leaves are excluded above (isMapDescendedLeaf) because
+                // their key and value share this name yet are heterogeneously typed, which would fold into one
+                // entry and throw in the min/max merge.
                 String colName = desc != null ? logicalLeafName(parquetSchema, path) : col.getPath().toDotString();
                 colSizes.merge(colName, new long[] { col.getTotalUncompressedSize() }, (a, b) -> {
                     a[0] += b[0];
@@ -1349,6 +1355,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         for (ColumnChunkMetaData col : rowGroup.getColumns()) {
             String[] path = col.getPath().toArray();
             ColumnDescriptor desc = parquetSchema.getColumnDescription(path);
+            if (desc != null && isMapDescendedLeaf(parquetSchema, path)) {
+                // Skip map-descended leaves: a MAP's key/value collapse to one heterogeneously typed logical
+                // name that put() here would silently record as wrong value-over-key stats, and a MAP is
+                // UNSUPPORTED downstream so the stats are never consumed. Mirrors extractStatistics.
+                continue;
+            }
             if (desc != null && desc.getMaxRepetitionLevel() > 0 && isTopLevelListLeaf(parquetSchema, path)) {
                 // Top-level list column: size marker only under the attribute name (path[0]); the unknown
                 // null_count makes COUNT decline the footer fast path and scan. Mirrors extractStatistics.
@@ -1363,8 +1375,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // Publish non-top-level leaves under the flattener's logical leaf name (which stops at an
             // enclosing LIST/MAP) so a COUNT/MIN/MAX(answers.text) lookup resolves. The raw leaf path
             // "answers.text.list.element" would never be found by the planner's attribute name.
-            // See extractStatistics for the logical-name keying rationale and the MAP key/value
-            // stat-merge assumption (harmless while MAP is UNSUPPORTED).
+            // See extractStatistics for the logical-name keying rationale; MAP leaves are skipped above
+            // (isMapDescendedLeaf) since their key/value would collapse to one heterogeneously typed name.
             String colName = desc != null ? logicalLeafName(parquetSchema, path) : col.getPath().toDotString();
             stats.put(SourceStatisticsSerializer.columnSizeBytesKey(colName), col.getTotalUncompressedSize());
             Statistics colStats = col.getStatistics();
@@ -1416,6 +1428,20 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     static int compareStatExtremum(Comparable a, Comparable b) {
         if (a instanceof String && b instanceof String) {
             return SourceStatisticsSerializer.compareKeywordUtf8(a, b);
+        }
+        // Last-resort net: heterogeneously typed extrema (e.g. a MAP key String against a value Long) must not
+        // cross-cast into a raw ClassCastException. The statistics producers already skip map-descended leaves
+        // (isMapDescendedLeaf), so in production only same-type extrema reach here — a mismatch means a fold
+        // regression upstream. Fail loudly under -ea (tests/CI) to catch it, and fall back to a safe 0 in
+        // production rather than crashing on the cross-cast.
+        if (a.getClass() != b.getClass()) {
+            assert false
+                : "heterogeneous stat extrema ["
+                    + a.getClass()
+                    + "] vs ["
+                    + b.getClass()
+                    + "]; map-descended leaves must be skipped upstream";
+            return 0;
         }
         return a.compareTo(b);
     }
@@ -2257,6 +2283,35 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      */
     private static boolean isRepeatedLeaf(ColumnDescriptor desc) {
         return desc != null && desc.getMaxRepetitionLevel() > 0;
+    }
+
+    /**
+     * Whether the leaf reached by {@code descriptorPath} sits under a {@code MAP} group at any depth.
+     * <p>
+     * A Parquet {@code MAP<K,V>} has two physical leaves ({@code m.key_value.key}, {@code m.key_value.value})
+     * that {@link #logicalLeafName} collapses to the same enclosing-MAP dotted name. Their footer statistics
+     * are therefore heterogeneously typed (e.g. a keyword key and a long value) yet fold into a single entry
+     * keyed on that shared name — comparing a {@code String} key extremum against a {@code Long} value extremum
+     * throws {@link ClassCastException} in the min/max merge. A {@code MAP} group also resolves to
+     * {@link DataType#UNSUPPORTED} downstream, so these stats are never consumed. Collecting them is both
+     * pointless and harmful, so the statistics producers skip every map-descended leaf. Driven off the
+     * schema's {@code MAP} logical annotation (like {@link #logicalLeafName}), it covers homogeneous maps and
+     * every nested variant ({@code struct<map>}, {@code map<string,list>}, {@code map<string,struct>}) at any
+     * depth.
+     */
+    private static boolean isMapDescendedLeaf(GroupType schema, String[] descriptorPath) {
+        Type current = schema;
+        for (String segment : descriptorPath) {
+            // The descriptor path is always resolvable within the schema it came from, so every
+            // intermediate node is a group and getType() never throws here.
+            Type child = current.asGroupType().getType(segment);
+            if (child.isPrimitive() == false
+                && child.asGroupType().getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
+                return true;
+            }
+            current = child;
+        }
+        return false;
     }
 
     /**

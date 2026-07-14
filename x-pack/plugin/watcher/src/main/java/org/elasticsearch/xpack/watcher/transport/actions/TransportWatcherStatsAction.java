@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
-import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
+import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
@@ -42,7 +42,7 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
 
     private final ExecutionService executionService;
     private final TriggerService triggerService;
-    private final WatcherLifeCycleService lifeCycleService;
+    private final WatcherService watcherService;
     private final ProjectResolver projectResolver;
 
     @Inject
@@ -51,7 +51,7 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        WatcherLifeCycleService lifeCycleService,
+        WatcherService watcherService,
         ExecutionService executionService,
         TriggerService triggerService,
         ProjectResolver projectResolver
@@ -64,7 +64,7 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
             WatcherStatsRequest.Node::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.lifeCycleService = lifeCycleService;
+        this.watcherService = watcherService;
         this.executionService = executionService;
         this.triggerService = triggerService;
         this.projectResolver = projectResolver;
@@ -92,7 +92,7 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
     @Override
     protected WatcherStatsResponse.Node nodeOperation(WatcherStatsRequest.Node request, Task task) {
         WatcherStatsResponse.Node statsResponse = new WatcherStatsResponse.Node(clusterService.localNode());
-        statsResponse.setWatcherState(lifeCycleService.getState().get());
+        statsResponse.setWatcherState(watcherService.getState());
         statsResponse.setThreadPoolQueueSize(executionService.executionThreadPoolQueueSize());
         statsResponse.setThreadPoolMaxSize(executionService.executionThreadPoolMaxSize());
         if (request.includeCurrentWatches()) {

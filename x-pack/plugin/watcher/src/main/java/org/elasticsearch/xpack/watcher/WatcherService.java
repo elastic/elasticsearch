@@ -56,7 +56,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -79,9 +80,28 @@ public class WatcherService implements WatcherEventConsumer {
     private final WatchParser parser;
     private final Client client;
     private final TimeValue defaultSearchTimeout;
-    private final AtomicLong processedClusterStateVersion = new AtomicLong(0);
     private final ExecutorService executor;
     private final Map<String, Watch> pendingWatches = new HashMap<>();
+    private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STARTED);
+    private final AtomicReference<DesiredState> desiredState = new AtomicReference<>();
+    private final AtomicBoolean reconciliationScheduled = new AtomicBoolean();
+    private List<ShardRouting> appliedShardRoutings;
+
+    /** The latest lifecycle outcome requested by {@link WatcherLifeCycleService}. */
+    private sealed interface DesiredState permits Running, Paused, Stopped, Shutdown {}
+
+    private record Running(ClusterState clusterState, List<ShardRouting> affectedShardRoutings, String reason) implements DesiredState {}
+
+    private record Paused(String reason) implements DesiredState {}
+
+    private record Stopped(String reason) implements DesiredState {}
+
+    private record Shutdown() implements DesiredState {}
+
+    private enum ReconcileResult {
+        COMPLETE,
+        WAITING_FOR_STOP
+    }
 
     WatcherService(
         Settings settings,
@@ -170,29 +190,14 @@ public class WatcherService implements WatcherEventConsumer {
         }
     }
 
-    /**
-     * Stops the watcher service and marks its services as paused. Callers should set the Watcher state to {@link WatcherState#STOPPING}
-     * prior to calling this method.
-     *
-     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may not be {@code null}
-     */
-    public void stop(String reason, Runnable stoppedListener) {
-        assert stoppedListener != null;
-        logger.info("stopping watch service, reason [{}]", reason);
-        executionService.pause(stoppedListener);
-        triggerService.pauseExecution();
+    /** Requests that Watcher stop after its current executions finish. */
+    void setDesiredStopped(String reason) {
+        setDesiredState(new Stopped(reason));
     }
 
-    /**
-     * shuts down the trigger service as well to make sure there are no lingering threads
-     *
-     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may not be {@code null}
-     */
-    void shutDown(Runnable stoppedListener) {
-        assert stoppedListener != null;
-        logger.info("stopping watch service, reason [shutdown initiated]");
-        executionService.pause(stoppedListener);
-        triggerService.stop();
+    /** Requests terminal shutdown and then drains the lifecycle executor. */
+    void setDesiredShutdown() {
+        setDesiredState(new Shutdown());
         stopExecutor();
     }
 
@@ -200,112 +205,186 @@ public class WatcherService implements WatcherEventConsumer {
         ThreadPool.terminate(executor, 10L, TimeUnit.SECONDS);
     }
 
-    /**
-     * Reload the watcher service, does not switch the state from stopped to started, just keep going
-     * @param state cluster state, which is needed to find out about local shards
-     */
-    void reload(ClusterState state, String reason, Consumer<Exception> exceptionConsumer) {
-        boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(state);
-        if (hasValidWatcherTemplates == false) {
-            logger.warn("missing watcher index templates");
+    /** Requests that Watcher run using the routing information in {@code state}. */
+    void setDesiredRunning(ClusterState state, List<ShardRouting> affectedShardRoutings, String reason) {
+        final DesiredState currentDesiredState = desiredState.get();
+        if (currentDesiredState instanceof Running running && running.affectedShardRoutings().equals(affectedShardRoutings)) {
+            return;
         }
-        // this method contains the only async code block, being called by the cluster state listener
-        // the reason for this is that loading the watches is done in a sync manner and thus cannot be done on the cluster state listener
-        // thread
-        //
-        // this method itself is called by the cluster state listener, so will never be called in parallel
-        // setting the cluster state version allows us to know if the async method has been overtaken by another async method
-        // this is unlikely, but can happen, if the thread pool schedules two of those runnables at the same time
-        // by checking the cluster state version before and after loading the watches we can potentially just exit without applying the
-        // changes
-        processedClusterStateVersion.set(state.getVersion());
-
-        triggerService.pauseExecution();
-        int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
-        logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
-
-        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false), e -> {
-            logger.error("error reloading watcher", e);
-            exceptionConsumer.accept(e);
-        }));
+        setDesiredState(new Running(state, List.copyOf(affectedShardRoutings), reason));
     }
 
     /**
-     * start the watcher service, load watches in the background
-     *
-     * @param state                     the current cluster state
-     * @param postWatchesLoadedCallback the callback to be triggered, when watches where loaded successfully
+     * Reconciles the current Watcher state with the latest requested state. All mutations of the trigger and execution services made
+     * during start, reload, pause, and stop are serialized on the lifecycle executor.
      */
-    public void start(ClusterState state, Runnable postWatchesLoadedCallback, Consumer<Exception> exceptionConsumer) {
-        executionService.unPause();
-        processedClusterStateVersion.set(state.getVersion());
-        executor.execute(wrapWatcherService(() -> {
-            if (reloadInner(state, "starting", true)) {
-                postWatchesLoadedCallback.run();
-            }
-        }, e -> {
-            logger.error("error starting watcher", e);
-            exceptionConsumer.accept(e);
-        }));
-    }
-
-    /**
-     * reload watches and start scheduling them
-     *
-     * @param state                 the current cluster state
-     * @param reason                the reason for reloading, will be logged
-     * @param loadTriggeredWatches  should triggered watches be loaded in this run, not needed for reloading, only for starting
-     * @return                      true if no other loading of a newer cluster state happened in parallel, false otherwise
-     */
-    private boolean reloadInner(ClusterState state, String reason, boolean loadTriggeredWatches) {
+    private void reconcile() {
         assert ThreadPool.assertCurrentThreadPool(LIFECYCLE_THREADPOOL_NAME)
-            : "reloadInner must run on the single threaded [" + LIFECYCLE_THREADPOOL_NAME + "] thread pool";
-        // exit early if another thread has come in between
-        if (processedClusterStateVersion.get() != state.getVersion()) {
-            logger.debug(
-                "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
-                state.getVersion(),
-                processedClusterStateVersion.get()
-            );
-            return false;
+            : "reconcile must run on the single threaded [" + LIFECYCLE_THREADPOOL_NAME + "] thread pool";
+        DesiredState reconciledState = null;
+        ReconcileResult result = ReconcileResult.COMPLETE;
+        try {
+            while (true) {
+                reconciledState = desiredState.get();
+                if (reconciledState == null) {
+                    return;
+                }
+                result = switch (reconciledState) {
+                    case Running running -> reconcileRunning(running);
+                    case Paused paused -> reconcilePaused(paused);
+                    case Stopped stopped -> reconcileStopped(stopped);
+                    case Shutdown ignored -> reconcileShutdown();
+                };
+                if (result == ReconcileResult.WAITING_FOR_STOP || desiredState.get() == reconciledState) {
+                    return;
+                }
+            }
+        } finally {
+            reconciliationScheduled.set(false);
+            if (desiredState.get() != reconciledState) {
+                scheduleReconciliation();
+            }
+        }
+    }
+
+    private ReconcileResult reconcileRunning(Running running) {
+        if (state.get() == WatcherState.STOPPING) {
+            return ReconcileResult.WAITING_FOR_STOP;
         }
 
-        Collection<Watch> watches = loadWatches(state);
-        Collection<TriggeredWatch> triggeredWatches = Collections.emptyList();
-        if (loadTriggeredWatches) {
-            triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, state);
+        final boolean starting = state.get() != WatcherState.STARTED;
+        if (starting == false && running.affectedShardRoutings().equals(appliedShardRoutings)) {
+            return ReconcileResult.COMPLETE;
+        }
+        if (starting) {
+            state.set(WatcherState.STARTING);
+        } else {
+            final boolean hasValidWatcherTemplates = WatcherIndexTemplateRegistry.validate(running.clusterState());
+            if (hasValidWatcherTemplates == false) {
+                logger.warn("missing watcher index templates");
+            }
+            triggerService.pauseExecution();
+            final int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
+            logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", running.reason(), cancelledTaskCount);
         }
 
-        // if we had another state coming in the meantime, we will not start the trigger engines with these watches, but wait
-        // until the others are loaded also this is the place where we pause the trigger service execution and clear the current
-        // execution service, so that we make sure that existing executions finish, but no new ones are executed
-        if (processedClusterStateVersion.get() == state.getVersion()) {
+        try {
+            final Collection<Watch> watches = loadWatches(running.clusterState());
+            final Collection<TriggeredWatch> triggeredWatches;
+            if (starting && desiredState.get() == running) {
+                triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, running.clusterState());
+            } else {
+                triggeredWatches = Collections.emptyList();
+            }
+
+            if (desiredState.get() != running) {
+                return ReconcileResult.COMPLETE;
+            }
+
             executionService.unPause();
             triggerService.start(watches);
-            addPendingWatches(state);
+            addPendingWatches(running.clusterState());
             if (triggeredWatches.isEmpty() == false) {
                 executionService.executeTriggeredWatches(triggeredWatches);
             }
-            logger.debug("watch service has been reloaded, reason [{}]", reason);
-            return true;
-        } else {
-            logger.debug(
-                "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
-                state.getVersion(),
-                processedClusterStateVersion.get()
-            );
-            return false;
+            appliedShardRoutings = running.affectedShardRoutings();
+            state.set(WatcherState.STARTED);
+            logger.debug("watch service has been reloaded, reason [{}]", running.reason());
+        } catch (Exception e) {
+            logger.error(starting ? "error starting watcher" : "error reloading watcher", e);
+            if (desiredState.get() == running) {
+                if (starting) {
+                    state.set(WatcherState.STOPPED);
+                }
+                desiredState.compareAndSet(running, null);
+            }
+        }
+        return ReconcileResult.COMPLETE;
+    }
+
+    private ReconcileResult reconcilePaused(Paused paused) {
+        if (state.get() == WatcherState.STOPPING) {
+            return ReconcileResult.WAITING_FOR_STOP;
+        }
+        triggerService.pauseExecution();
+        final int cancelledTaskCount = executionService.pause(() -> {});
+        appliedShardRoutings = null;
+        state.set(WatcherState.STARTED);
+        logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", paused.reason(), cancelledTaskCount);
+        return ReconcileResult.COMPLETE;
+    }
+
+    private ReconcileResult reconcileStopped(Stopped stopped) {
+        appliedShardRoutings = null;
+        if (state.get() == WatcherState.STOPPED) {
+            return ReconcileResult.COMPLETE;
+        }
+        if (state.get() == WatcherState.STOPPING) {
+            return ReconcileResult.WAITING_FOR_STOP;
+        }
+        state.set(WatcherState.STOPPING);
+        logger.info("stopping watch service, reason [{}]", stopped.reason());
+        triggerService.pauseExecution();
+        executionService.pause(() -> notifyStopComplete(stopped));
+        return ReconcileResult.WAITING_FOR_STOP;
+    }
+
+    private void notifyStopComplete(Stopped stopped) {
+        try {
+            executor.execute(wrapWatcherService(() -> completeStop(stopped), e -> logger.error("error stopping watcher", e)));
+        } catch (RuntimeException e) {
+            if (executor.isShutdown() == false) {
+                throw e;
+            }
+            logger.debug("watcher lifecycle executor shut down before stop completion was processed");
         }
     }
 
-    /**
-     * Stop execution of watches on this node, do not try to reload anything, but still allow
-     * manual watch execution, i.e. via the execute watch API
-     */
-    public void pauseExecution(String reason) {
-        triggerService.pauseExecution();
-        int cancelledTaskCount = executionService.pause(() -> {});
-        logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
+    private void completeStop(Stopped stopped) {
+        state.compareAndSet(WatcherState.STOPPING, WatcherState.STOPPED);
+        logger.info("watcher has stopped");
+        if (desiredState.get() != stopped) {
+            scheduleReconciliation();
+        }
+    }
+
+    private ReconcileResult reconcileShutdown() {
+        state.set(WatcherState.STOPPING);
+        appliedShardRoutings = null;
+        logger.info("stopping watch service, reason [shutdown initiated]");
+        triggerService.stop();
+        executionService.pause(() -> {
+            state.set(WatcherState.STOPPED);
+            logger.info("watcher has stopped and shutdown");
+        });
+        return ReconcileResult.COMPLETE;
+    }
+
+    private void setDesiredState(DesiredState newState) {
+        if (newState.equals(desiredState.get())) {
+            return;
+        }
+        desiredState.set(newState);
+        scheduleReconciliation();
+    }
+
+    private void scheduleReconciliation() {
+        if (reconciliationScheduled.compareAndSet(false, true)) {
+            executor.execute(wrapWatcherService(this::reconcile, e -> {
+                reconciliationScheduled.set(false);
+                logger.error("error reconciling watcher lifecycle", e);
+            }));
+        }
+    }
+
+    /** Requests that scheduled execution pause while manual execution remains available. */
+    void setDesiredPaused(String reason) {
+        setDesiredState(new Paused(reason));
+    }
+
+    /** Returns Watcher's reconciled lifecycle state. */
+    public WatcherState getState() {
+        return state.get();
     }
 
     /**

@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
@@ -51,12 +52,14 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
+import org.elasticsearch.xpack.watcher.execution.TriggeredWatch;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
@@ -72,10 +75,15 @@ import org.mockito.ArgumentCaptor;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -89,10 +97,13 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class WatcherServiceTests extends ESTestCase {
@@ -243,7 +254,7 @@ public class WatcherServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(TransportClearScrollAction.TYPE), any(ClearScrollRequest.class), anyActionListener());
 
-        service.start(clusterState, () -> {}, exception -> {});
+        service.setDesiredRunning(clusterState, List.of(), "starting");
 
         ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
         verify(triggerService).start(captor.capture());
@@ -252,16 +263,16 @@ public class WatcherServiceTests extends ESTestCase {
         assertThat(watches, hasSize(activeWatchCount));
     }
 
-    public void testExceptionHandling() {
+    public void testFailedReloadCanBeRetried() {
         /*
-         * This tests that if the WatcherService throws an exception while refreshing indices that the exception is handled by the
-         * exception consumer rather than being propagated higher in the stack.
+         * A failed reload must not mark its routing fingerprint as applied or prevent a later cluster-state update from retrying it.
          */
         TriggerService triggerService = mock(TriggerService.class);
         TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
         ExecutionService executionService = mock(ExecutionService.class);
         WatchParser parser = mock(WatchParser.class);
         final ElasticsearchTimeoutException exception = new ElasticsearchTimeoutException(new TimeoutException("Artifical timeout"));
+        final AtomicInteger attempts = new AtomicInteger();
         WatcherService service = new WatcherService(
             Settings.EMPTY,
             triggerService,
@@ -273,6 +284,7 @@ public class WatcherServiceTests extends ESTestCase {
         ) {
             @Override
             void refreshWatches(IndexMetadata indexMetadata) {
+                attempts.incrementAndGet();
                 throw exception;
             }
         };
@@ -284,9 +296,227 @@ public class WatcherServiceTests extends ESTestCase {
         csBuilder.putProjectMetadata(metadataBuilder);
         ClusterState clusterState = csBuilder.build();
 
-        AtomicReference<Exception> exceptionReference = new AtomicReference<>();
-        service.start(clusterState, () -> { fail("Excepted an exception"); }, exceptionReference::set);
-        assertThat(exceptionReference.get(), equalTo(exception));
+        service.setDesiredRunning(clusterState, List.of(), "starting");
+        service.setDesiredRunning(clusterState, List.of(), "retrying");
+
+        assertThat(attempts.get(), is(2));
+        assertThat(service.getState(), is(WatcherState.STARTED));
+    }
+
+    public void testReconcilerCoalescesStartupToLatestState() {
+        final TriggerService triggerService = mock(TriggerService.class);
+        final TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
+        final ExecutionService executionService = mock(ExecutionService.class);
+        final QueuedExecutorService executor = new QueuedExecutorService();
+        final WatcherService service = createWatcherService(triggerService, triggeredWatchStore, executionService, executor);
+        doAnswer(invocation -> {
+            invocation.<Runnable>getArgument(0).run();
+            return 0;
+        }).when(executionService).pause(any());
+        service.setDesiredStopped("test setup");
+        executor.runNext();
+        executor.runNext();
+        assertThat(service.getState(), is(WatcherState.STOPPED));
+
+        final ClusterState firstState = ClusterState.builder(new ClusterName("_name")).version(1).build();
+        final ClusterState latestState = ClusterState.builder(new ClusterName("_name")).version(2).build();
+        final ShardRouting firstRouting = newRouting("node-1");
+        final ShardRouting latestRouting = newRouting("node-2");
+        service.setDesiredRunning(firstState, List.of(firstRouting), "starting");
+        service.setDesiredRunning(latestState, List.of(latestRouting), "starting");
+
+        assertThat(executor.tasks, hasSize(1));
+        executor.runNext();
+
+        assertThat(service.getState(), is(WatcherState.STARTED));
+        verify(triggeredWatchStore).findTriggeredWatches(List.of(), latestState);
+        verify(triggeredWatchStore, never()).findTriggeredWatches(List.of(), firstState);
+        verify(triggerService).start(List.of());
+    }
+
+    public void testReconcilerIgnoresUnchangedRoutingWhileRunning() {
+        final TriggerService triggerService = mock(TriggerService.class);
+        final QueuedExecutorService executor = new QueuedExecutorService();
+        final WatcherService service = createWatcherService(
+            triggerService,
+            mock(TriggeredWatchStore.class),
+            mock(ExecutionService.class),
+            executor
+        );
+        final ShardRouting routing = newRouting("node-1");
+
+        service.setDesiredRunning(ClusterState.builder(new ClusterName("_name")).version(1).build(), List.of(routing), "initial routing");
+        executor.runNext();
+        verify(triggerService).start(List.of());
+        clearInvocations(triggerService);
+
+        service.setDesiredRunning(ClusterState.builder(new ClusterName("_name")).version(2).build(), List.of(routing), "unchanged routing");
+
+        assertThat(executor.tasks, hasSize(0));
+        verifyNoMoreInteractions(triggerService);
+    }
+
+    public void testReconcilerReloadsUnchangedRoutingAfterPause() {
+        final TriggerService triggerService = mock(TriggerService.class);
+        final QueuedExecutorService executor = new QueuedExecutorService();
+        final WatcherService service = createWatcherService(
+            triggerService,
+            mock(TriggeredWatchStore.class),
+            mock(ExecutionService.class),
+            executor
+        );
+        final ShardRouting routing = newRouting("node-1");
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+
+        service.setDesiredRunning(clusterState, List.of(routing), "initial routing");
+        executor.runNext();
+        service.setDesiredPaused("test pause");
+        executor.runNext();
+        service.setDesiredRunning(clusterState, List.of(routing), "resume");
+        executor.runNext();
+
+        verify(triggerService, times(2)).start(List.of());
+    }
+
+    public void testReconcilerDiscardsStartupSupersededDuringRecovery() {
+        final TriggerService triggerService = mock(TriggerService.class);
+        final TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
+        final ExecutionService executionService = mock(ExecutionService.class);
+        final QueuedExecutorService executor = new QueuedExecutorService();
+        final WatcherService service = createWatcherService(triggerService, triggeredWatchStore, executionService, executor);
+        doAnswer(invocation -> {
+            invocation.<Runnable>getArgument(0).run();
+            return 0;
+        }).when(executionService).pause(any());
+        service.setDesiredStopped("test setup");
+        executor.runNext();
+        executor.runNext();
+
+        final ClusterState firstState = ClusterState.builder(new ClusterName("_name")).version(1).build();
+        final ClusterState latestState = ClusterState.builder(new ClusterName("_name")).version(2).build();
+        final TriggeredWatch triggeredWatch = mock(TriggeredWatch.class);
+        doAnswer(invocation -> {
+            if (invocation.getArgument(1) == firstState) {
+                service.setDesiredRunning(latestState, List.of(newRouting("node-2")), "routing changed");
+            }
+            return List.of(triggeredWatch);
+        }).when(triggeredWatchStore).findTriggeredWatches(any(), any());
+
+        service.setDesiredRunning(firstState, List.of(newRouting("node-1")), "starting");
+        executor.runNext();
+
+        assertThat(service.getState(), is(WatcherState.STARTED));
+        verify(triggerService).start(List.of());
+        verify(executionService).executeTriggeredWatches(List.of(triggeredWatch));
+        verify(triggeredWatchStore, times(2)).findTriggeredWatches(any(), any());
+    }
+
+    public void testReconcilerStopSupersedesStartup() {
+        final TriggerService triggerService = mock(TriggerService.class);
+        final TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
+        final ExecutionService executionService = mock(ExecutionService.class);
+        final QueuedExecutorService executor = new QueuedExecutorService();
+        final WatcherService service = createWatcherService(triggerService, triggeredWatchStore, executionService, executor);
+        doAnswer(invocation -> {
+            invocation.<Runnable>getArgument(0).run();
+            return 0;
+        }).when(executionService).pause(any());
+        service.setDesiredStopped("test setup");
+        executor.runNext();
+        executor.runNext();
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        doAnswer(invocation -> {
+            service.setDesiredStopped("superseding stop");
+            return List.of();
+        }).when(triggeredWatchStore).findTriggeredWatches(any(), eq(clusterState));
+
+        service.setDesiredRunning(clusterState, List.of(), "starting");
+        executor.runNext();
+        executor.runNext();
+
+        assertThat(service.getState(), is(WatcherState.STOPPED));
+        verify(triggerService, never()).start(any());
+        verify(executionService, never()).unPause();
+    }
+
+    public void testReconcilerRestartsAfterStopCompletes() {
+        final TriggerService triggerService = mock(TriggerService.class);
+        final TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
+        final ExecutionService executionService = mock(ExecutionService.class);
+        final QueuedExecutorService executor = new QueuedExecutorService();
+        final WatcherService service = createWatcherService(triggerService, triggeredWatchStore, executionService, executor);
+        final AtomicReference<Runnable> stopCompletion = new AtomicReference<>();
+        doAnswer(invocation -> {
+            stopCompletion.set(invocation.getArgument(0));
+            return 0;
+        }).when(executionService).pause(any());
+
+        service.setDesiredStopped("manual stop");
+        executor.runNext();
+        assertThat(service.getState(), is(WatcherState.STOPPING));
+
+        final ClusterState latestState = ClusterState.builder(new ClusterName("_name")).build();
+        service.setDesiredRunning(latestState, List.of(), "manual restart");
+        executor.runNext();
+        assertThat(service.getState(), is(WatcherState.STOPPING));
+
+        stopCompletion.get().run();
+        executor.runNext();
+        executor.runNext();
+
+        assertThat(service.getState(), is(WatcherState.STARTED));
+        verify(triggerService).start(List.of());
+        verify(triggeredWatchStore).findTriggeredWatches(List.of(), latestState);
+    }
+
+    public void testReconcilerShutdownSupersedesQueuedStartup() {
+        final TriggerService triggerService = mock(TriggerService.class);
+        final TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
+        final ExecutionService executionService = mock(ExecutionService.class);
+        final QueuedExecutorService executor = new QueuedExecutorService();
+        final WatcherService service = createWatcherService(triggerService, triggeredWatchStore, executionService, executor);
+        doAnswer(invocation -> {
+            invocation.<Runnable>getArgument(0).run();
+            return 0;
+        }).when(executionService).pause(any());
+
+        service.setDesiredRunning(ClusterState.builder(new ClusterName("_name")).build(), List.of(), "starting");
+        service.setDesiredShutdown();
+        executor.runNext();
+
+        assertThat(service.getState(), is(WatcherState.STOPPED));
+        verify(triggerService).stop();
+        verify(triggerService, never()).start(any());
+        verify(triggeredWatchStore, never()).findTriggeredWatches(any(), any());
+    }
+
+    public void testReconcilerShutdownSupersedesInProgressStop() {
+        final TriggerService triggerService = mock(TriggerService.class);
+        final ExecutionService executionService = mock(ExecutionService.class);
+        final QueuedExecutorService executor = new QueuedExecutorService();
+        final WatcherService service = createWatcherService(triggerService, mock(TriggeredWatchStore.class), executionService, executor);
+        final AtomicReference<Runnable> stopCompletion = new AtomicReference<>();
+        doAnswer(invocation -> {
+            final Runnable completion = invocation.getArgument(0);
+            if (stopCompletion.compareAndSet(null, completion) == false) {
+                completion.run();
+            }
+            return 0;
+        }).when(executionService).pause(any());
+
+        service.setDesiredStopped("manual stop");
+        executor.runNext();
+        assertThat(service.getState(), is(WatcherState.STOPPING));
+
+        service.setDesiredShutdown();
+        executor.runNext();
+        assertThat(service.getState(), is(WatcherState.STOPPED));
+        verify(triggerService).stop();
+
+        stopCompletion.get().run();
+        executor.runNext();
+        assertThat(service.getState(), is(WatcherState.STOPPED));
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -324,7 +554,7 @@ public class WatcherServiceTests extends ESTestCase {
             void stopExecutor() {}
         };
 
-        service.pauseExecution("pausing");
+        service.setDesiredPaused("pausing");
         assertThat(triggerService.count(), is(0L));
         verify(triggerEngine).pauseExecution();
     }
@@ -350,7 +580,7 @@ public class WatcherServiceTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         csBuilder.metadata(Metadata.builder());
 
-        service.reload(csBuilder.build(), "whatever", exception -> {});
+        service.setDesiredRunning(csBuilder.build(), List.of(), "whatever");
         verify(executionService).clearExecutionsAndQueue(any());
         verify(executionService, never()).pause(any());
         verify(triggerService).pauseExecution();
@@ -380,7 +610,7 @@ public class WatcherServiceTests extends ESTestCase {
         // simulate exception in WatcherService's private loadWatches()
         when(project.getIndicesLookup()).thenThrow(RuntimeException.class);
 
-        service.reload(csBuilder.metadata(metadata).build(), "whatever", exception -> {});
+        service.setDesiredRunning(csBuilder.metadata(metadata).build(), List.of(), "whatever");
         verify(triggerService).pauseExecution();
         verify(triggerService, never()).start(any());
     }
@@ -601,8 +831,74 @@ public class WatcherServiceTests extends ESTestCase {
         };
     }
 
+    private WatcherService createWatcherService(
+        TriggerService triggerService,
+        TriggeredWatchStore triggeredWatchStore,
+        ExecutionService executionService,
+        QueuedExecutorService executor
+    ) {
+        return new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            triggeredWatchStore,
+            executionService,
+            mock(WatchParser.class),
+            client,
+            executor
+        ) {
+            @Override
+            void stopExecutor() {}
+        };
+    }
+
+    private static class QueuedExecutorService extends AbstractExecutorService {
+        private final Queue<Runnable> tasks = new ArrayDeque<>();
+        private boolean shutdown;
+
+        @Override
+        public void shutdown() {
+            shutdown = true;
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            shutdown = true;
+            final List<Runnable> queuedTasks = List.copyOf(tasks);
+            tasks.clear();
+            return queuedTasks;
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return shutdown;
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return shutdown && tasks.isEmpty();
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) {
+            return isTerminated();
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            tasks.add(command);
+        }
+
+        private void runNext() {
+            tasks.remove().run();
+        }
+    }
+
     private static ScheduleTriggerEngineMock newEngineMock() {
         return new ScheduleTriggerEngineMock(new ScheduleRegistry(Collections.emptySet()), Clock.systemUTC());
+    }
+
+    private static ShardRouting newRouting(String nodeId) {
+        return TestShardRouting.newShardRouting(new ShardId(new Index(Watch.INDEX, "uuid"), 0), nodeId, true, ShardRoutingState.STARTED);
     }
 
     private ClusterState singleShardLocalState() {

@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
-import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
+import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.junit.After;
@@ -69,8 +69,8 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         when(clusterState.getMetadata()).thenReturn(metadata);
         when(clusterState.metadata()).thenReturn(metadata);
 
-        WatcherLifeCycleService watcherLifeCycleService = mock(WatcherLifeCycleService.class);
-        when(watcherLifeCycleService.getState()).thenReturn(() -> WatcherState.STARTED);
+        WatcherService watcherService = mock(WatcherService.class);
+        when(watcherService.getState()).thenReturn(WatcherState.STARTED);
 
         ExecutionService executionService = mock(ExecutionService.class);
         when(executionService.executionThreadPoolQueueSize()).thenReturn(100L);
@@ -95,7 +95,7 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
             clusterService,
             threadPool,
             new ActionFilters(Collections.emptySet()),
-            watcherLifeCycleService,
+            watcherService,
             executionService,
             triggerService,
             TestProjectResolvers.singleProject(projectId)

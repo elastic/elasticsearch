@@ -15,16 +15,28 @@ import java.util.List;
 
 /// A batch of shard mid-recoveries that [DesiredBalanceReconciler] has identified as no longer being allocated to a
 /// desired location during one reconciliation round, and that are eligible for direct cancellation, grouped by the
-/// data node currently performing each recovery.
-public record DirectCancellationCandidates(List<Candidates> candidates) {
+/// data node currently performing each recovery and annotated with the cluster state and desired balance generation
+/// from which they were computed.
+public record PendingDirectCancellations(
+    long clusterStateTerm,
+    long clusterStateVersion,
+    long desiredBalanceGeneration,
+    List<Candidates> candidates
+) {
 
-    public static final DirectCancellationCandidates EMPTY = new DirectCancellationCandidates(List.of());
+    public static final PendingDirectCancellations EMPTY = new PendingDirectCancellations(-1L, -1L, -1L, List.of());
 
     public boolean isEmpty() {
         return candidates.isEmpty();
     }
 
-    public DirectCancellationCandidates {
+    public boolean isOutOfDate(long expectedTerm, long expectedVersion, long expectedBalanceGeneration) {
+        return expectedTerm != clusterStateTerm()
+            || expectedVersion != clusterStateVersion()
+            || expectedBalanceGeneration != desiredBalanceGeneration();
+    }
+
+    public PendingDirectCancellations {
         candidates = List.copyOf(candidates);
     }
 

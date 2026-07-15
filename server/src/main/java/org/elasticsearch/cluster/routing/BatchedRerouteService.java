@@ -26,6 +26,7 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -41,6 +42,7 @@ public class BatchedRerouteService implements RerouteService {
 
     private final ClusterService clusterService;
     private final RerouteAction reroute;
+    private final List<RerouteClusterStatePublicationListener> reroutePublicationListeners = new CopyOnWriteArrayList<>();
 
     private final Object mutex = new Object();
     @Nullable // null if no reroute is currently pending
@@ -57,6 +59,30 @@ public class BatchedRerouteService implements RerouteService {
     public BatchedRerouteService(ClusterService clusterService, RerouteAction reroute) {
         this.clusterService = clusterService;
         this.reroute = reroute;
+    }
+
+    public void addListener(RerouteClusterStatePublicationListener listener) {
+        reroutePublicationListeners.add(listener);
+    }
+
+    private void notifySuccessfulPublication(ClusterState oldState) {
+        for (RerouteClusterStatePublicationListener rerouteClusterStateListener : reroutePublicationListeners) {
+            try {
+                rerouteClusterStateListener.onSuccessfulPublication(oldState.term(), oldState.version());
+            } catch (Exception e) {
+                logger.warn("failed to notify reroute cluster state listener", e);
+            }
+        }
+    }
+
+    private void notifyAbortedPublication(Exception e) {
+        for (RerouteClusterStatePublicationListener rerouteClusterStateListener : reroutePublicationListeners) {
+            try {
+                rerouteClusterStateListener.onAbortedPublication(e);
+            } catch (Exception ex) {
+                logger.warn("failed to notify reroute cluster state listener", ex);
+            }
+        }
     }
 
     /**
@@ -148,11 +174,15 @@ public class BatchedRerouteService implements RerouteService {
                             e
                         );
                     }
+                    notifyAbortedPublication(e);
                     ActionListener.onFailure(currentListeners, e);
                 }
 
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    if (oldState != newState) {
+                        notifySuccessfulPublication(oldState);
+                    }
                     future.addListener(ActionListener.running(() -> ActionListener.onResponse(currentListeners, null)));
                 }
             });
@@ -165,6 +195,7 @@ public class BatchedRerouteService implements RerouteService {
             }
             ClusterState state = clusterService.state();
             logger.warn(() -> "failed to reroute routing table, current state:\n" + state, e);
+            notifyAbortedPublication(e);
             ActionListener.onFailure(
                 currentListeners,
                 new ElasticsearchException("delayed reroute [" + reason + "] could not be submitted", e)

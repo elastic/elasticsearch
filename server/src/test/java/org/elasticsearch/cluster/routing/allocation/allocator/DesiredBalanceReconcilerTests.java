@@ -976,7 +976,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         assertThat(shuttingDownState.getRoutingNodes().node("node-2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(1));
     }
 
-    public void testComputeDirectCancellationCandidates() {
+    public void testComputePendingDirectCancellations() {
         final var indexName = randomIndexName();
         final var indexMetadata = randomPriorityIndex(indexName, 2, 1);
         final var index = indexMetadata.getIndex();
@@ -1019,11 +1019,16 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         // With no decider forbidding the replica from remaining on node-1, the candidate is not escalated to cancel an
         // already-started recovery.
-        final var candidates = new DesiredBalanceReconciler(
+        final var pendingDirectCancellations = new DesiredBalanceReconciler(
             defaultTestClusterSettings(),
             new AdvancingTimeProvider(),
             new ShardRelocationOrder.DefaultOrder()
-        ).reconcile(balance, createRoutingAllocationFrom(clusterState)).cancellationCandidates().candidates();
+        ).reconcile(balance, createRoutingAllocationFrom(clusterState)).pendingDirectCancellations();
+
+        assertThat(pendingDirectCancellations.clusterStateTerm(), equalTo(clusterState.term()));
+        assertThat(pendingDirectCancellations.clusterStateVersion(), equalTo(clusterState.version()));
+        assertThat(pendingDirectCancellations.desiredBalanceGeneration(), equalTo(balance.lastConvergedIndex()));
+        final var candidates = pendingDirectCancellations.candidates();
 
         assertThat(candidates, hasSize(1));
         final var candidate = candidates.getFirst();
@@ -1051,7 +1056,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             defaultTestClusterSettings(),
             new AdvancingTimeProvider(),
             new ShardRelocationOrder.DefaultOrder()
-        ).reconcile(balance, createRoutingAllocationFrom(clusterState, forbidRemainOnNode1)).cancellationCandidates().candidates();
+        ).reconcile(balance, createRoutingAllocationFrom(clusterState, forbidRemainOnNode1)).pendingDirectCancellations().candidates();
 
         assertThat(escalatedCandidates, hasSize(1));
         assertTrue(escalatedCandidates.getFirst().cancellations().getFirst().cancelIfStarted());
@@ -1157,8 +1162,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new ShardRelocationOrder.DefaultOrder()
         ).reconcile(balance, allocation);
 
-        assertThat(result.cancellationCandidates().candidates(), hasSize(1));
-        assertTrue(result.cancellationCandidates().candidates().getFirst().cancellations().getFirst().cancelIfStarted());
+        assertThat(result.pendingDirectCancellations().candidates(), hasSize(1));
+        assertTrue(result.pendingDirectCancellations().candidates().getFirst().cancellations().getFirst().cancelIfStarted());
 
         final var target = allocation.routingNodes().node("node-1").getByShardId(shardId);
         assertThat(target, notNullValue());
@@ -1214,8 +1219,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         // It's still a cancellation candidate, but never escalated to interrupt an already-started one, and
         // never unassigned via the routing table either.
-        assertThat(result.cancellationCandidates().candidates(), hasSize(1));
-        assertFalse(result.cancellationCandidates().candidates().getFirst().cancellations().getFirst().cancelIfStarted());
+        assertThat(result.pendingDirectCancellations().candidates(), hasSize(1));
+        assertFalse(result.pendingDirectCancellations().candidates().getFirst().cancellations().getFirst().cancelIfStarted());
 
         final var searchOnlyReplica = allocation.routingNodes().node("node-1").getByShardId(shardId);
         assertThat(searchOnlyReplica, notNullValue());

@@ -274,6 +274,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_CONVERT_FUNCTION,
 
         /**
+         * Fix for {@code <no-fields>} leaking into plans when {@code unmapped_fields="load"} loads fields from an empty mapping.
+         * See https://github.com/elastic/elasticsearch/issues/141990.
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_EMPTY_MAPPING_NO_FIELDS,
+
+        /**
          * Fix for LOOKUP JOIN and ENRICH failing when the match field has NULL type from unmapped field nullification.
          * See https://github.com/elastic/elasticsearch/issues/141827
          */
@@ -2674,9 +2680,11 @@ public class EsqlCapabilities {
         STR_COMMANDS_ACCEPT_NULL,
 
         /**
-         * Support for the EXTERNAL command (datasource access).
+         * Support for the EXTERNAL command (datasource access). Snapshot-only: the grammar itself is gated by
+         * {@link org.elasticsearch.xpack.esql.parser.EsqlConfig#isExternalDataSourcesEnabled()}, so this capability
+         * mirrors that build-type check rather than reporting unconditionally enabled.
          */
-        EXTERNAL_COMMAND,
+        EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
@@ -3127,9 +3135,10 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
-         * Match function and match operator support for runtime expressions, not just ES mapped fields.
+         * Support for expressions (function calls, inline casts) on the LHS of the match operator (:).
+         * Requires the grammar change introduced in the same release.
          */
-        MATCH_RUNTIME_SEARCH,
+        MATCH_OPERATOR_LHS_EXPRESSION(Build.current().isSnapshot()),
 
         /**
          * Fix for column pruning when FORK branches return no columns.
@@ -3161,6 +3170,13 @@ public class EsqlCapabilities {
          * Support for {@code unmapped_fields="load"} with {@code FORK}, subqueries and views (previously rejected). See #142033.
          */
         OPTIONAL_FIELDS_LOAD_WITH_FORK_SUBQUERIES_AND_VIEWS,
+
+        /**
+         * Under {@code unmapped_fields="load"} or {@code "nullify"}, {@code DROP}ping an unmapped field in one {@code FORK} branch counts
+         * as a mention, so the field is surfaced across the branches (materialized from {@code _source} under {@code load}, null-filled
+         * under {@code nullify}) and null-filled in the dropping one. Dropping it in every branch surfaces nothing.
+         */
+        OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.

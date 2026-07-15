@@ -69,7 +69,9 @@ import java.util.function.Supplier;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
+import static org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper.INDEX_OPTIONS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKING_SETTINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_SETTINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_INFERENCE_ID_FIELD;
@@ -238,6 +240,59 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     /** Whether the field type under test uses the legacy {@code semantic_text} storage format. */
     protected boolean useLegacyFormat() {
         return false;
+    }
+
+    protected XContentBuilder semanticMapping(String fieldName, String inferenceId) throws IOException {
+        return semanticMapping(fieldName, inferenceId, null, null, null, null);
+    }
+
+    protected XContentBuilder semanticMapping(String fieldName, String inferenceId, @Nullable String searchInferenceId) throws IOException {
+        return semanticMapping(fieldName, inferenceId, searchInferenceId, null, null, null);
+    }
+
+    protected XContentBuilder semanticMapping(String fieldName, String inferenceId, @Nullable MinimalServiceSettings modelSettings)
+        throws IOException {
+        return semanticMapping(fieldName, inferenceId, null, modelSettings, null, null);
+    }
+
+    protected XContentBuilder semanticMapping(
+        String fieldName,
+        String inferenceId,
+        @Nullable String searchInferenceId,
+        @Nullable MinimalServiceSettings modelSettings,
+        @Nullable ChunkingSettings chunkingSettings,
+        @Nullable SemanticIndexOptions indexOptions
+    ) throws IOException {
+        return mapping(
+            b -> addSemanticMapping(b, fieldName, inferenceId, searchInferenceId, modelSettings, chunkingSettings, indexOptions)
+        );
+    }
+
+    protected void addSemanticMapping(
+        XContentBuilder mappingBuilder,
+        String fieldName,
+        String inferenceId,
+        @Nullable String searchInferenceId,
+        @Nullable MinimalServiceSettings modelSettings,
+        @Nullable ChunkingSettings chunkingSettings,
+        @Nullable SemanticIndexOptions indexOptions
+    ) throws IOException {
+        mappingBuilder.startObject(fieldName);
+        mappingBuilder.field("type", contentType());
+        mappingBuilder.field(INFERENCE_ID_FIELD, inferenceId);
+        if (searchInferenceId != null) {
+            mappingBuilder.field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId);
+        }
+        if (modelSettings != null) {
+            mappingBuilder.field(MODEL_SETTINGS_FIELD, modelSettings.getFilteredXContentObject());
+        }
+        if (chunkingSettings != null) {
+            mappingBuilder.field(CHUNKING_SETTINGS_FIELD, chunkingSettings);
+        }
+        if (indexOptions != null) {
+            mappingBuilder.field(INDEX_OPTIONS_FIELD, indexOptions);
+        }
+        mappingBuilder.endObject();
     }
 
     protected MapperService createSemanticMapperService(XContentBuilder mappings) throws IOException {

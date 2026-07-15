@@ -8,13 +8,17 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -186,6 +190,60 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
 
         ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
         assertSame(snapshot, obj.metrics());
+    }
+
+    /**
+     * Permit exhaustion is a back-pressure condition, so an acquire timeout must surface as the retryable
+     * 503-class {@link ExternalUnavailableException} the retry layer acts on, not a non-retryable client error.
+     * throttling() is false: a node-local semaphore is not a remote-store throttle, so it must not feed the
+     * per-bucket adaptive backoff or the throttle retry budget.
+     */
+    public void testPermitExhaustionThrowsRetryable503() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1, 50);
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hi".getBytes(StandardCharsets.UTF_8)));
+
+        ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
+        // Hold the single permit by opening (and not closing) a stream, then force a second permit-taking
+        // acquire (newStream is byte-transfer, so permit-governed) to time out.
+        InputStream held = obj.newStream();
+        try {
+            ExternalUnavailableException thrown = expectThrows(ExternalUnavailableException.class, obj::newStream);
+            assertEquals(RestStatus.SERVICE_UNAVAILABLE, thrown.status());
+            assertFalse("node-local permit exhaustion is not a remote throttle", thrown.throttling());
+            assertTrue("permit exhaustion must be retryable", RetryPolicy.DEFAULT.isRetryable(thrown));
+        } finally {
+            held.close();
+        }
+    }
+
+    /**
+     * An interrupt while waiting for a permit is a shutdown/cancellation signal, not back-pressure. It must surface as a
+     * non-retryable {@link EsRejectedExecutionException} (429) so the storage retry layer does not loop on an interrupt
+     * flag that fires again immediately, while preserving the interrupt as the cause and restoring the thread's
+     * interrupt status for the caller.
+     */
+    public void testPermitAcquireInterruptThrowsNonRetryableRejection() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1);
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hi".getBytes(StandardCharsets.UTF_8)));
+
+        ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
+        // Hold the single permit so the next permit-taking acquire must wait, then set the interrupt flag so
+        // tryAcquire throws immediately (newStream is byte-transfer, so permit-governed).
+        InputStream held = obj.newStream();
+        try {
+            Thread.currentThread().interrupt();
+            EsRejectedExecutionException thrown = expectThrows(EsRejectedExecutionException.class, obj::newStream);
+            assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(thrown));
+            assertFalse("an interrupt is not back-pressure and must not be retried", RetryPolicy.DEFAULT.isRetryable(thrown));
+            assertTrue("the caught interrupt must be preserved as the cause", thrown.getCause() instanceof InterruptedException);
+            assertTrue("the interrupt status must be restored for the caller", Thread.currentThread().isInterrupted());
+        } finally {
+            // Clear the interrupt flag re-set by acquirePermit so it does not leak into later tests.
+            Thread.interrupted();
+            held.close();
+        }
     }
 
     public void testNewStreamReleasesPermitOnDelegateException() throws Exception {

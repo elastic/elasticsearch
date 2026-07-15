@@ -1626,7 +1626,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         final var indexShardRelocated = findIndexShard(indexName);
         var engine = indexShardRelocated.getEngineOrNull();
         assertThat(engine, instanceOf(HollowIndexEngine.class));
-        hollowShardsServiceA.ensureHollowShard(indexShardRelocated.shardId(), false);
+        // Removed via afterIndexShardClosed callback
+        assertBusy(() -> hollowShardsServiceA.ensureHollowShard(indexShardRelocated.shardId(), false));
         hollowShardsServiceB.ensureHollowShard(indexShardRelocated.shardId(), true);
 
         internalCluster().stopNode(indexNodeA);

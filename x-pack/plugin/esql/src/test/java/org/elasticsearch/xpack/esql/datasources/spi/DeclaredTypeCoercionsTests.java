@@ -1307,4 +1307,82 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second", DataType.LONG)
         );
     }
+
+    /**
+     * The property every pruning decision depends on: a pushed bound must NEVER be stricter than the true predicate.
+     * Too loose is harmless (the reader over-includes, FilterExec re-checks); too strict prunes a row group the query
+     * matches, and a pruned group is never decoded. Brute-force it over the raw domain rather than restating the
+     * algebra the implementation already claims.
+     */
+    public void testRawBoundIsNeverStricterThanTheTruth() {
+        List<DeclaredTypeCoercions.RawDecodeRelation> relations = List.of(
+            new DeclaredTypeCoercions.RawDecodeRelation.Identity(),
+            new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(1000L),
+            new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1000L)
+        );
+        for (DeclaredTypeCoercions.RawDecodeRelation relation : relations) {
+            for (DeclaredTypeCoercions.BoundOp op : DeclaredTypeCoercions.BoundOp.values()) {
+                for (int i = 0; i < 200; i++) {
+                    long raw = randomLongBetween(-5_000_000L, 5_000_000L);
+                    long decoded = decodeFor(relation, raw);
+                    long bound = randomLongBetween(-6_000L, 6_000L);
+                    boolean trulyMatches = switch (op) {
+                        case EQ -> decoded == bound;
+                        case GT -> decoded > bound;
+                        case GTE -> decoded >= bound;
+                        case LT -> decoded < bound;
+                        case LTE -> decoded <= bound;
+                    };
+                    Long rawBound = DeclaredTypeCoercions.rawBoundFor(relation, bound, op, false);
+                    if (rawBound == null) {
+                        continue; // declined: no pruning, never a lost row
+                    }
+                    boolean pushedKeeps = switch (op) {
+                        case EQ -> raw == rawBound;
+                        case GT -> raw > rawBound;
+                        case GTE -> raw >= rawBound;
+                        case LT -> raw < rawBound;
+                        case LTE -> raw <= rawBound;
+                    };
+                    if (trulyMatches && pushedKeeps == false) {
+                        fail(
+                            "STRICTER THAN TRUTH — this prunes a matching row: relation="
+                                + relation
+                                + " op="
+                                + op
+                                + " raw="
+                                + raw
+                                + " decodes to "
+                                + decoded
+                                + ", bound="
+                                + bound
+                                + ", pushed raw bound="
+                                + rawBound
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /** Mirrors what the readers actually do, written independently of the implementation under test. */
+    private static long decodeFor(DeclaredTypeCoercions.RawDecodeRelation relation, long raw) {
+        return switch (relation) {
+            case DeclaredTypeCoercions.RawDecodeRelation.Identity ignored -> raw;
+            case DeclaredTypeCoercions.RawDecodeRelation.ScaleUp up -> raw * up.factor();
+            case DeclaredTypeCoercions.RawDecodeRelation.ScaleDown down -> Math.floorDiv(raw, down.divisor());
+        };
+    }
+
+    /** A set-membership consumer (dictionary/bloom) cannot express a band, so a ScaleDown equality must decline. */
+    public void testExactSetConsumersDeclineABandedEquality() {
+        assertNull(
+            DeclaredTypeCoercions.rawBoundFor(
+                new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1000L),
+                1000L,
+                DeclaredTypeCoercions.BoundOp.EQ,
+                true
+            )
+        );
+    }
 }

@@ -715,6 +715,108 @@ public final class DeclaredTypeCoercions {
         return EsqlDataTypeConverter.dateTimeToLong(value, format);
     }
 
+    /**
+     * How a column's DECODED value relates to the RAW value the file's statistics hold — the single question every
+     * pruning decision on an external read has to answer, in one place.
+     *
+     * <p>Row-group statistics, page indexes, dictionary and bloom filters, and the TopN threshold all compare a
+     * decoded-domain value against raw file bytes. That comparison is only valid if you know the map between them.
+     * Historically each consumer re-derived it from whatever it happened to have in scope — an annotation here, a
+     * primitive type there, and after this PR a declared format that none of them could see. Nine derivations of one
+     * rule is why a unit skew keeps reappearing in a different consumer each time it is fixed.
+     *
+     * <p>The map has a direction, and the direction is NOT a property of the file alone. A {@code TIMESTAMP(MICROS)}
+     * column decodes to nanos ({@code raw x 1000}) when it infers {@code date_nanos}, and to millis
+     * ({@code raw / 1000}, truncating) when it is declared {@code date}. Same bytes, opposite maps, chosen by the
+     * declaration. That is why this takes the declared type, and why a per-consumer switch on the annotation cannot
+     * express it.
+     */
+    public sealed interface RawDecodeRelation {
+        /** decoded == raw. Statistics are directly comparable. */
+        record Identity() implements RawDecodeRelation {}
+
+        /** decoded == raw * factor, exactly. */
+        record ScaleUp(long factor) implements RawDecodeRelation {}
+
+        /**
+         * decoded == floorDiv(raw, divisor) — so ONE decoded value covers a BAND of {@code divisor} raw values.
+         * Every bound conversion must account for the band, or a {@code <=} / {@code ==} prunes the rows in it.
+         */
+        record ScaleDown(long divisor) implements RawDecodeRelation {}
+    }
+
+    /**
+     * The RAW bound to push so the pushed predicate is never STRICTER than the true one, or {@code null} to decline.
+     *
+     * <p>Direction matters and is asymmetric: a bound that is too LOOSE is harmless (the reader over-includes and
+     * {@code FilterExec} re-checks), while a bound that is too STRICT prunes row groups the query matches — and a
+     * pruned group is never decoded, so nothing downstream can recover it. Every rule below therefore rounds
+     * OUTWARD, and declines rather than guess.
+     *
+     * @param relation how decode relates the raw value to the decoded one
+     * @param bound the query literal, in the DECODED domain
+     * @param op the comparison the bound belongs to
+     * @param exactSetOnly {@code true} when the consumer tests set membership rather than a range (dictionary and
+     *                     bloom filters do): a band cannot be expressed as a point, so a {@code ScaleDown} equality
+     *                     must decline rather than push its floor
+     */
+    @Nullable
+    public static Long rawBoundFor(RawDecodeRelation relation, long bound, BoundOp op, boolean exactSetOnly) {
+        return switch (relation) {
+            case RawDecodeRelation.Identity ignored -> bound;
+            case RawDecodeRelation.ScaleUp up -> {
+                long f = up.factor();
+                // The bound arrives in the DECODED domain, so inverting `decoded == raw * f` DIVIDES it back down.
+                // Round outward so the pushed predicate never excludes a raw value whose decode matches: floorDiv
+                // for the ops whose truth set opens upward, ceilDiv for those that open downward.
+                yield switch (op) {
+                    // decoded > bound <=> raw * f > bound <=> raw > floorDiv(bound, f)
+                    case GT -> Math.floorDiv(bound, f);
+                    // decoded >= bound <=> raw >= ceilDiv(bound, f)
+                    case GTE -> Math.ceilDiv(bound, f);
+                    // decoded < bound <=> raw < ceilDiv(bound, f)
+                    case LT -> Math.ceilDiv(bound, f);
+                    // decoded <= bound <=> raw <= floorDiv(bound, f)
+                    case LTE -> Math.floorDiv(bound, f);
+                    // Only an exact multiple of f is reachable; any other literal matches no stored value, so
+                    // declining merely forfeits the chance to prune everything — never a row.
+                    case EQ -> bound % f == 0 ? bound / f : null;
+                };
+            }
+            case RawDecodeRelation.ScaleDown down -> {
+                long d = down.divisor();
+                try {
+                    long base = Math.multiplyExact(bound, d);
+                    // decoded == floorDiv(raw, d), so decoded == bound over the raw band [base, base + d - 1].
+                    yield switch (op) {
+                        // decoded >= bound <=> raw >= base (exact)
+                        case GTE -> base;
+                        // decoded < bound <=> raw < base (exact)
+                        case LT -> base;
+                        // decoded <= bound <=> raw <= base + d - 1 (the TOP of the band, not its floor)
+                        case LTE -> Math.addExact(base, d - 1);
+                        // decoded > bound <=> raw >= base + d; pushing gt(base) is looser, hence safe.
+                        case GT -> base;
+                        // decoded == bound covers the whole band — not a point. A range consumer could push the band,
+                        // but a set-membership consumer cannot express it, so decline.
+                        case EQ -> null;
+                    };
+                } catch (ArithmeticException e) {
+                    yield null;
+                }
+            }
+        };
+    }
+
+    /** The comparisons a raw bound can be pushed for. */
+    public enum BoundOp {
+        EQ,
+        GT,
+        GTE,
+        LT,
+        LTE
+    }
+
     /** Pure epoch dialects: the only declared formats whose whole-number decode is an exact linear scale. */
     private static final String EPOCH_MILLIS_PATTERN = "epoch_millis";
     private static final String EPOCH_SECOND_PATTERN = "epoch_second";

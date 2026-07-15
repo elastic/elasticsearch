@@ -81,7 +81,14 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     private static final Literal NULLIFIED = Literal.NULL;
 
     private static EsRelation withAdditionalAttributesUnlessLookup(EsRelation esr, List<? extends Attribute> fields) {
-        return esr.indexMode() == IndexMode.LOOKUP ? esr : esr.withAdditionalAttributes(fields);
+        if (esr.indexMode() == IndexMode.LOOKUP || fields.isEmpty()) {
+            return esr;
+        }
+        // Once real fields are added to an empty-mapping relation, the no-fields marker must not remain in the output.
+        if (esr.output().equals(Analyzer.NO_FIELDS)) {
+            return esr.withAttributes(new ArrayList<>(fields));
+        }
+        return esr.withAdditionalAttributes(fields);
     }
 
     @Override

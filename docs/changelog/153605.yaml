@@ -1,0 +1,5 @@
+pr: 153605
+summary: "ES|QL: Add `MV_IN_RANGE` multivalue function"
+area: ES|QL
+type: feature
+issues: []

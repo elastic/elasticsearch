@@ -1322,34 +1322,29 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         "FIELD_EXTRACT:path is missing",
         "FIRST_OVER_TIME:field is missing",
         "FROM_BASE64:string is missing",
-        "GREATER_THAN:rhs is missing",
-        "GREATER_THAN_OR_EQUAL:rhs is missing",
         "GREATEST:first is missing",
         "GREATEST:rest is missing",
-        "HASH:algorithm is missing",
-        "IN:field is missing",
         "JSON_EXTRACT:string is missing",
         "KNN:field is missing",
         "KQL:query is missing",
         "LAST_OVER_TIME:field is missing",
         "LEAST:first is missing",
         "LEAST:rest is missing",
-        "LESS_THAN:rhs is missing",
-        "LESS_THAN_OR_EQUAL:rhs is missing",
         "LIKE:pattern is missing",
         "MATCH:query is missing",
         "MATCH_OPERATOR:field is missing",
         "MATCH_OPERATOR:query is missing",
         "MAX_OVER_TIME:field is missing",
         "MIN_OVER_TIME:field is missing",
+        // mv_in_range's bounds are literals in the csv-specs (like the comparison operators below), so its
+        // keyword/text parameters are not exercised via flattened-keyword field extraction.
+        "MV_IN_RANGE:field is missing",
+        "MV_IN_RANGE:lower is missing",
+        "MV_IN_RANGE:upper is missing",
         // MV_SORT's order argument is now marked as a CONSTANT hint in the function's docs
         // metadata, so it is excluded from the candidate set entirely (see the "constant".equals(kind)
         // check below) and never appears here as missing.
         "NETWORK_DIRECTION:internal_networks is missing",
-        "NOT_EQUALS:lhs is missing",
-        "NOT_EQUALS:rhs is missing",
-        "NOT_IN:field is missing",
-        "NOT_IN:inlist is missing",
         "NOT_LIKE:pattern is missing",
         "NOT_LIKE:str is missing",
         "NOT_RLIKE:pattern is missing",
@@ -1416,6 +1411,18 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         String name = (String) map.get("name");
                         if (name == null) return;
                         name = name.toUpperCase(Locale.ROOT);
+
+                        /*
+                         * The parser just refuses to build these real looking functions, instead building something
+                         * like NOT(IN()). So we skip tracking them here - though we do actually test them.
+                         */
+                        boolean rewrittenAwayAtParseTime = switch (name) {
+                            case "NOT_EQUALS", "NOT_IN" -> true;
+                            default -> false;
+                        };
+                        if (rewrittenAwayAtParseTime) {
+                            return;
+                        }
 
                         List<Map<String, Object>> signatures = (List<Map<String, Object>>) map.get("signatures");
                         if (signatures == null) return;

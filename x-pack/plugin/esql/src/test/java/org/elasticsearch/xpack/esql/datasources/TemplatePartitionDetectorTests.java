@@ -190,6 +190,36 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals("São Paulo", values.get("city"));
     }
 
+    /**
+     * A literal {@code +} in a directory segment must survive as {@code +}, not be turned into a space:
+     * {@code application/x-www-form-urlencoded} decoding corrupts an {@code a+b} folder to {@code "a b"} and a filter
+     * on the true value drops every row. Mirrors the Hive detector's guard (both share the same decoder).
+     */
+    public void testLiteralPlusIsNotDecodedToSpace() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{tag}");
+
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/a+b/file.parquet"));
+
+        PartitionMetadata result = detector.detect(files, Map.of());
+
+        assertFalse(result.isEmpty());
+        Map<String, Object> values = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/a+b/file.parquet"));
+        assertEquals("a+b", values.get("tag"));
+    }
+
+    /** Parity guard with the Hive detector: {@code %XX} escapes still decode ({@code %2B} -> {@code +}, {@code %3A} -> {@code :}). */
+    public void testPercentEscapesStillDecode() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{tag}");
+
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/a%2Bns%3Ab/file.parquet"));
+
+        PartitionMetadata result = detector.detect(files, Map.of());
+
+        assertFalse(result.isEmpty());
+        Map<String, Object> values = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/a%2Bns%3Ab/file.parquet"));
+        assertEquals("a+ns:b", values.get("tag"));
+    }
+
     public void testEmptyFilesReturnsEmpty() {
         TemplatePartitionDetector detector = new TemplatePartitionDetector("{year}");
         PartitionMetadata result = detector.detect(List.of(), Map.of());

@@ -177,7 +177,7 @@ public final class HivePartitionDetector implements PartitionDetector {
                 continue;
             }
             String key = segment.substring(0, eqIdx);
-            String value = urlDecode(afterEq);
+            String value = decodePartitionValue(afterEq);
             if (partitions.containsKey(key)) {
                 continue;
             }
@@ -187,9 +187,21 @@ public final class HivePartitionDetector implements PartitionDetector {
         return partitions;
     }
 
-    private static String urlDecode(String value) {
+    /**
+     * Decodes a partition folder value that a Hive-style writer percent-escaped. Hive escapes partition folder names
+     * with {@code %XX} only and writes a literal {@code +} unescaped (it is not in the escape set). This is therefore
+     * a plain UTF-8 percent-decode that keeps {@code +} literal, unlike {@code application/x-www-form-urlencoded}
+     * decoding, which maps {@code +} to a space and so corrupts {@code a+b} to {@code "a b"} (a filter on the true
+     * value then drops every row of that folder). Any literal {@code +} is escaped to its {@code %2B} form before
+     * decoding so {@link URLDecoder} restores it as a literal {@code +} rather than a space; a malformed escape is
+     * left as the raw value rather than failing the detection.
+     *
+     * <p>Shared by {@link TemplatePartitionDetector}, which decodes its own directory segments the same way.
+     */
+    static String decodePartitionValue(String value) {
+        String escaped = value.indexOf('+') < 0 ? value : value.replace("+", "%2B");
         try {
-            return URLDecoder.decode(value, StandardCharsets.UTF_8);
+            return URLDecoder.decode(escaped, StandardCharsets.UTF_8);
         } catch (IllegalArgumentException e) {
             return value;
         }

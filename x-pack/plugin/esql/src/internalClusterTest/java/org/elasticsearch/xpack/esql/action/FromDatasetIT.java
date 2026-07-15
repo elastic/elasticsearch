@@ -2713,7 +2713,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    private org.elasticsearch.xpack.esql.action.EsqlQueryResponse runRealParquet(String dataset, String fixture, DatasetFieldMapping ts)
+    private EsqlQueryResponse runRealParquet(String dataset, String fixture, DatasetFieldMapping ts)
         throws Exception {
         Path file = createTempDir().resolve(fixture + ".parquet");
         Files.write(file, RealParquetFixtures.bytes(fixture));

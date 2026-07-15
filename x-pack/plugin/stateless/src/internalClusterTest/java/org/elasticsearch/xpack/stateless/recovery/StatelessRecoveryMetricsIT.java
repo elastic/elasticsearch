@@ -110,7 +110,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThan(0L));
-            assertThat(metric.attributes().get("es_primary"), equalTo(true));
+            assertThat(metric.attributes().get("es_is_primary"), equalTo(true));
             assertThat(metric.attributes().get("es_recovery_type"), equalTo("PEER"));
         });
 
@@ -122,7 +122,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
-            assertThat(metric.attributes().get("es_primary"), equalTo(true));
+            assertThat(metric.attributes().get("es_is_primary"), equalTo(true));
             assertThat(metric.attributes().get("es_recovery_type"), equalTo("PEER"));
         });
 
@@ -134,7 +134,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
-            assertThat(metric.attributes().get("es_primary"), equalTo(true));
+            assertThat(metric.attributes().get("es_is_primary"), equalTo(true));
             assertThat(metric.attributes().get("es_recovery_type"), equalTo("PEER"));
         });
     }
@@ -161,7 +161,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
-            assertThat(metric.attributes().get("es_primary"), equalTo(true));
+            assertThat(metric.attributes().get("es_is_primary"), equalTo(true));
             assertThat(metric.attributes().get("es_recovery_type"), equalTo("EMPTY_STORE"));
         });
 
@@ -207,7 +207,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThan(0L));
-            assertThat(metric.attributes().get("es_primary"), equalTo(true));
+            assertThat(metric.attributes().get("es_is_primary"), equalTo(true));
             assertThat(metric.attributes().get("es_recovery_type"), equalTo("EXISTING_STORE"));
         });
 
@@ -219,7 +219,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
-            assertThat(metric.attributes().get("es_primary"), equalTo(true));
+            assertThat(metric.attributes().get("es_is_primary"), equalTo(true));
             assertThat(metric.attributes().get("es_recovery_type"), equalTo("EXISTING_STORE"));
         });
 
@@ -231,7 +231,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
-            assertThat(metric.attributes().get("es_primary"), equalTo(true));
+            assertThat(metric.attributes().get("es_is_primary"), equalTo(true));
             assertThat(metric.attributes().get("es_recovery_type"), equalTo("EXISTING_STORE"));
         });
     }
@@ -269,7 +269,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThan(0L));
-            assertThat(metric.attributes().get("es_primary"), equalTo(false));
+            assertThat(metric.attributes().get("es_is_primary"), equalTo(false));
             assertThat(metric.attributes().get("es_recovery_type"), equalTo("PEER"));
         });
     }
@@ -466,7 +466,7 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
     }
 
     private void assertMetricAttributes(Measurement metric, boolean isPrimary) {
-        assertThat(metric.attributes().get("es_primary"), equalTo(isPrimary));
+        assertThat(metric.attributes().get("es_is_primary"), equalTo(isPrimary));
     }
 
     /**

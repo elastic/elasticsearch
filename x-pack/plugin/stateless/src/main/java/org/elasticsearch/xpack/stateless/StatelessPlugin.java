@@ -76,7 +76,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.codec.CodecProvider;
 import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -1799,7 +1798,6 @@ public class StatelessPlugin extends Plugin
     public void registerDirectoryMetrics(BiConsumer<String, PluggableDirectoryMetricsHolder<?>> registrator) {
         registrator.accept(StatelessPlugin.NAME, metricHolder);
     }
-
 
     protected org.apache.lucene.index.MergePolicy getMergePolicy(EngineConfig engineConfig) {
         return engineConfig.getMergePolicy();

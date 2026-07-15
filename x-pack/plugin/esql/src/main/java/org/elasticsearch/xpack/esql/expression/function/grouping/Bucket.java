@@ -86,8 +86,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         "esql_support_explicit_bucket_rounding_configuration"
     );
 
-    // Package-private (rather than private) so BucketOffsetTests can exercise roundingIsOkFixedWidthUnit against
-    // roundingIsOkCalendarBasedUnit (the naive per-bucket oracle) directly.
+    // Visible for testing
     record DateRoundingPicker(long buckets, long from, long to, ZoneId zoneId) {
 
         // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
@@ -129,7 +128,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             Long fixedWidthMillis();
 
             /**
-             * The minimum width of this unit in milliseconds.
+             * The approximate (average) width of this unit in milliseconds.
              */
             long approximateWidthMillis();
 
@@ -293,11 +292,15 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             // - via "roundingIsOkCalendarBasedUnit": the interval is at least 1M buckets, so 1M days.
             // - via "roundingIsOkFixedWidthUnit": the interval has at least 1M transitions, so ~0.5M years.
             //
-            // We can safely add one year to this time interval and not undershoot the number buckets often.
-            // On the other hand, this margin is quite large and prevents overshooting (empirically tested).
+            // We can safely add some days to prevent overshooting. 3 days is not enough
+            // (counterexample: unit=MONTH_OF_YEAR, buckets=1_002_399, from=0, to=2_636_051_860_800_001, zone=Pacific/Kwajalein),
+            // but no counterexample has been found for 4 days with some simple exhaustive searching.
+            //
+            // We conservatively add 30 days, which should prevent any overshooting and barely lead to any undershooting
+            // (at most by one unit), since it's very small comparable to 1M days (the minimum interval arriving in this method).
 
             Rounding.Prepared rounding = unit.rounding(zoneId).prepareForUnknown();
-            return buckets >= ((double) to - rounding.round(from) + TimeValue.timeValueDays(365).millis()) / unit.approximateWidthMillis();
+            return buckets >= ((double) to - rounding.round(from) + TimeValue.timeValueDays(30).millis()) / unit.approximateWidthMillis();
         }
 
         private static long ceilDivExact(long upperExclusive, long lowerInclusive, long width) {

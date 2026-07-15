@@ -3125,11 +3125,6 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
-         * Match function and match operator support for runtime expressions, not just ES mapped fields.
-         */
-        MATCH_RUNTIME_SEARCH,
-
-        /**
          * Support for expressions (function calls, inline casts) on the LHS of the match operator (:).
          * Requires the grammar change introduced in the same release.
          */
@@ -3165,6 +3160,13 @@ public class EsqlCapabilities {
          * Support for {@code unmapped_fields="load"} with {@code FORK}, subqueries and views (previously rejected). See #142033.
          */
         OPTIONAL_FIELDS_LOAD_WITH_FORK_SUBQUERIES_AND_VIEWS,
+
+        /**
+         * Under {@code unmapped_fields="load"} or {@code "nullify"}, {@code DROP}ping an unmapped field in one {@code FORK} branch counts
+         * as a mention, so the field is surfaced across the branches (materialized from {@code _source} under {@code load}, null-filled
+         * under {@code nullify}) and null-filled in the dropping one. Dropping it in every branch surfaces nothing.
+         */
+        OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.

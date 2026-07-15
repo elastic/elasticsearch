@@ -65,6 +65,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -251,6 +252,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "scale_diff_b",
         "scale_diff_c",
         "scale_diff_d",
+        "scale_diff_e",
+        "scale_diff_f",
+        "scale_diff_g",
         "scale_xdecl_seconds",
         "scale_xdecl_millis"
     );
@@ -2735,22 +2739,66 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         // Raw epoch SECONDS across two row groups; the largest instant deliberately lives in the second group so a
         // unit-blind DESC threshold skips exactly the group holding the right answer.
-        long[] rawSeconds = { 1704067200L, 1704153600L, 1704240000L, 1704326400L };
+        long[] rawSeconds = new long[2000];
+        for (int i = 0; i < rawSeconds.length; i++) {
+            rawSeconds[i] = 1704067200L + i * 60L; // ascending, so the LARGEST lives in the LAST row group
+        }
         Path file = writeScalingFixture("scale_seconds", rawSeconds);
 
-        record Cell(String dataset, String name, DatasetFieldMapping mapping) {}
+        record Cell(String dataset, String name, DatasetFieldMapping mapping, DatasetMapping.Dynamic dynamic) {}
+        // strict x dynamic is an axis, not a footnote: they take different resolution paths (strict pins the
+        // declaration, dynamic overlays it onto inference) and must agree on every other dimension.
         List<Cell> cells = List.of(
-            new Cell("scale_diff_a", "date + epoch_second", DatasetFieldMapping.withFormat("date", null, "epoch_second")),
-            new Cell("scale_diff_b", "date_nanos + epoch_second", DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second")),
-            new Cell("scale_diff_c", "date + epoch_millis (identity)", DatasetFieldMapping.withFormat("date", null, "epoch_millis")),
-            new Cell("scale_diff_d", "long, no declaration (control)", new DatasetFieldMapping("long", null))
+            new Cell(
+                "scale_diff_a",
+                "dynamic: date + epoch_second",
+                DatasetFieldMapping.withFormat("date", null, "epoch_second"),
+                DatasetMapping.Dynamic.TRUE
+            ),
+            new Cell(
+                "scale_diff_b",
+                "dynamic: date_nanos + epoch_second",
+                DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second"),
+                DatasetMapping.Dynamic.TRUE
+            ),
+            new Cell(
+                "scale_diff_c",
+                "dynamic: date + epoch_millis (identity)",
+                DatasetFieldMapping.withFormat("date", null, "epoch_millis"),
+                DatasetMapping.Dynamic.TRUE
+            ),
+            new Cell(
+                "scale_diff_d",
+                "dynamic: long, no declaration (control)",
+                new DatasetFieldMapping("long", null),
+                DatasetMapping.Dynamic.TRUE
+            ),
+            new Cell(
+                "scale_diff_e",
+                "STRICT: date + epoch_second",
+                DatasetFieldMapping.withFormat("date", null, "epoch_second"),
+                DatasetMapping.Dynamic.FALSE
+            ),
+            new Cell(
+                "scale_diff_f",
+                "STRICT: date_nanos + epoch_second",
+                DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second"),
+                DatasetMapping.Dynamic.FALSE
+            ),
+            new Cell(
+                "scale_diff_g",
+                "STRICT: date + epoch_millis (identity)",
+                DatasetFieldMapping.withFormat("date", null, "epoch_millis"),
+                DatasetMapping.Dynamic.FALSE
+            )
         );
 
         List<String> failures = new ArrayList<>();
         for (Cell cell : cells) {
-            registerScalingDataset(cell.dataset(), file, cell.mapping());
+            registerScalingDataset(cell.dataset(), file, cell.mapping(), cell.dynamic());
             List<Long> truth = scalingGroundTruth(cell.dataset());
             assertThat("[" + cell.name() + "] ground truth must see every row", truth, hasSize(rawSeconds.length));
+            assertThat("ground truth is capped by the LIMIT below, keep the fixture under it", rawSeconds.length, lessThan(10000));
             long min = truth.stream().mapToLong(Long::longValue).min().getAsLong();
             long max = truth.stream().mapToLong(Long::longValue).max().getAsLong();
 
@@ -2767,8 +2815,19 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "FROM " + cell.dataset() + " | WHERE ts >= " + literalFor(cell.mapping(), max) + " | STATS c = COUNT(*)",
                     truth.stream().filter(v -> v >= max).count()
                 ),
-                new Probe("SORT ASC LIMIT 1", "FROM " + cell.dataset() + " | SORT ts ASC | LIMIT 1 | EVAL v = ts::long | KEEP v", min),
-                new Probe("SORT DESC LIMIT 1", "FROM " + cell.dataset() + " | SORT ts DESC | LIMIT 1 | EVAL v = ts::long | KEEP v", max),
+                // The TopN threshold rail only engages past InsertExternalFieldExtraction.DEFERRED_COLUMN_MIN (3)
+                // DEFERRED columns, so these MUST project the filler columns too. Projecting ts alone defers
+                // nothing, the rule never fires, and the probe passes without ever running the code it targets.
+                new Probe(
+                    "SORT ASC LIMIT 1 (wide)",
+                    "FROM " + cell.dataset() + " | SORT ts ASC | LIMIT 1 | EVAL v = ts::long | KEEP v, id, pri, msg",
+                    min
+                ),
+                new Probe(
+                    "SORT DESC LIMIT 1 (wide)",
+                    "FROM " + cell.dataset() + " | SORT ts DESC | LIMIT 1 | EVAL v = ts::long | KEEP v, id, pri, msg",
+                    max
+                ),
                 new Probe("STATS MIN", "FROM " + cell.dataset() + " | STATS m = MIN(ts) | EVAL v = m::long | KEEP v", min),
                 new Probe("STATS MAX", "FROM " + cell.dataset() + " | STATS m = MAX(ts) | EVAL v = m::long | KEEP v", max),
                 new Probe("STATS COUNT", "FROM " + cell.dataset() + " | STATS c = COUNT(ts)", (long) rawSeconds.length)
@@ -2834,20 +2893,40 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         };
     }
 
-    /** Decoded values with NO filter, sort or aggregate — the one query shape that engages no pruning. */
+    /**
+     * Decoded values with NO filter, NO sort and NO aggregate — the one query shape that engages no pruning at all,
+     * so it observes decode only. Sorting happens in the test, never in the query: a SORT could engage the very
+     * TopN rail whose correctness this is supposed to be the yardstick for.
+     */
     private List<Long> scalingGroundTruth(String dataset) {
-        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | EVAL v = ts::long | KEEP v | SORT v | LIMIT 1000"), TIMEOUT)) {
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | EVAL v = ts::long | KEEP v | LIMIT 5000"), TIMEOUT)) {
             List<Long> out = new ArrayList<>();
             for (List<Object> row : getValuesList(response)) {
                 out.add(((Number) row.get(0)).longValue());
             }
+            out.sort(Long::compareTo);
             return out;
         }
     }
 
     private void registerScalingDataset(String dataset, Path file, DatasetFieldMapping ts) throws Exception {
+        registerScalingDataset(dataset, file, ts, DatasetMapping.Dynamic.TRUE);
+    }
+
+    /**
+     * @param dynamic {@code FALSE} pins the declaration AS the schema, so it must name every column the file has —
+     *                a strict read does no inference to fall back on. That difference in path is exactly why both
+     *                modes belong in the matrix: they must agree on every other axis.
+     */
+    private void registerScalingDataset(String dataset, Path file, DatasetFieldMapping ts, DatasetMapping.Dynamic dynamic)
+        throws Exception {
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", ts);
+        if (dynamic == DatasetMapping.Dynamic.FALSE) {
+            properties.put("id", new DatasetFieldMapping("long", null));
+            properties.put("pri", new DatasetFieldMapping("integer", null));
+            properties.put("msg", new DatasetFieldMapping("keyword", null));
+        }
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -2859,7 +2938,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     file.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "parquet")),
-                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties))
+                    new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties))
                 )
             )
         );

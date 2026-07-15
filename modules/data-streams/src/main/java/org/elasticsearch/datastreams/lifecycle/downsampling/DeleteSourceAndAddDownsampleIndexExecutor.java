@@ -53,7 +53,7 @@ public class DeleteSourceAndAddDownsampleIndexExecutor extends SimpleBatchedExec
                 clusterState,
                 "deleted indices",
                 rerouteCompletionIsNotRequired() // it is not required to balance shard to report index deletion success
-            ).clusterState();
+            );
         }
         return clusterState;
     }

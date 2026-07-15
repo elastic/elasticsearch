@@ -100,7 +100,7 @@ public class TransportDeleteDesiredBalanceAction extends TransportMasterNodeActi
             for (var taskContext : batchExecutionContext.taskContexts()) {
                 taskContext.success(() -> listener.delay(taskContext.getTask().listener()).onResponse(null));
             }
-            return allocationService.reroute(state, "reset-desired-balance", listener.reroute()).clusterState();
+            return allocationService.reroute(state, "reset-desired-balance", listener.reroute());
         }
     }
 

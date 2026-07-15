@@ -466,7 +466,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 .build()
         );
 
-        var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop()).clusterState();
+        var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
 
         for (ShardRouting relocatingShard : RoutingNodesHelper.shardsWithState(reroutedState.getRoutingNodes(), RELOCATING)) {
             assertThat(

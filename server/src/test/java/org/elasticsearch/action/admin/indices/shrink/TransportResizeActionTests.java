@@ -158,7 +158,7 @@ public class TransportResizeActionTests extends ESTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable(projectId);
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable(projectId);
         clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable(projectId);
@@ -189,7 +189,7 @@ public class TransportResizeActionTests extends ESTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable(projectId);
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable(projectId);
         clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable(projectId);
@@ -232,7 +232,7 @@ public class TransportResizeActionTests extends ESTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable(projectId);
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable(projectId);
         clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable(projectId);
@@ -280,7 +280,7 @@ public class TransportResizeActionTests extends ESTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable(projectId);
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable(projectId);
         clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, indexName).routingTable(projectId);
@@ -351,7 +351,7 @@ public class TransportResizeActionTests extends ESTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable(projectId);
+        RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable(projectId);
         clusterState = ClusterState.builder(clusterState).putRoutingTable(projectId, routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable(projectId);

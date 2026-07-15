@@ -173,7 +173,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public AllocationService.RerouteResult apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
+            public ClusterState apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
                 return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
             }
         };
@@ -210,7 +210,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     newState,
                     "test",
                     ActionTestUtils.assertNoFailureListener(response -> listenerCalled.set(true))
-                ).clusterState();
+                );
             }
 
             @Override
@@ -300,10 +300,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var reconciledStateRef = new AtomicReference<ClusterState>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public AllocationService.RerouteResult apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
-                AllocationService.RerouteResult reconciled = allocationServiceRef.get()
+            public ClusterState apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
+                ClusterState reconciled = allocationServiceRef.get()
                     .executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
-                reconciledStateRef.set(reconciled.clusterState());
+                reconciledStateRef.set(reconciled);
                 return reconciled;
             }
         };
@@ -385,7 +385,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public AllocationService.RerouteResult apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
+            public ClusterState apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
                 return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
             }
         };
@@ -497,7 +497,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     newState,
                     "test",
                     ActionTestUtils.assertNoFailureListener(response -> safeAwait(rerouteFinished))
-                ).clusterState();
+                );
             }
 
             @Override
@@ -572,7 +572,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public AllocationService.RerouteResult apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
+            public ClusterState apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
                 reconciliations.incrementAndGet();
                 return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
             }
@@ -636,7 +636,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     );
                     assertThat(reconciliations.get(), equalTo(1));
                     listenersCalled.countDown();
-                })).clusterState();
+                }));
             }
 
             @Override
@@ -679,7 +679,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public AllocationService.RerouteResult apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
+            public ClusterState apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
                 return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
             }
         };
@@ -731,7 +731,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     .build();
                 return allocationService.reroute(newState, "test", ActionListener.wrap(response -> {
                     throw new AssertionError("Should not happen in test");
-                }, exception -> listenersCalled.countDown())).clusterState();
+                }, exception -> listenersCalled.countDown()));
             }
 
             @Override
@@ -803,10 +803,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             threadPool,
             clusterService,
             desiredBalanceComputer,
-            (reconcilerClusterState, rerouteStrategy) -> new AllocationService.RerouteResult(
-                reconcilerClusterState,
-                DirectCancellationsCandidates.EMPTY
-            ),
+            (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             EMPTY_NODE_ALLOCATION_STATS,
             DesiredBalanceMetrics.NOOP,
             AllocationBalancingRoundMetrics.NOOP,
@@ -1125,10 +1122,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             threadPool,
             clusterService,
             desiredBalanceComputer,
-            (reconcilerClusterState, rerouteStrategy) -> new AllocationService.RerouteResult(
-                reconcilerClusterState,
-                DirectCancellationsCandidates.EMPTY
-            ),
+            (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             EMPTY_NODE_ALLOCATION_STATS,
             DesiredBalanceMetrics.NOOP,
             AllocationBalancingRoundMetrics.NOOP,
@@ -1185,10 +1179,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             threadPool,
             clusterService,
             desiredBalanceComputer,
-            (reconcilerClusterState, rerouteStrategy) -> new AllocationService.RerouteResult(
-                reconcilerClusterState,
-                DirectCancellationsCandidates.EMPTY
-            ),
+            (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             EMPTY_NODE_ALLOCATION_STATS,
             DesiredBalanceMetrics.NOOP,
             AllocationBalancingRoundMetrics.NOOP,

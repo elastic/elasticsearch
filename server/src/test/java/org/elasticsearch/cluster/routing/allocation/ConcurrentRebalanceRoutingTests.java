@@ -114,7 +114,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(nodeFactory.get()).add(nodeFactory.get()))
             .build();
-        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertPrimariesInitializing(clusterState.routingTable().index("test"));
 
@@ -138,7 +138,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
             )
             .build();
 
-        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertReplicasInitializing(clusterState.routingTable().index("test"));
 
@@ -209,7 +209,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1", frozenRole)).add(newNode("node2", frozenRole)))
             .build();
-        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("start all the primary shards, replicas will start initializing");
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
@@ -228,7 +228,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
 
         clusterState = clusterStateBuilder.nodes(nodeBuilder).build();
 
-        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("start the replica shards, rebalancing should start, but with a limit " + nodeCount + " should be rebalancing");
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);

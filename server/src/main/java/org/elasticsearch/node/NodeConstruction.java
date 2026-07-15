@@ -65,6 +65,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
+import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -155,7 +156,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
-import org.elasticsearch.indices.recovery.RecoveryDirectCancellationService;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
@@ -1497,8 +1497,7 @@ class NodeConstruction {
             // TODO: we are getting rid of this dependency
             injector.getInstance(ShardStateAction.class)
         );
-        clusterModule.registerDirectCancellationService(recoveryDirectCancellationService);
-        rerouteService.setRecoveryDirectCancellationService(recoveryDirectCancellationService);
+        clusterModule.registerRecoveryDirectCancellationAction(recoveryDirectCancellationService::computeAndSubmitCancellations);
 
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
     }

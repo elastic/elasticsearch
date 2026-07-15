@@ -104,7 +104,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
             discoBuilder = discoBuilder.add(newNode("node" + i));
         }
         this.clusterState = ClusterState.builder(clusterState).nodes(discoBuilder).build();
-        ClusterState rerouteResult = ALLOCATION_SERVICE.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        ClusterState rerouteResult = ALLOCATION_SERVICE.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(rerouteResult, not(equalTo(this.clusterState)));
         this.clusterState = rerouteResult;
     }

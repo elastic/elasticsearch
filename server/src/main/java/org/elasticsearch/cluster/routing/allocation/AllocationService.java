@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellationsCandidates;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -97,8 +96,6 @@ public class AllocationService {
     private final SnapshotsInfoService snapshotsInfoService;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
     private final ShardChangesObserver shardChangesObserver;
-
-    public record RerouteResult(ClusterState clusterState, DirectCancellationsCandidates directCancellationsCandidates) {}
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     @SuppressWarnings("this-escape")
@@ -172,10 +169,10 @@ public class AllocationService {
             s -> s.shardId().toString(),
             logger.isDebugEnabled()
         );
-        return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "]").clusterState();
+        return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "]");
     }
 
-    private static RerouteResult buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
+    private static ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
         final GlobalRoutingTable newRoutingTable = oldState.globalRoutingTable().rebuild(allocation.routingNodes(), allocation.metadata());
         final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
@@ -194,7 +191,7 @@ public class AllocationService {
 
         logClusterHealthStateChange(oldState, newState, reason);
 
-        return new RerouteResult(newState, allocation.directCancellationsCandidates());
+        return newState;
     }
 
     /**
@@ -295,7 +292,7 @@ public class AllocationService {
             s -> s.routingEntry().shardId().toString(),
             logger.isDebugEnabled()
         );
-        return buildResultAndLogHealthChange(clusterState, allocation, "shards failed [" + failedShardsAsString + "]").clusterState();
+        return buildResultAndLogHealthChange(clusterState, allocation, "shards failed [" + failedShardsAsString + "]");
     }
 
     /**
@@ -308,12 +305,10 @@ public class AllocationService {
         disassociateDeadNodes(allocation);
 
         if (allocation.routingNodesChanged()) {
-            final var rerouteResult = buildResultAndLogHealthChange(clusterState, allocation, reason);
-            clusterState = rerouteResult.clusterState();
+            clusterState = buildResultAndLogHealthChange(clusterState, allocation, reason);
         }
         if (reroute) {
-            return reroute(clusterState, reason, rerouteCompletionIsNotRequired() /* this is not triggered by a user request */)
-                .clusterState();
+            return reroute(clusterState, reason, rerouteCompletionIsNotRequired() /* this is not triggered by a user request */);
         } else {
             return clusterState;
         }
@@ -451,8 +446,8 @@ public class AllocationService {
         } else {
             reroute.onResponse(null);
         }
-        final var rerouteResult = buildResultAndLogHealthChange(clusterState, allocation, "reroute commands");
-        return new CommandsResult(explanations, rerouteResult.clusterState());
+        final var reroutedState = buildResultAndLogHealthChange(clusterState, allocation, "reroute commands");
+        return new CommandsResult(explanations, reroutedState);
     }
 
     /**
@@ -464,7 +459,7 @@ public class AllocationService {
      *
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
-    public RerouteResult reroute(ClusterState clusterState, String reason, ActionListener<Void> listener) {
+    public ClusterState reroute(ClusterState clusterState, String reason, ActionListener<Void> listener) {
         return executeWithRoutingAllocation(
             clusterState,
             reason,
@@ -481,12 +476,12 @@ public class AllocationService {
      *
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
-    public RerouteResult executeWithRoutingAllocation(ClusterState clusterState, String reason, RerouteStrategy rerouteStrategy) {
+    public ClusterState executeWithRoutingAllocation(ClusterState clusterState, String reason, RerouteStrategy rerouteStrategy) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
         RoutingAllocation allocation = createMutableRoutingAllocation(fixedClusterState, currentNanoTime());
         reroute(allocation, rerouteStrategy);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
-            return new RerouteResult(clusterState, allocation.directCancellationsCandidates());
+            return clusterState;
         }
         return buildResultAndLogHealthChange(clusterState, allocation, reason);
     }
@@ -719,8 +714,7 @@ public class AllocationService {
         RoutingAllocation allocation = createMutableRoutingAllocation(clusterState, currentNanoTime());
         allocation.routingNodes().resetFailedCounter(allocation);
         reroute(allocation, routingAllocation -> shardsAllocator.allocate(routingAllocation, ActionListener.noop()));
-        final var rerouteResult = buildResultAndLogHealthChange(clusterState, allocation, "reroute with reset failed counter");
-        return rerouteResult.clusterState();
+        return buildResultAndLogHealthChange(clusterState, allocation, "reroute with reset failed counter");
     }
 
     private static void disassociateDeadNodes(RoutingAllocation allocation) {

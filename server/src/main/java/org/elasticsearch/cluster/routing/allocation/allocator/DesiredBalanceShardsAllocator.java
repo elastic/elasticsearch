@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteResult;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -36,7 +35,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.indices.recovery.RecoveryDirectCancellationService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -91,7 +89,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final AtomicReference<DesiredBalance> currentDesiredBalanceRef = new AtomicReference<>(DesiredBalance.NOT_MASTER);
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
-    private volatile RecoveryDirectCancellationService recoveryDirectCancellationService;
+    private volatile RecoveryDirectCancellationAction recoveryDirectCancellationAction = RecoveryDirectCancellationAction.NO_OP;
 
     private final NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator;
     private final DesiredBalanceMetrics desiredBalanceMetrics;
@@ -111,7 +109,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     @FunctionalInterface
     public interface DesiredBalanceReconcilerAction {
-        RerouteResult apply(ClusterState clusterState, RerouteStrategy rerouteStrategy);
+        ClusterState apply(ClusterState clusterState, RerouteStrategy rerouteStrategy);
+    }
+
+    @FunctionalInterface
+    public interface RecoveryDirectCancellationAction {
+        RecoveryDirectCancellationAction NO_OP = (desiredBalance, routingAllocation) -> {};
+
+        void apply(DesiredBalance desiredBalance, RoutingAllocation routingAllocation);
     }
 
     @FunctionalInterface
@@ -119,9 +124,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ShardAllocationDecision explain(ShardRouting shard, RoutingAllocation allocation);
     }
 
-    public void setRecoveryDirectCancellationService(RecoveryDirectCancellationService recoveryDirectCancellationService) {
-        assert this.recoveryDirectCancellationService == null : "recovery direct cancellation service should only be set once";
-        this.recoveryDirectCancellationService = recoveryDirectCancellationService;
+    public void setRecoveryDirectCancellationAction(RecoveryDirectCancellationAction recoveryDirectCancellationAction) {
+        assert this.recoveryDirectCancellationAction == RecoveryDirectCancellationAction.NO_OP
+            : "direct cancellation action should only be set once";
+        this.recoveryDirectCancellationAction = recoveryDirectCancellationAction;
     }
 
     public DesiredBalanceShardsAllocator(
@@ -188,18 +194,21 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     return;
                 }
 
+                final var previousDesiredBalance = new AtomicReference<DesiredBalance>();
                 recordTime(
                     cumulativeComputationTime,
                     // We set currentDesiredBalance back to INITIAL when the node stands down as master in onNoLongerMaster.
                     // However, it is possible that we revert the effect here by setting it again since the computation is async
                     // and does not check whether the node is master. This should have little to no practical impact. But it may
                     // lead to unexpected behaviours for tests. See also https://github.com/elastic/elasticsearch/pull/116904
-                    () -> setCurrentDesiredBalance(
-                        desiredBalanceComputer.compute(
-                            initialDesiredBalance,
-                            desiredBalanceInput,
-                            pendingDesiredBalanceMoves,
-                            this::isFresh
+                    () -> previousDesiredBalance.set(
+                        setCurrentDesiredBalance(
+                            desiredBalanceComputer.compute(
+                                initialDesiredBalance,
+                                desiredBalanceInput,
+                                pendingDesiredBalanceMoves,
+                                this::isFresh
+                            )
                         )
                     )
                 );
@@ -220,12 +229,18 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                         "Desired balance computation for [{}] terminated early with partial result, scheduling reconciliation",
                         index
                     );
+                    if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
+                        recoveryDirectCancellationAction.apply(currentDesiredBalance, desiredBalanceInput.routingAllocation());
+                    }
                     submitReconcileTask(currentDesiredBalance);
                     var newInput = DesiredBalanceInput.create(indexGenerator.incrementAndGet(), desiredBalanceInput.routingAllocation());
                     desiredBalanceComputation.compareAndEnqueue(desiredBalanceInput, newInput);
                 } else if (isFresh(desiredBalanceInput)) {
                     logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
                     computationsConverged.inc();
+                    if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
+                        recoveryDirectCancellationAction.apply(currentDesiredBalance, desiredBalanceInput.routingAllocation());
+                    }
                     submitReconcileTask(currentDesiredBalance);
                 } else {
                     logger.debug("Desired balance computation for [{}] is discarded as newer one is submitted", index);
@@ -347,12 +362,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         return moves;
     }
 
-    private void setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
+    private DesiredBalance setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
         while (true) {
             final var oldDesiredBalance = currentDesiredBalanceRef.get();
             if (oldDesiredBalance == DesiredBalance.NOT_MASTER) {
                 logger.debug("discard desired balance for [{}] since node is no longer master", newDesiredBalance.lastConvergedIndex());
-                return;
+                return DesiredBalance.NOT_MASTER;
             }
 
             if (currentDesiredBalanceRef.compareAndSet(oldDesiredBalance, newDesiredBalance)) {
@@ -366,7 +381,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     logger.debug("Desired balance updated for [{}]", newDesiredBalance.lastConvergedIndex());
                 }
                 computedShardMovements.inc(DesiredBalance.shardMovements(oldDesiredBalance, newDesiredBalance));
-                break;
+                return oldDesiredBalance;
             }
         }
     }
@@ -531,22 +546,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ) {
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 final var initialState = batchExecutionContext.initialState();
-                final var rerouteResult = reconciler.apply(initialState, createReconcileAllocationAction(latest.getTask().desiredBalance));
-                final var newState = rerouteResult.clusterState();
-
-                latest.success(() -> {
-                    pendingListenersQueue.complete(latest.getTask().desiredBalance.lastConvergedIndex());
-                    if (initialState != newState) {
-                        final var recoveryDirectCancellationService = DesiredBalanceShardsAllocator.this.recoveryDirectCancellationService;
-                        if (recoveryDirectCancellationService != null) {
-                            recoveryDirectCancellationService.submitCancellations(
-                                rerouteResult.directCancellationsCandidates(),
-                                initialState.version()
-                            );
-                        }
-                    }
-                });
-                return newState;
+                latest.success(() -> pendingListenersQueue.complete(latest.getTask().desiredBalance.lastConvergedIndex()));
+                return reconciler.apply(initialState, createReconcileAllocationAction(latest.getTask().desiredBalance));
             }
         }
 

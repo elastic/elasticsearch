@@ -463,6 +463,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             CancelRecoveriesAction.TYPE,
             new CancelRecoveriesAction.Request(
                 0L,
+                0L,
                 List.of(
                     new ShardRecoveryCancellation(indexShardRouting.get().shardId(), indexShardRouting.get().allocationId().getId(), false)
                 )
@@ -556,6 +557,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         client(node2).execute(
             CancelRecoveriesAction.TYPE,
             new CancelRecoveriesAction.Request(
+                clusterService.state().term(),
                 clusterService.state().version(),
                 List.of(new ShardRecoveryCancellation(queuedStoreShardId, queuedStoreAllocationId, false))
             )
@@ -579,6 +581,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         client(node2).execute(
             CancelRecoveriesAction.TYPE,
             new CancelRecoveriesAction.Request(
+                clusterService.state().term(),
                 clusterService.state().version(),
                 List.of(new ShardRecoveryCancellation(queuedPeerShardId, queuedPeerAllocationId, false))
             )
@@ -604,6 +607,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         client(node2).execute(
             CancelRecoveriesAction.TYPE,
             new CancelRecoveriesAction.Request(
+                clusterService.state().term(),
                 clusterService.state().version(),
                 List.of(new ShardRecoveryCancellation(startedShardId, startedAllocationId, true))
             )

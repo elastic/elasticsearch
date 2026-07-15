@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComp
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceInput;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellationsCandidates;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardRelocationOrder;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -122,7 +121,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             threadPool,
             clusterService,
             computer,
-            (state, action) -> new AllocationService.RerouteResult(state, DirectCancellationsCandidates.EMPTY),
+            (state, action) -> state,
             EMPTY_NODE_ALLOCATION_STATS,
             DesiredBalanceMetrics.NOOP,
             AllocationBalancingRoundMetrics.NOOP,

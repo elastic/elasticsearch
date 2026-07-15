@@ -313,7 +313,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                     }
                 }
             }
-        ).clusterState();
+        );
 
         final var startedPrimaries = startInitializingShardsAndReroute(allocationService, initializingPrimaries);
 
@@ -342,7 +342,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                     );
                 }
             }
-        ).clusterState();
+        );
 
         final var startedReplicas = startInitializingShardsAndReroute(allocationService, initializingReplicas);
 
@@ -383,7 +383,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
 
             for (final var routingNode : clusterState.getRoutingNodes()
                 .stream()
-                .sorted(Comparator.comparing(shardRoutings -> shardRoutings.nodeId().substring(7)))
+                .sorted(Comparator.comparing((RoutingNode shardRoutings) -> shardRoutings.nodeId().substring(7)))
                 .toList()) {
 
                 int shards = 0;

@@ -16,8 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellationsCandidates;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
@@ -67,7 +65,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
             rerouteCount.incrementAndGet();
             l.onResponse(null);
-            return new AllocationService.RerouteResult(s, DirectCancellationsCandidates.EMPTY);
+            return s;
         });
 
         long rerouteCountBeforeReroute = 0L;
@@ -109,7 +107,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
             assertTrue(rerouteExecuted.compareAndSet(false, true)); // only called once
             l.onResponse(null);
-            return new AllocationService.RerouteResult(s, DirectCancellationsCandidates.EMPTY);
+            return s;
         });
 
         final ThreadContext threadContext = threadPool.getThreadContext();
@@ -203,7 +201,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             }
             l.onResponse(null);
             ClusterState resultState = randomBoolean() ? s : ClusterState.builder(s).build();
-            return new AllocationService.RerouteResult(resultState, DirectCancellationsCandidates.EMPTY);
+            return resultState;
         });
 
         final int iterations = between(1, 100);
@@ -291,7 +289,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
             final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
                 l.onResponse(null);
-                return new AllocationService.RerouteResult(ClusterState.builder(s).build(), DirectCancellationsCandidates.EMPTY);
+                return ClusterState.builder(s).build();
             });
 
             mockLog.addExpectation(

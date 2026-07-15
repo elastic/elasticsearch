@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -36,7 +35,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -634,7 +632,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             yesOrNotPreferredDecider()
         );
 
-        final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop()).clusterState();
+        final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
 
         final var existingShard = reroutedState.routingTable().shardRoutingTable("index-existing", 0).primaryShard();
         assertTrue(existingShard.initializing());
@@ -803,7 +801,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         // first assign the primary of [index-0][0] (no other shards may be allocated due to allocation filter)
         allocationFilter.set((shardId, nodeId) -> shardId == 0);
-        final var stateWithOneInitializingPrimary = allocationService.reroute(clusterState, "test", unused).clusterState();
+        final var stateWithOneInitializingPrimary = allocationService.reroute(clusterState, "test", unused);
         {
             final var shard0RoutingTable = stateWithOneInitializingPrimary.routingTable().shardRoutingTable("index-0", 0);
             assertTrue(shard0RoutingTable.primaryShard().initializing());
@@ -814,8 +812,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         // now relax the allocation filter and ensure that [index-0][1] still isn't assigned due to throttling on the desired node
         allocationFilter.set((shardId, nodeId) -> true);
-        final var stateStillWithOneInitializingPrimary = allocationService.reroute(stateWithOneInitializingPrimary, "test", unused)
-            .clusterState();
+        final var stateStillWithOneInitializingPrimary = allocationService.reroute(stateWithOneInitializingPrimary, "test", unused);
         {
             final var shard0RoutingTable = stateStillWithOneInitializingPrimary.routingTable().shardRoutingTable("index-0", 0);
             assertTrue(shard0RoutingTable.primaryShard().initializing());
@@ -826,8 +823,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         // now forbid [index-0][1] from its desired node and see that it falls back to the undesired node
         allocationFilter.set((shardId, nodeId) -> nodeId.equals("node-1"));
-        final var stateWithBothInitializingPrimaries = allocationService.reroute(stateStillWithOneInitializingPrimary, "test", unused)
-            .clusterState();
+        final var stateWithBothInitializingPrimaries = allocationService.reroute(stateStillWithOneInitializingPrimary, "test", unused);
         {
             final var shard0RoutingTable = stateWithBothInitializingPrimaries.routingTable().shardRoutingTable("index-0", 0);
             assertTrue(shard0RoutingTable.primaryShard().initializing());
@@ -916,11 +912,11 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 .build()
         );
 
-        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()).clusterState()); // all still on
-                                                                                                                         // desired
-                                                                                                                         // nodes, no
-                                                                                                                         // movement
-                                                                                                                         // needed
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop())); // all still on
+                                                                                                          // desired
+                                                                                                          // nodes, no
+                                                                                                          // movement
+                                                                                                          // needed
         assertNotNull(allocationStats);
         assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 0), allocationStats.get());
 
@@ -928,7 +924,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         // The next reroute starts moving shards to node-2 and node-3, but interleaves the decisions between node-0 and node-1 for fairness.
         // There's an inbound throttle of 1 but no outbound throttle, so without the interleaving one node would relocate 2 shards.
-        final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop()).clusterState();
+        final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
         assertThat(reroutedState.getRoutingNodes().node("node-0").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
         assertThat(reroutedState.getRoutingNodes().node("node-1").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
         assertNotNull(allocationStats);
@@ -937,7 +933,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         // Ensuring that we check the shortcut two-param canAllocate() method up front
         canAllocateRef.set(Decision.NO);
-        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()).clusterState());
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 6), allocationStats.get());
         canAllocateRef.set(Decision.YES);
 
@@ -975,258 +971,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             ),
             "test",
             ActionListener.noop()
-        ).clusterState();
+        );
         assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 7, 3), allocationStats.get());
 
         assertThat(shuttingDownState.getRoutingNodes().node("node-2").numberOfShardsWithState(ShardRoutingState.INITIALIZING), equalTo(1));
-    }
-
-    public void testComputePendingDirectCancellations() {
-        final var indexName = randomIndexName();
-        final var indexMetadata = randomPriorityIndex(indexName, 2, 1);
-        final var index = indexMetadata.getIndex();
-        final var undesiredShardId = new ShardId(index, 0);
-        final var desiredShardId = new ShardId(index, 1);
-        final var undesiredReplicaAllocationId = AllocationId.newInitializing(randomIdentifier("undesired-"));
-        final var desiredReplicaAllocationId = AllocationId.newInitializing(randomIdentifier("desired-"));
-
-        final var indexRoutingTable = IndexRoutingTable.builder(index)
-            .addShard(newShardRouting(undesiredShardId, "node-0", true, STARTED))
-            .addShard(
-                TestShardRouting.shardRoutingBuilder(undesiredShardId, "node-1", false, ShardRoutingState.INITIALIZING)
-                    .withAllocationId(undesiredReplicaAllocationId)
-                    .build()
-            )
-            .addShard(newShardRouting(desiredShardId, "node-0", true, STARTED))
-            .addShard(
-                TestShardRouting.shardRoutingBuilder(desiredShardId, "node-2", false, ShardRoutingState.INITIALIZING)
-                    .withAllocationId(desiredReplicaAllocationId)
-                    .build()
-            );
-        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes(3))
-            .metadata(Metadata.builder().put(indexMetadata, true))
-            .routingTable(RoutingTable.builder().add(indexRoutingTable))
-            .build();
-
-        // Both shards have their primary desired on node-0 and their replica desired on node-2. The undesired shard's replica is
-        // currently initializing away from its desired node (node-1, not node-2). The desired shard's replica is already initializing
-        // on its desired node, so it should never be flagged as a cancellation candidate.
-        final var balance = new DesiredBalance(
-            1,
-            Map.of(
-                undesiredShardId,
-                new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0),
-                desiredShardId,
-                new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0)
-            )
-        );
-
-        // With no decider forbidding the replica from remaining on node-1, the candidate is not escalated to cancel an
-        // already-started recovery.
-        final var routingAllocation = createRoutingAllocationFrom(clusterState);
-        final var pendingDirectCancellations = new DesiredBalanceReconciler(
-            defaultTestClusterSettings(),
-            new AdvancingTimeProvider(),
-            new ShardRelocationOrder.DefaultOrder()
-        ).reconcile(balance, routingAllocation);
-        final var candidates = routingAllocation.directCancellationsCandidates().candidates();
-
-        assertThat(candidates, hasSize(1));
-        final var candidate = candidates.getFirst();
-        assertThat(candidate.node(), equalTo(clusterState.nodes().get("node-1")));
-        assertThat(candidate.cancellations(), hasSize(1));
-        final var cancellation = candidate.cancellations().getFirst();
-        assertThat(cancellation.shardId(), equalTo(undesiredShardId));
-        assertThat(cancellation.allocationId(), equalTo(undesiredReplicaAllocationId.getId()));
-        assertFalse(cancellation.cancelIfStarted());
-
-        // If a decider actively forbids the replica from remaining, the candidate is escalated to allow cancelling an
-        // already-started recovery.
-        final var forbidRemainOnNode1 = new AllocationDecider() {
-            @Override
-            public Decision canRemain(
-                IndexMetadata indexMetadata,
-                ShardRouting shardRouting,
-                RoutingNode node,
-                RoutingAllocation allocation
-            ) {
-                return shardRouting.shardId().equals(undesiredShardId) && shardRouting.primary() == false ? Decision.NO : Decision.YES;
-            }
-        };
-        final var routingAllocationWithForbidRemain = createRoutingAllocationFrom(clusterState, forbidRemainOnNode1);
-        new DesiredBalanceReconciler(defaultTestClusterSettings(), new AdvancingTimeProvider(), new ShardRelocationOrder.DefaultOrder())
-            .reconcile(balance, routingAllocationWithForbidRemain);
-        final var escalatedCandidates = routingAllocationWithForbidRemain.directCancellationsCandidates().candidates();
-
-        assertThat(escalatedCandidates, hasSize(1));
-        assertTrue(escalatedCandidates.getFirst().cancellations().getFirst().cancelIfStarted());
-    }
-
-    public void testUnassignInterruptableInitializingShards() {
-        final var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 1)).build();
-        final var index = indexMetadata.getIndex();
-        final var shardId = new ShardId(index, 0);
-        final var originalReplicaAllocationId = AllocationId.newInitializing("original-replica");
-
-        final var indexRoutingTable = RoutingTable.builder()
-            .add(
-                IndexRoutingTable.builder(index)
-                    .addShard(newShardRouting(shardId, "node-0", true, STARTED))
-                    .addShard(
-                        TestShardRouting.shardRoutingBuilder(shardId, "node-1", false, ShardRoutingState.INITIALIZING)
-                            .withAllocationId(originalReplicaAllocationId)
-                            .build()
-                    )
-            );
-        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes(3))
-            .metadata(Metadata.builder().put(indexMetadata, true))
-            .routingTable(indexRoutingTable)
-            .build();
-
-        // Primary desired on node-0 (already there), replica desired on node-2, but currently initializing on node-1.
-        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0)));
-
-        // With no decider forbidding the replica from remaining on node-1, it is a cancellation candidate but not escalated,
-        // so the routing table is left untouched.
-        final var untouchedAllocation = createRoutingAllocationFrom(clusterState);
-        new DesiredBalanceReconciler(defaultTestClusterSettings(), new AdvancingTimeProvider(), new ShardRelocationOrder.DefaultOrder())
-            .reconcile(balance, untouchedAllocation);
-
-        final var untouchedReplica = untouchedAllocation.routingNodes().node("node-1").getByShardId(shardId);
-        assertThat(untouchedReplica, notNullValue());
-        assertTrue(untouchedReplica.initializing());
-        assertThat(untouchedReplica.allocationId(), equalTo(originalReplicaAllocationId));
-
-        // If a decider actively forbids the replica from remaining, it is unassigned via the routing table and, with
-        // allocateUnassigned() running again straight after, reallocated to its desired node within this same round.
-        final var forbidRemain = new AllocationDecider() {
-            @Override
-            public Decision canRemain(
-                IndexMetadata indexMetadata,
-                ShardRouting shardRouting,
-                RoutingNode node,
-                RoutingAllocation allocation
-            ) {
-                return shardRouting.shardId().equals(shardId) && shardRouting.primary() == false ? Decision.NO : Decision.YES;
-            }
-        };
-        final var reallocatedAllocation = createRoutingAllocationFrom(clusterState, forbidRemain);
-        new DesiredBalanceReconciler(defaultTestClusterSettings(), new AdvancingTimeProvider(), new ShardRelocationOrder.DefaultOrder())
-            .reconcile(balance, reallocatedAllocation);
-
-        assertThat(reallocatedAllocation.routingNodes().node("node-1").getByShardId(shardId), nullValue());
-        final var reallocatedReplica = reallocatedAllocation.routingNodes().node("node-2").getByShardId(shardId);
-        assertThat(reallocatedReplica, notNullValue());
-        assertTrue(reallocatedReplica.initializing());
-        assertThat(reallocatedReplica.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.REALLOCATED_REPLICA));
-    }
-
-    public void testUnassignInterruptableInitializingShardsDoesNotUnassignsPrimaryRelocation() {
-        final var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
-        final var index = indexMetadata.getIndex();
-        final var shardId = new ShardId(index, 0);
-
-        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes(3))
-            .metadata(Metadata.builder().put(indexMetadata, true))
-            .routingTable(
-                RoutingTable.builder().add(IndexRoutingTable.builder(index).addShard(newShardRouting(shardId, "node-0", true, STARTED)))
-            )
-            .build();
-
-        // Desired somewhere else entirely, and a decider forbidding the primary from remaining, so it both qualifies as a
-        // cancellation candidate and is escalated (cancelIfStarted=true) exactly like an interruptable replica would be.
-        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-2"), 1, 0, 0)));
-        final var forbidRemain = new AllocationDecider() {
-            @Override
-            public Decision canRemain(
-                IndexMetadata indexMetadata,
-                ShardRouting shardRouting,
-                RoutingNode node,
-                RoutingAllocation allocation
-            ) {
-                return Decision.NO;
-            }
-        };
-
-        // Primary relocation from node-0 to node-1
-        final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
-        final var startedPrimary = allocation.routingNodes().node("node-0").getByShardId(shardId);
-        allocation.routingNodes()
-            .relocateShard(startedPrimary, "node-1", ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, "test-setup", allocation.changes());
-
-        final var result = new DesiredBalanceReconciler(
-            defaultTestClusterSettings(),
-            new AdvancingTimeProvider(),
-            new ShardRelocationOrder.DefaultOrder()
-        ).reconcile(balance, allocation);
-
-        assertThat(allocation.directCancellationsCandidates().candidates(), hasSize(1));
-        assertTrue(allocation.directCancellationsCandidates().candidates().getFirst().cancellations().getFirst().cancelIfStarted());
-
-        final var target = allocation.routingNodes().node("node-1").getByShardId(shardId);
-        assertThat(target, notNullValue());
-        assertTrue(target.initializing());
-        final var source = allocation.routingNodes().node("node-0").getByShardId(shardId);
-        assertThat(source, notNullValue());
-        assertTrue(source.relocating());
-    }
-
-    public void testUnassignInterruptableInitializingShardsNeverUnassignsSoleSearchableCopy() {
-        final var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 1)).build();
-        final var index = indexMetadata.getIndex();
-        final var shardId = new ShardId(index, 0);
-        final var searchOnlyAllocationId = AllocationId.newInitializing("search-only-replica");
-
-        final var indexRoutingTable = RoutingTable.builder()
-            .add(
-                IndexRoutingTable.builder(index)
-                    .addShard(newShardRouting(shardId, "node-0", true, STARTED))
-                    .addShard(
-                        TestShardRouting.shardRoutingBuilder(shardId, "node-1", false, ShardRoutingState.INITIALIZING)
-                            .withAllocationId(searchOnlyAllocationId)
-                            .withRole(ShardRouting.Role.SEARCH_ONLY)
-                            .build()
-                    )
-            );
-        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes(3))
-            .metadata(Metadata.builder().put(indexMetadata, true))
-            .routingTable(indexRoutingTable)
-            .build();
-
-        // Decider unconditionally forbidding the shard from remaining
-        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0)));
-        final var forbidRemain = new AllocationDecider() {
-            @Override
-            public Decision canRemain(
-                IndexMetadata indexMetadata,
-                ShardRouting shardRouting,
-                RoutingNode node,
-                RoutingAllocation allocation
-            ) {
-                return Decision.NO;
-            }
-        };
-
-        final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
-        final var result = new DesiredBalanceReconciler(
-            defaultTestClusterSettings(),
-            new AdvancingTimeProvider(),
-            new ShardRelocationOrder.DefaultOrder()
-        ).reconcile(balance, allocation);
-
-        // It's still a cancellation candidate, but never escalated to interrupt an already-started one, and
-        // never unassigned via the routing table either.
-        assertThat(allocation.directCancellationsCandidates().candidates(), hasSize(1));
-        assertFalse(allocation.directCancellationsCandidates().candidates().getFirst().cancellations().getFirst().cancelIfStarted());
-
-        final var searchOnlyReplica = allocation.routingNodes().node("node-1").getByShardId(shardId);
-        assertThat(searchOnlyReplica, notNullValue());
-        assertTrue(searchOnlyReplica.initializing());
-        assertThat(searchOnlyReplica.allocationId(), equalTo(searchOnlyAllocationId));
     }
 
     public void testRebalance() {
@@ -1291,32 +1039,32 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         }
 
         // All still on desired nodes, no movement needed, cluster state remains the same.
-        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()).clusterState());
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 0), allocationStats.get());
 
         desiredBalance.set(desiredBalance(clusterState, (shardId, nodeId) -> nodeId.equals("node-2") || nodeId.equals("node-3")));
 
         canRebalanceGlobalRef.set(Decision.NO);
         // rebalancing forbidden on all shards, no movement allowed, cluster state remains the same.
-        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()).clusterState());
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         // assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 6), allocationStats.get());
         canRebalanceGlobalRef.set(Decision.YES);
 
         canRebalanceShardRef.set(Decision.NO);
         // rebalancing forbidden on specific shards, still no movement.
-        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()).clusterState());
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         // assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 6), allocationStats.get());
         canRebalanceShardRef.set(Decision.YES);
 
         canAllocateShardRef.set(Decision.NO);
         // allocation not possible, no movement
-        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()).clusterState());
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
         // assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 6, 6), allocationStats.get());
         canAllocateShardRef.set(Decision.YES);
 
         // The next reroute starts moving shards to node-2 and node-3, but interleaves the decisions between node-0 and node-1 for fairness.
         // There's an inbound throttle of 1 but no outbound throttle, so without the interleaving one node would relocate 2 shards.
-        final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop()).clusterState();
+        final var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
         assertThat(reroutedState.getRoutingNodes().node("node-0").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
         assertThat(reroutedState.getRoutingNodes().node("node-1").numberOfShardsWithState(ShardRoutingState.RELOCATING), equalTo(1));
         assertNotNull(allocationStats.get());
@@ -1325,7 +1073,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         // Test that the AllocationStats are still updated, even though throttling is active. The cluster state should remain unchanged
         // because due to throttling: the previous reroute request started relocating two shards and, since those reallocations have not
         // been completed, no additional shard relocations can begin.
-        assertSame(reroutedState, allocationService.reroute(reroutedState, "test", ActionListener.noop()).clusterState());
+        assertSame(reroutedState, allocationService.reroute(reroutedState, "test", ActionListener.noop()));
         assertNotNull(allocationStats);
         // Note: total allocations counts relocating and intializing shards, so the two relocating shards will be counted twice.
         assertEquals(new DesiredBalanceMetrics.AllocationStats(0, 8, 4), allocationStats.get());
@@ -1884,9 +1632,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     }
 
     private static ClusterSettings defaultTestClusterSettings() {
-        return ClusterSettings.createBuiltInClusterSettings(
-            Settings.builder().put(DesiredBalanceReconciler.ENABLE_INITIALIZING_SHARD_CANCELLATION_SETTING.getKey(), true).build()
-        );
+        return ClusterSettings.createBuiltInClusterSettings(Settings.EMPTY);
     }
 
     /**

@@ -527,7 +527,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 resultsCollector.finish();
                 reasonBuilder.append(']');
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
-                    state = allocationService.reroute(state, reasonBuilder.toString(), listener.reroute()).clusterState();
+                    state = allocationService.reroute(state, reasonBuilder.toString(), listener.reroute());
                 }
             } else {
                 listener.noRerouteNeeded();

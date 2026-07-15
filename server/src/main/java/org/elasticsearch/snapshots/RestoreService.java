@@ -1596,8 +1596,7 @@ public final class RestoreService implements ClusterStateApplier {
             if (searchableSnapshotsIndices.isEmpty() == false) {
                 ensureSearchableSnapshotsRestorable(updatedClusterState, snapshotInfo, searchableSnapshotsIndices);
             }
-            return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]", listener.reroute())
-                .clusterState();
+            return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]", listener.reroute());
         }
 
         private void applyDataStreamRestores(ClusterState currentState, Metadata.Builder mdBuilder, ProjectId projectId) {

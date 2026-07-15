@@ -72,7 +72,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
 
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         while (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).isEmpty() == false) {
             clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -109,7 +109,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node1", singletonMap("tag1", "value1"))))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         while (shardsWithState(clusterState.getRoutingNodes(), STARTED).size() < totalNumberOfShards) {
             int localInitializations = 0;

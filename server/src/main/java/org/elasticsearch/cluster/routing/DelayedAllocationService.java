@@ -105,8 +105,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         public ClusterState execute(ClusterState currentState) throws Exception {
             removeIfSameTask(this);
             // rerouteCompletionIsNotRequired() as this update is scheduled and is not triggered by user request
-            return allocationService.reroute(currentState, "assign delayed unassigned shards", rerouteCompletionIsNotRequired())
-                .clusterState();
+            return allocationService.reroute(currentState, "assign delayed unassigned shards", rerouteCompletionIsNotRequired());
         }
 
         @Override

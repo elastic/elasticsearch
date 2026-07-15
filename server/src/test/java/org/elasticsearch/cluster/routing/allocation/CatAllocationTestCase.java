@@ -150,7 +150,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
 
     private ClusterState rebalance(ClusterState clusterState) {
         AllocationService strategy = createAllocationService(Settings.builder().build());
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         int numRelocations = 0;
         while (true) {
             List<ShardRouting> initializing = shardsWithState(clusterState.getRoutingNodes(), INITIALIZING);

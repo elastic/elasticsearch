@@ -229,7 +229,7 @@ public class LocalAllocateDangledIndices {
                         ClusterState.builder(updatedState).routingTable(routingTable).build(),
                         "dangling indices allocated",
                         listener.reroute()
-                    ).clusterState();
+                    );
                 }
 
                 @Override

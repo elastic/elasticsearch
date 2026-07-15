@@ -121,6 +121,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
@@ -163,6 +164,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
@@ -206,6 +208,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
@@ -251,6 +254,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
@@ -298,6 +302,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
         final var shardFailureReceived = shardCancelledFailureReceivedLatch(node, shardId);
 
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
@@ -384,6 +389,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var clusterService = internalCluster().getInstance(ClusterService.class, targetNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );
@@ -438,6 +444,7 @@ public class StatelessDirectRecoveryCancellationIT extends AbstractStatelessPlug
 
         final var clusterService = internalCluster().getInstance(ClusterService.class, searchNode);
         final var cancellationRequest = new CancelRecoveriesAction.Request(
+            clusterService.state().term(),
             clusterService.state().version(),
             List.of(new ShardRecoveryCancellation(shardId, allocationId, true))
         );

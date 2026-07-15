@@ -85,7 +85,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                     )
             )
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
 
@@ -109,7 +109,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                     )
             )
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
         assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));

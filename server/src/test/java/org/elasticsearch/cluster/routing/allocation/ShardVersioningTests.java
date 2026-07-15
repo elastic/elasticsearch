@@ -54,7 +54,7 @@ public class ShardVersioningTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         for (int i = 0; i < routingTable.index("test1").size(); i++) {

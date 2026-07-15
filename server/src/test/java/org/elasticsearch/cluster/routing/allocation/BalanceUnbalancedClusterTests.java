@@ -58,7 +58,7 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
             .build();
 
         ClusterState clusterState = ClusterState.builder(state).metadata(metadata).routingTable(initialRoutingTable).build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         while (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).isEmpty() == false) {
             clusterState = ESAllocationTestCase.startInitializingShardsAndReroute(strategy, clusterState);
         }

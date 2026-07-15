@@ -101,7 +101,7 @@ public class MetadataUpdateSettingsService {
             if (state != batchExecutionContext.initialState()) {
                 // reroute in case things change that require it (like number of replicas)
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
-                    state = allocationService.reroute(state, "settings update", listener.reroute()).clusterState();
+                    state = allocationService.reroute(state, "settings update", listener.reroute());
                 }
             } else {
                 listener.noRerouteNeeded();

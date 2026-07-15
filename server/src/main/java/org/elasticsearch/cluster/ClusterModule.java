@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFa
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.RecoveryDirectCancellationAction;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardRelocationOrder;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -89,7 +90,6 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.indices.recovery.RecoveryDirectCancellationService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
@@ -264,7 +264,7 @@ public class ClusterModule extends AbstractModule {
         };
     }
 
-    private AllocationService.RerouteResult reconcile(ClusterState clusterState, RerouteStrategy rerouteStrategy) {
+    private ClusterState reconcile(ClusterState clusterState, RerouteStrategy rerouteStrategy) {
         return allocationService.executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", rerouteStrategy);
     }
 
@@ -584,9 +584,9 @@ public class ClusterModule extends AbstractModule {
         return allocationService;
     }
 
-    public void registerDirectCancellationService(RecoveryDirectCancellationService recoveryDirectCancellationService) {
+    public void registerRecoveryDirectCancellationAction(RecoveryDirectCancellationAction recoveryDirectCancellationAction) {
         if (shardsAllocator instanceof DesiredBalanceShardsAllocator desiredBalanceShardsAllocator) {
-            desiredBalanceShardsAllocator.setRecoveryDirectCancellationService(recoveryDirectCancellationService);
+            desiredBalanceShardsAllocator.setRecoveryDirectCancellationAction(recoveryDirectCancellationAction);
         }
     }
 

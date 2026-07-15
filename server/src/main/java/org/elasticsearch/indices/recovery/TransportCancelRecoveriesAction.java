@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.CancelRecoveriesAction;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardRecoveryCancellation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -88,6 +89,15 @@ public class TransportCancelRecoveriesAction extends HandledTransportAction<
 
     private void processCancellations(CancelRecoveriesAction.Request request, ActionListener<CancelRecoveriesAction.Response> listener) {
         assert Transports.assertNotTransportThread("TransportCancelRecoveriesAction must not run on a transport thread");
+        if (clusterService.state().term() != request.term()) {
+            logger.debug(
+                "ignoring direct recovery cancellation request for term [{}], local applied term is [{}]",
+                request.term(),
+                clusterService.state().term()
+            );
+            listener.onResponse(new CancelRecoveriesAction.Response(Set.of()));
+            return;
+        }
         final Map<String, ShardId> toCancel = new HashMap<>(request.cancellations().size());
         for (ShardRecoveryCancellation cancellation : request.cancellations()) {
             toCancel.put(cancellation.allocationId(), cancellation.shardId());

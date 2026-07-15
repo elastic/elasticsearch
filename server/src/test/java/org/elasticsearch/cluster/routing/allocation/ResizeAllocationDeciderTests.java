@@ -90,7 +90,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
             .build();
 
         var prevRoutingTable = clusterState.globalRoutingTable().routingTable(projectId);
-        var reroute = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().globalRoutingTable();
+        var reroute = strategy.reroute(clusterState, "reroute", ActionListener.noop()).globalRoutingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(reroute).build();
         var routingTable = reroute.routingTable(projectId);
 

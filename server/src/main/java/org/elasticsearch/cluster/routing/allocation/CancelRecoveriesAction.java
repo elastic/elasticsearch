@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.indices.recovery;
+package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -36,16 +36,19 @@ public class CancelRecoveriesAction {
 
     /// Request to cancel multiple recoveries in a single batch.
     public static class Request extends UntypedActionRequest {
+        private final long term;
         private final long clusterStateVersion;
         private final List<ShardRecoveryCancellation> shardRecoveryCancellations;
 
-        public Request(long clusterStateVersion, List<ShardRecoveryCancellation> shardRecoveryCancellations) {
+        public Request(long term, long clusterStateVersion, List<ShardRecoveryCancellation> shardRecoveryCancellations) {
+            this.term = term;
             this.clusterStateVersion = clusterStateVersion;
             this.shardRecoveryCancellations = shardRecoveryCancellations;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            this.term = in.readVLong();
             this.clusterStateVersion = in.readVLong();
             this.shardRecoveryCancellations = in.readCollectionAsList(ShardRecoveryCancellation::new);
         }
@@ -58,8 +61,13 @@ public class CancelRecoveriesAction {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeVLong(term);
             out.writeVLong(clusterStateVersion);
             out.writeCollection(shardRecoveryCancellations);
+        }
+
+        public long term() {
+            return term;
         }
 
         public long clusterStateVersion() {
@@ -75,13 +83,14 @@ public class CancelRecoveriesAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Request request = (Request) o;
-            return clusterStateVersion == request.clusterStateVersion
+            return term == request.term
+                && clusterStateVersion == request.clusterStateVersion
                 && shardRecoveryCancellations.equals(request.shardRecoveryCancellations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(clusterStateVersion, shardRecoveryCancellations);
+            return Objects.hash(term, clusterStateVersion, shardRecoveryCancellations);
         }
     }
 

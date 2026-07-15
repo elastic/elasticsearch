@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellationsCandidates;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -294,9 +293,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        GlobalRoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop())
-            .clusterState()
-            .globalRoutingTable();
+        GlobalRoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).globalRoutingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startShardsAndReroute(
@@ -491,9 +488,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        GlobalRoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop())
-            .clusterState()
-            .globalRoutingTable();
+        GlobalRoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).globalRoutingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
         routingTable = ESAllocationTestCase.startShardsAndReroute(
@@ -639,7 +634,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         );
 
         final GlobalRoutingTable initialRoutingTable = service.reroute(initialClusterState, "reroute", ActionListener.noop())
-            .clusterState()
             .globalRoutingTable();
 
         final ClusterState routingTableClusterState = ClusterState.builder(initialClusterState).routingTable(initialRoutingTable).build();
@@ -2151,7 +2145,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         withTemporaryClusterService((clusterService, threadPool) -> {
             final var allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).thenAnswer(
-                i -> new AllocationService.RerouteResult((ClusterState) i.getArguments()[0], DirectCancellationsCandidates.EMPTY)
+                i -> (ClusterState) i.getArguments()[0]
             );
             when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
             MetadataCreateIndexService service = new MetadataCreateIndexService(

@@ -7,24 +7,33 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.indices.recovery;
+package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellationsCandidates;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardRecoveryCancellation;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
 
 public class RecoveryDirectCancellationService {
@@ -60,24 +69,16 @@ public class RecoveryDirectCancellationService {
             );
     }
 
-    public void submitCancellations(DirectCancellationsCandidates directCancellationsCandidates, long clusterStateVersion) {
-        assert MasterService.assertMasterUpdateOrTestThread() : Thread.currentThread().getName();
-        if (directCancellationsCandidates.isEmpty()) {
-            return;
-        }
-        sendCancellations(clusterStateVersion, directCancellationsCandidates);
-    }
-
-    // TODO: should we try to avoid sending duplicate cancellations by caching what we have already sent?
-    private void sendCancellations(long clusterStateVersion, DirectCancellationsCandidates directCancellations) {
+    public void computeAndSubmitCancellations(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
+        final ClusterState clusterState = routingAllocation.getClusterState();
         executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
                 logger.warn(
-                    () -> "failed to send direct recovery cancellations ["
-                        + directCancellations
-                        + "] for cluster state version ["
-                        + clusterStateVersion
+                    () -> "failed to compute or send direct recovery cancellations for desired balance ["
+                        + desiredBalance.lastConvergedIndex()
+                        + "] and cluster state version ["
+                        + clusterState.version()
                         + "]",
                     e
                 );
@@ -85,22 +86,30 @@ public class RecoveryDirectCancellationService {
 
             @Override
             protected void doRun() {
-                if (enableDirectRecoveryCancellations == false) {
-                    logger.debug(
-                        "[{}] is disabled, would have sent direct recovery cancellations {}",
-                        ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING.getKey(),
-                        directCancellations
-                    );
+                final DirectCancellationsCandidates cancellations = computeDirectCancellationCandidates(desiredBalance, routingAllocation);
+                if (cancellations.isEmpty()) {
                     return;
                 }
-                for (DirectCancellationsCandidates.Candidates nodeCandidates : directCancellations.candidates()) {
-                    sendDirectCancelRecoveriesRequest(
-                        nodeCandidates.node(),
-                        new CancelRecoveriesAction.Request(clusterStateVersion, nodeCandidates.cancellations())
-                    );
-                }
+                sendCancellations(clusterState.term(), clusterState.version(), cancellations);
             }
         });
+    }
+
+    private void sendCancellations(long term, long clusterStateVersion, DirectCancellationsCandidates directCancellations) {
+        if (enableDirectRecoveryCancellations == false) {
+            logger.debug(
+                "[{}] is disabled, would have sent direct recovery cancellations {}",
+                ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING.getKey(),
+                directCancellations
+            );
+            return;
+        }
+        for (DirectCancellationsCandidates.Candidates nodeCandidates : directCancellations.candidates()) {
+            sendDirectCancelRecoveriesRequest(
+                nodeCandidates.node(),
+                new CancelRecoveriesAction.Request(term, clusterStateVersion, nodeCandidates.cancellations())
+            );
+        }
     }
 
     /// Sends a batch of direct recovery cancellations to a specific data node, lets the node decide
@@ -152,5 +161,51 @@ public class RecoveryDirectCancellationService {
                 ActionListener.noop()
             );
         }
+    }
+
+    // visible for testing
+    static DirectCancellationsCandidates computeDirectCancellationCandidates(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+        final RoutingNodes routingNodes = allocation.routingNodes();
+        final List<DirectCancellationsCandidates.Candidates> candidates = new ArrayList<>();
+        for (RoutingNode routingNode : routingNodes) {
+            List<ShardRecoveryCancellation> nodeCancellations = new ArrayList<>();
+            for (ShardRouting shardRouting : routingNode) {
+                if (shardRouting.initializing() == false) {
+                    continue;
+                }
+
+                final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
+                if (assignment == null || assignment.nodeIds().contains(shardRouting.currentNodeId())) {
+                    continue;
+                }
+
+                boolean cancelIfRecoveryStarted = false;
+                if (recoveryCanBeCancelledIfStarted(shardRouting, routingNodes)) {
+                    final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
+                    cancelIfRecoveryStarted = canRemainDecision.type() == Decision.Type.NO;
+                }
+                nodeCancellations.add(
+                    new ShardRecoveryCancellation(shardRouting.shardId(), shardRouting.allocationId().getId(), cancelIfRecoveryStarted)
+                );
+            }
+            if (nodeCancellations.isEmpty() == false) {
+                candidates.add(new DirectCancellationsCandidates.Candidates(routingNode.node(), nodeCancellations));
+            }
+        }
+        return new DirectCancellationsCandidates(candidates);
+    }
+
+    private static boolean recoveryCanBeCancelledIfStarted(ShardRouting shardRouting, RoutingNodes routingNodes) {
+        if (shardRouting.primary()) {
+            return shardRouting.relocatingNodeId() != null;
+        }
+        if (shardRouting.role().equals(ShardRouting.Role.SEARCH_ONLY) == false) {
+            return true;
+        }
+        return routingNodes.assignedShards(shardRouting.shardId())
+            .stream()
+            .filter(s -> s != shardRouting)
+            .filter(ShardRouting::started)
+            .anyMatch(s -> s.role().equals(ShardRouting.Role.SEARCH_ONLY));
     }
 }

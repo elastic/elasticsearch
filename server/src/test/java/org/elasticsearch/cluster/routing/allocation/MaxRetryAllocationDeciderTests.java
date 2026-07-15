@@ -81,7 +81,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(clusterState.routingTable().index("idx").size(), 1);
         assertEquals(clusterState.routingTable().index("idx").shard(0).shard(0).state(), UNASSIGNED);
 
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertEquals(clusterState.routingTable().index("idx").size(), 1);
         assertEquals(clusterState.routingTable().index("idx").shard(0).shard(0).state(), INITIALIZING);
@@ -213,7 +213,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                     .build()
             )
             .build();
-        ClusterState newState = strategy.reroute(clusterState, "settings changed", ActionListener.noop()).clusterState();
+        ClusterState newState = strategy.reroute(clusterState, "settings changed", ActionListener.noop());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingTable = newState.routingTable();

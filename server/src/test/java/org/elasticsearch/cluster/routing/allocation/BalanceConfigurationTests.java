@@ -174,7 +174,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             .metadata(metadata)
             .routingTable(initialRoutingTable)
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("restart all the primary shards, replicas will start initializing");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -192,7 +192,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node" + numberOfNodes)))
             .build();
 
-        RoutingTable routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable();
+        RoutingTable routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         // move initializing to started
@@ -221,7 +221,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logger.info("rebalancing");
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("complete rebalancing");
         return applyStartedShardsUntilNoChange(clusterState, strategy);

@@ -17,15 +17,12 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellationsCandidates;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.indices.recovery.RecoveryDirectCancellationService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,17 +41,13 @@ public class BatchedRerouteService implements RerouteService {
 
     private final ClusterService clusterService;
     private final RerouteAction reroute;
-
-    @Nullable
-    private volatile RecoveryDirectCancellationService recoveryDirectCancellationService;
-
     private final Object mutex = new Object();
     @Nullable // null if no reroute is currently pending
     private List<ActionListener<Void>> pendingRerouteListeners;
     private Priority pendingTaskPriority = Priority.LANGUID;
 
     public interface RerouteAction {
-        AllocationService.RerouteResult reroute(ClusterState state, String reason, ActionListener<Void> listener);
+        ClusterState reroute(ClusterState state, String reason, ActionListener<Void> listener);
     }
 
     /**
@@ -63,11 +56,6 @@ public class BatchedRerouteService implements RerouteService {
     public BatchedRerouteService(ClusterService clusterService, RerouteAction reroute) {
         this.clusterService = clusterService;
         this.reroute = reroute;
-    }
-
-    public void setRecoveryDirectCancellationService(RecoveryDirectCancellationService cancellationService) {
-        assert this.recoveryDirectCancellationService == null : "recovery direct cancellation service should only be set once";
-        this.recoveryDirectCancellationService = cancellationService;
     }
 
     /**
@@ -143,7 +131,6 @@ public class BatchedRerouteService implements RerouteService {
         private final String source;
         private final ListenableFuture<Void> future;
         private final List<ActionListener<Void>> currentListeners;
-        private volatile DirectCancellationsCandidates pendingCancellations;
 
         private RerouteUpdateTask(
             Priority priority,
@@ -172,9 +159,7 @@ public class BatchedRerouteService implements RerouteService {
             }
             if (currentListenersArePending) {
                 logger.trace("performing batched reroute [{}]", reason);
-                AllocationService.RerouteResult result = reroute.reroute(currentState, reason, future);
-                pendingCancellations = result.directCancellationsCandidates();
-                return result.clusterState();
+                return reroute.reroute(currentState, reason, future);
             } else {
                 logger.trace("batched reroute [{}] was promoted", reason);
                 // reroute was batched and completed in other branch
@@ -204,11 +189,6 @@ public class BatchedRerouteService implements RerouteService {
 
         @Override
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert recoveryDirectCancellationService != null;
-            if (oldState != newState) {
-                assert pendingCancellations != null : "missing cancellations candidates for processed cluster state";
-                recoveryDirectCancellationService.submitCancellations(pendingCancellations, oldState.version());
-            }
             future.addListener(ActionListener.running(() -> ActionListener.onResponse(currentListeners, null)));
         }
     }

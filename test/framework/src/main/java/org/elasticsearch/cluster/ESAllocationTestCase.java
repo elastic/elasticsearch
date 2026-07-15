@@ -405,7 +405,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         final var listener = new PlainActionFuture<Void>();
         final var result = allocationService.reroute(clusterState, "test reroute", listener);
         safeGet(listener::result); // ensures it completed successfully
-        return result.clusterState();
+        return result;
     }
 
     public static void assertDecisionMatches(String description, Decision decision, Decision.Type type, String explanationPattern) {

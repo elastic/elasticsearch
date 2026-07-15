@@ -663,7 +663,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         AllocationService allocationService = createAllocationService();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        clusterState = allocationService.reroute(clusterState, "foo", ActionListener.noop()).clusterState();
+        clusterState = allocationService.reroute(clusterState, "foo", ActionListener.noop());
 
         clusterState = startShardsAndReroute(
             allocationService,
@@ -756,7 +756,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             )
             .build();
 
-        allocationService.reroute(clusterStateWithMissingSourceIndex, "foo", ActionListener.noop()).clusterState();
+        allocationService.reroute(clusterStateWithMissingSourceIndex, "foo", ActionListener.noop());
         RoutingAllocation allocationWithMissingSourceIndex = TestRoutingAllocationFactory.forClusterState(
             clusterStateWithMissingSourceIndex
         ).clusterInfo(info).build();

@@ -597,7 +597,7 @@ public class AllocationServiceTests extends ESTestCase {
     }
 
     private static ClusterState rerouteAndStartShards(final AllocationService allocationService, final ClusterState clusterState) {
-        final ClusterState reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop()).clusterState();
+        final ClusterState reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
         return allocationService.applyStartedShards(
             reroutedState,
             shardsWithState(reroutedState.getRoutingNodes(), ShardRoutingState.INITIALIZING)

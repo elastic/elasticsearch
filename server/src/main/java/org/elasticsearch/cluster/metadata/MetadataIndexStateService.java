@@ -292,7 +292,7 @@ public class MetadataIndexStateService {
 
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 // reroute may encounter deprecated features but the resulting warnings are not associated with any particular task
-                return allocationService.reroute(state, "indices closed", listener.reroute()).clusterState();
+                return allocationService.reroute(state, "indices closed", listener.reroute());
             }
         }
     }
@@ -1244,7 +1244,7 @@ public class MetadataIndexStateService {
                 state = openIndices(indices, state);
 
                 // do a final reroute
-                state = allocationService.reroute(state, "indices opened", listener.reroute()).clusterState();
+                state = allocationService.reroute(state, "indices opened", listener.reroute());
 
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
                     final var task = taskContext.getTask();

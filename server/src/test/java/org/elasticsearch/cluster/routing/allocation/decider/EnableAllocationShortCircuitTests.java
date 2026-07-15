@@ -99,7 +99,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
                 ),
             plugin
         );
-        allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable();
+        allocationService.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         assertThat(plugin.rebalanceAttempts, greaterThan(0));
     }
 
@@ -111,7 +111,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE.name()),
             plugin
         );
-        allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable();
+        allocationService.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         assertThat(plugin.rebalanceAttempts, equalTo(0));
     }
 
@@ -140,7 +140,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE.name()),
             plugin
         );
-        allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable();
+        allocationService.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         assertThat(plugin.rebalanceAttempts, equalTo(0));
     }
 
@@ -174,7 +174,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE.name()),
             plugin
         );
-        allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable();
+        allocationService.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         assertThat(plugin.rebalanceAttempts, greaterThan(0));
     }
 
@@ -199,7 +199,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
 
-        allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable();
+        allocationService.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
         assertThat(plugin.canAllocateAttempts, equalTo(0));
     }
 

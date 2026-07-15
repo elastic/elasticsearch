@@ -716,7 +716,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // For connectors telemetry. Will be removed once we switched to connectors API
                 RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build(),
-                // (Legacy. Will be removed after SML swaps to the below .ai-index* pattern
+                // TODO: Remove after SML swaps to the below .ai-index* pattern
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".context-idx-sml-data", ".context-idx-sml-data-*")
                     .privileges("all")

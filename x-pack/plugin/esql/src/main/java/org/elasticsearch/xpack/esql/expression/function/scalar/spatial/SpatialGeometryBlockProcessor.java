@@ -55,7 +55,7 @@ class SpatialGeometryBlockProcessor {
     }
 
     void processPoints(BytesRefBlock.Builder builder, int p, LongBlock left, double parameter) throws IOException {
-        if (left.getValueCount(p) < 1) {
+        if (left.isNull(p)) {
             builder.appendNull();
         } else {
             final Geometry jtsGeometry = asJtsMultiPoint(left, p, spatialCoordinateType::longAsPoint);
@@ -65,7 +65,7 @@ class SpatialGeometryBlockProcessor {
     }
 
     void processGeometries(BytesRefBlock.Builder builder, int p, BytesRefBlock left, double parameter) {
-        if (left.getValueCount(p) < 1) {
+        if (left.isNull(p)) {
             builder.appendNull();
         } else {
             final Geometry jtsGeometry = asJtsGeometry(left, p);

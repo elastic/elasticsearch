@@ -406,7 +406,7 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         @Fixed double distance,
         @Fixed(includeInToString = false) BufferParameters bufferParameters
     ) {
-        if (geometry.getValueCount(p) < 1) {
+        if (geometry.isNull(p)) {
             builder.appendNull();
         } else {
             Geometry jts = processor.asJtsGeometry(geometry, p);
@@ -426,7 +426,7 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         @Fixed double distance,
         @Fixed(includeInToString = false) BufferParameters bufferParameters
     ) throws IOException {
-        if (point.getValueCount(p) < 1) {
+        if (point.isNull(p)) {
             builder.appendNull();
         } else {
             Geometry jts = geoProcessor.asJtsMultiPoint(point, p, GEO::longAsPoint);
@@ -446,7 +446,7 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         @Fixed double distance,
         @Fixed(includeInToString = false) BufferParameters bufferParameters
     ) throws IOException {
-        if (left.getValueCount(p) < 1) {
+        if (left.isNull(p)) {
             builder.appendNull();
         } else {
             Geometry jts = cartesianProcessor.asJtsMultiPoint(left, p, CARTESIAN::longAsPoint);

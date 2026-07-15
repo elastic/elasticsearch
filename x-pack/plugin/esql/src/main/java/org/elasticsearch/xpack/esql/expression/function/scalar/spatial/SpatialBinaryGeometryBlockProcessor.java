@@ -46,7 +46,7 @@ class SpatialBinaryGeometryBlockProcessor {
      * Process two source (WKB) blocks at position {@code p}.
      */
     void processSourceAndSource(BytesRefBlock.Builder builder, int p, BytesRefBlock left, BytesRefBlock right) {
-        if (left.getValueCount(p) < 1 || right.getValueCount(p) < 1) {
+        if (left.isNull(p) || right.isNull(p)) {
             builder.appendNull();
             return;
         }
@@ -63,7 +63,7 @@ class SpatialBinaryGeometryBlockProcessor {
      * Process a doc-values (long-encoded) point block on the left and a source (WKB) block on the right.
      */
     void processDocValuesAndSource(BytesRefBlock.Builder builder, int p, LongBlock left, BytesRefBlock right) {
-        if (left.getValueCount(p) < 1 || right.getValueCount(p) < 1) {
+        if (left.isNull(p) || right.isNull(p)) {
             builder.appendNull();
             return;
         }
@@ -80,7 +80,7 @@ class SpatialBinaryGeometryBlockProcessor {
      * Process a source (WKB) block on the left and a doc-values (long-encoded) point block on the right.
      */
     void processSourceAndDocValues(BytesRefBlock.Builder builder, int p, BytesRefBlock left, LongBlock right) {
-        if (left.getValueCount(p) < 1 || right.getValueCount(p) < 1) {
+        if (left.isNull(p) || right.isNull(p)) {
             builder.appendNull();
             return;
         }
@@ -97,7 +97,7 @@ class SpatialBinaryGeometryBlockProcessor {
      * Process two doc-values (long-encoded) point blocks at position {@code p}.
      */
     void processBothDocValues(BytesRefBlock.Builder builder, int p, LongBlock left, LongBlock right) {
-        if (left.getValueCount(p) < 1 || right.getValueCount(p) < 1) {
+        if (left.isNull(p) || right.isNull(p)) {
             builder.appendNull();
             return;
         }

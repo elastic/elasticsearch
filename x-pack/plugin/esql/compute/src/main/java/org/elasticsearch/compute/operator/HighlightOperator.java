@@ -171,11 +171,11 @@ public class HighlightOperator extends AbstractPageMappingOperator {
     private Block highlightField(BytesRefBlock fieldValues, int rowCount, BytesRef scratch) {
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
             for (int row = 0; row < rowCount; row++) {
-                int valueCount = fieldValues.getValueCount(row);
-                if (valueCount == 0) {
+                if (fieldValues.isNull(row)) {
                     builder.appendNull();
                     continue;
                 }
+                int valueCount = fieldValues.getValueCount(row);
                 String text = joinValues(fieldValues, row, valueCount, scratch);
                 try {
                     appendSnippets(builder, highlight(text));

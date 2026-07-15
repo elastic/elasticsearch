@@ -148,11 +148,11 @@ public class NetworkDirection extends EsqlScalarFunction {
         @Position int position,
         BytesRefBlock networks
     ) {
-        int valueCount = networks.getValueCount(position);
-        if (valueCount == 0) {
+        if (networks.isNull(position)) {
             builder.appendNull();
             return;
         }
+        int valueCount = networks.getValueCount(position);
         int first = networks.getFirstValueIndex(position);
 
         System.arraycopy(sourceIp.bytes, sourceIp.offset, scratch.bytes, 0, sourceIp.length);

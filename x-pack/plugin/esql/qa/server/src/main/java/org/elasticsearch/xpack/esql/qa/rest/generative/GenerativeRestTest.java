@@ -76,7 +76,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
 
-    public static final int ITERATIONS = 100;
+    public static final int ITERATIONS = 10000;
     public static final int MAX_DEPTH = 20;
 
     /**
@@ -704,6 +704,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     /**
+     * Matches "Options are not supported for [MATCH] function call on non-index-mapped field [X]".
+     * This is the error MATCH raises when called with options on a renamed/computed field.
+     */
+    private static final Pattern MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN = Pattern.compile(
+        ".*Options are not supported for \\[MATCH\\] function call on non-index-mapped field \\[([^]]+)\\].*",
+        Pattern.DOTALL
+    );
+
+    /**
      * Captures fields created by GROK patterns, e.g. {@code %{WORD:foo}} or {@code %{NUMBER:bar:int}}.
      */
     private static final Pattern GROK_GENERATED_FIELD_PATTERN = Pattern.compile("%\\{[^:}]+:([^}:]+)(?::[^}]+)?}");
@@ -898,7 +907,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     ) {
         Matcher m = NOT_A_FIELD_FROM_INDEX_PATTERN.matcher(errorMessage);
         if (m.matches() == false) {
-            return false;
+            m = MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN.matcher(errorMessage);
+            if (m.matches() == false) {
+                return false;
+            }
         }
         String fieldName = unquote(m.group(1));
 

@@ -909,11 +909,14 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(inExpr));
 
         // A declared `date` over MICROS decodes by truncating division, so each element covers a BAND of 1000 raw
-        // micros rather than a point. This test previously asserted the band FLOORS were pushed as an IN set — which
-        // silently pruned every row in the rest of each band. `==` now pushes its band as a range; `IN` would need an
-        // OR of ranges per element, so it declines instead: correct, and it only forfeits pruning on a shape (IN over
-        // a microsecond column) that is far rarer than equality. Pushing the band per element is a possible follow-up.
-        assertNull("IN over a truncating decode must decline rather than push the band floors", pushed.toFilterPredicate(schema));
+        // micros, not a point. IN pushes the OR of those bands: every micro that decodes to 1000ms OR 2000ms, and
+        // nothing that decodes to neither. Pushing the band FLOORS as a point IN (what this used to assert) would
+        // silently prune every matching row above each floor.
+        String repr = pushed.toFilterPredicate(schema).toString();
+        assertThat(repr, containsString("gteq(ts, 1000000)"));
+        assertThat(repr, containsString("lteq(ts, 1000999)"));
+        assertThat(repr, containsString("gteq(ts, 2000000)"));
+        assertThat(repr, containsString("lteq(ts, 2000999)"));
     }
 
     // --- Overflow protection ---

@@ -168,6 +168,38 @@ final class ParquetColumnDecoding {
      * @param declaredType the ES|QL type the column reads as ({@code DATETIME} or {@code DATE_NANOS})
      * @param declaredFormat the column's declared date format, or {@code null}
      */
+    /**
+     * Whether decoding this column can turn a physically-present value into {@code null}. Temporal coercion is
+     * partial: a negative epoch under {@code date_nanos}, a range overflow, or a format-parse failure all produce a
+     * {@code null} for a value the row-group statistics counted as present. When that is possible, {@code IS NULL}
+     * pushdown must decline — the decoded null set is larger than the physical one, so pushing {@code eq(col, null)}
+     * would prune a group whose {@code nullCount == 0} yet holds rows that decode to null.
+     *
+     * <p>Precise on purpose: returning {@code true} for the identity cases would needlessly forfeit {@code IS NULL}
+     * pruning on the common inferred reads (bare {@code INT64}, {@code TIMESTAMP(MILLIS)} datetime, and
+     * {@code TIMESTAMP(NANOS)} date_nanos), which never null.
+     */
+    static boolean decodeCanNull(PrimitiveType primitiveType, DataType declaredType, @Nullable String declaredFormat) {
+        if (declaredFormat != null) {
+            return true; // a format parse can fail per value
+        }
+        if (primitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+            return true; // conservative for shapes this method does not model
+        }
+        LogicalTypeAnnotation logical = primitiveType.getLogicalTypeAnnotation();
+        boolean millisAnnotated = logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts
+            && ts.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS;
+        boolean nanosAnnotated = logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts2
+            && ts2.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS;
+        return switch (declaredType) {
+            // Identity reads never null; every rescaling read can overflow at its edge.
+            case DATETIME -> (logical == null || millisAnnotated) == false;
+            // Bare INT64 rejects negatives via castBlock; NANOS is the identity; MICROS/MILLIS scale and can overflow.
+            case DATE_NANOS -> nanosAnnotated == false;
+            default -> true;
+        };
+    }
+
     @Nullable
     static DeclaredTypeCoercions.RawDecodeRelation rawDecodeRelation(
         PrimitiveType primitiveType,

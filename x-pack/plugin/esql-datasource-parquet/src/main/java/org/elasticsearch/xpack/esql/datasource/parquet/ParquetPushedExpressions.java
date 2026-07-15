@@ -708,12 +708,10 @@ final class ParquetPushedExpressions {
             }
             case INT64 -> {
                 if (op == PredicateOp.EQ) {
-                    // A lossy decode makes one decoded value cover a BAND of raw values, so equality is a range, not
-                    // a point. Push the whole band and keep pruning; pushing any single value inside it would drop
-                    // the rows on either side that decode to exactly the same instant.
-                    yield datetimeEqualityPredicate(columnName, millis, ptype, formats);
+                    // Equality is a band, not a point, once decode is lossy: push the whole band and keep pruning.
+                    yield temporalBandPredicate(columnName, millis, ptype, DataType.DATETIME, formats);
                 }
-                Long bound = datetimeBoundToRaw(columnName, millis, op, ptype, formats);
+                Long bound = temporalBoundToRaw(columnName, millis, op, ptype, DataType.DATETIME, formats);
                 yield bound == null ? null : orderedPredicate(FilterApi.longColumn(columnName), bound, op);
             }
             default -> null;
@@ -721,16 +719,23 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * {@code ==} on a DATETIME column, as the inclusive raw range that decodes to the literal. Degenerates to a plain
-     * {@code eq} when the decode is exact, so the common case is unchanged.
+     * The raw predicate matching every stored value that decodes to {@code decodedValue}, or {@code null} when none
+     * can (or the column's decode admits no exact relation). A lossy decode makes this a range; an exact one makes it
+     * a plain {@code eq}, so the common case is untouched. Shared by {@code ==} and by each element of {@code IN}.
      */
     @Nullable
-    private FilterPredicate datetimeEqualityPredicate(String columnName, long millis, PrimitiveType ptype, Map<String, String> formats) {
-        var relation = ParquetColumnDecoding.rawDecodeRelation(ptype, DataType.DATETIME, formats.get(columnName));
+    private FilterPredicate temporalBandPredicate(
+        String columnName,
+        long decodedValue,
+        PrimitiveType ptype,
+        DataType declaredType,
+        Map<String, String> formats
+    ) {
+        var relation = ParquetColumnDecoding.rawDecodeRelation(ptype, declaredType, formats.get(columnName));
         if (relation == null) {
             return null;
         }
-        DeclaredTypeCoercions.RawBand band = DeclaredTypeCoercions.rawEqualityBand(relation, millis);
+        DeclaredTypeCoercions.RawBand band = DeclaredTypeCoercions.rawEqualityBand(relation, decodedValue);
         if (band == null) {
             return null; // no stored value can decode to this literal
         }
@@ -750,21 +755,52 @@ final class ParquetPushedExpressions {
      * {@code <=} over a truncating decode push the floor of a band instead of its top and prune matching rows.
      */
     @Nullable
-    private Long datetimeBoundToRaw(String columnName, long millis, PredicateOp op, PrimitiveType ptype, Map<String, String> formats) {
-        var relation = ParquetColumnDecoding.rawDecodeRelation(ptype, DataType.DATETIME, formats.get(columnName));
+    private Long temporalBoundToRaw(
+        String columnName,
+        long decodedBound,
+        PredicateOp op,
+        PrimitiveType ptype,
+        DataType declaredType,
+        Map<String, String> formats
+    ) {
+        var relation = ParquetColumnDecoding.rawDecodeRelation(ptype, declaredType, formats.get(columnName));
         DeclaredTypeCoercions.BoundOp boundOp = boundOpOf(op);
         // NOT_EQ has no raw counterpart under any rescaling map: `decoded != b` is true for a whole band of raw
         // values, which a single notEq cannot express. Decline rather than push one that excludes the rest.
         if (relation == null || boundOp == null) {
             return null;
         }
-        return DeclaredTypeCoercions.rawBoundFor(relation, millis, boundOp, false);
+        return DeclaredTypeCoercions.rawBoundFor(relation, decodedBound, boundOp, false);
     }
 
     /**
      * Maps this class's predicate op onto the shared authority's, or {@code null} for one the authority cannot
      * answer. The authority deliberately has no {@code NOT_EQ}: its truth set is a band under any rescaling map.
      */
+    /**
+     * {@code IN} over a temporal column, as the OR of each element's raw band. {@code IN} matches ANY element, so the
+     * pushed predicate must be a SUPERSET: dropping an element would under-include and prune matching rows. So if any
+     * element has no exact raw counterpart, the whole push declines rather than silently narrowing.
+     */
+    @Nullable
+    private FilterPredicate temporalInPredicate(
+        String columnName,
+        List<Object> rawValues,
+        PrimitiveType ptype,
+        DataType declaredType,
+        Map<String, String> formats
+    ) {
+        FilterPredicate combined = null;
+        for (Object v : rawValues) {
+            FilterPredicate band = temporalBandPredicate(columnName, ((Number) v).longValue(), ptype, declaredType, formats);
+            if (band == null) {
+                return null; // an unmappable element would make the OR under-inclusive
+            }
+            combined = combined == null ? band : FilterApi.or(combined, band);
+        }
+        return combined;
+    }
+
     @Nullable
     private static DeclaredTypeCoercions.BoundOp boundOpOf(PredicateOp op) {
         return switch (op) {
@@ -801,16 +837,38 @@ final class ParquetPushedExpressions {
             return null;
         }
         if (value == null) {
-            // IS NULL / IS NOT NULL reason over null counts only — unit-independent, so no divisor gate.
-            return orderedPredicate(FilterApi.longColumn(columnName), null, op);
-        }
-        Long divisor = ParquetColumnDecoding.dateNanosPushdownDivisor(ptype, formats.get(columnName));
-        if (divisor == null) {
-            return null;
+            return nullPredicateOrDecline(columnName, op, ptype, DataType.DATE_NANOS, formats);
         }
         long nanos = ((Number) value).longValue();
-        Long bound = boundToPhysicalUnit(nanos, op, divisor);
+        if (op == PredicateOp.EQ) {
+            return temporalBandPredicate(columnName, nanos, ptype, DataType.DATE_NANOS, formats);
+        }
+        Long bound = temporalBoundToRaw(columnName, nanos, op, ptype, DataType.DATE_NANOS, formats);
         return bound == null ? null : orderedPredicate(FilterApi.longColumn(columnName), bound, op);
+    }
+
+    /**
+     * {@code IS NULL} / {@code IS NOT NULL} on a temporal column. Coercion is PARTIAL — a negative epoch, a
+     * format-parse failure, or a range overflow decodes a physically-present value to {@code null} — so the decoded
+     * null set can be LARGER than the physical one the row-group statistics count.
+     *
+     * <p>{@code IS NULL} (an {@code eq(col, null)}) prunes groups whose physical {@code nullCount == 0}; if decode
+     * nulls a value in such a group, the matching row is lost. So {@code IS NULL} declines whenever decode can null.
+     * {@code IS NOT NULL} only ever keeps groups with a physical non-null, and decode never turns a physical null
+     * into a value — it can only over-include, which {@code FilterExec} rechecks — so it stays pushed.
+     */
+    @Nullable
+    private FilterPredicate nullPredicateOrDecline(
+        String columnName,
+        PredicateOp op,
+        PrimitiveType ptype,
+        DataType declaredType,
+        Map<String, String> formats
+    ) {
+        if (op == PredicateOp.EQ && ParquetColumnDecoding.decodeCanNull(ptype, declaredType, formats.get(columnName))) {
+            return null;
+        }
+        return orderedPredicate(FilterApi.longColumn(columnName), null, op);
     }
 
     /**
@@ -964,22 +1022,7 @@ final class ParquetPushedExpressions {
                     }
                     yield null;
                 }
-                case INT64 -> {
-                    // Same authority as the comparison arm, so the two cannot disagree about a column's unit. An
-                    // element that has no exact raw counterpart (a non-tick literal under a rescaling read, or a
-                    // unit this method declines) is DROPPED, not approximated: the pushed set stays a subset of the
-                    // true one, which over-includes at worst and FilterExec rechecks it. Dropping every element
-                    // declines the push entirely rather than pushing an empty IN, which would match nothing.
-                    List<Object> bounds = new ArrayList<>(rawValues.size());
-                    for (Object v : rawValues) {
-                        Long bound = datetimeBoundToRaw(columnName, ((Number) v).longValue(), PredicateOp.EQ, ptype, formats);
-                        if (bound == null) {
-                            yield null;
-                        }
-                        bounds.add(bound);
-                    }
-                    yield bounds.isEmpty() ? null : inPredicate(FilterApi.longColumn(columnName), bounds, v -> (Long) v);
-                }
+                case INT64 -> temporalInPredicate(columnName, rawValues, ptype, DataType.DATETIME, formats);
                 default -> null;
             };
         } catch (ArithmeticException e) {

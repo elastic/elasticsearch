@@ -50,6 +50,13 @@ public final class OtelSdkSettings {
      * Required when the SDK metrics or trace path is active. */
     public static final Setting<String> TELEMETRY_EXPORT_ENDPOINT = Setting.simpleString("telemetry.export.endpoint", "", NodeScope);
 
+    /** When {@code false}, TLS certificate verification is disabled for the OTLP exporters. */
+    public static final Setting<Boolean> TELEMETRY_EXPORT_VERIFY_SERVER_CERT = Setting.boolSetting(
+        "telemetry.export.verify_server_cert",
+        true,
+        NodeScope
+    );
+
     /**
      * Initial backoff of the shared OTLP retry policy ({@link #OTLP_RETRY_POLICY}).
      * The default allows for fast retry and manageable total timeout.

@@ -510,6 +510,41 @@ x:integer | foo:null
 2         | null
 ;
 
+// Reproducer for #149068.
+sortUnmappedFieldFromEmptyMapping
+required_capability: optional_fields_nullify_tech_preview
+required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
+
+SET unmapped_fields="nullify"\;
+FROM no_mapping_date_extract_fields
+| SORT date_string
+;
+
+date_string:null
+null
+null
+null
+null
+;
+
+// Reproducer for #149068.
+renameUnmappedFieldFromEmptyMapping
+required_capability: optional_fields_nullify_tech_preview
+required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
+
+SET unmapped_fields="nullify"\;
+FROM no_mapping_date_extract_fields
+| RENAME date_string AS foo
+| SORT foo
+;
+
+foo:null
+null
+null
+null
+null
+;
+
 mvExpand
 required_capability: optional_fields_nullify_tech_preview
 

@@ -250,7 +250,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     ) {
         assert indexShard.routingEntry().isPromotableToPrimary() == false;
         assert latestCommit != null;
-        boolean uploaded = latestCommit.getContainingBccBlobFile().termAndGeneration().onOrAfter(latestUploaded);
+        boolean uploaded = latestCommit.getContainingBccBlobFile().termAndGeneration().onOrBefore(latestUploaded);
         logger.info(
             "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} ({}) and latest uploaded {} from indexing shard ({})",
             indexShard.shardId(),

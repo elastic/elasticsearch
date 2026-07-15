@@ -332,6 +332,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 LoggingAuditTrail.INCLUDE_EVENT_SETTINGS,
                 LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS,
                 LoggingAuditTrail.INCLUDE_REQUEST_BODY,
+                LoggingAuditTrail.EMIT_SECURITY_CONFIG_CHANGE_ACTOR,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_REALMS,
                 LoggingAuditTrail.FILTER_POLICY_IGNORE_ROLES,
@@ -2264,6 +2265,50 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(1));
         assertThat(output.get(0), containsString("security_config_change"));
+    }
+
+    public void testSecurityConfigChangeActorAttributionOptIn() throws IOException {
+        final String requestId = randomRequestId();
+        final AuthorizationInfo authorizationInfo = () -> Collections.emptyMap();
+        final Authentication authentication = createAuthentication();
+
+        final PutUserRequest putUserRequest = new PutUserRequest();
+        putUserRequest.username(randomAlphaOfLength(3));
+        putUserRequest.enabled(true);
+        putUserRequest.roles(new String[] { randomAlphaOfLength(4) });
+
+        auditTrail.accessGranted(requestId, authentication, PutUserAction.NAME, putUserRequest, authorizationInfo);
+        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        assertThat(output.get(1), containsString("security_config_change"));
+        assertThat(output.get(1), not(containsString("\"user.name\"")));
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        updateLoggerSettings(
+            Settings.builder().put(settings).put(LoggingAuditTrail.EMIT_SECURITY_CONFIG_CHANGE_ACTOR.getKey(), true).build()
+        );
+
+        auditTrail.accessGranted(requestId, authentication, PutUserAction.NAME, putUserRequest, authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        final String securityConfigChangeLogLine = output.get(1);
+        assertThat(securityConfigChangeLogLine, containsString("security_config_change"));
+        assertThat(securityConfigChangeLogLine, containsString("\"user.name\""));
+
+        final String expectedPutUserAuditEventString = Strings.format("""
+            "put":{"user":{"name":"%s","enabled":%s,"roles":["%s"],"has_password":false}}\
+            """, putUserRequest.username(), putUserRequest.enabled(), putUserRequest.roles()[0]);
+        assertThat(securityConfigChangeLogLine, containsString(expectedPutUserAuditEventString));
+        final String reducedLogLine = securityConfigChangeLogLine.replace(", " + expectedPutUserAuditEventString, "");
+        final Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_user");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        authentication(authentication, checkedFields);
+        assertMsg(reducedLogLine, checkedFields);
     }
 
     public void testSystemAccessGranted() throws Exception {

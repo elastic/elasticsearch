@@ -68,6 +68,13 @@ $$$xpack-sa-lf-events-emit-request$$$
     Be advised that sensitive data may be audited in plain text when including the request body in audit events, even though all the security APIs, such as those that change the user’s password, have the credentials filtered out when audited.
     ::::
 
+$$$xpack-sa-lf-events-emit-security-config-change-actor$$$
+
+`xpack.security.audit.logfile.events.emit_security_config_change_actor` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies whether to include actor attribution fields (such as `user.name`, `user.realm`, and `authentication.type`) in `security_config_change` audit events. When enabled, the actor who initiated the configuration change is recorded directly in the event, so it does not need to be correlated with a separate `access_granted` or `transport` event using `request.id`.
+
+    The default value is `false`, so `security_config_change` events do not include actor attribution fields and existing audit output is unchanged.
+
 
 
 ## Local Node Info Settings [node-audit-settings]

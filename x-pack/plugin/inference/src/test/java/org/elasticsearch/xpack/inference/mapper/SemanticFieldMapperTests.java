@@ -9,11 +9,8 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -22,6 +19,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -109,12 +107,11 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
      * with the base64 payload stored decoded and regenerated on read.
      */
     public void testOriginalValueRoundTripFromDocValues() throws IOException {
-        IndexVersion version = IndexVersion.current();
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
-            .put("index.mapping.source.mode", "synthetic")
-            .build();
-        MapperService mapperService = createMapperService(version, settings, mapping(this::minimalMappingWithModelSettings));
+        MapperService mapperService = createSemanticMapperServiceWithSourceMode(
+            mapping(this::minimalMappingWithModelSettings),
+            IndexVersion.current(),
+            SourceFieldMapper.Mode.SYNTHETIC
+        );
         DocumentMapper mapper = mapperService.documentMapper();
 
         assertThat(syntheticSource(mapper, b -> b.field("my_field", "hello")), equalTo("{\"my_field\":\"hello\"}"));
@@ -143,15 +140,14 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
      * accepted because its original value is stored in doc values and its internal inference sub-fields are exempt.
      */
     public void testSemanticFieldAcceptedInColumnar() throws IOException {
-        IndexVersion version = IndexVersion.current();
         String dvFieldName = SemanticTextField.getOriginalValuesFieldName("my_field");
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
-            Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
-                .put(IndexSettings.MODE.getKey(), indexMode.getName())
-                .build();
             // Mapping creation succeeding is the assertion: the columnar "every field reconstructable from doc values" check passes.
-            MapperService mapperService = createMapperService(version, settings, mapping(this::minimalMappingWithModelSettings));
+            MapperService mapperService = createSemanticMapperServiceWithIndexMode(
+                mapping(this::minimalMappingWithModelSettings),
+                IndexVersion.current(),
+                indexMode
+            );
             ParsedDocument doc = mapperService.documentMapper()
                 .parse(source(b -> b.field("@timestamp", "2024-01-01T00:00:00Z").field("my_field", "hello")));
             assertNotNull("original value stored in doc values", doc.rootDoc().getField(dvFieldName));
@@ -171,12 +167,11 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
      * from the binary doc values store: text comes back as a string and a data URI as its {@code {type, format, value}} object.
      */
     public void testOriginalValueFetchedFromDocValues() throws IOException {
-        IndexVersion version = IndexVersion.current();
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
-            .put("index.mapping.source.mode", "synthetic")
-            .build();
-        MapperService mapperService = createMapperService(version, settings, mapping(this::minimalMappingWithModelSettings));
+        MapperService mapperService = createSemanticMapperServiceWithSourceMode(
+            mapping(this::minimalMappingWithModelSettings),
+            IndexVersion.current(),
+            SourceFieldMapper.Mode.SYNTHETIC
+        );
         // A random mix of text, boolean, numeric and multimodal (InferenceString) values, to cover all decoded forms.
         List<Object> inputs = randomList(1, 5, () -> SemanticTextFieldTests.randomSemanticInput(true));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
@@ -241,12 +236,11 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
      * coerces it to its string form, so the doc-values {@code _source} round-trip returns the value as a string.
      */
     public void testBooleanAndNumericValuesRoundTripAsStrings() throws IOException {
-        IndexVersion version = IndexVersion.current();
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
-            .put("index.mapping.source.mode", "synthetic")
-            .build();
-        MapperService mapperService = createMapperService(version, settings, mapping(this::minimalMappingWithModelSettings));
+        MapperService mapperService = createSemanticMapperServiceWithSourceMode(
+            mapping(this::minimalMappingWithModelSettings),
+            IndexVersion.current(),
+            SourceFieldMapper.Mode.SYNTHETIC
+        );
         DocumentMapper mapper = mapperService.documentMapper();
 
         assertThat(syntheticSource(mapper, b -> b.field("my_field", true)), equalTo("{\"my_field\":\"true\"}"));
@@ -271,18 +265,21 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
         SemanticTextHighlighter highlighter = new SemanticTextHighlighter();
         IndexVersion version = IndexVersion.current();
 
-        Settings synthetic = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
-            .put("index.mapping.source.mode", "synthetic")
-            .build();
         SearchExecutionContext syntheticContext = createSearchExecutionContext(
-            createMapperService(version, synthetic, mapping(this::minimalMappingWithModelSettings))
+            createSemanticMapperServiceWithSourceMode(
+                mapping(this::minimalMappingWithModelSettings),
+                version,
+                SourceFieldMapper.Mode.SYNTHETIC
+            )
         );
         assertTrue(highlighter.canHighlightWithoutSource(syntheticContext.getFieldType("my_field"), syntheticContext));
 
-        Settings stored = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version).build();
         SearchExecutionContext storedContext = createSearchExecutionContext(
-            createMapperService(version, stored, mapping(this::minimalMappingWithModelSettings))
+            createSemanticMapperServiceWithSourceMode(
+                mapping(this::minimalMappingWithModelSettings),
+                version,
+                SourceFieldMapper.Mode.STORED
+            )
         );
         assertFalse(highlighter.canHighlightWithoutSource(storedContext.getFieldType("my_field"), storedContext));
     }
@@ -299,11 +296,10 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
 
     public void testSemanticFieldNotSupportedOnOldIndices() throws IOException {
         IndexVersion oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SEMANTIC_FIELD_TYPE);
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), oldVersion).build();
 
         var ex = expectThrows(
             MapperParsingException.class,
-            () -> createMapperService(oldVersion, settings, semanticMapping("my_field", "test_model"))
+            () -> createSemanticMapperServiceWithIndexVersion(semanticMapping("my_field", "test_model"), oldVersion)
         );
         assertThat(ex.getMessage(), containsString("[" + SemanticFieldMapper.CONTENT_TYPE + "]"));
         assertThat(ex.getMessage(), containsString("is not supported on indices created before version"));
@@ -312,19 +308,17 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
 
     public void testSemanticFieldSupportedOnNewIndices() throws IOException {
         IndexVersion newVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE);
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), newVersion).build();
 
         // Should not throw; model_settings provided to avoid consulting the model registry
-        var mapperService = createMapperService(newVersion, settings, mapping(this::minimalMappingWithModelSettings));
+        var mapperService = createSemanticMapperServiceWithIndexVersion(mapping(this::minimalMappingWithModelSettings), newVersion);
         assertNotNull(mapperService);
         assertSemanticFieldMapper(mapperService, "my_field");
     }
 
     public void testSemanticFieldMappingUpdateNotSupportedOnOldIndices() throws IOException {
         IndexVersion oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SEMANTIC_FIELD_TYPE);
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), oldVersion).build();
 
-        var mapperService = createMapperService(oldVersion, settings, mapping(b -> {}));
+        var mapperService = createSemanticMapperServiceWithIndexVersion(mapping(b -> {}), oldVersion);
 
         var ex = expectThrows(MapperParsingException.class, () -> merge(mapperService, semanticMapping("my_field", "test_model")));
         assertThat(ex.getMessage(), containsString("[" + SemanticFieldMapper.CONTENT_TYPE + "]"));
@@ -334,9 +328,8 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
 
     public void testSemanticFieldMappingUpdateSupportedOnNewIndices() throws IOException {
         IndexVersion newVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE);
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), newVersion).build();
 
-        var mapperService = createMapperService(newVersion, settings, mapping(b -> {}));
+        var mapperService = createSemanticMapperServiceWithIndexVersion(mapping(b -> {}), newVersion);
         assertNotNull(mapperService);
         // Should not throw; model_settings provided to avoid consulting the model registry
         merge(mapperService, mapping(this::minimalMappingWithModelSettings));

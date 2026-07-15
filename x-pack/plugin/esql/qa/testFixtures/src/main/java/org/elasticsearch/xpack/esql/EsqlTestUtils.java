@@ -1363,7 +1363,7 @@ public final class EsqlTestUtils {
     }
 
     public static BytesRef randomHistogram() {
-        List<Double> values = ESTestCase.randomList(randomIntBetween(1, 1000), ESTestCase::randomDouble);
+        List<Double> values = ESTestCase.randomList(randomIntBetween(0, 1000), ESTestCase::randomDouble);
         values.sort(Double::compareTo);
         // Note - we need the three parameter version of random list here to ensure it's always the same length as values
         List<Long> counts = ESTestCase.randomList(values.size(), values.size(), () -> ESTestCase.randomLongBetween(1, Long.MAX_VALUE));

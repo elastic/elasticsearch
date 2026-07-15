@@ -2139,6 +2139,131 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * A filtered query must not poison the listing cache for a later unfiltered one. The filter's hints narrow the
+     * listing to a subset of the files; keyed only on the path, that subset would be served back to a query that
+     * carries no filter, which then silently sees fewer files than the dataset holds. Here the {@code _file.name}
+     * hint on a plain glob prunes the listing to one file; the unfiltered follow-up must still see all three.
+     */
+    public void testListingCacheNotPoisonedByFileMetadataHint() throws Exception {
+        String glob = "s3://bucket/data/*.parquet";
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        schemas.put("s3://bucket/data/a.parquet", schema);
+        schemas.put("s3://bucket/data/b.parquet", schema);
+        schemas.put("s3://bucket/data/c.parquet", schema);
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/a.parquet", 100),
+            entry("s3://bucket/data/b.parquet", 200),
+            entry("s3://bucket/data/c.parquet", 300)
+        );
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemas);
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            FileMetadataColumns.NAME,
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of("a.parquet")
+        );
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+
+            ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)));
+            assertEquals(1, filtered.resolvedSource(glob).fileList().fileCount());
+
+            ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of());
+            assertEquals(
+                "the unfiltered query must see every file, not the filtered query's cached subset",
+                3,
+                unfiltered.resolvedSource(glob).fileList().fileCount()
+            );
+        }
+    }
+
+    /**
+     * The keyed-glob form of the same defect: {@code WHERE year == 2024} rewrites the glob to a single partition
+     * folder, so the cached listing enumerates only that folder. An unfiltered follow-up must not be served that
+     * narrowed listing.
+     */
+    public void testListingCacheNotPoisonedByPartitionHint() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", schema);
+        schemas.put("s3://bucket/data/year=2025/b.parquet", schema);
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(
+            "s3://bucket/data/",
+            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2025/b.parquet", 200))
+        );
+        listingsByPrefix.put("s3://bucket/data/year=2024/", List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)));
+        CountingStorageProvider provider = new CountingStorageProvider(listingsByPrefix, schemas);
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2024)
+        );
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+
+            ExternalSourceResolution filtered = resolveWith(resolver, glob, Map.of(glob, List.of(hint)));
+            assertEquals(1, filtered.resolvedSource(glob).fileList().fileCount());
+
+            ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of());
+            assertEquals(
+                "the unfiltered query must enumerate every partition, not the filtered query's single folder",
+                2,
+                unfiltered.resolvedSource(glob).fileList().fileCount()
+            );
+        }
+    }
+
+    /**
+     * A filter that rewrites the glob to a folder that does not exist must resolve to the full listing, not raise
+     * "Glob pattern matched no files". The rewrite spells the value literally ({@code year=2099}); the row filter
+     * still runs, so listing the whole dataset is correct and the query returns zero rows on its own. This is also
+     * what protects a zero-padded {@code month=06} folder from a {@code month == 6} predicate.
+     */
+    public void testZeroMatchPartitionFilterResolvesToFullListingNotError() throws Exception {
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        List<Attribute> schema = List.of(attr("x", DataType.INTEGER));
+        Map<String, List<Attribute>> schemas = new HashMap<>();
+        schemas.put("s3://bucket/data/year=2024/a.parquet", schema);
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put("s3://bucket/data/", List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)));
+        // The narrowed prefix s3://bucket/data/year=2099/ is deliberately absent: an object store lists it as empty.
+        CountingStorageProvider provider = new CountingStorageProvider(listingsByPrefix, schemas);
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2099)
+        );
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
+
+            ExternalSourceResolution resolution = resolveWith(resolver, glob, Map.of(glob, List.of(hint)));
+            assertEquals(1, resolution.resolvedSource(glob).fileList().fileCount());
+        }
+    }
+
+    private ExternalSourceResolution resolveWith(
+        ExternalSourceResolver resolver,
+        String glob,
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints
+    ) {
+        Map<String, Map<String, Object>> pathConfigs = Map.of(
+            glob,
+            new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))
+        );
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(glob), pathConfigs, filterHints, null, null, future);
+        return future.actionGet();
+    }
+
+    /**
      * Invariant: every schema-resolution mode must consult the schema cache on the per-file
      * resolve. A second resolve of the same glob across the same paths must add zero schema-loader
      * calls. Parameterized over {@link #MULTI_FILE_STRATEGIES} so any new mode inherits the
@@ -3386,6 +3511,86 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     + "even though the async metadata read completed on an unrelated I/O thread",
                 headerValue,
                 observedHeaderOnResponse.get()
+            );
+        } finally {
+            resolverExecutor.shutdownNow();
+            ioPool.shutdownNow();
+        }
+    }
+
+    /**
+     * Regression test for elastic/elasticsearch#153780: the Hive-partition shadow-column warning
+     * must reach the client even though the schema reconciliation that detects the collision (and
+     * calls {@code warnOnShadowedColumns}) runs on the resolver's real, forking executor rather than
+     * the calling thread. Every other collision test (e.g. {@link #testPartitionColumnConflictPartitionWins})
+     * uses {@link EsExecutors#DIRECT_EXECUTOR_SERVICE}, which never actually hops threads and so could
+     * not have caught a warning written to the wrong {@link ThreadContext} — exactly the bug this
+     * mirrors {@link #testResolveRestoresCallerThreadContextAcrossAsyncCompletion} by using a dedicated
+     * {@link AsyncStubFormatReader} I/O pool distinct from both the resolver executor and this test thread.
+     * <p>
+     * Like that test, the warning must be observed <em>inside</em> the {@code resolve()} completion
+     * callback rather than after {@code future.actionGet()} returns on this test thread: response
+     * headers accumulated under {@code ContextPreservingActionListener}'s restored context are merged
+     * back onto whichever physical thread is running that callback, not onto this (unrelated) test
+     * thread's own {@link ThreadContext} slot.
+     */
+    public void testShadowWarningReachesCallerAcrossAsyncCompletion() throws Exception {
+        List<Attribute> schema = List.of(attr("year", DataType.KEYWORD), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/year=2024/file1.parquet", schema);
+        schemasByPath.put("s3://bucket/data/year=2023/file2.parquet", schema);
+
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/year=2024/file1.parquet", 100),
+            entry("s3://bucket/data/year=2023/file2.parquet", 200)
+        );
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of(glob).patternPrefix().toString(), listing);
+
+        ExecutorService resolverExecutor = Executors.newSingleThreadExecutor();
+        // Distinct from resolverExecutor and this test thread, so the schema reconciliation that
+        // detects the collision and warns genuinely completes off both.
+        ExecutorService ioPool = Executors.newSingleThreadExecutor();
+        AsyncStubFormatReader reader = new AsyncStubFormatReader(schemasByPath, ioPool, null, 0, null);
+        try {
+            ExternalSourceResolver resolver = createResolverWithAsyncReader(
+                schemasByPath,
+                listingsByPrefix,
+                reader,
+                resolverExecutor,
+                ExternalSourceResolver.DEFAULT_METADATA_READ_CONCURRENCY,
+                threadContext
+            );
+
+            AtomicReference<List<String>> observedWarnings = new AtomicReference<>();
+            AtomicReference<Thread> completionThread = new AtomicReference<>();
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            // Drain inside the completion callback itself, for the same reason
+            // testResolveRestoresCallerThreadContextAcrossAsyncCompletion asserts there: the restored
+            // context (and the warnings merged into it) is only visible for the duration of this callback.
+            ActionListener<ExternalSourceResolution> capturingListener = ActionListener.wrap(resolution -> {
+                observedWarnings.set(drainWarnings());
+                completionThread.set(Thread.currentThread());
+                future.onResponse(resolution);
+            }, future::onFailure);
+
+            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), capturingListener);
+            ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
+
+            assertNotNull(resolution.resolvedSource(glob));
+            assertNotEquals(
+                "the completion must run off this test thread to actually exercise cross-thread warning propagation",
+                Thread.currentThread(),
+                completionThread.get()
+            );
+            List<String> warnings = observedWarnings.get();
+            assertEquals("summary + one detail", 2, warnings.size());
+            assertThat(warnings.get(0), containsString("shadowed by same-named Hive partition keys"));
+            assertThat(
+                "the shadow warning must reach the client even though reconciliation ran off the calling thread",
+                warnings.get(1),
+                containsString("physical column [year] is shadowed")
             );
         } finally {
             resolverExecutor.shutdownNow();

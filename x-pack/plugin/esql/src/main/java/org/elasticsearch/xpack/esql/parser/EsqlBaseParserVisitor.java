@@ -503,12 +503,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#insistCommand}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#dedupCommand}.
    * @param ctx the parse tree
    * @return the visitor result

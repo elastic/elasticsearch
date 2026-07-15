@@ -779,6 +779,38 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         );
     }
 
+    public void testOnFailureIgnoreNullabilityViolationStorageUniqueness() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("nullability", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> {}));
+
+        assertThat(
+            "field must be marked ignored",
+            doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())),
+            equalTo(true)
+        );
+        assertThat(
+            "failure column must be empty: nullability violation has no value to redirect",
+            doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX).isEmpty(),
+            equalTo(true)
+        );
+        assertThat(
+            "violated field must not be pre-captured in _ignored_source",
+            doc.rootDoc().getFields(IgnoredSourceFieldMapper.NAME).isEmpty(),
+            equalTo(true)
+        );
+    }
+
     /**
      * A document with only a single value never trips the constraint, so nothing is written to the failure column and the field is not
      * marked ignored, regardless of {@code on_failure}.

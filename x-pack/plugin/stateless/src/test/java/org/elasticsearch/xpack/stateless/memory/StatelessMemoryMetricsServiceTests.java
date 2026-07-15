@@ -303,11 +303,10 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             perNode.get(onlyShard.currentNodeId()).totalHeapUsage() - perNode.get(nodeWithoutShard.getId()).totalHeapUsage(),
             equalTo(deltaForShard)
         );
-        // The hosted-shards-only estimate excludes the index-level mapping size, and postings are the max across all nodes so they
-        // cancel out of the delta between the two nodes, leaving just the shard's overhead.
+        // The difference for the hosted-shards estimate should be just the size of the shard (no index metadata)
         assertThat(
             perNode.get(onlyShard.currentNodeId()).hostedShardsHeapUsage() - perNode.get(nodeWithoutShard.getId()).hostedShardsHeapUsage(),
-            equalTo(service.estimateShardOverheadExcludingPostings(metricsWithWrongReporter))
+            equalTo(service.computeShardHeapUsage(metricsWithWrongReporter))
         );
     }
 
@@ -415,6 +414,8 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         final long node0EstimateBeforeUpdate;
         final long node1EstimateBeforeUpdate;
+        final long node0HostedShardsBeforeUpdate;
+        final long node1HostedShardsBeforeUpdate;
         // Record the baseline heap usage for node 0 and 1, before any additional information is received
         {
             Map<String, NodeHeapEstimate> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1);
@@ -422,6 +423,8 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             assertThat(perNodeMemoryMetrics.size(), equalTo(2));
             node0EstimateBeforeUpdate = perNodeMemoryMetrics.get(node0.getId()).totalHeapUsage();
             node1EstimateBeforeUpdate = perNodeMemoryMetrics.get(node1.getId()).totalHeapUsage();
+            node0HostedShardsBeforeUpdate = perNodeMemoryMetrics.get(node0.getId()).hostedShardsHeapUsage();
+            node1HostedShardsBeforeUpdate = perNodeMemoryMetrics.get(node1.getId()).hostedShardsHeapUsage();
         }
 
         // We receive a shard mappings update from node 0
@@ -440,6 +443,12 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             assertThat(node0EstimateAfterUpdate, greaterThan(node0EstimateBeforeUpdate));
             // PostingsMemorySize is the max across all nodes, so node1's estimate should have increased by that amount
             assertThat(perNodeMemoryMetrics.get(node1.getId()).totalHeapUsage(), equalTo(node1EstimateBeforeUpdate + node0PostingsSize));
+            assertThat(
+                perNodeMemoryMetrics.get(node0.getId()).hostedShardsHeapUsage(),
+                equalTo(node0HostedShardsBeforeUpdate + node0PostingsSize)
+            );
+            // hosted shards estimate doesn't take the maximized postings value, it should be unchanged on node 1
+            assertThat(perNodeMemoryMetrics.get(node1.getId()).hostedShardsHeapUsage(), equalTo(node1HostedShardsBeforeUpdate));
         }
 
         // We receive a shard mappings update from node 1
@@ -449,6 +458,8 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         // Node 1 heap estimate should have increased
         final long node1EstimateAfterUpdate;
+        final long node0HostedShardsAfterBothUpdates;
+        final long node1HostedShardsAfterBothUpdates;
         {
             final Map<String, NodeHeapEstimate> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1);
             compareAgainstSumOfIndividualShards(service, clusterState1);
@@ -460,6 +471,10 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             assertThat(perNodeMemoryMetrics.get(node0.getId()).totalHeapUsage(), equalTo(node0EstimateAfterUpdate));
             node1EstimateAfterUpdate = perNodeMemoryMetrics.get(node1.getId()).totalHeapUsage();
             assertThat(node1EstimateAfterUpdate, greaterThan(node1EstimateBeforeUpdate));
+            node0HostedShardsAfterBothUpdates = perNodeMemoryMetrics.get(node0.getId()).hostedShardsHeapUsage();
+            node1HostedShardsAfterBothUpdates = perNodeMemoryMetrics.get(node1.getId()).hostedShardsHeapUsage();
+            assertThat(node0HostedShardsAfterBothUpdates, greaterThan(node0HostedShardsBeforeUpdate));
+            assertThat(node1HostedShardsAfterBothUpdates, greaterThan(node1HostedShardsBeforeUpdate));
         }
 
         // we receive a merge estimate from node 0
@@ -472,7 +487,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             )
         );
 
-        // All heap estimates should have increased
+        // All heap estimates should have increased, but hostedShardsHeapUsage is unaffected: merge memory is not a hosted-shard component
         final long node0EstimateAfterMergeEstimate, node1EstimateAfterMergeEstimate;
         {
             final Map<String, NodeHeapEstimate> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1);
@@ -484,13 +499,17 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
             node1EstimateAfterMergeEstimate = perNodeMemoryMetrics.get(node1.getId()).totalHeapUsage();
             assertThat(node1EstimateAfterMergeEstimate - node1EstimateAfterUpdate, equalTo(node0MergeEstimate));
+
+            assertThat(perNodeMemoryMetrics.get(node0.getId()).hostedShardsHeapUsage(), equalTo(node0HostedShardsAfterBothUpdates));
+            assertThat(perNodeMemoryMetrics.get(node1.getId()).hostedShardsHeapUsage(), equalTo(node1HostedShardsAfterBothUpdates));
         }
 
         // update indexing operations heap memory requirement
         final long indexingOperationsHeapMemoryRequirements = randomLongBetween(1_000, 100_000);
         service.updateIndexingOperationsHeapMemoryRequirements(indexingOperationsHeapMemoryRequirements);
 
-        // All nodes' heap estimate should have increased
+        // All nodes' heap estimate should have increased, but hostedShardsHeapUsage is unaffected: indexing-ops overhead is not a
+        // hosted-shard component
         {
             final Map<String, NodeHeapEstimate> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1);
             compareAgainstSumOfIndividualShards(service, clusterState1);
@@ -503,6 +522,8 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                 perNodeMemoryMetrics.get(node1.getId()).totalHeapUsage() - node1EstimateAfterMergeEstimate,
                 equalTo(indexingOperationsHeapMemoryRequirements)
             );
+            assertThat(perNodeMemoryMetrics.get(node0.getId()).hostedShardsHeapUsage(), equalTo(node0HostedShardsAfterBothUpdates));
+            assertThat(perNodeMemoryMetrics.get(node1.getId()).hostedShardsHeapUsage(), equalTo(node1HostedShardsAfterBothUpdates));
         }
     }
 

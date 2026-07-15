@@ -269,7 +269,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             .max()
             .orElse(0L);
         lastMaxTotalPostingsInMemoryBytes = maxTotalPostingsInMemoryBytes; // Tracked for testing purposes
-        heapUsageBuilders.values().forEach(builder -> builder.totalPostingsInMemoryBytes = maxTotalPostingsInMemoryBytes);
+        heapUsageBuilders.values().forEach(builder -> builder.maximisedPostingsInMemoryBytes = maxTotalPostingsInMemoryBytes);
         final Map<String, NodeHeapEstimate> nodeIdToHeapUsage = Maps.transformValues(
             heapUsageBuilders,
             EstimatedHeapUsageBuilder::getHeapEstimate
@@ -823,6 +823,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         private final Set<String> seenIndices = new HashSet<>();
         private long mappingSizeInBytes;
         private long totalPostingsInMemoryBytes;
+        private long maximisedPostingsInMemoryBytes;
         private long shardMemoryUsageInBytes;
         private long totalShardMemoryOverheadBytes;
         private int totalShards;
@@ -850,6 +851,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                 // getPerNodeMemoryMetrics later overrides totalPostingsInMemoryBytes with the max across all nodes.
                 shardMemoryUsageInBytes += estimateShardOverheadExcludingPostings(shardMemoryMetrics);
                 totalPostingsInMemoryBytes += shardMemoryMetrics.getPostingsInMemoryBytes();
+                maximisedPostingsInMemoryBytes += shardMemoryMetrics.getPostingsInMemoryBytes();
             }
             totalShards++;
         }
@@ -864,7 +866,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         long getHeapUsageEstimate() {
             assert totalShards >= totalShardsWithSelfReportedOverhead;
             return totalShardMemoryOverheadBytes + shardMemoryUsageInBytes + mappingSizeInBytes + shardMergeMemoryEstimate
-                + nodeBaseHeapEstimateInBytes + minimumRequiredHeapForAcceptingLargeIndexingOps + totalPostingsInMemoryBytes;
+                + nodeBaseHeapEstimateInBytes + minimumRequiredHeapForAcceptingLargeIndexingOps + maximisedPostingsInMemoryBytes;
         }
     }
 

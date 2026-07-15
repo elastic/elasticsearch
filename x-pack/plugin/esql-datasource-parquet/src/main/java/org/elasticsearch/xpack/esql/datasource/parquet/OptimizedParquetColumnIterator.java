@@ -28,6 +28,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -42,8 +43,10 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -176,6 +179,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final ColumnDescriptor sortColumnDescriptor;
     private final String sortColumnPath;
     private final PrimitiveType sortColumnPrimitiveType;
+    /**
+     * How the sort column's raw statistics relate to the DECODED values the threshold bound is published in, or
+     * {@code null} when the column is not a rescaled temporal (a plain long is the identity and needs no mapping) or
+     * when no exact relation exists (decline the skip). Resolved once; the threshold rail is otherwise unit-blind and
+     * compares a decoded bound against raw stats, dropping the row groups holding the true extremes.
+     */
+    @Nullable
+    private final DeclaredTypeCoercions.RawDecodeRelation sortDecodeRelation;
+    /** Whether the sort column reads as a temporal type at all; a plain long keeps the raw pass-through. */
+    private final boolean sortColumnIsTemporal;
     /**
      * High bits OR-ed into every emitted {@code _rowPosition} value once
      * {@link #setExtractorId(int)} has been called: {@code ((long) extractorId) << LOCAL_POSITION_BITS}.
@@ -370,6 +383,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.sortColumnDescriptor = sortColumnDescriptor;
         this.sortColumnPath = sortColumnDescriptor == null ? null : String.join(".", sortColumnDescriptor.getPath());
         this.sortColumnPrimitiveType = sortColumnDescriptor == null ? null : sortColumnDescriptor.getPrimitiveType();
+        DataType sortType = sortColumnEsqlType(sortColumnPath, columnInfos);
+        this.sortColumnIsTemporal = sortType == DataType.DATETIME || sortType == DataType.DATE_NANOS;
+        this.sortDecodeRelation = resolveSortDecodeRelation(sortColumnPath, sortColumnPrimitiveType, columnInfos);
         this.codecFactory = codecFactory;
         this.counters = counters;
         this.pushedExpressions = pushedExpressions;
@@ -600,9 +616,21 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         ElementType elementType = dynamicThreshold.elementType();
         return switch (elementType) {
-            case LONG -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT64
-                ? ((Number) value).longValue()
-                : null;
+            case LONG -> {
+                if (sortColumnPrimitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+                    yield null;
+                }
+                long raw = ((Number) value).longValue();
+                // A plain long sort column has no relation and its raw value is its decoded value. A rescaled temporal
+                // one must be mapped into the decoded domain the threshold bound lives in, or the comparison skips the
+                // wrong groups. A null relation on a temporal column (TIME/DECIMAL/unsigned) declines the skip — safe.
+                if (sortDecodeRelation == null) {
+                    // A temporal column with no exact relation (TIME/DECIMAL/unsigned) declines the skip; a plain
+                    // long keeps its raw value.
+                    yield sortColumnIsTemporal ? null : raw;
+                }
+                yield DeclaredTypeCoercions.rawStatToDecoded(sortDecodeRelation, raw);
+            }
             case INT -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32
                 ? (long) ((Number) value).intValue()
                 : null;
@@ -690,6 +718,59 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return 2;
         }
         return 1;
+    }
+
+    /**
+     * The raw-to-decoded relation for a temporal sort column, or {@code null} when the column is a plain long (its
+     * raw value IS its decoded value) or admits no exact relation. Consulted once so the per-row-group skip is not a
+     * per-consumer re-derivation of the unit rule.
+     */
+    @Nullable
+    private static DataType sortColumnEsqlType(String sortColumnPath, ColumnInfo[] columnInfos) {
+        if (sortColumnPath == null) {
+            return null;
+        }
+        for (ColumnInfo info : columnInfos) {
+            if (info.descriptor() != null && String.join(".", info.descriptor().getPath()).equals(sortColumnPath)) {
+                return info.esqlType();
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private static DateFormatter sortColumnFormatter(String sortColumnPath, ColumnInfo[] columnInfos) {
+        if (sortColumnPath == null) {
+            return null;
+        }
+        for (ColumnInfo info : columnInfos) {
+            if (info.descriptor() != null && String.join(".", info.descriptor().getPath()).equals(sortColumnPath)) {
+                return info.dateFormatter();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The raw-to-decoded relation for a temporal sort column, or {@code null} when the column is a plain long (its raw
+     * value IS its decoded value) or admits no exact relation (decline the skip). One consultation of the unit rule,
+     * not a per-row-group re-derivation.
+     */
+    @Nullable
+    private static DeclaredTypeCoercions.RawDecodeRelation resolveSortDecodeRelation(
+        String sortColumnPath,
+        PrimitiveType sortColumnPrimitiveType,
+        ColumnInfo[] columnInfos
+    ) {
+        if (sortColumnPath == null || sortColumnPrimitiveType == null) {
+            return null;
+        }
+        DataType type = sortColumnEsqlType(sortColumnPath, columnInfos);
+        if (type != DataType.DATETIME && type != DataType.DATE_NANOS) {
+            return null;
+        }
+        DateFormatter formatter = sortColumnFormatter(sortColumnPath, columnInfos);
+        return ParquetColumnDecoding.rawDecodeRelation(sortColumnPrimitiveType, type, formatter == null ? null : formatter.pattern());
     }
 
     private static Set<String> buildProjectedColumnPaths(ColumnInfo[] columnInfos) {

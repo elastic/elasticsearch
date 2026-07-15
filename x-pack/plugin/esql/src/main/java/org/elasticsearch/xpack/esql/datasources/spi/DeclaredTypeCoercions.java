@@ -808,6 +808,27 @@ public final class DeclaredTypeCoercions {
         };
     }
 
+    /**
+     * A raw file statistic mapped INTO the decoded domain, or {@code null} to decline. The forward direction, for
+     * consumers that compare a decoded bound against raw min/max (the TopN threshold skip, stripe skip). The map is
+     * monotone, so a min stays a min and a max stays a max — no rounding, no band. Overflow declines, which for a
+     * skip decision means "do not skip": correct, just not pruned.
+     */
+    @Nullable
+    public static Long rawStatToDecoded(RawDecodeRelation relation, long raw) {
+        return switch (relation) {
+            case RawDecodeRelation.Identity ignored -> raw;
+            case RawDecodeRelation.ScaleUp up -> {
+                try {
+                    yield Math.multiplyExact(raw, up.factor());
+                } catch (ArithmeticException e) {
+                    yield null;
+                }
+            }
+            case RawDecodeRelation.ScaleDown down -> Math.floorDiv(raw, down.divisor());
+        };
+    }
+
     /** The inclusive raw range a single decoded value covers. A point for an exact map, a band for a lossy one. */
     public record RawBand(long lo, long hi) {}
 

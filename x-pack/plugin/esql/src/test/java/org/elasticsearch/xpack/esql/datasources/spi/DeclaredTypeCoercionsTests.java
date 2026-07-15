@@ -1426,4 +1426,29 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             }
         }
     }
+
+    /** The forward map must be monotone, so a min stays a min and a max stays a max through it. */
+    public void testForwardStatMapIsMonotone() {
+        List<DeclaredTypeCoercions.RawDecodeRelation> relations = List.of(
+            new DeclaredTypeCoercions.RawDecodeRelation.Identity(),
+            new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(1000L),
+            new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1000L)
+        );
+        for (DeclaredTypeCoercions.RawDecodeRelation relation : relations) {
+            for (int i = 0; i < 300; i++) {
+                long a = randomLongBetween(-5_000_000L, 5_000_000L);
+                long b = randomLongBetween(-5_000_000L, 5_000_000L);
+                Long da = DeclaredTypeCoercions.rawStatToDecoded(relation, Math.min(a, b));
+                Long db = DeclaredTypeCoercions.rawStatToDecoded(relation, Math.max(a, b));
+                if (da != null && db != null) {
+                    assertTrue("forward map inverted order: " + relation + " " + da + " > " + db, da <= db);
+                }
+                assertEquals(
+                    "forward map must agree with the reader decode",
+                    decodeFor(relation, a),
+                    (long) DeclaredTypeCoercions.rawStatToDecoded(relation, a)
+                );
+            }
+        }
+    }
 }

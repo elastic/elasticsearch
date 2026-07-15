@@ -675,13 +675,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeQueryPhase(ShardSearchRequest request, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
-        ActionListener<SearchPhaseResult> finalListener = wrapListenerForErrorHandling(
-            listener,
-            request.getChannelVersion(),
-            clusterService.localNode().getId(),
-            request.shardId(),
-            task.getId(),
-            threadPool
+        ActionListener<SearchPhaseResult> finalListener = releaseCircuitBreakerOnResponse(
+            wrapListenerForErrorHandling(
+                listener,
+                request.getChannelVersion(),
+                clusterService.localNode().getId(),
+                request.shardId(),
+                task.getId(),
+                threadPool
+            ),
+            result -> result instanceof QueryFetchSearchResult qfr ? qfr.fetchResult() : null
         );
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
@@ -1118,7 +1121,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+        }, wrapFailureListener(releaseCircuitBreakerOnResponse(listener, result -> result.fetchResult()), readerContext, markAsUsed));
     }
 
     public void executeFetchPhase(ShardFetchRequest request, CancellableTask task, ActionListener<FetchSearchResult> listener) {
@@ -1157,7 +1160,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // we handle the failure in the failure listener below
                     throw e;
                 }
-            }, wrapFailureListener(l, readerContext, markAsUsed));
+            }, wrapFailureListener(releaseCircuitBreakerOnResponse(l, result -> result), readerContext, markAsUsed));
         }));
     }
 
@@ -2153,6 +2156,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public IndicesService getIndicesService() {
         return indicesService;
+    }
+
+    private <T> ActionListener<T> releaseCircuitBreakerOnResponse(
+        ActionListener<T> listener,
+        Function<T, FetchSearchResult> fetchResultExtractor
+    ) {
+        return ActionListener.wrap(response -> {
+            try {
+                listener.onResponse(response);
+            } finally {
+                FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
+                if (fetchResult != null) {
+                    fetchResult.releaseCircuitBreakerBytes(circuitBreaker);
+                }
+            }
+        }, listener::onFailure);
     }
 
     /**

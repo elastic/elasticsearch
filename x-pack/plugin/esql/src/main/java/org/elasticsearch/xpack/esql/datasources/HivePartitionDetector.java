@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -192,16 +191,15 @@ public final class HivePartitionDetector implements PartitionDetector {
      * with {@code %XX} only and writes a literal {@code +} unescaped (it is not in the escape set). This is therefore
      * a plain UTF-8 percent-decode that keeps {@code +} literal, unlike {@code application/x-www-form-urlencoded}
      * decoding, which maps {@code +} to a space and so corrupts {@code a+b} to {@code "a b"} (a filter on the true
-     * value then drops every row of that folder). Any literal {@code +} is escaped to its {@code %2B} form before
-     * decoding so {@link URLDecoder} restores it as a literal {@code +} rather than a space; a malformed escape is
-     * left as the raw value rather than failing the detection.
+     * value then drops every row of that folder). {@link RestUtils#decodeComponent} decodes {@code %XX} escapes as
+     * UTF-8 and keeps a literal {@code +} as {@code +} (its {@code es.rest.url_plus_as_space} default is {@code false});
+     * a malformed escape is left as the raw value rather than failing the detection.
      *
      * <p>Shared by {@link TemplatePartitionDetector}, which decodes its own directory segments the same way.
      */
     static String decodePartitionValue(String value) {
-        String escaped = value.indexOf('+') < 0 ? value : value.replace("+", "%2B");
         try {
-            return URLDecoder.decode(escaped, StandardCharsets.UTF_8);
+            return RestUtils.decodeComponent(value);
         } catch (IllegalArgumentException e) {
             return value;
         }

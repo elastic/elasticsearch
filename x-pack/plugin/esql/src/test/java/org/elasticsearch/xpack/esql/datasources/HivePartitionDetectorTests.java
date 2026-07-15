@@ -218,6 +218,20 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals("a%2", partitions.get("tag"));
     }
 
+    /**
+     * A literal {@code +} next to a malformed escape falls back to the raw value, keeping the {@code +} literal rather
+     * than surfacing the {@code %2B} form the decoder would use for a well-formed value.
+     */
+    public void testLiteralPlusWithMalformedEscapeFallsBackToRawValue() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/tag=a+%2/file.parquet"));
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        Map<String, Object> partitions = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/tag=a+%2/file.parquet"));
+        assertEquals("a+%2", partitions.get("tag"));
+    }
+
     public void testSingleFile() {
         List<StorageEntry> files = List.of(entry("s3://bucket/data/year=2024/file.parquet"));
 

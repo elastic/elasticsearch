@@ -220,6 +220,35 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals("a+ns:b", values.get("tag"));
     }
 
+    /**
+     * Parity guard with the Hive detector: within one segment a literal {@code +} stays {@code +} while an escaped
+     * space ({@code %20}) decodes to a space, where form-urlencoded decoding would collapse both to spaces.
+     */
+    public void testLiteralPlusAndEscapedSpaceInOneValue() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{tag}");
+
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/a+b%20c/file.parquet"));
+
+        PartitionMetadata result = detector.detect(files, Map.of());
+
+        assertFalse(result.isEmpty());
+        Map<String, Object> values = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/a+b%20c/file.parquet"));
+        assertEquals("a+b c", values.get("tag"));
+    }
+
+    /** Parity guard with the Hive detector: a malformed escape ({@code %} not followed by two hex digits) is left as the raw value. */
+    public void testMalformedPercentEscapeFallsBackToRawValue() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{tag}");
+
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/a%2/file.parquet"));
+
+        PartitionMetadata result = detector.detect(files, Map.of());
+
+        assertFalse(result.isEmpty());
+        Map<String, Object> values = result.filePartitionValues().get(StoragePath.of("s3://bucket/data/a%2/file.parquet"));
+        assertEquals("a%2", values.get("tag"));
+    }
+
     public void testEmptyFilesReturnsEmpty() {
         TemplatePartitionDetector detector = new TemplatePartitionDetector("{year}");
         PartitionMetadata result = detector.detect(List.of(), Map.of());

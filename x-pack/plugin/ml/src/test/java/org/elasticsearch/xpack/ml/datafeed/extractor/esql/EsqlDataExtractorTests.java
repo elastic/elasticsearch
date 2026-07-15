@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
@@ -37,6 +38,7 @@ import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -76,7 +78,8 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         extractor.next();
 
-        assertThat(extractor.capturedOrderedQuery, equalTo(DEFAULT_QUERY + " | SORT `timestamp` ASC"));
+        assertThat(extractor.capturedOrderedQuery, equalTo(DEFAULT_QUERY + " | SORT ??timeField ASC"));
+        assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", "timestamp", IDENTIFIER))));
     }
 
     public void testNextGivenSortIsInjectedEvenWhenUserQueryAlreadyHasSort() throws IOException {
@@ -86,7 +89,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         extractor.next();
 
-        assertThat(extractor.capturedOrderedQuery, equalTo(esqlQuery + " | SORT `timestamp` ASC"));
+        assertThat(extractor.capturedOrderedQuery, equalTo(esqlQuery + " | SORT ??timeField ASC"));
     }
 
     public void testNextGivenTimeFilterIsHalfOpen() throws IOException {
@@ -279,15 +282,9 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         assertThat(
             extractor.capturedOrderedQuery,
-            equalTo(
-                DEFAULT_QUERY
-                    + " | STATS earliest_time = MIN(`"
-                    + TIME_FIELD
-                    + "`), latest_time = MAX(`"
-                    + TIME_FIELD
-                    + "`), total_hits = COUNT(*)"
-            )
+            equalTo(DEFAULT_QUERY + " | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)")
         );
+        assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", TIME_FIELD, IDENTIFIER))));
         assertThat(extractor.capturedTimeFilter, equalTo(new RangeQueryBuilder(TIME_FIELD).gte(1000L).lt(9000L).format("epoch_millis")));
 
         verify(timingStatsReporter).reportSearchDuration(any());
@@ -304,6 +301,24 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         assertThat(summary.hasData(), is(false));
         assertThat(summary.totalHits(), equalTo(0L));
+    }
+
+    public void testGetSummaryPassesTimeFieldAsParamNotSplicedIntoQuery() {
+        // A time field containing backtick characters must not be spliced into the query text; it must travel as a parameter value.
+        String dangerousTimeField = "field`; DROP TABLE";
+        TestDataExtractor extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, dangerousTimeField);
+        extractor.enqueueRow(
+            List.of(column("earliest_time", DATE), column("latest_time", DATE), column("total_hits", LONG)),
+            "1970-01-01T00:00:01.500Z",
+            "1970-01-01T00:00:08.500Z",
+            100L
+        );
+
+        extractor.getSummary();
+
+        assertThat(extractor.capturedOrderedQuery, not(containsString(dangerousTimeField)));
+        assertThat(extractor.capturedOrderedQuery, containsString("??timeField"));
+        assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", dangerousTimeField, IDENTIFIER))));
     }
 
     public void testGetSummaryDetectsTimeColumnTypesIndependently() {
@@ -385,6 +400,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
         private final Queue<EsqlQueryResponse> responses = new ArrayDeque<>();
         String capturedOrderedQuery;
         QueryBuilder capturedTimeFilter;
+        List<EsqlQueryParam> capturedParams;
 
         TestDataExtractor(EsqlDataExtractorContext context) {
             super(client, context, timingStatsReporter);
@@ -403,9 +419,10 @@ public class EsqlDataExtractorTests extends ESTestCase {
         }
 
         @Override
-        protected EsqlQueryResponse runEsqlQuery(String orderedQuery, QueryBuilder timeFilter) {
+        protected EsqlQueryResponse runEsqlQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
             capturedOrderedQuery = orderedQuery;
             capturedTimeFilter = timeFilter;
+            capturedParams = params;
             return responses.poll();
         }
     }

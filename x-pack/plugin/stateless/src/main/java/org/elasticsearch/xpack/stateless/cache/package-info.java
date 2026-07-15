@@ -36,16 +36,11 @@
 /// The list below documents, for each way a search node populates the cache, which timestamp is used and at what granularity. This is the
 /// current state and is expected to evolve.
 ///
-///   - BCC metadata reads (`readReferencedCompoundCommitsUsingCache` in
-///     [org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService], and the latest BCC read during search-shard recovery in
-///     [org.elasticsearch.xpack.stateless.StatelessIndexEventListener#beforeRecoveryOnSearchShard]) only read compound-commit headers, which with the default region size begin in the first region(s) of the BCC blob. They use a dedicated
-///     metadata-read warming directory that stamps unknown regions with
-///     [org.elasticsearch.blobcache.shared.SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP] on time-based shards. After the read
-///     completes, callers aggregate the most recent representative timestamp per referenced BCC blob and backfill all present sentinel
-///     regions in a single cache scan (see
-///     [org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory#backfillMetadataReadTimestamps]), falling back to
-///     [org.elasticsearch.blobcache.shared.SharedBlobCacheService#MINIMAL_TIMESTAMP] when none exist).
-///     Non-time-based shards stamp [org.elasticsearch.blobcache.shared.SharedBlobCacheService#UNKNOWN_TIMESTAMP] and skip backfill.
+///   - BCC metadata reads, during both recovery and on new-commit notifications, BCCs are read to discover the referenced CCs and their
+///     file ranges. For time-based indices, he initial reads stamp the regions with
+///     [org.elasticsearch.blobcache.shared.SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP]. After reading and parsing the CCs,
+///     a timestamp is extracted from each CC and the most recent timestamp per BCC is used to backfill all the regions with
+///     BACKFILL_IN_PROGRESS_TIMESTAMP timestamp.
 ///
 ///   - Offline prewarming, driven by [org.elasticsearch.xpack.stateless.StatelessIndexEventListener] through
 ///     [org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService#warmBlobOffsets], uses a single timestamp per blob,

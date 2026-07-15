@@ -20,7 +20,6 @@ import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -69,11 +68,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     private final AtomicReference<Thread> updatingCommitThread = Assertions.ENABLED ? new AtomicReference<>() : null;// only used in asserts
     protected volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
     protected volatile long currentDataSetSizeInBytes = 0L;
-    private final boolean timeBasedCaching;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
 
     BlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
-        this(cacheService, shardId, new LongAdder(), new LongAdder(), null, false);
+        this(cacheService, shardId, new LongAdder(), new LongAdder(), null);
     }
 
     protected BlobStoreCacheDirectory(
@@ -83,23 +81,11 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         LongAdder totalBytesWarmed,
         @Nullable LongFunction<BlobContainer> blobContainerFunction
     ) {
-        this(cacheService, shardId, totalBytesRead, totalBytesWarmed, blobContainerFunction, false);
-    }
-
-    protected BlobStoreCacheDirectory(
-        StatelessSharedBlobCacheService cacheService,
-        ShardId shardId,
-        LongAdder totalBytesRead,
-        LongAdder totalBytesWarmed,
-        @Nullable LongFunction<BlobContainer> blobContainerFunction,
-        boolean timeBasedCaching
-    ) {
         super(EmptyDirectory.INSTANCE);
         this.cacheService = cacheService;
         this.shardId = shardId;
         this.totalBytesReadFromObjectStore = totalBytesRead;
         this.totalBytesWarmedFromObjectStore = totalBytesWarmed;
-        this.timeBasedCaching = timeBasedCaching;
         this.metricsHolder = cacheService.metricsHolder();
         if (blobContainerFunction != null) {
             setBlobContainer(blobContainerFunction);
@@ -162,39 +148,11 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
     }
 
-    public boolean timeBasedCaching() {
-        return timeBasedCaching;
-    }
-
     /**
      * Timestamp to stamp on a cache region whose {@link BlobFileRanges} carry no known data timestamp.
      */
     protected long unknownRegionTimestampMillis() {
         return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
-    }
-
-    /**
-     * Backfills the timestamps of every present sentinel region for each blob in {@code timestampByBlob}, using a single cache scan.
-     */
-    public void backfillMetadataReadTimestamps(Map<BlobFile, Long> timestampByBlob) {
-        if (timeBasedCaching == false || timestampByBlob.isEmpty()) {
-            return;
-        }
-        var byCacheKey = Maps.<FileCacheKey, Long>newHashMapWithExpectedSize(timestampByBlob.size());
-        for (var entry : timestampByBlob.entrySet()) {
-            // If we don't know the timestamp, then we say region is not as important.
-            // TODO: always come up with timestamp at the caller level
-            long timestampMillis = Math.max(entry.getValue(), SharedBlobCacheService.MINIMAL_TIMESTAMP);
-            byCacheKey.put(new FileCacheKey(shardId, entry.getKey().primaryTerm(), entry.getKey().blobName()), timestampMillis);
-        }
-        cacheService.backfillRegionTimestamps(shardId, byCacheKey);
-    }
-
-    /**
-     * Backfills the timestamps of every present sentinel region of a single blob.
-     */
-    public void backfillMetadataReadTimestamp(BlobFile bccBlobFile, long timestampMillis) {
-        backfillMetadataReadTimestamps(Map.of(bccBlobFile, timestampMillis));
     }
 
     StatelessSharedBlobCacheService getCacheService() {

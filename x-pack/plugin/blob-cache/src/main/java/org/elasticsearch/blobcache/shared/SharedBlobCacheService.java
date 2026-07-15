@@ -109,10 +109,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     /// - [#UNKNOWN_TIMESTAMP] (`-1`): the content has no representative timestamp;
     /// - [#BACKFILL_IN_PROGRESS_TIMESTAMP] (`-2`): the timestamp is temporarily unknown, e.g. pending backfill.
     ///
-    /**
-     * Oldest non-negative epoch millis ({@code 0L}) used when no real timestamp is available after folding CCs, or when a computed
-     * midpoint would be negative. Distinct from {@link #UNKNOWN_TIMESTAMP} (no timestamp known yet).
-     */
     public static final long MINIMAL_TIMESTAMP = 0L;
 
     public static final long UNKNOWN_TIMESTAMP = -1L;

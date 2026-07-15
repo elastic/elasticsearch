@@ -1385,4 +1385,45 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             )
         );
     }
+
+    /**
+     * The equality band must be EXACT in both directions: every raw value in it decodes to the bound (so pushing it
+     * keeps no junk the reader must re-filter), and every raw value outside it does not (so pushing it prunes no
+     * matching row). A one-sided property would let a band that is too wide pass.
+     */
+    public void testEqualityBandIsExactlyTheRawValuesThatDecodeToTheBound() {
+        List<DeclaredTypeCoercions.RawDecodeRelation> relations = List.of(
+            new DeclaredTypeCoercions.RawDecodeRelation.Identity(),
+            new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(1000L),
+            new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1000L)
+        );
+        for (DeclaredTypeCoercions.RawDecodeRelation relation : relations) {
+            for (int i = 0; i < 300; i++) {
+                long bound = randomLongBetween(-6_000L, 6_000L);
+                DeclaredTypeCoercions.RawBand band = DeclaredTypeCoercions.rawEqualityBand(relation, bound);
+                if (band == null) {
+                    // Declined: only legal when NO raw value decodes to the bound at all.
+                    for (long raw = -10_000; raw <= 10_000; raw++) {
+                        assertNotEquals(
+                            "declined an equality that a stored value could have matched: relation=" + relation + " bound=" + bound,
+                            bound,
+                            decodeFor(relation, raw)
+                        );
+                    }
+                    continue;
+                }
+                assertTrue("band must not be inverted: " + band, band.lo() <= band.hi());
+                for (long raw = band.lo(); raw <= band.hi(); raw++) {
+                    assertEquals(
+                        "a raw value inside the band must decode to the bound: relation=" + relation + " raw=" + raw,
+                        bound,
+                        decodeFor(relation, raw)
+                    );
+                }
+                // just outside, both sides, must NOT decode to the bound
+                assertNotEquals("band is too narrow on the low side", bound, decodeFor(relation, band.lo() - 1));
+                assertNotEquals("band is too narrow on the high side", bound, decodeFor(relation, band.hi() + 1));
+            }
+        }
+    }
 }

@@ -152,6 +152,66 @@ final class ParquetColumnDecoding {
     }
 
     /**
+     * How this column's decoded value relates to the raw value its parquet statistics hold, or {@code null} when no
+     * exact relation exists and every stats-based decision must decline.
+     *
+     * <p>The derivation is parquet-local because annotation semantics are; the relation and the bound math it feeds
+     * are shared ({@link DeclaredTypeCoercions}) because format semantics are reader-agnostic. This is the single
+     * place the question is answered for predicate translation, the TopN threshold rail, and the page index — they
+     * previously each re-derived it, which is how one of them was always wrong.
+     *
+     * <p>Note the direction flips on the DECLARED type, not on the file: a {@code TIMESTAMP(MICROS)} column decodes
+     * to nanos ({@code raw x 1000}) when it infers {@code date_nanos}, and to millis ({@code raw / 1000}, truncating)
+     * when it is declared {@code date}. An explicit declaration is allowed to be lossy — that is the point of
+     * declaring it — but the pruning must know which way the map goes.
+     *
+     * @param declaredType the ES|QL type the column reads as ({@code DATETIME} or {@code DATE_NANOS})
+     * @param declaredFormat the column's declared date format, or {@code null}
+     */
+    @Nullable
+    static DeclaredTypeCoercions.RawDecodeRelation rawDecodeRelation(
+        PrimitiveType primitiveType,
+        DataType declaredType,
+        @Nullable String declaredFormat
+    ) {
+        if (primitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+            return null;
+        }
+        LogicalTypeAnnotation logical = primitiveType.getLogicalTypeAnnotation();
+        if (declaredFormat != null) {
+            // A format composed on top of an annotation's own transform is not a single scale: decline.
+            if (logical != null) {
+                return null;
+            }
+            Long scale = DeclaredTypeCoercions.declaredEpochFormatScale(declaredFormat, declaredType);
+            return scale == null ? null : new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(scale);
+        }
+        if (logical == null) {
+            // A bare INT64 reads as the declared type's own unit — the fused identity.
+            return new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+        }
+        if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            return switch (declaredType) {
+                case DATETIME -> switch (ts.getUnit()) {
+                    case MILLIS -> new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+                    // narrowed through DateUtils.toMilliSeconds: one decoded milli covers a band of raw ticks
+                    case MICROS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1_000L);
+                    case NANOS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1_000_000L);
+                };
+                case DATE_NANOS -> switch (ts.getUnit()) {
+                    case NANOS -> new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+                    case MICROS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(NANOS_PER_MICRO);
+                    case MILLIS -> new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(NANOS_PER_MILLI);
+                };
+                default -> null;
+            };
+        }
+        // TIME (nanos-of-day, not an epoch), DECIMAL, unsigned INT64 (sign-wrap ordering), and anything this method
+        // has never heard of: the scan applies a transform not modeled here, so no stats decision is safe.
+        return null;
+    }
+
+    /**
      * Whether decoding a physical column with logical annotation {@code annotation} into an ESQL integral value
      * ({@code long}/{@code integer}) applies a scaling factor that the raw parquet footer statistics do NOT carry, so
      * a raw integral predicate pushed against those stats would mis-prune. This is the ground truth for the pushdown

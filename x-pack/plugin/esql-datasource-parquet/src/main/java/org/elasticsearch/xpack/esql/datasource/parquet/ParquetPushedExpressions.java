@@ -707,7 +707,13 @@ final class ParquetPushedExpressions {
                 yield null;
             }
             case INT64 -> {
-                Long bound = datetimeBoundToRaw(columnName, millis, op, logical, formats);
+                if (op == PredicateOp.EQ) {
+                    // A lossy decode makes one decoded value cover a BAND of raw values, so equality is a range, not
+                    // a point. Push the whole band and keep pruning; pushing any single value inside it would drop
+                    // the rows on either side that decode to exactly the same instant.
+                    yield datetimeEqualityPredicate(columnName, millis, ptype, formats);
+                }
+                Long bound = datetimeBoundToRaw(columnName, millis, op, ptype, formats);
                 yield bound == null ? null : orderedPredicate(FilterApi.longColumn(columnName), bound, op);
             }
             default -> null;
@@ -715,58 +721,60 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * The RAW bound to push for a {@code DATETIME} column whose query literal is epoch-millis, or {@code null} to
-     * decline. The row-group statistics hold the file's raw values, so a bound is only pushable when the scan's
-     * decode is an exact scale of them and we can invert it without ever becoming STRICTER than the true predicate.
-     *
-     * <p>Two independent things can rescale the decode, and both must be answered here:
-     * <ul>
-     *   <li>the file's own annotation — {@code TIMESTAMP(MICROS|NANOS)} store a finer unit than the millis literal;</li>
-     *   <li>a declared {@code format} — {@code epoch_second} over a bare {@code INT64} scales x1000 at decode while
-     *       the statistics stay in seconds.</li>
-     * </ul>
-     *
-     * <p>Anything else declines. In particular a bare/unknown annotation is NOT the identity once a format is in play,
-     * and a format composed on top of an annotation's own transform is not a single scale. Declining only loses
-     * pruning; pushing a wrong bound loses ROWS, and unrecoverably — RECHECK re-applies exact semantics to rows we
-     * READ, and a pruned row group is never decoded.
+     * {@code ==} on a DATETIME column, as the inclusive raw range that decodes to the literal. Degenerates to a plain
+     * {@code eq} when the decode is exact, so the common case is unchanged.
      */
     @Nullable
-    private Long datetimeBoundToRaw(
-        String columnName,
-        long millis,
-        PredicateOp op,
-        @Nullable LogicalTypeAnnotation logical,
-        Map<String, String> formats
-    ) {
-        String declaredFormat = formats.get(columnName);
-        if (declaredFormat != null) {
-            // decode(raw) = raw * scale, so the bound divides back — but only for a pure epoch dialect over an
-            // un-annotated physical. A calendar format parses the digits non-linearly and admits no inverse at all.
-            if (logical != null) {
-                return null;
-            }
-            Long scale = DeclaredTypeCoercions.declaredEpochFormatScale(declaredFormat, DataType.DATETIME);
-            return scale == null ? null : boundToPhysicalUnit(millis, op, scale);
+    private FilterPredicate datetimeEqualityPredicate(String columnName, long millis, PrimitiveType ptype, Map<String, String> formats) {
+        var relation = ParquetColumnDecoding.rawDecodeRelation(ptype, DataType.DATETIME, formats.get(columnName));
+        if (relation == null) {
+            return null;
         }
-        if (logical == null) {
-            return millis; // bare INT64 with no declared format: the fused identity read
+        DeclaredTypeCoercions.RawBand band = DeclaredTypeCoercions.rawEqualityBand(relation, millis);
+        if (band == null) {
+            return null; // no stored value can decode to this literal
         }
-        if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-            try {
-                return switch (ts.getUnit()) {
-                    case MILLIS -> millis;
-                    case MICROS -> Math.multiplyExact(millis, 1000L);
-                    case NANOS -> Math.multiplyExact(millis, 1_000_000L);
-                };
-            } catch (ArithmeticException e) {
-                return null; // beyond ~year 2262 the scaled bound overflows; decline rather than wrap
-            }
+        var col = FilterApi.longColumn(columnName);
+        return band.lo() == band.hi()
+            ? FilterApi.eq(col, band.lo())
+            : FilterApi.and(FilterApi.gtEq(col, band.lo()), FilterApi.ltEq(col, band.hi()));
+    }
+
+    /**
+     * The RAW bound to push for a {@code DATETIME} column whose query literal is epoch-millis, or {@code null} to
+     * decline. Both halves of the question are delegated: the parquet-local derivation of how decode relates raw to
+     * decoded ({@link ParquetColumnDecoding#rawDecodeRelation}), and the shared, brute-force-verified inversion that
+     * guarantees the pushed bound is never stricter than the truth ({@link DeclaredTypeCoercions#rawBoundFor}).
+     *
+     * <p>Nothing about units is restated here. That restating — one arm op-aware, another not — is what let a
+     * {@code <=} over a truncating decode push the floor of a band instead of its top and prune matching rows.
+     */
+    @Nullable
+    private Long datetimeBoundToRaw(String columnName, long millis, PredicateOp op, PrimitiveType ptype, Map<String, String> formats) {
+        var relation = ParquetColumnDecoding.rawDecodeRelation(ptype, DataType.DATETIME, formats.get(columnName));
+        DeclaredTypeCoercions.BoundOp boundOp = boundOpOf(op);
+        // NOT_EQ has no raw counterpart under any rescaling map: `decoded != b` is true for a whole band of raw
+        // values, which a single notEq cannot express. Decline rather than push one that excludes the rest.
+        if (relation == null || boundOp == null) {
+            return null;
         }
-        // TIME/DECIMAL/UINT_64/unknown: the scan applies a transform this method does not model (TIME(MICROS)
-        // scales x1000, DECIMAL(scale>0) divides), so the old identity fall-through pushed a bound in the wrong
-        // unit and pruned matching row groups.
-        return null;
+        return DeclaredTypeCoercions.rawBoundFor(relation, millis, boundOp, false);
+    }
+
+    /**
+     * Maps this class's predicate op onto the shared authority's, or {@code null} for one the authority cannot
+     * answer. The authority deliberately has no {@code NOT_EQ}: its truth set is a band under any rescaling map.
+     */
+    @Nullable
+    private static DeclaredTypeCoercions.BoundOp boundOpOf(PredicateOp op) {
+        return switch (op) {
+            case EQ -> DeclaredTypeCoercions.BoundOp.EQ;
+            case GT -> DeclaredTypeCoercions.BoundOp.GT;
+            case GTE -> DeclaredTypeCoercions.BoundOp.GTE;
+            case LT -> DeclaredTypeCoercions.BoundOp.LT;
+            case LTE -> DeclaredTypeCoercions.BoundOp.LTE;
+            case NOT_EQ -> null;
+        };
     }
 
     /**
@@ -964,7 +972,7 @@ final class ParquetPushedExpressions {
                     // declines the push entirely rather than pushing an empty IN, which would match nothing.
                     List<Object> bounds = new ArrayList<>(rawValues.size());
                     for (Object v : rawValues) {
-                        Long bound = datetimeBoundToRaw(columnName, ((Number) v).longValue(), PredicateOp.EQ, logical, formats);
+                        Long bound = datetimeBoundToRaw(columnName, ((Number) v).longValue(), PredicateOp.EQ, ptype, formats);
                         if (bound == null) {
                             yield null;
                         }

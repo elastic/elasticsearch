@@ -908,11 +908,12 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         Expression inExpr = new In(Source.EMPTY, attr("ts", DataType.DATETIME), List.of(datetimeLit(millis1), datetimeLit(millis2)));
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(inExpr));
 
-        FilterPredicate fp = pushed.toFilterPredicate(schema);
-        assertNotNull(fp);
-        String repr = fp.toString();
-        assertThat(repr, containsString(String.valueOf(millis1 * 1000)));
-        assertThat(repr, containsString(String.valueOf(millis2 * 1000)));
+        // A declared `date` over MICROS decodes by truncating division, so each element covers a BAND of 1000 raw
+        // micros rather than a point. This test previously asserted the band FLOORS were pushed as an IN set — which
+        // silently pruned every row in the rest of each band. `==` now pushes its band as a range; `IN` would need an
+        // OR of ranges per element, so it declines instead: correct, and it only forfeits pruning on a shape (IN over
+        // a microsecond column) that is far rarer than equality. Pushing the band per element is a possible follow-up.
+        assertNull("IN over a truncating decode must decline rather than push the band floors", pushed.toFilterPredicate(schema));
     }
 
     // --- Overflow protection ---
@@ -1013,14 +1014,10 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
             .named("ts")
             .named("test");
         FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("ts", DataType.DATETIME, 1000L))).toFilterPredicate(schema);
-        // Either decline, or push the whole band — a bare eq(1_000_000) silently drops raw 1_000_500.
-        if (fp != null) {
-            assertThat(
-                "a point eq over a truncating decode prunes the band's residue; push the band or decline",
-                fp.toString(),
-                not(containsString("eq(ts, 1000000)"))
-            );
-        }
+        assertNotNull("equality over a truncating decode is pushable as the band it covers", fp);
+        // The band, not a point: raw 1_000_000..1_000_999 all decode to 1000ms, so all must survive the predicate.
+        assertThat("must keep the band's floor", fp.toString(), containsString("1000000"));
+        assertThat("must keep the band's top — a point eq would drop raw 1_000_500", fp.toString(), containsString("1000999"));
     }
 
     /** A micros-annotated column stores 1000x the literal's unit; the bound must be scaled to match the stats. */

@@ -808,6 +808,43 @@ public final class DeclaredTypeCoercions {
         };
     }
 
+    /** The inclusive raw range a single decoded value covers. A point for an exact map, a band for a lossy one. */
+    public record RawBand(long lo, long hi) {}
+
+    /**
+     * The inclusive RAW range whose values all decode to {@code bound}, or {@code null} when none exists.
+     *
+     * <p>Equality is the one comparison a lossy decode cannot answer with a single number: when decode truncates,
+     * one decoded value covers a whole band of raw values, and pushing any single one of them prunes the rest —
+     * rows that genuinely match. Callers that can express a range should push this band and keep their pruning;
+     * callers that can only test set membership (dictionary and bloom filters) must decline instead.
+     *
+     * <p>Returns a degenerate one-value band for exact maps, so callers need no special case.
+     */
+    @Nullable
+    public static RawBand rawEqualityBand(RawDecodeRelation relation, long bound) {
+        return switch (relation) {
+            case RawDecodeRelation.Identity ignored -> new RawBand(bound, bound);
+            case RawDecodeRelation.ScaleUp up -> {
+                // decoded == raw * f is reachable only on multiples of f; any other literal matches nothing stored.
+                if (bound % up.factor() != 0) {
+                    yield null;
+                }
+                long raw = bound / up.factor();
+                yield new RawBand(raw, raw);
+            }
+            case RawDecodeRelation.ScaleDown down -> {
+                try {
+                    long base = Math.multiplyExact(bound, down.divisor());
+                    // floorDiv(raw, d) == bound <=> raw in [base, base + d - 1]
+                    yield new RawBand(base, Math.addExact(base, down.divisor() - 1));
+                } catch (ArithmeticException e) {
+                    yield null;
+                }
+            }
+        };
+    }
+
     /** The comparisons a raw bound can be pushed for. */
     public enum BoundOp {
         EQ,

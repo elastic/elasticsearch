@@ -34,6 +34,12 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
     /**
      * Creates a new token-counting analyzer wrapper.
      *
+     * <p>Uses {@link Analyzer#PER_FIELD_REUSE_STRATEGY} from the delegate, which caches
+     * {@link TokenStreamComponents} permanently per field. This is safe today because
+     * {@link ReloadableCustomAnalyzer} is search-time only. If index-time reloadable
+     * analyzers are introduced in the future, the reuse strategy here will need to be
+     * made reload-aware.
+     *
      * @param delegate the underlying analyzer to wrap
      * @param metrics  metrics instance for recording token counts per field value
      */

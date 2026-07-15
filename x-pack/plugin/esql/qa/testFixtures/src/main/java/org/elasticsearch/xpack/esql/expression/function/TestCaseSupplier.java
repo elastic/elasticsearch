@@ -1722,10 +1722,19 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * Generate cases for {@link DataType#EXPONENTIAL_HISTOGRAM}.
      */
     public static List<TypedDataSupplier> exponentialHistogramCases() {
+        return exponentialHistogramCases(false);
+    }
+
+    /**
+     * Generate cases for {@link DataType#EXPONENTIAL_HISTOGRAM}.
+     * @param zeroThresholdIsZero when {@code true}, always use 0.0 as the zero threshold (avoids floating point inaccuracies when
+     *                            computing percentiles from histograms with non-zero thresholds)
+     */
+    public static List<TypedDataSupplier> exponentialHistogramCases(boolean zeroThresholdIsZero) {
         return List.of(
             new TypedDataSupplier(
                 "<random exponential histogram>",
-                EsqlTestUtils::randomExponentialHistogram,
+                () -> EsqlTestUtils.randomExponentialHistogram(zeroThresholdIsZero),
                 DataType.EXPONENTIAL_HISTOGRAM
             )
         );

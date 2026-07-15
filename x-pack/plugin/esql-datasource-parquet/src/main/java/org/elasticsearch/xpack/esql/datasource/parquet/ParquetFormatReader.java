@@ -479,8 +479,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * Records per-column materialization mode (eager/late) for each projected, non-NULL column.
-     * Per-page byte and time accounting is not wired here; see {@link ParquetReaderCounters} field
-     * docs and the TODO in {@link #read(StorageObject, FormatReadContext)} for scope.
+     * Per-page decode time is tracked in aggregate (see {@link ParquetReaderCounters#addTotalReadNanos}
+     * callers in the column iterators), but not broken down per column; see {@link ParquetReaderCounters}
+     * field docs for scope.
      */
     private void recordPerColumnMaterialization(List<Attribute> projectedAttributes, boolean useOptimized) {
         Set<String> predicateNames = pushedExpressions != null ? pushedExpressions.predicateColumnNames() : Set.of();
@@ -1276,8 +1277,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 context.informationalWarningSink()
             );
         } finally {
-            // read_nanos covers the synchronous setup phase only; per-page decode/decompress time
-            // is in the per-column counters, not here.
+            // This covers only the synchronous open/setup phase (footer, row-group filtering,
+            // index/dictionary/bloom prefetch dispatch). The returned iterator's own hasNext()/
+            // next() time its row-group transitions and per-page decode separately (see
+            // ParquetColumnIterator / OptimizedParquetColumnIterator), accumulating into the same
+            // counter so read_nanos covers the reader's full producer-thread lifecycle.
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
     }
@@ -1951,7 +1955,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 dynamicThreshold,
                 resolveDynamicThresholdColumn(fileSchema, dynamicThreshold),
                 counters,
-                errorPolicy
+                errorPolicy,
+                warningSink
             );
             // Constructor succeeded — iterator now owns preloadedMetadata. Set the flag after
             // construction so that a throw inside the constructor does not suppress cleanup.
@@ -2710,6 +2715,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         private SkipWarnings coercionWarnings;
         /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
         private final ErrorPolicy errorPolicy;
+        /**
+         * Relay for this read's per-value coercion warnings, or {@code null} to fall back to emitting
+         * directly via {@code HeaderWarning}. Under the async source
+         * this iterator runs on a background reader thread, so a non-null sink (the source buffer
+         * relay) is required for the warnings to reach the response; see {@link #coercionWarnings()}.
+         */
+        @Nullable
+        private final Consumer<String> warningSink;
 
         /**
          * The coercion-failure sink for this read, or {@code null} under {@code fail_fast} — the
@@ -2727,7 +2740,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     "Parquet file ["
                         + fileLocation
                         + "] has values that could not be coerced to the declared column type; "
-                        + "they are returned as null"
+                        + "they are returned as null",
+                    warningSink
                 );
             }
             return coercionWarnings;
@@ -2751,6 +2765,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             @Nullable Consumer<String> warningSink
         ) {
             this.errorPolicy = errorPolicy;
+            this.warningSink = warningSink;
             this.reader = reader;
             this.projectedSchema = projectedSchema;
             this.attributes = attributes;
@@ -2837,74 +2852,79 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
 
         private boolean advanceRowGroup() throws IOException {
-            if (rowGroup != null) {
-                rowGroup.close();
-                rowGroup = null;
-            }
-            rowGroup = reader.readNextFilteredRowGroup();
-            if (rowGroup == null) {
-                exhausted = true;
-                return false;
-            }
-            rowGroupOrdinal++;
-            pageBatchIndexInRowGroup = 0;
-            rowsRemainingInGroup = rowGroup.getRowCount();
-
-            if (hasRecordFilter == false) {
-                RowRanges allRows = RowRanges.all(rowsRemainingInGroup);
-                pageColumnReaders = new PageColumnReader[columnInfos.length];
-                for (int i = 0; i < columnInfos.length; i++) {
-                    ColumnInfo ci = columnInfos[i];
-                    if (ci != null && ci.isRowPosition() == false && ci.maxRepLevel() == 0) {
-                        PageReader pageReader = rowGroup.getPageReader(ci.descriptor());
-                        pageColumnReaders[i] = new PageColumnReader(pageReader, ci.descriptor(), ci, allRows, coercionWarnings());
-                    }
+            long startNanos = System.nanoTime();
+            try {
+                if (rowGroup != null) {
+                    rowGroup.close();
+                    rowGroup = null;
                 }
-            } else {
-                pageColumnReaders = null;
-            }
-
-            if (hasRecordFilter || hasListColumns) {
-                ColumnReadStoreImpl store = new ColumnReadStoreImpl(
-                    rowGroup,
-                    new ParquetColumnDecoding.NoOpGroupConverter(projectedSchema),
-                    projectedSchema,
-                    createdBy
-                );
-                columnReaders = new ColumnReader[columnInfos.length];
-                columnUncompressedBytes = new long[columnInfos.length];
-
-                // Best-effort: rowGroupOrdinal may not match the physical block index when
-                // readNextFilteredRowGroup() skips entire row groups. A wrong hint only affects
-                // pre-sizing (falls back to grow-on-demand), not correctness.
-                List<BlockMetaData> rowGroups = reader.getRowGroups();
-                Map<String, Long> chunkSizes = Map.of();
-                if (rowGroupOrdinal >= 0 && rowGroupOrdinal < rowGroups.size()) {
-                    BlockMetaData block = rowGroups.get(rowGroupOrdinal);
-                    chunkSizes = new HashMap<>();
-                    for (ColumnChunkMetaData chunk : block.getColumns()) {
-                        chunkSizes.put(chunk.getPath().toDotString(), chunk.getTotalUncompressedSize());
-                    }
+                rowGroup = reader.readNextFilteredRowGroup();
+                if (rowGroup == null) {
+                    exhausted = true;
+                    return false;
                 }
+                rowGroupOrdinal++;
+                pageBatchIndexInRowGroup = 0;
+                rowsRemainingInGroup = rowGroup.getRowCount();
 
-                for (int i = 0; i < columnInfos.length; i++) {
-                    if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false) {
-                        boolean needColumnReader = hasRecordFilter
-                            ? (pageColumnReaders == null || pageColumnReaders[i] == null)
-                            : columnInfos[i].maxRepLevel() > 0;
-                        if (needColumnReader) {
-                            columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
-                            String colPath = String.join(".", columnInfos[i].descriptor().getPath());
-                            Long size = chunkSizes.get(colPath);
-                            columnUncompressedBytes[i] = size != null ? size : 0L;
+                if (hasRecordFilter == false) {
+                    RowRanges allRows = RowRanges.all(rowsRemainingInGroup);
+                    pageColumnReaders = new PageColumnReader[columnInfos.length];
+                    for (int i = 0; i < columnInfos.length; i++) {
+                        ColumnInfo ci = columnInfos[i];
+                        if (ci != null && ci.isRowPosition() == false && ci.maxRepLevel() == 0) {
+                            PageReader pageReader = rowGroup.getPageReader(ci.descriptor());
+                            pageColumnReaders[i] = new PageColumnReader(pageReader, ci.descriptor(), ci, allRows, coercionWarnings());
                         }
                     }
+                } else {
+                    pageColumnReaders = null;
                 }
-            } else {
-                columnReaders = null;
-                columnUncompressedBytes = null;
+
+                if (hasRecordFilter || hasListColumns) {
+                    ColumnReadStoreImpl store = new ColumnReadStoreImpl(
+                        rowGroup,
+                        new ParquetColumnDecoding.NoOpGroupConverter(projectedSchema),
+                        projectedSchema,
+                        createdBy
+                    );
+                    columnReaders = new ColumnReader[columnInfos.length];
+                    columnUncompressedBytes = new long[columnInfos.length];
+
+                    // Best-effort: rowGroupOrdinal may not match the physical block index when
+                    // readNextFilteredRowGroup() skips entire row groups. A wrong hint only affects
+                    // pre-sizing (falls back to grow-on-demand), not correctness.
+                    List<BlockMetaData> rowGroups = reader.getRowGroups();
+                    Map<String, Long> chunkSizes = Map.of();
+                    if (rowGroupOrdinal >= 0 && rowGroupOrdinal < rowGroups.size()) {
+                        BlockMetaData block = rowGroups.get(rowGroupOrdinal);
+                        chunkSizes = new HashMap<>();
+                        for (ColumnChunkMetaData chunk : block.getColumns()) {
+                            chunkSizes.put(chunk.getPath().toDotString(), chunk.getTotalUncompressedSize());
+                        }
+                    }
+
+                    for (int i = 0; i < columnInfos.length; i++) {
+                        if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false) {
+                            boolean needColumnReader = hasRecordFilter
+                                ? (pageColumnReaders == null || pageColumnReaders[i] == null)
+                                : columnInfos[i].maxRepLevel() > 0;
+                            if (needColumnReader) {
+                                columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
+                                String colPath = String.join(".", columnInfos[i].descriptor().getPath());
+                                Long size = chunkSizes.get(colPath);
+                                columnUncompressedBytes[i] = size != null ? size : 0L;
+                            }
+                        }
+                    }
+                } else {
+                    columnReaders = null;
+                    columnUncompressedBytes = null;
+                }
+                return rowsRemainingInGroup > 0;
+            } finally {
+                counters.addTotalReadNanos(System.nanoTime() - startNanos);
             }
-            return rowsRemainingInGroup > 0;
         }
 
         @Override
@@ -2912,85 +2932,90 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (hasNext() == false) {
                 throw new NoSuchElementException();
             }
-            int effectiveBatch = batchSize;
-            if (rowBudget != FormatReader.NO_LIMIT) {
-                effectiveBatch = Math.min(effectiveBatch, rowBudget);
-            }
-            int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
-            // Pre-decrement snapshot of the in-block index of this batch's first row. Used to
-            // synthesise the {@code _rowPosition} block when present in the projection. The
-            // baseline path requires hasRecordFilter==false (enforced in the constructor), so
-            // rowGroupOrdinal is always the physical block index here.
-            int firstRowOfBatchInRG = (int) (rowGroup.getRowCount() - rowsRemainingInGroup);
-
-            Block[] blocks = new Block[attributes.size()];
+            long startNanos = System.nanoTime();
             try {
-                for (int col = 0; col < columnInfos.length; col++) {
-                    ColumnInfo info = columnInfos[col];
-                    if (info == null) {
-                        blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
-                    } else if (info.isRowPosition()) {
-                        long base = rowGroupFirstRowGlobal[rowGroupOrdinal] + firstRowOfBatchInRG;
-                        long[] values = new long[rowsToRead];
-                        for (int i = 0; i < rowsToRead; i++) {
-                            values[i] = base + i;
-                        }
-                        blocks[col] = blockFactory.newLongArrayVector(values, rowsToRead).asBlock();
-                    } else {
-                        try {
-                            if (pageColumnReaders != null && pageColumnReaders[col] != null) {
-                                blocks[col] = pageColumnReaders[col].readBatch(rowsToRead, blockFactory);
-                            } else {
-                                blocks[col] = readColumnBlock(columnReaders[col], info, rowsToRead, col);
+                int effectiveBatch = batchSize;
+                if (rowBudget != FormatReader.NO_LIMIT) {
+                    effectiveBatch = Math.min(effectiveBatch, rowBudget);
+                }
+                int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
+                // Pre-decrement snapshot of the in-block index of this batch's first row. Used to
+                // synthesise the {@code _rowPosition} block when present in the projection. The
+                // baseline path requires hasRecordFilter==false (enforced in the constructor), so
+                // rowGroupOrdinal is always the physical block index here.
+                int firstRowOfBatchInRG = (int) (rowGroup.getRowCount() - rowsRemainingInGroup);
+
+                Block[] blocks = new Block[attributes.size()];
+                try {
+                    for (int col = 0; col < columnInfos.length; col++) {
+                        ColumnInfo info = columnInfos[col];
+                        if (info == null) {
+                            blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
+                        } else if (info.isRowPosition()) {
+                            long base = rowGroupFirstRowGlobal[rowGroupOrdinal] + firstRowOfBatchInRG;
+                            long[] values = new long[rowsToRead];
+                            for (int i = 0; i < rowsToRead; i++) {
+                                values[i] = base + i;
                             }
-                        } catch (CircuitBreakingException e) {
-                            Releasables.closeExpectNoException(blocks);
-                            throw e;
-                        } catch (Exception e) {
-                            Releasables.closeExpectNoException(blocks);
-                            Attribute attr = attributes.get(col);
-                            throw new IllegalArgumentException(
-                                "Failed to read Parquet column ["
-                                    + attr.name()
-                                    + "] (type "
-                                    + attr.dataType()
-                                    + ") at row group ["
-                                    + (rowGroupOrdinal + 1)
-                                    + "] page batch ["
-                                    + pageBatchIndexInRowGroup
-                                    + "] in file ["
-                                    + fileLocation
-                                    + "]: "
-                                    + e.getMessage(),
-                                e
-                            );
+                            blocks[col] = blockFactory.newLongArrayVector(values, rowsToRead).asBlock();
+                        } else {
+                            try {
+                                if (pageColumnReaders != null && pageColumnReaders[col] != null) {
+                                    blocks[col] = pageColumnReaders[col].readBatch(rowsToRead, blockFactory);
+                                } else {
+                                    blocks[col] = readColumnBlock(columnReaders[col], info, rowsToRead, col);
+                                }
+                            } catch (CircuitBreakingException e) {
+                                Releasables.closeExpectNoException(blocks);
+                                throw e;
+                            } catch (Exception e) {
+                                Releasables.closeExpectNoException(blocks);
+                                Attribute attr = attributes.get(col);
+                                throw new IllegalArgumentException(
+                                    "Failed to read Parquet column ["
+                                        + attr.name()
+                                        + "] (type "
+                                        + attr.dataType()
+                                        + ") at row group ["
+                                        + (rowGroupOrdinal + 1)
+                                        + "] page batch ["
+                                        + pageBatchIndexInRowGroup
+                                        + "] in file ["
+                                        + fileLocation
+                                        + "]: "
+                                        + e.getMessage(),
+                                    e
+                                );
+                            }
                         }
                     }
+                } catch (IllegalArgumentException | CircuitBreakingException e) {
+                    throw e;
+                } catch (Exception e) {
+                    Releasables.closeExpectNoException(blocks);
+                    throw new IllegalArgumentException(
+                        "Failed to create Page batch at row group ["
+                            + (rowGroupOrdinal + 1)
+                            + "] page batch ["
+                            + pageBatchIndexInRowGroup
+                            + "] in file ["
+                            + fileLocation
+                            + "]: "
+                            + e.getMessage(),
+                        e
+                    );
                 }
-            } catch (IllegalArgumentException | CircuitBreakingException e) {
-                throw e;
-            } catch (Exception e) {
-                Releasables.closeExpectNoException(blocks);
-                throw new IllegalArgumentException(
-                    "Failed to create Page batch at row group ["
-                        + (rowGroupOrdinal + 1)
-                        + "] page batch ["
-                        + pageBatchIndexInRowGroup
-                        + "] in file ["
-                        + fileLocation
-                        + "]: "
-                        + e.getMessage(),
-                    e
-                );
-            }
 
-            pageBatchIndexInRowGroup++;
-            rowsRemainingInGroup -= rowsToRead;
-            if (rowBudget != FormatReader.NO_LIMIT) {
-                rowBudget -= rowsToRead;
+                pageBatchIndexInRowGroup++;
+                rowsRemainingInGroup -= rowsToRead;
+                if (rowBudget != FormatReader.NO_LIMIT) {
+                    rowBudget -= rowsToRead;
+                }
+                counters.addRowsEmitted(rowsToRead);
+                return new Page(blocks);
+            } finally {
+                counters.addTotalReadNanos(System.nanoTime() - startNanos);
             }
-            counters.addRowsEmitted(rowsToRead);
-            return new Page(blocks);
         }
 
         private Block readColumnBlock(ColumnReader cr, ColumnInfo info, int rowsToRead, int colIndex) {

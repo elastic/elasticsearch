@@ -5,9 +5,9 @@ setup:
 
   - do:
       indices.put_index_template:
-        name: logs-esql-insist-template
+        name: logs-esql-unmapped-fields-template
         body:
-          index_patterns: [ "logs-esql-insist-*" ]
+          index_patterns: [ "logs-esql-unmapped-fields-*" ]
           priority: 1000
           data_stream: {}
           template:
@@ -24,15 +24,15 @@ setup:
                 message:
                   type: text
       allowed_warnings:
-        - "index template [logs-esql-insist-template] has index patterns [logs-esql-insist-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-esql-insist-template] will take precedence during new index creation"
+        - "index template [logs-esql-unmapped-fields-template] has index patterns [logs-esql-unmapped-fields-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-esql-unmapped-fields-template] will take precedence during new index creation"
 
   - do:
       indices.create_data_stream:
-        name: logs-esql-insist-test
+        name: logs-esql-unmapped-fields-test
 
   - do:
       bulk:
-        index: logs-esql-insist-test
+        index: logs-esql-unmapped-fields-test
         refresh: true
         body:
           - { "create": { } }
@@ -52,11 +52,11 @@ setup:
 teardown:
   - do:
       indices.delete_data_stream:
-        name: logs-esql-insist-*
+        name: logs-esql-unmapped-fields-*
         ignore: 404
   - do:
       indices.delete_index_template:
-        name: logs-esql-insist-template
+        name: logs-esql-unmapped-fields-template
         ignore: 404
 
 ---
@@ -64,7 +64,7 @@ teardown:
   - do:
       esql.query:
         body:
-          query: 'FROM logs-esql-insist-test | SORT @timestamp | LIMIT 1'
+          query: 'FROM logs-esql-unmapped-fields-test | SORT @timestamp | LIMIT 1'
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -75,11 +75,11 @@ teardown:
   - match: {values.0.1: "No, I am your father."}
 
 ---
-"FROM with INSIST_🐔and LIMIT 1":
+"Load unmapped fields with LIMIT 1":
   - do:
       esql.query:
         body:
-          query: 'FROM logs-esql-insist-test | INSIST_🐔 host.name, agent_id, http_method | SORT @timestamp | KEEP host.name, agent_id, http_method | LIMIT 1'
+          query: 'SET unmapped_fields="load"; FROM logs-esql-unmapped-fields-test | SORT @timestamp | KEEP host.name, agent_id, http_method | LIMIT 1'
 
   - match: {columns.0.name: "host.name"}
   - match: {columns.0.type: "keyword"}
@@ -93,7 +93,7 @@ teardown:
   - match: {values.0.2: "GET"}
 
 ---
-"FROM with INSIST_🐔":
+"Load unmapped field":
   - requires:
       test_runner_features: allowed_warnings_regex
   - do:
@@ -101,7 +101,7 @@ teardown:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM logs-esql-insist-test | INSIST_🐔 agent_id | SORT @timestamp | KEEP agent_id'
+          query: 'SET unmapped_fields="load"; FROM logs-esql-unmapped-fields-test | SORT @timestamp | KEEP agent_id'
 
   - match: {columns.0.name: "agent_id"}
   - match: {columns.0.type: "keyword"}

@@ -105,7 +105,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     /// A cache region's data timestamp (epoch millis) is a plain `long` partitioned into three domains:
-    /// - a non-negative epoch-millis value (`>= 0`);
+    /// - a positive epoch-millis value (`> 0`);
     /// - [#UNKNOWN_TIMESTAMP] (`-1`): the content has no representative timestamp;
     /// - [#BACKFILL_IN_PROGRESS_TIMESTAMP] (`-2`): the timestamp is temporarily unknown, e.g. pending backfill.
     ///
@@ -1169,7 +1169,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         ) {
             this.blobCacheService = blobCacheService;
             this.regionKey = regionKey;
-            assert timestampMillis >= 0L || timestampMillis == UNKNOWN_TIMESTAMP || timestampMillis == BACKFILL_IN_PROGRESS_TIMESTAMP
+            assert timestampMillis > 0L || timestampMillis == UNKNOWN_TIMESTAMP || timestampMillis == BACKFILL_IN_PROGRESS_TIMESTAMP
                 : timestampMillis;
             this.timestampMillis = timestampMillis;
             assert regionSize > 0;

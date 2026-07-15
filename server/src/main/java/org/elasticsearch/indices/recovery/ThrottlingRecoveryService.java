@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -27,7 +28,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.Closeable;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -46,7 +46,7 @@ import java.util.function.Supplier;
 /// released when the recovery's [RecoveryListener] completes.
 /// The max number of concurrent recovery slots is controlled by the [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING]
 /// dynamic setting.
-public final class ThrottlingRecoveryService implements ClusterStateListener, Closeable {
+public final class ThrottlingRecoveryService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
 
@@ -77,8 +77,6 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     /// Entries are pruned by [#clusterChanged] once the corresponding shard stops initializing or its allocationId changes.
     private final Map<String, ShardId> cancelledAllocationIds = new HashMap<>();
 
-    private boolean closed;
-
     public ThrottlingRecoveryService(
         ThreadPool threadPool,
         ProjectResolver projectResolver,
@@ -90,6 +88,10 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
         this.projectResolver = projectResolver;
         this.schedulingListener = schedulingListener;
         this.clusterService = clusterService;
+    }
+
+    @Override
+    protected void doStart() {
         clusterService.addListener(this);
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
@@ -108,7 +110,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
         final PendingRecovery pendingRecovery;
         final boolean serviceClosed;
         synchronized (this) {
-            serviceClosed = closed;
+            serviceClosed = isClosed();
             if (serviceClosed || cancelledAllocationIds.remove(allocationId) != null) {
                 pendingRecovery = null;
             } else {
@@ -156,7 +158,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     public Set<String> cancelRecoveries(Map<String, ShardId> cancellations) {
         final List<PendingRecovery> recoveriesToCancel = new ArrayList<>();
         synchronized (this) {
-            if (closed) {
+            if (isClosed()) {
                 return Set.of();
             }
             // Record every cancellation, even for recoveries that have already started (i.e. are not in the pending queue).
@@ -194,7 +196,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
         final RoutingNode localNode = event.state().getRoutingNodes().node(clusterService.localNode().getId());
         final List<PendingRecovery> staleRecoveries = new ArrayList<>();
         synchronized (this) {
-            if (closed) {
+            if (isClosed()) {
                 return;
             }
             if (localNode == null) {
@@ -250,14 +252,10 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     }
 
     @Override
-    public void close() {
+    protected void doStop() {
+        assert isClosed(); // state change happens-before this line: all recoveries are discarded here or rejected during enqueue, no leaks
         final List<PendingRecovery> recoveriesToAbort;
         synchronized (this) {
-            // idempotent
-            if (closed) {
-                return;
-            }
-            closed = true;
             recoveriesToAbort = new ArrayList<>(pendingRecoveries);
             pendingRecoveries.clear();
             cancelledAllocationIds.clear();
@@ -273,16 +271,22 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
         clusterService.removeListener(this);
     }
 
-    // visible for testing
-    synchronized boolean isClosed() {
-        return closed;
+    @Override
+    protected void doClose() {}
+
+    /// Is the service closed, and therefore rejecting further recoveries? It closes in a single step (there's no separate `stop()` call
+    /// first) so we count both [org.elasticsearch.common.component.Lifecycle.State#STOPPED] and
+    /// [org.elasticsearch.common.component.Lifecycle.State#CLOSED] as "closed".
+    private boolean isClosed() {
+        assert lifecycle.initialized() == false : "service accessed before start";
+        return lifecycle.stoppedOrClosed();
     }
 
     /// Drains the pending queue up to the max slot capacity
     private void fillSlots() {
         final List<PendingRecovery> recoveriesToDispatch = new ArrayList<>();
         synchronized (this) {
-            if (closed) {
+            if (isClosed()) {
                 return;
             }
             while (pendingRecoveries.isEmpty() == false && runningRecoveries < maxConcurrentRecoveries) {
@@ -335,7 +339,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
             previousLimit = this.maxConcurrentRecoveries;
             this.maxConcurrentRecoveries = newMaxConcurrentRecoveries;
         }
-        if (previousLimit < newMaxConcurrentRecoveries) {
+        if (previousLimit < newMaxConcurrentRecoveries && lifecycle.started() /* calls before start can (must) be ignored */) {
             fillSlots();
         }
     }
@@ -359,7 +363,7 @@ public final class ThrottlingRecoveryService implements ClusterStateListener, Cl
     ) {}
 
     /// Executable wrapper for a dispatched recovery. The provided recovery listener (from [PendingRecovery]) is wrapped
-    /// with `runAfter` (to release a recovery slot on completion) and `assertOnce` (to ensure there is only one terminal callback).
+    /// with `assertOnce` (to ensure there is only one terminal callback).
     private static class RecoveryRunnable extends AbstractRunnable {
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;

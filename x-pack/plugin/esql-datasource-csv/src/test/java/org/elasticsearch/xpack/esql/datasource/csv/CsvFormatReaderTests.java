@@ -6607,6 +6607,101 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    // --- Increment-0 characterization: by-name binding across the CSV walkers ---
+    // The prior path-binding tests exercise only the default quoted direct-to-block walker. These pin that an
+    // out-of-order declaration binds by name identically through the bracket walker, the ALL-stripe harvest path,
+    // and the direct-block walker, so the #1307 reader-consumption increment is a proven equivalence on every
+    // decode path, not just the one the earlier tests happened to hit. Each uses a declaration whose order differs
+    // from the file so positional binding would return a different (and wrong) column.
+
+    /** By-name binding through the bracket multi-value walker: declared out of file order, bound to the right cells. */
+    public void testDeclaredPathBindingThroughBracketWalker() throws Exception {
+        StorageObject object = createStorageObject("100,[a,b]\n200,[c]\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD), // declared first, names raw field 1
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)      // declared second, names raw field 0
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "multi_value_syntax", "brackets")
+        ).withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            // Block 0 is the declared-first KEYWORD (raw field 1), a bracketed multi-value.
+            BytesRefBlock mv = (BytesRefBlock) page.getBlock(0);
+            assertEquals(2, mv.getValueCount(0));
+            assertEquals("a", mv.getBytesRef(mv.getFirstValueIndex(0), new BytesRef()).utf8ToString());
+            // Block 1 is the declared-second LONG (raw field 0).
+            assertEquals(100L, ((LongBlock) page.getBlock(1)).getLong(0));
+            assertEquals(200L, ((LongBlock) page.getBlock(1)).getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /** By-name binding through the ALL-stripe harvest path (statsColumnScope ALL): the harvest reads each raw field. */
+    public void testDeclaredPathBindingThroughAllStripeScope() throws Exception {
+        StorageObject object = createStorageObject("7,alpha,3.5\n8,beta,4.5\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.DOUBLE),  // declared first, raw field 2
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)      // declared second, raw field 0
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .statsColumnScope(StripeColumnScope.ALL)
+                    .readSchema(readSchema)
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals("path:col2 binds the DOUBLE field, not raw field 0", 3.5, ((DoubleBlock) page.getBlock(0)).getDouble(0), 1e-9);
+            assertEquals(7L, ((LongBlock) page.getBlock(1)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    /** By-name binding through the direct-to-block walker (direct-block enabled, projected stats scope). */
+    public void testDeclaredPathBindingThroughDirectBlockWalker() throws Exception {
+        StorageObject object = createStorageObject("11,gamma\n12,delta\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD), // declared first, raw field 1
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG)      // declared second, raw field 0
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withDirectBlockEnabled(true)
+            .withConfig(Map.of("header_row", false, "multi_value_syntax", "none"))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .statsColumnScope(StripeColumnScope.PROJECTED)
+                    .readSchema(readSchema)
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals("gamma", ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()).utf8ToString());
+            assertEquals(11L, ((LongBlock) page.getBlock(1)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
     // --- FormatReadContext.readSchema() honor tests ---
     // These tests prove the runtime CSV reader uses the planner-resolved read schema (passed via
     // FormatReadContext.readSchema()) as the authoritative positional column layout, overriding

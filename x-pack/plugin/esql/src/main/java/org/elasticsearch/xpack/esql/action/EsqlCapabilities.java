@@ -3125,11 +3125,6 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
-         * Match function and match operator support for runtime expressions, not just ES mapped fields.
-         */
-        MATCH_RUNTIME_SEARCH,
-
-        /**
          * Support for expressions (function calls, inline casts) on the LHS of the match operator (:).
          * Requires the grammar change introduced in the same release.
          */

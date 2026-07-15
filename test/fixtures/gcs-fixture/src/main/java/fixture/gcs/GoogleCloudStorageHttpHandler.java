@@ -70,11 +70,13 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
-        if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
-            int read = exchange.getRequestBody().read();
-            assert read == -1 : "Request body should have been empty but saw [" + read + "]";
-        }
+        final String threadName = Thread.currentThread().getName();
+        logger.debug("handling GCS request [{}] on thread [{}]", request, threadName);
         try {
+            if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
+                int read = exchange.getRequestBody().read();
+                assert read == -1 : "Request body should have been empty but saw [" + read + "]";
+            }
             // Request body is closed in the finally block
             final BytesReference requestBody = Streams.readFully(Streams.noCloseStream(exchange.getRequestBody()));
             if (request.equals("GET /") && "Google".equals(exchange.getRequestHeaders().getFirst("Metadata-Flavor"))) {
@@ -269,6 +271,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
             }
         } finally {
+            logger.debug("finished handling GCS request [{}] on thread [{}]", request, threadName);
             exchange.close();
         }
     }

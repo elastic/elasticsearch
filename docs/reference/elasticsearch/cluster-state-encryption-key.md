@@ -1,27 +1,27 @@
 ---
-navigation_title: "Project encryption key"
-description: "How Elasticsearch encrypts sensitive values stored in cluster state using a project encryption key, including password requirements, key rotation, and recovery."
+navigation_title: "Cluster state encryption key"
+description: "How Elasticsearch encrypts sensitive values stored in cluster state using a cluster state encryption key, including password requirements, key rotation, and recovery."
 applies_to:
   stack: preview 9.5
 products:
   - id: elasticsearch
 ---
 
-# Project encryption key [project-encryption-key]
+# Cluster state encryption key [cluster-state-encryption-key]
 
-Some {{es}} features need to store sensitive values, such as credentials for {{esql}} data federation, in cluster state. The **project encryption key** encrypts this data at rest and in transit between nodes, so that secrets are never persisted or replicated in plain text.
+Some {{es}} features need to store sensitive values, such as credentials for {{esql}} data federation, in cluster state. The **cluster state encryption key** encrypts this data at rest and in transit between nodes, so that secrets are never persisted or replicated in plain text.
 
 {{es}} generates a single, cluster-wide encryption key automatically. Features that need to persist secrets never handle the key directly. They call an internal encryption service that encrypts and decrypts values on their behalf. The key itself is never exposed through any API.
 
 The first feature to use this mechanism is [{{esql}} data federation](/reference/query-languages/esql/esql-federated-data.md), which encrypts the credentials used to connect to external data sources. Other features may adopt it over time.
 
-## How the key works [project-encryption-key-lifecycle]
+## How the key works [cluster-state-encryption-key-lifecycle]
 
-{{es}} generates the project encryption key automatically and stores it in cluster state, where it's distributed to every node. It's excluded from cluster state REST responses and from snapshots.
+{{es}} generates the cluster state encryption key automatically and stores it in cluster state, where it's distributed to every node. It's excluded from cluster state REST responses and from snapshots.
 
 Each node keeps a copy of the key in memory. To survive a restart, a node also persists a copy of the key to local disk, protected by a password so it isn't stored in plain text.
 
-## Set the encryption password [project-encryption-key-password]
+## Set the encryption password [cluster-state-encryption-key-password]
 
 To let a node persist the key to disk, it needs a password configured in the {{es}} keystore:
 
@@ -36,11 +36,11 @@ To let a node persist the key to disk, it needs a password configured in the {{e
 **On self-managed** deployments, this password is normally generated for you automatically on a node's first start, alongside TLS setup, and stored in the keystore as `cluster.state.encryption.password.autoconfigured`. Configure one yourself with [`elasticsearch-keystore`](/reference/elasticsearch/command-line-tools/elasticsearch-keystore.md) only if that didn't happen.
 
 `cluster.state.encryption.required`
-:   Whether a password is required before {{es}} will store secrets using the project encryption key. Defaults to `true`. Setting this to `false` is **not recommended**: {{es}} falls back to storing secrets in plain text instead, and logs a warning.
+:   Whether a password is required before {{es}} will store secrets using the cluster state encryption key. Defaults to `true`. Setting this to `false` is **not recommended**: {{es}} falls back to storing secrets in plain text instead, and logs a warning.
 
-## Automatic key rotation [project-encryption-key-rotation]
+## Automatic key rotation [cluster-state-encryption-key-rotation]
 
-{{es}} rotates the project encryption key automatically. You can control the schedule with:
+{{es}} rotates the cluster state encryption key automatically. You can control the schedule with:
 
 `xpack.encryption.key_rotation.interval`
 :   How often the key is rotated. Defaults to `30d`. Set to `0` to disable automatic rotation.
@@ -48,23 +48,23 @@ To let a node persist the key to disk, it needs a password configured in the {{e
 `xpack.encryption.key_rotation.check_interval`
 :   How often {{es}} checks whether rotation is due. Defaults to `1h`, must be at least `1s`, and can't be greater than `key_rotation.interval`.
 
-## Check encryption health [project-encryption-key-health]
+## Check encryption health [cluster-state-encryption-key-health]
 
-The `project_encryption_key` health indicator reports on the status of the project encryption key:
+The `cluster_state_encryption` health indicator reports on the status of the cluster state encryption key:
 
 * **Green**: encryption is either working normally, or hasn't been configured (which is expected on most self-managed clusters that haven't set a password).
 * **Yellow**: a password is missing where one is required, a node can't persist the key to disk, or {{es}} failed to decrypt the key.
 
-## Reset the project encryption key [project-encryption-key-reset]
+## Reset the cluster state encryption key [cluster-state-encryption-key-reset]
 
 :::{warning}
-Resetting the project encryption key is **destructive and irreversible**. Any data that was encrypted with the previous key is permanently lost.
+Resetting the cluster state encryption key is **destructive and irreversible**. Any data that was encrypted with the previous key is permanently lost.
 :::
 
-As a last resort, for example after suspected key compromise or an unrecoverable encryption state, you can discard the current project encryption key and everything encrypted with it:
+As a last resort, for example after suspected key compromise or an unrecoverable encryption state, you can discard the current cluster state encryption key and everything encrypted with it:
 
 ```console
 POST /_encryption/_reset?accept_data_loss=true
 ```
 
-The `accept_data_loss=true` query parameter is required. {{es}} generates a new project encryption key on the next write.
+The `accept_data_loss=true` query parameter is required. {{es}} generates a new cluster state encryption key on the next write.

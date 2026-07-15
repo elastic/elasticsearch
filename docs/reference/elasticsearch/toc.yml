@@ -44,7 +44,7 @@ toc:
   - file: jvm-settings.md
   - file: roles.md
   - file: security-privileges.md
-  - file: project-encryption-key.md
+  - file: cluster-state-encryption-key.md
   - file: index-settings/index.md
     children:
         - file: index-settings/serverless.md

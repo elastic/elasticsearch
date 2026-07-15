@@ -32,6 +32,11 @@ base {
   archivesName = 'esql-datasource-iceberg'
 }
 
+// RoaringBitmap is provided by the server lib; exclude from all iceberg/parquet transitive deps
+configurations.all {
+  exclude group: 'org.roaringbitmap', module: 'RoaringBitmap'
+}
+
 dependencies {
   // SPI interfaces from ESQL core
   compileOnly project(path: xpackModule('esql'))

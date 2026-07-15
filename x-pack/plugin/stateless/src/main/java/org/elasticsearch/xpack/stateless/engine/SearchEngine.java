@@ -1588,7 +1588,7 @@ public class SearchEngine extends Engine {
 
                 ElasticsearchDirectoryReader relocatedPitReader = (ElasticsearchDirectoryReader) pitReader;
                 var pitReaderManager = wrapForAssertions(new ElasticsearchReaderManager(relocatedPitReader), config());
-                var sharedReader = new SharedPITCommitReader(pitReaderManager, sharedCommitReaders, segmentsFileName);
+                var sharedReader = new SharedPITCommitReader(segmentsFileName, pitReaderManager);
                 // sharedReaderCleanup ensures pitReaderManager is closed (via sharedReader.close()) if
                 // anything below throws before the sharedReader is handed off to the tracker.
                 sharedReaderCleanup = sharedReader;
@@ -1786,50 +1786,33 @@ public class SearchEngine extends Engine {
      * <p>
      * Insertions into {@link #sharedCommitReaders} occur only on the
      * {@link #processCommitTaskRunner} thread. Removals are driven by the refcount reaching zero
-     * and may happen on any thread, so {@link #close()} uses a CAS-based decrement and the
-     * conditional {@link ConcurrentHashMap#remove(Object, Object)} to avoid removing a replacement
-     * entry for the same commit that may have been inserted after this instance was evicted.
+     * and may happen on any thread; {@link AbstractRefCounted#tryIncRef()} guards against acquiring
+     * a reference to an entry that is concurrently being evicted, and
+     * {@link ConcurrentHashMap#remove(Object, Object)} in {@link #closeInternal()} prevents
+     * removing a replacement entry for the same commit inserted after this instance was evicted.
      */
-    private final class SharedPITCommitReader implements Closeable {
+    private final class SharedPITCommitReader extends AbstractRefCounted implements Closeable {
+        private final String segmentsFileName;
         private final ElasticsearchReaderManager readerManager;
-        private final AtomicInteger refCount = new AtomicInteger(1);
-        private final Releasable sharedCommitReader;
 
-        SharedPITCommitReader(
-            ElasticsearchReaderManager readerManager,
-            ConcurrentHashMap<String, SharedPITCommitReader> sharedCommitReaders,
-            String segmentFileName
-        ) {
+        SharedPITCommitReader(String segmentsFileName, ElasticsearchReaderManager readerManager) {
+            this.segmentsFileName = segmentsFileName;
             this.readerManager = readerManager;
-            this.sharedCommitReader = () -> sharedCommitReaders.remove(segmentFileName, this);
         }
 
         ElasticsearchReaderManager readerManager() {
             return readerManager;
         }
 
-        /**
-         * Atomically increments the refcount. Returns {@code false} if this instance has already
-         * been closed (refcount == 0), in which case the caller must treat the cache entry as a
-         * miss and open a fresh reader.
-         */
-        boolean tryIncRef() {
-            int current;
-            do {
-                current = refCount.get();
-                if (current == 0) {
-                    return false;
-                }
-            } while (refCount.compareAndSet(current, current + 1) == false);
-            return true;
+        @Override
+        protected void closeInternal() {
+            sharedCommitReaders.remove(segmentsFileName, this);
+            IOUtils.closeWhileHandlingException(readerManager);
         }
 
         @Override
         public void close() {
-            if (refCount.decrementAndGet() == 0) {
-                sharedCommitReader.close();
-                IOUtils.closeWhileHandlingException(readerManager);
-            }
+            decRef();
         }
     }
 

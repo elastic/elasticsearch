@@ -68,7 +68,7 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        // Filter out 52_esql_unmapped_fields_synthetic_source.yml suite for snapshot builds:
+        // Filter out 52_esql_unmapped_fields_synthetic_source.yml suite for non-snapshot builds:
         // (esql doesn't use feature flags and all experimental features are just enabled if build is snapshot)
 
         List<Object[]> filtered = new ArrayList<>();

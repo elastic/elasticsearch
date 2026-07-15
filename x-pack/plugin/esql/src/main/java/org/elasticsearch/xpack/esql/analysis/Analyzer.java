@@ -1892,6 +1892,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     Set<String> referencedNames = project.references().names();
                     for (Attribute attr : project.child().output()) {
                         if (attr instanceof FieldAttribute fa
+                            // We can ignore PUNKs here since they are by definition mapped in some indices (whereas
+                            // PotentiallyUnmappedKeywordEsField can be entirely unmapped).
                             && (fa.field() instanceof PotentiallyUnmappedKeywordEsField || fa.field() instanceof MissingEsField)
                             && survivingNames.contains(fa.name()) == false
                             && referencedNames.contains(fa.name()) == false) {

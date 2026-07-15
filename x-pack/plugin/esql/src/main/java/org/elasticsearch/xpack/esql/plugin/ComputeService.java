@@ -815,12 +815,17 @@ public class ComputeService {
     ) {
         final PhysicalPlan splitPlan;
         final ExternalDistributionResult distributionResult;
+        long splitDiscoveryStart = System.nanoTime();
         try {
             // Phase 2 split discovery runs synchronously here and can be long (thousands of footer
             // reads); thread the query's cancellation signal so a cancel aborts it promptly. A cancel
             // (or any discovery failure) is surfaced through the listener rather than thrown raw.
             splitPlan = discoverSplits(physicalPlan, configuration, execInfo, rootTask::isCancelled);
             distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo, rootTask::isCancelled);
+            if (execInfo != null
+                && (distributionResult.coordinatorSplits.isEmpty() == false || distributionResult.distributionPlan() != null)) {
+                execInfo.queryProfile().addSplitDiscoveryNanos(System.nanoTime() - splitDiscoveryStart);
+            }
         } catch (Exception e) {
             listener.onFailure(e);
             return;

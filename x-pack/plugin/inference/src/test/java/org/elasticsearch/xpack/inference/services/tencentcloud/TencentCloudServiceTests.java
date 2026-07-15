@@ -237,6 +237,9 @@ public class TencentCloudServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             var chatModel = mock(TencentCloudChatCompletionModel.class);
             when(chatModel.getTaskType()).thenReturn(TaskType.CHAT_COMPLETION);
+            when(chatModel.getConfigurations()).thenReturn(
+                new ModelConfigurations("test-id", TaskType.CHAT_COMPLETION, TencentCloudService.NAME, mock(ServiceSettings.class))
+            );
             service.chunkedInfer(chatModel, List.of(new ChunkInferenceInput("a")), Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
             expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
         }

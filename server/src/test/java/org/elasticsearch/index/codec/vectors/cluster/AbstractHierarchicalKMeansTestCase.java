@@ -172,8 +172,13 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
         CentroidOps<V> ops = centroidOps();
         ClusteringVectorValues<V> vectors = generateData(nVectors, dims, nClusters);
 
-        // Warmup passes: force JIT compilation of SIMD paths so that subsequent serial and
-        // concurrent runs use stable compiled code and produce consistent results.
+        // Warmup passes: the Panama Vector API SIMD operations (linearCombination, squareDistanceBulk,
+        // blendBatchIntoCentroid) produce different floating-point results in interpreted mode (scalar)
+        // vs JIT-compiled mode (SIMD) due to fused multiply-add using higher intermediate precision
+        // in SIMD lanes. Without warmup, the JIT compilation threshold can be crossed mid-SGD,
+        // causing serial and concurrent runs to produce different centroid positions — not due to a
+        // concurrency bug, but due to different JIT compilation states between invocations. Three
+        // warmup passes force all SIMD paths to be fully compiled before the real runs.
         for (int w = 0; w < 3; w++) {
             HierarchicalKMeans.ofSerial(ops, dims, maxIterations, sampleSize, clustersPerNeighborhood).cluster(vectors, targetSize);
         }
@@ -209,9 +214,7 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
             );
             assertKMeansResultValid(concurrentResult.result(), concurrentOverspill, nVectors, nClusters);
 
-            // After JIT warmup, serial and concurrent should produce identical results.
-            // See testSgdDeterministicAfterWarmup in FloatHierarchicalKMeansTests for the
-            // isolated proof that the algorithm is deterministic once SIMD paths are compiled.
+            // After JIT warmup, serial and concurrent produce identical results.
             assertEquals(
                 "Serial and concurrent produced different centroid counts",
                 serialResult.centroids().length,

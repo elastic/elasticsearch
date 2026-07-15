@@ -1092,21 +1092,17 @@ public class LoggingAuditTrailTests extends ESTestCase {
         String requestId,
         String logLine
     ) {
-        final String expectedBody = Strings.format("\"put\":{\"%s\":{\"name\":\"%s\",\"created\":%s}}", objectType, name, created);
-        assertOutcomeLogLine(eventAction, expectedBody, requestId, logLine);
+        // the outcome record's "put" body carries only the object's identity; the create/modify result is the top-level "created" flag
+        final String expectedBody = Strings.format("\"put\":{\"%s\":{\"name\":\"%s\"}}", objectType, name);
+        assertOutcomeLogLine(eventAction, expectedBody, created, requestId, logLine);
     }
 
     private void assertPrivilegeOutcomeLogLine(String application, String name, boolean created, String requestId, String logLine) {
-        final String expectedBody = Strings.format(
-            "\"put\":{\"privilege\":{\"application\":\"%s\",\"name\":\"%s\",\"created\":%s}}",
-            application,
-            name,
-            created
-        );
-        assertOutcomeLogLine("put_privileges", expectedBody, requestId, logLine);
+        final String expectedBody = Strings.format("\"put\":{\"privilege\":{\"application\":\"%s\",\"name\":\"%s\"}}", application, name);
+        assertOutcomeLogLine("put_privileges", expectedBody, created, requestId, logLine);
     }
 
-    private void assertOutcomeLogLine(String eventAction, String expectedBody, String requestId, String logLine) {
+    private void assertOutcomeLogLine(String eventAction, String expectedBody, boolean created, String requestId, String logLine) {
         assertThat(logLine, containsString(expectedBody));
         final String reducedLogLine = logLine.replace(", " + expectedBody, "");
         final Map<String, String> checkedFields = new HashMap<>(commonFields);
@@ -1117,7 +1113,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change_outcome");
         checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, eventAction);
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        assertMsg(reducedLogLine, checkedFields);
+        // "created" is a top-level, raw (unquoted) JSON boolean, so it is asserted as a literal field
+        final Map<String, String> checkedLiteralFields = Map.of(LoggingAuditTrail.CREATED_FIELD_NAME, Boolean.toString(created));
+        assertMsg(reducedLogLine, checkedFields, Collections.emptyMap(), checkedLiteralFields);
     }
 
     public void testSecurityConfigChangeEventForCrossClusterApiKeys() throws IOException {

@@ -448,14 +448,14 @@ $$$event-put-privileges$$$
 
     ::::
 
-    If you include the optional `security_config_change_outcome` event type (it is **not** enabled by default), an additional *outcome* record is emitted after the change is applied. This record has its own `event.type` of `security_config_change_outcome`, shares the same `request.id` as the `security_config_change` record above, and carries a `created` attribute that is `true` when the application privilege was newly created and `false` when an existing privilege was modified. One outcome record is emitted per created or updated privilege; privileges that failed are not logged. Because the outcome record is only emitted on success, a request that failed produces the record above but no outcome record.
+    If you include the optional `security_config_change_outcome` event type (it is **not** enabled by default), an additional *outcome* record is emitted after the change is applied. This record has its own `event.type` of `security_config_change_outcome`, shares the same `request.id` as the `security_config_change` record above, and carries a top-level `created` attribute that is `true` when the application privilege was newly created and `false` when an existing privilege was modified. One outcome record is emitted per created or updated privilege; privileges that failed are not logged. Because the outcome record is only emitted on success, a request that failed produces the record above but no outcome record.
 
     ::::{dropdown} Example outcome record
     ```js
     {"type":"audit", "timestamp":"2020-12-31T00:39:07,780+0200", "node.id":
     "9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change_outcome",
     "event.action":"put_privileges", "request.id":"1X2VVtNgRYO7FmE0nR_BGA",
-    "put":{"privilege":{"application":"myapp","name":"read","created":true}}}
+    "created":true, "put":{"privilege":{"application":"myapp","name":"read"}}}
     ```
     % NOTCONSOLE
 
@@ -484,14 +484,14 @@ $$$event-put-role$$$
 
     ::::
 
-    If you include the optional `security_config_change_outcome` event type (it is **not** enabled by default), an additional *outcome* record is emitted after the change is applied. This record has its own `event.type` of `security_config_change_outcome`, shares the same `request.id` as the `security_config_change` record above, and carries a `created` attribute that is `true` when the role was newly created and `false` when an existing role was modified. For a bulk request, one outcome record is emitted per created or updated role; unchanged (no-op) and failed roles are not logged. Because the outcome record is only emitted on success, a request that failed produces the record above but no outcome record.
+    If you include the optional `security_config_change_outcome` event type (it is **not** enabled by default), an additional *outcome* record is emitted after the change is applied. This record has its own `event.type` of `security_config_change_outcome`, shares the same `request.id` as the `security_config_change` record above, and carries a top-level `created` attribute that is `true` when the role was newly created and `false` when an existing role was modified. For a bulk request, one outcome record is emitted per created or updated role; unchanged (no-op) and failed roles are not logged. Because the outcome record is only emitted on success, a request that failed produces the record above but no outcome record.
 
     ::::{dropdown} Example outcome record
     ```js
     {"type":"audit", "timestamp":"2020-12-30T22:27:01,979+0200", "node.id":
     "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change_outcome",
     "event.action":"put_role", "request.id":"tDYQhv5CRMWM4Sc5Zkk2cQ",
-    "put":{"role":{"name":"test_role","created":false}}}
+    "created":false, "put":{"role":{"name":"test_role"}}}
     ```
     % NOTCONSOLE
 
@@ -517,14 +517,14 @@ $$$event-put-role-mapping$$$
 
     ::::
 
-    If you include the optional `security_config_change_outcome` event type (it is **not** enabled by default), an additional *outcome* record is emitted after the change is applied. This record has its own `event.type` of `security_config_change_outcome`, shares the same `request.id` as the `security_config_change` record above, and carries a `created` attribute that is `true` when the role mapping was newly created and `false` when an existing role mapping was modified. Because the outcome record is only emitted on success, a request that failed produces the record above but no outcome record.
+    If you include the optional `security_config_change_outcome` event type (it is **not** enabled by default), an additional *outcome* record is emitted after the change is applied. This record has its own `event.type` of `security_config_change_outcome`, shares the same `request.id` as the `security_config_change` record above, and carries a top-level `created` attribute that is `true` when the role mapping was newly created and `false` when an existing role mapping was modified. Because the outcome record is only emitted on success, a request that failed produces the record above but no outcome record.
 
     ::::{dropdown} Example outcome record
     ```js
     {"type":"audit", "timestamp":"2020-12-31T00:11:13,933+0200", "node.id":
     "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change_outcome",
     "event.action":"put_role_mapping", "request.id":"kg4h1l_kTDegnLC-0A-XxA",
-    "put":{"role_mapping":{"name":"mapping1","created":true}}}
+    "created":true, "put":{"role_mapping":{"name":"mapping1"}}}
     ```
     % NOTCONSOLE
 
@@ -551,14 +551,14 @@ $$$event-put-user$$$
 
     ::::
 
-    If you include the optional `security_config_change_outcome` event type (it is **not** enabled by default), an additional *outcome* record is emitted after the change is applied. This record has its own `event.type` of `security_config_change_outcome`, shares the same `request.id` as the `security_config_change` record above, and carries a `created` attribute that is `true` when the user was newly created and `false` when an existing user was modified. Because the outcome record is only emitted on success, a request that failed produces the record above but no outcome record.
+    If you include the optional `security_config_change_outcome` event type (it is **not** enabled by default), an additional *outcome* record is emitted after the change is applied. This record has its own `event.type` of `security_config_change_outcome`, shares the same `request.id` as the `security_config_change` record above, and carries a top-level `created` attribute that is `true` when the user was newly created and `false` when an existing user was modified. Because the outcome record is only emitted on success, a request that failed produces the record above but no outcome record.
 
     ::::{dropdown} Example outcome record
     ```js
     {"type":"audit", "timestamp":"2020-12-30T22:10:09,750+0200", "node.id":
     "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change_outcome",
     "event.action":"put_user", "request.id":"VIiSvhp4Riim_tpkQCVSQA",
-    "put":{"user":{"name":"user1","created":true}}}
+    "created":true, "put":{"user":{"name":"user1"}}}
     ```
     % NOTCONSOLE
 
@@ -756,7 +756,7 @@ These events also have **one** of the following extra attributes (in addition to
 `put`
 :   The object representation of the security config that is being created, or the overwrite of an existing config. It contains the config for a `user`, `role`, `role_mapping`, or for application `privileges`.
 
-    The `put` field is also reused by the optional [`security_config_change_outcome`](#security-config-change-outcome) event type, in which case it contains only the object’s identity plus a `created` boolean.
+    The `put` field is also reused by the optional [`security_config_change_outcome`](#security-config-change-outcome) event type, in which case it contains only the object’s identity (the create-or-modify result is reported by that event’s top-level `created` attribute).
 
 `delete`
 :   The object representation of the security config that is being deleted. It can be the config for a `user`, `role`, `role_mapping` or for application `privileges`.
@@ -895,10 +895,13 @@ The `security_config_change_outcome` event type is **optional and not enabled by
 
 When enabled, a `security_config_change_outcome` record is emitted **after** a create-or-update security API call completes successfully, as a companion to the pre-execution [`security_config_change`](#security-config-change) record. The two records are correlated by their shared `request.id`. Because the outcome record is only emitted on success, a `security_config_change` record without a matching `security_config_change_outcome` record indicates a change that was attempted but not confirmed.
 
-Events with the `event.type` attribute equal to `security_config_change_outcome` have one of the following `event.action` attribute values: `put_user`, `put_role`, `put_role_mapping`, or `put_privileges`. Each such event has a `put` attribute whose value is a nested JSON object identifying a single affected object and reporting whether it was created or modified:
+Events with the `event.type` attribute equal to `security_config_change_outcome` have one of the following `event.action` attribute values: `put_user`, `put_role`, `put_role_mapping`, or `put_privileges`. Each such event has a top-level `created` attribute and a `put` attribute identifying the single affected object:
+
+`created`
+:   A boolean that is `true` when the object was newly created and `false` when an existing object was modified.
 
 `put`
-:   For `put_user`, `put_role` and `put_role_mapping`, an object like `{"<type>":{"name": <string>, "created": <boolean>}}`, where `<type>` is `user`, `role` or `role_mapping`. For `put_privileges`, an object like `{"privilege":{"application": <string>, "name": <string>, "created": <boolean>}}`. The `created` attribute is `true` when the object was newly created and `false` when an existing object was modified.
+:   The identity of the affected object. For `put_user`, `put_role` and `put_role_mapping`, an object like `{"<type>":{"name": <string>}}`, where `<type>` is `user`, `role` or `role_mapping`. For `put_privileges`, an object like `{"privilege":{"application": <string>, "name": <string>}}`.
 
 For requests that affect multiple objects (a bulk `put_role` request or a `put_privileges` request with several privileges), one outcome record is emitted per created or updated object. Objects that were unchanged (a no-op, because the stored config was identical to the request) or that failed do not produce an outcome record.
 

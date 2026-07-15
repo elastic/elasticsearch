@@ -2875,7 +2875,9 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         assertThat(logOutput.size(), is(1));
         assertThat(logOutput.get(0), containsString("event.type=\"security_config_change_outcome\""));
         assertThat(logOutput.get(0), containsString("event.action=\"put_role\""));
-        assertThat(logOutput.get(0), containsString("\"role\":{\"name\":\"audited_role\",\"created\":" + created + "}"));
+        // the "put" body carries only the object identity; the create/modify result is the top-level "created" field
+        assertThat(logOutput.get(0), containsString("\"role\":{\"name\":\"audited_role\"}"));
+        assertThat(logOutput.get(0), containsString("created=\"" + created + "\""));
     }
 
     private InetSocketAddress randomLoopbackInetSocketAddress() {

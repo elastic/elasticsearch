@@ -234,9 +234,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String CHANGE_CONFIG_FIELD_NAME = "change";
     public static final String CREATE_CONFIG_FIELD_NAME = "create";
     public static final String INVALIDATE_API_KEYS_FIELD_NAME = "invalidate";
-    // Note: this is NOT a top-level audit field (it needs no entry in log4j2.properties). It is a boolean nested inside the
-    // "put" config-change object of the post-execution "outcome" record (event.type=security_config_change_outcome), indicating
-    // whether the object was created (true) or modified (false). See coordinatingActionResponse.
+    // Top-level boolean field of the post-execution "outcome" record (event.type=security_config_change_outcome): true if the object
+    // was created, false if it was modified. Like "cross_cluster_access", it is rendered as a raw (unquoted) JSON boolean, so it also
+    // requires an entry in the log4j2.properties file(s). It is only ever set on outcome events, so it is absent from every other
+    // record. See coordinatingActionResponse.
     public static final String CREATED_FIELD_NAME = "created";
 
     public static final String NAME = "logfile";
@@ -1361,9 +1362,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        // The "outcome" builders below record the post-execution result of an upsert (whether the object was created or modified).
-        // They are minimal by design (identity + "created" flag only) to avoid duplicating the full request body already captured by
-        // the pre-execution "attempt" record; the two records are correlated by request.id.
+        // The "outcome" builders below record the post-execution result of an upsert. They are minimal by design: the "put" field
+        // carries only the object's identity (not the full request body already captured by the pre-execution "attempt" record) and
+        // the create/modify result is reported by the top-level "created" boolean. The two records are correlated by request.id.
 
         LogEntryBuilder withPutUserOutcome(String username, boolean created) throws IOException {
             return withNamedPutOutcome("put_user", "user", username, created);
@@ -1381,13 +1382,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, eventAction);
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
-            builder.startObject()
-                .startObject(objectType)
-                .field("name", name)
-                .field(CREATED_FIELD_NAME, created)
-                .endObject() // objectType
-                .endObject();
+            builder.startObject().startObject(objectType).field("name", name).endObject().endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            withCreatedOutcome(created);
             return this;
         }
 
@@ -1398,10 +1395,17 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .startObject("privilege")
                 .field("application", application)
                 .field("name", privilegeName)
-                .field(CREATED_FIELD_NAME, created)
                 .endObject() // privilege
                 .endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            withCreatedOutcome(created);
+            return this;
+        }
+
+        // Records the top-level "created" outcome flag as a raw (unquoted) JSON boolean, matching the "cross_cluster_access" idiom
+        // and the log4j2.properties pattern entry for this field.
+        private LogEntryBuilder withCreatedOutcome(boolean created) {
+            logEntry.with(CREATED_FIELD_NAME, Boolean.toString(created));
             return this;
         }
 

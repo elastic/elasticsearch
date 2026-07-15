@@ -235,17 +235,10 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         });
         assertResponse(prepareSearch(), resp -> { assertHitCount(resp, numDocs_pit2 + additionalDocs); });
         SearchService searchService1 = internalCluster().getInstance(SearchService.class, searchNodeA);
-//        logger.info("---> Current search node: " + searchNodeA + ", Jvm info pid: " + searchService1.getJvmInfo().pid());
-//
-//        logger.info("---> before relocation. 1min to take heap dump.");
-//        Thread.sleep(60000);
-//        logger.info("---> running relocation.");
 
         var searchNodeB = startSearchNode(nodeSettings);
 
         SearchService searchService2 = internalCluster().getInstance(SearchService.class, searchNodeB);
-        logger.info("---> Next search node: " + searchNodeB + ", Jvm info pid: " + searchService2.getJvmInfo().pid());
-
         logger.info("Current search node: " + searchNodeA);
         logger.info("Next search node: " + searchNodeB);
 
@@ -298,10 +291,6 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
             15,
             TimeUnit.SECONDS
         );
-
-//        logger.info("---> after relocation. 1min to take heap dump.");
-//        Thread.sleep(60000);
-//        logger.info("---> Clean up PITs and close contexts.");
 
         // Close the stress PITs. After relocation the PIT ID encodes the source node; a search
         // response carries the updated ID encoding the target node, which is required for the

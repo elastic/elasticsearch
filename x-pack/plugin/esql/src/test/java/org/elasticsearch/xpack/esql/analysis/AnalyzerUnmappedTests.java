@@ -952,15 +952,15 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "keyword")),
-                fieldCapabilitiesIndexResponse("baz", Map.of())
+                fieldCapabilitiesIndexResponse("test1", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("test2", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("test3", Map.of())
             ),
             List.of()
         );
-        var resolutions = indexResolutions(mergedResolution("foo,bar,baz", caps, true));
+        var resolutions = indexResolutions(mergedResolution("test1,test2,test3", caps, true));
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
-            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar, baz " + suffix), resolutions);
+            typeConflictVerificationFailure(setUnmappedLoad("FROM test1, test2, test3 " + suffix), resolutions);
         }
     }
 

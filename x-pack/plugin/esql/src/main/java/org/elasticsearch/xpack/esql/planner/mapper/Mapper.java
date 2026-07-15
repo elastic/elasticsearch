@@ -212,12 +212,10 @@ public class Mapper {
             // only broadcast joins supported for now - hence push down as a streaming operator
             if (left instanceof FragmentExec) {
                 if (join.isRemote() && join.isCoordinatorMode()) {
-                    // The lookup index exists only on the coordinator (remote resolution failed and
-                    // EsqlSession fell back to a local-only lookup). Gather the left side here instead
-                    // of shipping the whole join down to remotes that don't have the index.
+                    // Transfer left-side data here via exchange in order to execute join against coordinator lookup index
                     left = new ExchangeExec(left.source(), left);
                 } else {
-                    // Data is still on data nodes/remotes — push the whole join down.
+                    // Left-side data lives on data remote data nodes — execute the join there to avoid transferring it.
                     // For remote joins the only potential pipeline breakers here are local limits duplicated past
                     // the join by PushdownAndCombineLimits; they are safe because they only reduce row count and
                     // another limit is downstream.

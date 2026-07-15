@@ -53,6 +53,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.After;
 import org.junit.AssumptionViolatedException;
@@ -62,6 +63,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
@@ -154,6 +156,8 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     protected abstract Class<U> expectedFieldTypeClass();
 
     protected abstract String contentType();
+
+    protected abstract Set<TaskType> supportedTaskTypes();
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -323,6 +327,10 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             b.field(MODEL_SETTINGS_FIELD, modelSettings.getFilteredXContentObject());
             b.endObject();
         }));
+    }
+
+    protected TestModel createRandomSupportedModel() {
+        return TestModel.createRandomInstance(randomFrom(supportedTaskTypes()));
     }
 
     protected T getSemanticFieldMapper(MapperService mapperService, String fieldName) {

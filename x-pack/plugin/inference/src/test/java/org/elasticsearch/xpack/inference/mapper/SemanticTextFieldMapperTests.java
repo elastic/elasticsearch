@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -767,7 +768,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
 
             TestModel oldModel = null;
             if (randomBoolean()) {
-                oldModel = TestModel.createRandomInstance();
+                oldModel = createRandomSupportedModel();
                 givenModelSettings(oldInferenceId, new MinimalServiceSettings(oldModel));
             }
 
@@ -789,7 +790,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
             TestModel newModel = null;
             if (randomBoolean()) {
-                newModel = TestModel.createRandomInstance();
+                newModel = createRandomSupportedModel();
                 givenModelSettings(newInferenceId, new MinimalServiceSettings(newModel));
             }
 
@@ -817,7 +818,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             final String oldInferenceId = randomAlphaOfLengthBetween(5, 15);
             final String newInferenceId = randomValueOtherThan(oldInferenceId, () -> randomAlphaOfLengthBetween(5, 15));
 
-            final TestModel oldModel = TestModel.createRandomInstance();
+            final TestModel oldModel = createRandomSupportedModel();
             final MinimalServiceSettings previousModelSettings = new MinimalServiceSettings(oldModel);
             givenModelSettings(oldInferenceId, previousModelSettings);
 
@@ -1316,6 +1317,11 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
     @Override
     protected String contentType() {
         return SemanticTextFieldMapper.CONTENT_TYPE;
+    }
+
+    @Override
+    protected Set<TaskType> supportedTaskTypes() {
+        return EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING);
     }
 
     @Override
@@ -1974,7 +1980,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
 
     public void testDefaultIndexOptions() throws IOException {
         for (int i = 0; i < 200; i++) {
-            final Model model = TestModel.createRandomInstance();
+            final Model model = createRandomSupportedModel();
             final IndexVersion indexVersion = useLegacyFormat == false && randomBoolean()
                 ? IndexVersion.current()
                 : SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat);
@@ -1989,7 +1995,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 b.field("inference_id", "another_inference_id");
                 b.startObject("model_settings");
                 b.field("task_type", taskType.toString());
-                if (taskType == TaskType.TEXT_EMBEDDING) {
+                if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.EMBEDDING) {
                     b.field("dimensions", dimensions);
                     b.field("similarity", similarity.toString());
                     b.field("element_type", elementType.toString());
@@ -2016,7 +2022,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         boolean experimentalFeatures
     ) {
         return switch (taskType) {
-            case TEXT_EMBEDDING -> {
+            case TEXT_EMBEDDING, EMBEDDING -> {
                 boolean floatFamilyElementType = elementType == DenseVectorFieldMapper.ElementType.FLOAT
                     || elementType == DenseVectorFieldMapper.ElementType.BFLOAT16;
                 if (floatFamilyElementType

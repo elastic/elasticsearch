@@ -30,6 +30,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -391,6 +393,11 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
     @Override
     protected String contentType() {
         return SemanticFieldMapper.CONTENT_TYPE;
+    }
+
+    @Override
+    protected Set<TaskType> supportedTaskTypes() {
+        return EnumSet.of(EMBEDDING);
     }
 
     @Override

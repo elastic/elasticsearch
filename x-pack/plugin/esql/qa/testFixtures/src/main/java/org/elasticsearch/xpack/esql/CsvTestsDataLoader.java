@@ -282,14 +282,9 @@ public class CsvTestsDataLoader {
         new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
         new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
         new TestDataset("colors"),
-<<<<<<< HEAD
-        new TestDataset("colors", "mapping-colors.json", "colors.csv").withIndex("colors_unmapped")
-            .withTypeMapping(removeFields("rgb_vector"))
-=======
         new TestDataset("colors_with_slice", "mapping-colors.json", "colors_with_slice.csv", "colors_with_slice-settings.json")
             .withRequiredCapabilities(EsqlCapabilities.Cap.METADATA_SLICE),
         new TestDataset("colors_unmapped", "mapping-colors.json", "colors.csv").withTypeMapping(removeFields("rgb_vector"))
->>>>>>> d8ffcbaf336d (ESQL: Add lost refactors, follow-up to #152200 (#153538))
             .withDynamic("false"),
         new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),
         new TestDataset("base_conversion"),

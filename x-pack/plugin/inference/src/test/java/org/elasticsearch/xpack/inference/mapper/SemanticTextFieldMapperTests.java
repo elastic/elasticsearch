@@ -797,10 +797,8 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             final MinimalServiceSettings previousModelSettings = new MinimalServiceSettings(oldModel);
             givenModelSettings(oldInferenceId, previousModelSettings);
 
-            final MapperService mapperService = createSemanticMapperServiceWithModelSettings(
-                fieldName,
-                oldInferenceId,
-                previousModelSettings
+            final MapperService mapperService = createSemanticMapperService(
+                semanticMapping(fieldName, oldInferenceId, previousModelSettings)
             );
             final SemanticIndexOptions currentIndexOptions = extractCurrentIndexOptions(mapperService, fieldName);
             assertInferenceEndpoints(mapperService, fieldName, oldInferenceId, oldInferenceId);
@@ -1225,10 +1223,12 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             assertSemanticField(mapperService, fieldName, false, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
 
-            mapperService = createSemanticMapperServiceWithModelSettings(
-                fieldName,
-                inferenceId,
-                new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null)
+            mapperService = createSemanticMapperService(
+                semanticMapping(
+                    fieldName,
+                    inferenceId,
+                    new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null)
+                )
             );
             var expectedIndexOptions = getDefaultSparseVectorIndexOptionsForMapper(mapperService);
             assertSemanticField(mapperService, fieldName, true, null, expectedIndexOptions);
@@ -1576,54 +1576,62 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             assertThat(semanticTextFieldMapper.fieldType().getModelSettings().elementType(), equalTo(e));
         };
 
-        MapperService floatMapperService = createSemanticMapperServiceWithModelSettings(
-            fieldName,
-            inferenceId,
-            new MinimalServiceSettings(
-                "my-service",
-                TaskType.TEXT_EMBEDDING,
-                1024,
-                SimilarityMeasure.COSINE,
-                DenseVectorFieldMapper.ElementType.FLOAT
+        MapperService floatMapperService = createSemanticMapperService(
+            semanticMapping(
+                fieldName,
+                inferenceId,
+                new MinimalServiceSettings(
+                    "my-service",
+                    TaskType.TEXT_EMBEDDING,
+                    1024,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                )
             )
         );
         assertMapperService.accept(floatMapperService, DenseVectorFieldMapper.ElementType.FLOAT);
 
-        MapperService byteMapperService = createSemanticMapperServiceWithModelSettings(
-            fieldName,
-            inferenceId,
-            new MinimalServiceSettings(
-                "my-service",
-                TaskType.TEXT_EMBEDDING,
-                1024,
-                SimilarityMeasure.COSINE,
-                DenseVectorFieldMapper.ElementType.BYTE
+        MapperService byteMapperService = createSemanticMapperService(
+            semanticMapping(
+                fieldName,
+                inferenceId,
+                new MinimalServiceSettings(
+                    "my-service",
+                    TaskType.TEXT_EMBEDDING,
+                    1024,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.BYTE
+                )
             )
         );
         assertMapperService.accept(byteMapperService, DenseVectorFieldMapper.ElementType.BYTE);
 
-        MapperService bitMapperService = createSemanticMapperServiceWithModelSettings(
-            fieldName,
-            inferenceId,
-            new MinimalServiceSettings(
-                "my-service",
-                TaskType.TEXT_EMBEDDING,
-                1024,
-                SimilarityMeasure.L2_NORM,
-                DenseVectorFieldMapper.ElementType.BIT
+        MapperService bitMapperService = createSemanticMapperService(
+            semanticMapping(
+                fieldName,
+                inferenceId,
+                new MinimalServiceSettings(
+                    "my-service",
+                    TaskType.TEXT_EMBEDDING,
+                    1024,
+                    SimilarityMeasure.L2_NORM,
+                    DenseVectorFieldMapper.ElementType.BIT
+                )
             )
         );
         assertMapperService.accept(bitMapperService, DenseVectorFieldMapper.ElementType.BIT);
 
-        MapperService bfloat16MapperService = createSemanticMapperServiceWithModelSettings(
-            fieldName,
-            inferenceId,
-            new MinimalServiceSettings(
-                "my-service",
-                TaskType.TEXT_EMBEDDING,
-                1024,
-                SimilarityMeasure.COSINE,
-                DenseVectorFieldMapper.ElementType.BFLOAT16
+        MapperService bfloat16MapperService = createSemanticMapperService(
+            semanticMapping(
+                fieldName,
+                inferenceId,
+                new MinimalServiceSettings(
+                    "my-service",
+                    TaskType.TEXT_EMBEDDING,
+                    1024,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.BFLOAT16
+                )
             )
         );
         assertMapperService.accept(bfloat16MapperService, DenseVectorFieldMapper.ElementType.BFLOAT16);
@@ -1771,10 +1779,8 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         final String fieldName = "semantic";
         final String inferenceId = "test_service";
 
-        MapperService mapperService = createSemanticMapperServiceWithModelSettings(
-            fieldName,
-            inferenceId,
-            new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null)
+        MapperService mapperService = createSemanticMapperService(
+            semanticMapping(fieldName, inferenceId, new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null))
         );
 
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
@@ -1786,15 +1792,17 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         final String fieldName = "semantic";
         final String inferenceId = "test_service";
 
-        MapperService mapperService = createSemanticMapperServiceWithModelSettings(
-            fieldName,
-            inferenceId,
-            new MinimalServiceSettings(
-                "my-service",
-                TaskType.TEXT_EMBEDDING,
-                1024,
-                SimilarityMeasure.COSINE,
-                DenseVectorFieldMapper.ElementType.FLOAT
+        MapperService mapperService = createSemanticMapperService(
+            semanticMapping(
+                fieldName,
+                inferenceId,
+                new MinimalServiceSettings(
+                    "my-service",
+                    TaskType.TEXT_EMBEDDING,
+                    1024,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                )
             )
         );
 

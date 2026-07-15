@@ -358,32 +358,6 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         return createMapperService(indexVersion, settings, mappings);
     }
 
-    protected MapperService createSemanticMapperServiceWithModelSettings(
-        String fieldName,
-        String inferenceId,
-        MinimalServiceSettings modelSettings
-    ) throws IOException {
-        return createSemanticMapperServiceWithModelSettings(fieldName, inferenceId, null, modelSettings);
-    }
-
-    protected MapperService createSemanticMapperServiceWithModelSettings(
-        String fieldName,
-        String inferenceId,
-        String searchInferenceId,
-        MinimalServiceSettings modelSettings
-    ) throws IOException {
-        return createSemanticMapperService(mapping(b -> {
-            b.startObject(fieldName);
-            b.field("type", contentType());
-            b.field(INFERENCE_ID_FIELD, inferenceId);
-            if (searchInferenceId != null) {
-                b.field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId);
-            }
-            b.field(MODEL_SETTINGS_FIELD, modelSettings.getFilteredXContentObject());
-            b.endObject();
-        }));
-    }
-
     protected TestModel createRandomSupportedModel() {
         return TestModel.createRandomInstance(randomFrom(supportedTaskTypes()));
     }

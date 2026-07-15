@@ -643,6 +643,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".slo-observability." + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
+        assertReadWriteAndManage(kibanaRole, ".contextengine-" + randomAlphaOfLength(randomIntBetween(0, 13)));
+
         // Alerting V2 views prefix: Kibana system user has create_view only
         Arrays.asList(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS).forEach(index -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
@@ -1274,6 +1276,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 is(false)
             );
         });
+
+        // Context Engine's SML storage: a regular (non-system) index that Kibana
+        // creates and manages itself, including its alias.
+        Arrays.asList(".context-idx-sml-data", ".context-idx-sml-data-" + randomAlphaOfLength(randomIntBetween(0, 13)))
+            .forEach(index -> assertReadWriteAndManage(kibanaRole, index));
 
         // Agent Builder OTLP telemetry (traces + logs from span events)
         Arrays.asList(

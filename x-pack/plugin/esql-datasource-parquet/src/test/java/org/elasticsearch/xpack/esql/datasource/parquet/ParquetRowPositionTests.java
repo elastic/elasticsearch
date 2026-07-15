@@ -251,7 +251,7 @@ public class ParquetRowPositionTests extends ESTestCase {
                     page.releaseBlocks();
                 }
             }
-            extractor = ((ColumnExtractorProducer) iter).createColumnExtractor();
+            extractor = ((ColumnExtractorProducer) iter).createColumnExtractor(null);
         }
         try {
             // Extractor sees the full file regardless of which split the iterator was for.

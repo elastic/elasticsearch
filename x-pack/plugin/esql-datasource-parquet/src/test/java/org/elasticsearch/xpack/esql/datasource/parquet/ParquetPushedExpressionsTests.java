@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.apache.parquet.schema.LogicalTypeAnnotation.dateType;
@@ -962,30 +963,114 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("lteq"));
     }
 
-    // --- convertMillisToPhysical unit tests ---
+    // --- the datetime arm's raw-bound decision, through the real entry point ---
 
-    public void testConvertMillisToPhysicalMillis() {
-        LogicalTypeAnnotation ts = timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS);
-        assertEquals(1234L, ParquetPushedExpressions.convertMillisToPhysical(1234L, ts));
+    /** A millis-annotated column stores exactly what the literal holds: push the bound unchanged. */
+    public void testDatetimeOverTimestampMillisPushesIdentity() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts")
+            .named("test");
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("ts", DataType.DATETIME, 1234L))).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("1234"));
     }
 
-    public void testConvertMillisToPhysicalMicros() {
-        LogicalTypeAnnotation ts = timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS);
-        assertEquals(1234000L, ParquetPushedExpressions.convertMillisToPhysical(1234L, ts));
+    /** A micros-annotated column stores 1000x the literal's unit; the bound must be scaled to match the stats. */
+    public void testDatetimeOverTimestampMicrosScalesTheBound() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("ts", DataType.DATETIME, 1234L))).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("1234000"));
     }
 
-    public void testConvertMillisToPhysicalNanos() {
-        LogicalTypeAnnotation ts = timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS);
-        assertEquals(1234000000L, ParquetPushedExpressions.convertMillisToPhysical(1234L, ts));
+    /** Past ~year 2262 the nanos-scaled bound overflows a long: decline rather than wrap into a wrong row group. */
+    public void testDatetimeOverTimestampNanosDeclinesOnOverflow() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("ts")
+            .named("test");
+        assertNull(new ParquetPushedExpressions(List.of(eq("ts", DataType.DATETIME, Long.MAX_VALUE / 1000))).toFilterPredicate(schema));
     }
 
-    public void testConvertMillisToPhysicalNanosOverflow() {
-        LogicalTypeAnnotation ts = timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS);
-        expectThrows(ArithmeticException.class, () -> ParquetPushedExpressions.convertMillisToPhysical(Long.MAX_VALUE / 1000, ts));
+    /** A bare INT64 with NO declared format is the fused identity read — it stores epoch millis already. */
+    public void testDatetimeOverBareInt64PushesIdentityWithoutAFormat() {
+        MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("ts", DataType.DATETIME, 5678L))).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("5678"));
     }
 
-    public void testConvertMillisToPhysicalNoAnnotation() {
-        assertEquals(5678L, ParquetPushedExpressions.convertMillisToPhysical(5678L, null));
+    /**
+     * The bug this arm exists to prevent: a declared {@code epoch_second} scales the scan x1000 while the row-group
+     * statistics stay in seconds. The bound must be divided back, never pushed verbatim.
+     */
+    public void testDatetimeWithDeclaredEpochSecondDividesTheBoundBackToSeconds() {
+        MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("ts", DataType.DATETIME, 1704067200000L))).toFilterPredicate(
+            schema,
+            Map.of("ts", "epoch_second")
+        );
+        assertNotNull(fp);
+        assertThat("the raw seconds bound, not the millis literal", fp.toString(), containsString("1704067200"));
+        assertThat(fp.toString(), not(containsString("1704067200000")));
+    }
+
+    /** epoch_millis is the exact identity on a datetime: keep pushing it. */
+    public void testDatetimeWithDeclaredEpochMillisPushesIdentity() {
+        MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("ts", DataType.DATETIME, 1704067200000L))).toFilterPredicate(
+            schema,
+            Map.of("ts", "epoch_millis")
+        );
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("1704067200000"));
+    }
+
+    /** A calendar format parses digits non-linearly — no scale exists, so no bound can be pushed. */
+    public void testDatetimeWithCalendarFormatDeclines() {
+        MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
+        assertNull(
+            new ParquetPushedExpressions(List.of(eq("ts", DataType.DATETIME, 1704067200000L))).toFilterPredicate(
+                schema,
+                Map.of("ts", "yyyyMMdd")
+            )
+        );
+    }
+
+    /** A format composed on top of an annotation's own transform is not a single scale: decline. */
+    public void testDatetimeWithFormatOverAnnotatedColumnDeclines() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+        assertNull(
+            new ParquetPushedExpressions(List.of(eq("ts", DataType.DATETIME, 1704067200000L))).toFilterPredicate(
+                schema,
+                Map.of("ts", "epoch_second")
+            )
+        );
+    }
+
+    /**
+     * The regression the deleted {@code convertMillisToPhysical} caused: its identity fall-through pushed a millis
+     * bound for ANY annotation it did not recognise. A {@code TIME(MICROS)} column's scan scales x1000, so the raw
+     * statistics are 1000x off the bound — decline instead of guessing.
+     */
+    public void testDatetimeOverTimeMicrosDeclinesRatherThanAssumingIdentity() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+        assertNull(new ParquetPushedExpressions(List.of(eq("ts", DataType.DATETIME, 1234L))).toFilterPredicate(schema));
     }
 
     // --- predicateColumnNames tests ---

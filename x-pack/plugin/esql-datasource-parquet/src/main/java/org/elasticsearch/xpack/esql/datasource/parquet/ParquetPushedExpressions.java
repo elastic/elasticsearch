@@ -97,12 +97,6 @@ final class ParquetPushedExpressions {
 
     private final List<Expression> expressions;
     /**
-     * Physical-keyed declared date formats for the translation in flight. Deliberately NOT part of this object's
-     * identity ({@code equals}/{@code hashCode}) — it is an input to translation, not a property of the pushed
-     * expressions themselves.
-     */
-    private Map<String, String> declaredDateFormats = Map.of();
-    /**
      * Cache of compiled {@link CompiledWildcard} forms per {@link WildcardLike} expression.
      * Building a {@link ByteRunAutomaton} from a wildcard pattern (in particular the determinize
      * step in {@link org.apache.lucene.util.automaton.Operations#determinize}) is non-trivial —
@@ -196,14 +190,20 @@ final class ParquetPushedExpressions {
      *                            push a decoded-unit bound at raw stats and prune row groups the query matches.
      */
     FilterPredicate toFilterPredicate(MessageType schema, Map<String, String> declaredDateFormats) {
-        this.declaredDateFormats = declaredDateFormats == null ? Map.of() : declaredDateFormats;
-        return toFilterPredicateInner(schema);
+        return toFilterPredicateInner(schema, declaredDateFormats == null ? Map.of() : declaredDateFormats);
     }
 
-    private FilterPredicate toFilterPredicateInner(MessageType schema) {
+    /**
+     * The declared formats are THREADED, never stored: this instance is shared by every iterator created from one
+     * {@code ParquetFormatReader}, and iterators for different files may run on different driver threads (the same
+     * reason {@code automatonCache} is lock-guarded). A field would be a race whose failure mode is precisely the bug
+     * this translation exists to prevent — a thread reading another file's map, missing the lookup, and pushing a
+     * raw-unit bound.
+     */
+    private FilterPredicate toFilterPredicateInner(MessageType schema, Map<String, String> formats) {
         List<FilterPredicate> translated = new ArrayList<>();
         for (Expression expr : expressions) {
-            FilterPredicate fp = translateExpression(expr, schema);
+            FilterPredicate fp = translateExpression(expr, schema, formats);
             if (fp != null) {
                 translated.add(fp);
             }
@@ -259,7 +259,8 @@ final class ParquetPushedExpressions {
      */
     boolean hasYesConjunctOutsideFilterPredicate(MessageType schema) {
         for (Expression expr : expressions) {
-            if (ParquetFilterPushdownSupport.isFullyEvaluable(expr) && translateExpression(expr, schema) == null) {
+            // No formats needed: isFullyEvaluable admits only the LIKE family, which never reaches a temporal arm.
+            if (ParquetFilterPushdownSupport.isFullyEvaluable(expr) && translateExpression(expr, schema, Map.of()) == null) {
                 return true;
             }
         }
@@ -308,7 +309,7 @@ final class ParquetPushedExpressions {
         return false;
     }
 
-    private FilterPredicate translateExpression(Expression expr, MessageType schema) {
+    private FilterPredicate translateExpression(Expression expr, MessageType schema, Map<String, String> formats) {
         if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
             String name = ne.name();
             DataType dataType = ne.dataType();
@@ -319,33 +320,33 @@ final class ParquetPushedExpressions {
             }
 
             return switch (bc) {
-                case Equals ignored -> buildPredicate(name, dataType, value, PredicateOp.EQ, schema);
-                case NotEquals ignored -> buildPredicate(name, dataType, value, PredicateOp.NOT_EQ, schema);
-                case GreaterThan ignored -> buildPredicate(name, dataType, value, PredicateOp.GT, schema);
-                case GreaterThanOrEqual ignored -> buildPredicate(name, dataType, value, PredicateOp.GTE, schema);
-                case LessThan ignored -> buildPredicate(name, dataType, value, PredicateOp.LT, schema);
-                case LessThanOrEqual ignored -> buildPredicate(name, dataType, value, PredicateOp.LTE, schema);
+                case Equals ignored -> buildPredicate(name, dataType, value, PredicateOp.EQ, schema, formats);
+                case NotEquals ignored -> buildPredicate(name, dataType, value, PredicateOp.NOT_EQ, schema, formats);
+                case GreaterThan ignored -> buildPredicate(name, dataType, value, PredicateOp.GT, schema, formats);
+                case GreaterThanOrEqual ignored -> buildPredicate(name, dataType, value, PredicateOp.GTE, schema, formats);
+                case LessThan ignored -> buildPredicate(name, dataType, value, PredicateOp.LT, schema, formats);
+                case LessThanOrEqual ignored -> buildPredicate(name, dataType, value, PredicateOp.LTE, schema, formats);
                 default -> null;
             };
         }
         if (expr instanceof In inExpr && inExpr.value() instanceof NamedExpression ne) {
-            return translateIn(ne.name(), ne.dataType(), inExpr.list(), schema);
+            return translateIn(ne.name(), ne.dataType(), inExpr.list(), schema, formats);
         }
         if (expr instanceof IsNull isNull && isNull.field() instanceof NamedExpression ne) {
-            return buildPredicate(ne.name(), ne.dataType(), null, PredicateOp.EQ, schema);
+            return buildPredicate(ne.name(), ne.dataType(), null, PredicateOp.EQ, schema, formats);
         }
         if (expr instanceof IsNotNull isNotNull && isNotNull.field() instanceof NamedExpression ne) {
-            return buildPredicate(ne.name(), ne.dataType(), null, PredicateOp.NOT_EQ, schema);
+            return buildPredicate(ne.name(), ne.dataType(), null, PredicateOp.NOT_EQ, schema, formats);
         }
         if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
-            return translateRange(ne.name(), ne.dataType(), range, schema);
+            return translateRange(ne.name(), ne.dataType(), range, schema, formats);
         }
         if (expr instanceof And and) {
             // For AND, dropping an arm produces a LOOSER predicate (one that admits at least
             // as many rows). That is safe for stats pruning, RowRanges, and the
             // trivially-passes shortcut, all of which require a SUPERSET of the truth.
-            FilterPredicate leftPred = translateExpression(and.left(), schema);
-            FilterPredicate rightPred = translateExpression(and.right(), schema);
+            FilterPredicate leftPred = translateExpression(and.left(), schema, formats);
+            FilterPredicate rightPred = translateExpression(and.right(), schema, formats);
             if (leftPred != null && rightPred != null) {
                 return FilterApi.and(leftPred, rightPred);
             }
@@ -356,8 +357,8 @@ final class ParquetPushedExpressions {
             // arm yields a STRICTER predicate (the surviving arm alone), which would prune
             // rows the original would have matched via the dropped arm. Return null so the
             // shortcut/RowRanges path skips this expression entirely.
-            FilterPredicate leftPred = translateExpression(or.left(), schema);
-            FilterPredicate rightPred = translateExpression(or.right(), schema);
+            FilterPredicate leftPred = translateExpression(or.left(), schema, formats);
+            FilterPredicate rightPred = translateExpression(or.right(), schema, formats);
             if (leftPred != null && rightPred != null) {
                 return FilterApi.or(leftPred, rightPred);
             }
@@ -385,7 +386,7 @@ final class ParquetPushedExpressions {
             if (isExactlyTranslatable(not.field()) == false) {
                 return null;
             }
-            FilterPredicate inner = translateExpression(not.field(), schema);
+            FilterPredicate inner = translateExpression(not.field(), schema, formats);
             return inner != null ? FilterApi.not(inner) : null;
         }
         if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne && sw.prefix().foldable()) {
@@ -429,7 +430,14 @@ final class ParquetPushedExpressions {
         }
     }
 
-    private FilterPredicate buildPredicate(String columnName, DataType dataType, Object value, PredicateOp op, MessageType schema) {
+    private FilterPredicate buildPredicate(
+        String columnName,
+        DataType dataType,
+        Object value,
+        PredicateOp op,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         if (value == null && op.isOrdered()) {
             return null;
         }
@@ -465,8 +473,8 @@ final class ParquetPushedExpressions {
                     default -> null;
                 };
             }
-            case DATETIME -> buildDatetimePredicate(columnName, value, op, schema);
-            case DATE_NANOS -> buildDateNanosPredicate(columnName, value, op, schema);
+            case DATETIME -> buildDatetimePredicate(columnName, value, op, schema, formats);
+            case DATE_NANOS -> buildDateNanosPredicate(columnName, value, op, schema, formats);
             default -> null;
         };
     }
@@ -663,7 +671,13 @@ final class ParquetPushedExpressions {
         return null;
     }
 
-    private FilterPredicate buildDatetimePredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
+    private FilterPredicate buildDatetimePredicate(
+        String columnName,
+        Object value,
+        PredicateOp op,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
         if (ptype == null) {
             return null;
@@ -693,7 +707,7 @@ final class ParquetPushedExpressions {
                 yield null;
             }
             case INT64 -> {
-                Long bound = datetimeBoundToRaw(columnName, millis, op, logical);
+                Long bound = datetimeBoundToRaw(columnName, millis, op, logical, formats);
                 yield bound == null ? null : orderedPredicate(FilterApi.longColumn(columnName), bound, op);
             }
             default -> null;
@@ -718,8 +732,14 @@ final class ParquetPushedExpressions {
      * READ, and a pruned row group is never decoded.
      */
     @Nullable
-    private Long datetimeBoundToRaw(String columnName, long millis, PredicateOp op, @Nullable LogicalTypeAnnotation logical) {
-        String declaredFormat = declaredDateFormats.get(columnName);
+    private Long datetimeBoundToRaw(
+        String columnName,
+        long millis,
+        PredicateOp op,
+        @Nullable LogicalTypeAnnotation logical,
+        Map<String, String> formats
+    ) {
+        String declaredFormat = formats.get(columnName);
         if (declaredFormat != null) {
             // decode(raw) = raw * scale, so the bound divides back — but only for a pure epoch dialect over an
             // un-annotated physical. A calendar format parses the digits non-linearly and admits no inverse at all.
@@ -761,7 +781,13 @@ final class ParquetPushedExpressions {
      * {@link ParquetFilterPushdownSupport#isFullyEvaluable}), so {@code FilterExec} re-applies the exact
      * semantics — while a decline merely loses pruning, never rows.
      */
-    private FilterPredicate buildDateNanosPredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
+    private FilterPredicate buildDateNanosPredicate(
+        String columnName,
+        Object value,
+        PredicateOp op,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
         if (ptype == null || ptype.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
             return null;
@@ -770,7 +796,7 @@ final class ParquetPushedExpressions {
             // IS NULL / IS NOT NULL reason over null counts only — unit-independent, so no divisor gate.
             return orderedPredicate(FilterApi.longColumn(columnName), null, op);
         }
-        Long divisor = ParquetColumnDecoding.dateNanosPushdownDivisor(ptype, declaredDateFormats.get(columnName));
+        Long divisor = ParquetColumnDecoding.dateNanosPushdownDivisor(ptype, formats.get(columnName));
         if (divisor == null) {
             return null;
         }
@@ -813,7 +839,13 @@ final class ParquetPushedExpressions {
         };
     }
 
-    private FilterPredicate translateIn(String columnName, DataType dataType, List<Expression> items, MessageType schema) {
+    private FilterPredicate translateIn(
+        String columnName,
+        DataType dataType,
+        List<Expression> items,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         List<Object> rawValues = new ArrayList<>();
         for (Expression item : items) {
             Object val = literalValueOf(item);
@@ -839,8 +871,8 @@ final class ParquetPushedExpressions {
             case BOOLEAN -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BOOLEAN)
                 ? inPredicate(FilterApi.booleanColumn(columnName), rawValues, v -> (Boolean) v)
                 : null;
-            case DATETIME -> translateDatetimeIn(columnName, rawValues, schema);
-            case DATE_NANOS -> translateDateNanosIn(columnName, rawValues, schema);
+            case DATETIME -> translateDatetimeIn(columnName, rawValues, schema, formats);
+            case DATE_NANOS -> translateDateNanosIn(columnName, rawValues, schema, formats);
             default -> null;
         };
     }
@@ -895,7 +927,12 @@ final class ParquetPushedExpressions {
         return inPredicate(FilterApi.intColumn(columnName), rawValues, v -> ((Number) v).intValue());
     }
 
-    private FilterPredicate translateDatetimeIn(String columnName, List<Object> rawValues, MessageType schema) {
+    private FilterPredicate translateDatetimeIn(
+        String columnName,
+        List<Object> rawValues,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
         if (ptype == null) {
             return null;
@@ -927,7 +964,7 @@ final class ParquetPushedExpressions {
                     // declines the push entirely rather than pushing an empty IN, which would match nothing.
                     List<Object> bounds = new ArrayList<>(rawValues.size());
                     for (Object v : rawValues) {
-                        Long bound = datetimeBoundToRaw(columnName, ((Number) v).longValue(), PredicateOp.EQ, logical);
+                        Long bound = datetimeBoundToRaw(columnName, ((Number) v).longValue(), PredicateOp.EQ, logical, formats);
                         if (bound == null) {
                             yield null;
                         }
@@ -952,12 +989,17 @@ final class ParquetPushedExpressions {
      * (TIME, unsigned INT64, unknown) declines entirely. If every element is dropped, no predicate is pushed and
      * the scan + recheck yields the (empty) result.
      */
-    private FilterPredicate translateDateNanosIn(String columnName, List<Object> rawValues, MessageType schema) {
+    private FilterPredicate translateDateNanosIn(
+        String columnName,
+        List<Object> rawValues,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
         if (ptype == null) {
             return null;
         }
-        Long divisor = ParquetColumnDecoding.dateNanosPushdownDivisor(ptype, declaredDateFormats.get(columnName));
+        Long divisor = ParquetColumnDecoding.dateNanosPushdownDivisor(ptype, formats.get(columnName));
         if (divisor == null) {
             return null;
         }
@@ -986,7 +1028,13 @@ final class ParquetPushedExpressions {
         return FilterApi.in(col, converted);
     }
 
-    private FilterPredicate translateRange(String columnName, DataType dataType, Range range, MessageType schema) {
+    private FilterPredicate translateRange(
+        String columnName,
+        DataType dataType,
+        Range range,
+        MessageType schema,
+        Map<String, String> formats
+    ) {
         Object lower = literalValueOf(range.lower());
         Object upper = literalValueOf(range.upper());
 
@@ -995,14 +1043,16 @@ final class ParquetPushedExpressions {
             dataType,
             lower,
             range.includeLower() ? PredicateOp.GTE : PredicateOp.GT,
-            schema
+            schema,
+            formats
         );
         FilterPredicate upperBound = buildPredicate(
             columnName,
             dataType,
             upper,
             range.includeUpper() ? PredicateOp.LTE : PredicateOp.LT,
-            schema
+            schema,
+            formats
         );
 
         if (lowerBound != null && upperBound != null) {

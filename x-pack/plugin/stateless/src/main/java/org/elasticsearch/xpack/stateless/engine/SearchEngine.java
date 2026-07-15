@@ -601,9 +601,7 @@ public class SearchEngine extends Engine {
                             );
                             var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
                             long ccTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
-                                referencedCompoundCommit.statelessCompoundCommitReference()
-                                    .compoundCommit()
-                                    .getTimestampFieldValueRange()
+                                referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit().getTimestampFieldValueRange()
                             );
                             backfillTimestampsByBlob.merge(bccBlobFile, ccTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
                         },

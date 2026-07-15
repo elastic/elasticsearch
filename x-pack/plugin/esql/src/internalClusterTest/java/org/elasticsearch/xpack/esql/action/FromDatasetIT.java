@@ -169,6 +169,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_strict_multi",
         "employees_nonstrict_multi",
         "employees_rename_strict",
+        "employees_headerless_strict",
+        "employees_headerless_dynamic",
         "employees_rename_nonstrict",
         "employees_rename_keep",
         "employees_ndjson_rename_strict",
@@ -429,8 +431,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testStrictDeclaredSchemaRenamesColumnsViaSource() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // Strict declaration that RENAMES via `source`: physical emp_no/first_name are exposed as id/name. CSV is read
-        // positionally, so the declared order must match the file order; the logical names id/name are what the query sees.
+        // Strict declaration that RENAMES via `source`: physical emp_no/first_name are exposed as id/name. A declared
+        // path binds by name, so the declared order need not match the file's; the logical names id/name are what the
+        // query sees. This declaration happens to be in file order, which is why it passed even when binding was
+        // positional — see testStrictAndDynamicAgreeOnFullyDeclaredHeaderlessCsv for the case that pins the binding.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", "emp_no"));
         properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
@@ -464,6 +468,68 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
             assertThat(rows.get(2).get(0), equalTo(3L));
             assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+    }
+
+    /**
+     * The #1307 invariant, in product terms: strict and dynamic are orthogonal to every other dimension. Over the same
+     * file, with a declaration that names every physical column, the two must return identical results — a declaration
+     * that covers the whole file leaves inference nothing to decide, so the dynamic knob cannot matter.
+     * <p>
+     * The declaration is deliberately NOT in file order: {@code dept} is declared first but names {@code col2}. Binding
+     * a declared path by its declaration position — the bug — serves col0's value under {@code dept} on the strict read
+     * while dynamic reads it correctly, so the two disagree. Binding by name makes the knob a no-op, as it must be.
+     */
+    public void testStrictAndDynamicAgreeOnFullyDeclaredHeaderlessCsv() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path headerless = createTempFile("dataset-headerless-", ".csv");
+        Files.writeString(headerless, String.join("\n", "1,Alice,Engineering", "2,Bob,Sales", "3,Carol,Support") + "\n");
+
+        // Every physical column of the file is declared, in an order that does not match the file's.
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("dept", new DatasetFieldMapping("keyword", "col2"));
+        properties.put("id", new DatasetFieldMapping("long", "col0"));
+        properties.put("name", new DatasetFieldMapping("keyword", "col1"));
+
+        registerHeaderlessCsv("employees_headerless_strict", headerless, DatasetMapping.Dynamic.FALSE, properties);
+        registerHeaderlessCsv("employees_headerless_dynamic", headerless, DatasetMapping.Dynamic.TRUE, properties);
+
+        List<List<Object>> strictRows = queryRows("FROM employees_headerless_strict | KEEP id, name, dept | SORT id | LIMIT 10");
+        List<List<Object>> dynamicRows = queryRows("FROM employees_headerless_dynamic | KEEP id, name, dept | SORT id | LIMIT 10");
+
+        // Both must be right, not merely equal: agreement alone would also hold if the two broke the same way.
+        assertThat(strictRows, hasSize(3));
+        assertThat(strictRows.get(0).get(0), equalTo(1L));                          // col0, retyped LONG
+        assertThat(strictRows.get(0).get(1).toString(), equalTo("Alice"));          // col1
+        assertThat(strictRows.get(0).get(2).toString(), equalTo("Engineering"));    // col2, NOT col0's value
+        assertThat(strictRows.get(2).get(2).toString(), equalTo("Support"));
+
+        assertThat(strictRows, equalTo(dynamicRows));
+    }
+
+    /** Registers {@code file} as a headerless CSV dataset, so a declared path names a physical column as {@code col<N>}. */
+    private void registerHeaderlessCsv(String name, Path file, DatasetMapping.Dynamic dynamic, Map<String, DatasetFieldMapping> properties)
+        throws Exception {
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    name,
+                    "local_ds",
+                    file.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "header_row", false)),
+                    new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties))
+                )
+            )
+        );
+    }
+
+    private List<List<Object>> queryRows(String query) {
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            return getValuesList(response);
         }
     }
 

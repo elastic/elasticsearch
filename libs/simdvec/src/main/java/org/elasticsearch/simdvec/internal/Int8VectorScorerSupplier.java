@@ -30,7 +30,6 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
         .orElseThrow(AssertionError::new);
 
     final int dims;
-    final int maxOrd;
     /**
      * The length in bytes of one vector. For this scorer, it matches the pitch (the distance in memory between 2 vectors, when laid
      * out consecutively) and the total vector size (no padding, no extra fields).
@@ -48,13 +47,12 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
         this.values = values;
         this.dims = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
-        this.maxOrd = values.size();
         this.firstScratch = new FixedSizeScratch(vectorByteSize);
         this.secondScratch = new FixedSizeScratch(vectorByteSize);
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord >= maxOrd) {
+        if (ord < 0 || ord >= values.size()) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }

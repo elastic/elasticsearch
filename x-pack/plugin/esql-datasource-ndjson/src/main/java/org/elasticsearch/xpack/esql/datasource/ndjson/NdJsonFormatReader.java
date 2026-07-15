@@ -106,14 +106,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      */
     private final Map<String, String> declaredDateFormats;
     /**
-     * Physical (file) names of declared-type columns; empty when none. Set via {@link #withDeclaredTypeColumns} and
-     * threaded to each {@link NdJsonPageDecoder} so a cross-kind token on a declared column routes through the error
-     * policy instead of silently reading as null (an inferred column keeps the schema-on-read null tolerance). The
-     * text formats keep the SPI no-op default for the whole-column null-fill decision; NDJSON only needs the set to
-     * pick the per-value cross-kind policy, so it consumes it here rather than in the SPI default.
-     */
-    private final Set<String> declaredTypeColumns;
-    /**
      * Node-stable identity of the row-interpretation-affecting {@code WITH} config, per
      * {@link SchemaCacheKey#buildFormatConfig} — the external-stats cache fingerprint. Derived from
      * the canonical config rather than the projected/resolved schema so a data node's shipped-back
@@ -125,7 +117,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private final NdJsonReaderCounters counters = new NdJsonReaderCounters();
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
-        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null, "", Map.of(), Set.of());
+        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null, "", Map.of());
     }
 
     NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
@@ -140,8 +132,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         long segmentSizeBytes,
         DateFormatter datetimeFormatter,
         String canonicalConfig,
-        Map<String, String> declaredDateFormats,
-        Set<String> declaredTypeColumns
+        Map<String, String> declaredDateFormats
     ) {
         this.blockFactory = blockFactory;
         this.settings = settings == null ? Settings.EMPTY : settings;
@@ -151,7 +142,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         this.datetimeFormatter = datetimeFormatter;
         this.canonicalConfig = canonicalConfig;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
-        this.declaredTypeColumns = declaredTypeColumns != null ? Set.copyOf(declaredTypeColumns) : Set.of();
     }
 
     @Override
@@ -164,8 +154,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             segmentSizeBytes,
             datetimeFormatter,
             canonicalConfig,
-            declaredDateFormats,
-            declaredTypeColumns
+            declaredDateFormats
         );
     }
 
@@ -182,31 +171,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             segmentSizeBytes,
             datetimeFormatter,
             canonicalConfig,
-            physicalNameToPattern,
-            declaredTypeColumns
-        );
-    }
-
-    /**
-     * Declared-type columns keyed by physical (file) name. NDJSON does not make the whole-column null-fill
-     * decision the by-name columnar readers do; it consumes this set to decide, per value, whether a cross-kind
-     * token routes through the error policy (declared) or keeps the schema-on-read silent null (inferred).
-     */
-    @Override
-    public NdJsonFormatReader withDeclaredTypeColumns(Set<String> physicalDeclaredColumns) {
-        if (physicalDeclaredColumns == null || physicalDeclaredColumns.isEmpty()) {
-            return this;
-        }
-        return new NdJsonFormatReader(
-            settings,
-            blockFactory,
-            resolvedSchema,
-            schemaSampleSize,
-            segmentSizeBytes,
-            datetimeFormatter,
-            canonicalConfig,
-            declaredDateFormats,
-            physicalDeclaredColumns
+            physicalNameToPattern
         );
     }
 
@@ -231,8 +196,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             newSegmentSize,
             newDatetimeFormatter,
             canon,
-            declaredDateFormats,
-            declaredTypeColumns
+            declaredDateFormats
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
@@ -550,7 +514,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             context.maxRecordBytes(),
             datetimeFormatter,
             declaredDateFormats,
-            declaredTypeColumns,
             context.statsBaseOffset(),
             context.statsStripeSize(),
             context.statsFileFinal(),

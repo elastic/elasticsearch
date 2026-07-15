@@ -94,9 +94,9 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
     ///
     /// With `STATELESS_UPLOAD_MAX_AMOUNT_COMMITS=1` every flush or refresh creates its own
     /// single-commit BCC blob. Each file is stamped with the timestamp range of the BCC in
-    /// which it was first written, and [org.elasticsearch.xpack.stateless.lucene.SearchDirectory]
+    /// which it was first written, and [SearchDirectory]
     /// preserves that range via `putIfAbsent`. The expected timestamp range for each file is
-    /// captured directly from the source [org.elasticsearch.xpack.stateless.lucene.SearchDirectory]
+    /// captured directly from the source [SearchDirectory]
     /// right before relocation — this is the ground truth against which the wire payload is
     /// compared, which is precise regardless of how many BCCs exist or what timestamps they carry.
     public void testPitRelocationTransfersTimestamps() throws Exception {
@@ -206,7 +206,7 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
     }
 
     /// Verifies that when a generational file's blob location differs between the
-    /// [org.elasticsearch.xpack.stateless.lucene.SearchDirectory]'s pinned entry and the commit the PIT was opened at,
+    /// [SearchDirectory]'s pinned entry and the commit the PIT was opened at,
     /// the wire payload stamps the file with the CC's own timestamp — not the old pinned one.
     ///
     /// Scenario (UPLOAD_MAX=1, every explicit flush → its own single-commit BCC blob):

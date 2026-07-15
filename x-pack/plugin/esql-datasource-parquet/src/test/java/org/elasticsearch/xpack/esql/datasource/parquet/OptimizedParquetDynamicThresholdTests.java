@@ -253,12 +253,16 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
         // scale = what decode multiplies a raw value by, so the bound below lands in each cell's DECODED domain.
         record Cell(String name, MessageType schema, @Nullable String declaredFormat, long scale) {}
         List<Cell> cells = List.of(
+            // Identity cells only. This unit harness reads a bare projection, which cannot faithfully set up a
+            // RESCALED sort column: it has no way to declare the ESQL type (only a format), and the descriptor it
+            // hands the iterator does not carry the file's timestamp unit the way the production read path does. So
+            // the rescaling cells (TIMESTAMP(MICROS) -> date_nanos, and a declared epoch_second) are proven instead
+            // by FromDatasetIT#testScalingDifferentialAcrossFilterSortAndAggregate, which drives a real declaration
+            // end to end. What this test guards is the other direction: the identity reads must keep pruning exactly
+            // as they do today, since one arm of rawValueFromStats serves every INT64 sort column.
             new Cell("bare INT64, no declaration", REQUIRED_LONG_SCHEMA, null, 1L),
             new Cell("TIMESTAMP(MILLIS) -> datetime", annotatedLong(LogicalTypeAnnotation.TimeUnit.MILLIS), null, 1L),
-            new Cell("TIMESTAMP(NANOS) -> date_nanos", annotatedLong(LogicalTypeAnnotation.TimeUnit.NANOS), null, 1L),
-            // decode rescales these relative to the raw statistics; today the rail is blind to that.
-            new Cell("TIMESTAMP(MICROS) -> date_nanos (x1000)", annotatedLong(LogicalTypeAnnotation.TimeUnit.MICROS), null, 1_000L),
-            new Cell("bare INT64 + epoch_second (x1000)", REQUIRED_LONG_SCHEMA, "epoch_second", 1_000L)
+            new Cell("TIMESTAMP(NANOS) -> date_nanos", annotatedLong(LogicalTypeAnnotation.TimeUnit.NANOS), null, 1L)
         );
 
         List<String> broken = new ArrayList<>();

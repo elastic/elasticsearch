@@ -592,6 +592,51 @@ FROM partial_mapping_sample_data
 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | Disconnected from 10.1.0.3
 ;
 
+// Reproducer for #141990: replacing an unmapped field from an empty mapping with an EVAL expression should not drop source loading.
+replaceUnmappedFieldFromEmptyMapping
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
+
+SET unmapped_fields="load"\;
+FROM no_mapping_date_extract_fields
+| EVAL date_string = date_string::date
+;
+
+date_string:date
+2023-02-01T00:00:00.000Z
+2023-02-02T00:00:00.000Z
+2023-02-03T00:00:00.000Z
+2023-02-04T00:00:00.000Z
+;
+
+aggregateUnmappedFieldFromEmptyMapping
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
+
+SET unmapped_fields="load"\;
+FROM no_mapping_date_extract_fields
+| STATS max_date = MAX(date_string::date)
+;
+
+max_date:date
+2023-02-04T00:00:00.000Z
+;
+
+dropReplacedUnmappedFieldFromEmptyMapping
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
+
+SET unmapped_fields="load"\;
+FROM no_mapping_date_extract_fields
+| EVAL date_string = date_string::date
+| DROP date_string
+| STATS count = COUNT(*)
+;
+
+count:long
+4
+;
+
 fieldUnmappedInSourceButExcludedSingleIndex
 required_capability: optional_fields_v5
 required_capability: source_field_mapping

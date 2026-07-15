@@ -286,15 +286,18 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
 
         /**
-         * The heuristic that can slightly undershoot or overshoot the number of buckets.
+         * The heuristic that can slightly undershoot the number of buckets.
          */
         boolean roundingIsOkHeuristic(Unit unit) {
+            // When you get here:
+            // - via "roundingIsOkCalendarBasedUnit": the interval is at least 1M buckets, so 1M days.
+            // - via "roundingIsOkFixedWidthUnit": the interval has at least 1M transitions, so ~0.5M years.
+            //
+            // We can safely add one year to this time interval and not undershoot the number buckets often.
+            // On the other hand, this margin is quite large and prevents overshooting (empirically tested).
+
             Rounding.Prepared rounding = unit.rounding(zoneId).prepareForUnknown();
-            try {
-                return buckets >= ceilDivExact(to, rounding.round(from), unit.approximateWidthMillis());
-            } catch (ArithmeticException overflow) {
-                return false;
-            }
+            return buckets >= ((double) to - rounding.round(from) + TimeValue.timeValueDays(365).millis()) / unit.approximateWidthMillis();
         }
 
         private static long ceilDivExact(long upperExclusive, long lowerInclusive, long width) {

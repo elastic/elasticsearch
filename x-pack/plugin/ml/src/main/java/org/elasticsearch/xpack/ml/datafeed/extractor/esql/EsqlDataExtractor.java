@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
@@ -34,6 +35,8 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.IDENTIFIER;
 
 public class EsqlDataExtractor implements DataExtractor {
 
@@ -86,14 +89,10 @@ public class EsqlDataExtractor implements DataExtractor {
     @Override
     public DataSummary getSummary() {
         String summaryQuery = context.esqlQuery()
-            + " | STATS earliest_time = MIN(`"
-            + context.timeField()
-            + "`), latest_time = MAX(`"
-            + context.timeField()
-            + "`), total_hits = COUNT(*)";
+            + " | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)";
         QueryBuilder timeFilter = buildTimeFilter();
         long startMs = client.threadPool().relativeTimeInMillis();
-        try (EsqlQueryResponse response = runEsqlQuery(summaryQuery, timeFilter)) {
+        try (EsqlQueryResponse response = runEsqlQuery(summaryQuery, timeFilter, timeFieldParam())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
             timingStatsReporter.reportSearchDuration(TimeValue.timeValueMillis(durationMs));
             return parseSummaryResponse(response.response());
@@ -151,23 +150,28 @@ public class EsqlDataExtractor implements DataExtractor {
 
         // Anomaly detection drops records that arrive out of time order
         // We add a SORT on the time field to ensure that the data is returned in time order
-        String orderedQuery = context.esqlQuery() + " | SORT `" + context.timeField() + "` ASC";
+        String orderedQuery = context.esqlQuery() + " | SORT ??timeField ASC";
 
-        try (EsqlQueryResponse response = runEsqlQuery(orderedQuery, timeFilter)) {
+        try (EsqlQueryResponse response = runEsqlQuery(orderedQuery, timeFilter, timeFieldParam())) {
             Optional<InputStream> data = toNdjson(response.response(), context.timeField(), context.requiredSummaryCountField());
             return new Result(searchInterval, data, List.of());
         }
     }
 
-    protected EsqlQueryResponse runEsqlQuery(String orderedQuery, QueryBuilder timeFilter) {
+    protected EsqlQueryResponse runEsqlQuery(String orderedQuery, QueryBuilder timeFilter, List<EsqlQueryParam> params) {
         EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request = EsqlQueryRequestBuilder
             .newRequestBuilder(client)
             .query(orderedQuery)
-            .filter(timeFilter);
+            .filter(timeFilter)
+            .params(params);
         if (context.projectRouting() != null) {
             request.projectRouting(context.projectRouting());
         }
         return execute(request);
+    }
+
+    private List<EsqlQueryParam> timeFieldParam() {
+        return List.of(new EsqlQueryParam("timeField", context.timeField(), IDENTIFIER));
     }
 
     private EsqlQueryResponse execute(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {

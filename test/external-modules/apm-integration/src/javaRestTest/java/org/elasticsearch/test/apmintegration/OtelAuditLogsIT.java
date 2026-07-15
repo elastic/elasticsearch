@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +35,7 @@ import java.util.function.Consumer;
  * programmatically by {@code OtelSdkExportLogsSupplier}) → {@code SdkLoggerProvider} →
  * {@code OtlpGrpcLogRecordExporter} → gRPC recording server.
  */
+@ThreadLeakFilters(filters = { GrpcThreadsFilter.class })
 public class OtelAuditLogsIT extends AbstractTelemetryIT {
 
     private static final Logger logger = LogManager.getLogger(OtelAuditLogsIT.class);

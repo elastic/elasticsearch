@@ -1368,6 +1368,25 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                         case LT -> raw < rawBound;
                         case LTE -> raw <= rawBound;
                     };
+                    // Ordered ops must be EXACT (never looser either): a loose bound is safe DIRECTLY but becomes
+                    // stricter-than-truth once wrapped in NOT, which the translator admits. Only == is allowed to be
+                    // a decline (null), never loose.
+                    if (op != DeclaredTypeCoercions.BoundOp.EQ && trulyMatches == false && pushedKeeps) {
+                        fail(
+                            "LOOSER THAN TRUTH — unsafe under NOT: relation="
+                                + relation
+                                + " op="
+                                + op
+                                + " raw="
+                                + raw
+                                + " decodes to "
+                                + decoded
+                                + ", bound="
+                                + bound
+                                + ", pushed raw bound="
+                                + rawBound
+                        );
+                    }
                     if (trulyMatches && pushedKeeps == false) {
                         fail(
                             "STRICTER THAN TRUTH — this prunes a matching row: relation="
@@ -1489,5 +1508,59 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             () -> DeclaredTypeCoercions.parseDatetimeMillis(String.valueOf(hugeSeconds), epochSecond)
         );
         assertFalse("must not leak ArithmeticException past the per-cell policy", e instanceof ArithmeticException);
+    }
+
+    /**
+     * Boundary-exact version of the never-stricter/never-looser property: random sampling almost never lands in the
+     * 999-wide band where a ScaleDown bound can be loose, so probe the band edges DETERMINISTICALLY. A loose ordered
+     * bound is safe directly but stricter-than-truth once wrapped in NOT, which the translator admits.
+     */
+    public void testOrderedBoundsAreExactAtBandEdges() {
+        long d = 1000L;
+        var rel = new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(d);
+        for (long bound : new long[] { -3, 0, 1, 7 }) {
+            long base = bound * d;
+            // raw values straddling both the low edge (base) and the high edge (base + d - 1) of the band.
+            for (long raw : new long[] { base - 1, base, base + 1, base + d - 1, base + d, base + d + 1 }) {
+                long decoded = Math.floorDiv(raw, d);
+                for (DeclaredTypeCoercions.BoundOp op : DeclaredTypeCoercions.BoundOp.values()) {
+                    if (op == DeclaredTypeCoercions.BoundOp.EQ) {
+                        continue; // EQ is a band, tested separately
+                    }
+                    Long rawBound = DeclaredTypeCoercions.rawBoundFor(rel, bound, op, false);
+                    if (rawBound == null) {
+                        continue;
+                    }
+                    boolean truth = switch (op) {
+                        case GT -> decoded > bound;
+                        case GTE -> decoded >= bound;
+                        case LT -> decoded < bound;
+                        case LTE -> decoded <= bound;
+                        case EQ -> decoded == bound;
+                    };
+                    boolean kept = switch (op) {
+                        case GT -> raw > rawBound;
+                        case GTE -> raw >= rawBound;
+                        case LT -> raw < rawBound;
+                        case LTE -> raw <= rawBound;
+                        case EQ -> raw == rawBound;
+                    };
+                    assertEquals(
+                        "ordered bound must be EXACT (safe under NOT): op="
+                            + op
+                            + " bound="
+                            + bound
+                            + " raw="
+                            + raw
+                            + " decodes "
+                            + decoded
+                            + " pushed="
+                            + rawBound,
+                        truth,
+                        kept
+                    );
+                }
+            }
+        }
     }
 }

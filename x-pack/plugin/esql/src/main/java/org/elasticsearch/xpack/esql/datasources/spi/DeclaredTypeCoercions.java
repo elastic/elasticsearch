@@ -801,8 +801,10 @@ public final class DeclaredTypeCoercions {
                         case LT -> base;
                         // decoded <= bound <=> raw <= base + d - 1 (the TOP of the band, not its floor)
                         case LTE -> Math.addExact(base, d - 1);
-                        // decoded > bound <=> raw >= base + d; pushing gt(base) is looser, hence safe.
-                        case GT -> base;
+                        // decoded > bound <=> raw >= base + d <=> raw > base + d - 1. The EXACT bound, not the
+                        // looser gt(base): a loose GT is safe pushed directly but becomes stricter-than-truth once
+                        // wrapped in NOT (which the translator admits), pruning matching rows.
+                        case GT -> Math.addExact(base, d - 1);
                         // decoded == bound covers the whole band — not a point. A range consumer could push the band,
                         // but a set-membership consumer cannot express it, so decline.
                         case EQ -> null;

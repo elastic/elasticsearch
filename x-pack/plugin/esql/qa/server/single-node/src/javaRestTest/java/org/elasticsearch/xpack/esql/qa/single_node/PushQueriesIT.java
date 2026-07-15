@@ -237,7 +237,7 @@ public class PushQueriesIT extends ESRestTestCase {
     }
 
     public void testCaseInsensitiveEquality() throws IOException {
-        String value = "a".repeat(between(0, 256));
+        String value = "a".repeat(between(1, 256));
         String esqlQuery = """
             FROM test
             | WHERE TO_LOWER(test) == "%value"

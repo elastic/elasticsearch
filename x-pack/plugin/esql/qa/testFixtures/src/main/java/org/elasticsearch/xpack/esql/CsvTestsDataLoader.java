@@ -137,6 +137,7 @@ public class CsvTestsDataLoader {
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
         new TestDataset("partial_mapping_mv_sample_data", "mapping-partial_mapping_sample_data.json", "partial_mapping_mv_sample_data.csv"),
+        new TestDataset("no_mapping_date_extract_fields", "mapping-no_mapping_sample_data.json", "date_extract_fields.csv"),
         new TestDataset(
             "partial_mapping_mv_no_source_sample_data",
             "mapping-partial_mapping_no_source_sample_data.json",

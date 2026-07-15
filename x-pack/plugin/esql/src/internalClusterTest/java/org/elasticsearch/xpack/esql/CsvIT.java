@@ -351,6 +351,7 @@ public class CsvIT extends ESTestCase {
         );
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
+        CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesLocalCluster);
         CsvTestUtils.checkPragma(testCase.pragmas);
 
         currentGroupName = groupName;

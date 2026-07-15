@@ -252,6 +252,11 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
+    }
+
+    @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || nullValue != null;
     }

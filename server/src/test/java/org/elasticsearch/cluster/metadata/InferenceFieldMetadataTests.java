@@ -68,7 +68,8 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
         String searchInferenceId = randomIdentifier();
         String[] inputFields = generateRandomStringArray(5, 10, false, false);
         Map<String, Object> chunkingSettings = generateRandomChunkingSettings();
-        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields, chunkingSettings);
+        boolean referenceValuesRequired = randomBoolean();
+        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields, chunkingSettings, referenceValuesRequired);
     }
 
     public static Map<String, Object> generateRandomChunkingSettings() {
@@ -96,16 +97,19 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
     public void testNullCtorArgsThrowException() {
         assertThrows(
             NullPointerException.class,
-            () -> new InferenceFieldMetadata(null, "inferenceId", "searchInferenceId", new String[0], Map.of())
+            () -> new InferenceFieldMetadata(null, "inferenceId", "searchInferenceId", new String[0], Map.of(), false)
         );
         assertThrows(
             NullPointerException.class,
-            () -> new InferenceFieldMetadata("name", null, "searchInferenceId", new String[0], Map.of())
+            () -> new InferenceFieldMetadata("name", null, "searchInferenceId", new String[0], Map.of(), false)
         );
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", null, new String[0], Map.of()));
         assertThrows(
             NullPointerException.class,
-            () -> new InferenceFieldMetadata("name", "inferenceId", "searchInferenceId", null, Map.of())
+            () -> new InferenceFieldMetadata("name", "inferenceId", null, new String[0], Map.of(), false)
+        );
+        assertThrows(
+            NullPointerException.class,
+            () -> new InferenceFieldMetadata("name", "inferenceId", "searchInferenceId", null, Map.of(), false)
         );
     }
 }

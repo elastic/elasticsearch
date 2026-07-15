@@ -34,6 +34,8 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
@@ -243,6 +245,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     }
 
     private class AsyncBulkShardInferenceAction implements Runnable {
+        private static final CheckedFunction<XContentParser, InferenceString, IOException> INFERENCE_STRING_PARSER =
+            p -> ReferenceValueInferenceString.PARSER.parse(p, null);
+
         private final boolean useLegacyFormat;
         private final IndexVersion indexVersion;
         private final Map<String, InferenceFieldMetadata> fieldInferenceMap;
@@ -472,7 +477,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final List<InferenceStringFieldInferenceRequest> requests,
             final Releasable onFinish
         ) {
-            final List<InferenceStringGroup> inputs = requests.stream().map(r -> new InferenceStringGroup(r.input())).toList();
+            final List<InferenceStringGroup> inputs = requests.stream().map(r -> {
+                InferenceString inferenceString = r.input();
+                if (inferenceString instanceof ReferenceValueInferenceString rvis) {
+                    inferenceString = rvis.truncateReferenceValue();
+                }
+
+                return new InferenceStringGroup(inferenceString);
+            }).toList();
 
             ActionListener<InferenceServiceResults> completionListener = ActionListener.wrap(results -> {
                 try (onFinish) {
@@ -530,6 +542,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                     request.sourceField(),
                                     request.fieldInputOrder(),
                                     request.sourceFieldInputIndex(),
+                                    request.input(),
                                     inferenceProvider.model,
                                     embedding
                                 )
@@ -720,7 +733,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     final List<?> values;
                     try {
                         values = allowObjectValues
-                            ? SemanticTextUtils.nodeObjectValues(field, valueObj)
+                            ? SemanticTextUtils.nodeObjectValues(field, valueObj, INFERENCE_STRING_PARSER)
                             : SemanticTextUtils.nodeStringValues(field, valueObj);
                     } catch (Exception exc) {
                         setInferenceResponseFailure(itemIndex, exc);
@@ -736,7 +749,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         chunkingSettings,
                         order,
                         values,
-                        requests
+                        requests,
+                        entry.isReferenceValuesRequired()
                     );
                     order += values.size();
                 }
@@ -762,7 +776,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             ChunkingSettings chunkingSettings,
             int startOrder,
             List<?> values,
-            List<FieldInferenceRequest> requests
+            List<FieldInferenceRequest> requests,
+            boolean referenceValuesRequired
         ) {
             int order = startOrder;
             int offsetAdjustment = 0;
@@ -787,7 +802,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         offsetAdjustment,
                         chunkingSettings
                     );
-                    case InferenceString is -> addInferenceStringRequest(requests, itemIndex, field, sourceField, is, order, inputIndex);
+                    case InferenceString is -> addInferenceStringRequest(
+                        requests,
+                        itemIndex,
+                        field,
+                        sourceField,
+                        is,
+                        order,
+                        inputIndex,
+                        referenceValuesRequired
+                    );
                     default -> {
                         setInferenceResponseFailure(
                             itemIndex,
@@ -859,8 +883,25 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             String sourceField,
             InferenceString input,
             int order,
-            int sourceFieldInputIndex
+            int sourceFieldInputIndex,
+            boolean referenceValuesRequired
         ) {
+            boolean hasReferenceValue = input instanceof ReferenceValueInferenceString;
+            if (hasReferenceValue != referenceValuesRequired) {
+                setInferenceResponseFailure(
+                    itemIndex,
+                    new ElasticsearchStatusException(
+                        referenceValuesRequired
+                            ? "Input for field [{}] from source field [{}] requires a [reference_value] to be set"
+                            : "Input for field [{}] from source field [{}] does not accept a [reference_value]",
+                        RestStatus.BAD_REQUEST,
+                        field,
+                        sourceField
+                    )
+                );
+                return -1;
+            }
+
             if (input.dataFormat() == DataFormat.BASE64) {
                 long decodedSize = base64BinarySize(input.value());
                 if (decodedSize == 0) {
@@ -975,6 +1016,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
             final IndexRequest indexRequest = getIndexRequestOrNull(item.request());
             Map<String, Object> inferenceFieldsMap = new HashMap<>();
+            Map<String, Object> sourceMap = null;
             for (var entry : response.responses.entrySet()) {
                 var fieldName = entry.getKey();
                 var responses = entry.getValue();
@@ -996,6 +1038,35 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                     var lst = chunkMap.computeIfAbsent(resp.sourceField(), k -> new ArrayList<>());
                     lst.addAll(resp.toChunks(useLegacyFormat, indexRequest.getContentType()));
+
+                    if (resp instanceof InferenceStringFieldInferenceResponse isfir
+                        && isfir.input() instanceof ReferenceValueInferenceString rvis) {
+                        if (sourceMap == null) {
+                            sourceMap = indexRequest.sourceAsMap();
+                        }
+
+                        InferenceString replacementInferenceString = rvis.replaceValueWithReferenceValue();
+                        Object fieldValue = sourceMap.get(fieldName);
+                        switch (fieldValue) {
+                            case null -> throw new IllegalStateException("Field [" + fieldName + "] not found in source map");
+                            case List<?> list -> {
+                                @SuppressWarnings("unchecked")
+                                List<Object> valueList = (List<Object>) list;
+                                valueList.set(isfir.sourceFieldInputIndex(), replacementInferenceString);
+                            }
+                            case Map<?, ?> map -> {
+                                assert isfir.sourceFieldInputIndex() == 0;
+                                sourceMap.put(fieldName, replacementInferenceString);
+                            }
+                            default -> throw new IllegalStateException(
+                                "Source field value type for field ["
+                                    + fieldName
+                                    + "] should be a list or map, found ["
+                                    + fieldValue.getClass().getName()
+                                    + "]"
+                            );
+                        }
+                    }
                 }
 
                 List<String> inputs = useLegacyFormat
@@ -1019,10 +1090,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 inferenceFieldsMap.put(fieldName, result);
             }
 
-            updateIndexSource(item, inferenceFieldsMap);
+            updateIndexSource(item, inferenceFieldsMap, sourceMap);
         }
 
-        private void updateIndexSource(BulkItemRequest item, Map<String, Object> inferenceFieldsMap) throws IOException {
+        private void updateIndexSource(
+            BulkItemRequest item,
+            Map<String, Object> inferenceFieldsMap,
+            @Nullable Map<String, Object> newSourceMap
+        ) throws IOException {
             IndexRequest indexRequest = getIndexRequestOrNull(item.request());
             IndexSource indexSource = indexRequest.indexSource();
             int originalSourceSize = indexSource.byteLength();
@@ -1033,6 +1108,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
                 }
                 indexSource.source(newDocMap, indexSource.contentType());
+            } else if (newSourceMap != null) {
+                newSourceMap.put(InferenceMetadataFieldsMapper.NAME, inferenceFieldsMap);
+                indexSource.source(newSourceMap, indexRequest.getContentType());
             } else {
                 try (XContentBuilder builder = XContentBuilder.builder(indexSource.contentType().xContent())) {
                     appendSourceAndInferenceMetadata(builder, indexSource.bytes(), indexSource.contentType(), inferenceFieldsMap);

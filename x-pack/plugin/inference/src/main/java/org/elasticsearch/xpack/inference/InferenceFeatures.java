@@ -88,6 +88,9 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature SEMANTIC_TEXT_EMBEDDING_TASK = new NodeFeature("semantic_text.inference_using_embedding_task");
     public static final NodeFeature INFERENCE_INFERENCE_INDEX_DOC_TYPE = new NodeFeature("inference.inference_index_doc_type");
     public static final NodeFeature INFERENCE_CLEAR_PREFERENCES_CACHE = new NodeFeature("inference.clear_preferences_cache");
+    private static final NodeFeature SEMANTIC_FIELD_REFERENCE_VALUE_INFERENCE_STRINGS = new NodeFeature(
+        "semantic_field.reference_value_inference_strings"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -160,7 +163,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES,
                 SEMANTIC_TEXT_EMBEDDING_TASK,
                 SemanticTextFieldMapper.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES,
-                SemanticFieldMapper.SEMANTIC_FIELD_MAPPER
+                SemanticFieldMapper.SEMANTIC_FIELD_MAPPER,
+                SEMANTIC_FIELD_REFERENCE_VALUE_INFERENCE_STRINGS
             )
         );
         testFeatures.addAll(getFeatures());

@@ -24,6 +24,8 @@ import java.util.Objects;
 final class InferenceStringFieldInferenceResponse extends FieldInferenceResponse {
     /** The position of the input within its source field. */
     private final int sourceFieldInputIndex;
+    /** The input that produced the inference results. */
+    private final InferenceString input;
     /** the inference results. */
     private final EmbeddingResults.Embedding<?> inferenceResults;
 
@@ -32,16 +34,22 @@ final class InferenceStringFieldInferenceResponse extends FieldInferenceResponse
         String sourceField,
         int fieldInputOrder,
         int sourceFieldInputIndex,
+        InferenceString input,
         @Nullable Model model,
         EmbeddingResults.Embedding<?> inferenceResults
     ) {
         super(field, sourceField, fieldInputOrder, model);
         this.sourceFieldInputIndex = sourceFieldInputIndex;
+        this.input = input;
         this.inferenceResults = inferenceResults;
     }
 
     public int sourceFieldInputIndex() {
         return sourceFieldInputIndex;
+    }
+
+    public InferenceString input() {
+        return input;
     }
 
     public EmbeddingResults.Embedding<?> inferenceResults() {
@@ -67,11 +75,13 @@ final class InferenceStringFieldInferenceResponse extends FieldInferenceResponse
     public boolean equals(Object o) {
         if (super.equals(o) == false) return false;
         InferenceStringFieldInferenceResponse that = (InferenceStringFieldInferenceResponse) o;
-        return sourceFieldInputIndex == that.sourceFieldInputIndex && Objects.equals(inferenceResults, that.inferenceResults);
+        return sourceFieldInputIndex == that.sourceFieldInputIndex
+            && Objects.equals(input, that.input)
+            && Objects.equals(inferenceResults, that.inferenceResults);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), sourceFieldInputIndex, inferenceResults);
+        return Objects.hash(super.hashCode(), sourceFieldInputIndex, input, inferenceResults);
     }
 }

@@ -27,13 +27,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.cluster.metadata.InferenceFieldMetadata.SEMANTIC_REFERENCE_VALUES;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
  */
-public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Writeable, ToXContentObject {
+public class InferenceString implements Writeable, ToXContentObject {
     public static final TransportVersion EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED = TransportVersion.fromName(
         "inference_api_audio_video_pdf_support"
     );
@@ -48,15 +49,50 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     public static final String TYPE_FIELD = "type";
     public static final String FORMAT_FIELD = "format";
     public static final String VALUE_FIELD = "value";
+    public static final String REFERENCE_VALUE_FIELD = "reference_value";
+
+    private final DataType dataType;
+    private final DataFormat dataFormat;
+    private final String value;
 
     public static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         InferenceString.class.getSimpleName(),
-        args -> new InferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2])
+        args -> {
+            DataType dataType = (DataType) args[0];
+            DataFormat dataFormat = (DataFormat) args[1];
+            String value = (String) args[2];
+            String referenceValue = (String) args[3];
+
+            boolean hasValue = value != null;
+            boolean hasReferenceValue = referenceValue != null;
+            boolean isReferenceFormat = dataFormat == DataFormat.REFERENCE;
+
+            if (hasValue == hasReferenceValue) {
+                throw new IllegalArgumentException("Must set exactly one of [value] and [reference_value]");
+            }
+            if (hasReferenceValue != isReferenceFormat) {
+                throw new IllegalArgumentException(
+                    isReferenceFormat
+                        ? "Must set [reference_value] when using [format: reference]"
+                        : "Must set [format: reference] to specify [reference_value]"
+                );
+            }
+            return new InferenceString(dataType, dataFormat, hasReferenceValue ? referenceValue : value);
+        }
     );
     static {
-        PARSER.declareString(constructorArg(), DataType::fromString, new ParseField(TYPE_FIELD));
-        PARSER.declareString(optionalConstructorArg(), DataFormat::fromString, new ParseField(FORMAT_FIELD));
-        PARSER.declareString(constructorArg(), new ParseField(VALUE_FIELD));
+        declareCommonFields(PARSER);
+    }
+
+    /**
+     * Registers the fields common to every {@link InferenceString} onto the given parser. Subclasses of {@link InferenceString} that define
+     * their own XContent parser should call this before declaring their own additional fields.
+     */
+    protected static void declareCommonFields(ConstructingObjectParser<? extends InferenceString, Void> parser) {
+        parser.declareString(constructorArg(), DataType::fromString, new ParseField(TYPE_FIELD));
+        parser.declareString(optionalConstructorArg(), DataFormat::fromString, new ParseField(FORMAT_FIELD));
+        parser.declareString(optionalConstructorArg(), new ParseField(VALUE_FIELD));
+        parser.declareString(optionalConstructorArg(), new ParseField(REFERENCE_VALUE_FIELD));
     }
 
     /**
@@ -92,6 +128,22 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         validateDataURIFormat();
     }
 
+    public InferenceString(StreamInput in) throws IOException {
+        this(in.readEnum(DataType.class), in.readEnum(DataFormat.class), in.readString());
+    }
+
+    public DataType dataType() {
+        return dataType;
+    }
+
+    public DataFormat dataFormat() {
+        return dataFormat;
+    }
+
+    public String value() {
+        return value;
+    }
+
     private void validateTypeAndFormat() {
         if (dataType.getSupportedFormats().contains(dataFormat) == false) {
             throw new IllegalArgumentException(
@@ -117,10 +169,6 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
                 );
             }
         }
-    }
-
-    public InferenceString(StreamInput in) throws IOException {
-        this(in.readEnum(DataType.class), in.readEnum(DataFormat.class), in.readString());
     }
 
     public boolean isText() {
@@ -202,6 +250,13 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
                 RestStatus.BAD_REQUEST
             );
         }
+        // TODO: Use dedicated transport version for reference data format
+        if (dataFormat == DataFormat.REFERENCE && out.getTransportVersion().supports(SEMANTIC_REFERENCE_VALUES) == false) {
+            // TODO: Should this be a 400 or 500 error?
+            throw new IllegalStateException(
+                "Cannot serialize a [" + DataFormat.REFERENCE + "] data format, one or or more nodes is too old to support it"
+            );
+        }
         out.writeEnum(dataType);
         out.writeEnum(dataFormat);
         out.writeString(value);
@@ -212,8 +267,36 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         builder.startObject();
         builder.field(TYPE_FIELD, dataType);
         builder.field(FORMAT_FIELD, dataFormat);
-        builder.field(VALUE_FIELD, value);
+        if (dataFormat == DataFormat.REFERENCE) {
+            builder.field(REFERENCE_VALUE_FIELD, value);
+        } else {
+            builder.field(VALUE_FIELD, value);
+        }
+        doToXContent(builder, params);
         builder.endObject();
         return builder;
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        var that = (InferenceString) obj;
+        return Objects.equals(this.dataType, that.dataType)
+            && Objects.equals(this.dataFormat, that.dataFormat)
+            && Objects.equals(this.value, that.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(dataType, dataFormat, value);
+    }
+
+    @Override
+    public String toString() {
+        return "InferenceString[dataType=" + dataType + ", dataFormat=" + dataFormat + ", value=" + value + ']';
+    }
+
+    // TODO: Javadoc
+    protected void doToXContent(XContentBuilder builder, Params params) throws IOException {}
 }

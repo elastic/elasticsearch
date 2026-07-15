@@ -50,10 +50,10 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public void testSupportedFormatsForType() {
         assertThat(DataType.TEXT.getSupportedFormats(), is(EnumSet.of(DataFormat.TEXT)));
-        assertThat(DataType.IMAGE.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64)));
-        assertThat(DataType.AUDIO.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64)));
-        assertThat(DataType.VIDEO.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64)));
-        assertThat(DataType.PDF.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64)));
+        assertThat(DataType.IMAGE.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64, DataFormat.REFERENCE)));
+        assertThat(DataType.AUDIO.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64, DataFormat.REFERENCE)));
+        assertThat(DataType.VIDEO.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64, DataFormat.REFERENCE)));
+        assertThat(DataType.PDF.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64, DataFormat.REFERENCE)));
     }
 
     public void testConstructorWithInvalidDataURI_throws() {
@@ -291,7 +291,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
             assertThat(exception.getMessage(), containsString("[InferenceString] failed to parse field [format]"));
             assertThat(
                 exception.getCause().getMessage(),
-                is(Strings.format("Unrecognized format [%s], must be one of [text, base64]", invalidFormat))
+                is(Strings.format("Unrecognized format [%s], must be one of [text, base64, reference]", invalidFormat))
             );
         }
     }

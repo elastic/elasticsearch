@@ -149,6 +149,7 @@ abstract class AbstractSemanticMapperTestCase extends MapperTestCase {
         checker.registerIgnoredParameter("model_settings");
         checker.registerIgnoredParameter("chunking_settings");
         checker.registerIgnoredParameter("index_options");
+        checker.registerIgnoredParameter("use_reference_values");
     }
 
     @Override

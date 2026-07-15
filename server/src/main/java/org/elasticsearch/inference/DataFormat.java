@@ -19,7 +19,8 @@ import java.util.Locale;
  */
 public enum DataFormat {
     TEXT,
-    BASE64;
+    BASE64,
+    REFERENCE;
 
     @Override
     public String toString() {

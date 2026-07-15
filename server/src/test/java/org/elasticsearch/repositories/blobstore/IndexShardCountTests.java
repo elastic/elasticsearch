@@ -233,7 +233,8 @@ public class IndexShardCountTests extends ESTestCase {
             randomIdentifier(),
             randomIdentifier(),
             randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new),
-            InferenceFieldMetadataTests.generateRandomChunkingSettings()
+            InferenceFieldMetadataTests.generateRandomChunkingSettings(),
+            randomBoolean()
         );
     }
 

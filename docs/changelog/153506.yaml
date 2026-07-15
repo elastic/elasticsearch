@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 153506
+summary: Semantic field - replace data URL with reference value - POC
+type: enhancement

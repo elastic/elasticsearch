@@ -38,7 +38,7 @@ import java.util.function.Function;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 
-public class StatelessReshardFlushFailureIT extends AbstractStatelessPluginIntegTestCase {
+public class StatelessReshardFlushIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -311,7 +311,7 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
         appendValues(builder, 0.0, 100.0, 100.0, 5);
         // Position 1: avg = 30.0 / 3 = 10.0
         appendValues(builder, 0.0, 30.0, 30.0, 3);
-        // Position 2: count=0 → null
+        // Position 2: count=0 → sum/0 = +Infinity (IEEE 754, consistent with AvgBlockLoader)
         appendValues(builder, 0.0, 0.0, 5.0, 0);
         // Position 3: null → null
         builder.appendNull();
@@ -328,7 +328,8 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
             assertEquals(1, result.getValueCount(1));
             assertEquals(10.0, result.getDouble(result.getFirstValueIndex(1)), 1e-5);
 
-            assertTrue(result.isNull(2));
+            assertFalse(result.isNull(2));
+            assertEquals(Double.POSITIVE_INFINITY, result.getDouble(result.getFirstValueIndex(2)), 0.0);
             assertTrue(result.isNull(3));
 
             // Second call must return the same cached block
@@ -361,7 +362,7 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
         countBuilder.appendInt(2);
         countBuilder.appendInt(3);
         countBuilder.endPositionEntry();
-        // Position 2: two values, one with count=0 → only one avg emitted
+        // Position 2: two values; only the first pair (sum=20.0, count=4) is used → avg=5.0
         var minBuilder2 = builder.min();
         minBuilder2.beginPositionEntry();
         minBuilder2.appendDouble(0.0);
@@ -392,14 +393,12 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
             assertEquals(1, result.getValueCount(0));
             assertEquals(20.0, result.getDouble(result.getFirstValueIndex(0)), 1e-5);
 
-            // position 1: two averages
+            // position 1: only the first value pair (sum=10.0, count=2) is used
             assertFalse(result.isNull(1));
-            assertEquals(2, result.getValueCount(1));
-            int first = result.getFirstValueIndex(1);
-            assertEquals(5.0, result.getDouble(first), 1e-5);
-            assertEquals(10.0, result.getDouble(first + 1), 1e-5);
+            assertEquals(1, result.getValueCount(1));
+            assertEquals(5.0, result.getDouble(result.getFirstValueIndex(1)), 1e-5);
 
-            // position 2: one valid avg (the other was count=0)
+            // position 2: first value pair used → avg=5.0
             assertFalse(result.isNull(2));
             assertEquals(1, result.getValueCount(2));
             assertEquals(5.0, result.getDouble(result.getFirstValueIndex(2)), 1e-5);

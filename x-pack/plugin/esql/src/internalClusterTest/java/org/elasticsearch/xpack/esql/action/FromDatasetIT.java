@@ -260,7 +260,19 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "scale_xdecl_millis",
         "cb_inferred",
         "cb_nonstrict",
-        "cb_strict"
+        "cb_strict",
+        "cb_ndjson_inferred",
+        "cb_ndjson_nonstrict",
+        "cb_ndjson_strict",
+        "epoch_ovf_pq_null",
+        "epoch_ovf_pq_skip",
+        "epoch_ovf_pq_fail",
+        "epoch_ovf_csv_null",
+        "epoch_ovf_csv_skip",
+        "epoch_ovf_csv_fail",
+        "epoch_ovf_nj_null",
+        "epoch_ovf_nj_skip",
+        "epoch_ovf_nj_fail"
     );
 
     /**
@@ -3034,7 +3046,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     private void assertQ(String label, String query, Object expected) {
-        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+        assertQ(label, query, expected, TIMEOUT);
+    }
+
+    private void assertQ(String label, String query, Object expected, org.elasticsearch.core.TimeValue timeout) {
+        try (var response = run(syncEsqlQueryRequest(query), timeout)) {
             List<List<Object>> rows = getValuesList(response);
             Object actual = rows.isEmpty() ? null : rows.get(0).get(0);
             assertThat(label + " :: " + query, actual, equalTo(expected));
@@ -3073,6 +3089,268 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 )
             )
         );
+    }
+
+    /**
+     * Real-data validation against a genuine ClickBench NDJSON file, whose {@code EventTime} is a calendar STRING
+     * ({@code "2013-07-28 15:03:05"}) — the text-carrier shape — declared {@code {date, format: "yyyy-MM-dd HH:mm:ss"}}.
+     * Mirrors {@link #testRealClickBenchEventTimeAcrossAllThreeModes} across all three declaration modes with ground
+     * truth computed independently ({@code jq}/python over the raw strings), so the declared-format decode, filter and
+     * aggregate carriers are exercised end-to-end on genuine third-party bytes. Skipped unless
+     * {@code -Dtests.clickbench.real.ndjson=<path>} points at a decompressed {@code hits_*.ndjson}; values pinned from
+     * {@code ndjson/industry-standard/.../hits_109.ndjson} (442,467 rows).
+     */
+    private java.nio.file.Path realClickBenchNdjsonLocal;
+
+    public void testRealClickBenchNdjsonEventTimeAcrossAllThreeModes() throws Exception {
+        String realPath = System.getProperty("tests.clickbench.real.ndjson");
+        assumeTrue("set -Dtests.clickbench.real.ndjson to a decompressed hits_*.ndjson", realPath != null);
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        String minStr = "2013-07-27 20:00:00";
+        String maxStr = "2013-07-28 19:59:59";
+        long minMillis = 1374955200000L; // 2013-07-27T20:00:00.000Z
+        long maxMillis = 1375041599000L; // 2013-07-28T19:59:59.000Z
+        String maxIso = "2013-07-28T19:59:59.000Z";
+        long count = 442467L;
+        // A full scan of the ~1 GB decompressed file per query needs longer than the shared 30s wait.
+        org.elasticsearch.core.TimeValue slow = org.elasticsearch.core.TimeValue.timeValueMinutes(10);
+
+        // MODE 1 — INFERRED: no declaration; EventTime infers as keyword. The pattern is lexically monotone, so the
+        // string extrema coincide with the chronological ones.
+        registerRealNdjson("cb_ndjson_inferred", realPath, null);
+        assertQ("cb_ndjson_inferred MAX", "FROM cb_ndjson_inferred | STATS m = MAX(EventTime)", maxStr, slow);
+        assertQ("cb_ndjson_inferred MIN", "FROM cb_ndjson_inferred | STATS m = MIN(EventTime)", minStr, slow);
+        assertQ("cb_ndjson_inferred COUNT", "FROM cb_ndjson_inferred | STATS c = COUNT(*)", count, slow);
+
+        // MODE 2 — NON-STRICT: dynamic:true, declare EventTime {date, format}; the string decodes to epoch millis.
+        registerRealNdjson("cb_ndjson_nonstrict", realPath, DatasetMapping.Dynamic.TRUE);
+        assertQ(
+            "cb_ndjson_nonstrict ==",
+            "FROM cb_ndjson_nonstrict | WHERE EventTime == TO_DATETIME(\"" + maxIso + "\") | STATS c = COUNT(*)",
+            4L,
+            slow
+        );
+        assertQ(
+            "cb_ndjson_nonstrict SORT DESC",
+            "FROM cb_ndjson_nonstrict | SORT EventTime DESC | LIMIT 1 | EVAL v = EventTime::long | KEEP v",
+            maxMillis,
+            slow
+        );
+        assertQ(
+            "cb_ndjson_nonstrict MAX",
+            "FROM cb_ndjson_nonstrict | STATS m = MAX(EventTime) | EVAL v = m::long | KEEP v",
+            maxMillis,
+            slow
+        );
+        assertQ(
+            "cb_ndjson_nonstrict MIN",
+            "FROM cb_ndjson_nonstrict | STATS m = MIN(EventTime) | EVAL v = m::long | KEEP v",
+            minMillis,
+            slow
+        );
+
+        // MODE 3 — STRICT: dynamic:false, EventTime {date, format} pinned as the schema.
+        registerRealNdjson("cb_ndjson_strict", realPath, DatasetMapping.Dynamic.FALSE);
+        assertQ(
+            "cb_ndjson_strict ==",
+            "FROM cb_ndjson_strict | WHERE EventTime == TO_DATETIME(\"" + maxIso + "\") | STATS c = COUNT(*)",
+            4L,
+            slow
+        );
+        assertQ("cb_ndjson_strict MAX", "FROM cb_ndjson_strict | STATS m = MAX(EventTime) | EVAL v = m::long | KEEP v", maxMillis, slow);
+    }
+
+    private void registerRealNdjson(String dataset, String realPath, @Nullable DatasetMapping.Dynamic mode) throws Exception {
+        if (realClickBenchNdjsonLocal == null) {
+            realClickBenchNdjsonLocal = createTempDir().resolve("hits.ndjson");
+            Files.copy(org.elasticsearch.core.PathUtils.get(realPath), realClickBenchNdjsonLocal);
+        }
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        DatasetMapping mapping = null;
+        if (mode != null) {
+            props.put("EventTime", DatasetFieldMapping.withFormat("date", null, "yyyy-MM-dd HH:mm:ss"));
+            mapping = new DatasetMapping(new DatasetMapping.Mappings(mode, props));
+        }
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    realClickBenchNdjsonLocal.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson")),
+                    mapping
+                )
+            )
+        );
+    }
+
+    /**
+     * Epoch-scaling overflow on the COLUMNAR (parquet) path: an int64 declared {@code {date, format: epoch_second}}
+     * whose value cannot scale to millis ({@code Long.MAX_VALUE} seconds × 1000) must fail PER CELL — never abort the
+     * whole read on a bare {@code ArithmeticException}, never emit a wrong value. A columnar batch cannot drop a single
+     * row, so {@code skip_row} degrades to the same null+warn as {@code null_field} (see {@code ErrorPolicy}); only
+     * {@code fail_fast} aborts. This is the overflow leg of the error-mode matrix the string-token tests do not reach.
+     */
+    public void testParquetDeclaredEpochSecondOverflowHonorsErrorPolicy() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        long good0 = 1704067200L, good2 = 1704067201L, overflow = Long.MAX_VALUE;
+        Path parquet = writeScalingFixture("epoch_ovf", new long[] { good0, overflow, good2 });
+
+        // null_field and skip_row: the bad cell nulls, both good rows survive (skip_row cannot drop a columnar row).
+        for (String mode : List.of("null_field", "skip_row")) {
+            String ds = mode.equals("null_field") ? "epoch_ovf_pq_null" : "epoch_ovf_pq_skip";
+            putEpochOverflowDataset(ds, "parquet", parquet.toUri().toString(), mode, false);
+            try (var response = run(syncEsqlQueryRequest("FROM " + ds + " | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat("columnar " + mode + " keeps every position", rows, hasSize(3));
+                assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+                assertThat("the overflowing epoch-second cell nulls under " + mode, rows.get(1).get(0), equalTo(null));
+                assertThat(rows.get(2).get(0), equalTo(good2 * 1000L));
+            }
+        }
+        assertLenientWarning("FROM epoch_ovf_pq_null | SORT pri | EVAL v = ts::long | KEEP v");
+
+        // fail_fast: the read aborts with a sensible per-cell error, not a bare ArithmeticException.
+        putEpochOverflowDataset("epoch_ovf_pq_fail", "parquet", parquet.toUri().toString(), "fail_fast", false);
+        Exception failure = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM epoch_ovf_pq_fail | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT).close()
+        );
+        assertFalse("fail_fast overflow must not surface as a bare ArithmeticException", failure instanceof ArithmeticException);
+    }
+
+    /**
+     * Epoch-scaling overflow on the CSV (text) path: same malformed value, same declaration. Text readers ARE
+     * row-oriented, so {@code skip_row} genuinely drops the bad record (two rows survive), while {@code null_field}
+     * keeps it with a null cell — the distinction columnar readers cannot make. {@code fail_fast} aborts.
+     */
+    public void testCsvDeclaredEpochSecondOverflowHonorsErrorPolicy() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        long good0 = 1704067200L, good2 = 1704067201L;
+        Path csv = createTempFile("epoch-ovf-", ".csv");
+        Files.writeString(csv, "pri:integer,ts:long\n1," + good0 + "\n2," + Long.MAX_VALUE + "\n3," + good2 + "\n");
+
+        // null_field: bad cell nulls, all three rows survive.
+        putEpochOverflowDataset("epoch_ovf_csv_null", "csv", csv.toUri().toString(), "null_field", true);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_csv_null | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat("the overflowing cell nulls under null_field", rows.get(1).get(0), equalTo(null));
+            assertThat(rows.get(2).get(0), equalTo(good2 * 1000L));
+        }
+        assertLenientWarning("FROM epoch_ovf_csv_null | SORT pri | EVAL v = ts::long | KEEP v");
+
+        // skip_row: the bad record is dropped whole — only the two good rows survive.
+        putEpochOverflowDataset("epoch_ovf_csv_skip", "csv", csv.toUri().toString(), "skip_row", true);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_csv_skip | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("text skip_row drops the malformed record", rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat(rows.get(1).get(0), equalTo(good2 * 1000L));
+        }
+
+        // fail_fast: aborts.
+        putEpochOverflowDataset("epoch_ovf_csv_fail", "csv", csv.toUri().toString(), "fail_fast", true);
+        Exception failure = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM epoch_ovf_csv_fail | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT).close()
+        );
+        assertFalse("fail_fast overflow must not surface as a bare ArithmeticException", failure instanceof ArithmeticException);
+    }
+
+    /**
+     * Epoch-scaling overflow on the NDJSON (text) path: the row-oriented twin of the CSV test — {@code skip_row} drops
+     * the malformed record, {@code null_field} nulls the cell, {@code fail_fast} aborts.
+     */
+    public void testNdjsonDeclaredEpochSecondOverflowHonorsErrorPolicy() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        long good0 = 1704067200L, good2 = 1704067201L;
+        String content = "{\"pri\":1,\"ts\":" + good0 + "}\n{\"pri\":2,\"ts\":" + Long.MAX_VALUE + "}\n{\"pri\":3,\"ts\":" + good2 + "}\n";
+        Path ndjson = createTempFile("epoch-ovf-", ".ndjson");
+        Files.writeString(ndjson, content);
+
+        // null_field: bad cell nulls, all three rows survive.
+        putEpochOverflowDataset("epoch_ovf_nj_null", "ndjson", ndjson.toUri().toString(), "null_field", true);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_nj_null | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat("the overflowing cell nulls under null_field", rows.get(1).get(0), equalTo(null));
+            assertThat(rows.get(2).get(0), equalTo(good2 * 1000L));
+        }
+        assertLenientWarning("FROM epoch_ovf_nj_null | SORT pri | EVAL v = ts::long | KEEP v");
+
+        // skip_row: the bad record is dropped whole.
+        putEpochOverflowDataset("epoch_ovf_nj_skip", "ndjson", ndjson.toUri().toString(), "skip_row", true);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_nj_skip | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("text skip_row drops the malformed record", rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat(rows.get(1).get(0), equalTo(good2 * 1000L));
+        }
+
+        // fail_fast: aborts.
+        putEpochOverflowDataset("epoch_ovf_nj_fail", "ndjson", ndjson.toUri().toString(), "fail_fast", true);
+        Exception failure = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest("FROM epoch_ovf_nj_fail | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT).close()
+        );
+        assertFalse("fail_fast overflow must not surface as a bare ArithmeticException", failure instanceof ArithmeticException);
+    }
+
+    /**
+     * Registers a {@code {ts: date, format: epoch_second}} dataset over {@code location} with the given {@code error_mode}.
+     * {@code declarePri} names {@code pri} in the mapping too, for the text fixtures whose ordering column the query sorts on.
+     */
+    private void putEpochOverflowDataset(String name, String format, String location, String errorMode, boolean declarePri)
+        throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("ts", DatasetFieldMapping.withFormat("date", null, "epoch_second"));
+        if (declarePri) {
+            props.put("pri", new DatasetFieldMapping("integer", null));
+        }
+        HashMap<String, Object> settings = new HashMap<>(Map.of("format", format, "error_mode", errorMode));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    name,
+                    "local_ds",
+                    location,
+                    null,
+                    settings,
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props))
+                )
+            )
+        );
+    }
+
+    /** Runs {@code query} and asserts at least one response {@code Warning} header surfaced (the lenient malformed-cell announcement). */
+    private void assertLenientWarning(String query) throws Exception {
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.running(() -> {
+            try {
+                internalCluster().getInstance(TransportService.class)
+                    .getThreadPool()
+                    .getThreadContext()
+                    .getResponseHeaders()
+                    .getOrDefault("Warning", List.of())
+                    .forEach(warnings::add);
+            } finally {
+                latch.countDown();
+            }
+        }));
+        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
+        assertThat("a lenient malformed-cell read must emit a response Warning header", warnings, not(empty()));
     }
 
     /**

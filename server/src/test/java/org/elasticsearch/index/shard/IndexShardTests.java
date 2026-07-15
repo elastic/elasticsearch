@@ -3696,10 +3696,22 @@ public class IndexShardTests extends IndexShardTestCase {
         final DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
 
         shard.requestRecoveryCancellation();
-
         shard.markAsRecovering("store", new RecoveryState(shard.routingEntry(), localNode, null));
         expectThrows(RecoveryCancelledException.class, shard::ensureRecoveryNotCancelled);
         closeShards(shard);
+    }
+
+    public void testRequestRecoveryCancellationSetsFlagForPeerRecovery() throws Exception {
+        final IndexMetadata metadata = newTestIndexMetadata();
+        final IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "node1", metadata, null);
+        recoverShardFromStore(primary);
+        final IndexShard replica = newShard(primary.shardId(), false, "node2", metadata, null);
+        final DiscoveryNode node1 = getFakeDiscoNode(primary.routingEntry().currentNodeId());
+        final DiscoveryNode node2 = getFakeDiscoNode(replica.routingEntry().currentNodeId());
+        replica.markAsRecovering("peer", new RecoveryState(replica.routingEntry(), node1, node2));
+        replica.requestRecoveryCancellation();
+        expectThrows(RecoveryCancelledException.class, replica::ensureRecoveryNotCancelled);
+        closeShards(primary, replica);
     }
 
     public void testCancellationFlagSetInCreatedStateCancelsPeerRecovery() throws Exception {

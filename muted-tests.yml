@@ -538,9 +538,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexIsDeleted
   issue: https://github.com/elastic/elasticsearch/issues/152539
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
-  method: testStress
-  issue: https://github.com/elastic/elasticsearch/issues/152671
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/152356

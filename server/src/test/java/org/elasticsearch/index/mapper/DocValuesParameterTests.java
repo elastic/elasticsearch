@@ -9,14 +9,18 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DocValuesParameterTests extends MapperServiceTestCase {
@@ -529,9 +533,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     // -----------------------------------------------------------------------
     // on_failure
-    //
-    // NOTE: on_failure is parsed and stored but not yet enforced anywhere, so these tests only cover parsing, defaulting
-    // and serialization - not runtime behavior.
     // -----------------------------------------------------------------------
 
     public void testOnFailureRejectedInNonColumnarMode() throws Exception {
@@ -624,5 +625,146 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         MapperService roundTripped = createMapperService(settings, mapping);
         KeywordFieldMapper mapper = (KeywordFieldMapper) roundTripped.documentMapper().mappers().getMapper("field");
         assertThat(mapper.docValuesParameters().onFailure(), equalTo(FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE));
+    }
+
+    /**
+     * With {@code on_failure: ignore}, a document that violates {@code multi_value=false} is accepted instead of rejected: the second
+     * value is redirected to the field's failure column and the field is recorded in {@code _ignored}, rather than the whole document
+     * being thrown out.
+     */
+    public void testOnFailureIgnoreAcceptsDocumentInsteadOfThrowing() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("multi_value", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        // must not throw, unlike the on_failure=fail (default) case covered by testIndexSettingFalseEnforcesRejectionOfMultipleValues
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
+
+        // the first value ("a") is indexed normally; the second ("b") must not also land in the main field
+        List<IndexableField> mainField = doc.rootDoc().getFields("field");
+        assertThat(mainField, hasSize(1));
+        assertThat(mainField.get(0).binaryValue().utf8ToString(), equalTo("a"));
+
+        // the second (offending) value is redirected to the failure column instead
+        List<IndexableField> failureColumn = doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX);
+        assertThat(failureColumn.isEmpty(), equalTo(false));
+
+        // the field is recorded as ignored on this document
+        assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())));
+    }
+
+    /**
+     * A document with only a single value never trips the constraint, so nothing is written to the failure column and the field is not
+     * marked ignored, regardless of {@code on_failure}.
+     */
+    public void testOnFailureIgnoreDoesNotAffectSingleValuedDocuments() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("multi_value", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "a")));
+        assertThat(doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX).isEmpty(), equalTo(true));
+        assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(false));
+    }
+
+    /**
+     * {@code on_failure} only kicks in once {@code multi_value=false} is actually violated; with the default {@code multi_value=true} a
+     * multi-valued document is accepted normally and nothing is redirected, regardless of {@code on_failure}.
+     */
+    public void testOnFailureIgnoreIsNoOpWhenMultiValueIsAllowed() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("on_failure", "ignore").endObject())
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
+        assertThat(doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX).isEmpty(), equalTo(true));
+        assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(false));
+    }
+
+    /**
+     * With {@code on_failure: ignore}, a document missing a {@code nullability=false} field is accepted instead of rejected: the field is
+     * just marked ignored.
+     */
+    public void testOnFailureIgnoreAcceptsMissingRequiredFieldInsteadOfThrowing() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("nullability", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> {}));
+        assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())));
+    }
+
+    /**
+     * on_failure is resolved per required field: with two missing {@code nullability=false} fields, only the one configured with
+     * {@code fail} aborts the document; the other, configured with {@code ignore}, is merely marked ignored.
+     */
+    public void testOnFailureMixedPerFieldOnlyFailsForFailField() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("ignored")
+                .field("type", "keyword")
+                .startObject("doc_values")
+                .field("nullability", false)
+                .field("on_failure", "ignore")
+                .endObject()
+                .endObject();
+            b.startObject("failed").field("type", "keyword").startObject("doc_values").field("nullability", false).endObject().endObject();
+        })).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
+        assertThat(e.getCause().getMessage(), containsString("[failed]"));
+        assertThat(e.getCause().getMessage(), not(containsString("[ignored]")));
+    }
+
+    /**
+     * In {@code columnar_stored} mode the failure column only exists to let the whole-document source blob (materialized in
+     * {@link SourceFieldMapper#postParse}) reconstruct the offending value; once that blob is written, the column itself is
+     * redundant and must be pruned from the Lucene document, just like the other per-field synthetic-source-only sidecar fields.
+     */
+    public void testOnFailureIgnoreFailureColumnPrunedInColumnarStoredSource() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("multi_value", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
+        assertThat(doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX).isEmpty(), equalTo(true));
     }
 }

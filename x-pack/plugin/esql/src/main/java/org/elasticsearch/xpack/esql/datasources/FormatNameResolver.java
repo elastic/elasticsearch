@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Single source of truth for resolving format names from EXTERNAL query configuration.
+ * Single source of truth for resolving format names from dataset configuration.
  * <p>
  * Both the optimizer ({@code PushFiltersToSource}) and execution ({@code FileSourceFactory})
  * need to resolve which format reader to use for a given query. This class centralises that
@@ -38,14 +38,14 @@ public final class FormatNameResolver {
     /**
      * Sentinel {@code format} value meaning "no explicit override, infer from the resource
      * extension". Shared with the dataset CRUD validator so the create path and this read path
-     * treat {@code auto} identically. Without this, a stored or EXTERNAL {@code format=auto} would
-     * reach {@code registry.byName("auto")} and throw.
+     * treat {@code auto} identically. Without this, a stored {@code format=auto} would reach
+     * {@code registry.byName("auto")} and throw.
      */
     public static final String FORMAT_AUTO = "auto";
 
-    /** Reader alias accepted in {@code WITH {"reader": "..."}} for the parquet-rs native reader. */
+    /** Reader alias accepted via the {@code reader} dataset setting for the parquet-rs native reader. */
     public static final String READER_PARQUET_RS = "parquet-rs";
-    /** Reader alias accepted in {@code WITH {"reader": "..."}} for the Java parquet reader. */
+    /** Reader alias accepted via the {@code reader} dataset setting for the Java parquet reader. */
     public static final String READER_JAVA = "java";
     /** Format name registered by the Java parquet reader. */
     public static final String FORMAT_PARQUET = "parquet";

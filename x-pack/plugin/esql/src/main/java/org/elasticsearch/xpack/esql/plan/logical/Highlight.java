@@ -57,7 +57,6 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     public static final String NUMBER_OF_FRAGMENTS = "number_of_fragments";
     public static final String FRAGMENT_SIZE = "fragment_size";
     public static final String ENCODER = "encoder";
-    // The analyzer override applies to every ON field. It can name a built-in or globally registered analyzer.
     public static final String ANALYZER = "analyzer";
     public static final String NO_MATCH_SIZE = "no_match_size";
     public static final String BOUNDARY_SCANNER = "boundary_scanner";

@@ -30,6 +30,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     private final IntBlock countBlock;
     // Default block is lazily computed when requested
     private final AtomicReference<DoubleBlock> defaultBlockRef = new AtomicReference<>();
+    private volatile boolean allowPassingToDifferentDriver = false;
 
     public AggregateMetricDoubleArrayBlock(DoubleBlock minBlock, DoubleBlock maxBlock, DoubleBlock sumBlock, IntBlock countBlock) {
         this.minBlock = minBlock;
@@ -125,7 +126,11 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
 
     @Override
     public void allowPassingToDifferentDriver() {
+        allowPassingToDifferentDriver = true;
         getSubBlocks().forEach(Block::allowPassingToDifferentDriver);
+        if (defaultBlockRef.get() != null) {
+            defaultBlockRef.get().allowPassingToDifferentDriver();
+        }
     }
 
     @Override
@@ -133,6 +138,9 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         long bytes = 0;
         for (Block b : getSubBlocks()) {
             bytes += b.ramBytesUsed();
+        }
+        if (defaultBlockRef.get() != null) {
+            bytes += defaultBlockRef.get().ramBytesUsed();
         }
         return bytes;
     }
@@ -339,6 +347,9 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         }
         DoubleBlock computed = computeDefaultBlock();
         if (defaultBlockRef.compareAndSet(null, computed)) {
+            if (allowPassingToDifferentDriver) {
+                computed.allowPassingToDifferentDriver();
+            }
             return computed;
         }
         // Another thread won the CAS — discard our copy and return the winner's.

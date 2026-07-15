@@ -596,11 +596,6 @@ public class EsqlCapabilities {
         UNION_TYPES,
 
         /**
-         * Support unmapped using the INSIST keyword.
-         */
-        UNMAPPED_FIELDS(Build.current().isSnapshot()),
-
-        /**
          * Support for function {@code ST_DISTANCE}. Done in #108764.
          */
         ST_DISTANCE,
@@ -3160,6 +3155,13 @@ public class EsqlCapabilities {
          * Support for {@code unmapped_fields="load"} with {@code FORK}, subqueries and views (previously rejected). See #142033.
          */
         OPTIONAL_FIELDS_LOAD_WITH_FORK_SUBQUERIES_AND_VIEWS,
+
+        /**
+         * Under {@code unmapped_fields="load"} or {@code "nullify"}, {@code DROP}ping an unmapped field in one {@code FORK} branch counts
+         * as a mention, so the field is surfaced across the branches (materialized from {@code _source} under {@code load}, null-filled
+         * under {@code nullify}) and null-filled in the dropping one. Dropping it in every branch surfaces nothing.
+         */
+        OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.

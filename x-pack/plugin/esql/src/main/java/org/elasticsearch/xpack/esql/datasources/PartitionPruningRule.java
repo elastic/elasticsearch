@@ -68,7 +68,7 @@ final class PartitionPruningRule {
      * The physical twin of {@link #rowPreserving(LogicalPlan)} — same rule, other tree. Where the logical side leans on
      * the existing {@link Streaming} marker, the physical side has its own marker, {@link RowCountPreserving}, carried by
      * every exec that maps rows one-to-one ({@code FilterExec}, {@code EvalExec}, {@code ProjectExec} — the lowered form
-     * of {@code Keep}/{@code Drop}/{@code Rename}/{@code Insist} — {@code RegexExtractExec} for {@code DISSECT}/{@code
+     * of {@code Keep}/{@code Drop}/{@code Rename} — {@code RegexExtractExec} for {@code DISSECT}/{@code
      * GROK}, and {@code EnrichExec}). A cardinality-sensitive exec such as {@code LimitExec} or {@code TopNExec} does not
      * carry it, so the seed stops there.
      *

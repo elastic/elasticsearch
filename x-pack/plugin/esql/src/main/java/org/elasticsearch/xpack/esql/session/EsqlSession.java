@@ -1445,13 +1445,23 @@ public class EsqlSession {
             // indices) the resolver's continuation reaches this on the external blob-store pool.
             EsqlPlugin.externalBlobStorePool()
         );
-        // No need to update the minimum transport version in the PreAnalysisResult,
-        // it should already have been determined during the main index resolution.
-        executionInfo.queryProfile().incFieldCapsCalls();
         var lookupIndexScope = EsqlCCSUtils.onlyRunning(
             executionInfo,
             computeLookupJoinIndexScope(plan, localPattern, result.indexResolution())
         );
+        if (lookupIndexScope.isEmpty()) {
+            // The source index returned no contributing clusters (all shards were pruned by the
+            // request-level filter). Skip the lookup field-caps call — sending an empty index
+            // expression would let security expand it to all authorised indices (including
+            // non-lookup ones), causing a spurious error. Return an invalid resolution instead
+            // so that analyzedPlan() throws a VerificationException that analyzeWithRetry can
+            // catch and retry without the filter.
+            listener.onResponse(result.addLookupIndexResolution(localPattern, IndexResolution.notFound(localPattern)));
+            return;
+        }
+        // No need to update the minimum transport version in the PreAnalysisResult,
+        // it should already have been determined during the main index resolution.
+        executionInfo.queryProfile().incFieldCapsCalls();
         indexResolver.resolveLookupIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(lookupIndexScope, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,

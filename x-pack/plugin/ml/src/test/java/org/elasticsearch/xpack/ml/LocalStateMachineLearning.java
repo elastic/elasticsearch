@@ -85,12 +85,14 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             }
         });
         plugins.add(new MockedRollupPlugin());
-        plugins.add(new InferencePlugin(settings) {
+        var inferencePlugin = new InferencePlugin(settings) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();
             }
-        });
+        };
+        inferencePlugin.setCircuitBreaker(new NoopCircuitBreaker(InferencePlugin.INFERENCE_CIRCUIT_BREAKER_NAME));
+        plugins.add(inferencePlugin);
     }
 
     @Override

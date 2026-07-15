@@ -501,12 +501,12 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 for (IndexService indexService : dataNodeIndicesService) {
                     if (indexService.index().getName().equals(indexName)) {
                         for (IndexShard shard : indexService) {
-                            assertThat(shard.getLastSyncedGlobalCheckpoint(), greaterThanOrEqualTo(shard.getLastKnownGlobalCheckpoint()));
+                            assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(shard.getLastKnownGlobalCheckpoint()));
                         }
                     }
                 }
                 assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0));
-                assertThat(trackingWriteExecutor.peekMaxQueueLatencyInQueueMillis(), equalTo(0L));
+                assertThat(trackingWriteExecutor.getCurrentQueueSize(), equalTo(0L));
             });
 
             final ClusterInfo nextClusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);

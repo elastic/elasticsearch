@@ -474,9 +474,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testRegistrationOnBccWithLastHollowCommitAndDifferentPrimaryTerm
   issue: https://github.com/elastic/elasticsearch/issues/157172
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testRelocateHollowShards
-  issue: https://github.com/elastic/elasticsearch/issues/157177
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testDeleteBackingIndexDuringForceMerge
   issue: https://github.com/elastic/elasticsearch/issues/157257

@@ -36,9 +36,12 @@ import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -54,6 +57,7 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -321,7 +325,7 @@ public final class DatafeedManager {
                             l.onResponse(response);
                         }, l::onFailure)
                         : l;
-                    credentialTransitions.executeUpdate(
+                    Runnable executeUpdate = () -> credentialTransitions.executeUpdate(
                         intent,
                         effectiveRequest,
                         current.getJobId(),
@@ -331,6 +335,16 @@ public final class DatafeedManager {
                         wrappedValidator,
                         updateListener
                     );
+                    if (requiresRollbackSnapshotBeforeScopeChange(defaultedProjectRoutingForMigration, current, update)) {
+                        retainRollbackSnapshotBeforeScopeChange(
+                            current,
+                            update,
+                            state,
+                            ActionListener.wrap(v -> executeUpdate.run(), l::onFailure)
+                        );
+                    } else {
+                        executeUpdate.run();
+                    }
                 } catch (Exception e) {
                     l.onFailure(e);
                 }
@@ -383,6 +397,74 @@ public final class DatafeedManager {
             ProjectRoutingResolver.LOCAL_ONLY
         ).build();
         return new UpdateDatafeedAction.Request(augmentedUpdate);
+    }
+
+    private boolean requiresRollbackSnapshotBeforeScopeChange(
+        boolean defaultedProjectRoutingForMigration,
+        DatafeedConfig current,
+        DatafeedUpdate rawUpdate
+    ) {
+        return crossProjectMlEnabled()
+            && MachineLearning.REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE.get(settings)
+            && defaultedProjectRoutingForMigration == false
+            && DatafeedUpdate.isUserInitiatedProjectRoutingChange(current, rawUpdate);
+    }
+
+    private void retainRollbackSnapshotBeforeScopeChange(
+        DatafeedConfig current,
+        DatafeedUpdate rawUpdate,
+        ClusterState state,
+        ActionListener<Void> listener
+    ) {
+        PersistentTasksCustomMetadata tasks = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
+        JobState jobState = MlTasks.getJobState(current.getJobId(), tasks);
+        if (jobState != JobState.CLOSED) {
+            listener.onFailure(
+                ExceptionsHelper.conflictStatusException(
+                    Messages.getMessage(Messages.DATAFEED_SCOPE_CHANGE_REQUIRES_CLOSED_JOB, current.getId(), current.getJobId(), jobState)
+                )
+            );
+            return;
+        }
+
+        jobConfigProvider.getJob(current.getJobId(), null, listener.delegateFailureAndWrap((delegate, jobBuilder) -> {
+            Job job = jobBuilder.build();
+            String snapshotId = job.getModelSnapshotId();
+            if (snapshotId == null || snapshotId.isEmpty()) {
+                delegate.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.DATAFEED_SCOPE_CHANGE_REQUIRES_SNAPSHOT, current.getId(), current.getJobId())
+                    )
+                );
+                return;
+            }
+
+            String description = rollbackSnapshotDescription(current.getProjectRouting(), rawUpdate.getProjectRouting());
+            UpdateModelSnapshotAction.Request snapshotRequest = new UpdateModelSnapshotAction.Request(job.getId(), snapshotId);
+            snapshotRequest.setRetain(true);
+            snapshotRequest.setDescription(description);
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                UpdateModelSnapshotAction.INSTANCE,
+                snapshotRequest,
+                delegate.delegateFailureAndWrap((d, response) -> {
+                    auditor.info(
+                        job.getId(),
+                        Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_RETAINED, snapshotId, description)
+                    );
+                    d.onResponse(null);
+                })
+            );
+        }));
+    }
+
+    private static String rollbackSnapshotDescription(@Nullable String oldRouting, String newRouting) {
+        return Messages.getMessage(
+            Messages.DATAFEED_SCOPE_CHANGE_ROLLBACK_SNAPSHOT_DESCRIPTION,
+            oldRouting == null ? "" : oldRouting,
+            newRouting
+        );
     }
 
     public void deleteDatafeed(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {

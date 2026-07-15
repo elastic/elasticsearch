@@ -466,6 +466,15 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     }
 
     /**
+     * Returns {@code true} when the caller explicitly changes {@code project_routing} on this update request.
+     * Evaluated against the raw update body (not migration-defaulted routing). System-applied first-re-key
+     * defaults are excluded by checking {@code defaultedProjectRoutingForMigration} at the call site.
+     */
+    public static boolean isUserInitiatedProjectRoutingChange(DatafeedConfig current, DatafeedUpdate rawUpdate) {
+        return rawUpdate.getProjectRouting() != null && Objects.equals(rawUpdate.getProjectRouting(), current.getProjectRouting()) == false;
+    }
+
+    /**
      * Returns {@code true} when this update changes index routing inputs that can alter whether a datafeed
      * participates in cross-project search and therefore whether an internal cloud credential is required.
      */

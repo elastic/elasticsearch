@@ -952,13 +952,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * headerless split — collapses to a single response warning through the identical-string dedup of the warning
      * layer, rather than flooding one per file.
      */
-    private static void warnAbsentDeclaredColumns(int[] schemaFieldIndex, List<Attribute> readSchema, Consumer<String> warningSink) {
+    private static void warnAbsentDeclaredColumns(
+        int[] schemaFieldIndex,
+        List<Attribute> readSchema,
+        @Nullable String datasetName,
+        Consumer<String> warningSink
+    ) {
         if (schemaFieldIndex == null || warningSink == null) {
             return;
         }
+        String scope = datasetName != null ? " of dataset [" + datasetName + "]" : "";
         for (int i = 0; i < schemaFieldIndex.length; i++) {
             if (schemaFieldIndex[i] == ABSENT_FIELD) {
-                warningSink.accept("declared column [" + readSchema.get(i).name() + "] is not present in the source and reads null");
+                String name = readSchema.get(i).name();
+                warningSink.accept("declared column [" + name + "]" + scope + " is not present in some source files and reads null there");
             }
         }
     }
@@ -1752,7 +1759,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         + "] reached a non-first split; the declared-name split gate did not hold"
                 );
             }
-            warnAbsentDeclaredColumns(schemaFieldIndex, readSchema, context.informationalWarningSink());
+            warnAbsentDeclaredColumns(schemaFieldIndex, readSchema, context.datasetName(), context.informationalWarningSink());
             effectiveSchema = readSchema;
         } else if (context.firstSplit()) {
             // resolvedSchema from withSchema(...) is the projected output, not the file's column

@@ -1116,6 +1116,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         result.setDirectoryMetrics(delta);
     }
 
+    private static void setFetchDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
+        if (context.currentThreadStoreMetrics() == null) {
+            setDirectoryMetrics(result, metricsDelta, context);
+            return;
+        }
+        long fetchBytesRead = context.getFetchThreadsBytesRead() + context.getWorkerThreadsBytesRead();
+        result.setDirectoryMetrics(metricsDelta.get().withMetric(StoreMetrics.NAME, new StoreMetrics(fetchBytesRead)));
+    }
+
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
@@ -1300,7 +1309,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Releasable closeOnce
     ) {
         return ActionListener.runAfter(ActionListener.wrap(ignored -> {
-            setDirectoryMetrics(fetchResult, metricsDelta, searchContext);
+            setFetchDirectoryMetrics(fetchResult, metricsDelta, searchContext);
             opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
         }, e -> opsListener.onFailedFetchPhase(searchContext)), closeOnce::close);
     }
@@ -1739,7 +1748,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexShard shard = indexService.getShard(shardId.id());
         final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
         final long creatorTaskId = creatorTaskIdOf(task);
-        shard.ensureShardSearchActive(ignored -> {
+        shard.ensureShardSearchActive(threadPool.executor(Names.SEARCH), ignored -> {
             Engine.SearcherSupplier searcherSupplier = null;
             ReaderContext readerContext = null;
             try {
@@ -2618,7 +2627,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     if (queryStillMatchesAfterRewrite(canMatchContext.request, queryRewriteContext) == false) {
                         return new CanMatchShardResponse(false, null);
                     }
-                    final Engine.SearcherSupplier searcherSupplier = canMatchContext.getShard().acquireSearcherSupplier();
+                    final Engine.SearcherSupplier searcherSupplier = canMatchContext.getShard()
+                        .acquireExternalSearcherSupplier(canMatchContext.request.getSplitShardCountSummary());
                     if (canMatchContext.request.readerId().sameSearcherIdsAs(searcherSupplier.getSearcherId()) == false) {
                         searcherSupplier.close();
                         return new CanMatchShardResponse(true, null);
@@ -2714,7 +2724,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // If the shard is already search-ready, skip the gate and the task-cancellation listener
                 // wiring entirely.
                 if (shard.isReadAllowed()) {
-                    shard.ensureShardSearchActive(b -> delegate.onResponse(request));
+                    shard.ensureShardSearchActive(threadPool.executor(Names.SEARCH), b -> delegate.onResponse(request));
                     return;
                 }
                 // notifyOnce guards against double-completion: both the task cancellation listener
@@ -2725,7 +2735,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 var l = ActionListener.notifyOnce(delegate);
                 @SuppressWarnings("resource")
                 Releasable slot = shard.waitForSearchReady(
-                    l.delegateFailureAndWrap((l2, v) -> shard.ensureShardSearchActive(b -> l2.onResponse(request)))
+                    l.delegateFailureAndWrap(
+                        (l2, v) -> shard.ensureShardSearchActive(threadPool.executor(Names.SEARCH), b -> l2.onResponse(request))
+                    )
                 );
                 searchTask.addListener(() -> {
                     slot.close();

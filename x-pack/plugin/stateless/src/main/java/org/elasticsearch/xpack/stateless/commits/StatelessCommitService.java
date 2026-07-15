@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -109,7 +110,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
@@ -260,6 +260,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * as the header and replicated content, in which case there is no need to replicate content for that file.
      */
     private final int estimatedMaxHeaderSizeInBytes;
+    private volatile boolean isNodeShuttingDown;
 
     public StatelessCommitService(
         Settings settings,
@@ -889,7 +890,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     private void recordBccTimestampRangeMetric(VirtualBatchedCompoundCommit virtualBcc) {
         final OptionalDouble spanMinutes = bccTimestampSpanMinutes(
-            virtualBcc.getPendingCompoundCommits().stream().map(pc -> pc.getStatelessCompoundCommit().getTimestampFieldValueRange())
+            Iterators.map(
+                virtualBcc.getPendingCompoundCommits().iterator(),
+                pc -> pc.getStatelessCompoundCommit().getTimestampFieldValueRange()
+            )
         );
         if (spanMinutes.isEmpty()) {
             bccMissingTimestampCounter.increment();
@@ -1074,6 +1078,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public boolean isShardDeletingIndex(ShardId shardId) {
         return getSafe(shardsCommitsStates, shardId).isDeletingIndex();
+    }
+
+    public boolean isNodeShuttingDown() {
+        return isNodeShuttingDown;
     }
 
     public void unregister(ShardId shardId) {
@@ -3362,6 +3370,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
+            if (event.state().metadata().nodeShutdowns().contains(event.state().nodes().getLocalNodeId())) {
+                isNodeShuttingDown = true;
+            }
             if (event.nodesDelta().removed()) {
                 var removedNodeIds = event.nodesDelta().removedNodes().stream().map(node -> node.getId()).collect(Collectors.toSet());
                 for (var shardCommitState : shardsCommitsStates.values()) {
@@ -3490,12 +3501,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     // visible for testing
-    static OptionalDouble bccTimestampSpanMinutes(final Stream<TimestampFieldValueRange> ranges) {
+    static OptionalDouble bccTimestampSpanMinutes(final Iterator<TimestampFieldValueRange> ranges) {
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;
         boolean any = false;
-        for (final Iterator<TimestampFieldValueRange> it = ranges.iterator(); it.hasNext();) {
-            final TimestampFieldValueRange range = it.next();
+        while (ranges.hasNext()) {
+            final TimestampFieldValueRange range = ranges.next();
             if (range == null) {
                 continue;
             }

@@ -29,7 +29,6 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -88,16 +87,20 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
+        if (indexSettings.getMode().isStrictColumnar() == false) {
+            return new DocValuesParameter.Values(
+                true,
+                DocValuesParameter.Values.Cardinality.LOW,
+                true,
+                true,
+                DocValuesParameter.Values.OnFailure.FAIL
+            );
         }
 
         boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        if (indexSettings.getMode().isStrictColumnar()) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue);
-        }
-
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue);
+        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
+        var onFailure = FieldMapper.resolveOnFailureSetting(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability, onFailure);
     }
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
@@ -138,7 +141,8 @@ public class IpFieldMapper extends FieldMapper {
 
             this.docValuesParameters = DocValuesParameter.of(
                 defaultDocValuesParameters(indexSettings),
-                m -> toType(m).docValuesParameters()
+                m -> toType(m).docValuesParameters(),
+                indexSettings.getMode().isStrictColumnar()
             );
 
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
@@ -239,11 +243,6 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public IpFieldMapper build(MapperBuilderContext context) {
-            enforceIndexSortDocValuesCompatibility(
-                context.buildFullName(leafName()),
-                indexSettings.getIndexSortConfig(),
-                docValuesParameters
-            );
             if (inheritDimensionParameterFromParentObject(context)) {
                 dimension.setValue(true);
             }
@@ -459,20 +458,30 @@ public class IpFieldMapper extends FieldMapper {
             }
             if (hasPoints) {
                 if (hasDocValues()) {
-                    return convertToIndexOrDocValuesQuery(query, usesBinaryDocValues, context);
+                    return convertToIndexOrDocValuesQuery(query, usesBinaryDocValues, useArrayOrderBinaryDocValues, context);
                 }
                 return query;
             } else {
-                return convertToDocValuesQuery(query, usesBinaryDocValues, context);
+                return convertToDocValuesQuery(query, usesBinaryDocValues, useArrayOrderBinaryDocValues, context);
             }
         }
 
-        static Query convertToIndexOrDocValuesQuery(Query query, boolean usesBinaryDocValues, SearchExecutionContext context) {
+        static Query convertToIndexOrDocValuesQuery(
+            Query query,
+            boolean usesBinaryDocValues,
+            boolean arrayOrderInlineNull,
+            SearchExecutionContext context
+        ) {
             assert query instanceof PointRangeQuery;
-            return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query, usesBinaryDocValues, context));
+            return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query, usesBinaryDocValues, arrayOrderInlineNull, context));
         }
 
-        static Query convertToDocValuesQuery(Query query, boolean usesBinaryDocValues, SearchExecutionContext context) {
+        static Query convertToDocValuesQuery(
+            Query query,
+            boolean usesBinaryDocValues,
+            boolean arrayOrderInlineNull,
+            SearchExecutionContext context
+        ) {
             assert query instanceof PointRangeQuery;
             PointRangeQuery pointRangeQuery = (PointRangeQuery) query;
 
@@ -481,7 +490,7 @@ public class IpFieldMapper extends FieldMapper {
             final BytesRef upper = new BytesRef(pointRangeQuery.getUpperPoint());
 
             if (usesBinaryDocValues) {
-                return new ScanningBinaryDocValuesRangeQuery(field, lower, upper);
+                return new ScanningBinaryDocValuesRangeQuery(field, lower, upper, arrayOrderInlineNull);
             } else {
                 return SortedSetDocValuesField.newSlowRangeQuery(field, lower, upper, true, true);
             }
@@ -528,12 +537,15 @@ public class IpFieldMapper extends FieldMapper {
                 Query query = InetAddressPoint.newRangeQuery(name(), lower, upper);
                 if (hasPoints) {
                     if (hasDocValues()) {
-                        return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query, usesBinaryDocValues, context));
+                        return new IndexOrDocValuesQuery(
+                            query,
+                            convertToDocValuesQuery(query, usesBinaryDocValues, useArrayOrderBinaryDocValues, context)
+                        );
                     } else {
                         return query;
                     }
                 } else {
-                    return convertToDocValuesQuery(query, usesBinaryDocValues, context);
+                    return convertToDocValuesQuery(query, usesBinaryDocValues, useArrayOrderBinaryDocValues, context);
                 }
             });
         }
@@ -780,6 +792,16 @@ public class IpFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
+    }
+
+    @Override
+    public boolean isNullable() {
+        return docValuesParameters.nullability() || nullValueAsString != null;
     }
 
     @Override

@@ -183,6 +183,8 @@ public class Constants {
         "cluster:admin/xpack/inference/ccm/put",
         "cluster:admin/xpack/inference/delete",
         "cluster:admin/xpack/inference/put",
+        "cluster:admin/xpack/inference/region_policy/delete",
+        "cluster:admin/xpack/inference/region_policy/put",
         "cluster:admin/xpack/inference/update",
         "cluster:admin/xpack/license/basic_status",
         // "cluster:admin/xpack/license/delete",
@@ -336,9 +338,11 @@ public class Constants {
         "cluster:internal/xpack/inference",
         "cluster:internal/xpack/inference/clear_inference_ccm_cache",
         "cluster:internal/xpack/inference/clear_inference_endpoint_cache",
+        "cluster:internal/xpack/inference/clear_inference_preferences_cache",
         "cluster:internal/xpack/inference/clear_oauth2_token_cache",
         "cluster:internal/xpack/inference/create_endpoints",
         "cluster:internal/xpack/inference/embedding",
+        "cluster:internal/xpack/inference/refresh_authorized_endpoints",
         "cluster:internal/xpack/inference/rerank",
         "cluster:internal/xpack/inference/rerankwindowsize/get",
         "cluster:internal/xpack/inference/unified",
@@ -413,6 +417,7 @@ public class Constants {
         "cluster:monitor/xpack/inference/get",
         "cluster:monitor/xpack/inference/ccm/get",
         "cluster:monitor/xpack/inference/diagnostics/get",
+        "cluster:monitor/xpack/inference/region_policy/get",
         "cluster:monitor/xpack/inference/services/get",
         "cluster:monitor/xpack/info",
         "cluster:monitor/xpack/info/aggregate_metric",
@@ -509,6 +514,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/sql",
         "cluster:monitor/xpack/usage/transform",
         "cluster:monitor/xpack/usage/universal_profiling",
+        "cluster:monitor/xpack/usage/vectordb_document",
         "cluster:monitor/xpack/usage/voting_only",
         "cluster:monitor/xpack/usage/watcher",
         "cluster:monitor/xpack/usage/time_series",
@@ -523,6 +529,7 @@ public class Constants {
         "indices:admin/block/add[s]",
         "indices:admin/block/remove",
         "indices:admin/cache/clear",
+        "indices:admin/data_stream/auto_create_past_tsdb",
         "indices:admin/data_stream/lazy_rollover",
         "indices:internal/admin/ccr/restore/file_chunk/get",
         "indices:internal/admin/ccr/restore/session/clear",
@@ -695,6 +702,7 @@ public class Constants {
         "indices:admin/index/create_from_source",
         "indices:admin/index/copy_lifecycle_index_metadata",
         "internal:admin/repository/verify",
-        "internal:admin/repository/verify/coordinate"
+        "internal:admin/repository/verify/coordinate",
+        "internal:index/shard/recovery/cancel_recoveries"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

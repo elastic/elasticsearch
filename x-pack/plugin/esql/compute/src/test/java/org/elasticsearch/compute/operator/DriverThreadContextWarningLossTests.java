@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -73,7 +74,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
             // those two submissions to two distinct, never-shared, single-thread executors guarantees
             // (rather than merely risks) that the registering thread and the completing thread differ.
             AtomicInteger submissionCount = new AtomicInteger();
-            java.util.concurrent.Executor twoThreadHoppingExecutor = task -> {
+            Executor twoThreadHoppingExecutor = task -> {
                 ExecutorService target = submissionCount.getAndIncrement() == 0 ? threadA : threadB;
                 target.execute(task);
             };
@@ -140,7 +141,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
         try {
             AtomicInteger submissionCount = new AtomicInteger();
             List<ExecutorService> hops = List.of(threadA, threadB, threadC);
-            java.util.concurrent.Executor threeThreadHoppingExecutor = task -> {
+            Executor threeThreadHoppingExecutor = task -> {
                 int index = Math.min(submissionCount.getAndIncrement(), hops.size() - 1);
                 hops.get(index).execute(task);
             };

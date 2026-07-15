@@ -190,6 +190,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /** Whether the sort column reads as a temporal type at all; a plain long keeps the raw pass-through. */
     private final boolean sortColumnIsTemporal;
     /**
+     * Whether the sort column's own parquet annotation makes decode scale relative to the raw statistics
+     * (TIMESTAMP/TIME(MICROS), DATE, DECIMAL) even when the ES|QL type is a plain LONG — e.g. a declared {@code long}
+     * over a TIMESTAMP(MICROS) column, or an inferred TIME(MICROS). Without this the raw stat would be compared
+     * against a decoded-unit bound and skip the wrong groups. Consulted alongside the declared relation; this is the
+     * same authority the pushdown side uses ({@code ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats}).
+     */
+    private final boolean sortColumnAnnotationScales;
+    /**
      * High bits OR-ed into every emitted {@code _rowPosition} value once
      * {@link #setExtractorId(int)} has been called: {@code ((long) extractorId) << LOCAL_POSITION_BITS}.
      * The factory installs the id between {@link #createColumnExtractor(Consumer)} and the first call to
@@ -385,6 +393,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.sortColumnPrimitiveType = sortColumnDescriptor == null ? null : sortColumnDescriptor.getPrimitiveType();
         DataType sortType = sortColumnEsqlType(sortColumnPath, columnInfos);
         this.sortColumnIsTemporal = sortType == DataType.DATETIME || sortType == DataType.DATE_NANOS;
+        this.sortColumnAnnotationScales = sortColumnPrimitiveType != null
+            && sortColumnPrimitiveType.getLogicalTypeAnnotation() != null
+            && ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(sortColumnPrimitiveType.getLogicalTypeAnnotation());
         this.sortDecodeRelation = resolveSortDecodeRelation(sortColumnPath, sortColumnPrimitiveType, columnInfos);
         this.codecFactory = codecFactory;
         this.counters = counters;
@@ -625,9 +636,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 // one must be mapped into the decoded domain the threshold bound lives in, or the comparison skips the
                 // wrong groups. A null relation on a temporal column (TIME/DECIMAL/unsigned) declines the skip — safe.
                 if (sortDecodeRelation == null) {
-                    // A temporal column with no exact relation (TIME/DECIMAL/unsigned) declines the skip; a plain
-                    // long keeps its raw value.
-                    yield sortColumnIsTemporal ? null : raw;
+                    // Decline the skip when decode scales relative to the raw stats but no exact relation was
+                    // resolved: a temporal column with no relation (TIME/DECIMAL/unsigned), OR a plain LONG whose
+                    // annotation still scales (declared long over TIMESTAMP(MICROS), inferred TIME(MICROS)) — the
+                    // comparison would otherwise skip the wrong groups. Only a genuinely non-scaling long passes its
+                    // raw value through.
+                    yield (sortColumnIsTemporal || sortColumnAnnotationScales) ? null : raw;
                 }
                 yield DeclaredTypeCoercions.rawStatToDecoded(sortDecodeRelation, raw);
             }
@@ -665,7 +679,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 // domain the threshold lives in; a plain long is the identity; a temporal column with no exact
                 // relation declines the page skip.
                 if (sortDecodeRelation == null) {
-                    yield sortColumnIsTemporal ? null : raw;
+                    yield (sortColumnIsTemporal || sortColumnAnnotationScales) ? null : raw;
                 }
                 yield DeclaredTypeCoercions.rawStatToDecoded(sortDecodeRelation, raw);
             }

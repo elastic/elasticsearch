@@ -115,10 +115,10 @@ final class ParquetColumnDecoding {
      *       heard of.</li>
      * </ul>
      * Lives here, next to the decode transforms it summarizes, for the same no-drift reason as
-     * {@link #integralDecodeScalesRelativeToRawStats}. Consulted by both {@code
-     * ParquetPushedExpressions.buildDateNanosPredicate} and {@code translateDateNanosIn} so the comparison and
-     * {@code IN} paths cannot disagree; the same built predicate also drives page-level pruning
-     * ({@code ColumnIndexRowRangesComputer}), which is therefore guarded by the same divisor.
+     * {@link #integralDecodeScalesRelativeToRawStats}. Now consulted only by {@code
+     * ParquetPushedExpressions.translateDateNanosIn}; the comparison path routes through the shared
+     * {@code DeclaredTypeCoercions.RawDecodeRelation} authority instead. This method is a surviving duplicate of the
+     * {@code DATE_NANOS} cells of {@link #rawDecodeRelation} (verified equivalent) and should fold onto it.
      */
     /**
      * @param declaredFormat the column's declared date format, or {@code null} when it declares none. A format makes

@@ -59,7 +59,8 @@ public class PotentiallyUnmappedSingleTypeEsFieldTests extends AbstractEsFieldTy
     @Override
     protected PotentiallyUnmappedSingleTypeEsField mutateInstance(PotentiallyUnmappedSingleTypeEsField instance) throws IOException {
         var mappedField = instance.mappedField();
-        var mappedIndices = instance.getTypesToIndices().keySet();
+        var mappedIndices = instance.mappedIndices();
+
         if (randomBoolean()) {
             mappedField = randomValueOtherThan(mappedField, PotentiallyUnmappedSingleTypeEsFieldTests::randomMappedField);
         } else {

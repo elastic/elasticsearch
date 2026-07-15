@@ -817,9 +817,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationCompletesWithMultipleHandlers
   issue: https://github.com/elastic/elasticsearch/issues/153747
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
-  method: testResumableWrite
-  issue: https://github.com/elastic/elasticsearch/issues/153748
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.inlineStatsMaxSalary [ndjson.zst/GCS]}
   issue: https://github.com/elastic/elasticsearch/issues/153749

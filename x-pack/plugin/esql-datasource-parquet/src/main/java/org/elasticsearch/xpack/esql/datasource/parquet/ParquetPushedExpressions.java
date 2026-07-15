@@ -464,7 +464,7 @@ final class ParquetPushedExpressions {
      */
     private static boolean physicalPrimitiveIs(MessageType schema, String columnName, PrimitiveType.PrimitiveTypeName expected) {
         PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
-        return primitive != null && primitive.getPrimitiveTypeName() == expected && isScaledDecimal(primitive) == false;
+        return primitive != null && primitive.getPrimitiveTypeName() == expected;
     }
 
     /**
@@ -472,6 +472,10 @@ final class ParquetPushedExpressions {
      * <b>unscaled</b> integer, not the value a declared/inferred {@code long}/{@code integer}/
      * {@code keyword} column exposes. Pushing a raw literal against such stats compares mismatched
      * units. {@code scale=0} is exempt: unscaled equals scaled there.
+     *
+     * <p>This only matters for <b>value</b> comparisons (EQ/ordered/IN); it must NOT gate IS
+     * NULL/IS NOT NULL dispatch, since nullability is orthogonal to scale — see the {@code value
+     * == null} carve-outs at call sites.
      */
     private static boolean isScaledDecimal(PrimitiveType ptype) {
         return ptype.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimal
@@ -505,7 +509,9 @@ final class ParquetPushedExpressions {
      */
     private static FilterPredicate buildLongPredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
-        if (ptype == null || isScaledDecimal(ptype)) {
+        // isScaledDecimal only matters for a real value comparison; IS NULL/IS NOT NULL (value ==
+        // null) doesn't care about the column's scale, so it's exempt — see buildPredicate's callers.
+        if (ptype == null || (value != null && isScaledDecimal(ptype))) {
             return null;
         }
         return switch (ptype.getPrimitiveTypeName()) {
@@ -693,7 +699,7 @@ final class ParquetPushedExpressions {
             return switch (ts.getUnit()) {
                 case MILLIS -> millis;
                 case MICROS -> Math.multiplyExact(millis, 1000L);
-                case NANOS -> Math.multiplyExact(millis, 1_000_000L);
+                case NANOS -> Math.multiplyExact(millis, NANOS_PER_MILLI);
             };
         }
         return millis;

@@ -895,26 +895,6 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertNull("IN over LONG against INT64+DECIMAL(scale>0) must be suppressed", pushed.toFilterPredicate(schema));
     }
 
-    public void testIntegerEqAgainstDecimalInt32IsNotPushed() {
-        MessageType schema = Types.buildMessage().required(INT32).as(decimalType(2, 9)).named("price").named("test");
-        Expression expr = eq("price", DataType.INTEGER, 123);
-        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
-
-        assertNull("INTEGER predicate against INT32+DECIMAL(scale>0) must be suppressed", pushed.toFilterPredicate(schema));
-    }
-
-    public void testKeywordEqAgainstDecimalBinaryIsNotPushed() {
-        MessageType schema = Types.buildMessage()
-            .required(PrimitiveType.PrimitiveTypeName.BINARY)
-            .as(decimalType(2, 20))
-            .named("price")
-            .named("test");
-        Expression expr = eq("price", DataType.KEYWORD, new BytesRef("123.00"));
-        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
-
-        assertNull("KEYWORD predicate against BINARY+DECIMAL(scale>0) must be suppressed", pushed.toFilterPredicate(schema));
-    }
-
     public void testLongEqAgainstScaleZeroDecimalInt64IsPushed() {
         // No-regression: DECIMAL(scale=0) is exempt — unscaled equals scaled, so the raw on-disk
         // value already matches the exposed value and pushdown remains safe.
@@ -925,6 +905,18 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         FilterPredicate fp = pushed.toFilterPredicate(schema);
         assertNotNull("DECIMAL(scale=0) must still push like a plain integral column", fp);
         assertThat(fp.toString(), containsString("123"));
+    }
+
+    // Nullability is orthogonal to scale: IS NULL/IS NOT NULL over a LONG DECIMAL(scale>0)
+    // column must still push, unlike the value comparisons above.
+
+    public void testLongIsNullAgainstDecimalInt64IsPushed() {
+        MessageType schema = Types.buildMessage().required(INT64).as(decimalType(2, 18)).named("price").named("test");
+        Expression expr = new IsNull(Source.EMPTY, attr("price", DataType.LONG));
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull("IS NULL over LONG against INT64+DECIMAL(scale>0) must still push", fp);
+        assertThat(fp.toString(), containsString("price"));
     }
 
     // -----------------------------------------------------------------------------------

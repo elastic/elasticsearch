@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationOperation.ReplicaResponse;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -396,7 +397,7 @@ public class TransportWriteActionTests extends ESTestCase {
         // A write replication action proxy should fail the shard
         assertEquals(1, shardFailedRequests.length);
         CapturingTransport.CapturedRequest shardFailedRequest = shardFailedRequests[0];
-        ShardStateAction.FailedShardEntry shardEntry = (ShardStateAction.FailedShardEntry) shardFailedRequest.request();
+        FailedShardEntry shardEntry = (FailedShardEntry) shardFailedRequest.request();
         // the shard the request was sent to and the shard to be failed should be the same
         assertEquals(shardEntry.getShardId(), replica.shardId());
         assertEquals(shardEntry.getAllocationId(), replica.allocationId().getId());

@@ -229,8 +229,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     }
 
     private Path resolvePath(String pathStr) {
-        Path p = configDir.getFileSystem().getPath(pathStr);
-        return p.isAbsolute() ? p : configDir.resolve(p);
+        return configDir.resolve(pathStr);
     }
 
     /**

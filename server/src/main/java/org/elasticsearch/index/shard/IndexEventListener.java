@@ -29,6 +29,7 @@ import org.elasticsearch.indices.cluster.IndexRemovalReason;
  * </p>
  */
 public interface IndexEventListener {
+    IndexEventListener NOOP = new IndexEventListener() {};
 
     /**
      * Called when the shard routing has changed state.

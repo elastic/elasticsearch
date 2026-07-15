@@ -18,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchService;
@@ -55,7 +56,6 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpro
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -79,46 +79,39 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         return plugins;
     }
 
-    private final Settings nodeSettings = Settings.builder()
-        .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
-        .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
-        // With `STATELESS_UPLOAD_MAX_AMOUNT_COMMITS=1` every flush creates a separate single-commit BCC blob. This means every CC is
-        // the first (and only) commit in its VBCC, so all its generational files are written as internal files - exercising
-        // the location-mismatch path in overrideBlobFileRangesTimestamp.
-        .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
-        .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-        .build();
-
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
-            .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1);
+        return super.nodeSettings().put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            // With UPLOAD_MAX=1, every generational file is re-written as an internal file in each new BCC blob, giving it a fresh offset.
+            // SearchDirectory's putIfAbsent keeps the old BCC's location, so overrideBlobFileRangesTimestamp sees a location mismatch.
+            .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings());
     }
 
-    /// Verifies that the PIT wire payload carries a correct `@timestamp` range for all files
+    /// Verifies that the PIT wire payload carries the correct `@timestamp` range for every file
     /// in the commit after relocation.
     ///
-    /// With `STATELESS_UPLOAD_MAX_AMOUNT_COMMITS=1` each explicit flush produces exactly one
-    /// compound commit in its own BCC blob, so every file in that CC is an internal file. The
-    /// [org.elasticsearch.xpack.stateless.lucene.SearchDirectory] therefore stamps all entries with the CC's
-    /// [StatelessCompoundCommit.TimestampFieldValueRange]. After relocation, all entries in
-    /// [OpenPITContextInfo#metadata()] must
-    /// carry a non-null timestamp range equal to the single `@timestamp` value used when
-    /// indexing.
+    /// With `STATELESS_UPLOAD_MAX_AMOUNT_COMMITS=1` every flush or refresh creates its own
+    /// single-commit BCC blob. Each file is stamped with the timestamp range of the BCC in
+    /// which it was first written, and [org.elasticsearch.xpack.stateless.lucene.SearchDirectory]
+    /// preserves that range via `putIfAbsent`. The expected timestamp range for each file is
+    /// captured directly from the source [org.elasticsearch.xpack.stateless.lucene.SearchDirectory]
+    /// right before relocation — this is the ground truth against which the wire payload is
+    /// compared, which is precise regardless of how many BCCs exist or what timestamps they carry.
     public void testPitRelocationTransfersTimestamps() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
-        final var indexNode = startMasterAndIndexNode(nodeSettings);
-        final var searchNodeA = startSearchNode(nodeSettings);
-        final var searchNodeB = startSearchNode(nodeSettings);
+        final var indexNode = startMasterAndIndexNode();
+        final var searchNodeA = startSearchNode();
+        final var searchNodeB = startSearchNode();
 
         final var indexName = randomIdentifier();
         assertAcked(
-            prepareCreate(indexName).setSettings(indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1))
-                .setMapping("@timestamp", "type=date")
+            prepareCreate(indexName).setSettings(
+                indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                    .put("index.routing.allocation.exclude._name", searchNodeB)
+            ).setMapping("@timestamp", "type=date")
         );
-        ensureGreen(indexName);
-        // make sure all shards initially land on one search node
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeB), indexName);
         ensureGreen(indexName);
 
         final var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
@@ -134,60 +127,82 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         );
         flushAndAwaitSearchNodeCommit(indexName, commitService, shardId);
 
-        // Randomly do a few more rounds of indexing + refresh to build additional in-memory segments
-        // before the PIT is opened.
+        // Randomly do a few more rounds of indexing + refresh to build additional segments
+        // before the PIT is opened. Each refresh uploads its own BCC (UPLOAD_MAX=1), so files
+        // from these rounds carry a different timestamp range than the initial flush files.
         final int extraRounds = between(0, 2);
         for (int i = 0; i < extraRounds; i++) {
+            final long extraRoundTimestamp = timestamp + i + 1;
             indexDocs(
                 indexName,
                 between(10, 50),
                 UnaryOperator.identity(),
                 null,
-                () -> Map.of("@timestamp", timestamp, "field", randomAlphaOfLength(10))
+                () -> Map.of("@timestamp", extraRoundTimestamp, "field", randomAlphaOfLength(10))
             );
-            refresh(indexName);
+            refreshAndAwaitSearchNodeCommit(indexName, commitService, shardId);
+        }
+
+        // Capture the expected per-file timestamp ranges from the source SearchDirectory before the PIT opens.
+        final Map<String, BlobFileRanges> expectedMetadata;
+        {
+            final IndexShard searchShard = findSearchShard(indexName);
+            final var sourceSearchDirectory = SearchDirectory.unwrapDirectory(searchShard.store().directory());
+            try (var commitRef = searchShard.acquireLastIndexCommit(false)) {
+                expectedMetadata = sourceSearchDirectory.getBlobFileRangesForFiles(commitRef.getIndexCommit().getFileNames());
+            }
         }
 
         final var pitId = openPointInTime(indexName, TimeValue.timeValueMinutes(1)).getPointInTimeId();
         assertNotNull(pitId);
+        try {
 
-        // Randomly force-merge to a single segment and flush. The flush uploads a newer BCC (commit B)
-        // to the object store while the PIT remains pinned to the pre-merge commit (commit A). We
-        // intentionally do NOT wait for the search node to apply commit B: doing so triggers a reader
-        // lifecycle transition on searchNodeA that races with MockSearchService's in-flight context
-        // tracking and causes a spurious context leak. The scenario is still meaningful — a newer BCC
-        // exists in the object store when the relocation happens, so the relocation must correctly hand
-        // off PIT contexts that reference older files.
-        if (randomBoolean()) {
-            indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
-            flush(indexName);
+            // Randomly force-merge to a single segment and flush. With extraRounds > 0 there are multiple Lucene segments,
+            // so the force-merge is not a no-op and produces a newer commit (B) in the object store.
+            // The search node applies commit B while the PIT remains pinned to commit A, which is the scenario this block exercises.
+            if (randomBoolean() && extraRounds > 0) {
+                final long priorGen = priorGen(commitService, shardId);
+                indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+                flush(indexName);
+                awaitSearchNodeCommit(indexName, priorGen);
+            }
+
+            final var capturedInfos = relocateFromNodeAndCapturePITContextInfos(searchNodeA, indexName);
+            assertThat(capturedInfos, hasSize(1));
+
+            final OpenPITContextInfo pitContextInfo = capturedInfos.getFirst();
+            assertThat("metadata must be non-empty", pitContextInfo.metadata(), not(anEmptyMap()));
+            // Every file in the wire payload must carry the exact timestamp range that the source
+            // SearchDirectory recorded for it — the value captured in expectedMetadata above.
+            pitContextInfo.metadata().forEach((fileName, ranges) -> {
+                final BlobFileRanges expected = expectedMetadata.get(fileName);
+                assertThat("source SearchDirectory must carry metadata for " + fileName, expected, notNullValue());
+                assertThat(
+                    "source SearchDirectory must carry a non-null timestamp range for " + fileName,
+                    expected.timestampRange(),
+                    notNullValue()
+                );
+                assertThat(
+                    "wire timestamp range for " + fileName + " must match source SearchDirectory",
+                    ranges.timestampRange(),
+                    equalTo(expected.timestampRange())
+                );
+            });
+
+            /// [SearchDirectory#mergeMetadata] (invoked via [SearchDirectory#mergePITReaderMetadata]) must merge every transferred
+            /// range into the destination's own metadata.
+            pitContextInfo.metadata().forEach((fileName, wireRanges) -> {
+                final BlobFileRanges mergedRanges = getSearchDirectoryBlobFileRanges(indexName, fileName);
+                assertThat("destination SearchDirectory must know about transferred file: " + fileName, mergedRanges, notNullValue());
+                assertThat(
+                    "merged timestamp range for " + fileName + " must match the transferred range",
+                    mergedRanges.timestampRange(),
+                    equalTo(wireRanges.timestampRange())
+                );
+            });
+        } finally {
+            closeRelocatedPointInTime(pitId);
         }
-
-        final var capturedInfos = relocateFromNodeAndCapturePITContextInfos(searchNodeA, indexName);
-
-        assertThat(capturedInfos, hasSize(1));
-        final OpenPITContextInfo pitContextInfo = capturedInfos.getFirst();
-        assertThat("metadata must be non-empty", pitContextInfo.metadata(), not(anEmptyMap()));
-        // Every file in the BCC is internal (single-commit VBCC), so every entry carries timestamp range.
-        pitContextInfo.metadata().forEach((fileName, ranges) -> {
-            assertThat("every file must carry the CC timestamp range: " + fileName, ranges.timestampRange(), notNullValue());
-            assertThat(ranges.timestampRange().minMillis(), equalTo(timestamp));
-            assertThat(ranges.timestampRange().maxMillis(), equalTo(timestamp));
-        });
-
-        // SearchDirectory#mergeMetadata (invoked via mergePITReaderMetadata) must merge every transferred
-        // range into the destination's own metadata, not just relay it over the wire.
-        pitContextInfo.metadata().forEach((fileName, wireRanges) -> {
-            final BlobFileRanges mergedRanges = getSearchDirectoryBlobFileRanges(indexName, fileName);
-            assertThat("destination SearchDirectory must know about transferred file: " + fileName, mergedRanges, notNullValue());
-            assertThat(
-                "merged timestamp range for " + fileName + " must match the transferred range",
-                mergedRanges.timestampRange(),
-                equalTo(wireRanges.timestampRange())
-            );
-        });
-
-        closeRelocatedPointInTime(pitId);
     }
 
     /// Verifies that when a generational file's blob location differs between the
@@ -211,20 +226,19 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
     ///   4. PIT opened at commit C. `overrideBlobFileRangesTimestamp` detects the location
     ///     mismatch for `_0_1.liv` (BCC_B in SearchDirectory vs BCC_C in CC_C) and stamps
     ///     the wire payload entry with CC_C's timestamp range `[tsC, tsC]`.
-    public void testPitRelocationTransfersTimestampForGenerationalFileWithChangedBlobLocation() throws Exception {
+    public void testPitRelocationTransfersTimestampForGenerationalFileWithChangedBlobLocation() {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
-        final var indexNode = startMasterAndIndexNode(nodeSettings);
-        final var searchNodeA = startSearchNode(nodeSettings);
-        final var searchNodeB = startSearchNode(nodeSettings);
+        final var indexNode = startMasterAndIndexNode();
+        final var searchNodeA = startSearchNode();
+        final var searchNodeB = startSearchNode();
 
         final var indexName = randomIdentifier();
         assertAcked(
-            prepareCreate(indexName).setSettings(indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1))
-                .setMapping("@timestamp", "type=date")
+            prepareCreate(indexName).setSettings(
+                indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                    .put("index.routing.allocation.exclude._name", searchNodeB)
+            ).setMapping("@timestamp", "type=date")
         );
-        ensureGreen(indexName);
-        // make sure all shards initially land on one search node
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeB), indexName);
         ensureGreen(indexName);
 
         final var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
@@ -266,45 +280,45 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         // _0_1.liv (BCC_B in SearchDirectory vs BCC_C in CC_C) and stamps it with CC_C's tsC.
         final var pitId = openPointInTime(indexName, TimeValue.timeValueMinutes(1)).getPointInTimeId();
         assertNotNull(pitId);
+        try {
+            final List<OpenPITContextInfo> capturedInfos = relocateFromNodeAndCapturePITContextInfos(searchNodeA, indexName);
+            assertThat(capturedInfos, hasSize(1));
+            final var info = capturedInfos.getFirst();
 
-        final List<OpenPITContextInfo> capturedInfos = relocateFromNodeAndCapturePITContextInfos(searchNodeA, indexName);
-        assertThat(capturedInfos, hasSize(1));
-        final var info = capturedInfos.getFirst();
+            // There must be at least one generational live-docs file in the metadata (created in flush B).
+            final var genFileEntries = info.metadata()
+                .entrySet()
+                .stream()
+                .filter(e -> StatelessCompoundCommit.isGenerationalFile(e.getKey()))
+                .toList();
+            assertThat("expect at least one generational file after re-indexing a doc", genFileEntries, not(empty()));
 
-        // There must be at least one generational live-docs file in the metadata (created in flush B).
-        final var genFileEntries = info.metadata()
-            .entrySet()
-            .stream()
-            .filter(e -> StatelessCompoundCommit.isGenerationalFile(e.getKey()))
-            .toList();
-        assertThat("expect at least one generational file after re-indexing a doc", genFileEntries, not(empty()));
+            // The generational file _0_1.liv (or similar) changed blob location (BCC_B → BCC_C), so
+            // overrideBlobFileRangesTimestamp stamps it with CC_C's timestamp tsC — not the old tsB from
+            // the pinned SearchDirectory entry. At least one such entry must be present to confirm the
+            // location-mismatch path ran.
+            final var genFilesWithTimestampC = genFileEntries.stream().filter(e -> {
+                final var ts = e.getValue().timestampRange();
+                return ts != null && ts.minMillis() == tsC && ts.maxMillis() == tsC;
+            }).toList();
+            assertThat(
+                "at least one generational file must carry tsC, proving overrideBlobFileRangesTimestamp"
+                    + " stamped the wire entry with CC_C's timestamp rather than the old pinned tsB",
+                genFilesWithTimestampC,
+                not(empty())
+            );
 
-        // The generational file _0_1.liv (or similar) changed blob location (BCC_B → BCC_C), so
-        // overrideBlobFileRangesTimestamp stamps it with CC_C's timestamp tsC — not the old tsB from
-        // the pinned SearchDirectory entry. At least one such entry must be present to confirm the
-        // location-mismatch path ran.
-        final var genFilesWithTimestampC = genFileEntries.stream().filter(e -> {
-            final var ts = e.getValue().timestampRange();
-            return ts != null && ts.minMillis() == tsC && ts.maxMillis() == tsC;
-        }).toList();
-        assertThat(
-            "at least one generational file must carry tsC, proving overrideBlobFileRangesTimestamp"
-                + " stamped the wire entry with CC_C's timestamp rather than the old pinned tsB",
-            genFilesWithTimestampC,
-            not(empty())
-        );
-
-        // SearchDirectory#mergeMetadata must adopt CC_C's overridden range on the destination node too;
-        // otherwise the fix would only be visible on the wire and never reach the merged metadata that
-        // SearchDirectory actually uses to serve reads.
-        for (final var entry : genFilesWithTimestampC) {
-            final BlobFileRanges mergedRanges = getSearchDirectoryBlobFileRanges(indexName, entry.getKey());
-            assertThat("destination SearchDirectory must know about " + entry.getKey(), mergedRanges, notNullValue());
-            assertThat(mergedRanges.timestampRange().minMillis(), equalTo(tsC));
-            assertThat(mergedRanges.timestampRange().maxMillis(), equalTo(tsC));
+            /// [SearchDirectory#mergeMetadata] must adopt CC_C's overridden range on the destination node too;
+            /// otherwise the fix would only be visible on the wire and never reach the merged metadata that
+            /// SearchDirectory actually uses to serve reads.
+            for (final var entry : genFilesWithTimestampC) {
+                final BlobFileRanges mergedRanges = getSearchDirectoryBlobFileRanges(indexName, entry.getKey());
+                assertThat("destination SearchDirectory must know about " + entry.getKey(), mergedRanges, notNullValue());
+                assertThat(mergedRanges.timestampRange(), equalTo(new StatelessCompoundCommit.TimestampFieldValueRange(tsC, tsC)));
+            }
+        } finally {
+            closeRelocatedPointInTime(pitId);
         }
-
-        closeRelocatedPointInTime(pitId);
     }
 
     private List<OpenPITContextInfo> relocateFromNodeAndCapturePITContextInfos(final String searchNodeA, final String indexName) {
@@ -342,37 +356,35 @@ public class PointInTimeRelocationTimestampIT extends AbstractStatelessPluginInt
         return List.copyOf(capturedInfos);
     }
 
-    /// Reads the merged {@link BlobFileRanges} for `fileName` directly from the destination search
-    /// shard's [SearchDirectory], i.e. the state produced by `mergePITReaderMetadata` rather than
+    /// Reads the merged [BlobFileRanges] for `fileName` directly from the destination search
+    /// shard's [SearchDirectory], i.e. the state produced by [SearchDirectory#mergePITReaderMetadata] rather than
     /// what was merely sent over the wire during the relocation handoff.
     private static BlobFileRanges getSearchDirectoryBlobFileRanges(String indexName, String fileName) {
         return SearchDirectory.unwrapDirectory(findSearchShard(indexName).store().directory()).getBlobFileRangesForFile(fileName);
     }
 
-    /// Flushes the index, waits for the resulting BCC blob to be uploaded, then waits for the search
-    /// node to apply the new commit. Uses the generation observed before the flush to detect that a
-    /// newer BCC has been uploaded.
-    private void flushAndAwaitSearchNodeCommit(String indexName, StatelessCommitService commitService, ShardId shardId) throws Exception {
-        final var prior = commitService.getLatestUploadedBcc(shardId);
-        final long priorGen;
-        priorGen = prior != null ? prior.lastCompoundCommit().generation() : -1L;
-        flush(indexName);
-
-        final var newBcc = new AtomicReference<BatchedCompoundCommit>();
-        assertBusy(() -> {
-            final var bcc = commitService.getLatestUploadedBcc(shardId);
-            assertThat(bcc, notNullValue());
-            assertThat(bcc.lastCompoundCommit().generation(), greaterThan(priorGen));
-            newBcc.set(bcc);
-        });
-        awaitUntilSearchNodeGetsCommit(indexName, newBcc.get().lastCompoundCommit().generation());
+    private void refreshAndAwaitSearchNodeCommit(String indexName, StatelessCommitService commitService, ShardId shardId) {
+        final long priorGen = priorGen(commitService, shardId);
+        refresh(indexName);
+        awaitSearchNodeCommit(indexName, priorGen);
     }
 
-    private static void awaitUntilSearchNodeGetsCommit(String indexName, long generation) {
+    private void flushAndAwaitSearchNodeCommit(String indexName, StatelessCommitService commitService, ShardId shardId) {
+        final long priorGen = priorGen(commitService, shardId);
+        flush(indexName);
+        awaitSearchNodeCommit(indexName, priorGen);
+    }
+
+    private static long priorGen(final StatelessCommitService commitService, final ShardId shardId) {
+        final BatchedCompoundCommit prior = commitService.getLatestUploadedBcc(shardId);
+        return prior != null ? prior.lastCompoundCommit().generation() : -1L;
+    }
+
+    private static void awaitSearchNodeCommit(final String indexName, final long priorGen) {
         final var primaryTerm = findIndexShard(indexName).getOperationPrimaryTerm();
         final var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         final var listener = new SubscribableListener<Long>();
-        searchEngine.addPrimaryTermAndGenerationListener(primaryTerm, generation, listener);
+        searchEngine.addPrimaryTermAndGenerationListener(primaryTerm, priorGen + 1, listener);
         safeAwait(listener);
     }
 

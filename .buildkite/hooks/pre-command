@@ -125,12 +125,9 @@ if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
   unset GH_ADMIN_TOKEN
 
   # Bootstrap archimedes, upgrading if the installed version is behind the
-  # latest release. The installer downloads the latest release, verifies its
-  # checksum, installs deps, and symlinks ~/.local/bin/archimedes. The
-  # installer script itself is pulled from the archimedes source ref
-  # (ARCHIMEDES_REF) until packages/archimedes lands on the default branch.
+  # latest release. bootstrap.sh is fetched from the same release tag so the
+  # installer and the binary are always in sync.
   ARCHIMEDES_REPO="${ARCHIMEDES_REPO:-elastic/elasticsearch-infra}"
-  ARCHIMEDES_REF="${ARCHIMEDES_REF:-add-archimedes}"
   _archimedes_latest_tag=$(gh api "repos/${ARCHIMEDES_REPO}/releases/latest" --jq '.tag_name' 2>/dev/null || true)
   if [ -z "${_archimedes_latest_tag:-}" ] || [ "${_archimedes_latest_tag}" = "null" ]; then
     _archimedes_latest_tag=$(gh api "repos/${ARCHIMEDES_REPO}/releases" \
@@ -140,7 +137,7 @@ if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
   _archimedes_installed_ver=$(archimedes version 2>/dev/null || echo "none")
   if [[ "${_archimedes_installed_ver}" != "${_archimedes_latest_ver}" ]]; then
     echo "--- Bootstrapping archimedes (latest release: ${_archimedes_latest_tag:-unknown}, installed: ${_archimedes_installed_ver})"
-    if ! gh api "repos/${ARCHIMEDES_REPO}/contents/archimedes/bootstrap.sh?ref=${ARCHIMEDES_REF}" \
+    if ! gh api "repos/${ARCHIMEDES_REPO}/contents/archimedes/bootstrap.sh?ref=${_archimedes_latest_tag}" \
            -H "Accept: application/vnd.github.raw+json" | bash -s; then
       echo "archimedes bootstrap failed" >&2
       exit 1

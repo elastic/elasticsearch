@@ -60,7 +60,7 @@ public class ShardFailedTaskExecutorTests extends ESAllocationTestCase {
     private ShardFailedTaskExecutor executor;
 
     @Before
-    public void initClusterState() throws Exception {
+    public void initClusterState() {
         allocationService = createAllocationService(
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 8)

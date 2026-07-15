@@ -549,10 +549,7 @@ class DatafeedJob {
             return;
         }
 
-        ScrollDataExtractorFactory.requestFieldCapabilities(
-            client,
-            scrollFactory.datafeedConfig(),
-            scrollFactory.job(),
+        scrollFactory.requestFieldCapabilities(
             ActionListener.wrap(
                 response -> processFieldConflictDelta(
                     fieldConflictTracker.applyRecheck(response, scrollFactory.job().allInputFields(), dataDescription.getTimeField()),

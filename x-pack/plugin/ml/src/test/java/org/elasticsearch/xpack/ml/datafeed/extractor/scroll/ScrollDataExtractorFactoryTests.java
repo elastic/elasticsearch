@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -151,6 +155,18 @@ public class ScrollDataExtractorFactoryTests extends ESTestCase {
         assertThat(factory.effectiveProjectRouting(), is("_alias:*,-prod-eu:*"));
         factory.includeProject("prod-eu");
         assertThat(factory.effectiveProjectRouting(), is("_alias:*"));
+    }
+
+    public void testFieldCapabilitiesRecheckShouldUseFactoryOwnClient() {
+        when(datafeedConfig.getIndices()).thenReturn(List.of("logs-*"));
+        when(datafeedConfig.getIndicesOptions()).thenReturn(IndicesOptions.LENIENT_EXPAND_OPEN);
+        when(datafeedConfig.getRuntimeMappings()).thenReturn(Collections.emptyMap());
+        when(job.allInputFields()).thenReturn(List.of("time", "field_1"));
+
+        ScrollDataExtractorFactory factory = newFactory();
+        factory.requestFieldCapabilities(ActionTestUtils.assertNoFailureListener(r -> {}));
+
+        verify(client).execute(same(TransportFieldCapabilitiesAction.TYPE), any(FieldCapabilitiesRequest.class), any());
     }
 
     @SuppressWarnings("unchecked")

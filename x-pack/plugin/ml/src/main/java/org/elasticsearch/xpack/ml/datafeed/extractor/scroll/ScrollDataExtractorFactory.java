@@ -322,14 +322,9 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         return fieldCapabilitiesRequest;
     }
 
-    public static void requestFieldCapabilities(
-        Client client,
-        DatafeedConfig datafeed,
-        Job job,
-        ActionListener<FieldCapabilitiesResponse> listener
-    ) {
-        FieldCapabilitiesRequest fieldCapabilitiesRequest = buildFieldCapabilitiesRequest(datafeed, job);
-        ClientHelper.<FieldCapabilitiesResponse>executeWithHeaders(datafeed.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {
+    public void requestFieldCapabilities(ActionListener<FieldCapabilitiesResponse> listener) {
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = buildFieldCapabilitiesRequest(datafeedConfig, job);
+        ClientHelper.<FieldCapabilitiesResponse>executeWithHeaders(datafeedConfig.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {
             client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapabilitiesRequest, listener);
             return null;
         });

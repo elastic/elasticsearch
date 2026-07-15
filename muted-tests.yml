@@ -466,9 +466,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testCloseWhileShardsAreHollowed
   issue: https://github.com/elastic/elasticsearch/issues/151861
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testConsecutiveRotations
-  issue: https://github.com/elastic/elasticsearch/issues/152472
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSourceRelocationDuringReshard
   issue: https://github.com/elastic/elasticsearch/issues/152800
@@ -481,18 +478,12 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/149663
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testRotationCycleWithNoHandlers
-  issue: https://github.com/elastic/elasticsearch/issues/152913
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/152914
 - class: org.elasticsearch.reindex.management.ReindexCancelRelocationIT
   method: testCancelReindexCancelsRelocatedTaskByOriginalTaskId
   issue: https://github.com/elastic/elasticsearch/issues/152925
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testEachInstallOrRotationAddsExactlyOneNewKey
-  issue: https://github.com/elastic/elasticsearch/issues/153024
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromRightSideWhenNotKept}
   issue: https://github.com/elastic/elasticsearch/issues/153046
@@ -652,9 +643,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.parser.ParamsParserTests
   method: testMixedSingleDoubleParams
   issue: https://github.com/elastic/elasticsearch/issues/153746
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testRotationCompletesWithMultipleHandlers
-  issue: https://github.com/elastic/elasticsearch/issues/153747
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
   method: testResumableWrite
   issue: https://github.com/elastic/elasticsearch/issues/153748

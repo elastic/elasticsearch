@@ -258,6 +258,16 @@ public class KeyRotationIT extends SecurityIntegTestCase {
             assertThat("beta blob re-encrypted off initial", betaBlob.blob.keyId(), not(equalTo(initialKeyId)));
             assertThat("alpha blob's key still present", m.getKeys().keySet(), hasItem(alphaBlob.blob.keyId()));
             assertThat("beta blob's key still present", m.getKeys().keySet(), hasItem(betaBlob.blob.keyId()));
+            assertThat(
+                "handlerKeyIds not in sync with actual keys",
+                m.getHandlerKeyIds().get(AlphaBlob.TYPE),
+                equalTo(alphaBlob.blob.keyId())
+            );
+            assertThat(
+                "handlerKeyIds not in sync with actual keys",
+                m.getHandlerKeyIds().get(BetaBlob.TYPE),
+                equalTo(betaBlob.blob.keyId())
+            );
         }, 30, TimeUnit.SECONDS);
 
         AlphaBlob alphaBlob = customOnMaster(AlphaBlob.TYPE);

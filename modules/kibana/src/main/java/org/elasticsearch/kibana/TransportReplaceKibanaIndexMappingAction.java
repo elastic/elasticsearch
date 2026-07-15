@@ -30,12 +30,18 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Master-node action that installs a replacement mapping on a Kibana saved-objects system index.
@@ -56,6 +62,17 @@ import org.elasticsearch.transport.TransportService;
 public class TransportReplaceKibanaIndexMappingAction extends TransportMasterNodeAction<
     ReplaceKibanaIndexMappingAction.Request,
     AcknowledgedResponse> {
+
+    /**
+     * Index-metadata custom recording fields dropped by this action, as a map of flattened field path to the ES type
+     * the field had when it was dropped. Lucene permanently remembers the shape (index options, doc-values type) of
+     * every field name a shard has ever indexed — even after all values are purged and merged away — so re-introducing
+     * a dropped name under a different type would be accepted by the mapping layer but fail on the first document
+     * write with a confusing shard-level error. These tombstones let us reject such re-introductions at
+     * mapping-replacement time instead. A field re-introduced with its recorded type is safe: it is allowed and its
+     * tombstone is cleared, since the live mapping becomes the source of truth again.
+     */
+    public static final String DROPPED_FIELDS_METADATA_KEY = "kibana_dropped_fields";
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
@@ -122,10 +139,13 @@ public class TransportReplaceKibanaIndexMappingAction extends TransportMasterNod
         // is live on this node, that method reuses the index's current DocumentMapper as an optimization, which would
         // turn the merge below back into the usual additive merge and silently retain the fields being dropped.
         final IndexMetadata unmappedIndexMetadata = IndexMetadata.builder(indexMetadata).putMapping((MappingMetadata) null).build();
-        try (MapperService mapperService = indicesService.createIndexMapperServiceForValidation(unmappedIndexMetadata)) {
+        try (
+            MapperService newMapperService = indicesService.createIndexMapperServiceForValidation(unmappedIndexMetadata);
+            MapperService oldMapperService = indicesService.createIndexMapperServiceForValidation(unmappedIndexMetadata)
+        ) {
             // The fresh MapperService has no existing mapping, so this merge validates and builds the submitted
             // mapping exactly as-is; nothing from the current mapping is carried over.
-            DocumentMapper newMapper = mapperService.merge(
+            DocumentMapper newMapper = newMapperService.merge(
                 MapperService.SINGLE_MAPPING_NAME,
                 new CompressedXContent(request.mappingSource()),
                 MapperService.MergeReason.MAPPING_UPDATE
@@ -134,15 +154,93 @@ public class TransportReplaceKibanaIndexMappingAction extends TransportMasterNod
             if (indexMetadata.mapping() != null && newMapping.source().equals(indexMetadata.mapping().source())) {
                 return currentState;
             }
+            Map<String, String> oldFields = Map.of();
+            if (indexMetadata.mapping() != null) {
+                DocumentMapper oldMapper = oldMapperService.merge(
+                    MapperService.SINGLE_MAPPING_NAME,
+                    indexMetadata.mapping().source(),
+                    MapperService.MergeReason.MAPPING_RECOVERY
+                );
+                oldFields = leafFieldTypes(oldMapper);
+            }
+            Map<String, String> newFields = leafFieldTypes(newMapper);
+            Map<String, String> tombstones = updatedTombstones(indexMetadata, oldFields, newFields);
+
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata)
                 .putMapping(newMapping)
                 .putInferenceFields(newMapper.mappers().inferenceFields())
                 .mappingVersion(indexMetadata.getMappingVersion() + 1)
                 .mappingsUpdatedVersion(IndexVersion.current());
+            if (tombstones.isEmpty() == false || indexMetadata.getCustomData(DROPPED_FIELDS_METADATA_KEY) != null) {
+                indexMetadataBuilder.putCustom(DROPPED_FIELDS_METADATA_KEY, tombstones);
+            }
             Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
             metadataBuilder.getProject(project.id()).put(indexMetadataBuilder);
             return ClusterState.builder(currentState).metadata(metadataBuilder).build();
         }
+    }
+
+    /**
+     * Computes the updated dropped-field tombstones for this replacement, enforcing the re-introduction guardrails:
+     * a field may never change type while mapped, may not be re-introduced under a different type than it was dropped
+     * with, and reclaims (clears) its tombstone when re-introduced with the identical type.
+     */
+    private static Map<String, String> updatedTombstones(
+        IndexMetadata indexMetadata,
+        Map<String, String> oldFields,
+        Map<String, String> newFields
+    ) {
+        Map<String, String> existingTombstones = indexMetadata.getCustomData(DROPPED_FIELDS_METADATA_KEY);
+        Map<String, String> tombstones = existingTombstones == null ? new HashMap<>() : new HashMap<>(existingTombstones);
+        for (Map.Entry<String, String> field : newFields.entrySet()) {
+            String droppedType = tombstones.get(field.getKey());
+            if (droppedType != null) {
+                if (droppedType.equals(field.getValue())) {
+                    // Safe resurrection: same type as when it was dropped; the live mapping is the source of truth again.
+                    tombstones.remove(field.getKey());
+                } else {
+                    throw new IllegalArgumentException(
+                        "field ["
+                            + field.getKey()
+                            + "] was previously dropped as type ["
+                            + droppedType
+                            + "] and cannot be re-introduced as type ["
+                            + field.getValue()
+                            + "]: this shard's segments permanently remember the original Lucene field shape, so writes"
+                            + " would fail; use a new (versioned) field name instead"
+                    );
+                }
+            }
+            String oldType = oldFields.get(field.getKey());
+            if (oldType != null && oldType.equals(field.getValue()) == false) {
+                throw new IllegalArgumentException(
+                    "field ["
+                        + field.getKey()
+                        + "] cannot change type from ["
+                        + oldType
+                        + "] to ["
+                        + field.getValue()
+                        + "] via mapping replacement; use a new (versioned) field name instead"
+                );
+            }
+        }
+        for (Map.Entry<String, String> field : oldFields.entrySet()) {
+            if (newFields.containsKey(field.getKey()) == false) {
+                tombstones.put(field.getKey(), field.getValue());
+            }
+        }
+        return tombstones;
+    }
+
+    /** Flattened leaf field path to ES type name for every non-metadata field mapper (multi-fields included). */
+    private static Map<String, String> leafFieldTypes(DocumentMapper documentMapper) {
+        Map<String, String> fields = new HashMap<>();
+        for (Mapper mapper : documentMapper.mappers().fieldMappers()) {
+            if (mapper instanceof FieldMapper fieldMapper && mapper instanceof MetadataFieldMapper == false) {
+                fields.put(fieldMapper.fullPath(), fieldMapper.fieldType().typeName());
+            }
+        }
+        return fields;
     }
 
     private IndexMetadata resolveKibanaSystemIndex(ClusterState state, String indexName) {

@@ -507,3 +507,34 @@ json:keyword                                                               | fn:
 "{""first"": ""Parto"", ""last"": ""Bamford""}"                            | Parto      | Bamford
 ;
 
+// Regression test for https://github.com/elastic/elasticsearch/issues/153622 —
+// passing a multi-value as the path argument must not throw a ClassCastException.
+jsonExtractMvPath
+required_capability: fn_json_extract
+required_capability: fn_json_extract_mv_path_fix
+ROW str = """{"name":"Alice"}""", mvPath = ["name", "age"]
+| EVAL result = JSON_EXTRACT(str, mvPath)
+| KEEP str, result
+;
+warning:Line 2:17: evaluation of [JSON_EXTRACT(str, mvPath)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+str:keyword              | result:keyword
+"{""name"":""Alice""}"  | null
+;
+
+// Both arguments are multi-value (the original issue reproduction).
+jsonExtractMvBothArgs
+required_capability: fn_json_extract
+required_capability: fn_json_extract_mv_path_fix
+ROW foo = ["a", "b"]
+| EVAL bar = JSON_EXTRACT(foo, foo)
+| KEEP bar
+;
+warning:Line 2:14: evaluation of [JSON_EXTRACT(foo, foo)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:14: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+bar:keyword
+null
+;
+

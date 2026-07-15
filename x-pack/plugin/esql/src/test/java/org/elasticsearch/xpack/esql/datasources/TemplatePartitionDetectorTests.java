@@ -225,6 +225,24 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertEquals("template", detector.name());
     }
 
+    /**
+     * The template detector delegates type inference and casting to {@link HivePartitionDetector}, so it shares
+     * the capitalized-boolean handling: a {@code {flag}} template over {@code True/} and {@code False/} segments
+     * infers {@code BOOLEAN} and casts each to its boolean value.
+     */
+    public void testCapitalizedBooleanTemplatePartition() {
+        TemplatePartitionDetector detector = new TemplatePartitionDetector("{flag}");
+
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/True/file1.parquet"), entry("s3://bucket/data/False/file2.parquet"));
+
+        PartitionMetadata result = detector.detect(files, Map.of());
+
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.BOOLEAN, result.partitionColumns().get("flag"));
+        assertEquals(true, result.filePartitionValues().get(StoragePath.of("s3://bucket/data/True/file1.parquet")).get("flag"));
+        assertEquals(false, result.filePartitionValues().get(StoragePath.of("s3://bucket/data/False/file2.parquet")).get("flag"));
+    }
+
     public void testMixedIntegerAndKeyword() {
         TemplatePartitionDetector detector = new TemplatePartitionDetector("{year}/{region}");
 

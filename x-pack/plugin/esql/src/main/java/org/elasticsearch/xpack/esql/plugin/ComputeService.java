@@ -497,7 +497,7 @@ public class ComputeService {
         // Feed the same partition-column set the fold uses (read from serialized sourceMetadata, so it matches the
         // data-node fold): COUNT(partition_col) must safe-miss on both paths, or the gate skips discovery for a
         // fold that then bails -> the zero-split crash above.
-        Set<String> pathDerivedColumns = ExternalSourceAggregatePushdown.partitionColumnNames(meta);
+        Set<String> pathDerivedColumns = SourceStatisticsSerializer.partitionColumnNames(meta);
         return ExternalSourceAggregatePushdown.canServeAllFromStats(
             agg.aggregates(),
             stats,
@@ -517,19 +517,22 @@ public class ComputeService {
             return;
         }
         plan.forEachDown(FragmentExec.class, fragment -> {
-            fragment.fragment().forEachDown(ExternalRelation.class, external -> {
-                ExternalSourceExec tempExec = external.toPhysicalExec();
+            // Each relation is discovered with the Filter conjuncts that guard it inside the fragment. Lowering a
+            // relation to a standalone ExternalSourceExec drops the surrounding plan, so those conjuncts have to be
+            // recovered before the lowering or partition pruning never sees the predicate at all.
+            for (SplitDiscoveryPhase.GuardedRelation guarded : SplitDiscoveryPhase.guardedRelations(fragment.fragment())) {
                 SplitDiscoveryPhase.Result result = SplitDiscoveryPhase.resolveExternalSplitsWithStats(
-                    tempExec,
+                    guarded.relation().toPhysicalExec(),
                     operatorFactoryRegistry.sourceFactories(),
                     maxRecordBytes,
-                    isCancelled
+                    isCancelled,
+                    guarded.filters()
                 );
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
                 }
                 recordExternalScanStats(execInfo, result);
-            });
+            }
         });
     }
 
@@ -812,12 +815,17 @@ public class ComputeService {
     ) {
         final PhysicalPlan splitPlan;
         final ExternalDistributionResult distributionResult;
+        long splitDiscoveryStart = System.nanoTime();
         try {
             // Phase 2 split discovery runs synchronously here and can be long (thousands of footer
             // reads); thread the query's cancellation signal so a cancel aborts it promptly. A cancel
             // (or any discovery failure) is surfaced through the listener rather than thrown raw.
             splitPlan = discoverSplits(physicalPlan, configuration, execInfo, rootTask::isCancelled);
             distributionResult = applyExternalDistributionStrategy(splitPlan, configuration, execInfo, rootTask::isCancelled);
+            if (execInfo != null
+                && (distributionResult.coordinatorSplits.isEmpty() == false || distributionResult.distributionPlan() != null)) {
+                execInfo.queryProfile().addSplitDiscoveryNanos(System.nanoTime() - splitDiscoveryStart);
+            }
         } catch (Exception e) {
             listener.onFailure(e);
             return;

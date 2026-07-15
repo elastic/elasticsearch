@@ -706,9 +706,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-multifile.aggregateMultiFileByGender [ndjson.bz/S3]}
   issue: https://github.com/elastic/elasticsearch/issues/153340
-- class: org.elasticsearch.xpack.downsample.DownsampleRateIT
-  method: testTimeSeriesQuerying_RandomDocuments
-  issue: https://github.com/elastic/elasticsearch/issues/153348
 - class: org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianCentroidTests
   method: testReduceRandom
   issue: https://github.com/elastic/elasticsearch/issues/153353

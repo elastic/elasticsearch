@@ -104,8 +104,10 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
@@ -143,6 +145,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -3380,6 +3383,89 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertHitCount(prepareSearch(indexName), numDocs);
     }
 
+    public void testConcurrentStartSplitCancelsStaleRequest() throws Exception {
+        var copyBlockedLatch = new CountDownLatch(1);
+        var copyContinueLatch = new CountDownLatch(1);
+        var copyBlockStrategy = new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerCopyBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                BlobContainer sourceBlobContainer,
+                String sourceBlobName,
+                String blobName,
+                long blobSize
+            ) throws IOException {
+                copyBlockedLatch.countDown();
+                safeAwait(copyContinueLatch);
+                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+            }
+        };
+
+        startMasterOnlyNode();
+        var indexNodeA = startIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        setNodeRepositoryStrategy(indexNodeA, copyBlockStrategy);
+        startSearchNode();
+        ensureStableCluster(3);
+
+        // Disable rebalancing so the target shard doesn't get moved
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false)
+        );
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put("index.allocation.max_retries", Integer.MAX_VALUE).build());
+        ensureGreen(indexName);
+
+        int numDocs = 100;
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
+
+        // Spin up new index node which will host the target shard
+        var indexNodeB = startIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        setNodeRepositoryStrategy(indexNodeB, copyBlockStrategy);
+
+        var capturedTasks = new CopyOnWriteArrayList<CancellableTask>();
+        var secondRequestArrived = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNodeA)
+            .addRequestHandlingBehavior(TransportReshardSplitAction.START_SPLIT_ACTION_NAME, (handler, request, channel, task) -> {
+                capturedTasks.add((CancellableTask) task);
+                if (capturedTasks.size() == 2) {
+                    secondRequestArrived.countDown();
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        logger.info("starting reshard");
+        client(indexNodeA).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // Wait until the source shard is stuck copying while handling the first start split request
+        safeAwait(copyBlockedLatch);
+        // Restart target node to initiate new start split request
+        internalCluster().restartNode(indexNodeB);
+        ensureStableCluster(4);
+
+        safeAwait(secondRequestArrived);
+        try {
+            // Source should cancel the first task
+            assertBusy(() -> assertTrue(capturedTasks.getFirst().isCancelled()));
+            assertFalse(capturedTasks.get(1).isCancelled());
+        } finally {
+            copyContinueLatch.countDown();
+        }
+
+        waitForReshardCompletion(indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
+    }
+
     /**
      * Verifies split target shards recover after a master restart during split initiation.
      * <p>
@@ -3450,6 +3536,94 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             assertHitCount(prepareSearchAll(indexName), numDocs);
         } finally {
             sourceTransport.clearAllRules();
+        }
+    }
+
+    /**
+     * Verifies split target shards recover after a master restart during HANDOFF, before the target primary is started.
+     * <p>
+     * Complements {@link #testTargetRecoversAfterMasterRestartDuringSplit()}: that test restarts the master during
+     * split initiation (START_SPLIT blocked, target unassigned); this test restarts after the target reaches
+     * {@link IndexReshardingState.Split.TargetShardState#HANDOFF} in resharding metadata but before the target
+     * primary is started in routing. Both force gateway recovery and verify the reshard completes with all
+     * documents searchable. Post-handoff recovery does not copy blobs (CLONE already finished), so the target's
+     * {@link ShardStateAction#SHARD_STARTED_ACTION_NAME} notification to master is blocked to keep routing
+     * {@code !started()} while metadata is {@code HANDOFF}.
+     */
+    public void testTargetRecoversAfterMasterRestartDuringHandoff() throws RuntimeException {
+        String masterNode = startMasterNodeForRestartTest();
+        String indexNode = startIndexNode();
+        startSearchNodes(2);
+        ensureStableCluster(4);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build()
+        );
+        ensureGreen(indexName);
+        final int numDocs = randomIntBetween(10, 50);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), numDocs);
+
+        String targetIndexNode = startIndexNode();
+        ensureStableCluster(5);
+
+        // Block the target's SHARD_STARTED notification so routing stays !started
+        // while resharding metadata is HANDOFF.
+        CountDownLatch allowShardStarted = new CountDownLatch(1);
+        MockTransportService targetTransport = MockTransportService.getInstance(targetIndexNode);
+        targetTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (ShardStateAction.SHARD_STARTED_ACTION_NAME.equals(action)) {
+                safeAwait(allowShardStarted);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        CountDownLatch masterRestartDone = new CountDownLatch(1);
+        Thread restartThread = new Thread(() -> {
+            try {
+                Index index = resolveIndex(indexName);
+                awaitClusterState(state -> {
+                    IndexMetadata im = indexMetadata(state, index);
+                    if (im.getReshardingMetadata() == null) {
+                        return false;
+                    }
+                    boolean handoff = im.getReshardingMetadata()
+                        .getSplit()
+                        .getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.HANDOFF;
+                    ShardRouting primary = state.routingTable().index(index).shard(1).primaryShard();
+                    // Shard could not have been started because of the block on SHARD_STARTED_ACTION_NAME above
+                    return handoff && primary.started() == false;
+                });
+                logger.info("--> restarting master during handoff before target started");
+                internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+                    @Override
+                    public boolean validateClusterForming() {
+                        return false;
+                    }
+                });
+                allowShardStarted.countDown();
+                assertBusy(() -> ensureStableCluster(5));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            } finally {
+                allowShardStarted.countDown();
+                masterRestartDone.countDown();
+            }
+        }, "master-restart-during-handoff");
+        restartThread.start();
+
+        try {
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
+            safeAwait(masterRestartDone);
+            waitForReshardCompletion(indexName);
+            ensureGreen(indexName);
+            refresh(indexName);
+            assertHitCount(prepareSearchAll(indexName), numDocs);
+        } finally {
+            targetTransport.clearAllRules();
+            safeJoin(restartThread);
         }
     }
 

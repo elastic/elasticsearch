@@ -11,6 +11,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -24,9 +25,8 @@ public class ReindexMetadataTests extends ESTestCase {
     private static final long TIMESTAMP = 1_658_000_000_000L;
     private ReindexMetadata metadata;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initMetadata() throws Exception {
         reset();
     }
 

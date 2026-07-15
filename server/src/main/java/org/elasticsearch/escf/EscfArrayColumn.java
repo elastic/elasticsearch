@@ -10,6 +10,7 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
@@ -22,9 +23,9 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 final class EscfArrayColumn extends EscfColumn {
 
     private final EscfColumn child;
-    private final int[] rowOffsets;
+    private final IntsRef rowOffsets;
 
-    EscfArrayColumn(int docCount, FixedBitSet absent, EscfColumn child, int[] rowOffsets) {
+    EscfArrayColumn(int docCount, FixedBitSet absent, EscfColumn child, IntsRef rowOffsets) {
         super(docCount, absent);
         this.child = child;
         this.rowOffsets = rowOffsets;
@@ -42,6 +43,27 @@ final class EscfArrayColumn extends EscfColumn {
 
     @Override
     ArrayReader getArrayValue(int d) {
-        return new ColumnarArrayReader(child, rowOffsets[d], rowOffsets[d + 1]);
+        return new ColumnarArrayReader(child, rowOffsets.ints[rowOffsets.offset + d], rowOffsets.ints[rowOffsets.offset + d + 1]);
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        // Child stays full/unsliced — ColumnarArrayReader uses absolute element indices.
+        return new EscfArrayColumn(
+            count,
+            windowBitSet(absent, from, count),
+            child,
+            new IntsRef(rowOffsets.ints, rowOffsets.offset + from, count + 1)
+        );
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        int elemFrom = rowOffsets.ints[rowOffsets.offset];
+        int elemTo = rowOffsets.ints[rowOffsets.offset + docCount];
+        int[] newRowOffsets = rebasedOffsets(rowOffsets, docCount);
+        // Slice the child to the element range referenced by this window, then materialize it.
+        EscfColumnData childData = child.sliceInternal(elemFrom, elemTo - elemFrom).toColumnData();
+        return EscfColumnData.ofArray(docCount, absent, newRowOffsets, childData);
     }
 }

@@ -17,7 +17,10 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  */
 final class EscfBoolColumn extends EscfColumn {
 
-    /** Value bitset (bit set = {@code true}), or {@code null} when every value is {@code false}. */
+    /**
+     * Value bitset (bit set = {@code true}), or {@code null} when every value is {@code false}.
+     * Always zero-based and covers {@code [0, docCount)} when non-null.
+     */
     private final FixedBitSet values;
 
     EscfBoolColumn(int docCount, FixedBitSet absent, FixedBitSet values) {
@@ -41,8 +44,18 @@ final class EscfBoolColumn extends EscfColumn {
     }
 
     private boolean bitSet(int d) {
-        // The value bitset is sized only to the last true document (and is null when there are none),
-        // so any doc beyond its length reads false. Mirrors EscfColumn#isAbsent.
-        return values != null && d < values.length() && values.get(d);
+        // values is null or covers [0, docCount), so no length guard is needed.
+        return values != null && values.get(d);
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        return new EscfBoolColumn(count, windowBitSet(absent, from, count), windowBitSet(values, from, count));
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        // absent and values are already windowed and zero-based; return them directly.
+        return EscfColumnData.ofBool(docCount, absent, values);
     }
 }

@@ -10,6 +10,7 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
@@ -19,7 +20,7 @@ import org.elasticsearch.sourcebatch.SourceValueType;
  */
 final class EscfBinaryColumn extends AbstractVarColumn {
 
-    EscfBinaryColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets) {
+    EscfBinaryColumn(int docCount, FixedBitSet absent, BytesReference data, IntsRef offsets) {
         super(docCount, absent, data, offsets);
     }
 
@@ -31,5 +32,23 @@ final class EscfBinaryColumn extends AbstractVarColumn {
     @Override
     byte typeByteForPresent(int d) {
         return SourceValueType.BINARY;
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        return new EscfBinaryColumn(
+            count,
+            windowBitSet(absent, from, count),
+            data,
+            new IntsRef(offsets.ints, offsets.offset + from, count + 1)
+        );
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        int byteFrom = offsets.ints[offsets.offset];
+        BytesReference newData = data.slice(byteFrom, offsets.ints[offsets.offset + docCount] - byteFrom);
+        int[] newOffsets = rebasedOffsets(offsets, docCount);
+        return EscfColumnData.ofVarWidth(kind(), docCount, absent, newOffsets, newData);
     }
 }

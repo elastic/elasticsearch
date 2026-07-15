@@ -18,7 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
  */
 abstract class AbstractFixed64Column extends EscfColumn {
 
-    private final BytesReference data;
+    protected final BytesReference data;
 
     AbstractFixed64Column(int docCount, FixedBitSet absent, BytesReference data) {
         super(docCount, absent);

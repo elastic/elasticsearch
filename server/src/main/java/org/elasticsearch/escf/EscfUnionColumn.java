@@ -11,6 +11,7 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.InlineArrayReader;
@@ -28,15 +29,17 @@ import org.elasticsearch.xcontent.XContentString;
  */
 final class EscfUnionColumn extends EscfColumn {
 
-    private final byte[] typeVec;
-    private final int typeVecBase;
-    private final int[] offsets;
+    private final BytesRef typeVec;
+    /**
+     * Windowed offset vector. {@code offsets.ints[offsets.offset + d]} is the absolute byte start
+     * of document {@code d}'s value in {@code data}. The window covers {@code docCount + 1} entries.
+     */
+    private final IntsRef offsets;
     private final BytesReference data;
 
-    EscfUnionColumn(int docCount, FixedBitSet absent, byte[] typeVec, int typeVecBase, int[] offsets, BytesReference data) {
+    EscfUnionColumn(int docCount, FixedBitSet absent, BytesRef typeVec, IntsRef offsets, BytesReference data) {
         super(docCount, absent);
         this.typeVec = typeVec;
-        this.typeVecBase = typeVecBase;
         this.offsets = offsets;
         this.data = data;
     }
@@ -48,12 +51,12 @@ final class EscfUnionColumn extends EscfColumn {
 
     @Override
     byte typeByteForPresent(int d) {
-        return typeVec[typeVecBase + d];
+        return typeVec.bytes[typeVec.offset + d];
     }
 
     @Override
     boolean getBooleanValue(int d) {
-        byte t = typeVec[typeVecBase + d];
+        byte t = typeVec.bytes[typeVec.offset + d];
         if (t == SourceValueType.TRUE) {
             return true;
         }
@@ -65,12 +68,12 @@ final class EscfUnionColumn extends EscfColumn {
 
     @Override
     long getLongValue(int d) {
-        return data.getLongLE(offsets[d]);
+        return data.getLongLE(offsets.ints[offsets.offset + d]);
     }
 
     @Override
     double getDoubleValue(int d) {
-        return Double.longBitsToDouble(data.getLongLE(offsets[d]));
+        return Double.longBitsToDouble(data.getLongLE(offsets.ints[offsets.offset + d]));
     }
 
     @Override
@@ -86,7 +89,7 @@ final class EscfUnionColumn extends EscfColumn {
 
     @Override
     ArrayReader getArrayValue(int d) {
-        boolean fixed = typeVec[typeVecBase + d] == SourceValueType.FIXED_ARRAY;
+        boolean fixed = typeVec.bytes[typeVec.offset + d] == SourceValueType.FIXED_ARRAY;
         // InlineArrayReader takes a byte[]; materialise this one value's bytes (zero-copy when contiguous).
         BytesRef ref = value(d);
         return new InlineArrayReader(ref.bytes, ref.offset, ref.length, fixed);
@@ -101,7 +104,26 @@ final class EscfUnionColumn extends EscfColumn {
 
     /** The contiguous bytes for document {@code d}'s value, sliced from the payload (zero-copy when contiguous). */
     private BytesRef value(int d) {
-        int off0 = offsets[d];
-        return data.slice(off0, offsets[d + 1] - off0).toBytesRef();
+        int off0 = offsets.ints[offsets.offset + d];
+        return data.slice(off0, offsets.ints[offsets.offset + d + 1] - off0).toBytesRef();
+    }
+
+    @Override
+    EscfColumn sliceInternal(int from, int count) {
+        return new EscfUnionColumn(
+            count,
+            windowBitSet(absent, from, count),
+            new BytesRef(typeVec.bytes, typeVec.offset + from, count),
+            new IntsRef(offsets.ints, offsets.offset + from, count + 1),
+            data
+        );
+    }
+
+    @Override
+    EscfColumnData toColumnData() {
+        int byteFrom = offsets.ints[offsets.offset];
+        BytesReference newData = data.slice(byteFrom, offsets.ints[offsets.offset + docCount] - byteFrom);
+        int[] newOffsets = rebasedOffsets(offsets, docCount);
+        return EscfColumnData.ofUnion(docCount, absent, typeVec, newOffsets, newData);
     }
 }

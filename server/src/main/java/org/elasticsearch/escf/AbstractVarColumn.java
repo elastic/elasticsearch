@@ -11,6 +11,7 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
 
 /**
@@ -21,9 +22,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 abstract class AbstractVarColumn extends EscfColumn {
 
     final BytesReference data;
-    final int[] offsets;
+    final IntsRef offsets;
 
-    AbstractVarColumn(int docCount, FixedBitSet absent, BytesReference data, int[] offsets) {
+    AbstractVarColumn(int docCount, FixedBitSet absent, BytesReference data, IntsRef offsets) {
         super(docCount, absent);
         this.data = data;
         this.offsets = offsets;
@@ -31,7 +32,7 @@ abstract class AbstractVarColumn extends EscfColumn {
 
     @Override
     final BytesRef getBinaryValue(int d) {
-        int off = offsets[d];
-        return data.slice(off, offsets[d + 1] - off).toBytesRef();
+        int off = offsets.ints[offsets.offset + d];
+        return data.slice(off, offsets.ints[offsets.offset + d + 1] - off).toBytesRef();
     }
 }

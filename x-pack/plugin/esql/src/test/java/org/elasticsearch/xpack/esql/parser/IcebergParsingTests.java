@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
@@ -26,8 +27,16 @@ import static org.hamcrest.Matchers.instanceOf;
  * Tests for parsing the EXTERNAL command.
  *
  * <p>The {@code EXTERNAL} grammar surface is gated to snapshot builds; release builds reject it at
- * the lexer level. Each test asserts the snapshot precondition rather than executing under release
- * — release-build CI silently skips, which is the intended behaviour for a snapshot-only feature.
+ * the lexer level ({@link EsqlConfig#isExternalDataSourcesEnabled()}). Each positive/parsing test
+ * asserts the snapshot precondition rather than executing under release — release-build CI silently
+ * skips those, which is the intended behaviour for a snapshot-only feature.
+ *
+ * <p>Conversely, {@link #testExternalCommandUnavailableOnRealReleaseBuild} asserts the opposite
+ * precondition ({@code assumeFalse} on a snapshot build) and drives the real, non-overridden
+ * {@link EsqlConfig}/{@link EsqlCapabilities} — the same objects {@code EsqlPlugin} builds at
+ * runtime — so it is a no-op on ordinary snapshot test runs and only actually exercises the
+ * release-build gate when the suite is run with {@code -Dbuild.snapshot=false} (see
+ * {@code TESTING.asciidoc}), e.g. via the CI {@code release-tests} job.
  */
 public class IcebergParsingTests extends AbstractStatementParserTests {
 
@@ -85,12 +94,39 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
     }
 
     public void testIcebergCommandNotAvailableInProduction() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        // Deliberately no assumeTrue(Build.current().isSnapshot()) here: the production behaviour is
+        // forced below via new EsqlConfig(false, ...), independent of the real build type, so this
+        // regression check must run on every build (including under -Dbuild.snapshot=false), unlike
+        // the snapshot-only positive tests in this file.
 
         // Create a parser with production mode (dev version = false)
         EsqlConfig config = new EsqlConfig(false, TEST_FUNCTION_REGISTRY);
         EsqlParser prodParser = new EsqlParser(config);
 
+        ParsingException pe = expectThrows(ParsingException.class, () -> prodParser.createStatement("EXTERNAL \"s3://bucket/table\""));
+        assertThat(pe.getMessage(), containsString("mismatched input 'EXTERNAL'"));
+    }
+
+    /**
+     * Regression test for the EXTERNAL command leaking into release builds: unlike
+     * {@link #testIcebergCommandNotAvailableInProduction}, which forces production mode via an
+     * explicit {@code EsqlConfig(false, ...)} override, this test drives the real, default
+     * {@link EsqlConfig}/{@link EsqlParser} construction (the same one {@code EsqlPlugin} uses at
+     * runtime) against the actual running build. It only meaningfully executes — rather than being
+     * skipped — when the test JVM is a genuine release build (e.g. {@code -Dbuild.snapshot=false},
+     * as used by the CI {@code release-tests} job), which is the only way to catch a build-type
+     * check that is accidentally inverted, since such a bug is invisible while
+     * {@code Build.current().isSnapshot()} is {@code true}.
+     */
+    public void testExternalCommandUnavailableOnRealReleaseBuild() {
+        assumeFalse("only exercises the real release-build gate", Build.current().isSnapshot());
+
+        assertFalse(
+            "EXTERNAL command capability must not be reported as enabled on a release build",
+            EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()
+        );
+
+        EsqlParser prodParser = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY));
         ParsingException pe = expectThrows(ParsingException.class, () -> prodParser.createStatement("EXTERNAL \"s3://bucket/table\""));
         assertThat(pe.getMessage(), containsString("mismatched input 'EXTERNAL'"));
     }

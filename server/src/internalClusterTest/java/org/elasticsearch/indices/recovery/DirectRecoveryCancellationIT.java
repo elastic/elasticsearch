@@ -69,7 +69,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTestCase {
@@ -713,18 +712,11 @@ public class DirectRecoveryCancellationIT extends AbstractIndexRecoveryIntegTest
             final var unassignedInfo = unassignedShards.getFirst().unassignedInfo();
             assertNotNull("Replica should have non-null unassigned info", unassignedInfo);
             assertThat(
-                "Expected unassignment reason to be ALLOCATION_FAILED",
+                "Expected unassignment reason to be RECOVERY_CANCELLED",
                 unassignedInfo.reason(),
-                equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED)
+                equalTo(UnassignedInfo.Reason.RECOVERY_CANCELLED)
             );
-
-            final var failure = unassignedInfo.failure();
-            assertNotNull("Unassigned info should have failure details", failure);
-            assertThat(
-                "Failure should be RecoveryCancelledException",
-                ExceptionsHelper.unwrap(failure, RecoveryCancelledException.class),
-                notNullValue()
-            );
+            assertNull("Unassigned info failure should be null", unassignedInfo.failure());
             return true;
         });
     }

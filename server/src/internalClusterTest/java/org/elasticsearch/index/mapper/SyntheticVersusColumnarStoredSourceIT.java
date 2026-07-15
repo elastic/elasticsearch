@@ -161,6 +161,84 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         assertEqualSource(mappingXContent, document, false);
     }
 
+    /**
+     * A {@code multi_value=false, on_failure=ignore} field that receives two values redirects the extra value to the
+     * {@code ._on_failure} column. Both source modes must reconstruct the same document: {@code synthetic} reads the first
+     * value from its doc-values column and the second from {@code ._on_failure}; {@code columnar_stored} reads it from the
+     * whole-document blob written before the column is pruned.
+     */
+    public void testMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("kw")
+            .field("type", "keyword")
+            .startObject("doc_values")
+            .field("multi_value", false)
+            .field("on_failure", "ignore")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        // Two values: "a" is indexed normally, "b" is redirected to ._on_failure. Both must appear in _source.
+        assertEqualSource(mappingXContent, Map.of("kw", List.of("a", "b")), randomBoolean());
+    }
+
+    /**
+     * A {@code nullability=false, on_failure=ignore} field that is absent in a document is merely marked ignored rather
+     * than rejecting the document. Both source modes must omit the field from the reconstructed {@code _source}.
+     */
+    public void testNullabilityViolationOmittedIdenticallyAcrossSourceModes() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("kw")
+            .field("type", "keyword")
+            .startObject("doc_values")
+            .field("nullability", false)
+            .field("on_failure", "ignore")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        // field is absent — violation is ignored, field must be omitted from _source in both modes
+        assertEqualSource(mappingXContent, Map.of(), randomBoolean());
+    }
+
+    /**
+     * A keyword field with a normalizer operates in FALLBACK synthetic-source mode: the original (pre-normalization) value cannot
+     * be reconstructed from doc values alone, so it is pre-captured into {@code _ignored_source}.  When the same field also has
+     * {@code multi_value=false, on_failure=ignore}, a second value simultaneously goes to {@code ._on_failure} (the violation
+     * handler) and into {@code _ignored_source} (the FALLBACK pre-capture), creating double storage on disk.
+     *
+     * <p>In synthetic-source reconstruction the FALLBACK path takes priority: the field's synthetic-source loader is not
+     * instantiated, so only {@code _ignored_source} is read — the {@code ._on_failure} copy is silently skipped.  Both
+     * original values ("HELLO" and "WORLD") live in {@code _ignored_source} and must appear in the reconstructed source.
+     * {@code columnar_stored} reads the whole-document blob written before column pruning, which also contains both originals.
+     * Verifying cross-mode equality confirms that the FALLBACK loader is correctly selected and that no value is lost or
+     * double-emitted.
+     */
+    public void testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes() throws Exception {
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("kw")
+            .field("type", "keyword")
+            // lowercase normalizer makes this field FALLBACK: doc values store "hello"/"world", not the originals
+            .field("normalizer", "lowercase")
+            .startObject("doc_values")
+            .field("multi_value", false)
+            .field("on_failure", "ignore")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        // "HELLO" is indexed normally (FALLBACK: original pre-captured in _ignored_source).
+        // "WORLD" violates multi_value=false: goes to ._on_failure AND is pre-captured in _ignored_source (FALLBACK).
+        // Both originals must appear exactly once in the reconstructed _source of each mode.
+        assertEqualSource(mappingXContent, Map.of("kw", List.of("HELLO", "WORLD")), randomBoolean());
+    }
+
     private void runTest(boolean useTimeSeriesDocValuesFormat) throws Exception {
         var spec = buildSpec();
         var template = new TemplateGenerator(spec).generate();

@@ -25,35 +25,71 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class IgnoredSourceFormatFlipTests extends MapperServiceTestCase {
 
     public void testFormatFlipFailsWritePath() throws IOException {
-        final ParsedDocument storedFormatDocument = parseTimeSeriesDocument(storedFormatMapperService().documentMapper());
-        final ParsedDocument docValuesFormatDocument = parseTimeSeriesDocument(docValuesFormatMapperService().documentMapper());
+        try (
+            MapperService storedFormatMapperService = storedFormatMapperService();
+            MapperService docValuesFormatMapperService = docValuesFormatMapperService()
+        ) {
+            final ParsedDocument storedFormatDocument = parseTimeSeriesDocument(storedFormatMapperService.documentMapper());
+            final ParsedDocument docValuesFormatDocument = parseTimeSeriesDocument(docValuesFormatMapperService.documentMapper());
 
-        try (Directory directory = newDirectory()) {
-            final IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig().setIndexSort(timeSeriesIndexSort()));
-            try {
-                writer.addDocument(storedFormatDocument.rootDoc());
-                writer.commit();
-                expectThrows(IllegalArgumentException.class, () -> writer.addDocument(docValuesFormatDocument.rootDoc()));
-                writer.commit();
-            } finally {
-                IOUtils.closeWhileHandlingException(writer);
+            try (Directory directory = newDirectory()) {
+                final IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig().setIndexSort(timeSeriesIndexSort()));
+                try {
+                    writer.addDocument(storedFormatDocument.rootDoc());
+                    writer.commit();
+                    expectThrows(IllegalArgumentException.class, () -> writer.addDocument(docValuesFormatDocument.rootDoc()));
+                    final NullPointerException poisonedSortField = expectThrows(NullPointerException.class, writer::commit);
+                    assertThat(
+                        poisonedSortField.getMessage(),
+                        containsString(
+                            "Cannot invoke \"org.apache.lucene.index.FieldInfo.getDocValuesType()\" because \"pf.fieldInfo\" is null"
+                        )
+                    );
+                } finally {
+                    IOUtils.closeWhileHandlingException(writer);
+                }
             }
         }
     }
 
     public void testFormatFlipFailsReadPath() throws IOException {
-        final MapperService storedFormatMapperService = storedFormatMapperService();
-        final DocumentMapper docValuesFormatMapper = docValuesFormatMapperService().documentMapper();
-        final ParsedDocument storedFormatDocument = parseTimeSeriesDocument(storedFormatMapperService.documentMapper());
+        try (
+            MapperService storedFormatMapperService = storedFormatMapperService();
+            MapperService docValuesFormatMapperService = docValuesFormatMapperService()
+        ) {
+            final ParsedDocument storedFormatDocument = parseTimeSeriesDocument(storedFormatMapperService.documentMapper());
 
-        withLuceneIndex(
-            storedFormatMapperService,
-            writer -> writer.addDocuments(storedFormatDocument.docs()),
-            reader -> syntheticSource(docValuesFormatMapper, reader, 0)
-        );
+            withLuceneIndex(storedFormatMapperService, writer -> writer.addDocuments(storedFormatDocument.docs()), reader -> {
+                final IllegalStateException mismatch = expectThrows(
+                    IllegalStateException.class,
+                    () -> syntheticSource(docValuesFormatMapperService.documentMapper(), reader, 0)
+                );
+                assertThat(
+                    mismatch.getMessage(),
+                    containsString("unexpected docvalues type NONE for field '" + IgnoredSourceFieldMapper.NAME + "'")
+                );
+            });
+        }
+    }
+
+    public void testWriteAndReadAfterFlip() throws IOException {
+        try (MapperService docValuesFormatMapperService = docValuesFormatMapperService()) {
+            final ParsedDocument document = parseTimeSeriesDocument(docValuesFormatMapperService.documentMapper());
+
+            withLuceneIndex(
+                docValuesFormatMapperService,
+                writer -> writer.addDocuments(document.docs()),
+                reader -> assertThat(
+                    syntheticSource(docValuesFormatMapperService.documentMapper(), reader, 0),
+                    containsString("\"disabled_object\":{\"key\":\"value\"}")
+                )
+            );
+        }
     }
 
     private MapperService storedFormatMapperService() throws IOException {
@@ -83,6 +119,8 @@ public class IgnoredSourceFormatFlipTests extends MapperServiceTestCase {
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
+            // NOTE: synthetic _id is unrelated to the format flip and its terms producer trips CheckIndex assertions here.
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
             .build();
         return createMapperService(indexVersion, settings, mapping(b -> {
             b.startObject("@timestamp").field("type", "date").endObject();

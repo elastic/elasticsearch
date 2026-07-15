@@ -604,9 +604,11 @@ public class SearchEngine extends Engine {
                             );
                             backfillTimestampsByBlob.merge(bccBlobFile, ccTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
                         },
-                        listenableFuture.map(aVoid -> newBlobFileRanges)
+                        listenableFuture.map(aVoid -> {
+                            searchDirectory.backfillMetadataReadTimestamps(backfillTimestampsByBlob);
+                            return newBlobFileRanges;
+                        })
                     );
-                    searchDirectory.backfillMetadataReadTimestamps(backfillTimestampsByBlob);
                 } else {
                     listenableFuture.onResponse(Map.of());
                 }

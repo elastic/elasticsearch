@@ -37,7 +37,7 @@
 /// current state and is expected to evolve.
 ///
 ///   - BCC metadata reads, during both recovery and on new-commit notifications, BCCs are read to discover the referenced CCs and their
-///     file ranges. For time-based indices, he initial reads stamp the regions with
+///     file ranges. For time-based indices, the initial reads stamp the regions with
 ///     [org.elasticsearch.blobcache.shared.SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP]. After reading and parsing the CCs,
 ///     a timestamp is extracted from each CC and the most recent timestamp per BCC is used to backfill all the regions with
 ///     BACKFILL_IN_PROGRESS_TIMESTAMP timestamp.

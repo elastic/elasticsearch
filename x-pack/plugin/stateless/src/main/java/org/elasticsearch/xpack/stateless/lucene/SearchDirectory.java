@@ -97,7 +97,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         ShardId shardId,
         boolean timeBasedCaching
     ) {
-        super(cacheService, shardId, new LongAdder(), new LongAdder(), null);
+        super(cacheService, shardId);
         this.cacheBlobReaderService = cacheBlobReaderService;
         this.objectStoreUploadTracker = objectStoreUploadTracker;
         this.generationalFilesTermAndGens = new HashMap<>();

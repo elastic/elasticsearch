@@ -1177,6 +1177,30 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         return DeclaredTypeCoercions.castBlock(source, from, to, format, blockFactory, null, null);
     }
 
+    private Block doubleBlock(double... values) {
+        try (var builder = blockFactory.newDoubleBlockBuilder(values.length)) {
+            for (double v : values) {
+                builder.appendDouble(v);
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * {@code epoch_millis} means "the number is already epoch-millis" — the identity. On a double it must therefore
+     * ROUND like the format-free path (safeDoubleToLong), not truncate the fraction. 1.5 -> 2, matching {@code {date}}.
+     */
+    public void testDoubleToDatetimeEpochMillisRoundsLikeNoFormat() {
+        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis");
+        try (Block src = doubleBlock(1.5)) {
+            try (
+                Block cast = DeclaredTypeCoercions.castBlock(src, DataType.DOUBLE, DataType.DATETIME, epochMillis, blockFactory, null, null)
+            ) {
+                assertEquals("epoch_millis on a double is the identity: round, do not truncate", 2L, ((LongBlock) cast).getLong(0));
+            }
+        }
+    }
+
     private Block bytesBlock(String... values) {
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(values.length)) {
             for (String v : values) {

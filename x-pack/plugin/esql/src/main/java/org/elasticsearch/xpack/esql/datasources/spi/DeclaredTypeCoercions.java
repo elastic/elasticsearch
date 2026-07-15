@@ -442,7 +442,13 @@ public final class DeclaredTypeCoercions {
                     // out-of-range — so a declared read and an explicit ::datetime never disagree. String.valueOf(double)
                     // renders scientific notation at magnitudes >= 1e7, which the epoch formatters reject, so the
                     // format branch renders plain-decimal.
-                    yield declaredFormat != null
+                    // epoch_millis means the number IS already epoch-millis — the identity — so on a double it must
+                    // ROUND exactly as the format-free path does, not truncate the fraction through a millis parse.
+                    // declaredEpochFormatScale reports scale 1 for that case (and only that case); every other format
+                    // (epoch_second's fractional seconds, calendar) keeps its parse.
+                    boolean identityFormat = declaredFormat != null
+                        && Long.valueOf(1L).equals(declaredEpochFormatScale(declaredFormat.pattern(), DataType.DATETIME));
+                    yield declaredFormat != null && identityFormat == false
                         ? v -> parseDatetimeMillis(BigDecimal.valueOf((Double) v).toPlainString(), declaredFormat)
                         : v -> DataTypeConverter.safeDoubleToLong((Double) v);
                 }

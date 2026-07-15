@@ -390,6 +390,229 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that when a copy to a split target is slow, the next upload is not blocked: it starts
+     * and completes its local upload while the prior copy is still in flight. The fully-uploaded
+     * generation listener (used for flush) fires only after the copy completes.
+     */
+    public void testNextUploadProceedsWhileCopyToSplitTargetIsSlow() throws Exception {
+        CountDownLatch copyBlocker = new CountDownLatch(1);
+        CountDownLatch gen2BccWritten = new CountDownLatch(1);
+        AtomicReference<String> gen2BccNameRef = new AtomicReference<>();
+
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                class WrappedContainer extends FilterBlobContainer {
+                    WrappedContainer(BlobContainer delegate) {
+                        super(delegate);
+                    }
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return new WrappedContainer(child);
+                    }
+
+                    @Override
+                    public void writeBlob(
+                        OperationPurpose purpose,
+                        String blobName,
+                        InputStream inputStream,
+                        long blobSize,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
+                        super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                    }
+
+                    @Override
+                    public void writeBlobAtomic(
+                        OperationPurpose purpose,
+                        String blobName,
+                        InputStream inputStream,
+                        long blobSize,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
+                        super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                        String gen2Name = gen2BccNameRef.get();
+                        if (gen2Name != null && blobName.equals(gen2Name)) {
+                            gen2BccWritten.countDown();
+                        }
+                    }
+
+                    @Override
+                    public void writeBlobAtomic(
+                        OperationPurpose purpose,
+                        String blobName,
+                        BytesReference bytes,
+                        boolean failIfAlreadyExists
+                    ) {
+                        throw new AssertionError("writeBlobAtomic with BytesReference should not be called");
+                    }
+
+                    @Override
+                    public void copyBlob(
+                        OperationPurpose purpose,
+                        BlobContainer sourceBlobContainer,
+                        String sourceBlobName,
+                        String blobName,
+                        long blobSize
+                    ) throws IOException {
+                        safeAwait(copyBlocker);
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                    }
+                }
+                return new WrappedContainer(innerContainer);
+            }
+
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1).build();
+            }
+        }) {
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
+            StatelessCommitRef commit1 = commitRefs.get(0);
+            StatelessCommitRef commit2 = commitRefs.get(1);
+            gen2BccNameRef.set(blobNameFromGeneration(commit2.getGeneration()));
+
+            ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
+            testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
+
+            testHarness.commitService.onCommitCreation(commit1);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit1.getGeneration());
+            testHarness.commitService.onCommitCreation(commit2);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit2.getGeneration());
+
+            // Wait for commit2's BCC blob to be written. This means commit2's local upload finished
+            // concurrently with commit1's copy (which is blocked). The key property being tested: the
+            // second upload does not wait for the first copy to complete.
+            safeAwait(gen2BccWritten);
+
+            // The fully-uploaded listener for commit2 should not have fired yet — copies are still blocked.
+            PlainActionFuture<Void> commit2FullyUploaded = new PlainActionFuture<>();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit2.getGeneration(), commit2FullyUploaded);
+            assertFalse("commit2 should not be fully uploaded while copies are blocked", commit2FullyUploaded.isDone());
+
+            // Unblock copies; both commits should now become fully uploaded.
+            copyBlocker.countDown();
+            safeGet(commit2FullyUploaded);
+        }
+    }
+
+    /**
+     * Verifies that a shard's fully-uploaded listener does not fire until that shard's own copy to split
+     * targets has completed. With the ordering bug, a gen N+1 copy that completes before gen N's copy
+     * would call {@code fireUploadedGenerationListeners(gen_N+1.ccGen)}, which (since gen N &lt; gen N+1)
+     * would also satisfy gen N's listener prematurely. The fix serialises copies via CompletableFuture
+     * chaining so gen N+1's copy only starts after gen N's copy is done.
+     */
+    public void testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes() throws Exception {
+        CountDownLatch gen1CopyBlocker = new CountDownLatch(1);
+        CountDownLatch gen2BccWritten = new CountDownLatch(1);
+        CountDownLatch gen1ListenerFiredLatch = new CountDownLatch(1);
+        AtomicReference<String> gen1BccNameRef = new AtomicReference<>();
+        AtomicReference<String> gen2BccNameRef = new AtomicReference<>();
+
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                class WrappedContainer extends FilterBlobContainer {
+                    WrappedContainer(BlobContainer delegate) {
+                        super(delegate);
+                    }
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return new WrappedContainer(child);
+                    }
+
+                    @Override
+                    public void writeBlobAtomic(
+                        OperationPurpose purpose,
+                        String blobName,
+                        InputStream inputStream,
+                        long blobSize,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
+                        super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                        String gen2Name = gen2BccNameRef.get();
+                        if (gen2Name != null && blobName.equals(gen2Name)) {
+                            gen2BccWritten.countDown();
+                        }
+                    }
+
+                    @Override
+                    public void writeBlobAtomic(
+                        OperationPurpose purpose,
+                        String blobName,
+                        BytesReference bytes,
+                        boolean failIfAlreadyExists
+                    ) {
+                        throw new AssertionError("writeBlobAtomic with BytesReference should not be called");
+                    }
+
+                    @Override
+                    public void copyBlob(
+                        OperationPurpose purpose,
+                        BlobContainer sourceBlobContainer,
+                        String sourceBlobName,
+                        String blobName,
+                        long blobSize
+                    ) throws IOException {
+                        String gen1Name = gen1BccNameRef.get();
+                        if (gen1Name != null && blobName.equals(gen1Name)) {
+                            safeAwait(gen1CopyBlocker);
+                        }
+                        super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                    }
+                }
+                return new WrappedContainer(innerContainer);
+            }
+
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1).build();
+            }
+        }) {
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(2);
+            StatelessCommitRef commit1 = commitRefs.get(0);
+            StatelessCommitRef commit2 = commitRefs.get(1);
+            gen1BccNameRef.set(blobNameFromGeneration(commit1.getGeneration()));
+            gen2BccNameRef.set(blobNameFromGeneration(commit2.getGeneration()));
+
+            ShardId targetShardId = new ShardId(testHarness.shardId.getIndex(), 1);
+            testHarness.commitService.markSplitting(testHarness.shardId, targetShardId);
+
+            // Register gen1's listener before submitting — it must only fire after gen1's own copy completes.
+            testHarness.commitService.addListenerForUploadedGeneration(
+                testHarness.shardId,
+                commit1.getGeneration(),
+                ActionListener.wrap(ignored -> gen1ListenerFiredLatch.countDown(), e -> gen1ListenerFiredLatch.countDown())
+            );
+
+            testHarness.commitService.onCommitCreation(commit1);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit1.getGeneration());
+            testHarness.commitService.onCommitCreation(commit2);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit2.getGeneration());
+
+            // Wait for gen2's BCC blob to be written (gen2 local upload done while gen1's copy is blocked).
+            safeAwait(gen2BccWritten);
+
+            try {
+                // Give gen2's copy up to 500ms to run to ensure ordering works, i.e., we only notify
+                // when all prior copies have completed.
+                boolean gen1ListenerFiredEarly = gen1ListenerFiredLatch.await(500, TimeUnit.MILLISECONDS);
+                assertFalse("gen1's fully-uploaded listener fired before its own copy completed", gen1ListenerFiredEarly);
+            } finally {
+                // Always unblock gen1's copy so background threads can exit cleanly.
+                gen1CopyBlocker.countDown();
+            }
+
+            PlainActionFuture<Void> commit2FullyUploaded = new PlainActionFuture<>();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit2.getGeneration(), commit2FullyUploaded);
+            safeGet(commit2FullyUploaded);
+        }
+    }
+
     public void testRelocationWaitsForAllPendingCommitsAndDoesNotAllowNew() throws Exception {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
         AtomicReference<String> commitFileToBlock = new AtomicReference<>();

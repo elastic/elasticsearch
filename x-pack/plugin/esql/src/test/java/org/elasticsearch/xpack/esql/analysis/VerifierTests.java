@@ -4670,35 +4670,41 @@ public class VerifierTests extends ESTestCase {
         fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\") AND MATCH(body, \"bar\") ON title, body");
         fullText().query("FROM test | HIGHLIGHT NOT MATCH(title, \"fox\") ON title");
         fullText().query("FROM test | SORT id | LIMIT 5 | HIGHLIGHT MATCH(title, \"fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"fuzzy_rewrite\": \"top_terms_10\"}) ON title");
+        fullText().query("FROM test | HIGHLIGHT QSTR(\"fox\", {\"allow_leading_wildcard\": false}) ON title");
+        fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") ON title");
+        fullText().query("FROM test | HIGHLIGHT KQL(\"title: fox\") OR MATCH(title, \"dog\") ON title");
     }
 
     public void testHighlightSurfacesQueryTranslationFailures() {
         assumeTrue("requires HIGHLIGHT_V4 capability", EsqlCapabilities.Cap.HIGHLIGHT_V4.isEnabled());
-        defaultAnalyzer().error("FROM test | HIGHLIGHT \"fox AND\" ON first_name", containsString("Invalid query [fox AND] in HIGHLIGHT:"));
-        fullText().error(
-            "FROM test | HIGHLIGHT KQL(\"title: fox\") ON title",
-            containsString("HIGHLIGHT does not support [KQL] queries yet")
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"fox AND\" ON first_name",
+            containsString("Invalid query [fox AND] in HIGHLIGHT: Failed to parse query [fox AND]")
         );
         fullText().error(
             "FROM test | HIGHLIGHT category > 5 ON title",
-            containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR) or a boolean combination of them")
+            containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL) or a boolean combination of them")
         );
-        fullText().error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"fuzzy_rewrite\": \"top_terms_10\"}) ON title",
-            containsString("HIGHLIGHT does not support the [fuzzy_rewrite] option of [MATCH]")
-        );
-        fullText().error(
-            "FROM test | HIGHLIGHT QSTR(\"fox\", {\"allow_leading_wildcard\": false}) ON title",
-            containsString("HIGHLIGHT does not support the [allow_leading_wildcard] option of [QSTR]")
-        );
+        // The runtime context only registers its default analyzer.
         fullText().error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title",
-            containsString("HIGHLIGHT does not support the [analyzer] option of [MATCH]")
+            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [standard] not found"))
         );
         fullText().error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\") ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
         );
+        fullText().error(
+            "FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\") ON body",
+            containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"title\"}) ON body",
+            containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        // KQL syntax is checked while building the query.
+        fullText().error("FROM test | HIGHLIGHT KQL(\"title: (fox\") ON title", containsString("in HIGHLIGHT:"));
     }
 
     public void testHighlightExpressionAfterStatsFailsFieldResolution() {

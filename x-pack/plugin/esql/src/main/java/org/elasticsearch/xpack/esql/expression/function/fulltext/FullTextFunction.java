@@ -102,10 +102,9 @@ public abstract class FullTextFunction extends Function
         RewriteableAware,
         PostOptimizationPlanVerificationAware {
 
-    // TODO: this message omits HIGHLIGHT, which is now a valid location for MATCH/MATCH_PHRASE/QSTR (see
-    // HighlightQueryTranslator). A correct fix cannot simply append "HIGHLIGHT" here because the string is shared by every
-    // full-text function via failFullTextFunctionsOutside(): (1) HIGHLIGHT does NOT support KQL or KNN, so those must keep
-    // the current wording, and (2) Many tests expect this exact wording.
+    // TODO: This message omits HIGHLIGHT, which supports MATCH, MATCH_PHRASE, QSTR, and KQL (see
+    // HighlightQueryBuilders#verifyQueryStructure). We cannot simply append it because KNN also shares this message but
+    // remains unsupported in HIGHLIGHT, and many tests assert the exact wording.
     private static final String UNSUPPORTED_LOCATION_FAILURE =
         "[{}] {} is only supported in WHERE and STATS commands or in EVAL within score(.) function";
 

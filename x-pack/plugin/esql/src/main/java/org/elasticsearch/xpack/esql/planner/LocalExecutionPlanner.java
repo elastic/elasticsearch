@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
@@ -152,7 +150,6 @@ import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -1322,15 +1319,11 @@ public class LocalExecutionPlanner {
             throw new EsqlIllegalArgumentException("HIGHLIGHT requires an explicit query");
         }
         HighlightOptions options = HighlightOptions.from(highlight.options(), context.foldCtx());
-        Analyzer analyzer = Highlight.DEFAULT_ANALYZER;
         List<String> fieldNames = highlight.fields().stream().map(NamedExpression::name).toList();
 
-        String literal = HighlightQueryTranslator.queryTextIfLiteral(queryExpr);
-        String queryText = literal != null ? literal : queryExpr.sourceText();
-        Query query = HighlightQueryTranslator.translate(queryExpr, fieldNames, analyzer);
-
+        HighlightQueryBuilders.TranslatedQuery translated = HighlightQueryBuilders.translate(queryExpr, fieldNames);
         HighlightConfig config = new HighlightConfig(
-            queryText,
+            translated.queryText(),
             options.preTag(),
             options.postTag(),
             options.encoder(),
@@ -1341,7 +1334,8 @@ public class LocalExecutionPlanner {
             options.boundaryScannerLocale(),
             HighlightOptions.ORDER_SCORE.equals(options.order()),
             options.maxAnalyzedOffset()
-        ).withExecutionContext(analyzer, query, fieldNames);
+            // The query and MemoryIndex must use the same analyzer.
+        ).withExecutionContext(translated.analyzer(), translated.query(), fieldNames);
 
         List<ExpressionEvaluator.Factory> fieldEvaluators = highlight.fields()
             .stream()

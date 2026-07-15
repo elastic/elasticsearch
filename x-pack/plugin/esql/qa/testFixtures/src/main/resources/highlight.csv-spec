@@ -947,6 +947,24 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
+# Sorting by the highlight column pushes this MATCH query to the data nodes.
+highlightMatchFunctionPushedToDataNodes
+required_capability: highlight_v4
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT MATCH(title, "return") ON title
+| SORT highlight_title
+| LIMIT 1000
+| KEEP book_no, highlight_title
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | <em>Return</em> of the Shadow
+;
+
+
 # The ':' match operator behaves like MATCH as a HIGHLIGHT query.
 highlightMatchOperator
 required_capability: highlight_v4
@@ -982,6 +1000,111 @@ FROM books
 book_no:keyword | highlight_title:keyword
 2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
 7350            | <em>Return</em> of the Shadow
+;
+
+
+# Sorting by the highlight column pushes this QSTR query to the data nodes.
+highlightQueryStringFunctionPushedToDataNodes
+required_capability: highlight_v4
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT QSTR("title:return") ON title
+| SORT highlight_title
+| LIMIT 1000
+| KEEP book_no, highlight_title
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | <em>Return</em> of the Shadow
+;
+
+
+# Nested KQL groups highlight both the required phrase and the matching alternative on the coordinator.
+highlightKqlNestedGrouping
+required_capability: highlight_v4
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT KQL("title: (\"return of the\" AND (king OR shadow))") ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return of the</em> <em>King</em> Being the Third Part of The Lord of the Rings
+7350            | <em>Return of the</em> <em>Shadow</em>
+;
+
+
+# Sorting by the highlight column pushes the nested KQL query to the data nodes.
+highlightKqlNestedGroupingPushedToDataNodes
+required_capability: highlight_v4
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT KQL("title: (\"return of the\" AND (king OR shadow))") ON title
+| SORT highlight_title
+| LIMIT 1000
+| KEEP book_no, highlight_title
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return of the</em> <em>King</em> Being the Third Part of The Lord of the Rings
+7350            | <em>Return of the</em> <em>Shadow</em>
+;
+
+
+# A KQL wildcard can be combined with grouped MATCH clauses; the coordinator highlights the matching branch.
+highlightKqlWildcardOrGroupedMatch
+required_capability: highlight_v4
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT KQL("title: shad*") OR (MATCH(title, "return") AND MATCH(title, "king")) ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return</em> of the <em>King</em> Being the Third Part of The Lord of the Rings
+7350            | Return of the <em>Shadow</em>
+;
+
+
+# Sorting by the highlight column pushes the KQL and MATCH combination to the data nodes.
+highlightKqlWildcardOrGroupedMatchPushedToDataNodes
+required_capability: highlight_v4
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT KQL("title: shad*") OR (MATCH(title, "return") AND MATCH(title, "king")) ON title
+| SORT highlight_title
+| LIMIT 1000
+| KEEP book_no, highlight_title
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return</em> of the <em>King</em> Being the Third Part of The Lord of the Rings
+7350            | Return of the <em>Shadow</em>
+;
+
+
+# A required KQL field outside ON prevents a highlight even when the ON field clause matches.
+highlightKqlRequiredFieldOutsideOnIsNull
+required_capability: highlight_v4
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT KQL("title: return AND author: tolkien") ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | null
+7350            | null
 ;
 
 
@@ -1101,6 +1224,26 @@ FROM books
 | HIGHLIGHT MATCH_PHRASE(title, "Return of the") ON title
 | KEEP book_no, highlight_title
 | SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return of the</em> King Being the Third Part of The Lord of the Rings
+7350            | <em>Return of the</em> Shadow
+;
+
+
+# Sorting by the highlight column pushes this MATCH_PHRASE query to the data nodes.
+highlightMatchPhraseFunctionPushedToDataNodes
+required_capability: highlight_v4
+required_capability: match_function
+required_capability: match_phrase_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT MATCH_PHRASE(title, "Return of the") ON title
+| SORT highlight_title
+| LIMIT 1000
+| KEEP book_no, highlight_title
 ;
 
 book_no:keyword | highlight_title:keyword
@@ -1359,4 +1502,83 @@ book_no:keyword | highlight_title:keyword
 1463            | Realms of <em>Tolkien</em>: Images of Middle-earth
 2130            | <em>Tolkien</em> Audio Collection
 5335            | Letters of J R R <em>Tolkien</em>
+;
+
+
+# MATCH supports fuzzy_rewrite.
+highlightMatchFuzzyRewrite
+required_capability: highlight_v4
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT MATCH(title, "Returm", {"fuzziness": "AUTO", "fuzzy_rewrite": "constant_score"}) ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | <em>Return</em> of the Shadow
+;
+
+
+# MATCH supports zero_terms_query.
+highlightMatchZeroTermsQueryOption
+required_capability: highlight_v4
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT MATCH(title, "return", {"zero_terms_query": "all"}) ON title
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | <em>Return</em> of the Shadow
+;
+
+
+# QSTR supports phrase_slop.
+highlightQueryStringPhraseSlop
+required_capability: highlight_v4
+
+ROW content = "The quick brown fox jumps."
+| HIGHLIGHT QSTR("\"quick fox\"", {"phrase_slop": 2}) ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The <em>quick brown fox</em> jumps.
+;
+
+
+# QSTR supports analyze_wildcard.
+highlightQueryStringAnalyzeWildcard
+required_capability: highlight_v4
+
+ROW content = "The One Ring was forged by Sauron."
+| HIGHLIGHT QSTR("RIN*", {"analyze_wildcard": true}) ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The One <em>Ring</em> was forged by Sauron.
+;
+
+
+# Query boosts do not change the matched spans.
+highlightMatchBoostOrderScore
+required_capability: highlight_v4
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT MATCH(title, "return", {"boost": 3.0}) ON title WITH { "order": "score" }
+| KEEP book_no, highlight_title
+| SORT book_no
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | <em>Return</em> of the Shadow
 ;

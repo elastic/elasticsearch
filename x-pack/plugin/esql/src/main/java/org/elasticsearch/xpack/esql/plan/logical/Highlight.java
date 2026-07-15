@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,7 +29,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
-import org.elasticsearch.xpack.esql.planner.HighlightQueryTranslator;
+import org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,9 +48,6 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
     );
 
     public static final String DEFAULT_PREFIX = "highlight_";
-
-    /** Analyzer used by both verification and execution. */
-    public static final Analyzer DEFAULT_ANALYZER = new StandardAnalyzer();
 
     public static final String PRE_TAGS = "pre_tags";
     public static final String POST_TAGS = "post_tags";
@@ -253,8 +248,8 @@ public class Highlight extends UnaryPlan implements TelemetryAware, GeneratingPl
         }
         List<String> fieldNames = fields.stream().map(NamedExpression::name).toList();
         try {
-            HighlightQueryTranslator.translate(query, fieldNames, DEFAULT_ANALYZER);
-        } catch (RuntimeException e) {
+            HighlightQueryBuilders.verify(query, fieldNames);
+        } catch (IllegalArgumentException e) {
             failures.add(fail(this, "{}", e.getMessage()));
         }
     }

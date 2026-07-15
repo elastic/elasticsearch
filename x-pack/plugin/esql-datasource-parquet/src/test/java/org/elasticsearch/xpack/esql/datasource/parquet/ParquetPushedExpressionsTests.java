@@ -572,6 +572,70 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         );
     }
 
+    // --- Folded temporal IN: date_nanos and datetime share temporalInPredicate, which DROPS (not declines on)
+    // elements that decode to nothing under a ScaleUp/Identity map, so the tick elements still prune. ---
+
+    /**
+     * A {@code date_nanos} column declared {@code epoch_second} over a bare INT64 scales the scan x1e9 (one stored
+     * second decodes to 1e9 nanos), so only a whole-second literal has a raw counterpart. An IN mixing a whole-second
+     * tick with a sub-second non-tick must still push the tick's raw band and DROP the non-tick — never decline the
+     * whole push (which would forfeit the pruning the tick element earns).
+     */
+    public void testDateNanosInEpochSecondDropsNonTickPushesTick() {
+        MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
+        long tickNanos = 1_700_000_000_000_000_000L;    // exactly 1_700_000_000 s -> raw 1_700_000_000
+        long nonTickNanos = 1_700_000_000_500_000_000L; // 0.5 s past a second boundary -> no stored second equals it
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("ts", DataType.DATE_NANOS),
+            List.of(lit(tickNanos, DataType.DATE_NANOS), lit(nonTickNanos, DataType.DATE_NANOS))
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema, Map.of("ts", "epoch_second"));
+        assertNotNull("the whole-second tick must still push even though the non-tick element drops", fp);
+        assertThat("the tick pushes its raw seconds value", fp.toString(), containsString("1700000000"));
+        assertThat("the raw nanos literal never reaches the footer", fp.toString(), not(containsString(String.valueOf(tickNanos))));
+        assertThat("the sub-second non-tick is dropped", fp.toString(), not(containsString(String.valueOf(nonTickNanos))));
+    }
+
+    /**
+     * A bare INT64 declared {@code date_nanos} is the identity read (raw stats == scan values), so every element of an
+     * IN has an exact raw counterpart and all of them push — nothing drops.
+     */
+    public void testDateNanosInBareInt64PushesEveryElement() {
+        MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
+        long a = 1_700_000_000_123_456_789L;
+        long b = 1_700_000_000_987_654_321L;
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("ts", DataType.DATE_NANOS),
+            List.of(lit(a, DataType.DATE_NANOS), lit(b, DataType.DATE_NANOS))
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(a)));
+        assertThat(fp.toString(), containsString(String.valueOf(b)));
+    }
+
+    /**
+     * The same folded behavior on the {@code DATETIME} arm: a column declared {@code epoch_second} scales the scan
+     * x1000, so a sub-second-millis literal has no raw counterpart. Before the fold {@code temporalInPredicate}
+     * DECLINED the whole push if any element's band was null; now it DROPS the non-tick and keeps pushing the tick.
+     */
+    public void testDatetimeInEpochSecondDropsNonTickPushesTick() {
+        MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
+        long tickMillis = 7000L;    // exactly 7 s -> raw 7
+        long nonTickMillis = 7500L; // 7.5 s -> no stored second equals it
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("ts", DataType.DATETIME),
+            List.of(datetimeLit(tickMillis), datetimeLit(nonTickMillis))
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema, Map.of("ts", "epoch_second"));
+        assertNotNull("the whole-second tick must still push even though the non-tick element drops", fp);
+        assertThat(fp.toString(), containsString("eq(ts, 7)"));
+        assertThat("the sub-second non-tick is dropped", fp.toString(), not(containsString("eq(ts, 7500)")));
+    }
+
     // --- DATE (INT32) ---
 
     public void testToFilterPredicateDateInt32() {

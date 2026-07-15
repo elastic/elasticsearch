@@ -746,7 +746,16 @@ final class ParquetPushedExpressions {
         if (band == null) {
             return null; // no stored value can decode to this literal
         }
-        var col = FilterApi.longColumn(columnName);
+        return bandToPredicate(FilterApi.longColumn(columnName), band);
+    }
+
+    /**
+     * The raw predicate for a single decoded value's {@link DeclaredTypeCoercions.RawBand}: a plain {@code eq} for a
+     * degenerate one-value band (exact decode), an inclusive {@code gtEq && ltEq} for a wider band (lossy decode).
+     * Shared by the {@code ==} arm ({@link #temporalBandPredicate}) and each element of {@code IN}
+     * ({@link #temporalInPredicate}) so the two cannot disagree about how a band becomes a predicate.
+     */
+    private static FilterPredicate bandToPredicate(Operators.LongColumn col, DeclaredTypeCoercions.RawBand band) {
         return band.lo() == band.hi()
             ? FilterApi.eq(col, band.lo())
             : FilterApi.and(FilterApi.gtEq(col, band.lo()), FilterApi.ltEq(col, band.hi()));
@@ -781,9 +790,20 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * {@code IN} over a temporal column, as the OR of each element's raw band. {@code IN} matches ANY element, so the
-     * pushed predicate must be a SUPERSET: dropping an element would under-include and prune matching rows. So if any
-     * element has no exact raw counterpart, the whole push declines rather than silently narrowing.
+     * {@code IN} over a temporal column, as the OR of each element's raw equality band. {@code IN} matches ANY element,
+     * so the pushed predicate must never UNDER-include (that would prune matching rows). A null band from
+     * {@link DeclaredTypeCoercions#rawEqualityBand} means one of two things, and they are handled oppositely:
+     * <ul>
+     *   <li><b>{@code Identity} / {@code ScaleUp}</b> — the element has no exact raw counterpart because NO stored
+     *       value decodes to it (a {@code ScaleUp} non-multiple; {@code Identity} never nulls). That element matches
+     *       nothing, so DROPPING it leaves the pushed OR EXACT for the surviving elements — still a superset of the
+     *       true match set, and exact rather than merely loose so it stays correct even wrapped in {@code NOT}. This
+     *       is the pruning the old {@code date_nanos} IN path kept by dropping non-tick elements.</li>
+     *   <li><b>{@code ScaleDown}</b> — a null band is an OVERFLOW (the band's raw base could not be computed), not an
+     *       empty match set. Dropping it would make the OR under-inclusive, so the whole push DECLINES.</li>
+     * </ul>
+     * When every element drops, no predicate is pushed and the scan + {@code FilterExec} recheck yields the (empty)
+     * result. The relation is resolved once here rather than per element via {@link #temporalBandPredicate}.
      */
     @Nullable
     private FilterPredicate temporalInPredicate(
@@ -793,13 +813,22 @@ final class ParquetPushedExpressions {
         DataType declaredType,
         Map<String, String> formats
     ) {
+        var relation = ParquetColumnDecoding.rawDecodeRelation(ptype, declaredType, formats.get(columnName));
+        if (relation == null) {
+            return null;
+        }
+        var col = FilterApi.longColumn(columnName);
         FilterPredicate combined = null;
         for (Object v : rawValues) {
-            FilterPredicate band = temporalBandPredicate(columnName, ((Number) v).longValue(), ptype, declaredType, formats);
+            DeclaredTypeCoercions.RawBand band = DeclaredTypeCoercions.rawEqualityBand(relation, ((Number) v).longValue());
             if (band == null) {
-                return null; // an unmappable element would make the OR under-inclusive
+                if (relation instanceof DeclaredTypeCoercions.RawDecodeRelation.ScaleDown) {
+                    return null; // overflow: an indeterminate band would make the OR under-inclusive
+                }
+                continue; // matches nothing: dropping keeps the OR exact for the rest
             }
-            combined = combined == null ? band : FilterApi.or(combined, band);
+            FilterPredicate bandPredicate = bandToPredicate(col, band);
+            combined = combined == null ? bandPredicate : FilterApi.or(combined, bandPredicate);
         }
         return combined;
     }
@@ -825,14 +854,15 @@ final class ParquetPushedExpressions {
     /**
      * Builds a predicate for an ESQL {@code DATE_NANOS} column, whose query literal is epoch-nanoseconds. Since
      * {@code date_nanos} became declarable, this column can sit over any physical INT64 a declared read admits —
-     * not only the inferred {@code TIMESTAMP(MICROS|NANOS)} shapes — so the divisor comes from the explicit
-     * allow-list {@link ParquetColumnDecoding#dateNanosPushdownDivisor} (timestamps in all three units plus the
-     * un-annotated signed INT64 identity case; everything else — TIME, unsigned, unknown — declines rather than
-     * pushing a raw-unit predicate that silently prunes matching row groups). The nanosecond bound is converted
-     * to the stored unit, rounded outward via {@link #boundToPhysicalUnit} so the pushed predicate is never
-     * stricter than the true nanosecond predicate. Safe because temporal pushdown is always RECHECK (see
-     * {@link ParquetFilterPushdownSupport#isFullyEvaluable}), so {@code FilterExec} re-applies the exact
-     * semantics — while a decline merely loses pruning, never rows.
+     * not only the inferred {@code TIMESTAMP(MICROS|NANOS)} shapes. The raw-to-decoded relation and the bound math
+     * are delegated to the shared {@link DeclaredTypeCoercions.RawDecodeRelation} authority (via
+     * {@link #temporalBandPredicate} for {@code ==} and {@link #temporalBoundToRaw} for the ordered ops), which
+     * derives the relation from {@link ParquetColumnDecoding#rawDecodeRelation} — timestamps in all three units plus
+     * the un-annotated signed INT64 identity case push; everything else (TIME, unsigned, unknown) resolves to a null
+     * relation and declines rather than pushing a raw-unit predicate that silently prunes matching row groups. The
+     * bound is rounded outward so the pushed predicate is never stricter than the true nanosecond predicate. Safe
+     * because temporal pushdown is always RECHECK (see {@link ParquetFilterPushdownSupport#isFullyEvaluable}), so
+     * {@code FilterExec} re-applies the exact semantics — while a decline merely loses pruning, never rows.
      */
     private FilterPredicate buildDateNanosPredicate(
         String columnName,
@@ -1040,14 +1070,14 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * {@code IN} counterpart to {@link #buildDateNanosPredicate}. The query literals are epoch-nanoseconds. The
-     * divisor comes from the same {@link ParquetColumnDecoding#dateNanosPushdownDivisor} allow-list, so the two
-     * {@code DATE_NANOS} push paths cannot disagree: an identity column (NANOS, or the un-annotated signed INT64
-     * a declared {@code date_nanos} reads as raw epoch-nanos) pushes each value exactly; a scaled column (MICROS,
-     * MILLIS) can only match an element that is an exact multiple of the stored tick — non-multiples are dropped
-     * (they can never match, so omitting them keeps the pushed set a correct subset); an un-pushable physical
-     * (TIME, unsigned INT64, unknown) declines entirely. If every element is dropped, no predicate is pushed and
-     * the scan + recheck yields the (empty) result.
+     * {@code IN} counterpart to {@link #buildDateNanosPredicate}, folded onto the same {@link #temporalInPredicate}
+     * that serves the {@code DATETIME} arm ({@link #translateDatetimeIn}) so the two temporal IN paths share ONE
+     * raw-band authority. The query literals are epoch-nanoseconds; {@link #temporalInPredicate} resolves the
+     * raw-to-decoded relation from {@link ParquetColumnDecoding#rawDecodeRelation} and pushes each element's exact
+     * raw equality band: an identity column (NANOS, or the un-annotated signed INT64 a declared {@code date_nanos}
+     * reads as raw epoch-nanos) pushes every value exactly; a scaled column (MICROS, MILLIS, or a declared epoch
+     * format) drops the non-tick elements that no stored value can equal and pushes the rest; an un-pushable
+     * physical (TIME, unsigned INT64, unknown) resolves to a null relation and declines entirely.
      */
     private FilterPredicate translateDateNanosIn(
         String columnName,
@@ -1059,21 +1089,7 @@ final class ParquetPushedExpressions {
         if (ptype == null) {
             return null;
         }
-        Long divisor = ParquetColumnDecoding.dateNanosPushdownDivisor(ptype, formats.get(columnName));
-        if (divisor == null) {
-            return null;
-        }
-        if (divisor == 1L) {
-            return inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
-        }
-        List<Object> ticks = new ArrayList<>();
-        for (Object v : rawValues) {
-            long nanos = ((Number) v).longValue();
-            if (nanos % divisor == 0) {
-                ticks.add(nanos / divisor);
-            }
-        }
-        return ticks.isEmpty() ? null : inPredicate(FilterApi.longColumn(columnName), ticks, v -> (Long) v);
+        return temporalInPredicate(columnName, rawValues, ptype, DataType.DATE_NANOS, formats);
     }
 
     private static <T extends Comparable<T>, C extends Operators.Column<T> & Operators.SupportsEqNotEq> FilterPredicate inPredicate(

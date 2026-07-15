@@ -11,6 +11,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -22,7 +23,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -120,14 +123,14 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
     }
 
     public final void testRandomDenseSingleValuedBlock() {
-        List<List<V>> expected = denseExpectedValues(randomIntBetween(1, 1024));
+        List<List<V>> expected = denseExpectedValues(randomIntBetween(1, 16 * 1024));
         try (B block = buildBlock(blockFactory(), randomIntBetween(0, expected.size()), expected)) {
             assertBlock(block, expected);
         }
     }
 
     public final void testRandomSparseSingleValuedBlock() {
-        int positionCount = randomIntBetween(2, 1024);
+        int positionCount = randomIntBetween(2, 16 * 1024);
         List<List<V>> expected = new ArrayList<>(positionCount);
         for (int p = 0; p < positionCount; p++) {
             expected.add(randomBoolean() ? null : List.of(randomValue()));
@@ -140,7 +143,7 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
     public final void testConstantBlockFactory() {
         assumeTrue("constant block factory unsupported", supportsConstantBlockFactory());
         V value = randomValue();
-        int positions = randomIntBetween(2, 1024);
+        int positions = randomIntBetween(5, 1024);
         try (B block = createConstantBlock(blockFactory(), value, positions)) {
             assertConstantBlockFactoryRepresentation(block);
             assertBlock(block, repeat(value, positions));
@@ -148,16 +151,45 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         }
     }
 
+    public final void testZeroPositionConstantBlockFactory() {
+        assumeTrue("constant block factory unsupported", supportsConstantBlockFactory());
+        try (B block = createConstantBlock(blockFactory(), randomValue(), 0)) {
+            assertConstantBlockFactoryRepresentation(block);
+            assertBlock(block, List.of());
+        }
+    }
+
+    public final void testSinglePositionConstantBlockFactory() {
+        assumeTrue("constant block factory unsupported", supportsConstantBlockFactory());
+        V value = randomValue();
+        try (B block = createConstantBlock(blockFactory(), value, 1)) {
+            assertConstantBlockFactoryRepresentation(block);
+            assertBlock(block, List.of(List.of(value)));
+        }
+    }
+
     private void assertConstantLookupBlockRepresentations(B block, V value) {
         if (supportsLookup() == false) {
             return;
         }
-        try (IntBlock positions = positions(block.blockFactory(), 1, 2)) {
+        try (IntBlock positions = positions(block.blockFactory(), 1, 3, 4)) {
             try (ReleasableIterator<? extends Block> lookup = block.lookup(positions, ByteSizeValue.ofKb(100))) {
                 assertThat(lookup.hasNext(), equalTo(true));
                 try (Block lookedUp = lookup.next()) {
-                    assertValues(castBlock(lookedUp), List.of(List.of(value), List.of(value)));
+                    assertValues(castBlock(lookedUp), List.of(List.of(value), List.of(value), List.of(value)));
                     assertConstantInRangeLookupBlockRepresentation(lookedUp);
+                }
+                assertThat(lookup.hasNext(), equalTo(false));
+            }
+        }
+        try (IntBlock positions = positions(block.blockFactory(), 1, 3, 4, new int[] { 1, 3, 4 })) {
+            try (ReleasableIterator<? extends Block> lookup = block.lookup(positions, ByteSizeValue.ofKb(100))) {
+                assertThat(lookup.hasNext(), equalTo(true));
+                try (Block lookedUp = lookup.next()) {
+                    assertValues(
+                        castBlock(lookedUp),
+                        List.of(List.of(value), List.of(value), List.of(value), List.of(value, value, value))
+                    );
                 }
                 assertThat(lookup.hasNext(), equalTo(false));
             }
@@ -216,6 +248,26 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
             assertAllNullBlockRepresentation(block);
             assertBlock(block, expected);
         }
+    }
+
+    public final void testRelease() {
+        List<List<V>> expected = mixedExpectedValues();
+        B block = buildBlock(blockFactory(), expected);
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        Page page = new Page(block);
+        B copiedOutOfBreaker = castBlock(block.deepCopy(TestBlockFactory.getNonBreakingInstance()));
+        assertValues(copiedOutOfBreaker, expected);
+
+        block.close();
+        assertThat(block.isReleased(), is(true));
+        var doubleRelease = expectThrows(IllegalStateException.class, block::close);
+        assertThat(doubleRelease.getMessage(), containsString("can't release already released object"));
+        var readReleasedPage = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
+        assertThat(readReleasedPage.getMessage(), containsString("can't read released block"));
+        var addReleasedBlock = expectThrows(IllegalArgumentException.class, () -> new Page(block));
+        assertThat(addReleasedBlock.getMessage(), containsString("can't build page out of released blocks but"));
+        assertThat(breaker.getUsed(), is(0L));
+        assertValues(copiedOutOfBreaker, expected);
     }
 
     private List<List<V>> mixedExpectedValues() {
@@ -287,7 +339,7 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
             assertThat(valuesAt(block, p), equalTo(expectedValues));
         }
         assertThat(block.getTotalValueCount(), equalTo(totalValueCount));
-        BasicBlockTests.assertValueCounts(block);
+        assertValueCounts(block);
     }
 
     private void assertBlockProperties(B block, List<List<V>> expected) {
@@ -307,6 +359,9 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
             Vector vector = block.asVector();
             assertThat(vector, notNullValue());
             assertThat(vector.getPositionCount(), equalTo(expected.size()));
+            for (int p = 0; p < expected.size(); p++) {
+                assertThat(block.getFirstValueIndex(p), equalTo(p));
+            }
             vector.incRef();
             try (Block vectorBlock = vector.asBlock()) {
                 assertThat(vectorBlock, equalTo(block));
@@ -365,6 +420,9 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
             BooleanVector mask = block.blockFactory().newConstantBooleanVector(true, expected.size());
             Block masked = block.keepMask(mask)
         ) {
+            if (masked != block && masked.asVector() != block.asVector()) {
+                fail("all-true keep mask should return the original block or vector");
+            }
             assertValues(castBlock(masked), expected);
         }
         try (
@@ -393,6 +451,9 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
         try (Block copy = block.deepCopy(blockFactory())) {
             assertValues(castBlock(copy), expected);
             assertThat(copy, equalTo(block));
+            if (block.asVector() != null && block.asVector().isConstant()) {
+                assertThat(copy.asVector() != null && copy.asVector().isConstant(), equalTo(true));
+            }
         }
     }
 
@@ -423,13 +484,27 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
     }
 
     private void assertLookup(B block, List<List<V>> expected) {
-        if (supportsLookup() == false || expected.size() < 3 || expected.get(0) == null || expected.get(2) == null) {
+        if (supportsLookup() == false) {
             return;
         }
         try (IntBlock positions = positions(block.blockFactory())) {
             try (ReleasableIterator<? extends Block> lookup = block.lookup(positions, ByteSizeValue.ofKb(100))) {
                 assertThat(lookup.hasNext(), equalTo(false));
             }
+        }
+        try (IntBlock positions = positions(block.blockFactory(), expected.size() + 1000)) {
+            try (ReleasableIterator<? extends Block> lookup = block.lookup(positions, ByteSizeValue.ofKb(100))) {
+                assertThat(lookup.hasNext(), equalTo(true));
+                try (Block lookedUp = lookup.next()) {
+                    List<List<V>> outOfRangeExpected = new ArrayList<>();
+                    outOfRangeExpected.add(null);
+                    assertValues(castBlock(lookedUp), outOfRangeExpected);
+                }
+                assertThat(lookup.hasNext(), equalTo(false));
+            }
+        }
+        if (expected.size() < 3 || expected.get(0) == null || expected.get(2) == null) {
+            return;
         }
         try (IntBlock positions = positions(block.blockFactory(), 0, new int[] { 0, 2 }, expected.size() + 1000)) {
             try (ReleasableIterator<? extends Block> lookup = block.lookup(positions, ByteSizeValue.ofKb(100))) {
@@ -442,6 +517,22 @@ public abstract class BlockTestCase<B extends Block, BB extends Block.Builder, V
                     assertValues(castBlock(lookedUp), lookupExpected);
                 }
                 assertThat(lookup.hasNext(), equalTo(false));
+            }
+        }
+    }
+
+    private static void assertValueCounts(Block block) {
+        int totalValueCount = 0;
+        for (int p = 0; p < block.getPositionCount(); p++) {
+            if (block.isNull(p)) {
+                assertThat(block.getValueCount(p), equalTo(0));
+            }
+            totalValueCount += block.getValueCount(p);
+        }
+        assertThat(block.getTotalValueCount(), equalTo(totalValueCount));
+        for (int p = 0; p + 1 < block.getPositionCount(); p++) {
+            if (block.isNull(p) == false && block.isNull(p + 1) == false) {
+                assertThat(block.getValueCount(p), equalTo(block.getFirstValueIndex(p + 1) - block.getFirstValueIndex(p)));
             }
         }
     }

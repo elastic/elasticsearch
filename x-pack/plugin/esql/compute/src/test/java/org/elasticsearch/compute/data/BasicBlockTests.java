@@ -2185,33 +2185,6 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
-    public void testCopyToLong() {
-        int positionCount = randomIntBetween(1, 1000);
-        try (LongVector.Builder builder = blockFactory.newLongVectorBuilder(positionCount)) {
-            for (int i = 0; i < positionCount; i++) {
-                builder.appendLong(randomLong());
-            }
-            try (LongVector vector = builder.build()) {
-                int srcPosition = randomIntBetween(0, positionCount - 1);
-                int length = randomIntBetween(0, positionCount - srcPosition);
-                int dstPosition = randomIntBetween(0, 10);
-                long sentinel = randomLong();
-                long[] dst = new long[dstPosition + length + randomIntBetween(0, 10)];
-                Arrays.fill(dst, sentinel);
-                vector.copyTo(srcPosition, dst, dstPosition, length);
-                for (int i = 0; i < length; i++) {
-                    assertThat(dst[dstPosition + i], equalTo(vector.getLong(srcPosition + i)));
-                }
-                for (int i = 0; i < dstPosition; i++) {
-                    assertThat(dst[i], equalTo(sentinel));
-                }
-                for (int i = dstPosition + length; i < dst.length; i++) {
-                    assertThat(dst[i], equalTo(sentinel));
-                }
-            }
-        }
-    }
-
     public void testCopyToInt() {
         int positionCount = randomIntBetween(1, 1000);
         try (IntVector.Builder builder = blockFactory.newIntVectorBuilder(positionCount)) {

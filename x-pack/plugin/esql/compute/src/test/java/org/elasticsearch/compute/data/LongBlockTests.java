@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 
@@ -198,6 +199,64 @@ public class LongBlockTests extends BlockTestCase<LongBlock, LongBlock.Builder, 
         }
     }
 
+    public void testDenseSequentialLongBlock() {
+        int positionCount = randomIntBetween(1, 16 * 1024);
+        List<List<Long>> expected = new ArrayList<>(positionCount);
+        for (long value = 0; value < positionCount; value++) {
+            expected.add(List.of(value));
+        }
+        try (LongBlock block = randomBoolean() ? buildBlock(blockFactory(), expected) : newSequentialArrayVectorBlock(positionCount)) {
+            assertThat(block.getPositionCount(), equalTo(positionCount));
+            assertThat(block.getLong(0), equalTo(0L));
+            assertThat(block.getLong(positionCount - 1), equalTo((long) positionCount - 1));
+            int position = randomIntBetween(0, positionCount - 1);
+            assertThat(block.getLong(position), equalTo((long) position));
+            assertBlock(block, expected);
+        }
+    }
+
+    public void testSingleNullLongBlock() {
+        int positionCount = randomIntBetween(2, 16 * 1024);
+        int nullPosition = randomIntBetween(0, positionCount - 1);
+        List<List<Long>> expected = new ArrayList<>(positionCount);
+        for (int p = 0; p < positionCount; p++) {
+            expected.add(p == nullPosition ? null : List.of((long) p));
+        }
+        try (LongBlock block = buildBlock(blockFactory(), expected)) {
+            assertTrue(block.isNull(nullPosition));
+            int nonNullPosition = randomValueOtherThan(nullPosition, () -> randomIntBetween(0, positionCount - 1));
+            assertThat(block.getLong(nonNullPosition), equalTo((long) nonNullPosition));
+            assertBlock(block, expected);
+        }
+    }
+
+    public void testCopyTo() {
+        int positionCount = randomIntBetween(1, 1000);
+        try (LongVector.Builder builder = blockFactory().newLongVectorBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                builder.appendLong(randomLong());
+            }
+            try (LongVector vector = builder.build()) {
+                int srcPosition = randomIntBetween(0, positionCount - 1);
+                int length = randomIntBetween(0, positionCount - srcPosition);
+                int dstPosition = randomIntBetween(0, 10);
+                long sentinel = randomLong();
+                long[] dst = new long[dstPosition + length + randomIntBetween(0, 10)];
+                Arrays.fill(dst, sentinel);
+                vector.copyTo(srcPosition, dst, dstPosition, length);
+                for (int i = 0; i < length; i++) {
+                    assertThat(dst[dstPosition + i], equalTo(vector.getLong(srcPosition + i)));
+                }
+                for (int i = 0; i < dstPosition; i++) {
+                    assertThat(dst[i], equalTo(sentinel));
+                }
+                for (int i = dstPosition + length; i < dst.length; i++) {
+                    assertThat(dst[i], equalTo(sentinel));
+                }
+            }
+        }
+    }
+
     @Override
     protected void assertAdditionalInvariants(LongBlock block, List<List<Long>> expected) {
         assertThat(block.valueMaxByteSize(), equalTo(block instanceof ConstantNullBlock ? 0 : Long.BYTES));
@@ -211,6 +270,14 @@ public class LongBlockTests extends BlockTestCase<LongBlock, LongBlock.Builder, 
             }
             assertFalse(block.hasValue(p, randomValueOtherThanMany(v -> values.contains(v), this::randomValue)));
         }
+    }
+
+    private LongBlock newSequentialArrayVectorBlock(int positionCount) {
+        long[] values = new long[positionCount];
+        for (int p = 0; p < positionCount; p++) {
+            values[p] = p;
+        }
+        return blockFactory().newLongArrayVector(values, positionCount).asBlock();
     }
 
     private static void assertLongVector(LongVector vector, List<Long> expected) {

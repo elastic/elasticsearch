@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -71,6 +72,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
             configuration,
             functionRegistry,
             promqlFunctionRegistry,
+            EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
             null,
             indexResolution,
             lookupResolution,

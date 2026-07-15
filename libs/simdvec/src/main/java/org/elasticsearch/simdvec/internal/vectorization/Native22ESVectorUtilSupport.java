@@ -10,16 +10,21 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 import org.elasticsearch.simdvec.MultiVectorsSource;
-import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
 
 public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport {
+
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
 
     /*
      * This is technically separate to the Panama22 implementation, but there's
@@ -29,12 +34,12 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
 
     @Override
     public float dotProduct(float[] a, float[] b) {
-        return Similarities.dotProductF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
+        return DISTANCE_FUNCS.dotProductF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
     }
 
     @Override
     public float dotProduct(float[] a, float[] b, int offset, int length) {
-        return Similarities.dotProductF32(
+        return DISTANCE_FUNCS.dotProductF32(
             MemorySegment.ofArray(a).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
             MemorySegment.ofArray(b).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
             length
@@ -43,12 +48,12 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
 
     @Override
     public float squareDistance(float[] a, float[] b) {
-        return Similarities.squareDistanceF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
+        return DISTANCE_FUNCS.squareDistanceF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
     }
 
     @Override
     public float squareDistance(float[] a, float[] b, int offset, int length) {
-        return Similarities.squareDistanceF32(
+        return DISTANCE_FUNCS.squareDistanceF32(
             MemorySegment.ofArray(a).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
             MemorySegment.ofArray(b).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
             length
@@ -57,17 +62,17 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
 
     @Override
     public float cosine(byte[] a, byte[] b) {
-        return Similarities.cosineI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
+        return DISTANCE_FUNCS.cosineI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
     }
 
     @Override
     public float dotProduct(byte[] a, byte[] b) {
-        return Similarities.dotProductI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
+        return DISTANCE_FUNCS.dotProductI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
     }
 
     @Override
     public float dotProduct(byte[] a, byte[] b, int offset, int length) {
-        return Similarities.dotProductI8(
+        return DISTANCE_FUNCS.dotProductI8(
             MemorySegment.ofArray(a).asSlice(offset, length),
             MemorySegment.ofArray(b).asSlice(offset, length),
             length
@@ -76,12 +81,12 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
 
     @Override
     public float squareDistance(byte[] a, byte[] b) {
-        return Similarities.squareDistanceI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
+        return DISTANCE_FUNCS.squareDistanceI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
     }
 
     @Override
     public float squareDistance(byte[] a, byte[] b, int offset, int length) {
-        return Similarities.squareDistanceI8(
+        return DISTANCE_FUNCS.squareDistanceI8(
             MemorySegment.ofArray(a).asSlice(offset, length),
             MemorySegment.ofArray(b).asSlice(offset, length),
             length
@@ -97,7 +102,7 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
             final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
             float sum = 0f;
             for (float[] floats : query) {
-                Similarities.dotProductF32Bulk(
+                DISTANCE_FUNCS.dotProductF32Bulk(
                     vectorsSegment,
                     MemorySegment.ofArray(floats),
                     source.vectorDims(),
@@ -120,7 +125,7 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
             final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
             float sum = 0f;
             for (float[] floats : query) {
-                Similarities.dotProductDBF16QF32Bulk(
+                DISTANCE_FUNCS.dotProductDBF16QF32Bulk(
                     vectorsSegment,
                     MemorySegment.ofArray(floats),
                     source.vectorDims(),
@@ -143,7 +148,7 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
             final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
             float sum = 0f;
             for (byte[] bytes : query) {
-                Similarities.dotProductI8Bulk(
+                DISTANCE_FUNCS.dotProductI8Bulk(
                     vectorsSegment,
                     MemorySegment.ofArray(bytes),
                     source.vectorDims(),

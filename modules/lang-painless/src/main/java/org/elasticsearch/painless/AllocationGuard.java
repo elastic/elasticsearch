@@ -25,6 +25,32 @@ public final class AllocationGuard {
     private AllocationGuard() {}
 
     /**
+     * Clamps an {@code @allocates_dynamic} estimator's result to {@code [0, Long.MAX_VALUE / 2]} before it is charged: a
+     * negative result (an estimator bug) must not credit the running total, and a huge one must trip any configurable limit
+     * without overflowing it (so estimators may return {@code Long.MAX_VALUE} for "definitely over"). Estimators must not
+     * throw; a thrown exception propagates and fails the script.
+     */
+    public static long sanitizeEstimate(long estimatedBytes) {
+        return Math.clamp(estimatedBytes, 0L, Long.MAX_VALUE / 2);
+    }
+
+    /**
+     * Charges a {@code def}-dispatched {@code +} before it runs, but only when it is actually a string concat (an operand is a
+     * {@link String}, per {@link DefMath}'s rule) — so numeric {@code def + def} rebox is left untracked by design. The estimate
+     * reuses the statically-typed concat bound (see {@link AllocSizes#stringConcatOperandBytes}). Caller boxes primitive
+     * operands so both arrive as {@link Object}; emitted only when tracking is enabled.
+     */
+    public static void checkDefConcatAlloc(PainlessScript script, Object left, Object right) {
+        if (left instanceof String || right instanceof String) {
+            script.$checkAllocBytes(
+                AllocSizes.STRING_CONCAT_RESULT_OVERHEAD + AllocSizes.stringConcatOperandBytes(left) + AllocSizes.stringConcatOperandBytes(
+                    right
+                )
+            );
+        }
+    }
+
+    /**
      * Logs a {@code WARN} and throws a {@link PainlessError} describing an allocation that pushed a script over its limit.
      * {@link PainlessError} is an {@link Error}, so it cannot be caught from Painless source. Never returns normally. The
      * specific allocation that crossed the limit is not reported: it is whichever happened to tip the running total, not

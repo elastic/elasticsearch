@@ -163,6 +163,12 @@ public class QueryPhase {
         try {
             queryResult.from(searchContext.from());
             queryResult.size(searchContext.size());
+
+            final Runnable timeoutRunnable = getTimeoutCheck(searchContext);
+            if (timeoutRunnable != null) {
+                searcher.addQueryCancellation(timeoutRunnable);
+            }
+
             Query query = searchContext.rewrittenQuery();
             assert query == searcher.rewrite(query); // already rewritten
 
@@ -190,21 +196,16 @@ public class QueryPhase {
 
             final boolean hasFilterCollector = searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null;
 
-            Weight postFilterWeight = null;
-            if (searchContext.parsedPostFilter() != null) {
-                postFilterWeight = searcher.createWeight(
-                    searcher.rewrite(searchContext.parsedPostFilter().query()),
-                    ScoreMode.COMPLETE_NO_SCORES,
-                    1f
-                );
-            }
-
-            final Runnable timeoutRunnable = getTimeoutCheck(searchContext);
-            if (timeoutRunnable != null) {
-                searcher.addQueryCancellation(timeoutRunnable);
-            }
-
             try {
+                Weight postFilterWeight = null;
+                if (searchContext.parsedPostFilter() != null) {
+                    postFilterWeight = searcher.createWeight(
+                        searcher.rewrite(searchContext.parsedPostFilter().query()),
+                        ScoreMode.COMPLETE_NO_SCORES,
+                        1f
+                    );
+                }
+
                 CollectorManager<Collector, QueryPhaseResult> collectorManager = QueryPhaseCollectorManager
                     .createQueryPhaseCollectorManager(
                         postFilterWeight,
@@ -249,9 +250,9 @@ public class QueryPhase {
 
     /**
      * Marks the current search as timed out and finalizes the {@link QuerySearchResult}
-     * with a well-formed empty response. This ensures that even when a timeout occurs
-     * (e.g., during collector setup or search execution), the shard still returns a
-     * valid result object with empty top docs and aggregations instead of throwing.
+     * with a well-formed empty response. This ensures that even when a timeout occurs,
+     * the shard returns a valid result object with empty top docs and aggregations rather
+     * than propagating a raw exception.
      */
     private static void finalizeAsTimedOutResult(SearchContext searchContext) {
         QuerySearchResult queryResult = searchContext.queryResult();

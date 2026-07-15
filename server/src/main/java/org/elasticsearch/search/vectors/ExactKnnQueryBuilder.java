@@ -102,7 +102,7 @@ public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder>
             );
         }
         final DenseVectorFieldMapper.DenseVectorFieldType vectorFieldType = (DenseVectorFieldMapper.DenseVectorFieldType) fieldType;
-        return vectorFieldType.createExactKnnQuery(query, vectorSimilarity);
+        return vectorFieldType.createIndexedExactKnnQuery(query, vectorSimilarity);
     }
 
     @Override

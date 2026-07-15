@@ -22,6 +22,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.unmodifiableNavigableMap;
 
@@ -215,15 +216,70 @@ public class BlobFileRanges implements Writeable {
         return blobFileRanges;
     }
 
-    public static long midpointMillisOrUnknown(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
+    /**
+     * Returns a positive epoch millis timestamp representing the midpoint of the given range, or
+     * {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} if the range is null.
+     */
+    public static long midpointMillisOrUnknownForCache(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
         if (range == null) {
             return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
         }
-        return range.midpointMillis();
+        long midpointMillis = range.midpointMillis();
+        // Cache-region timestamps must be positive epoch millis or a negative sentinel value.
+        return midpointMillis > 0L ? midpointMillis : 1L;
+    }
+
+    /**
+     * Returns the most recent known timestamp between two timestamps, treating {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} as the
+     * lesser-known value so any known timestamp wins.
+     */
+    public static long mostRecentKnownTimestamp(long a, long b) {
+        if (a == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            return b;
+        }
+        if (b == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            return a;
+        }
+        return Math.max(a, b);
     }
 
     public boolean hasReplicatedRanges() {
         return replicatedRanges.isEmpty() == false;
+    }
+
+    /**
+     * Reconciles this instance with {@code other}, both sharing the same blob location. The result uses the most recent timestamp
+     * of the two (treating {@code null} as unknown), and the replicated ranges from whichever has them. If both have replicated ranges,
+     * asserts they are identical.
+     */
+    public BlobFileRanges reconcileWith(final BlobFileRanges other) {
+        assert blobLocation.equals(other.blobLocation)
+            : "Cannot reconcile BlobFileRanges with different blob locations: " + blobLocation + " vs " + other.blobLocation;
+
+        final NavigableMap<Long, ReplicatedByteRange> reconciledReplicatedRanges = reconcileReplicatedRanges(other);
+        final StatelessCompoundCommit.TimestampFieldValueRange reconcileTimestampRange = reconcileTimestampRange(other);
+        if (Objects.equals(replicatedRanges, reconciledReplicatedRanges) && Objects.equals(timestampRange, reconcileTimestampRange)) {
+            return this;
+        }
+        return new BlobFileRanges(blobLocation, reconciledReplicatedRanges, reconcileTimestampRange);
+    }
+
+    private StatelessCompoundCommit.TimestampFieldValueRange reconcileTimestampRange(final BlobFileRanges other) {
+        final var midpoint = midpointMillisOrUnknownForCache(timestampRange);
+        final var otherMidpoint = midpointMillisOrUnknownForCache(other.timestampRange);
+        return mostRecentKnownTimestamp(midpoint, otherMidpoint) == midpoint ? timestampRange : other.timestampRange;
+    }
+
+    private NavigableMap<Long, ReplicatedByteRange> reconcileReplicatedRanges(final BlobFileRanges other) {
+        if (replicatedRanges.isEmpty()) {
+            return other.replicatedRanges;
+        }
+        if (other.replicatedRanges.isEmpty()) {
+            return replicatedRanges;
+        }
+        assert replicatedRanges.equals(other.replicatedRanges)
+            : "Replicated ranges differ for same blob location: " + replicatedRanges + " vs " + other.replicatedRanges;
+        return replicatedRanges;
     }
 
     private static boolean assertNoOverlappingReplicatedRanges(TreeMap<Long, ReplicatedByteRange> ranges) {
@@ -264,5 +320,9 @@ public class BlobFileRanges implements Writeable {
     // for tests only
     public @Nullable Long locationOfFirstReplicatedContents() {
         return replicatedRanges.isEmpty() ? null : replicatedRanges.firstEntry().getValue().copy;
+    }
+
+    public void forEachReplicatedRange(BiConsumer<Long, Short> consumer) {
+        replicatedRanges.forEach((position, replicated) -> consumer.accept(replicated.copy(), replicated.length()));
     }
 }

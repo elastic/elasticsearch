@@ -1,4 +1,55 @@
 redirects:
+  # Related to https://github.com/elastic/docs-content/issues/1171
+  'reference/enrich-processor/index.md': 'reference/ingest-processor/index.md'
+  'reference/enrich-processor/append-processor.md': 'reference/ingest-processor/append-processor.md'
+  'reference/enrich-processor/attachment.md': 'reference/ingest-processor/attachment.md'
+  'reference/enrich-processor/bytes-processor.md': 'reference/ingest-processor/bytes-processor.md'
+  'reference/enrich-processor/cef-processor.md': 'reference/ingest-processor/cef-processor.md'
+  'reference/enrich-processor/community-id-processor.md': 'reference/ingest-processor/community-id-processor.md'
+  'reference/enrich-processor/convert-processor.md': 'reference/ingest-processor/convert-processor.md'
+  'reference/enrich-processor/csv-processor.md': 'reference/ingest-processor/csv-processor.md'
+  'reference/enrich-processor/date-index-name-processor.md': 'reference/ingest-processor/date-index-name-processor.md'
+  'reference/enrich-processor/date-processor.md': 'reference/ingest-processor/date-processor.md'
+  'reference/enrich-processor/dissect-processor.md': 'reference/ingest-processor/dissect-processor.md'
+  'reference/enrich-processor/dot-expand-processor.md': 'reference/ingest-processor/dot-expand-processor.md'
+  'reference/enrich-processor/drop-processor.md': 'reference/ingest-processor/drop-processor.md'
+  'reference/enrich-processor/enrich-processor.md': 'reference/ingest-processor/enrich-processor.md'
+  'reference/enrich-processor/fail-processor.md': 'reference/ingest-processor/fail-processor.md'
+  'reference/enrich-processor/fingerprint-processor.md': 'reference/ingest-processor/fingerprint-processor.md'
+  'reference/enrich-processor/foreach-processor.md': 'reference/ingest-processor/foreach-processor.md'
+  'reference/enrich-processor/geoip-processor.md': 'reference/ingest-processor/geoip-processor.md'
+  'reference/enrich-processor/grok-processor.md': 'reference/ingest-processor/grok-processor.md'
+  'reference/enrich-processor/gsub-processor.md': 'reference/ingest-processor/gsub-processor.md'
+  'reference/enrich-processor/htmlstrip-processor.md': 'reference/ingest-processor/htmlstrip-processor.md'
+  'reference/enrich-processor/inference-processor.md': 'reference/ingest-processor/inference-processor.md'
+  'reference/enrich-processor/ingest-circle-processor.md': 'reference/ingest-processor/ingest-circle-processor.md'
+  'reference/enrich-processor/ingest-geo-grid-processor.md': 'reference/ingest-processor/ingest-geo-grid-processor.md'
+  'reference/enrich-processor/ingest-node-set-security-user-processor.md': 'reference/ingest-processor/ingest-node-set-security-user-processor.md'
+  'reference/enrich-processor/ip-location-processor.md': 'reference/ingest-processor/ip-location-processor.md'
+  'reference/enrich-processor/join-processor.md': 'reference/ingest-processor/join-processor.md'
+  'reference/enrich-processor/json-processor.md': 'reference/ingest-processor/json-processor.md'
+  'reference/enrich-processor/kv-processor.md': 'reference/ingest-processor/kv-processor.md'
+  'reference/enrich-processor/lowercase-processor.md': 'reference/ingest-processor/lowercase-processor.md'
+  'reference/enrich-processor/network-direction-processor.md': 'reference/ingest-processor/network-direction-processor.md'
+  'reference/enrich-processor/normalize-for-stream.md': 'reference/ingest-processor/normalize-for-stream.md'
+  'reference/enrich-processor/pipeline-processor.md': 'reference/ingest-processor/pipeline-processor.md'
+  'reference/enrich-processor/recover-failure-document-processor.md': 'reference/ingest-processor/recover-failure-document-processor.md'
+  'reference/enrich-processor/redact-processor.md': 'reference/ingest-processor/redact-processor.md'
+  'reference/enrich-processor/registered-domain-processor.md': 'reference/ingest-processor/registered-domain-processor.md'
+  'reference/enrich-processor/remove-processor.md': 'reference/ingest-processor/remove-processor.md'
+  'reference/enrich-processor/rename-processor.md': 'reference/ingest-processor/rename-processor.md'
+  'reference/enrich-processor/reroute-processor.md': 'reference/ingest-processor/reroute-processor.md'
+  'reference/enrich-processor/script-processor.md': 'reference/ingest-processor/script-processor.md'
+  'reference/enrich-processor/set-processor.md': 'reference/ingest-processor/set-processor.md'
+  'reference/enrich-processor/sort-processor.md': 'reference/ingest-processor/sort-processor.md'
+  'reference/enrich-processor/split-processor.md': 'reference/ingest-processor/split-processor.md'
+  'reference/enrich-processor/terminate-processor.md': 'reference/ingest-processor/terminate-processor.md'
+  'reference/enrich-processor/trim-processor.md': 'reference/ingest-processor/trim-processor.md'
+  'reference/enrich-processor/uppercase-processor.md': 'reference/ingest-processor/uppercase-processor.md'
+  'reference/enrich-processor/uri-parts-processor.md': 'reference/ingest-processor/uri-parts-processor.md'
+  'reference/enrich-processor/urldecode-processor.md': 'reference/ingest-processor/urldecode-processor.md'
+  'reference/enrich-processor/user-agent-processor.md': 'reference/ingest-processor/user-agent-processor.md'
+
   # Elastic managed connectors page consolidated into main index
   'reference/search-connectors/elastic-managed-connectors.md': '!reference/search-connectors/index.md'
 
@@ -19,6 +70,16 @@ redirects:
 
   # Custom plugins and bundles moved to docs-content (narrative ECH deployment docs)
   'reference/elasticsearch-plugins/cloud/ec-custom-bundles.md': 'docs-content://deploy-manage/deploy/elastic-cloud/upload-custom-plugins-bundles.md'
+
+  # ECE and ECH plugin management procedures moved to docs-content (see elastic/docs-content#7101)
+  'reference/elasticsearch-plugins/plugin-management.md':
+    to: 'reference/elasticsearch-plugins/plugin-management.md'
+    anchors: {}
+    many:
+      - to: 'docs-content://deploy-manage/deploy/elastic-cloud/add-plugins-extensions.md'
+        anchors: {'ec-adding-plugins', 'managing-plugins-for-ech', 'ec-adding-elastic-plugins', 'ec_before_you_begin_6'}
+      - to: 'docs-content://deploy-manage/deploy/cloud-enterprise/add-plugins.md'
+        anchors: {'ece-adding-plugins', 'managing-plugins-for-ece'}
 
   # https://github.com/elastic/elasticsearch/pull/131385
   'reference/elasticsearch/rest-apis/retrievers.md':
@@ -41,6 +102,10 @@ redirects:
         anchors: {'rule-retriever'}
       - to: 'reference/elasticsearch/rest-apis/retrievers/pinned-retriever.md'
         anchors: {'pinned-retriever'}
+
+  # Query directives moved up a level out of commands/ (they are not commands)
+  'reference/query-languages/esql/commands/directives.md': 'reference/query-languages/esql/directives/directives.md'
+  'reference/query-languages/esql/commands/set.md': 'reference/query-languages/esql/directives/set.md'
 
   # ESQL command redirects - split from aggregate pages to individual pages
   'reference/query-languages/esql/commands/source-commands.md':
@@ -598,6 +663,8 @@ redirects:
         anchors: { 'querying-semantic-text-fields', 'retrieving-indexed-chunks', 'returning-semantic-field-embeddings', 'returning-semantic-field-embeddings-in-_source', 'reindex-while-preserving-embeddings', 'troubleshooting-semantic-text-fields', 'returning-semantic-field-embeddings-using-fields', 'highlighting-fragments', 'cross-cluster-search' }
       - to: 'reference/elasticsearch/mapping-reference/semantic-text-reference.md'
         anchors: { 'semantic-text-params', 'configuring-inference-endpoints', 'chunking-behavior', 'limitations', 'document-count-discrepancy' }
+
+  'reference/query-languages/esql/esql-federated-data.md': 'reference/query-languages/esql/esql-data-federation.md'
 
   # Related to https://github.com/elastic/docs-content-internal/issues/595
   'reference/query-languages/esql/limitations.md':

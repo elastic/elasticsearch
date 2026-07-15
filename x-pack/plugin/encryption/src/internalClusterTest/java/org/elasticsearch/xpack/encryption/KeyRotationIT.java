@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
+import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -49,6 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -60,6 +63,40 @@ import static org.hamcrest.Matchers.notNullValue;
 public class KeyRotationIT extends SecurityIntegTestCase {
 
     private final List<Integer> keyAddEvents = new CopyOnWriteArrayList<>();
+
+    /**
+     * Stops rotation and drains any in-flight cluster-state tasks before the framework's post-test
+     * consistency check runs. {@link KeyRotationCoordinator#close()} prevents new ticks from firing
+     * but cannot atomically abort a tick that is already executing on the generic thread pool. The
+     * {@code assertBusy} wait ensures any task that slipped into the master-service queue after
+     * {@code close()} has been executed and its cluster-state publication committed before we hand
+     * off to the framework's own consistency check. Publishing a retire/re-encrypt task can take
+     * several seconds on loaded CI (especially right after the master failover exercised by
+     * {@code testRotationContinuesAfterMasterFailover}), so this waits generously rather than racing
+     * a tight budget — every second spent draining here is a second the framework's check won't need.
+     */
+    @After
+    public void stopKeyRotationCoordinators() throws Exception {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            internalCluster().getInstance(KeyRotationCoordinator.class, nodeName).close();
+        }
+        assertBusy(
+            () -> assertThat(
+                client().execute(TransportPendingClusterTasksAction.TYPE, new PendingClusterTasksRequest(TEST_REQUEST_TIMEOUT))
+                    .get()
+                    .pendingTasks()
+                    .stream()
+                    .filter(t -> {
+                        String src = t.getSource().string();
+                        return src.contains("project-encryption-key") || src.startsWith("re-encrypt-");
+                    })
+                    .toList(),
+                empty()
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+    }
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -84,17 +121,6 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         plugins.add(EncryptionPlugin.class);
         plugins.add(TestEncryptionCustomsPlugin.class);
         return plugins;
-    }
-
-    @After
-    public void stopCoordinators() {
-        // Close all coordinator instances so no new cluster-state publications are submitted after
-        // the test assertions complete. Without this the coordinator's 1-second tick can start a
-        // publish_state (including a PBKDF2 disk-wrap) that is still in-flight when the framework's
-        // assertRequestsFinished check runs, causing a spurious teardown failure.
-        for (String nodeName : internalCluster().getNodeNames()) {
-            internalCluster().getInstance(KeyRotationCoordinator.class, nodeName).close();
-        }
     }
 
     @Before

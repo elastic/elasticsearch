@@ -12,7 +12,7 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -36,7 +36,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to execute a search based on a search template.
  */
-public class SearchTemplateRequest extends LegacyActionRequest implements CompositeIndicesRequest, ToXContentObject {
+public class SearchTemplateRequest extends UntypedActionRequest implements CompositeIndicesRequest, ToXContentObject {
 
     private SearchRequest request;
     private boolean simulate = false;

@@ -24,7 +24,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -41,6 +40,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -69,6 +69,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -230,7 +231,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             || recoverySource == RecoverySource.LocalShardsRecoverySource.INSTANCE;
     }
 
-    private static void logBootstrapping(IndexShard indexShard, BatchedCompoundCommit latestCommit) {
+    private static void logBootstrappingFromObjectStore(IndexShard indexShard, BatchedCompoundCommit latestCommit) {
         logger.info(
             "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} from object store ({})",
             indexShard.shardId(),
@@ -242,20 +243,22 @@ class StatelessIndexEventListener implements IndexEventListener {
         );
     }
 
-    private static void logBootstrapping(
+    private static void logBootstrappingFromIndexingShard(
         IndexShard indexShard,
         StatelessCompoundCommit latestCommit,
         PrimaryTermAndGeneration latestUploaded
     ) {
         assert indexShard.routingEntry().isPromotableToPrimary() == false;
         assert latestCommit != null;
+        boolean uploaded = latestCommit.getContainingBccBlobFile().termAndGeneration().onOrBefore(latestUploaded);
         logger.info(
-            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} and latest uploaded {} from indexing shard ({})",
+            "{} with UUID [{}] bootstrapping [{}] shard on primary term [{}] with {} ({}) and latest uploaded {} from indexing shard ({})",
             indexShard.shardId(),
             indexShard.shardId().getIndex().getUUID(),
             indexShard.routingEntry().role(),
             indexShard.getOperationPrimaryTerm(),
             latestCommit.toShortDescription(),
+            uploaded ? "uploaded" : "pending upload",
             latestUploaded,
             describe(indexShard.recoveryState())
         );
@@ -272,15 +275,31 @@ class StatelessIndexEventListener implements IndexEventListener {
         assert indexShard.routingEntry().isPromotableToPrimary();
         final var recoveryInfoFromSource = statelessCommitService.getRecoveryInfoFromSourceEntry(indexShard.shardId());
         final var sourceBlobsInfo = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.sourceBlobsInfo();
-        final var hasRecentIdLookup = recoveryInfoFromSource == null ? false : recoveryInfoFromSource.hasRecentIdLookup();
+        final var lastCommitBlobs = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.lastCommitBlobs();
+        final var lastCommitIsHollow = recoveryInfoFromSource != null && recoveryInfoFromSource.lastCommitIsHollow();
+        final var hasRecentIdLookup = recoveryInfoFromSource != null && recoveryInfoFromSource.hasRecentIdLookup();
         final long readIndexingShardStateStartMillis = threadPool.relativeTimeInMillis();
         SubscribableListener.<ObjectStoreService.IndexingShardState>newForked(l -> {
             if (shardContainer == null) {
                 ActionListener.completeWith(l, () -> ObjectStoreService.IndexingShardState.EMPTY);
                 return;
             }
+
+            final var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory());
+            if (lastCommitBlobs != null && lastCommitIsHollow == false) {
+                warmingService.warmCacheForBCCHeadersRead(
+                    indexShard,
+                    directory,
+                    lastCommitBlobs,
+                    ActionListener.wrap(
+                        v -> {},
+                        e -> logger.warn("[{}] failed to pre-warm region 0 before BCC header reads", indexShard.shardId(), e)
+                    )
+                );
+            }
+
             ObjectStoreService.readIndexingShardState(
-                IndexBlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory()),
+                directory,
                 IOContext.DEFAULT,
                 shardContainer,
                 indexShard.getOperationPrimaryTerm(),
@@ -311,7 +330,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             var store = indexShard.store();
             var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
             var batchedCompoundCommit = indexingShardState.latestCommit();
-            logBootstrapping(indexShard, batchedCompoundCommit);
+            logBootstrappingFromObjectStore(indexShard, batchedCompoundCommit);
 
             if (batchedCompoundCommit != null) {
                 var recoveryCommit = batchedCompoundCommit.lastCompoundCommit();
@@ -336,7 +355,6 @@ class StatelessIndexEventListener implements IndexEventListener {
                         indexShard,
                         recoveryCommit,
                         warmingDirectory,
-                        null,
                         hasRecentIdLookup,
                         ActionListener.noop()
                     );
@@ -425,7 +443,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                     // should be equal to zero indicated the indexing shard's engine is null or is a NoOpEngine
                     assert PrimaryTermAndGeneration.ZERO.equals(lastUploaded) : lastUploaded;
 
-                    logBootstrapping(indexShard, batchedCompoundCommit);
+                    logBootstrappingFromObjectStore(indexShard, batchedCompoundCommit);
                     // If there is no batched compound commit found in the object store, then recover from an empty commit
                     if (batchedCompoundCommit == null) {
                         l.onResponse(null);
@@ -439,7 +457,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                     lastUploaded = batchedCompoundCommit.primaryTermAndGeneration();
                 } else {
                     compoundCommit = response.getCompoundCommit();
-                    logBootstrapping(indexShard, compoundCommit, lastUploaded);
+                    logBootstrappingFromIndexingShard(indexShard, compoundCommit, lastUploaded);
                 }
 
                 assert batchedCompoundCommit == null
@@ -450,10 +468,11 @@ class StatelessIndexEventListener implements IndexEventListener {
                 searchDirectory.updateLatestUploadedBcc(lastUploaded);
                 searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);
 
-                SubscribableListener.<Tuple<Map<String, BlobFileRanges>, Map<BlobFile, Long>>>newForked(l2 -> {
+                SubscribableListener.<SearchRecoveryWarmingInputs>newForked(l2 -> {
                     if (useInternalFilesReplicatedContentForSearchShards) {
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
-                        Map<BlobFile, Long> offsetsToWarm = ConcurrentCollections.newConcurrentMap();
+                        Map<BlobFile, WarmTarget> targetsToWarm = ConcurrentCollections.newConcurrentMap();
+                        // TODO: pass timestamps to cache regions read in this call
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
                             batchedCompoundCommit,
@@ -469,20 +488,23 @@ class StatelessIndexEventListener implements IndexEventListener {
                                         referencedCompoundCommit.referencedInternalFiles()
                                     )
                                 );
-                                offsetsToWarm.compute(
-                                    referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile(),
-                                    (blobFile, maxOffsetToWarm) -> {
-                                        var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
-                                        return maxOffsetToWarm == null ? offset : Math.max(maxOffsetToWarm, offset);
-                                    }
+                                var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
+                                var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
+                                // Aggregate a single warm target per BCC blob: the furthest offset to warm, stamped with the most recent
+                                // representative timestamp among the referenced CCs sharing that blob.
+                                long ccTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
+                                    referencedCompoundCommit.statelessCompoundCommitReference()
+                                        .compoundCommit()
+                                        .getTimestampFieldValueRange()
                                 );
+                                targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, ccTimestamp), WarmTarget::merge);
                             },
-                            l2.map(aVoid -> new Tuple<>(blobFileRanges, offsetsToWarm))
+                            l2.map(aVoid -> new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm))
                         );
                     } else {
                         l2.onResponse(null);
                     }
-                }).addListener(l.delegateFailureAndWrap((l3, blobFileRangesAndOffsetsToWarm) -> {
+                }).addListener(l.delegateFailureAndWrap((l3, warmingInputs) -> {
                     final var resumeRecovery = new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {
@@ -497,8 +519,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                         }
                     };
 
-                    if (blobFileRangesAndOffsetsToWarm != null) {
-                        searchDirectory.updateCommit(compoundCommit, blobFileRangesAndOffsetsToWarm.v1());
+                    if (warmingInputs != null) {
+                        searchDirectory.updateCommit(compoundCommit, warmingInputs.blobFileRanges());
                     } else {
                         searchDirectory.updateCommit(compoundCommit);
                     }
@@ -507,12 +529,19 @@ class StatelessIndexEventListener implements IndexEventListener {
                         indexShard,
                         compoundCommit,
                         searchDirectory,
-                        blobFileRangesAndOffsetsToWarm != null ? blobFileRangesAndOffsetsToWarm.v2() : null,
+                        warmingInputs != null ? warmingInputs.targetsToWarm() : null,
                         resumeRecovery
                     );
                 }));
             })
         );
+    }
+
+    private record SearchRecoveryWarmingInputs(Map<String, BlobFileRanges> blobFileRanges, Map<BlobFile, WarmTarget> targetsToWarm) {
+        public SearchRecoveryWarmingInputs {
+            Objects.requireNonNull(blobFileRanges);
+            Objects.requireNonNull(targetsToWarm);
+        }
     }
 
     @Override

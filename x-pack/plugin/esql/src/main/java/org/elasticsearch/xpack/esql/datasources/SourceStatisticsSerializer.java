@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +31,8 @@ import java.util.Set;
  */
 public final class SourceStatisticsSerializer {
 
+    /** Common prefix of every flat statistics key (row count, size, per-column stats, partial flag). */
+    public static final String STATS_KEY_PREFIX = "_stats.";
     public static final String STATS_ROW_COUNT = "_stats.row_count";
     public static final String STATS_SIZE_BYTES = "_stats.size_bytes";
     /**
@@ -36,7 +41,7 @@ public final class SourceStatisticsSerializer {
      * resolution) and do not represent the full dataset. This flag is set by
      * {@code ExternalSourceResolver.markStatsAsPartial} when a glob matches more than one file.
      * <p>
-     * The aggregate pushdown rule ({@code PushAggregatesToExternalSource}) checks this flag
+     * The aggregate pushdown rule ({@code PushStatsToExternalSource}) checks this flag
      * via {@code SplitStats.resolveEffectiveStats} and bails out when set. Note that once
      * per-split statistics are available (populated during split discovery), the merged
      * per-split stats take precedence and this flag is not consulted.
@@ -45,12 +50,61 @@ public final class SourceStatisticsSerializer {
     /** Number of files matched by the glob pattern; useful for observability and debugging. */
     public static final String STATS_FILE_COUNT = "_stats.file_count";
     public static final String STATS_COL_PREFIX = "_stats.columns.";
-    private static final String NULL_COUNT_SUFFIX = ".null_count";
-    private static final String MIN_SUFFIX = ".min";
-    private static final String MAX_SUFFIX = ".max";
-    private static final String SIZE_BYTES_SUFFIX = ".size_bytes";
+    /**
+     * Names of the Hive-partition (path-derived) columns, stamped here at resolution so the DATA-NODE fold can
+     * recognize them: the coordinator-only {@code FileList} (which carries {@link PartitionMetadata}) deserializes
+     * to {@code UNRESOLVED} on a remote node, but {@code sourceMetadata} travels with the serialized relation. A
+     * partition column is absent from every file's column stats, so without this signal a data-node
+     * {@code COUNT(partition_col)} would serve {@code rowCount - rowCount = 0}. Deliberately NOT under the
+     * {@code _stats.} prefix so the FirstFileWins / union-by-name stat merges preserve it. Value: {@code List<String>}.
+     */
+    public static final String PARTITION_COLUMNS_KEY = "_partition.columns";
+    // Package-private: consumed by the *Key helpers here and by SplitStats.of/toMap (the round-trip between the
+    // flat keys and the compact model), all within this package.
+    static final String NULL_COUNT_SUFFIX = ".null_count";
+    static final String VALUE_COUNT_SUFFIX = ".value_count";
+    static final String MIN_SUFFIX = ".min";
+    static final String MAX_SUFFIX = ".max";
+    static final String SIZE_BYTES_SUFFIX = ".size_bytes";
+    // Per-statistic unservability markers. A marker is a PRESENT key (not an absent one): it forces the
+    // matching extremum to safe-miss at serve AND, because it is present and OR-folds across contributions,
+    // a sibling's finite extremum cannot refill a dropped one at the next fold level. This replaces the
+    // blunt "drop the whole column" taint -- COUNT-family (null_count/value_count) survives an extremum taint.
+    static final String MIN_UNSERVABLE_SUFFIX = ".min_unservable";
+    static final String MAX_UNSERVABLE_SUFFIX = ".max_unservable";
 
     private SourceStatisticsSerializer() {}
+
+    /**
+     * The names of the Hive-partition (path-derived) columns for a source, read from the serialized
+     * {@link #PARTITION_COLUMNS_KEY} stamp in {@code sourceMetadata}. This is the ONE node-safe channel for
+     * partition identity: the {@code FileList} that carries {@code PartitionMetadata} is coordinator-only and
+     * deserializes to {@code UNRESOLVED} on a data node, so any consumer that reads partition names off the
+     * fileList sees an empty set there. Every node-agnostic consumer reads partition identity through this
+     * method (usually via the {@code partitionColumnNames()} accessor on {@code ExternalSourceExec} /
+     * {@code ExternalRelation}), never off the fileList. Returns an empty set when the source is not
+     * partitioned, and otherwise preserves the stamped order (the partition nesting, e.g. {@code region} then
+     * {@code tier}).
+     * <p>
+     * Deliberately a {@link LinkedHashSet} rather than {@code Set.copyOf}: no consumer reads this set by
+     * iteration today (they all use {@code contains} / {@code isEmpty}), but {@code Set.copyOf} randomizes
+     * iteration order <em>per JVM</em>, so a coordinator and a data node would order it differently. The day
+     * these names surface anywhere user-visible — an error message, a plan string, debug output — that would be
+     * nondeterministic and divergent across nodes. Ordering a handful of strings once per plan costs nothing and
+     * removes the failure mode.
+     */
+    @SuppressWarnings("unchecked")
+    public static Set<String> partitionColumnNames(Map<String, Object> sourceMetadata) {
+        if (sourceMetadata == null) {
+            return Set.of();
+        }
+        Object names = sourceMetadata.get(PARTITION_COLUMNS_KEY);
+        if (names instanceof Collection<?> collection) {
+            // The stamp is written as List.copyOf(names), which rejects nulls, so the copy cannot NPE here.
+            return Collections.unmodifiableSet(new LinkedHashSet<>((Collection<String>) collection));
+        }
+        return Set.of();
+    }
 
     /**
      * Merges statistics entries into a new map that includes both the original sourceMetadata
@@ -68,6 +122,7 @@ public final class SourceStatisticsSerializer {
                 String prefix = STATS_COL_PREFIX + entry.getKey();
                 SourceStatistics.ColumnStatistics cs = entry.getValue();
                 cs.nullCount().ifPresent(nc -> result.put(prefix + NULL_COUNT_SUFFIX, nc));
+                cs.valueCount().ifPresent(vc -> result.put(prefix + VALUE_COUNT_SUFFIX, vc));
                 cs.minValue().ifPresent(mv -> result.put(prefix + MIN_SUFFIX, mv));
                 cs.maxValue().ifPresent(mv -> result.put(prefix + MAX_SUFFIX, mv));
                 cs.sizeInBytes().ifPresent(sb -> result.put(prefix + SIZE_BYTES_SUFFIX, sb));
@@ -134,6 +189,16 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
+     * Extracts the value count (count of non-null values) for a specific column directly from the
+     * sourceMetadata map. Returns {@code null} if the metadata is null or the value count is
+     * absent/non-numeric.
+     */
+    @Nullable
+    public static Long extractColumnValueCount(Map<String, Object> sourceMetadata, String columnName) {
+        return sourceMetadata != null ? asBoxedLong(sourceMetadata.get(columnValueCountKey(columnName))) : null;
+    }
+
+    /**
      * Extracts the min value for a specific column directly from the sourceMetadata map.
      * Returns {@code null} if the metadata is null or the min is absent.
      */
@@ -156,6 +221,11 @@ public final class SourceStatisticsSerializer {
         return STATS_COL_PREFIX + columnName + NULL_COUNT_SUFFIX;
     }
 
+    /** Returns the flat key used for a column's value count (non-null values) statistic. */
+    public static String columnValueCountKey(String columnName) {
+        return STATS_COL_PREFIX + columnName + VALUE_COUNT_SUFFIX;
+    }
+
     /** Returns the flat key used for a column's min statistic. */
     public static String columnMinKey(String columnName) {
         return STATS_COL_PREFIX + columnName + MIN_SUFFIX;
@@ -169,6 +239,273 @@ public final class SourceStatisticsSerializer {
     /** Returns the flat key used for a column's size in bytes statistic. */
     public static String columnSizeBytesKey(String columnName) {
         return STATS_COL_PREFIX + columnName + SIZE_BYTES_SUFFIX;
+    }
+
+    /** Returns the flat key that marks a column's {@code min} statistic unservable. */
+    public static String columnMinUnservableKey(String columnName) {
+        return STATS_COL_PREFIX + columnName + MIN_UNSERVABLE_SUFFIX;
+    }
+
+    /** Returns the flat key that marks a column's {@code max} statistic unservable. */
+    public static String columnMaxUnservableKey(String columnName) {
+        return STATS_COL_PREFIX + columnName + MAX_UNSERVABLE_SUFFIX;
+    }
+
+    /**
+     * Poisons a column's {@code min}/{@code max} in-place: drops the extremum values and writes the unservable
+     * markers so the column safe-misses to a scan. Count stats (row/null/value counts) are left intact. Used when
+     * the extremum cannot be trusted — e.g. the FIRST_FILE_WINS fold detects a column whose physical type diverges
+     * across files, so both the unit-blind fold AND the anchor-schema misread of the divergent file make a warm
+     * extremum unable to match a scan.
+     */
+    public static void poisonColumnExtrema(Map<String, Object> statsMap, String columnName) {
+        statsMap.remove(columnMinKey(columnName));
+        statsMap.remove(columnMaxKey(columnName));
+        statsMap.put(columnMinUnservableKey(columnName), Boolean.TRUE);
+        statsMap.put(columnMaxUnservableKey(columnName), Boolean.TRUE);
+    }
+
+    // All seven per-column stat suffixes, for the declared-overlay rekey: a column's whole stat family moves together,
+    // including the unservable markers (an upstream FFW-divergence poison must survive a `path` rename).
+    private static final String[] COLUMN_STAT_SUFFIXES = {
+        NULL_COUNT_SUFFIX,
+        VALUE_COUNT_SUFFIX,
+        MIN_SUFFIX,
+        MAX_SUFFIX,
+        SIZE_BYTES_SUFFIX,
+        MIN_UNSERVABLE_SUFFIX,
+        MAX_UNSERVABLE_SUFFIX };
+
+    /**
+     * The declared-schema overlay's stats boundary — the fourth, after reconciliation-normalize, FFW-divergence poison,
+     * and commit-time coercion. Stats are produced keyed by <b>physical</b> (file) column names holding <b>inferred</b>-type
+     * values; the declared overlay renames/retypes the plan afterwards, so without this the warm path serves physical-keyed
+     * stats under logical names (a renamed {@code COUNT(col)} serves 0) and inferred-type extrema/counts a coerced scan
+     * never produces. This (1) REKEYS every per-column stat family physical&rarr;logical for each {@code path} rename — a
+     * pure move changes no value, so the rekeyed stats stay exactly correct and warm serving survives the rename; (2)
+     * POISONS the extrema and DROPS {@code value_count}/{@code null_count} for {@code poisonColumns} (declared retype or
+     * declared date format — read-time coercion can null cells and re-represent values, so no pre-coercion stat is
+     * trustworthy). {@code row_count}/{@code file_count}/{@code size_bytes} and non-column keys are untouched, so
+     * {@code COUNT(*)} stays warm and the cost estimator keeps its byte signal. Returns the input instance unchanged when
+     * there is nothing to do; otherwise a new map (inputs are routinely {@code Map.copyOf}-immutable).
+     *
+     * @param physicalToLogical physical&rarr;logical name moves (the inverse of {@code DeclaredReadSpec#renames}; 1:1 by
+     *                          validation, so the inverse is well-defined)
+     * @param poisonColumns     LOGICAL names whose extrema + counts must safe-miss
+     */
+    public static Map<String, Object> overlayDeclaredSchemaOnStats(
+        Map<String, Object> statsMap,
+        Map<String, String> physicalToLogical,
+        Set<String> poisonColumns
+    ) {
+        if (statsMap == null || statsMap.isEmpty() || (physicalToLogical.isEmpty() && poisonColumns.isEmpty())) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        // Two-phase move: renames may swap/chain (logical `a`->physical `b` while `b`->`a` — the overlap
+        // PhysicalNames.noLogicalNamesRemain documents), so remove ALL source families first, then write.
+        Map<String, Object> staged = new HashMap<>();
+        for (Map.Entry<String, String> move : physicalToLogical.entrySet()) {
+            String physicalPrefix = STATS_COL_PREFIX + move.getKey();
+            String logicalPrefix = STATS_COL_PREFIX + move.getValue();
+            for (String suffix : COLUMN_STAT_SUFFIXES) {
+                Object value = out.remove(physicalPrefix + suffix);
+                if (value != null) {
+                    staged.put(logicalPrefix + suffix, value);
+                }
+            }
+        }
+        out.putAll(staged);
+        for (String column : poisonColumns) {
+            poisonColumnExtrema(out, column);        // drops .min/.max, writes both unservable markers
+            out.remove(columnValueCountKey(column)); // count-family unknown, not zero: SplitStats.of defaults both
+            out.remove(columnNullCountKey(column));  // to -1 -> COUNT(col) safe-misses; COUNT(*) is unaffected
+        }
+        return out;
+    }
+
+    /**
+     * The widened-column pin's stats boundary — the sibling of {@link #overlayDeclaredSchemaOnStats} for the
+     * {@code union_by_name} reconciliation path. When a text file's shared column is inferred from a narrow sampled
+     * prefix and then read at the wider reconciled type (the pin), an out-of-sample value that does not fit the narrow
+     * type is null-filled (or its whole row dropped under {@code skip_row}) when that same file is read solo at the
+     * narrow type. The per-file stats cache identity is read-schema-blind ({@code (path, mtime, config)}), so a solo
+     * narrow read and the pinned wider read share one entry: the harvested {@code value_count}/{@code null_count} are
+     * short by the null-filled cells and the extremum is the narrow-read value, none of which a wider read would
+     * produce. These are wrong VALUES, not merely a wrong unit, so {@link #normalizeStatsToReconciled} and the
+     * cache-path coercion cannot rescue them. For each {@code pinnedColumns} entry this POISONS the extrema and DROPS
+     * {@code value_count}/{@code null_count} so the column safe-misses to a scan; {@code dropRowCount} additionally
+     * drops {@code row_count} for the {@code skip_row} case, where the narrow read dropped whole rows and even
+     * {@code COUNT(*)} would be short. {@code size_bytes} and non-column keys are untouched. Returns the input instance
+     * unchanged when there is nothing to do; otherwise a new map (inputs are routinely {@code Map.copyOf}-immutable).
+     *
+     * @param pinnedColumns columns whose read type was pinned above their inferred type
+     * @param dropRowCount  whether the error policy drops whole rows ({@code skip_row}), making {@code row_count} stale too
+     */
+    public static Map<String, Object> overlayPinnedColumnsOnStats(
+        Map<String, Object> statsMap,
+        Set<String> pinnedColumns,
+        boolean dropRowCount
+    ) {
+        if (statsMap == null || statsMap.isEmpty() || pinnedColumns.isEmpty()) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        for (String column : pinnedColumns) {
+            poisonColumnExtrema(out, column);
+            out.remove(columnValueCountKey(column));
+            out.remove(columnNullCountKey(column));
+        }
+        if (dropRowCount) {
+            out.remove(STATS_ROW_COUNT);
+        }
+        return out;
+    }
+
+    /**
+     * The widened-column pin's stats boundary on the COMMIT path: the sibling of {@link #overlayPinnedColumnsOnStats},
+     * which is the serve-side boundary. The two guard opposite directions of the same read-schema-blind cache identity
+     * ({@code (path, mtime, config)}, no read-type component; see
+     * {@link org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey}): a solo narrow read and a widening glob's
+     * pinned wider read of the same file share one cache entry. The serve-side overlay stops a widening query from SERVING
+     * the narrow read's stale stats; this stops a widening read's harvest from COMMITTING (and so polluting) the entry a
+     * solo narrow read serves. A pinned wider read parses an out-of-sample value the narrow read null-filled (or
+     * row-dropped under {@code skip_row}), so its harvested {@code value_count} / {@code null_count} / extrema for a pinned
+     * column are values the narrow read never produces.
+     * <p>
+     * Unlike the serve-side overlay this STRIPS each pinned column's whole stat family rather than poisoning it: the commit
+     * is a last-writer-wins {@code putAll} into the shared entry, so removing the pinned column's keys leaves the solo
+     * narrow read's own correct stats intact and warm. A poison marker would instead persist into the shared entry and make
+     * the narrow read safe-miss too. Under {@code dropRowCount} ({@code skip_row}, where a narrow-read parse failure drops
+     * the whole row) {@code row_count} is stripped as well. {@code size_bytes} and non-column keys are untouched. Returns
+     * the input instance unchanged when there is nothing to do; otherwise a new map (inputs are routinely
+     * {@code Map.copyOf}-immutable).
+     *
+     * @param pinnedColumns columns whose read type was pinned above their inferred type for the harvested read
+     * @param dropRowCount  whether the error policy drops whole rows ({@code skip_row}), making {@code row_count} stale too
+     */
+    public static Map<String, Object> removeColumnStatFamilies(
+        Map<String, Object> statsMap,
+        Set<String> pinnedColumns,
+        boolean dropRowCount
+    ) {
+        if (statsMap == null || statsMap.isEmpty() || pinnedColumns.isEmpty()) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        for (String column : pinnedColumns) {
+            String prefix = STATS_COL_PREFIX + column;
+            for (String suffix : COLUMN_STAT_SUFFIXES) {
+                out.remove(prefix + suffix);
+            }
+        }
+        if (dropRowCount) {
+            out.remove(STATS_ROW_COUNT);
+        }
+        return out;
+    }
+
+    /**
+     * Compares two keyword/text stat extrema in UTF-8 byte order — the SAME order the runtime keyword MIN/MAX
+     * aggregators and comparisons use ({@link BytesRef} unsigned-byte order) — NOT {@link String#compareTo}'s
+     * UTF-16 code-unit order, which disagrees for supplementary (astral) chars vs BMP chars in
+     * {@code [U+E000..U+FFFF]}. Accepts either representation a stat value takes: {@code String} (parquet footer)
+     * or {@link BytesRef} (text harvest). Single owner of keyword-stat ordering: the cross-file fold
+     * ({@code SplitStats.mergedMin}/{@code mergedMax}), the split-filter classifier ({@code StatValueComparator}),
+     * and the parquet cross-row-group fold ({@code ParquetFormatReader}) all delegate here.
+     */
+    public static int compareKeywordUtf8(Object a, Object b) {
+        BytesRef ba = a instanceof BytesRef br ? br : new BytesRef((String) a);
+        BytesRef bb = b instanceof BytesRef br ? br : new BytesRef((String) b);
+        return ba.compareTo(bb);
+    }
+
+    /**
+     * Normalizes a per-file stat map's {@code min}/{@code max} to the RECONCILED column type, at the boundary
+     * where BOTH the file's own type and the multi-file reconciled type are known (multi-file discovery /
+     * split construction). Per-file stats are stored in the file's LOCAL unit/representation, but every warm
+     * consumer — the split-filter classifier, the filtered/whole-file merge, the source-level fold, and the
+     * MIN/MAX serve — reads the value AS the reconciled type ({@code af.dataType()}) with no further rescale.
+     * Normalizing here, once, is what makes those consumers correct instead of comparing file-local units
+     * unit-blind. Two cases need it (the numeric Long/Double flap within one representation is handled
+     * separately by the cache-path {@code coerceColumnStatsToResolvedTypes} and the poison fold):
+     * <ul>
+     *   <li><b>Temporal widening</b> — a {@code DATETIME} (epoch-millis) file column reconciled to
+     *   {@code DATE_NANOS} (epoch-nanos) has its min/max rescaled ×1e6 ({@link Math#multiplyExact}); on
+     *   overflow the value is dropped and the unservable marker written (safe-miss), never a wrong nanos value.</li>
+     *   <li><b>Representation change</b> — a numeric/temporal file column reconciled to {@code KEYWORD}/{@code TEXT}
+     *   ({@link org.elasticsearch.xpack.esql.datasources.SchemaReconciliation}'s non-widenable fallback) would be
+     *   served under lexicographic/stringified order, not numeric, so its numeric min/max is dropped and the
+     *   marker written (safe-miss).</li>
+     * </ul>
+     * Count stats (value_count/null_count/row_count) are unit- and representation-independent and pass through.
+     * The unservable marker (not a bare removal) is written so marker-wins normalization in {@code SplitStats.of}
+     * forces a safe-miss even if a later overlay would otherwise resurrect a stale value. Returns the input
+     * unchanged when no column needed normalization.
+     */
+    public static Map<String, Object> normalizeStatsToReconciled(
+        Map<String, Object> statsMap,
+        Map<String, DataType> fileTypes,
+        Map<String, DataType> reconciledTypes
+    ) {
+        if (statsMap == null || statsMap.isEmpty() || fileTypes == null || reconciledTypes == null) {
+            return statsMap;
+        }
+        Map<String, Object> out = null; // copied lazily, only if a column actually needs a change
+        for (Map.Entry<String, DataType> entry : reconciledTypes.entrySet()) {
+            String col = entry.getKey();
+            DataType reconciled = entry.getValue();
+            DataType file = fileTypes.get(col);
+            if (file == null || file == reconciled) {
+                continue; // column absent from this file, or already the reconciled type
+            }
+            for (String[] pair : List.of(
+                new String[] { columnMinKey(col), columnMinUnservableKey(col) },
+                new String[] { columnMaxKey(col), columnMaxUnservableKey(col) }
+            )) {
+                Object value = statsMap.get(pair[0]);
+                if (value instanceof Number == false) {
+                    continue;
+                }
+                Object normalized = normalizeExtremumToReconciled((Number) value, file, reconciled);
+                if (normalized != null) {
+                    if (normalized.equals(value)) {
+                        continue; // no change
+                    }
+                    if (out == null) {
+                        out = new HashMap<>(statsMap);
+                    }
+                    out.put(pair[0], normalized);
+                } else {
+                    if (out == null) {
+                        out = new HashMap<>(statsMap);
+                    }
+                    out.remove(pair[0]);
+                    out.put(pair[1], Boolean.TRUE);
+                }
+            }
+        }
+        return out != null ? out : statsMap;
+    }
+
+    /** Rescales/validates one extremum from its file type to the reconciled type; {@code null} = not servable. */
+    private static Object normalizeExtremumToReconciled(Number value, DataType fileType, DataType reconciledType) {
+        if (fileType == DataType.DATETIME && reconciledType == DataType.DATE_NANOS) {
+            try {
+                return Math.multiplyExact(value.longValue(), 1_000_000L); // epoch-millis → epoch-nanos
+            } catch (ArithmeticException overflow) {
+                return null; // safe-miss
+            }
+        }
+        if (reconciledType == DataType.KEYWORD || reconciledType == DataType.TEXT) {
+            return null; // numeric/temporal served under lexicographic KEYWORD order would be wrong → safe-miss
+        }
+        if (fileType == DataType.DATE_NANOS && reconciledType == DataType.DATETIME) {
+            return null; // widening never narrows nanos→millis; if it somehow reaches here, safe-miss
+        }
+        // Same numeric/temporal family with only a Long/Double representation flap: left to the cache-path
+        // coerce + the poison fold. Pass the value through unchanged here.
+        return value;
     }
 
     /**
@@ -188,21 +525,34 @@ public final class SourceStatisticsSerializer {
      * column is physically absent from that file, so its entire row count is folded into the
      * merged {@code null_count} accumulator for that column. This makes
      * {@code Count(col) = totalRowCount - mergedNullCount} correct downstream in
-     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushAggregatesToExternalSource}.
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource}.
      * <p>
      * Format-reader ground truth: Parquet always writes {@code size_bytes} for present columns
      * and ORC always writes {@code null_count}, so any column-family key in a per-file map is
      * sufficient to mark the column as physically present in that file. The rare exception is
      * Parquet writing a column with stats disabled — present, with {@code size_bytes}, but no
-     * {@code null_count}. We refuse to fabricate a null count in that case: the merged map
-     * drops the {@code null_count} entry entirely (via {@code poisonedNullCounts}), so
-     * downstream consumers see "unknown" and fall back rather than under-count.
+     * {@code null_count}. We refuse to fabricate a null count in that case: the cross-file fold marks the
+     * column's {@code null_count} poisoned and drops the entry, so downstream consumers see "unknown" and fall
+     * back rather than under-count.
      * <p>
      * Min/max/size_bytes accumulators are unchanged: they only sum across files where the
      * column is present, which is the correct semantics regardless of implicit nulls.
      */
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     public static Map<String, Object> mergeStatistics(List<Map<String, Object>> splitStats) {
+        // Footer formats (Parquet/ORC) always write complete per-file column stats, so an absent
+        // column folds into implicit nulls. This is the default for callers that only merge such stats.
+        return mergeStatistics(splitStats, true);
+    }
+
+    /**
+     * @param implicitNullsForAbsentColumn when {@code true} (footer formats), a column absent from a
+     *        per-file map is treated as physically absent and its rows fold into the merged null_count
+     *        (UNION_BY_NAME semantics). When {@code false} (text formats under partial harvest), a
+     *        column absent from any file's stats is "not harvested" -- it may be physically present --
+     *        so the merged column is dropped entirely, forcing downstream COUNT/MIN/MAX to safe-miss
+     *        (re-scan) rather than undercount or serve a subset extremum.
+     */
+    public static Map<String, Object> mergeStatistics(List<Map<String, Object>> splitStats, boolean implicitNullsForAbsentColumn) {
         if (splitStats == null || splitStats.isEmpty()) {
             return null;
         }
@@ -211,140 +561,25 @@ public final class SourceStatisticsSerializer {
             return single != null && single.get(STATS_ROW_COUNT) instanceof Number ? single : null;
         }
 
-        long totalRows = 0;
-        long totalSize = 0;
-        Map<String, long[]> nullCounts = new HashMap<>();
-        Map<String, Comparable[]> mins = new HashMap<>();
-        Map<String, Comparable[]> maxs = new HashMap<>();
-        Map<String, long[]> colSizeBytes = new HashMap<>();
-        Set<String> poisonedMins = new HashSet<>();
-        Set<String> poisonedMaxs = new HashSet<>();
-        // Columns that any file showed as physically present (any column-family key seen) but
-        // that lack a null_count value in that same file. We cannot fabricate a count for
-        // those rows, so we drop the merged null_count entry to signal "unknown" downstream.
-        Set<String> poisonedNullCounts = new HashSet<>();
-        // Tracks (per per-file map) the row count and the set of columns physically present in
-        // that file so we can fold absent-column rows into implicit nulls in a second pass.
-        long[] perFileRowCounts = new long[splitStats.size()];
-        List<Set<String>> perFileColumns = new ArrayList<>(splitStats.size());
-        Set<String> allColumns = new LinkedHashSet<>();
-
-        int fileIndex = 0;
+        // Fold via the compact model: deserialize each input, fold with the one canonical engine, re-serialize.
+        // The equivalence to the former in-place flat-map fold was proven by
+        // SplitStatsTests#testFoldMatchesMergeStatisticsDifferential against that fold BEFORE this delegation landed
+        // (git history); the test now guards the of/fold/toMap round-trip. The per-field law lives once in
+        // SplitStats.mergedMin/mergedMax and the fold's SUM/AND -- there is no longer a parallel per-key law table.
+        List<SplitStats> splits = new ArrayList<>(splitStats.size());
         for (Map<String, Object> stats : splitStats) {
-            if (stats == null || stats.containsKey(STATS_ROW_COUNT) == false) {
+            if (stats == null || stats.get(STATS_ROW_COUNT) instanceof Number == false) {
                 return null;
             }
-            Object rc = stats.get(STATS_ROW_COUNT);
-            long fileRowCount;
-            if (rc instanceof Number rcNum) {
-                fileRowCount = rcNum.longValue();
-                totalRows += fileRowCount;
-            } else {
+            SplitStats s = SplitStats.of(stats);
+            if (s == null) {
                 return null;
             }
-            Object sb = stats.get(STATS_SIZE_BYTES);
-            if (sb instanceof Number sbNum) totalSize += sbNum.longValue();
-
-            // Probe which columns this file physically contains. The column is "present" iff
-            // any _stats.columns.<col>.* key is in the map (matches SplitStats.of's logic).
-            Set<String> columnsInThisFile = new HashSet<>();
-            // Track which present columns of this file emitted a null_count value, so we can
-            // detect the rare present-but-stats-less case after the column-family scan.
-            Set<String> nullCountSeenInThisFile = new HashSet<>();
-            for (Map.Entry<String, Object> entry : stats.entrySet()) {
-                String key = entry.getKey();
-                if (key.startsWith(STATS_COL_PREFIX) == false) continue;
-                String rest = key.substring(STATS_COL_PREFIX.length());
-                int dotIdx = rest.lastIndexOf('.');
-                if (dotIdx <= 0) continue;
-                String colName = rest.substring(0, dotIdx);
-                columnsInThisFile.add(colName);
-                if (key.endsWith(NULL_COUNT_SUFFIX) && entry.getValue() instanceof Number ncNum) {
-                    nullCountSeenInThisFile.add(colName);
-                    nullCounts.merge(key, new long[] { ncNum.longValue() }, (a, b) -> {
-                        a[0] += b[0];
-                        return a;
-                    });
-                } else if (key.endsWith(MIN_SUFFIX) && entry.getValue() instanceof Comparable c) {
-                    if (poisonedMins.contains(key) == false) {
-                        // Map.merge removes the entry when the remapping function returns null
-                        mins.merge(key, new Comparable[] { c }, (a, b) -> {
-                            Object merged = SplitStats.mergedMin(a[0], b[0]);
-                            if (merged == null) {
-                                return null;
-                            }
-                            a[0] = (Comparable) merged;
-                            return a;
-                        });
-                        if (mins.containsKey(key) == false) {
-                            poisonedMins.add(key);
-                        }
-                    }
-                } else if (key.endsWith(MAX_SUFFIX) && entry.getValue() instanceof Comparable c) {
-                    if (poisonedMaxs.contains(key) == false) {
-                        maxs.merge(key, new Comparable[] { c }, (a, b) -> {
-                            Object merged = SplitStats.mergedMax(a[0], b[0]);
-                            if (merged == null) {
-                                return null;
-                            }
-                            a[0] = (Comparable) merged;
-                            return a;
-                        });
-                        if (maxs.containsKey(key) == false) {
-                            poisonedMaxs.add(key);
-                        }
-                    }
-                } else if (key.endsWith(SIZE_BYTES_SUFFIX) && entry.getValue() instanceof Number sbNum) {
-                    colSizeBytes.merge(key, new long[] { sbNum.longValue() }, (a, b) -> {
-                        a[0] += b[0];
-                        return a;
-                    });
-                }
-            }
-            // Any column physically present in this file but lacking a null_count value
-            // poisons that column's merged null_count: we cannot reconstruct it later.
-            for (String present : columnsInThisFile) {
-                if (nullCountSeenInThisFile.contains(present) == false) {
-                    poisonedNullCounts.add(present);
-                }
-            }
-            perFileRowCounts[fileIndex++] = fileRowCount;
-            perFileColumns.add(columnsInThisFile);
-            allColumns.addAll(columnsInThisFile);
+            splits.add(s);
         }
-
-        // Implicit-nulls pass: for every column ever seen, fold the row count of files that
-        // do not physically contain the column into that column's null_count accumulator.
-        // This only adds value when there are at least two files; the size==1 fast path above
-        // returns the single map verbatim and never reaches here.
-        for (String colName : allColumns) {
-            String key = columnNullCountKey(colName);
-            for (int i = 0; i < perFileColumns.size(); i++) {
-                if (perFileColumns.get(i).contains(colName) == false) {
-                    long fileRowCount = perFileRowCounts[i];
-                    nullCounts.merge(key, new long[] { fileRowCount }, (a, b) -> {
-                        a[0] += b[0];
-                        return a;
-                    });
-                }
-            }
-        }
-
-        Map<String, Object> merged = new HashMap<>();
-        merged.put(STATS_ROW_COUNT, totalRows);
-        if (totalSize > 0) {
-            merged.put(STATS_SIZE_BYTES, totalSize);
-        }
-        nullCounts.forEach((k, v) -> {
-            String colName = k.substring(STATS_COL_PREFIX.length(), k.length() - NULL_COUNT_SUFFIX.length());
-            if (poisonedNullCounts.contains(colName) == false) {
-                merged.put(k, v[0]);
-            }
-        });
-        mins.forEach((k, v) -> merged.put(k, v[0]));
-        maxs.forEach((k, v) -> merged.put(k, v[0]));
-        colSizeBytes.forEach((k, v) -> merged.put(k, v[0]));
-        return merged;
+        SplitStats folded = SplitStats.fold(splits, implicitNullsForAbsentColumn);
+        // Mutable copy: callers (e.g. ExternalSourceCacheService.foldFragments) re-attach the keying fields.
+        return folded == null ? null : new HashMap<>(folded.toMap());
     }
 
     @Nullable
@@ -368,6 +603,11 @@ public final class SourceStatisticsSerializer {
         @Override
         public OptionalLong nullCount() {
             return toOptionalLong(extractColumnNullCount(map, colName));
+        }
+
+        @Override
+        public OptionalLong valueCount() {
+            return toOptionalLong(extractColumnValueCount(map, colName));
         }
 
         @Override

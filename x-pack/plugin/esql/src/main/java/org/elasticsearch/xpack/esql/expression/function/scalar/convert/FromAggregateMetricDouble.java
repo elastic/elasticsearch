@@ -115,6 +115,12 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     }
 
     @Override
+    public boolean isNoop() {
+        // Extracts a single subfield, so it never passes its input through unchanged.
+        return false;
+    }
+
+    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new FromAggregateMetricDouble(source(), newChildren.get(0), newChildren.get(1));
     }

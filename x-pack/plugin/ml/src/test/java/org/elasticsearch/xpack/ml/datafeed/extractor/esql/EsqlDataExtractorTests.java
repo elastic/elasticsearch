@@ -303,10 +303,9 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(summary.totalHits(), equalTo(0L));
     }
 
-    public void testGetSummaryPassesTimeFieldAsParamNotSplicedIntoQuery() {
-        // A time field containing backtick characters must not be spliced into the query text; it must travel as a parameter value.
-        String dangerousTimeField = "field`; DROP TABLE";
-        TestDataExtractor extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, dangerousTimeField);
+    public void testGetSummaryPassesDoesNotSubstituteInvalidTimeField() {
+        String invalidTimeField = "field | STATS COUNT(*)";
+        TestDataExtractor extractor = createExtractor(1000L, 9000L, DEFAULT_QUERY, invalidTimeField);
         extractor.enqueueRow(
             List.of(column("earliest_time", DATE), column("latest_time", DATE), column("total_hits", LONG)),
             "1970-01-01T00:00:01.500Z",
@@ -316,9 +315,9 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         extractor.getSummary();
 
-        assertThat(extractor.capturedOrderedQuery, not(containsString(dangerousTimeField)));
+        assertThat(extractor.capturedOrderedQuery, not(containsString(invalidTimeField)));
         assertThat(extractor.capturedOrderedQuery, containsString("??timeField"));
-        assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", dangerousTimeField, IDENTIFIER))));
+        assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", invalidTimeField, IDENTIFIER))));
     }
 
     public void testGetSummaryDetectsTimeColumnTypesIndependently() {

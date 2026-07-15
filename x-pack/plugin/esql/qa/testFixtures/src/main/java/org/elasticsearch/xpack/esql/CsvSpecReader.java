@@ -466,34 +466,30 @@ public final class CsvSpecReader {
     }
 
     /**
-     * Marks a test as expecting a tolerant, non-exact comparison for {@code DOUBLE} columns whose
-     * value is expected to be vanishingly small, of the form {@code zero_threshold: <double>}. This
-     * exists for {@code CHANGE_POINT}: its p-values are computed (see {@code ChangePointDetector},
-     * {@code ChangeDetector} in {@code x-pack/plugin/ml}) from floating-point summations over the
-     * group's values, and floating-point summation is not associative. Row arrival order is not
-     * guaranteed identical across node topologies (single-node vs. multi-node vs. mixed-cluster), so
-     * summary statistics feeding the significance test can differ in their low bits depending on
-     * topology. The underlying random source is a fixed seed ({@code new Random(126832678)} in
-     * {@code ChangeDetector}), so this is not an unseeded-randomness problem: for a *given* input
-     * ordering the result is fully deterministic. What varies is the ordering itself, and because the
-     * significance test reports a tail probability, a tiny, legitimate difference in summation order
-     * can amplify into a multi-order-of-magnitude difference in the final p-value (e.g. {@code 9.7E-24}
-     * vs {@code 4.8E-21}, or {@code 0.0} vs {@code 6.8E-159}), even though both nodes agree on the
-     * qualitative classification (the {@code type} column) and both p-values are, for any practical
-     * purpose, zero: both are many orders of magnitude below the
-     * {@code ChangePointDetector.P_VALUE_THRESHOLD = 0.01} significance threshold used to classify the
-     * change. Comparing such values for near-equality is testing a magnitude that carries no signal;
-     * once a p-value is confidently below threshold, only "is it effectively zero" is meaningful, not
-     * its exact exponent. The existing {@code enableRoundingDoubleValuesOnAsserting} 7-significant-digit
-     * rounding does not help here: it preserves relative precision at any magnitude, so it cannot make
-     * two values differing by several orders of magnitude compare equal.
+     * Tests with this treat {@code double}s <strong>close</strong> to {@code 0.0} as equal to {@code 0.0}.
+     * Use this when you have numbers that are, statistically speaking, "basically 0". The {@code <double>}
+     * in {@code zero_threshold: <double>} sets how close to {@code 0.0} you have to be to count.
      * <p>
-     * When present, both the expected and actual {@code DOUBLE} values are clamped to {@code 0.0}
-     * before comparison whenever their absolute value is below the declared threshold, so e.g.
-     * {@code 9.678892E-24} and {@code 4.762904E-21} both become {@code 0.0} and compare equal. A
-     * moderate p-value (e.g. {@code 0.0019710754505321004}, not near the noise floor) is unaffected
-     * and continues to be compared with full/rounded precision. The directive is opt-in and per-test:
-     * absent (the default), comparison behavior is completely unchanged.
+     *     Our multi-node tests always use a fairly tight relative delta for {@code double}s. The
+     *     numbers must match to 7 significant digits. But {@code 0.0} is small. For numbers close
+     *     to {@code 0.0}, seven significant digits is way too tight. Especially when you add the
+     *     doubles in non-deterministic order.
+     * </p>
+     * <p>
+     *     Specifically, {@code CHANGE_POINT} calculates probabilities that are frequently close
+     *     enough to {@code 0.0}, but double addition artifacts can make them vary between
+     *     {@code 9.7E-24} and {@code 4.8E-21} and {@code 6.8E-159}. They are
+     *     <strong>absolutely</strong> pretty much 0. But relatively, they are orders of magnitude
+     *     apart.
+     * </p>
+     * <p>
+     *     When present, both the expected and actual {@code DOUBLE} values are clamped to {@code 0.0}
+     *     before comparison whenever their absolute value is below the declared threshold, so e.g.
+     *     {@code 9.678892E-24} and {@code 4.762904E-21} both become {@code 0.0} and compare equal. A
+     *     moderate p-value (e.g. {@code 0.0019710754505321004}, not near the noise floor) is unaffected
+     *     and continues to be compared with full/rounded precision. The directive is opt-in and per-test:
+     *     absent (the default), comparison behavior is completely unchanged.
+     * </p>
      */
     record ZeroThreshold(ParserContext state) implements SpecReader.Parser {
         @Override

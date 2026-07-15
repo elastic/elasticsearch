@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -95,6 +96,12 @@ final class ParquetPushedExpressions {
     static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
 
     private final List<Expression> expressions;
+    /**
+     * Physical-keyed declared date formats for the translation in flight. Deliberately NOT part of this object's
+     * identity ({@code equals}/{@code hashCode}) — it is an input to translation, not a property of the pushed
+     * expressions themselves.
+     */
+    private Map<String, String> declaredDateFormats = Map.of();
     /**
      * Cache of compiled {@link CompiledWildcard} forms per {@link WildcardLike} expression.
      * Building a {@link ByteRunAutomaton} from a wildcard pattern (in particular the determinize
@@ -176,7 +183,24 @@ final class ParquetPushedExpressions {
      * @param schema the Parquet file's MessageType schema (from footer metadata)
      * @return a combined FilterPredicate, or null if no expressions could be translated
      */
+    /** Formatter-free overload: a read with no declared date formats binds exactly as it did before. */
     FilterPredicate toFilterPredicate(MessageType schema) {
+        return toFilterPredicate(schema, Map.of());
+    }
+
+    /**
+     * @param declaredDateFormats physical-name-keyed declared date formats. A declared format makes a column's unit a
+     *                            property of the DECLARATION rather than of the file, so the annotation alone no
+     *                            longer says what unit the scan emits — and the row-group statistics these predicates
+     *                            are compared against stay in the file's RAW unit. Without this the temporal arms
+     *                            push a decoded-unit bound at raw stats and prune row groups the query matches.
+     */
+    FilterPredicate toFilterPredicate(MessageType schema, Map<String, String> declaredDateFormats) {
+        this.declaredDateFormats = declaredDateFormats == null ? Map.of() : declaredDateFormats;
+        return toFilterPredicateInner(schema);
+    }
+
+    private FilterPredicate toFilterPredicateInner(MessageType schema) {
         List<FilterPredicate> translated = new ArrayList<>();
         for (Expression expr : expressions) {
             FilterPredicate fp = translateExpression(expr, schema);
@@ -639,7 +663,7 @@ final class ParquetPushedExpressions {
         return null;
     }
 
-    private static FilterPredicate buildDatetimePredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
+    private FilterPredicate buildDatetimePredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
         if (ptype == null) {
             return null;
@@ -669,31 +693,60 @@ final class ParquetPushedExpressions {
                 yield null;
             }
             case INT64 -> {
-                try {
-                    long physicalValue = convertMillisToPhysical(millis, logical);
-                    yield orderedPredicate(FilterApi.longColumn(columnName), physicalValue, op);
-                } catch (ArithmeticException e) {
-                    yield null;
-                }
+                Long bound = datetimeBoundToRaw(columnName, millis, op, logical);
+                yield bound == null ? null : orderedPredicate(FilterApi.longColumn(columnName), bound, op);
             }
             default -> null;
         };
     }
 
     /**
-     * Converts ESQL epoch millis to the physical unit used in the Parquet file.
-     * Uses {@link Math#multiplyExact} to detect overflow — timestamps beyond ~year 2262
-     * would overflow when scaled to nanos.
+     * The RAW bound to push for a {@code DATETIME} column whose query literal is epoch-millis, or {@code null} to
+     * decline. The row-group statistics hold the file's raw values, so a bound is only pushable when the scan's
+     * decode is an exact scale of them and we can invert it without ever becoming STRICTER than the true predicate.
+     *
+     * <p>Two independent things can rescale the decode, and both must be answered here:
+     * <ul>
+     *   <li>the file's own annotation — {@code TIMESTAMP(MICROS|NANOS)} store a finer unit than the millis literal;</li>
+     *   <li>a declared {@code format} — {@code epoch_second} over a bare {@code INT64} scales x1000 at decode while
+     *       the statistics stay in seconds.</li>
+     * </ul>
+     *
+     * <p>Anything else declines. In particular a bare/unknown annotation is NOT the identity once a format is in play,
+     * and a format composed on top of an annotation's own transform is not a single scale. Declining only loses
+     * pruning; pushing a wrong bound loses ROWS, and unrecoverably — RECHECK re-applies exact semantics to rows we
+     * READ, and a pruned row group is never decoded.
      */
-    static long convertMillisToPhysical(long millis, LogicalTypeAnnotation logical) {
-        if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
-            return switch (ts.getUnit()) {
-                case MILLIS -> millis;
-                case MICROS -> Math.multiplyExact(millis, 1000L);
-                case NANOS -> Math.multiplyExact(millis, 1_000_000L);
-            };
+    @Nullable
+    private Long datetimeBoundToRaw(String columnName, long millis, PredicateOp op, @Nullable LogicalTypeAnnotation logical) {
+        String declaredFormat = declaredDateFormats.get(columnName);
+        if (declaredFormat != null) {
+            // decode(raw) = raw * scale, so the bound divides back — but only for a pure epoch dialect over an
+            // un-annotated physical. A calendar format parses the digits non-linearly and admits no inverse at all.
+            if (logical != null) {
+                return null;
+            }
+            Long scale = DeclaredTypeCoercions.declaredEpochFormatScale(declaredFormat, DataType.DATETIME);
+            return scale == null ? null : boundToPhysicalUnit(millis, op, scale);
         }
-        return millis;
+        if (logical == null) {
+            return millis; // bare INT64 with no declared format: the fused identity read
+        }
+        if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation ts) {
+            try {
+                return switch (ts.getUnit()) {
+                    case MILLIS -> millis;
+                    case MICROS -> Math.multiplyExact(millis, 1000L);
+                    case NANOS -> Math.multiplyExact(millis, 1_000_000L);
+                };
+            } catch (ArithmeticException e) {
+                return null; // beyond ~year 2262 the scaled bound overflows; decline rather than wrap
+            }
+        }
+        // TIME/DECIMAL/UINT_64/unknown: the scan applies a transform this method does not model (TIME(MICROS)
+        // scales x1000, DECIMAL(scale>0) divides), so the old identity fall-through pushed a bound in the wrong
+        // unit and pruned matching row groups.
+        return null;
     }
 
     /**
@@ -708,7 +761,7 @@ final class ParquetPushedExpressions {
      * {@link ParquetFilterPushdownSupport#isFullyEvaluable}), so {@code FilterExec} re-applies the exact
      * semantics — while a decline merely loses pruning, never rows.
      */
-    private static FilterPredicate buildDateNanosPredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
+    private FilterPredicate buildDateNanosPredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
         if (ptype == null || ptype.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
             return null;
@@ -717,7 +770,7 @@ final class ParquetPushedExpressions {
             // IS NULL / IS NOT NULL reason over null counts only — unit-independent, so no divisor gate.
             return orderedPredicate(FilterApi.longColumn(columnName), null, op);
         }
-        Long divisor = ParquetColumnDecoding.dateNanosPushdownDivisor(ptype);
+        Long divisor = ParquetColumnDecoding.dateNanosPushdownDivisor(ptype, declaredDateFormats.get(columnName));
         if (divisor == null) {
             return null;
         }
@@ -842,7 +895,7 @@ final class ParquetPushedExpressions {
         return inPredicate(FilterApi.intColumn(columnName), rawValues, v -> ((Number) v).intValue());
     }
 
-    private static FilterPredicate translateDatetimeIn(String columnName, List<Object> rawValues, MessageType schema) {
+    private FilterPredicate translateDatetimeIn(String columnName, List<Object> rawValues, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
         if (ptype == null) {
             return null;
@@ -866,11 +919,22 @@ final class ParquetPushedExpressions {
                     }
                     yield null;
                 }
-                case INT64 -> inPredicate(
-                    FilterApi.longColumn(columnName),
-                    rawValues,
-                    v -> convertMillisToPhysical(((Number) v).longValue(), logical)
-                );
+                case INT64 -> {
+                    // Same authority as the comparison arm, so the two cannot disagree about a column's unit. An
+                    // element that has no exact raw counterpart (a non-tick literal under a rescaling read, or a
+                    // unit this method declines) is DROPPED, not approximated: the pushed set stays a subset of the
+                    // true one, which over-includes at worst and FilterExec rechecks it. Dropping every element
+                    // declines the push entirely rather than pushing an empty IN, which would match nothing.
+                    List<Object> bounds = new ArrayList<>(rawValues.size());
+                    for (Object v : rawValues) {
+                        Long bound = datetimeBoundToRaw(columnName, ((Number) v).longValue(), PredicateOp.EQ, logical);
+                        if (bound == null) {
+                            yield null;
+                        }
+                        bounds.add(bound);
+                    }
+                    yield bounds.isEmpty() ? null : inPredicate(FilterApi.longColumn(columnName), bounds, v -> (Long) v);
+                }
                 default -> null;
             };
         } catch (ArithmeticException e) {
@@ -888,12 +952,12 @@ final class ParquetPushedExpressions {
      * (TIME, unsigned INT64, unknown) declines entirely. If every element is dropped, no predicate is pushed and
      * the scan + recheck yields the (empty) result.
      */
-    private static FilterPredicate translateDateNanosIn(String columnName, List<Object> rawValues, MessageType schema) {
+    private FilterPredicate translateDateNanosIn(String columnName, List<Object> rawValues, MessageType schema) {
         PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
         if (ptype == null) {
             return null;
         }
-        Long divisor = ParquetColumnDecoding.dateNanosPushdownDivisor(ptype);
+        Long divisor = ParquetColumnDecoding.dateNanosPushdownDivisor(ptype, declaredDateFormats.get(columnName));
         if (divisor == null) {
             return null;
         }

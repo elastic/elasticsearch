@@ -1221,7 +1221,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     private FilterPredicate resolveFilterPredicate(StorageObject object, MessageType schema) {
         if (pushedExpressions != null) {
             try {
-                return pushedExpressions.toFilterPredicate(schema);
+                // Pass the declared formats: without them the temporal arms cannot tell that the scan rescales a
+                // column relative to the statistics these predicates are compared against, and prune matching rows.
+                return pushedExpressions.toFilterPredicate(schema, declaredDateFormats);
             } catch (Exception e) {
                 logger.warn("Failed to resolve Parquet filter predicate for [{}], proceeding without pushdown: {}", object.path(), e);
                 return null;

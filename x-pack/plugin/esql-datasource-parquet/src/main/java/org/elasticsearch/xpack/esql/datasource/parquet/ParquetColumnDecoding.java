@@ -120,12 +120,24 @@ final class ParquetColumnDecoding {
      * {@code IN} paths cannot disagree; the same built predicate also drives page-level pruning
      * ({@code ColumnIndexRowRangesComputer}), which is therefore guarded by the same divisor.
      */
+    /**
+     * @param declaredFormat the column's declared date format, or {@code null} when it declares none. A format makes
+     *                       the decode's unit a property of the DECLARATION rather than of the file, so the
+     *                       annotation alone no longer answers this question: {@code {date_nanos, epoch_second}} over
+     *                       a bare {@code INT64} scales x1e9 at decode while the raw statistics stay in seconds.
+     *                       Resolving it here keeps the comparison and {@code IN} paths on one authority, as designed.
+     */
     @Nullable
-    static Long dateNanosPushdownDivisor(PrimitiveType primitiveType) {
+    static Long dateNanosPushdownDivisor(PrimitiveType primitiveType, @Nullable String declaredFormat) {
         if (primitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
             return null;
         }
         LogicalTypeAnnotation logical = primitiveType.getLogicalTypeAnnotation();
+        if (declaredFormat != null) {
+            // A declared format composed on top of an annotation's own transform is not a single scale, so only the
+            // un-annotated case can convert; the rest decline rather than push a bound the raw stats cannot answer.
+            return logical == null ? DeclaredTypeCoercions.declaredEpochFormatScale(declaredFormat, DataType.DATE_NANOS) : null;
+        }
         if (logical == null) {
             return 1L;
         }

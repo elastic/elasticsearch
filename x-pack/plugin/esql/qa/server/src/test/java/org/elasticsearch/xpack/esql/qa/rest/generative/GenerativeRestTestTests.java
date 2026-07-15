@@ -93,6 +93,38 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
 
+    public void testQstrAfterSubqueryRenameIsTolerated() {
+        // Real GenerativeIT {feature:SUBQUERIES} failure: the subquery ends with a RENAME, which the flattened plan
+        // pushes ahead of the outer QSTR. RENAME is not one of FROM/WHERE/SORT, so QSTR is rejected.
+        String query = "from (from employees_gender_text | limit 808 | rename `os.version` AS v) | where qstr(\"os.name:world\")";
+        String error = "verification_exception: line 1:481: [QSTR] function cannot be used after RENAME";
+
+        assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testKqlAfterSubqueryEvalIsTolerated() {
+        String query = "FROM books, (FROM books | EVAL title2 = concat(title, \"x\")) | WHERE kql(\"title2: world\")";
+        String error = "verification_exception: line 1:64: [KQL] function cannot be used after EVAL";
+
+        assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testQstrAfterRenameRequiresSubqueryInQuery() {
+        String query = "FROM employees | RENAME first_name AS fn | WHERE qstr(\"fn:world\")";
+        String error = "verification_exception: line 1:44: [QSTR] function cannot be used after RENAME";
+
+        assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
+    public void testMatchAfterSubqueryRenameIsNotToleratedByQstrKqlBranch() {
+        // The broadened branch is scoped to QSTR/KQL only: RENAME is legal before MATCH/MatchPhrase, so a MATCH error
+        // naming RENAME is not a known bug and must not be tolerated here.
+        String query = "FROM books, (FROM books | RENAME title AS title2) | WHERE match(title2, \"world\")";
+        String error = "verification_exception: line 1:64: [MATCH] function cannot be used after RENAME";
+
+        assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
     public void testMatchOptionsOnNonIndexMappedSubqueryFieldIsTolerated() {
         String query = "FROM books, (FROM books | EVAL title2 = concat(title, \"x\")) "
             + "| WHERE match(title2, \"search\", {\"lenient\": true})";

@@ -739,8 +739,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * </ul>
      * Columns that are explicitly created by the command are marked {@code indexMapped=false};
      * columns that survive unchanged from the previous schema inherit their previous status.
+     * <p>
+     * Implements {@link QueryExecutor#updateIndexMapped} so that both the top-level generation loop and
+     * {@code SubqueryGenerator} (which only holds a {@link QueryExecutor} reference) track the flags identically.
      */
-    static List<Column> updateIndexMapped(
+    @Override
+    public List<Column> updateIndexMapped(
         List<Column> newSchema,
         List<Column> previousSchema,
         CommandGenerator.CommandDescription command
@@ -934,9 +938,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
-            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|SORT|CHANGE_POINT|DEDUP|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b|"
-            + "\\(\\s*FROM\\b).*",
+        ".*(?:"
+            // Any full-text function/operator after a pipeline-breaking command, LOOKUP JOIN, or a multi-source FROM union.
+            + "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
+            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|SORT|CHANGE_POINT|DEDUP|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b|\\(\\s*FROM\\b)"
+            + "|"
+            // QSTR/KQL are only valid directly after FROM/WHERE/SORT: tolerate them being rejected after any other command.
+            + "\\[(?:KQL|QSTR)] function cannot be used after (?!(?:FROM|WHERE|SORT)\\b)\\w+"
+            + ").*",
         Pattern.DOTALL | Pattern.CASE_INSENSITIVE
     );
 
@@ -949,6 +958,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * {@code Node.TO_STRING_MAX_WIDTH} chars plus {@code "..."}, so the message may end mid-branch (before the comma separating
      * the branches). Gated on a parenthesised inner {@code FROM}.
      * See <a href="https://github.com/elastic/elasticsearch/issues/149516">#149516</a>.
+     * <p>
+     * {@code QSTR} and {@code KQL} carry a stricter placement rule than {@code MATCH}/{@code MatchPhrase}: they are only valid
+     * directly after {@code FROM}/{@code WHERE}/{@code SORT}. When a subquery pushes any other command (e.g. {@code RENAME},
+     * {@code EVAL}, {@code GROK}, {@code DISSECT}, {@code USER_AGENT}) ahead of them in the flattened plan, the verifier reports
+     * "{@code [QSTR|KQL] function cannot be used after <COMMAND>}". {@code FullTextFunctionGenerator} applies that same allowlist
+     * only to the outer command list, so it can never avoid the error across a subquery boundary; hence any such
+     * {@code QSTR}/{@code KQL} error naming a command other than {@code FROM}/{@code WHERE}/{@code SORT} is tolerated (still
+     * gated on a parenthesised inner {@code FROM}). {@code MATCH}/{@code MatchPhrase} are intentionally excluded from this
+     * broader branch because {@code RENAME} etc. are legal before them.
      */
     static boolean isFullTextAfterSubqueryInFromBug(String errorMessage, String query) {
         if (errorMessage == null || query == null) {
@@ -976,7 +994,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * {@link #isFieldFullTextError} normally tolerates the second shape using the current schema's
      * {@link Column#indexMapped()} flag, but {@code SubqueryGenerator} discards the inner schema once a command fails,
      * so the schema-based check has nothing to inspect and the error would otherwise escape as an unexpected generation
-     * failure. This rule tolerates both shapes from the query text alone, gated on a parenthesised inner {@code FROM} so
+     * failure. This rule tolerates both shapes from the query text alone, gated on a parenthesized inner {@code FROM} so
      * non-subquery runs still surface the error / rely on the schema-based check.
      * Reproduced by {@code GenerativeIT {feature:SUBQUERIES\}} (e.g. seed {@code 7033534A36E5A879} for the first shape).
      */

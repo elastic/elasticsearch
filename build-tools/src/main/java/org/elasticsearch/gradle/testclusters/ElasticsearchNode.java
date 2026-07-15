@@ -882,6 +882,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
 
         environment.forEach((key, value) -> defaultEnv.put(key, value.toString()));
+        String systemPath = System.getenv("PATH");
+        if (systemPath != null) {
+            defaultEnv.putIfAbsent("PATH", systemPath);
+        }
         return defaultEnv;
     }
 

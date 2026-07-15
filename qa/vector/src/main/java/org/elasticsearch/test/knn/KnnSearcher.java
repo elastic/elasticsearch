@@ -431,7 +431,7 @@ public class KnnSearcher {
                     ? new IndexSearcher(reader, executorService)
                     : new IndexSearcher(reader);
 
-                boolean sliced = indexType == KnnIndexTester.IndexType.IVF && this.sliced;
+                boolean sliced = indexType == KnnIndexTester.IndexType.IVF && this.sliced && !searchParameters.exact();
 
                 // warm up
                 for (int i = 0; i < totalSearches; i++) {
@@ -790,13 +790,7 @@ public class KnnSearcher {
         TestConfiguration testConfiguration
     ) throws IOException {
         if (searchParameters.exact()) {
-            // IVFKnnFloatSlicedVectorQuery restricts to a partition internally rather than via a Lucene
-            // filter, so filterQuery alone omits that restriction when sliced; add it back explicitly.
-            boolean slicedIvf = indexType == KnnIndexTester.IndexType.IVF && sliced;
-            Query exactFilter = slicedIvf && partition != null
-                ? combineFilters(SortedDocValuesField.newSlowExactQuery(PARTITION_ID_FIELD, partition), filterQuery)
-                : filterQuery;
-            return doExactVectorQuery(vector, searcher, exactFilter, searchParameters);
+            return doExactVectorQuery(vector, searcher, filterQuery, searchParameters);
         }
         Query knnQuery;
         final int resultK = searchParameters.topK();

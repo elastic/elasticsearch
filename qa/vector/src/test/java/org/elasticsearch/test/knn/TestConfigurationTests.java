@@ -92,6 +92,7 @@ public class TestConfigurationTests extends ESTestCase {
             {
               "doc_vectors": ["/path/to/docs"],
               "dimensions": 128,
+              "quantize_bits": 4,
               "exact": [true],
               "exact_quantized": [true]
             }
@@ -382,6 +383,22 @@ public class TestConfigurationTests extends ESTestCase {
             DatasetConfig.FileDataset fd = (DatasetConfig.FileDataset) builder2.datasetConfig();
             assertThat(fd.docVectors(), contains("/data/docs.fvec"));
             assertEquals("/data/queries.fvec", fd.queryVectors());
+        }
+    }
+
+    public void testExactQuantizedRequiresQuantizedIndex() throws Exception {
+        String json = """
+            {
+              "doc_vectors": ["/path/to/docs"],
+              "dimensions": 128,
+              "exact": [true],
+              "exact_quantized": [true]
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> TestConfiguration.fromXContent(parser));
+            assertTrue(e.getMessage(), e.getMessage().contains("exact_quantized requires a quantized index"));
         }
     }
 

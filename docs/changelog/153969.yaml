@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 153969
+summary: Grant DSL lifecycle user access to `.kibana_change_history`
+type: enhancement

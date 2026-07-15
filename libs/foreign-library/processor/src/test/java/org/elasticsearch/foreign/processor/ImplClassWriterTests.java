@@ -358,7 +358,8 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         byte[] bytes = Files.readAllBytes(classFile);
 
         var cm = ClassFile.of().parse(bytes);
-        boolean hasNullCheck = cm.methods().stream()
+        boolean hasNullCheck = cm.methods()
+            .stream()
             .filter(m -> m.methodName().equalsString("op"))
             .flatMap(m -> m.code().stream())
             .flatMap(ca -> ca.elementStream())

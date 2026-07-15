@@ -183,6 +183,46 @@ abstract class AbstractGradleFuncTest extends Specification {
         true
     }
 
+    /**
+     * Parses the Gradle Problems API report and returns the diagnostics as a list of maps.
+     * Each diagnostic has: problemId (list of {name, displayName}), severity, contextualLabel, solutions, locations.
+     */
+    List<Map> problemsReportDiagnostics() {
+        def reportFile = new File(testProjectDir.root, "build/reports/problems/problems-report.html")
+        if (!reportFile.exists()) {
+            return []
+        }
+        def content = reportFile.text
+        def matcher = content =~ /\/\/ begin-report-data\n(.*)\n\/\/ end-report-data/
+        if (!matcher.find()) {
+            return []
+        }
+        def json = new groovy.json.JsonSlurper().parseText(matcher.group(1))
+        return json.diagnostics ?: []
+    }
+
+    /**
+     * Asserts that problems were reported with the given group name in the problem ID hierarchy.
+     */
+    def assertProblemsReportContains(String groupName) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.any { diag ->
+            diag.problemId.any { id -> id.name == groupName }
+        } : "Expected problems report to contain group '${groupName}', but found: ${diagnostics.collect { it.problemId*.name }.flatten().unique()}"
+        true
+    }
+
+    /**
+     * Asserts that problems were reported with the given problem name (leaf ID) in the report.
+     */
+    def assertProblemsReportContainsProblem(String problemName) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.any { diag ->
+            diag.problemId.last().name == problemName
+        } : "Expected problems report to contain problem '${problemName}', but found: ${diagnostics.collect { it.problemId.last().name }.unique()}"
+        true
+    }
+
     String normalized(String input) {
         return normalizeString(input, testProjectDir.root)
     }

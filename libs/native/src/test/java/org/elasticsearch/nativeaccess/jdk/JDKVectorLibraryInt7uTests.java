@@ -406,23 +406,18 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
     }
 
     int similarity(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (int) getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT7U,
-                VectorSimilarityFunctions.Operation.SINGLE
-            ).invokeExact(a, b, length);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductI7u(a, b, length);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI7u(a, b, length);
+            default -> throw new UnsupportedOperationException(function.toString());
+        };
     }
 
     void similarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.INT7U, VectorSimilarityFunctions.Operation.BULK)
-                .invokeExact(a, b, dims, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductI7uBulk(a, b, dims, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI7uBulk(a, b, dims, count, result);
+            default -> throw new UnsupportedOperationException(function.toString());
         }
     }
 
@@ -435,26 +430,18 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         int count,
         MemorySegment result
     ) {
-        try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT7U,
-                VectorSimilarityFunctions.Operation.BULK_OFFSETS
-            ).invokeExact(a, b, dims, pitch, offsets, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductI7uBulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI7uBulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            default -> throw new UnsupportedOperationException(function.toString());
         }
     }
 
     void similarityBulkSparse(MemorySegment addresses, MemorySegment b, int dims, int count, MemorySegment result) {
-        try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.INT7U,
-                VectorSimilarityFunctions.Operation.BULK_SPARSE
-            ).invokeExact(addresses, b, dims, count, result);
-        } catch (Throwable t) {
-            throw rethrow(t);
+        switch (function) {
+            case DOT_PRODUCT -> getVectorDistance().dotProductI7uBulkSparse(addresses, b, dims, count, result);
+            case SQUARE_DISTANCE -> getVectorDistance().squareDistanceI7uBulkSparse(addresses, b, dims, count, result);
+            default -> throw new UnsupportedOperationException(function.toString());
         }
     }
 }

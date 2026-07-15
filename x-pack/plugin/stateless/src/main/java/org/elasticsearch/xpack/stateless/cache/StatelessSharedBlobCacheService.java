@@ -110,14 +110,26 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         IndicesService indicesService,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        super(
+        this(
             environment,
             settings,
             threadPool,
-            IO_EXECUTOR,
             blobCacheMetrics,
-            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool)
+            StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
+            metricsHolder
         );
+    }
+
+    // for tests
+    protected StatelessSharedBlobCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        BlobCacheMetrics blobCacheMetrics,
+        EvictionPolicy<FileCacheKey> evictionPolicy,
+        PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
+    ) {
+        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, evictionPolicy);
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
@@ -157,7 +169,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier, evictionPolicy);
-        this.shardReadThreadPoolExecutor = IO_EXECUTOR;
+        this.shardReadThreadPoolExecutor = EsExecutors.DIRECT_EXECUTOR_SERVICE;
         this.metricsHolder = metricsHolder;
         this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         this.cacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
@@ -175,6 +187,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         IntConsumer bytesCopiedConsumer,
         Executor fetchExecutor,
         boolean force,
+        long timestampMillis,
         ActionListener<Void> listener,
         String... threadPools
     ) {
@@ -208,6 +221,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
                     ),
                     fetchExecutor,
                     force,
+                    timestampMillis,
                     listeners.acquire().map(populated -> null)
                 );
             }
@@ -223,6 +237,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         IntConsumer bytesCopiedConsumer,
         Executor fetchExecutor,
         boolean force,
+        long timestampMillis,
         ActionListener<Void> listener
     ) {
         fetchRange(
@@ -234,6 +249,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             bytesCopiedConsumer,
             fetchExecutor,
             force,
+            timestampMillis,
             listener,
             StatelessPlugin.PREWARM_THREAD_POOL,
             StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL

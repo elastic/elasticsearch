@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -60,6 +59,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -77,8 +77,6 @@ import static org.elasticsearch.core.Strings.format;
  * distributed frequencies
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
-    public static final String RESPONSE_HEADER_SEARCH_METRICS = "X-Elasticsearch-Search-Metrics";
-
     protected static final float DEFAULT_INDEX_BOOST = 1.0f;
 
     private final Logger logger;
@@ -121,6 +119,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
     private final Supplier<DiscoveryNodes> discoveryNodes;
+    private final LongAdder phaseResultBytesRead = new LongAdder();
+    private final LongAdder phaseRequestBytesWritten = new LongAdder();
 
     AbstractSearchAsyncAction(
         String name,
@@ -381,6 +381,21 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
                 return;
             }
+            long resultBytes = phaseResultBytesRead.sumThenReset();
+            long requestBytes = phaseRequestBytesWritten.sumThenReset();
+            // bytes tracked is 0 in the following scenarios:
+            // - all requests/responses were local
+            // - for the expand phase whose sub-searches are tracked separately
+            // - for the result side if all shards failed, which is the only case where remote requests track bytes but results don't
+            if (resultBytes > 0) {
+                assert requestBytes > 0 : "successful responses from remote nodes must have corresponding request bytes set";
+                searchResponseMetrics.recordSearchPhaseShardResultBytes(currentPhase, resultBytes, searchRequestAttributes);
+            }
+            if (requestBytes > 0) {
+                searchResponseMetrics.recordSearchPhaseShardRequestBytes(currentPhase, requestBytes, searchRequestAttributes);
+            }
+            assert currentPhase.equals(ExpandSearchPhase.NAME) == false || (requestBytes == 0 && resultBytes == 0)
+                : "bytes should not be tracked for the expand phase, whose sub-searches are tracked individually";
             var nextPhase = nextPhaseSupplier.get();
             if (logger.isTraceEnabled()) {
                 final String resultsFrom = results.getSuccessfulResults()
@@ -539,14 +554,27 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     /**
+     * Adds the wire-format byte count of a shard result to the running total for the current phase.
+     * Called once per shard result, from the transport response handler's read path.
+     */
+    void trackPhaseResultBytesRead(long bytes) {
+        phaseResultBytesRead.add(bytes);
+    }
+
+    /**
+     * Adds the wire-format byte count of a shard request to the running total for the current phase.
+     * Called once per shard request, before sending it to the data node.
+     */
+    void trackPhaseRequestBytesWritten(long bytes) {
+        phaseRequestBytesWritten.add(bytes);
+    }
+
+    /**
      * Merges the {@link DirectoryMetrics} carried by a single shard result into the search-wide total. This is the only
      * place metrics are accumulated on the coordinating node.
      */
     void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
-        if (metrics.isEmpty()) {
-            return;
-        }
-        mergedDirectoryMetrics.accumulateAndGet(metrics, (current, incoming) -> current.isEmpty() ? incoming : current.merge(incoming));
+        DirectoryMetrics.accumulate(mergedDirectoryMetrics, metrics);
     }
 
     // package private for testing
@@ -612,7 +640,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int numFailures = failures.length;
         assert numSuccess + numFailures == getNumShards()
             : "numSuccess(" + numSuccess + ") + numFailures(" + numFailures + ") != totalShards(" + getNumShards() + ")";
-        return new SearchResponse(
+        SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
             scrollId,
             getNumShards(),
@@ -625,6 +653,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             request.source(),
             request.indices()
         );
+        DirectoryMetrics directoryMetrics = mergedDirectoryMetrics.get();
+        searchResponse.setDirectoryMetrics(directoryMetrics);
+        recordStoreMetrics(directoryMetrics);
+        return searchResponse;
     }
 
     /**
@@ -634,10 +666,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       * @param queryResults           the results of the query phase
       */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
-        DirectoryMetrics directoryMetrics = mergedDirectoryMetrics.get();
-        createResponseHeaderFromDirectoryMetrics(threadContext, directoryMetrics);
-        recordStoreMetrics(directoryMetrics);
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
@@ -659,15 +687,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
             ActionListener.respondAndRelease(listener, searchResponse);
-        }
-    }
-
-    public static void createResponseHeaderFromDirectoryMetrics(ThreadContext threadContext, DirectoryMetrics directoryMetrics) {
-        if (directoryMetrics.isEmpty() == false) {
-            for (Map.Entry<String, String> entry : directoryMetrics.entries().entrySet()) {
-                String value = entry.getKey() + "=" + entry.getValue();
-                threadContext.addResponseHeader(AbstractSearchAsyncAction.RESPONSE_HEADER_SEARCH_METRICS, value);
-            }
         }
     }
 

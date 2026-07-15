@@ -380,4 +380,5 @@ public class StatelessRecoveryIT extends AbstractStatelessPluginIntegTestCase {
             .get();
         assertThat((long) recoveryState.getTranslog().recoveredOperations(), lessThanOrEqualTo(maxSeqNoAfterFlush - maxSeqNoBeforeFlush));
     }
+
 }

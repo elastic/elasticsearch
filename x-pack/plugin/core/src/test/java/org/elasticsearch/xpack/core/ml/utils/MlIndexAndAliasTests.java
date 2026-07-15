@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
@@ -58,10 +59,12 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -419,6 +422,28 @@ public class MlIndexAndAliasTests extends ESTestCase {
         assertFalse(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-state-000007"));
         assertFalse(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-annotations-000007"));
         assertFalse(MlIndexAndAlias.isAnomaliesSharedIndex(".ml-anomalies-stats-000007"));
+    }
+
+    public void testIsAnomaliesStateIndex() {
+        assertTrue(MlIndexAndAlias.isAnomaliesStateIndex(".ml-state-000001"));
+        assertTrue(MlIndexAndAlias.isAnomaliesStateIndex(".reindexed-v7-ml-state-000001"));
+        assertTrue(MlIndexAndAlias.isAnomaliesStateIndex(".reindexed-v8-ml-state-000042"));
+        assertFalse(MlIndexAndAlias.isAnomaliesStateIndex(".reindexed-v8-ml-state"));
+        assertFalse(MlIndexAndAlias.isAnomaliesStateIndex("xml-state-000001"));
+        assertFalse(MlIndexAndAlias.isAnomaliesStateIndex(".ml-anomalies-shared-000001"));
+    }
+
+    public void testJobStateIndexPatternsResolveReindexedStateIndex() {
+        String reindexedIndex = ".reindexed-v8-ml-state-000001";
+        ClusterState clusterState = createClusterState(Map.of(reindexedIndex, createIndexMetadata(reindexedIndex)));
+        var resolver = TestIndexNameExpressionResolver.newInstance();
+        String[] indices = resolver.concreteIndexNames(
+            clusterState,
+            IndicesOptions.lenientExpandOpenHidden(),
+            AnomalyDetectorsIndex.jobStateIndexPatterns()
+        );
+        assertThat(indices, arrayContainingInAnyOrder(reindexedIndex));
+        assertThat(indices.length, is(1));
     }
 
     public void testCreateRolloverAliasAndNewIndexName() {

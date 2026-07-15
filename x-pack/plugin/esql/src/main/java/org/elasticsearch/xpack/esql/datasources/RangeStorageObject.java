@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -170,6 +171,11 @@ class RangeStorageObject implements StorageObject {
     @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics();
+    }
+
+    @Override
+    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
+        delegate.attachMetrics(metrics, scheme);
     }
 
     StorageObject rawDelegate() {

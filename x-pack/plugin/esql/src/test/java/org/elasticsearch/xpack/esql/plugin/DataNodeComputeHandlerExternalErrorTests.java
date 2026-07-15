@@ -100,9 +100,8 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
             Map.of(),
             Map.of(),
             null,
-            null,
-            FileList.UNRESOLVED
-        );
+            null
+        ).withFileList(FileList.UNRESOLVED);
 
         SplitProvider failingProvider = ctx -> { throw new UncheckedIOException(new IOException("connection reset")); };
         ExternalSourceFactory factory = testFactory(failingProvider);

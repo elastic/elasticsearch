@@ -18,7 +18,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.datageneration.PointDataSourceHandler;
-import org.junit.Before;
 
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -27,17 +26,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 public class PointFieldBlockLoaderTests extends BlockLoaderTestCase {
     public PointFieldBlockLoaderTests(Params params) {
-        super("point", List.of(new PointDataSourceHandler()), params);
-    }
-
-    @Before
-    public void assumeNotColumnar() {
-        // The cartesian point type has no native (doc-value-based) synthetic source, so it cannot reconstruct _source
-        // from doc values and is rejected in columnar index modes. A follow-up adds a columnar doc-value loader.
-        assumeFalse("point is not yet reconstructable from doc values in columnar", params.indexMode().isStrictColumnar());
+        super("point", List.of(new PointDataSourceHandler(params.indexMode())), params);
     }
 
     @Override
@@ -53,6 +46,19 @@ public class PointFieldBlockLoaderTests extends BlockLoaderTestCase {
             case null -> null;
             default -> throw new IllegalStateException("Unexpected null_value format");
         };
+
+        // Columnar reads from XY doc values only: values come back sorted by encoding and at float precision - as the
+        // encoded longs for DOC_VALUES, or their WKB for any other preference.
+        if (params.indexMode().isStrictColumnar()) {
+            boolean asWkb = params.preference() != MappedFieldType.FieldExtractPreference.DOC_VALUES;
+            var resultList = (value instanceof List<?> list ? list.stream() : Stream.of(value)).map(v -> convert(v, nullValue))
+                .filter(Objects::nonNull)
+                .map(this::encode)
+                .sorted()
+                .map(encoded -> asWkb ? (Object) toWKB(decode(encoded)) : (Object) encoded)
+                .toList();
+            return maybeFoldList(resultList);
+        }
 
         if (params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES && hasDocValues(fieldMapping, true)) {
             if (value instanceof List<?> == false) {
@@ -72,7 +78,7 @@ public class PointFieldBlockLoaderTests extends BlockLoaderTestCase {
             return toWKB(convert(value, nullValue));
         }
 
-        // As a result we always load from source (stored or fallback synthetic) and they should work the same.
+        // Non-columnar loads from source (stored or fallback synthetic), which is exact.
         var resultList = ((List<Object>) value).stream().map(v -> convert(v, nullValue)).filter(Objects::nonNull).map(this::toWKB).toList();
         return maybeFoldList(resultList);
     }
@@ -174,6 +180,15 @@ public class PointFieldBlockLoaderTests extends BlockLoaderTestCase {
             return null;
         }
         return new BytesRef(WellKnownBinary.toWKB(new Point(cartesianPoint.getX(), cartesianPoint.getY()), ByteOrder.LITTLE_ENDIAN));
+    }
+
+    // Reused across decode() calls: each result is consumed immediately by the caller, so it is safe to share.
+    private final CartesianPoint scratchPoint = new CartesianPoint();
+
+    // Decode an encoded XY doc-value long back into a point, exactly as the columnar block loader does.
+    private CartesianPoint decode(long encoded) {
+        scratchPoint.resetFromEncoded(encoded);
+        return scratchPoint;
     }
 
     @Override

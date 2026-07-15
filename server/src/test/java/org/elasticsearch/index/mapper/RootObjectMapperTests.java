@@ -653,7 +653,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesAutoFlattenSubobjects() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -675,7 +674,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesDefaultToSubobjectsFalse() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {}));
@@ -684,7 +682,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesRejectSubobjectsParam() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperParsingException e = expectThrows(
@@ -696,7 +693,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStrictColumnarModesRejectRuntimeDynamic() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperParsingException e = expectThrows(
@@ -711,7 +707,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         return Settings.builder()
             .put(getIndexSettings())
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
-            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+
             .build();
     }
 
@@ -757,7 +753,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testDynamicByPrefixSerializationRoundTrip() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -801,7 +796,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testDynamicByPrefixMergeAddNewPrefix() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             // Initial mapping: attributes dynamic=false
@@ -835,7 +829,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testDynamicByPrefixMergeUpdateExistingPrefix() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             // Initial mapping: attributes dynamic=false
@@ -876,7 +869,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
      * round-trip so that {@link FieldTypeLookup} can reconstruct root-level aliases after index restart.
      */
     public void testPassthroughByPrefixSerializationRoundTrip() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -920,7 +912,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
      * Verifies that a merge update adds a new passthrough prefix entry to {@code prefix_properties}.
      */
     public void testPassthroughByPrefixMergeAddsEntry() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -951,7 +942,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testEnabledByPrefixSerializationRoundTrip() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -979,7 +969,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testEnabledByPrefixMergeAddsEntry() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -995,7 +984,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testEnabledAndDynamicCoexistInPrefixProperties() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -1026,7 +1014,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testPrefixPropertiesEnabledParseValidation() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             // Non-boolean value for prefix.enabled must be rejected
@@ -1042,7 +1029,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testColumnarRejectsRootEnabledFalse() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
             MapperParsingException e = expectThrows(

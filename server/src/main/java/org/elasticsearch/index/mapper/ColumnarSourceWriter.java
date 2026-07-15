@@ -52,8 +52,8 @@ import java.util.Map;
 
 final class ColumnarSourceWriter {
 
-    private static final int DOC_ID = 0;
-    private static final int[] DOC_IDS = new int[] { DOC_ID };
+    static final int DOC_ID = 0;
+    static final int[] DOC_IDS = new int[] { DOC_ID };
 
     private final SourceFilter sourceFilter;
     private final ThreadLocal<PerThreadResources> cachedColumnarPerThread;
@@ -81,6 +81,14 @@ final class ColumnarSourceWriter {
             cachedColumnarPerThread.set(perThread);
         }
 
+        // Make the full in-memory document tree (root + nested children) available to the reconstruction so nested
+        // loaders can select their children. Shard-index order places each child before its parent, matching the order
+        // in which the synthetic source loader reads them from a real segment; this is what preserves array order across
+        // nested documents, including the deeper documents that subobjects:false creates for object sub-fields and
+        // arrays inside a nested field. For a document with no nested fields this is just the single root document and
+        // nothing downstream looks at it.
+        List<LuceneDocument> allDocs = context.luceneDocumentsInShardIndexOrder();
+        perThread.leafReader().setAllDocs(allDocs);
         perThread.leafReader().repopulate(context.doc());
         perThread.fieldLoader().reset();
         final SourceLoader.Synthetic sourceLoader = perThread.sourceLoader;
@@ -139,6 +147,30 @@ final class ColumnarSourceWriter {
         private final List<IndexableField> storedFields = new ArrayList<>();
 
         // -------------------------------------------------------------------------
+        // Nested reconstruction state
+        // -------------------------------------------------------------------------
+
+        // All in-memory documents for the root being reconstructed (root + nested children), in document order.
+        // Shared by reference across the reader instances of every nesting level so a nested loader can select its
+        // children by parent-pointer match. Empty when the index has no nested fields.
+        private List<LuceneDocument> allDocs = List.of();
+        // The document this reader currently holds (set by repopulate). A nested loader reads this to know whose
+        // children to reconstruct.
+        private LuceneDocument currentDoc;
+
+        void setAllDocs(List<LuceneDocument> allDocs) {
+            this.allDocs = allDocs;
+        }
+
+        List<LuceneDocument> allDocs() {
+            return allDocs;
+        }
+
+        LuceneDocument currentDoc() {
+            return currentDoc;
+        }
+
+        // -------------------------------------------------------------------------
         // Document repopulation
         // -------------------------------------------------------------------------
 
@@ -152,6 +184,7 @@ final class ColumnarSourceWriter {
          * build so that the slot map is fully initialized.
          */
         void repopulate(LuceneDocument doc) {
+            this.currentDoc = doc;
             // Clear all registered slots from the previous document.
             for (NumericSlot slot : numericSlots.values()) {
                 slot.present = false;

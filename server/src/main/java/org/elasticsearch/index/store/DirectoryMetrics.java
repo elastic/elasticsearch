@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -116,6 +117,13 @@ public class DirectoryMetrics implements ToXContentFragment, Writeable {
         return Collections.unmodifiableMap(entries);
     }
 
+    public static void accumulate(AtomicReference<DirectoryMetrics> ref, DirectoryMetrics incoming) {
+        if (incoming == null || incoming.isEmpty()) {
+            return;
+        }
+        ref.accumulateAndGet(incoming, (current, in) -> current.isEmpty() ? in : current.merge(in));
+    }
+
     /**
      * Merge another {@link DirectoryMetrics} into this one, producing a new instance with merged values
      * for each metric type present in either operand.
@@ -127,6 +135,11 @@ public class DirectoryMetrics implements ToXContentFragment, Writeable {
             merged.merge(entry.getKey(), entry.getValue(), (a, b) -> ((PluggableMetrics) a).merge(b));
         }
         return new DirectoryMetrics(Map.copyOf(merged));
+    }
+
+    public DirectoryMetrics withMetric(String type, PluggableMetrics<?> metric) {
+        // TODO: remove once every pluggable metric is counted per-fetch (today only store_bytes_read is).
+        return new DirectoryMetrics(Maps.copyMapWithAddedOrReplacedEntry(data, type, metric));
     }
 
     public Supplier<DirectoryMetrics> delta() {

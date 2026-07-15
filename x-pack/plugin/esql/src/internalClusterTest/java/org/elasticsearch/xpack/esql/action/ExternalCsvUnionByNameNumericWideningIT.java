@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
@@ -16,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -227,6 +229,64 @@ public class ExternalCsvUnionByNameNumericWideningIT extends AbstractExternalDat
         // still be 2. A warm serve of the pinned read's committed value_count returns 3 instead.
         try (var response = run(syncEsqlQueryRequest("FROM " + dsA + " | STATS c = COUNT(col)"))) {
             assertThat("solo COUNT(col) after the pinned glob read", getValuesList(response).get(0).get(0), equalTo(2L));
+        }
+    }
+
+    /**
+     * The commit-side pinned-column stats strip must survive a non-strict declared mapping on the dataset. This is
+     * {@link #testPinnedReadCommitMustNotPolluteSoloNarrowReadStats} with one added ingredient: both datasets carry a
+     * non-strict ({@code dynamic:true}) declared mapping that declares only the unrelated {@code id} column. {@code col}
+     * therefore stays the undeclared UNION_BY_NAME-widened+pinned column, but the mapping's presence routes resolution
+     * through the declared overlay.
+     * <p>
+     * The overlay must not erase the pin's pre-pin type snapshot. If it does, the widening glob read's {@code col}
+     * value_count=3 for a.csv is no longer recognized as a pinned contribution, so it is committed into the
+     * read-schema-blind {@code (path, mtime, config)} cache entry the solo INTEGER read serves from, and the solo
+     * COUNT(col) warm-serves 3 instead of 2.
+     */
+    public void testPinnedReadWithNonStrictDeclaredMappingMustNotPolluteSoloNarrowReadStats() throws Exception {
+        Path dir = createTempDir().resolve("ubn_pinned_commit_declared");
+        Files.createDirectories(dir);
+        // a.csv: schema_sample_size=2 samples (10, 20) -> col inferred INTEGER; 3000000000 is out of sample and
+        // overflows int, so a solo INTEGER read null-fills it under error_mode=null_field.
+        Files.writeString(dir.resolve("a.csv"), "id,col\n1,10\n2,20\n3,3000000000\n", StandardCharsets.UTF_8);
+        // b.csv: long-range values -> col inferred LONG, so the glob's UNION_BY_NAME reconciliation widens col to LONG
+        // and pins a.csv's read to LONG.
+        Files.writeString(dir.resolve("b.csv"), "id,col\n4,-5000000000\n5,-6000000000\n", StandardCharsets.UTF_8);
+
+        Map<String, Object> settings = Map.of("schema_resolution", "union_by_name", "schema_sample_size", 2, "error_mode", "null_field");
+        // Non-strict overlay over the unrelated id column only: col stays undeclared (still UBN-widened+pinned), but
+        // resolution now runs the declared overlay. Both datasets share the settings map, so they share a.csv's
+        // read-schema-blind schema-cache entry.
+        LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("integer", "id"));
+        String dsA = registerNonStrictDataset("ubn_pinned_commit_declared_a", StoragePath.fileUri(dir) + "/a.csv", properties, settings);
+        String combined = registerNonStrictDataset(
+            "ubn_pinned_commit_declared_all",
+            StoragePath.fileUri(dir) + "/*.csv",
+            properties,
+            settings
+        );
+
+        // Solo a.csv reads col at its inferred INTEGER: 3000000000 null-fills -> COUNT(col)=2, committed into a.csv's
+        // schema-cache entry.
+        try (var response = run(syncEsqlQueryRequest("FROM " + dsA + " | STATS c = COUNT(col)"))) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo(2L));
+        }
+
+        // The glob pins a.csv's read to the reconciled LONG: 3000000000 parses, COUNT(col)=5. Its harvest carries
+        // value_count=3 for a.csv and must be stripped before commit so it does not pollute the shared cache entry.
+        try (var response = run(syncEsqlQueryRequest("FROM " + combined + " | STATS c = COUNT(col)"))) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo(5L));
+        }
+
+        // The solo dataset still reads a.csv at INTEGER, where 3000000000 null-fills, so COUNT(col) must still be 2.
+        try (var response = run(syncEsqlQueryRequest("FROM " + dsA + " | STATS c = COUNT(col)"))) {
+            assertThat(
+                "solo COUNT(col) after the pinned glob read under a non-strict declared mapping",
+                getValuesList(response).get(0).get(0),
+                equalTo(2L)
+            );
         }
     }
 }

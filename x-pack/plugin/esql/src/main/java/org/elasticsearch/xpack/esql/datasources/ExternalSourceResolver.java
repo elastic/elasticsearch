@@ -2887,15 +2887,22 @@ public class ExternalSourceResolver {
             ColumnMapping mapping = hasDeclaredColumns
                 ? SchemaReconciliation.computeMapping(dataOnlyUnifiedOverlaid, perFile.fileSchema())
                 : info.mapping();
+            // PRE-retype file types, physical-keyed, so the stats boundaries recover the file's real inferred types
+            // (the split-level footer normalize and the resolve/commit pinned-column safe-miss), not the overlaid
+            // declared ones. A UNION_BY_NAME pin already retyped this file's read schema and snapshotted the pre-pin
+            // inferred types onto info.inferredTypes(); preserve that snapshot so a widened+pinned column stays
+            // identifiable after the overlay. Only when nothing upstream retyped the file (inferredTypes null) does
+            // info.fileSchema() still carry the inferred types, so fall back to it for the declared-overlay-only path.
+            Map<String, DataType> preRetypeInferredTypes = info.inferredTypes() != null
+                ? info.inferredTypes()
+                : attributesToTypeMap(info.fileSchema().attributes());
             overlaidSchemaMap.put(
                 e.getKey(),
                 new SchemaReconciliation.FileSchemaInfo(
                     new ExternalSchema(perFile.fileSchema()),
                     mapping,
                     info.statistics(),
-                    // PRE-overlay file types (physical names, inferred types) so the split-level stats boundary can
-                    // normalize footer stats with the file's real types, not the overlaid declared ones.
-                    attributesToTypeMap(info.fileSchema().attributes())
+                    preRetypeInferredTypes
                 )
             );
         }

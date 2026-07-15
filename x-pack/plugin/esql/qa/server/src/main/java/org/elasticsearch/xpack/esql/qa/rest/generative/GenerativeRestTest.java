@@ -490,7 +490,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> matchesAllowedErrorPatterns(ctx.normalizedErrorMessage),
         ctx -> isUnmappedFieldError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isScalarTypeMismatchError(ctx.normalizedErrorMessage),
-        ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
+        ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.currentSchema),
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
@@ -704,6 +704,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     /**
+     * Matches "Options are not supported for [MATCH] function call on non-index-mapped field [X]".
+     * This is the error MATCH raises when called with options on a renamed/computed field.
+     */
+    private static final Pattern MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN = Pattern.compile(
+        ".*Options are not supported for \\[MATCH\\] function call on non-index-mapped field \\[([^]]+)\\].*",
+        Pattern.DOTALL
+    );
+
+    /**
      * Captures fields created by GROK patterns, e.g. {@code %{WORD:foo}} or {@code %{NUMBER:bar:int}}.
      */
     private static final Pattern GROK_GENERATED_FIELD_PATTERN = Pattern.compile("%\\{[^:}]+:([^}:]+)(?::[^}]+)?}");
@@ -887,18 +896,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     /**
      * Checks if the error is a full-text function/operator rejecting a field that is not from an index mapping.
-     * Uses the {@link Column#indexMapped()} flag from the current schema when available; falls back to
-     * command-history heuristics otherwise.
+     * Uses the {@link Column#indexMapped()} flag from the current schema.
      */
-    static boolean isFieldFullTextError(
-        String errorMessage,
-        String query,
-        List<CommandGenerator.CommandDescription> previousCommands,
-        List<Column> currentSchema
-    ) {
+    static boolean isFieldFullTextError(String errorMessage, List<Column> currentSchema) {
         Matcher m = NOT_A_FIELD_FROM_INDEX_PATTERN.matcher(errorMessage);
         if (m.matches() == false) {
-            return false;
+            m = MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN.matcher(errorMessage);
+            if (m.matches() == false) {
+                return false;
+            }
         }
         String fieldName = unquote(m.group(1));
 

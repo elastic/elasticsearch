@@ -785,8 +785,9 @@ public final class DeclaredTypeCoercions {
                     // decoded <= bound <=> raw <= floorDiv(bound, f)
                     case LTE -> Math.floorDiv(bound, f);
                     // Only an exact multiple of f is reachable; any other literal matches no stored value, so
-                    // declining merely forfeits the chance to prune everything — never a row.
-                    case EQ -> bound % f == 0 ? bound / f : null;
+                    // declining merely forfeits the chance to prune everything — never a row. NOT_EQ inverts the
+                    // same raw point (the caller builds notEq); a non-multiple != is always true, so decline.
+                    case EQ, NOT_EQ -> bound % f == 0 ? bound / f : null;
                 };
             }
             case RawDecodeRelation.ScaleDown down -> {
@@ -806,8 +807,9 @@ public final class DeclaredTypeCoercions {
                         // wrapped in NOT (which the translator admits), pruning matching rows.
                         case GT -> Math.addExact(base, d - 1);
                         // decoded == bound covers the whole band — not a point. A range consumer could push the band,
-                        // but a set-membership consumer cannot express it, so decline.
-                        case EQ -> null;
+                        // but a set-membership consumer cannot express it, so decline. NOT_EQ is the band's
+                        // complement — also not a single predicate — so decline too.
+                        case EQ, NOT_EQ -> null;
                     };
                 } catch (ArithmeticException e) {
                     yield null;
@@ -877,6 +879,7 @@ public final class DeclaredTypeCoercions {
     /** The comparisons a raw bound can be pushed for. */
     public enum BoundOp {
         EQ,
+        NOT_EQ,
         GT,
         GTE,
         LT,

@@ -1352,6 +1352,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                     long bound = randomLongBetween(-6_000L, 6_000L);
                     boolean trulyMatches = switch (op) {
                         case EQ -> decoded == bound;
+                        case NOT_EQ -> decoded != bound;
                         case GT -> decoded > bound;
                         case GTE -> decoded >= bound;
                         case LT -> decoded < bound;
@@ -1363,6 +1364,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                     }
                     boolean pushedKeeps = switch (op) {
                         case EQ -> raw == rawBound;
+                        case NOT_EQ -> raw != rawBound;
                         case GT -> raw > rawBound;
                         case GTE -> raw >= rawBound;
                         case LT -> raw < rawBound;
@@ -1371,7 +1373,10 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                     // Ordered ops must be EXACT (never looser either): a loose bound is safe DIRECTLY but becomes
                     // stricter-than-truth once wrapped in NOT, which the translator admits. Only == is allowed to be
                     // a decline (null), never loose.
-                    if (op != DeclaredTypeCoercions.BoundOp.EQ && trulyMatches == false && pushedKeeps) {
+                    if (op != DeclaredTypeCoercions.BoundOp.EQ
+                        && op != DeclaredTypeCoercions.BoundOp.NOT_EQ
+                        && trulyMatches == false
+                        && pushedKeeps) {
                         fail(
                             "LOOSER THAN TRUTH — unsafe under NOT: relation="
                                 + relation
@@ -1524,8 +1529,8 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             for (long raw : new long[] { base - 1, base, base + 1, base + d - 1, base + d, base + d + 1 }) {
                 long decoded = Math.floorDiv(raw, d);
                 for (DeclaredTypeCoercions.BoundOp op : DeclaredTypeCoercions.BoundOp.values()) {
-                    if (op == DeclaredTypeCoercions.BoundOp.EQ) {
-                        continue; // EQ is a band, tested separately
+                    if (op == DeclaredTypeCoercions.BoundOp.EQ || op == DeclaredTypeCoercions.BoundOp.NOT_EQ) {
+                        continue; // EQ/NOT_EQ are set-membership, not ordered — tested separately
                     }
                     Long rawBound = DeclaredTypeCoercions.rawBoundFor(rel, bound, op, false);
                     if (rawBound == null) {
@@ -1536,14 +1541,14 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                         case GTE -> decoded >= bound;
                         case LT -> decoded < bound;
                         case LTE -> decoded <= bound;
-                        case EQ -> decoded == bound;
+                        case EQ, NOT_EQ -> throw new AssertionError("skipped above");
                     };
                     boolean kept = switch (op) {
                         case GT -> raw > rawBound;
                         case GTE -> raw >= rawBound;
                         case LT -> raw < rawBound;
                         case LTE -> raw <= rawBound;
-                        case EQ -> raw == rawBound;
+                        case EQ, NOT_EQ -> throw new AssertionError("skipped above");
                     };
                     assertEquals(
                         "ordered bound must be EXACT (safe under NOT): op="
@@ -1562,5 +1567,21 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /** NOT_EQ restores the != pruning: exact for Identity and an exact-multiple ScaleUp, declined for a band. */
+    public void testNotEqBoundExactOrDeclined() {
+        var identity = new DeclaredTypeCoercions.RawDecodeRelation.Identity();
+        var up = new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(1000L);
+        var down = new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1000L);
+        var NE = DeclaredTypeCoercions.BoundOp.NOT_EQ;
+        assertEquals("identity passes the bound through", Long.valueOf(5L), DeclaredTypeCoercions.rawBoundFor(identity, 5L, NE, false));
+        assertEquals(
+            "scale-up exact multiple inverts by division",
+            Long.valueOf(5L),
+            DeclaredTypeCoercions.rawBoundFor(up, 5000L, NE, false)
+        );
+        assertNull("scale-up non-multiple matches everything -> decline", DeclaredTypeCoercions.rawBoundFor(up, 5001L, NE, false));
+        assertNull("scale-down != is a band complement -> decline", DeclaredTypeCoercions.rawBoundFor(down, 5L, NE, false));
     }
 }

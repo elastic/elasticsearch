@@ -967,6 +967,43 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("lteq"));
     }
 
+    // --- equality AND inequality pushdown, end-to-end through the real entry point ---
+
+    /** WHERE ts == millis over a bare INT64 datetime pushes an eq predicate. */
+    public void testDatetimeEqPushesEq() {
+        MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("ts", DataType.DATETIME, 1704067200000L))).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("eq(ts, 1704067200000)"));
+    }
+
+    /** WHERE ts != millis over a bare INT64 datetime pushes a notEq predicate (restored; main had it, the rewrite lost it). */
+    public void testDatetimeNotEqPushesNotEq() {
+        MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
+        Expression ne = new NotEquals(Source.EMPTY, attr("ts", DataType.DATETIME), lit(1704067200000L, DataType.DATETIME), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(ne)).toFilterPredicate(schema);
+        assertNotNull("!= must push, not decline", fp);
+        assertThat(fp.toString(), containsString("noteq(ts, 1704067200000)"));
+    }
+
+    /** != over a declared epoch_second column inverts the same raw point eq/notEq share. */
+    public void testDatetimeNotEqWithEpochSecondPushesRawNotEq() {
+        MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
+        Expression ne = new NotEquals(Source.EMPTY, attr("ts", DataType.DATETIME), lit(1704067200000L, DataType.DATETIME), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(ne)).toFilterPredicate(schema, Map.of("ts", "epoch_second"));
+        assertNotNull(fp);
+        assertThat("the raw seconds point, not the millis literal", fp.toString(), containsString("noteq(ts, 1704067200)"));
+    }
+
+    /** date_nanos != over a bare INT64 pushes notEq too. */
+    public void testDateNanosNotEqPushesNotEq() {
+        MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
+        Expression ne = new NotEquals(Source.EMPTY, attr("ts", DataType.DATE_NANOS), lit(1704067200000000000L, DataType.DATE_NANOS), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(ne)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("noteq(ts, 1704067200000000000)"));
+    }
+
     // --- annotated TIMESTAMP(MICROS) declared `date`: a truncating decode, every operator ---
     // Real ClickBench has no annotated timestamps, so these cover the shape end-to-end tests on that data cannot.
     // decode = floorDiv(raw_micros, 1000); one decoded milli is the raw band [b*1000, b*1000+999]. The pushed bound

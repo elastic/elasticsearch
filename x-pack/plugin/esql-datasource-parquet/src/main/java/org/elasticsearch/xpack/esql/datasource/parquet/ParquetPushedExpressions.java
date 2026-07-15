@@ -815,7 +815,9 @@ final class ParquetPushedExpressions {
             case GTE -> DeclaredTypeCoercions.BoundOp.GTE;
             case LT -> DeclaredTypeCoercions.BoundOp.LT;
             case LTE -> DeclaredTypeCoercions.BoundOp.LTE;
-            case NOT_EQ -> null;
+            // NOT_EQ is exact for Identity and exact-multiple ScaleUp (the authority returns the raw point, the
+            // caller builds notEq); ScaleDown declines it there. Restores the != pruning main had on inferred reads.
+            case NOT_EQ -> DeclaredTypeCoercions.BoundOp.NOT_EQ;
         };
     }
 

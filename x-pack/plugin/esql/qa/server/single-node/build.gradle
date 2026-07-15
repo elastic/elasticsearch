@@ -91,6 +91,21 @@ tasks.named('yamlRestTest') {
   maxParallelForks = 1
 }
 
+// Runs only the CSV spec suite — used by the dedicated releaseTestCheckEsqlQa1 CI job.
+tasks.register('releaseTestCheckCsvSpec') {
+  group = 'Verification'
+  description = 'Runs csvSpecTests against a release distribution.'
+  dependsOn csvSpecTests
+}
+
+// The esql-release plugin wires releaseTestCheck -> check, which transitively includes
+// csvSpecTests. For CI splitting, csvSpecTests runs in its own job (via releaseTestCheckCsvSpec),
+// so this task covers only the two REST test variants.
+tasks.named('releaseTestCheck').configure {
+  setDependsOn([])
+  dependsOn 'javaRestTest', 'yamlRestTest'
+}
+
 // Uncomment this to start automatically running this as part of CI
 // Otherwise run explicitly with: ./gradlew ":x-pack:plugin:esql:qa:server:single-node:javaRestTestSecure"
 // tasks.named('check').configure { dependsOn 'javaRestTestSecure' }

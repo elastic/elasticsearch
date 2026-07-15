@@ -47,6 +47,9 @@ Query Languages::
 Security::
 * Make Automatons wildcard code-point aware {es-pull}151143[#151143]
 
+Snapshot/Restore::
+* Update `repository-s3` to use the default request signer from AWS SDK for Java {es-pull}150237[#150237]
+
 Transform::
 * Honor `ClusterHealth` timeout when waiting for transform internal index shards {es-pull}149462[#149462] (issue: {es-issue}149400[#149400])
 

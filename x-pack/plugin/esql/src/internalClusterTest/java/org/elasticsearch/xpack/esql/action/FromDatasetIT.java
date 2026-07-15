@@ -232,7 +232,18 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "mapped_ds_for_subquery",
         "ndjson_mv_coerce",
         "logs_ts_declared_long",
-        "logs_date_inferred"
+        "logs_date_inferred",
+        "rp_micros",
+        "rp_nanos",
+        "rp_millis",
+        "rp_bare_s",
+        "rp_bare_ms",
+        "rp_date",
+        "rpn_bare_ns",
+        "rpn_bare_s",
+        "rpn_micros",
+        "rp_prune_s",
+        "rpn_prune_s"
     );
 
     /**
@@ -2697,6 +2708,65 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertRealParquetNanos("rpn_micros", "annotated_micros", new DatasetFieldMapping("date_nanos", null), expectedNanos);
     }
 
+    /**
+     * A declared {@code format} names the epoch unit, so decode rescales the raw value — but the parquet footer
+     * statistics stay in the file's RAW unit. A filter whose bound is pushed in the DECODED unit gets compared against
+     * those raw stats and prunes the row group that genuinely matches, returning nothing.
+     *
+     * <p>Pruning is not RECHECK-recoverable: RECHECK re-applies exact semantics to rows that were READ, and a pruned
+     * row group is never decoded at all. The sibling shape-recovery tests never filter, so they cannot see this.
+     */
+    public void testDeclaredEpochSecondFormatDoesNotPruneTheMatchingRowGroup() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // bare int64 holding 1704067200 (seconds); decode scales it to 1704067200000 millis.
+        List<List<Object>> rows = runRealParquetFiltered(
+            "rp_prune_s",
+            "bare_seconds",
+            DatasetFieldMapping.withFormat("date", null, "epoch_second"),
+            "ts == TO_DATETIME(\"2024-01-01T00:00:00.000Z\")"
+        );
+        assertThat("the row matches the filter and must not be pruned by a raw-unit stats comparison", rows, hasSize(1));
+    }
+
+    /** The date_nanos half: decode scales seconds by 1e9 while the footer stats stay raw seconds. */
+    public void testDeclaredEpochSecondFormatDoesNotPruneTheMatchingRowGroupForDateNanos() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        List<List<Object>> rows = runRealParquetFiltered(
+            "rpn_prune_s",
+            "bare_seconds",
+            DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second"),
+            "ts == TO_DATE_NANOS(\"2024-01-01T00:00:00.000Z\")"
+        );
+        assertThat("the row matches the filter and must not be pruned by a raw-unit stats comparison", rows, hasSize(1));
+    }
+
+    /** Like {@link #runRealParquet} but applies a WHERE, so the filter reaches parquet pushdown and row-group pruning. */
+    private List<List<Object>> runRealParquetFiltered(String dataset, String fixture, DatasetFieldMapping ts, String where)
+        throws Exception {
+        Path file = createTempDir().resolve(fixture + ".parquet");
+        Files.write(file, RealParquetFixtures.bytes(fixture));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", ts);
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    file.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties))
+                )
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | WHERE " + where + " | KEEP ts"), TIMEOUT)) {
+            return getValuesList(response);
+        }
+    }
+
     private void assertRealParquet(String dataset, String fixture, DatasetFieldMapping ts, long expectedMillis) throws Exception {
         try (var response = runRealParquet(dataset, fixture, ts)) {
             List<List<Object>> rows = getValuesList(response);
@@ -2713,8 +2783,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    private EsqlQueryResponse runRealParquet(String dataset, String fixture, DatasetFieldMapping ts)
-        throws Exception {
+    private EsqlQueryResponse runRealParquet(String dataset, String fixture, DatasetFieldMapping ts) throws Exception {
         Path file = createTempDir().resolve(fixture + ".parquet");
         Files.write(file, RealParquetFixtures.bytes(fixture));
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();

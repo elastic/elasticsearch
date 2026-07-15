@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -44,7 +43,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
@@ -431,27 +429,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         createIndex(indexName, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
         ensureGreen(indexName);
 
-        // Global checkpoint sync actions are asynchronous. We cannot really tell exactly when they are completely off the
-        // thread pool. To avoid busy waiting, we redirect them to the generic thread pool so that we have precise control
-        // over the write thread pool for assertions.
-        final MockTransportService mockTransportService = MockTransportService.getInstance(dataNodeName);
-        final var originalRegistry = mockTransportService.transport()
-            .getRequestHandlers()
-            .getHandler(GlobalCheckpointSyncAction.ACTION_NAME + "[p]");
-        mockTransportService.transport()
-            .getRequestHandlers()
-            .forceRegister(
-                new RequestHandlerRegistry<>(
-                    GlobalCheckpointSyncAction.ACTION_NAME + "[p]",
-                    in -> null, // no need to deserialize the request since it's local
-                    mockTransportService.getTaskManager(),
-                    originalRegistry.getHandler(),
-                    mockTransportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                    true,
-                    true
-                )
-            );
-
         // Block indexing on the data node by submitting write thread pool tasks equal to the number of write threads.
         var barrier = blockDataNodeIndexing(dataNodeName);
         try {
@@ -513,19 +490,24 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             for (int i = 0; i < numberOfTasks; ++i) {
                 threadsToJoin[i].join();
             }
+            final var dataNodeIndicesService = internalCluster().getInstance(IndicesService.class, dataNodeName);
             Arrays.stream(threadsToJoin).forEach(thread -> assertFalse(thread.isAlive()));
-            // Monitor the write executor on the data node to try and determine when the backlog of tasks
-            // has been fully drained (and
-            // {@link org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor.afterExecute()}
-            // has been called). This is probably not foolproof, so worth investigating if we see non-zero utilization numbers
-            // after the next poll. See https://github.com/elastic/elasticsearch/issues/134500
-            assertBusy(() -> assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0)));
-
-            assertThat(
-                "Unexpectedly found a task queued for the write thread pool. Write thread pool dump: " + trackingWriteExecutor,
-                trackingWriteExecutor.peekMaxQueueLatencyInQueueMillis(),
-                equalTo(0L)
-            );
+            // Wait until the WRITE thread pool is fully quiesced and the global checkpoint has been persisted on all
+            // shards. The persisted checkpoint condition closes the race where GlobalCheckpointSyncAction may still be
+            // in-flight: the action is only triggered when lastSyncedGlobalCheckpoint < lastKnownGlobalCheckpoint, so
+            // once they are equal any pending sync has completed or will be a no-op. active=0 ensures afterExecute()
+            // has been called (finalising utilization accounting); queue=0 ensures no task is about to be picked up.
+            assertBusy(() -> {
+                for (IndexService indexService : dataNodeIndicesService) {
+                    if (indexService.index().getName().equals(indexName)) {
+                        for (IndexShard shard : indexService) {
+                            assertThat(shard.getLastSyncedGlobalCheckpoint(), greaterThanOrEqualTo(shard.getLastKnownGlobalCheckpoint()));
+                        }
+                    }
+                }
+                assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0));
+                assertThat(trackingWriteExecutor.peekMaxQueueLatencyInQueueMillis(), equalTo(0L));
+            });
 
             final ClusterInfo nextClusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
             {

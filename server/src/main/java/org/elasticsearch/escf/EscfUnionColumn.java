@@ -30,10 +30,6 @@ import org.elasticsearch.xcontent.XContentString;
 final class EscfUnionColumn extends EscfColumn {
 
     private final BytesRef typeVec;
-    /**
-     * Windowed offset vector. {@code offsets.ints[offsets.offset + d]} is the absolute byte start
-     * of document {@code d}'s value in {@code data}. The window covers {@code docCount + 1} entries.
-     */
     private final IntsRef offsets;
     private final BytesReference data;
 

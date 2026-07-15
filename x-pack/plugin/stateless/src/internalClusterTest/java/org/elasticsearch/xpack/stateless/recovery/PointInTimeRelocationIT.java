@@ -235,11 +235,11 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         });
         assertResponse(prepareSearch(), resp -> { assertHitCount(resp, numDocs_pit2 + additionalDocs); });
         SearchService searchService1 = internalCluster().getInstance(SearchService.class, searchNodeA);
-        logger.info("---> Current search node: " + searchNodeA + ", Jvm info pid: " + searchService1.getJvmInfo().pid());
-
-        logger.info("---> before relocation. 1min to take heap dump.");
-        Thread.sleep(60000);
-        logger.info("---> running relocation.");
+//        logger.info("---> Current search node: " + searchNodeA + ", Jvm info pid: " + searchService1.getJvmInfo().pid());
+//
+//        logger.info("---> before relocation. 1min to take heap dump.");
+//        Thread.sleep(60000);
+//        logger.info("---> running relocation.");
 
         var searchNodeB = startSearchNode(nodeSettings);
 
@@ -299,9 +299,21 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
             TimeUnit.SECONDS
         );
 
-        logger.info("---> after relocation. 1min to take heap dump.");
-        Thread.sleep(60000);
-        logger.info("---> Clean up PITs and close contexts.");
+//        logger.info("---> after relocation. 1min to take heap dump.");
+//        Thread.sleep(60000);
+//        logger.info("---> Clean up PITs and close contexts.");
+
+        // Close the stress PITs. After relocation the PIT ID encodes the source node; a search
+        // response carries the updated ID encoding the target node, which is required for the
+        // close request to reach the right node.
+        for (var lotsOfPitId : lotsOfPitsIds) {
+            var updatedId = new BytesReference[] { lotsOfPitId };
+            assertResponse(
+                prepareSearch().setSize(0).setPointInTime(new PointInTimeBuilder(lotsOfPitId)),
+                resp -> updatedId[0] = resp.pointInTimeId()
+            );
+            closePointInTime(updatedId[0]);
+        }
 
         // close the PIT
         assertClosePit(updated_pit1.get(), numberOfShards);

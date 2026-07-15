@@ -113,7 +113,7 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
                     }
                 }
             }
-            super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, listener);
+            super.warmCacheAndTimeIt(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, listener);
         }
     }
 }

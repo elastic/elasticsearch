@@ -42,7 +42,6 @@ final class EscfDoubleColumn extends AbstractFixed64Column {
 
     @Override
     EscfColumnData toColumnData() {
-        // absent and data are already windowed and zero-based; return them directly.
         return EscfColumnData.ofFixed64(kind(), docCount, absent, data);
     }
 }

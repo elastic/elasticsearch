@@ -74,7 +74,7 @@ public final class ShardBatchIndexer {
     }
 
     /**
-     * Attempts batch indexing on primary using the columnar metadata-mapper pipeline.
+     * Attempts batch indexing on primary using the columnar mapper pipeline.
      */
     static void performBatchIndexOnPrimary(
         final BulkItemRequest[] items,
@@ -148,14 +148,6 @@ public final class ShardBatchIndexer {
      * items and any remainder fall back to sequential processing via the returned {@code processedItems}.
      */
     static ReplicaBatchResult performBatchIndexOnReplica(BulkItemRequest[] items, SourceBatch batch, IndexShard replica) throws Exception {
-        for (BulkItemRequest item : items) {
-            if (item.getPrimaryResponse() != null
-                && item.getPrimaryResponse().isFailed()
-                && item.getPrimaryResponse().getFailure().isAborted()) {
-                return new ReplicaBatchResult(0, null);
-            }
-        }
-
         final ShardBatchMapper.BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(
             batch.schema(),
             replica.mapperService().mappingLookup()

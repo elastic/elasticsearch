@@ -27,52 +27,17 @@ import org.elasticsearch.escf.EscfLuceneColumn;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * The assembled columnar output of one batch-mapping chunk, backed by full-batch byte arrays and
- * capable of producing a Lucene {@link ColumnBatch} for any contiguous sub-range without copying.
- *
- * <p>Created by {@code BatchMappingContext#columns()} after all metadata mappers have run.
- * The engine {@linkplain #slice slices} one instance per sub-batch (determined by version-lock
- * acquisition in {@code InternalEngine.indexBatch}), fills the engine-assigned values ({@code
- * _seq_no}, {@code _primary_term}, {@code _version}) via {@link #setSeqNo}, {@link #fillPrimaryTerm},
- * and {@link #setVersion}, then calls {@link #toColumnBatch()} to obtain the Lucene
- * {@link ColumnBatch} handed to {@code IndexWriter#addBatch}.
- *
- * <h2>Slicing model</h2>
- * <p>The full-batch instance ({@code from=0, count=N}) shares its backing byte arrays with every
- * slice. Slicing calls {@link SliceableColumn#slice} on each registered column (adjusting their
- * internal window) and adjusts the {@code from} offset for the engine byte-write methods. Engine
- * writes use the offset ({@code array[(from + doc) * 8]}); the column cursors read from the same
- * absolute slot via the sliced {@link org.elasticsearch.common.bytes.BytesReference} view. No
- * copying occurs for the backing arrays.
- *
- * <h2>Metadata long backing</h2>
- * <p>Engine-assigned long fields ({@code _seq_no}, {@code _primary_term}, {@code _version}) are
- * held as {@code byte[]} arrays of length {@code docCount * 8}, written via
- * {@link ByteUtils#writeLongLE} and read by the {@link EscfLuceneColumn} wrapping each array.
- * The {@code byte[]} is a live mutable buffer — engine writes are visible to the column's Lucene
- * cursors immediately without re-wrapping.
- *
- * <h2>Column factories</h2>
- * <p>The static factory methods {@link #longColumn} and {@link #binaryColumn} replace the former
- * {@code LuceneColumns.arrayLongColumn} / {@code LuceneColumns.arrayBinaryColumn} utilities.
- * Metadata mappers call them to produce a {@link SliceableColumn} and register it via
- * {@code BatchMappingContext#addColumn}.
- */
-public final class SliceableColumns {
+public final class MappedColumns {
 
     private final int from;
     private final int count;
 
-    /** Backing byte array for {@code _seq_no}; {@code null} if no seq-no column was registered. */
     @Nullable
     private final byte[] seqNos;
 
-    /** Backing byte array for {@code _primary_term}; {@code null} if no primary-term column was registered. */
     @Nullable
     private final byte[] primaryTerms;
 
-    /** Backing byte array for {@code _version}; {@code null} if no version column was registered. */
     @Nullable
     private final byte[] versions;
 
@@ -81,15 +46,8 @@ public final class SliceableColumns {
     /**
      * Constructs a {@code SliceableColumns} covering the window {@code [from, from + count)} of the
      * given backing arrays and columns.
-     *
-     * @param from         offset into the full-batch backing arrays (as document index, not byte index)
-     * @param count        number of documents in this window
-     * @param seqNos       full-batch {@code _seq_no} backing array ({@code docCount * 8} bytes), or {@code null}
-     * @param primaryTerms full-batch {@code _primary_term} backing array ({@code docCount * 8} bytes), or {@code null}
-     * @param versions     full-batch {@code _version} backing array ({@code docCount * 8} bytes), or {@code null}
-     * @param columns      all columns registered by the metadata mappers; copied defensively
      */
-    public SliceableColumns(
+    public MappedColumns(
         int from,
         int count,
         @Nullable byte[] seqNos,
@@ -105,25 +63,16 @@ public final class SliceableColumns {
         this.columns = List.copyOf(columns);
     }
 
-    /** The number of documents in this window. */
     public int docCount() {
         return count;
     }
 
-    /**
-     * Sets the engine-assigned {@code _seq_no} for batch-local document {@code doc} in this window.
-     * No-op if no {@code _seq_no} column was registered.
-     */
     public void setSeqNo(int doc, long value) {
         if (seqNos != null) {
             ByteUtils.writeLongLE(value, seqNos, (from + doc) * 8);
         }
     }
 
-    /**
-     * Sets the engine-assigned {@code _primary_term} for every document in this window.
-     * No-op if no {@code _primary_term} column was registered.
-     */
     public void fillPrimaryTerm(long value) {
         if (primaryTerms != null) {
             for (int i = 0; i < count; i++) {
@@ -132,27 +81,13 @@ public final class SliceableColumns {
         }
     }
 
-    /**
-     * Sets the engine-assigned {@code _version} for batch-local document {@code doc} in this window.
-     * No-op if no {@code _version} column was registered.
-     */
     public void setVersion(int doc, long value) {
         if (versions != null) {
             ByteUtils.writeLongLE(value, versions, (from + doc) * 8);
         }
     }
 
-    /**
-     * Returns a view covering {@code [from, to)} of this window's document range. Each
-     * {@link SliceableColumn} is sliced to the same sub-range (adjusting its internal window); the
-     * backing byte arrays are shared with no copying. {@code from} and {@code to} are relative to
-     * this window's {@code [0, count)}.
-     *
-     * @param from start (inclusive), relative to this window's {@code [0, count)}
-     * @param to   end (exclusive), relative to this window's {@code [0, count)}
-     * @throws IndexOutOfBoundsException if the range is invalid
-     */
-    public SliceableColumns slice(int from, int to) {
+    public MappedColumns slice(int from, int to) {
         if (from < 0 || to > this.count || from > to) {
             throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + this.count + ")");
         }
@@ -161,31 +96,69 @@ public final class SliceableColumns {
         for (SliceableColumn c : columns) {
             slicedColumns.add(c.slice(from, newCount));
         }
-        return new SliceableColumns(this.from + from, newCount, seqNos, primaryTerms, versions, slicedColumns);
+        return new MappedColumns(this.from + from, newCount, seqNos, primaryTerms, versions, slicedColumns);
     }
 
-    /**
-     * Assembles the registered columns into a Lucene {@link ColumnBatch} covering this window.
-     * Each {@link SliceableColumn} is asked to produce a windowed {@link Column} via
-     * {@link SliceableColumn#toLuceneColumn()}.
-     */
     public ColumnBatch toColumnBatch() {
         final List<Column> luceneColumns = columns.stream().map(SliceableColumn::toLuceneColumn).toList();
         return new SliceableColumnBatch(luceneColumns, count);
     }
 
     /**
-     * Creates one {@link SliceableColumn.RowFieldCursor} per registered column for the row/soft-update
-     * indexing path. The returned cursors are positioned before document 0; callers advance them
-     * via {@link SliceableColumn.RowFieldCursor#nextDoc()} and collect fields into a shared list via
-     * {@link SliceableColumn.RowFieldCursor#appendCurrentFields} to build per-doc Lucene documents.
+     * Returns a {@link RowCursor} positioned before the first document. The caller must invoke
+     * {@link RowCursor#advance()} once per document — unconditionally, even for documents that will
+     * not be written to Lucene — to keep all column cursors correctly positioned.
      */
-    public List<SliceableColumn.RowFieldCursor> rowFieldCursors() {
-        final List<SliceableColumn.RowFieldCursor> cursors = new ArrayList<>(columns.size());
-        for (SliceableColumn col : columns) {
-            cursors.add(col.rowFieldCursor());
+    public RowCursor rowCursor() {
+        return new RowCursor(columns);
+    }
+
+    /**
+     * A forward-only cursor over all columns that assembles per-document {@link IndexableField} lists
+     * for the row-oriented (soft-update / non-{@code addBatch}) indexing path. Encapsulates the
+     * per-column {@link SliceableColumn.RowFieldCursor} instances and their position tracking.
+     */
+    public static final class RowCursor {
+        private final List<SliceableColumn.RowFieldCursor> cursors;
+        private final int[] heads;
+        private final List<IndexableField> fields;
+        private int currentDoc = 0;
+
+        private RowCursor(List<SliceableColumn> columns) {
+            cursors = new ArrayList<>(columns.size());
+            for (SliceableColumn col : columns) {
+                cursors.add(col.rowFieldCursor());
+            }
+            heads = new int[cursors.size()];
+            for (int c = 0; c < cursors.size(); c++) {
+                heads[c] = cursors.get(c).nextDoc();
+            }
+            fields = new ArrayList<>(columns.size());
         }
-        return cursors;
+
+        /**
+         * Advances all column cursors to the next document and collects that document's fields.
+         * Must be called once per document in order, even when the document will not be written,
+         * so that every column cursor stays correctly positioned.
+         */
+        public void advance() {
+            fields.clear();
+            for (int c = 0; c < cursors.size(); c++) {
+                while (heads[c] == currentDoc) {
+                    cursors.get(c).appendCurrentFields(fields);
+                    heads[c] = cursors.get(c).nextDoc();
+                }
+            }
+            currentDoc++;
+        }
+
+        /**
+         * Returns the fields collected for the current document. The returned list is only valid
+         * until the next call to {@link #advance()}.
+         */
+        public List<IndexableField> fields() {
+            return fields;
+        }
     }
 
     private static final class SliceableColumnBatch extends ColumnBatch {
@@ -209,47 +182,14 @@ public final class SliceableColumns {
         }
     }
 
-    /**
-     * A {@link SliceableColumn} backed by a mutable {@code byte[]} of length {@code docCount * 8}
-     * spanning the full batch. The array may be mutated (e.g. by the engine filling {@code _seq_no}/
-     * {@code _version}) between registration and cursor access; engine writes are visible immediately
-     * to the column's Lucene cursors. Always produces a
-     * {@link org.apache.lucene.document.column.Column.Density#DENSE} column.
-     *
-     * @param values    the full-batch backing byte array of length {@code docCount * 8} (may be mutated
-     *                  by the engine via {@link ByteUtils#writeLongLE})
-     * @param name      Lucene field name
-     * @param fieldType the Lucene field type for this column
-     * @param kind      numeric kind ({@code LONG}, {@code INT}, etc.)
-     */
     public static SliceableColumn longColumn(byte[] values, String name, IndexableFieldType fieldType, LongColumn.NumericKind kind) {
         return EscfLuceneColumn.longColumn(values, name, fieldType, kind);
     }
 
-    /**
-     * A {@link SliceableColumn} backed by a {@code BytesRef[]} spanning the full batch. A
-     * {@code null} entry marks an absent document; the produced column is
-     * {@link org.apache.lucene.document.column.Column.Density#DENSE} only when every entry in the
-     * requested window is non-{@code null}.
-     *
-     * @param values    the full-batch backing array
-     * @param name      Lucene field name
-     * @param fieldType the Lucene field type for this column
-     */
     public static SliceableColumn binaryColumn(BytesRef[] values, String name, IndexableFieldType fieldType) {
         return new WindowedBinaryColumn(values, name, fieldType, 0, values.length);
     }
 
-    // =========================================================================
-    // Windowed column implementations
-    // =========================================================================
-
-    /**
-     * A {@link BinaryColumn} backed by a full-batch {@code BytesRef[]} and a {@code [from, from+count)} window.
-     * Density is {@code DENSE} iff every entry in the window is non-{@code null}. Implements
-     * {@link SliceableColumn}: {@link #slice} re-windows over the same backing array; {@link #toLuceneColumn}
-     * returns {@code this} (a {@link Column} is a {@link BinaryColumn} is a {@link Column}).
-     */
     private static final class WindowedBinaryColumn extends BinaryColumn implements SliceableColumn {
         private final BytesRef[] values;
         private final int from;

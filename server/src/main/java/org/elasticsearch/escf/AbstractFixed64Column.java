@@ -14,20 +14,18 @@ import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  * Shared base for the fixed-width 64-bit columns (LONG and DOUBLE), whose values are contiguous
- * little-endian 8-byte slots. {@code data} is always a windowed {@link BytesReference} covering
- * exactly {@code docCount} slots ({@code docCount * 8} bytes), so document {@code d} is at byte
- * offset {@code d * 8}.
+ * little-endian 8-byte slots ({@code data.getLongLE(d * 8)}).
  */
 abstract class AbstractFixed64Column extends EscfColumn {
 
-    final BytesReference data;
+    protected final BytesReference data;
 
     AbstractFixed64Column(int docCount, FixedBitSet absent, BytesReference data) {
         super(docCount, absent);
         this.data = data;
     }
 
-    /** The raw little-endian 8-byte slot for document {@code d} (zero-based within this window). */
+    /** The raw little-endian 8-byte slot for document {@code d}. */
     final long rawLong(int d) {
         return data.getLongLE(d * 8);
     }

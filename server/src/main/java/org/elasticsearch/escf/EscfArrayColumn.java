@@ -16,26 +16,13 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
  * An ESCF column whose values are all arrays of a single fixed primitive element kind, stored in a
- * columnar list layout: a per-row element-range offset vector ({@code rowOffsets}) over a single dense
+ * columnar list layout: a per-row element-range offset vector ({@code offsets}) over a single dense
  * primitive {@code child} sub-column. Row {@code d}'s elements are the child elements in
- * {@code [rowOffsets.ints[rowOffsets.offset + d], rowOffsets.ints[rowOffsets.offset + d + 1])}.
- * There are no inline arrays.
- *
- * <p>The {@code child} column always spans the full element range so that {@link ColumnarArrayReader}
- * can address elements by their absolute index. When slicing an {@code EscfArrayColumn}, only
- * {@code rowOffsets.offset} is adjusted; the child remains full/unsliced. At serialization time
- * ({@link #toColumnData}), the child is explicitly sliced to cover only the element range referenced
- * by this window before materializing.
+ * {@code [offsets[d], offsets[d + 1])}. There are no inline arrays.
  */
 final class EscfArrayColumn extends EscfColumn {
 
     private final EscfColumn child;
-
-    /**
-     * Windowed row-offset vector. {@code rowOffsets.ints[rowOffsets.offset + d]} is the absolute
-     * element index (into {@code child}) of the first element of row {@code d}. The window covers
-     * {@code docCount + 1} entries.
-     */
     private final IntsRef rowOffsets;
 
     EscfArrayColumn(int docCount, FixedBitSet absent, EscfColumn child, IntsRef rowOffsets) {
@@ -56,7 +43,6 @@ final class EscfArrayColumn extends EscfColumn {
 
     @Override
     ArrayReader getArrayValue(int d) {
-        // rowOffsets hold absolute element indices into the unsliced child column.
         return new ColumnarArrayReader(child, rowOffsets.ints[rowOffsets.offset + d], rowOffsets.ints[rowOffsets.offset + d + 1]);
     }
 

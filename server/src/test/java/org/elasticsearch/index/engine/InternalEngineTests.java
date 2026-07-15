@@ -244,11 +244,6 @@ public class InternalEngineTests extends EngineTestCase {
         return engine.index(operation);
     }
 
-    /**
-     * Wraps a plain (operations, batch) pair as an {@link EngineBatch} with no real columnar
-     * mapping — these tests exercise the traditional per-operation Lucene indexing path, batched
-     * only for a single translog write, not {@code IndexWriter#addBatch}.
-     */
     private static EngineBatch engineBatch(List<Engine.Index> operations, SourceBatch batch) {
         return new EngineBatch(operations, batch, null);
     }

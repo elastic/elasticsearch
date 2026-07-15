@@ -47,7 +47,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.sourcebatch.SliceableColumns;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -333,7 +333,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         // Mirror preParse: in columnar storage mode _id is indexed + BINARY doc values; otherwise it
         // is indexed + stored.
         final IndexableFieldType idFieldType = mode == Mode.COLUMNAR ? ColumnarIdField.TYPE : StringField.TYPE_STORED;
-        context.addColumn(SliceableColumns.binaryColumn(context.uids(), NAME, idFieldType));
+        context.addColumn(MappedColumns.binaryColumn(context.uids(), NAME, idFieldType));
     }
 
     @Override

@@ -16,21 +16,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  * Shared base for the variable-length columns (STRING and BINARY), whose values are a contiguous
- * {@code data} payload delimited by an {@link IntsRef} offset window. Document {@code d}'s value
- * occupies bytes {@code [offsets.ints[offsets.offset + d], offsets.ints[offsets.offset + d + 1])}
- * within {@code data} (which is kept full/shared across slices). Slicing adjusts
- * {@code offsets.offset}; the backing arrays are shared.
+ * {@code data} payload delimited by a {@code (docCount + 1)}-entry offset vector
+ * ({@code [offsets[d], offsets[d + 1])} within {@code data}).
  */
 abstract class AbstractVarColumn extends EscfColumn {
 
-    /** Full (shared) data payload. Addressed via the absolute byte offsets in {@code offsets}. */
     final BytesReference data;
-
-    /**
-     * Windowed offset vector: {@code offsets.ints[offsets.offset + d]} is the absolute byte start
-     * of document {@code d}'s value. The window covers {@code docCount + 1} entries so that the
-     * end of the last document can be computed as {@code offsets.ints[offsets.offset + docCount]}.
-     */
     final IntsRef offsets;
 
     AbstractVarColumn(int docCount, FixedBitSet absent, BytesReference data, IntsRef offsets) {

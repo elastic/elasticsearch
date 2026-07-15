@@ -19,21 +19,11 @@ import org.elasticsearch.sourcebatch.SourceSchema;
 
 /**
  * An Elasticsearch Column Format batch: a column-major {@link SourceBatch} backed by an array
- * of {@link EscfColumn}s. Built in memory by {@link EscfEncoder} or reconstructed from
+ * of {@link EscfColumnData}. Built in memory by {@link EscfEncoder} or reconstructed from
  * serialized bytes via {@link #parse(BytesReference, Releasable)}.
  *
- * <p>Each {@link EscfColumn} carries its own window ({@code base}, {@code docCount}) so that
- * slicing ({@link #slice}) is zero-copy: it creates a new {@code EscfBatch} whose columns
- * have adjusted {@code base} values, sharing all backing {@link BytesReference}s, offset
- * vectors, and bitsets with the parent.
- *
- * <p>Serialization ({@link #data}) calls {@link EscfColumn#toColumnData()} per column to
- * materialize the current window as a zero-based {@link EscfColumnData} for
- * {@link EscfBatchCodec#serialize}. This materialization only occurs on the translog write
- * path; engine sub-batch slices are ephemeral and never serialized.
- *
- * <p>RAM accounting ({@link #ramBytesUsed}) uses the original {@link EscfColumnData} array
- * (kept for primary construction paths, null for slice views which share the parent's RAM).
+ * <p>This class is the in-memory container (schema, columns, row/column access, slicing, and RAM
+ * accounting). The on-wire byte layout and the field-level codecs live in {@link EscfBatchCodec}.
  */
 public final class EscfBatch implements SourceBatch {
 
@@ -42,7 +32,6 @@ public final class EscfBatch implements SourceBatch {
     /** Original column data, kept for RAM accounting. {@code null} for slice views. */
     @Nullable
     private final EscfColumnData[] columnData;
-    /** Window-aware column views; always populated. */
     private final EscfColumn[] columns;
     private final Releasable releasable;
     private BytesReference serialized;
@@ -97,6 +86,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public BytesReference data() {
+        // TODO: Eventually optimize to be more stream like on the serialization path.
         if (serialized == null) {
             EscfColumnData[] dataForSerialize = new EscfColumnData[columns.length];
             for (int i = 0; i < columns.length; i++) {
@@ -125,15 +115,6 @@ public final class EscfBatch implements SourceBatch {
         return columns[columnIndex];
     }
 
-    /**
-     * Returns a zero-copy view of this batch containing rows in {@code [from, to)}. Each column's
-     * {@link EscfColumn#sliceInternal} adjusts its {@code base} offset; no backing data is copied.
-     * The returned batch holds no ownership over the parent's underlying buffers — closing it is a
-     * no-op; the parent must be closed instead.
-     *
-     * <p>For a full-range slice ({@code from == 0 && to == docCount}), the original serialized bytes
-     * (if any) are forwarded to avoid re-serialization.
-     */
     @Override
     public SourceBatch slice(int from, int to) {
         if (from < 0 || to > docCount || from > to) {

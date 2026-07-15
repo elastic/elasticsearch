@@ -24,7 +24,7 @@ import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.sourcebatch.SliceableColumns;
+import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -36,14 +36,6 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Parse-time tests for the batch-mapping fast path: drives {@link ShardBatchMapper} directly.
- *
- * <p><b>First-pass columnar scope:</b> only metadata mappers support columnar parsing so far (see
- * {@code FieldMapper#supportsColumnarParse()}). {@code ShardBatchMapper.mapColumnBatch} therefore
- * only fully engages for chunks whose schema has no leaves at all (every document's body is
- * {@code {}}); any chunk with real field data falls back to the sequential path. The row-oriented
- * tests below (which drove the old row-major {@code parseMappings}) are commented out with a TODO
- * pending columnar support for field (non-metadata) mappers; this file's active tests cover the
- * empty-document columnar path and the field-data fallback.
  */
 public class ShardBatchMapperParseTests extends IndexShardTestCase {
 
@@ -114,10 +106,10 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             );
             assertNotNull("columnar mapping should engage for documents with no field leaves", engineBatch);
             assertThat(engineBatch.operations(), hasSize(numDocs));
-            final SliceableColumns sliceableColumns = engineBatch.columns();
-            assertNotNull(sliceableColumns);
+            final MappedColumns mappedColumns = engineBatch.columns();
+            assertNotNull(mappedColumns);
 
-            ColumnBatch columnBatch = sliceableColumns.toColumnBatch();
+            ColumnBatch columnBatch = mappedColumns.toColumnBatch();
             assertThat(columnBatch.numDocs(), equalTo(numDocs));
 
             Set<String> columnNames = new HashSet<>();

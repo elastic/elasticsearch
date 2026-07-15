@@ -20,35 +20,21 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
-import java.util.Arrays;
-
 /**
  * A heterogeneous ESCF column: a per-document {@link SourceValueType} vector gives each row's type, and a
  * dense value buffer delimited by a {@code (docCount + 1)}-entry offset vector holds the payload.
  * Zero-byte types (NULL/TRUE/FALSE/ABSENT) occupy no payload, fixed numerics (LONG/DOUBLE) occupy 8
  * bytes, and variable types occupy their offset-delta bytes. Array and key-value rows are stored as
  * inline bytes and read with {@link InlineArrayReader} / {@link KeyValueReader}.
- *
- * <p>The type vector and offset vector are held as Refs ({@link BytesRef} and {@link IntsRef}
- * respectively) so that slicing adjusts only their {@code offset} fields — no copying occurs.
- * {@code data} is kept full/shared across slices and addressed via the absolute byte offsets
- * stored in {@code offsets}.
  */
 final class EscfUnionColumn extends EscfColumn {
 
-    /**
-     * Per-document type bytes. {@code typeVec.bytes[typeVec.offset + d]} gives the
-     * {@link SourceValueType} byte for document {@code d}.
-     */
     private final BytesRef typeVec;
-
     /**
      * Windowed offset vector. {@code offsets.ints[offsets.offset + d]} is the absolute byte start
      * of document {@code d}'s value in {@code data}. The window covers {@code docCount + 1} entries.
      */
     private final IntsRef offsets;
-
-    /** Full (shared) data payload. Addressed via the absolute byte offsets in {@code offsets}. */
     private final BytesReference data;
 
     EscfUnionColumn(int docCount, FixedBitSet absent, BytesRef typeVec, IntsRef offsets, BytesReference data) {
@@ -124,7 +110,6 @@ final class EscfUnionColumn extends EscfColumn {
 
     @Override
     EscfColumn sliceInternal(int from, int count) {
-        // data is kept full/shared; the slice is expressed by adjusting typeVec.offset and offsets.offset.
         return new EscfUnionColumn(
             count,
             windowBitSet(absent, from, count),
@@ -136,10 +121,9 @@ final class EscfUnionColumn extends EscfColumn {
 
     @Override
     EscfColumnData toColumnData() {
-        byte[] newTypeVec = Arrays.copyOfRange(typeVec.bytes, typeVec.offset, typeVec.offset + docCount);
         int byteFrom = offsets.ints[offsets.offset];
         BytesReference newData = data.slice(byteFrom, offsets.ints[offsets.offset + docCount] - byteFrom);
         int[] newOffsets = rebasedOffsets(offsets, docCount);
-        return EscfColumnData.ofUnion(docCount, absent, newTypeVec, newOffsets, newData);
+        return EscfColumnData.ofUnion(docCount, absent, typeVec, newOffsets, newData);
     }
 }

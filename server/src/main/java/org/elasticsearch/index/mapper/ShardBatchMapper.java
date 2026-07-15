@@ -42,18 +42,10 @@ import java.util.List;
  *     unsupported mapper types, etc. — causes the method to return {@code null}, at which point
  *     {@link ShardBatchIndexer} falls back to the sequential path.</li>
  *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution, Engine.Operation.Origin)}
- *     runs per chunk. It invokes each metadata mapper once for the whole chunk — see
- *     {@link MetadataFieldMapper#preColumnarParse} / {@link MetadataFieldMapper#postColumnarParse} —
- *     attaching one Lucene column per batch-wide value (id, source, engine-assigned seq-no/version,
- *     ...) via {@link BatchMappingContext}, and assembles {@link Engine.Index} operations plus the
- *     resulting {@link EngineBatch}.</li>
+ *     runs per chunk. It invokes each mapper once for the whole chunk — attaching one Lucene column per batch-wide value
+ *     (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles {@link Engine.Index} operations
+ *     plus the resulting {@link EngineBatch}.</li>
  * </ol>
- *
- * <p><b>First-pass scope:</b> only metadata mappers support columnar parsing so far (see
- * {@link FieldMapper#supportsColumnarParse(IndexSettings)} overrides). Field (non-metadata) mappers do not yet,
- * so {@link #mapColumnBatch} only fully engages for chunks whose schema has no leaves at all (every
- * document in the chunk has an empty {@code {}} body) — any chunk with real field data falls back to
- * the sequential path, same as an unsupported mapper or dynamic mapping update.
  */
 public final class ShardBatchMapper {
 
@@ -205,8 +197,7 @@ public final class ShardBatchMapper {
             for (MetadataFieldMapper metadataMapper : metadataMappers) {
                 metadataMapper.preColumnarParse(context);
             }
-            // No field (non-metadata) mappers run yet — see class javadoc. Once one supports
-            // columnar parsing it is invoked here, once per batch, over resolution.columnMappers().
+            // TODO: No field (non-metadata) mappers run yet — see class javadoc.
             for (MetadataFieldMapper metadataMapper : metadataMappers) {
                 metadataMapper.postColumnarParse(context);
             }
@@ -216,6 +207,7 @@ public final class ShardBatchMapper {
         }
 
         final List<Engine.Index> operations = new ArrayList<>(docCount);
+        // TODO: Remove the IndexRequest object on the columnar pass once the EngineBatch holds all the necessary data.
         // Placeholder: the real _seq_no/_primary_term/_version values live in the columns the
         // engine fills post-mapping (see BatchMappingContext#seqNoArray et al.); this LuceneDocument
         // is otherwise empty this pass since no field mapper has added anything to it.

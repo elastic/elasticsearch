@@ -84,7 +84,7 @@ abstract class EscfColumn implements SliceableColumn {
             case EscfColumnKind.UNION -> new EscfUnionColumn(
                 docCount,
                 absent,
-                new BytesRef(col.typeVector(), 0, docCount),
+                col.typeVector(),
                 new IntsRef(col.offsets(), 0, docCount + 1),
                 col.data()
             );

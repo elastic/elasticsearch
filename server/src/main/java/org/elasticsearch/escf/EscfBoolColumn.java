@@ -14,7 +14,6 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
  * An column whose values are all booleans, held as the value bitset directly (bit set = {@code true}).
- * Both the {@code absent} and {@code values} bitsets are always zero-based and cover {@code [0, docCount)}.
  */
 final class EscfBoolColumn extends EscfColumn {
 

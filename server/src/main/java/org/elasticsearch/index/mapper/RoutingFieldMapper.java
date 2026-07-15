@@ -45,7 +45,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
-import org.elasticsearch.sourcebatch.SliceableColumns;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -417,14 +417,14 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             return;
         }
         if (docValues) {
-            context.addColumn(SliceableColumns.binaryColumn(routings, fieldType().name(), ROUTING_DV_FIELD_TYPE));
+            context.addColumn(MappedColumns.binaryColumn(routings, fieldType().name(), ROUTING_DV_FIELD_TYPE));
             // _field_names is only used for fields without doc values; doc values fields use FieldExistsQuery directly
         } else {
             // TODO(columnar): the row path also calls context.addToFieldNames(NAME) here so _routing
             // participates in _field_names-based exists queries; the columnar path has no _field_names
             // column plumbing yet. Narrow, documented gap — does not affect indices that never set an
             // explicit routing value.
-            context.addColumn(SliceableColumns.binaryColumn(routings, fieldType().name(), ROUTING_FIELD_TYPE));
+            context.addColumn(MappedColumns.binaryColumn(routings, fieldType().name(), ROUTING_FIELD_TYPE));
         }
     }
 

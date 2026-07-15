@@ -36,7 +36,6 @@ final class EscfBinaryColumn extends AbstractVarColumn {
 
     @Override
     EscfColumn sliceInternal(int from, int count) {
-        // data is kept full/shared; the slice is expressed by adjusting offsets.offset.
         return new EscfBinaryColumn(
             count,
             windowBitSet(absent, from, count),

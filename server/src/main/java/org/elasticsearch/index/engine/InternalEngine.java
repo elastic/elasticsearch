@@ -17,7 +17,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -111,8 +110,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.sourcebatch.SliceableColumn;
-import org.elasticsearch.sourcebatch.SliceableColumns;
+import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1451,15 +1449,11 @@ public class InternalEngine extends Engine {
         }
     }
 
-    /**
-     * Whether every operation in this sub-batch is a clean, append-only Lucene write with no early
-     * result already set — the precondition for handing the whole sub-batch to
-     * {@code IndexWriter#addBatch} in one call instead of looping {@link #indexIntoLucene}.
-     */
     private static boolean isColumnBatchEligible(IndexingStrategy[] plans, IndexResult[] allResults, int subBatchIdx, int subBatchSize) {
         for (int i = 0; i < subBatchSize; i++) {
             if (allResults[subBatchIdx + i] != null) {
-                return false; // early (e.g. preflight failure) result already set
+                // early (e.g. preflight failure) result already set
+                return false;
             }
             final IndexingStrategy plan = plans[i];
             if (plan.indexIntoLucene == false || plan.useLuceneUpdateDocument || plan.addStaleOpToLucene) {
@@ -1469,95 +1463,55 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    /**
-     * Indexes one sub-batch via {@code IndexWriter#addBatch}, slicing the columnar data to exactly
-     * {@code [subBatchIdx, subBatchIdx + subBatchSize)}.
-     *
-     * <p>All ops in a sub-batch share the same {@code primaryTerm} (validated by the caller), so it
-     * is filled once. Per-op {@code _seq_no} and {@code _version} are written into the slice before
-     * requesting the Lucene {@link org.apache.lucene.document.column.ColumnBatch}.
-     */
     private void indexColumnSubBatch(
-        SliceableColumns columns,
+        MappedColumns slice,
         Index[] subBatchOps,
         IndexingStrategy[] plans,
-        long primaryTerm,
         int subBatchIdx,
         int subBatchSize,
         IndexResult[] allResults
     ) throws IOException {
-        final SliceableColumns slice = columns.slice(subBatchIdx, subBatchIdx + subBatchSize);
-        slice.fillPrimaryTerm(primaryTerm);
-        for (int i = 0; i < subBatchSize; i++) {
-            slice.setSeqNo(i, subBatchOps[i].seqNo());
-            slice.setVersion(i, plans[i].versionForIndexing);
-        }
-        indexWriter.addBatch(slice.toColumnBatch());
-        for (int i = 0; i < subBatchSize; i++) {
-            final Index op = subBatchOps[i];
-            final IndexingStrategy plan = plans[i];
-            allResults[subBatchIdx + i] = new IndexResult(
-                plan.versionForIndexing,
-                op.primaryTerm(),
-                op.seqNo(),
-                plan.currentNotFoundOrDeleted,
-                op.id()
-            );
+        try {
+            indexWriter.addBatch(slice.toColumnBatch());
+            for (int i = 0; i < subBatchSize; i++) {
+                final Index op = subBatchOps[i];
+                final IndexingStrategy plan = plans[i];
+                allResults[subBatchIdx + i] = new IndexResult(
+                    plan.versionForIndexing,
+                    op.primaryTerm(),
+                    op.seqNo(),
+                    plan.currentNotFoundOrDeleted,
+                    op.id()
+                );
+            }
+        } catch (Exception ex) {
+            if (ex instanceof AlreadyClosedException == false
+                && indexWriter.getTragicException() == null
+                && treatDocumentFailureAsTragicError(subBatchOps[0]) == false) {
+                for (int i = 0; i < subBatchSize; i++) {
+                    final Index op = subBatchOps[i];
+                    allResults[subBatchIdx + i] = new IndexResult(ex, Versions.MATCH_ANY, op.primaryTerm(), op.seqNo(), op.id());
+                }
+            } else {
+                throw ex;
+            }
         }
     }
 
-    /**
-     * Indexes one columnar-mapped sub-batch via the row-oriented path when {@code IndexWriter#addBatch}
-     * is not eligible (e.g. the sub-batch contains retries, version-conflict updates, or stale ops).
-     *
-     * <p>Per-doc Lucene documents are built from the columns' {@link SliceableColumn.RowFieldCursor}s —
-     * one cursor per column, advanced sequentially through the window. Each cursor yields a reusable
-     * field object whose value is updated in place between documents, avoiding per-doc allocation.
-     * Fields are collected into a shared buffer list that is cleared and refilled on every document.
-     *
-     * <p>Metadata stamping ({@code _seq_no}, {@code _primary_term}, {@code _version}) is performed on
-     * the slice before the cursor loop, so long-column cursors read the correct engine-assigned values.
-     * Early-result documents (preflight errors) are skipped for Lucene writes; their cursors are still
-     * advanced to maintain correct sequential positioning.
-     */
     private void indexColumnRowSubBatch(
-        SliceableColumns columns,
+        MappedColumns slice,
         Index[] subBatchOps,
         IndexingStrategy[] plans,
-        long primaryTerm,
         int subBatchIdx,
         int subBatchSize,
         IndexResult[] allResults
     ) throws IOException {
-        final SliceableColumns slice = columns.slice(subBatchIdx, subBatchIdx + subBatchSize);
-        // Stamp primaryTerm for all docs first; seqno/version only for ops we will actually index.
-        slice.fillPrimaryTerm(primaryTerm);
-        for (int i = 0; i < subBatchSize; i++) {
-            if (allResults[subBatchIdx + i] == null) {
-                slice.setSeqNo(i, subBatchOps[i].seqNo());
-                slice.setVersion(i, plans[i].versionForIndexing);
-            }
-        }
-
-        // Create per-column cursors (one per column, positioned before doc 0).
-        final List<SliceableColumn.RowFieldCursor> cursors = slice.rowFieldCursors();
-        final int numCursors = cursors.size();
-        final int[] heads = new int[numCursors];
-        for (int c = 0; c < numCursors; c++) {
-            heads[c] = cursors.get(c).nextDoc();
-        }
-        final List<IndexableField> fieldsBuf = new ArrayList<>(numCursors);
+        final MappedColumns.RowCursor cursor = slice.rowCursor();
 
         for (int i = 0; i < subBatchSize; i++) {
-            // Collect fields for doc i from all cursors (advancing each past the current doc-id).
-            // Cursors must be advanced even for early-result docs to maintain correct positioning.
-            fieldsBuf.clear();
-            for (int c = 0; c < numCursors; c++) {
-                while (heads[c] == i) {
-                    cursors.get(c).appendCurrentFields(fieldsBuf);
-                    heads[c] = cursors.get(c).nextDoc();
-                }
-            }
+            // advance() must be called unconditionally to keep all column cursors correctly positioned,
+            // even for documents that will not be written to Lucene.
+            cursor.advance();
 
             final int originalIdx = subBatchIdx + i;
             if (allResults[originalIdx] != null) {
@@ -1568,37 +1522,7 @@ public class InternalEngine extends Engine {
             final Index op = subBatchOps[i];
 
             if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
-                final LuceneDocument doc = new LuceneDocument();
-                for (IndexableField f : fieldsBuf) {
-                    doc.add(f);
-                }
-                final List<LuceneDocument> docs = List.of(doc);
-                try {
-                    if (plan.addStaleOpToLucene) {
-                        addStaleDocs(docs, indexWriter);
-                    } else if (plan.useLuceneUpdateDocument) {
-                        assert assertMaxSeqNoOfUpdatesIsAdvanced(op.uid(), op.seqNo(), true, true);
-                        updateDocs(op.uid(), docs, indexWriter);
-                    } else {
-                        assert assertDocDoesNotExist(op, canOptimizeAddDocument(op) == false);
-                        addDocs(docs, indexWriter);
-                    }
-                    allResults[originalIdx] = new IndexResult(
-                        plan.versionForIndexing,
-                        op.primaryTerm(),
-                        op.seqNo(),
-                        plan.currentNotFoundOrDeleted,
-                        op.id()
-                    );
-                } catch (Exception ex) {
-                    if (ex instanceof AlreadyClosedException == false
-                        && indexWriter.getTragicException() == null
-                        && treatDocumentFailureAsTragicError(op) == false) {
-                        allResults[originalIdx] = new IndexResult(ex, Versions.MATCH_ANY, op.primaryTerm(), op.seqNo(), op.id());
-                    } else {
-                        throw ex;
-                    }
-                }
+                allResults[originalIdx] = writeLuceneDocuments(op, plan, List.of(new LuceneDocument(cursor.fields())));
             } else {
                 allResults[originalIdx] = new IndexResult(
                     plan.versionForIndexing,
@@ -1726,37 +1650,21 @@ public class InternalEngine extends Engine {
             }
 
             // Lucene
-            final SliceableColumns columns = engineBatch.columns();
-            if (columns != null && isColumnBatchEligible(plans, allResults, subBatchIdx, subBatchSize)) {
-                indexColumnSubBatch(columns, subBatchOps, plans, primaryTerm, subBatchIdx, subBatchSize, allResults);
-            } else if (columns != null) {
-                // Sub-batch has columnar mapping but is not addBatch-eligible (e.g. contains retries,
-                // version-conflict updates, or stale ops). Build per-doc Lucene documents from the
-                // columns and route each op through the normal add/update/softUpdate helpers.
-                indexColumnRowSubBatch(columns, subBatchOps, plans, primaryTerm, subBatchIdx, subBatchSize, allResults);
-            } else {
-                for (int i = 0; i < subBatchSize; i++) {
-                    int originalIdx = subBatchIdx + i;
-                    if (allResults[originalIdx] != null) {
-                        // early result already set
-                        continue;
-                    }
-                    IndexingStrategy plan = plans[i];
-                    Index op = subBatchOps[i];
-
-                    if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
-                        // TODO: Should be able to optimize batch adds of append-only documents
-                        allResults[originalIdx] = indexIntoLucene(op, plan);
-                    } else {
-                        allResults[originalIdx] = new IndexResult(
-                            plan.versionForIndexing,
-                            op.primaryTerm(),
-                            op.seqNo(),
-                            plan.currentNotFoundOrDeleted,
-                            op.id()
-                        );
-                    }
+            final MappedColumns slice = engineBatch.columns().slice(subBatchIdx, subBatchIdx + subBatchSize);
+            slice.fillPrimaryTerm(primaryTerm);
+            for (int i = 0; i < subBatchSize; i++) {
+                if (allResults[subBatchIdx + i] == null) {
+                    slice.setSeqNo(i, subBatchOps[i].seqNo());
+                    slice.setVersion(i, plans[i].versionForIndexing);
                 }
+            }
+            if (isColumnBatchEligible(plans, allResults, subBatchIdx, subBatchSize)) {
+                indexColumnSubBatch(slice, subBatchOps, plans, subBatchIdx, subBatchSize, allResults);
+            } else {
+                // Sub-batch is not addBatch-eligible (e.g. contains retries, version-conflict updates,
+                // or stale ops). Build per-doc Lucene documents from the columns and route each op
+                // through the normal add/update/softUpdate helpers.
+                indexColumnRowSubBatch(slice, subBatchOps, plans, subBatchIdx, subBatchSize, allResults);
             }
 
             // Translog
@@ -2089,23 +1997,27 @@ public class InternalEngine extends Engine {
          */
         index.parsedDoc().updateSeqID(index.seqNo(), index.primaryTerm());
         index.parsedDoc().version().setLongValue(plan.versionForIndexing);
+        logDocumentsDetails(index.docs(), index.id(), index.uid());
+        return writeLuceneDocuments(index, plan, index.docs());
+    }
+
+    private IndexResult writeLuceneDocuments(Index op, IndexingStrategy plan, List<LuceneDocument> docs) throws IOException {
         try {
-            logDocumentsDetails(index.docs(), index.id(), index.uid());
             if (plan.addStaleOpToLucene) {
-                addStaleDocs(index.docs(), indexWriter);
+                addStaleDocs(docs, indexWriter);
             } else if (plan.useLuceneUpdateDocument) {
-                assert assertMaxSeqNoOfUpdatesIsAdvanced(index.uid(), index.seqNo(), true, true);
-                updateDocs(index.uid(), index.docs(), indexWriter);
+                assert assertMaxSeqNoOfUpdatesIsAdvanced(op.uid(), op.seqNo(), true, true);
+                updateDocs(op.uid(), docs, indexWriter);
             } else {
                 // document does not exist, we can optimize for create, but double check if assertions are running
-                assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
-                addDocs(index.docs(), indexWriter);
+                assert assertDocDoesNotExist(op, canOptimizeAddDocument(op) == false);
+                addDocs(docs, indexWriter);
             }
-            return new IndexResult(plan.versionForIndexing, index.primaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted, index.id());
+            return new IndexResult(plan.versionForIndexing, op.primaryTerm(), op.seqNo(), plan.currentNotFoundOrDeleted, op.id());
         } catch (Exception ex) {
             if (ex instanceof AlreadyClosedException == false
                 && indexWriter.getTragicException() == null
-                && treatDocumentFailureAsTragicError(index) == false) {
+                && treatDocumentFailureAsTragicError(op) == false) {
                 /* There is no tragic event recorded so this must be a document failure.
                  *
                  * The handling inside IW doesn't guarantee that a tragic / aborting exception
@@ -2119,7 +2031,7 @@ public class InternalEngine extends Engine {
                  * we return a `MATCH_ANY` version to indicate no document was index. The value is
                  * not used anyway
                  */
-                return new IndexResult(ex, Versions.MATCH_ANY, index.primaryTerm(), index.seqNo(), index.id());
+                return new IndexResult(ex, Versions.MATCH_ANY, op.primaryTerm(), op.seqNo(), op.id());
             } else {
                 throw ex;
             }

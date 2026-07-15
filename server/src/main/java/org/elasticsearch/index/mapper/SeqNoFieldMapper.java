@@ -29,7 +29,7 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.script.field.SeqNoDocValuesField;
-import org.elasticsearch.sourcebatch.SliceableColumns;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -325,9 +325,9 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         final IndexableFieldType seqNoFieldType = withPoints
             ? POINTS_AND_DOC_VALUES_COLUMN_FIELD_TYPE
             : DOC_VALUES_ONLY_LONG_COLUMN_FIELD_TYPE;
-        context.addColumn(SliceableColumns.longColumn(context.seqNos(), NAME, seqNoFieldType, LongColumn.NumericKind.LONG));
+        context.addColumn(MappedColumns.longColumn(context.seqNos(), NAME, seqNoFieldType, LongColumn.NumericKind.LONG));
         context.addColumn(
-            SliceableColumns.longColumn(
+            MappedColumns.longColumn(
                 context.primaryTerms(),
                 PRIMARY_TERM_NAME,
                 DOC_VALUES_ONLY_LONG_COLUMN_FIELD_TYPE,

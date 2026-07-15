@@ -26,9 +26,6 @@ import java.util.List;
 
 /**
  * A {@link SliceableColumn} that binds an {@link EscfLongColumn} to a Lucene {@link LongColumn}.
- * Used for engine-metadata long columns ({@code _seq_no}, {@code _primary_term}, {@code _version})
- * whose per-document values are held in a mutable {@code byte[]} written by the engine after
- * mapping and read by this column's Lucene cursors at {@link #toLuceneColumn()} time.
  *
  * <p>The {@code byte[]} is wrapped in a {@link BytesArray} (a live, single-contiguous-page view),
  * so engine writes made after registration are immediately visible to the column's cursors —

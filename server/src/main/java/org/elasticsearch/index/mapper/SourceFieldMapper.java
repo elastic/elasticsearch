@@ -40,7 +40,7 @@ import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
-import org.elasticsearch.sourcebatch.SliceableColumns;
+import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerator;
@@ -545,7 +545,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             ByteUtils.writeLongLE(SourceToParse.Source.fromBytes(request.source(), contentType).estimatedSizeInBytes(), sizes, d * 8);
         }
         context.addColumn(
-            SliceableColumns.longColumn(sizes, RECOVERY_SOURCE_SIZE_NAME, NumericDocValuesField.TYPE, LongColumn.NumericKind.LONG)
+            MappedColumns.longColumn(sizes, RECOVERY_SOURCE_SIZE_NAME, NumericDocValuesField.TYPE, LongColumn.NumericKind.LONG)
         );
     }
 

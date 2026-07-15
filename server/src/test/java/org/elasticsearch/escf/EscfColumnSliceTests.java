@@ -19,17 +19,7 @@ import org.elasticsearch.xcontent.XContentString;
 
 import java.nio.charset.StandardCharsets;
 
-/**
- * Tests that {@link EscfColumn#sliceInternal} correctly windows every column kind: reads through a
- * slice must match the corresponding positions in the unsliced column, and {@link EscfColumn#toColumnData()}
- * on the slice must produce a valid zero-based {@link EscfColumnData} that round-trips through
- * {@link EscfColumn#from} identically.
- */
 public class EscfColumnSliceTests extends ESTestCase {
-
-    // -------------------------------------------------------------------------
-    // LONG
-    // -------------------------------------------------------------------------
 
     public void testLongSliceReadsAndRoundTrip() {
         // 5 docs: [10, absent, 30, 40, 50]; slice [1, 4) → [absent, 30, 40]
@@ -77,10 +67,6 @@ public class EscfColumnSliceTests extends ESTestCase {
         assertEquals(400L, slice.getLongValue(1));
     }
 
-    // -------------------------------------------------------------------------
-    // DOUBLE
-    // -------------------------------------------------------------------------
-
     public void testDoubleSliceReadsAndRoundTrip() {
         // 4 docs: [1.1, 2.2, 3.3, 4.4]; slice [1, 3) → [2.2, 3.3]
         EscfColumnBuilder b = new EscfColumnBuilder();
@@ -103,10 +89,6 @@ public class EscfColumnSliceTests extends ESTestCase {
         assertEquals(2.2, reparsed.getDoubleValue(0), 0.0);
         assertEquals(3.3, reparsed.getDoubleValue(1), 0.0);
     }
-
-    // -------------------------------------------------------------------------
-    // STRING
-    // -------------------------------------------------------------------------
 
     public void testStringSliceReadsAndRoundTrip() {
         // 4 docs: ["hello", "world", absent, "bar"]; slice [1, 4) → ["world", absent, "bar"]
@@ -135,10 +117,6 @@ public class EscfColumnSliceTests extends ESTestCase {
         assertEquals("bar", reparsed.getStringValue(2).string());
     }
 
-    // -------------------------------------------------------------------------
-    // BINARY
-    // -------------------------------------------------------------------------
-
     public void testBinarySliceReadsAndRoundTrip() {
         // Build a BINARY column directly: 3 docs with byte payloads [0x01 0x02], [0x03 0x04 0x05], [0x06]
         // slice [1, 3) → [[0x03 0x04 0x05], [0x06]]
@@ -162,10 +140,6 @@ public class EscfColumnSliceTests extends ESTestCase {
         assertBinaryEquals(new byte[] { 0x03, 0x04, 0x05 }, reparsed.getBinaryValue(0));
         assertBinaryEquals(new byte[] { 0x06 }, reparsed.getBinaryValue(1));
     }
-
-    // -------------------------------------------------------------------------
-    // BOOL
-    // -------------------------------------------------------------------------
 
     public void testBoolSliceReadsAndRoundTrip() {
         // 5 docs: [T, absent, F, T, T]; slice [1, 4) → [absent, F, T]
@@ -209,10 +183,6 @@ public class EscfColumnSliceTests extends ESTestCase {
         assertFalse(slice.getBooleanValue(1));
         assertNull("all-false slice must have null values bitset", sliceData(slice).values());
     }
-
-    // -------------------------------------------------------------------------
-    // ARRAY
-    // -------------------------------------------------------------------------
 
     public void testArraySliceReadsAndRoundTrip() {
         // Build an ARRAY column directly:
@@ -265,10 +235,6 @@ public class EscfColumnSliceTests extends ESTestCase {
         assertFalse(rep0.next());
     }
 
-    // -------------------------------------------------------------------------
-    // UNION
-    // -------------------------------------------------------------------------
-
     public void testUnionSliceReadsAndRoundTrip() {
         // 4 docs: [long(7), string("abc"), double(3.14), null]; slice [1, 4) → [string("abc"), double(3.14), null]
         EscfColumnBuilder b = new EscfColumnBuilder();
@@ -300,10 +266,6 @@ public class EscfColumnSliceTests extends ESTestCase {
         assertTrue(reparsed.isNull(2));
     }
 
-    // -------------------------------------------------------------------------
-    // Absent-bitset normalization edge cases
-    // -------------------------------------------------------------------------
-
     /**
      * Verifies that slicing a column whose absent bitset is sized to the last absent document
      * (not the full column width) still correctly reports absence for the last document.
@@ -327,10 +289,6 @@ public class EscfColumnSliceTests extends ESTestCase {
         assertTrue(slice.isAbsent(1));
         assertEquals(3L, slice.getLongValue(0));
     }
-
-    // -------------------------------------------------------------------------
-    // helpers
-    // -------------------------------------------------------------------------
 
     /**
      * Returns the {@link EscfColumnData} for the given column (materialized via {@link EscfColumn#toColumnData}).

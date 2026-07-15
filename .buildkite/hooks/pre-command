@@ -36,6 +36,9 @@ export $(cat .ci/java-versions.properties | grep '=' | xargs)
 JAVA_HOME="$HOME/.java/$ES_BUILD_JAVA"
 export JAVA_HOME
 
+PATH="$JAVA_HOME/bin:$PATH"
+export PATH
+
 JAVA11_HOME="$HOME/.java/java11"
 export JAVA11_HOME
 
@@ -46,6 +49,10 @@ if [[ "${ES_RUNTIME_JAVA:-}" ]]; then
   RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
   export RUNTIME_JAVA_HOME
 fi
+
+export GCP_PREEMPTION_EXIT_CODE=47
+
+source .buildkite/scripts/setup_node.sh
 
 vault_with_retry() {
   local attempt delays=(1 5 10)
@@ -151,6 +158,9 @@ fi
 if [[ "${BUILDKITE_AGENT_META_DATA_PROVIDER:-}" != *"k8s"* ]]; then
   # Run in the background, while the job continues
   nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
+
+  export GCP_PREEMPTION_WATCHDOG=true
+  # export GCP_PREEMPTION_SIMULATE_AFTER_SECONDS=300 # Uncomment to force a fake preemption after that many seconds
 fi
 
 # Initialize the build scan and gobld annotations with empty/open <details> tags
@@ -179,8 +189,6 @@ fi
 # Initialize variables that may be reused by smart retry logic below
 BUILD_JSON=""
 ORIGIN_JOB_ID=""
-BUILD_SCAN_ID=""
-BUILD_SCAN_URL=""
 TESTS_SEED=""
 
 if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
@@ -200,10 +208,6 @@ if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
 
       # Retrieve test seed from Buildkite metadata
       TESTS_SEED=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["tests-seed-" + $job_id]' 2>/dev/null)
-
-      # Retrieve build scan URL and ID for smart retry (reused in Part 2)
-      BUILD_SCAN_URL=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-" + $job_id]' 2>/dev/null)
-      BUILD_SCAN_ID=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-id-" + $job_id]' 2>/dev/null)
 
       if [[ -n "$TESTS_SEED" ]] && [[ "$TESTS_SEED" != "null" ]]; then
         echo "Using test seed $TESTS_SEED from original job $ORIGIN_JOB_ID"
@@ -226,10 +230,10 @@ fi
 # =============================================================================
 # PART 2: Smart retry test filtering
 # =============================================================================
-# Extracted to .buildkite/scripts/smart-retry.sh for single responsibility.
-# The script is sourced (not executed) so it can read BUILD_JSON, ORIGIN_JOB_ID,
-# BUILD_SCAN_ID, BUILD_SCAN_URL, and TESTS_SEED set by PART 1 above, and export
-# SMART_RETRY_STATUS, FILTERED_WORK_UNITS, etc. back to the caller.
+# Runs .buildkite/scripts/smart-retry/main.ts via a thin shell wrapper.
+# Reads ORIGIN_JOB_ID and TESTS_SEED (exported above), plus BUILDKITE_*
+# env vars. Writes .failed-test-history.json, buildkite-agent metadata,
+# and annotations.
 # =============================================================================
 if [[ "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
   source .buildkite/scripts/smart-retry.sh

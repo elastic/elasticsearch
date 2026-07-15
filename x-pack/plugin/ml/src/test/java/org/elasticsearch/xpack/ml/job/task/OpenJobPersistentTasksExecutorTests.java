@@ -16,6 +16,9 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -28,6 +31,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
@@ -41,6 +47,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -65,8 +72,10 @@ import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
+import java.net.InetAddress;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -74,9 +83,13 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.validateJobAndId;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -204,6 +217,62 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), assignment.getExplanation());
+    }
+
+    public void testGetAssignmentGivenLazyJobAtNodeCapShouldFail() {
+        Settings settings = Settings.builder()
+            .put(MachineLearningField.MAX_LAZY_ML_NODES.getKey(), 1)
+            .put(MachineLearning.MAX_ML_NODE_SIZE.getKey(), "4gb")
+            .build();
+        long trialNodeMemoryBytes = ByteSizeUnit.GB.toBytes(4);
+        Map<String, String> nodeAttributes = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(trialNodeMemoryBytes),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            Long.toString(trialNodeMemoryBytes / 2),
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
+        );
+        Set<DiscoveryNodeRole> mlRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE);
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(
+                DiscoveryNodeUtils.create(
+                    "trial_ml_node",
+                    "trial_ml_node_id",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    nodeAttributes,
+                    mlRoles
+                )
+            )
+            .build();
+
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        Metadata.Builder metadata = Metadata.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addIndices(metadata, routingTable);
+        csBuilder.metadata(metadata);
+        csBuilder.routingTable(routingTable.build());
+        csBuilder.nodes(nodes);
+
+        when(mlMemoryTracker.isRecentlyRefreshed()).thenReturn(true);
+        when(mlMemoryTracker.getJobMemoryRequirement(anyString(), eq("lazy_job_at_cap"))).thenReturn(ByteSizeValue.ofGb(10).getBytes());
+
+        OpenJobPersistentTasksExecutor executor = createExecutor(settings);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("lazy_job_at_cap", ByteSizeValue.ofGb(10))
+            .setAllowLazyOpen(true)
+            .build(new Date());
+        OpenJobAction.JobParams params = new OpenJobAction.JobParams("lazy_job_at_cap");
+        params.setJob(job);
+        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
+            params,
+            csBuilder.nodes().getAllNodes(),
+            csBuilder.build(),
+            ProjectId.DEFAULT
+        );
+        assertNotNull(assignment);
+        assertNull(assignment.getExecutorNode());
+        assertNotEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), assignment.getExplanation());
     }
 
     public void testGetAssignment_GivenResetInProgress() {

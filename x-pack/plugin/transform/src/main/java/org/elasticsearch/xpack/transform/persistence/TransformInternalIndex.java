@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.persistence;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -27,10 +28,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -395,7 +398,18 @@ public final class TransformInternalIndex {
         )
             // cluster health does not wait for active shards per default
             .waitForActiveShards(ActiveShardCount.ONE);
-        ActionListener<ClusterHealthResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
+        ActionListener<ClusterHealthResponse> innerListener = listener.delegateFailureAndWrap((l, r) -> {
+            if (r.isTimedOut()) {
+                l.onFailure(
+                    new ElasticsearchStatusException(
+                        TransformMessages.TRANSFORM_WAIT_FOR_INDEX_SHARDS_ACTIVE_TIMEOUT,
+                        RestStatus.SERVICE_UNAVAILABLE
+                    )
+                );
+            } else {
+                l.onResponse(null);
+            }
+        });
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             TRANSFORM_ORIGIN,

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
@@ -47,6 +49,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
@@ -329,28 +332,61 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * excluding the {@link UnresolvedPattern} and {@link UnresolvedTimestamp} subtypes.
      */
     private static LinkedHashMap<String, List<UnresolvedAttribute>> collectUnresolved(LogicalPlan plan) {
-        Set<String> childOutputNames = new HashSet<>();
-        for (LogicalPlan child : plan.children()) {
-            for (Attribute attr : child.output()) {
-                childOutputNames.add(attr.name());
-            }
-        }
         Set<String> aliasedGroupings = aliasNamesInAggregateGroupings(plan);
 
         LinkedHashMap<String, List<UnresolvedAttribute>> unresolved = new LinkedHashMap<>();
-        plan.forEachExpression(UnresolvedAttribute.class, ua -> {
+        Consumer<UnresolvedAttribute> sink = ua -> {
             if (leaveUnresolved(ua) == false
                 // The aggs will "export" the aliases as UnresolvedAttributes part of their .aggregates(); we don't need to consider those
                 // as they'll be resolved as refs once the aliased expression is resolved.
-                && aliasedGroupings.contains(ua.name()) == false
-            // Filter out unresolved attributes that exist in the children's output. These attributes are not truly unmapped;
-            // they just haven't been resolved yet by ResolveRefs (e.g. because the children only became resolved after ImplicitCasting).
-            // ResolveRefs will wire them up in the next iteration of the resolution batch.
-                && childOutputNames.contains(ua.name()) == false) {
+                && aliasedGroupings.contains(ua.name()) == false) {
                 unresolved.computeIfAbsent(ua.name(), k -> new ArrayList<>()).add(ua);
             }
-        });
+        };
+        plan.forEachDown(LogicalPlan.class, node -> collectLoadCandidates(node, sink));
         return unresolved;
+    }
+
+    /**
+     * Per-node walk: which unresolved attributes from this node's local context (its own expressions or join config)
+     * cannot be resolved against its immediate children's outputs, and so are candidates for {@code _source} loading?
+     * UAs whose names match a child's output are skipped — ResolveRefs will wire them up on the next iteration.
+     */
+    private static void collectLoadCandidates(LogicalPlan node, Consumer<UnresolvedAttribute> sink) {
+        if (node instanceof LookupJoin lj) {
+            Set<String> leftOutputNames = new HashSet<>(Expressions.names(lj.left().output()));
+            Set<String> rightOutputNames = new HashSet<>(Expressions.names(lj.right().output()));
+            // Unresolved left keys not found in the left child → load candidates.
+            for (Attribute lf : lj.config().leftFields()) {
+                if (lf instanceof UnresolvedAttribute ua && leftOutputNames.contains(ua.name()) == false) {
+                    sink.accept(ua);
+                }
+            }
+            // joinOnConditions UAs not found in either child → load candidates.
+            Expression conds = lj.config().joinOnConditions();
+            if (conds != null) {
+                conds.forEachUp(UnresolvedAttribute.class, ua -> {
+                    if (leftOutputNames.contains(ua.name()) == false && rightOutputNames.contains(ua.name()) == false) {
+                        sink.accept(ua);
+                    }
+                });
+            }
+            // Unresolved right keys are intentionally ignored — a query that references them is invalid and will fail verification.
+        } else {
+            Set<String> childOutputNames = new HashSet<>();
+            for (LogicalPlan child : node.children()) {
+                for (Attribute a : child.output()) {
+                    childOutputNames.add(a.name());
+                }
+            }
+            for (Expression expr : node.expressions()) {
+                expr.forEachUp(UnresolvedAttribute.class, ua -> {
+                    if (childOutputNames.contains(ua.name()) == false) {
+                        sink.accept(ua);
+                    }
+                });
+            }
+        }
     }
 
     private static boolean leaveUnresolved(UnresolvedAttribute attribute) {

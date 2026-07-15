@@ -77,7 +77,7 @@ public class BasicServerModuleTests extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "I need to convert URL's to Paths")
-    private static Path[] urlsToPaths(Set<URL> urls) {
+    public static Path[] urlsToPaths(Set<URL> urls) {
         return urls.stream().map(BasicServerModuleTests::uncheckedToURI).map(PathUtils::get).toArray(Path[]::new);
     }
 

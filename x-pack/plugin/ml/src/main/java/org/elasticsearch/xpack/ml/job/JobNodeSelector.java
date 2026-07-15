@@ -63,6 +63,20 @@ public class JobNodeSelector {
         return preamble + format(msg, params);
     }
 
+    /**
+     * Resolves the effective number of lazy ML nodes to consider during assignment.
+     *
+     * <p>When a job/task is started with {@code allow_lazy_open} / {@code allow_lazy_start} and no explicit
+     * {@code xpack.ml.max_lazy_ml_nodes} cap is configured ({@code configuredMaxLazyNodes == 0}), lazy
+     * assignment is treated as unbounded ({@link Integer#MAX_VALUE}) so autoscaling can provision a new ML
+     * node. When a positive cap is configured (e.g. trial serverless pins a single ~4Gi ML node via
+     * {@code max_lazy_ml_nodes=1}), the configured cap is honoured so assignment fails fast rather than
+     * waiting indefinitely for capacity that cannot be provisioned.
+     */
+    public static int effectiveMaxLazyNodes(int configuredMaxLazyNodes, boolean allowLazyAssignment) {
+        return (configuredMaxLazyNodes == 0 && allowLazyAssignment) ? Integer.MAX_VALUE : configuredMaxLazyNodes;
+    }
+
     private final String jobId;
     private final String taskName;
     private final ClusterState clusterState;

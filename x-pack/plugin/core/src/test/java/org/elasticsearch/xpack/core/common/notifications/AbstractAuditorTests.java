@@ -251,6 +251,16 @@ public class AbstractAuditorTests extends ESTestCase {
         // the back log will be written some point later
         assertBusy(() -> verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any()));
 
+        // Replace the template put mock with a synchronous response. The latch-based
+        // mock was needed for the first round to avoid blocking the test thread, but
+        // the latch is already open and submitting to threadPool.generic() introduces
+        // a race between the generic thread completing and the test thread proceeding.
+        doAnswer(ans -> {
+            ActionListener<AcknowledgedResponse> listener = ans.getArgument(2);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(client).execute(eq(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
+
         // "delete" the index
         doAnswer(ans -> {
             ActionListener<?> listener = ans.getArgument(2);

@@ -44,8 +44,6 @@ class DocsTestPluginFuncTest extends AbstractGradleFuncTest {
         docDir.mkdirs()
         addSampleDoc(docDir)
         buildApiRestrictionsDisabled = true
-        configurationCacheCompatible = false
-
         internalBuild()
 
         buildFile << """

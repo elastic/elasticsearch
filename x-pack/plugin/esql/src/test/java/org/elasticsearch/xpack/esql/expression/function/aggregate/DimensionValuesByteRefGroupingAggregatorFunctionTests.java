@@ -47,6 +47,7 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
         Map<Integer, List<BytesRef>> expectedValues = new HashMap<>();
         int prefixBlocks = between(0, 2);
         int suffixBlocks = between(0, 2);
+        int nextGroupId = 0;
         for (int i = 0; i < numPages; i++) {
             int positions = between(1, 100);
             try (
@@ -70,7 +71,7 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
                         }
                         valuesBuilder.endPositionEntry();
                     }
-                    int group = between(0, 1000);
+                    int group = randomBoolean() ? nextGroupId++ : randomIntBetween(0, nextGroupId);
                     groups.appendInt(group);
                     expectedValues.putIfAbsent(group, values);
                 }

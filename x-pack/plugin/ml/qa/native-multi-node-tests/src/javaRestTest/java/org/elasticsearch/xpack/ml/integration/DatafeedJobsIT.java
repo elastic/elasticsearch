@@ -41,12 +41,14 @@ import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
@@ -63,6 +65,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeedBuilder;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
@@ -247,6 +250,19 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         CheckedRunnable<Exception> openAndRunJob = () -> {
             openJob(job.getId());
             assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+
+            // After deleting a datafeed, timing stats are removed asynchronously; on multi-node clusters a
+            // subsequent putDatafeed can briefly observe stale search_count from the replica. Wait until
+            // the timing stats document is gone before asserting via GetDatafeedsStats.
+            assertBusy(() -> {
+                client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId())).get();
+                assertResponse(
+                    prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId())).setQuery(
+                        QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(job.getId()))
+                    ).setSize(0).setTrackTotalHits(true),
+                    response -> assertThat(response.getHits().getTotalHits().value(), equalTo(0L))
+                );
+            }, 30, TimeUnit.SECONDS);
 
             putDatafeed(datafeedConfig);
             // Datafeed did not do anything yet, hence search_count is equal to 0.
@@ -571,7 +587,16 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertTrue(stopDatafeedResponse.isStopped());
 
         // Check the job state is as expected
-        assertBusy(() -> assertEquals(jobState, getJobStats(jobId).get(0).getState()), 2, TimeUnit.SECONDS);
+        assertBusy(() -> {
+            JobState actualState = getJobStats(jobId).get(0).getState();
+            if (jobState == JobState.OPENED && actualState == JobState.CLOSED) {
+                // The lookback may have completed naturally before the stop was issued, causing auto-close.
+                // This is legitimate if all docs were processed.
+                assertEquals(numDocs, getDataCounts(jobId).getProcessedRecordCount());
+            } else {
+                assertEquals(jobState, actualState);
+            }
+        }, 2, TimeUnit.SECONDS);
     }
 
     public void testStopLookback_closeJobTrue() throws Exception {

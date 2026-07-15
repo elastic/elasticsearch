@@ -2451,6 +2451,22 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(Expressions.names(plan.output()), is(List.of("COUNT(*)", "empNo", "languageCode", "does_not_exist2")));
     }
 
+    // #149569: an unmapped left join key is nullified, so the join resolves (trivial no-match) instead of
+    // failing with "Unknown column ... in left side of join".
+    public void testLookupJoinUnmappedLeftKeyNullify() {
+        var plan = analyzeStatement(setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON language_code"));
+        assertThat(plan.resolved(), is(true));
+    }
+
+    // #149569: a missing field inside a join-filter expression must still error (not be silently nullified) —
+    // lookup joins can't evaluate arbitrary ON expressions yet.
+    public void testLookupJoinExpressionWithMissingFieldStillErrors() {
+        verificationFailure(
+            setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON (language_code == languages) AND (does_not_exist == \"x\")"),
+            "Unsupported join filter expression"
+        );
+    }
+
     // same tree as above, except for the source nodes
     public void testSubquerysMixAndLookupJoinLoad() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());

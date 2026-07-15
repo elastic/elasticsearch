@@ -1,6 +1,6 @@
 [versions]
-asm = "9.9.1"
-jackson = "2.15.0"
+asm = "9.10.1"
+jackson = "2.18.8"
 junit5 = "5.12.1"
 spock = "2.3-groovy-4.0"
 nmcp = "0.1.5"
@@ -10,6 +10,7 @@ ant = "org.apache.ant:ant:1.10.12"
 antlrst4 = "org.antlr:ST4:4.3.4"
 apache-compress = "org.apache.commons:commons-compress:1.26.1"
 apache-rat = "org.apache.rat:apache-rat:0.11"
+archunit = "com.tngtech.archunit:archunit:1.4.0"
 asm = { group = "org.ow2.asm", name="asm", version.ref="asm" }
 asm-tree = { group = "org.ow2.asm", name="asm-tree", version.ref="asm" }
 bytebuddy = "net.bytebuddy:byte-buddy:1.15.11"
@@ -41,7 +42,7 @@ nmcp = { group = "com.gradleup.nmcp", name = "nmcp", version.ref="nmcp" }
 nebula-info = "com.netflix.nebula:gradle-info-plugin:11.3.3"
 reflections = "org.reflections:reflections:0.9.12"
 shadow-plugin = "com.gradleup.shadow:shadow-gradle-plugin:9.0.1"
-snakeyaml = { group = "org.yaml", name = "snakeyaml", version = { strictly = "2.0" } }
+snakeyaml = { group = "org.yaml", name = "snakeyaml", version = { strictly = "2.3" } }
 spock-core = { group = "org.spockframework", name="spock-core", version.ref="spock" }
 spock-junit4 = { group = "org.spockframework", name="spock-junit4", version.ref="spock" }
 spock-platform = { group = "org.spockframework", name="spock-bom", version.ref="spock" }

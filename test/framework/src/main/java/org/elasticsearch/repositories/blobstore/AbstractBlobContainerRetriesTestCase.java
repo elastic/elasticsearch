@@ -48,6 +48,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.NeverMatcher.never;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -355,20 +356,34 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
 
         // HTTP server sends a partial response
         final byte[] bytes = randomBlobContent(1);
+
+        // Track the size of each response body sent. RetryingInputStream grants extra retries (beyond maxRetries)
+        // whenever a single attempt transferred a "meaningful progress" amount of bytes, so the number of suppressed
+        // exceptions can exceed maxRetries.
+        final List<Long> retryContentSizes = Collections.synchronizedList(new ArrayList<>());
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_incomplete"), exchange -> {
-            sendIncompleteContent(exchange, bytes);
+            retryContentSizes.add((long) sendIncompleteContent(exchange, bytes));
             if (alwaysFlushBody) {
                 exchange.getResponseBody().flush();
             }
             exchange.close();
         });
 
+        final AtomicLong meaningfulProgressSize = new AtomicLong(Long.MAX_VALUE);
         final Exception exception = expectThrows(Exception.class, () -> {
             try (
                 InputStream stream = randomBoolean()
                     ? blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete", 0, 1)
                     : blobContainer.readBlob(randomFiniteRetryingPurpose(), "read_blob_incomplete")
             ) {
+                if (stream instanceof RetryingInputStream<?> ris) {
+                    meaningfulProgressSize.set(ris.meaningfulProgressSize());
+                } else if (stream instanceof RetryingInputStreamUnwrappable rius) {
+                    final var wrapped = rius.unwrap();
+                    if (wrapped != null) {
+                        meaningfulProgressSize.set(wrapped.meaningfulProgressSize());
+                    }
+                }
                 Streams.readFully(stream);
             }
         });
@@ -384,7 +399,15 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 alwaysFlushBody ? never() : containsString("the target server failed to respond")
             )
         );
-        assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(Math.min(10, maxRetries)));
+        // The server sending a "meaningful-progress" sized chunk doesn't guarantee the client read enough of it to
+        // count it as meaningful, so the suppressed count sits anywhere in this range.
+        final int meaningfulProgressRetries = Math.toIntExact(
+            retryContentSizes.stream().filter(size -> size >= meaningfulProgressSize.get()).count()
+        );
+        assertThat(
+            exception.getSuppressed().length,
+            allOf(greaterThanOrEqualTo(Math.min(10, maxRetries)), lessThanOrEqualTo(Math.min(10, maxRetries + meaningfulProgressRetries)))
+        );
     }
 
     protected static byte[] randomBlobContent() {

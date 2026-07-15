@@ -446,8 +446,7 @@ public class AllocationService {
         } else {
             reroute.onResponse(null);
         }
-        final var reroutedState = buildResultAndLogHealthChange(clusterState, allocation, "reroute commands");
-        return new CommandsResult(explanations, reroutedState);
+        return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }
 
     /**

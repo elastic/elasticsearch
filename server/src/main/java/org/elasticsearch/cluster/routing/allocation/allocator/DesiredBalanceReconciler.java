@@ -103,7 +103,7 @@ public class DesiredBalanceReconciler {
      * @param desiredBalance The new desired cluster shard allocation
      * @param allocation Cluster state information with which to make decisions, contains routing table metadata that will be modified to
      *                   reach the given desired balance.
-     * @return the allocation stats for this round of reconciliation changes.
+     * @return {@link DesiredBalanceMetrics.AllocationStats} for this round of reconciliation changes.
      */
     public DesiredBalanceMetrics.AllocationStats reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         var nodeIds = allocation.routingNodes().getAllNodeIds();
@@ -161,7 +161,7 @@ public class DesiredBalanceReconciler {
 
                 // compute next moves towards current desired balance:
 
-                // 1. allocate unassigned shards
+                // 1. allocate unassigned shards first
                 logger.trace("Reconciler#allocateUnassigned");
                 allocateUnassigned();
                 assert allocateUnassignedInvariant();

@@ -526,6 +526,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     private final class ReconcileDesiredBalanceExecutor implements ClusterStateTaskExecutor<ReconcileDesiredBalanceTask> {
+
         @Override
         public ClusterState execute(BatchExecutionContext<ReconcileDesiredBalanceTask> batchExecutionContext) {
             var latest = findLatest(batchExecutionContext.taskContexts());
@@ -545,9 +546,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             TaskContext<ReconcileDesiredBalanceTask> latest
         ) {
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
-                final var initialState = batchExecutionContext.initialState();
+                var newState = reconciler.apply(
+                    batchExecutionContext.initialState(),
+                    createReconcileAllocationAction(latest.getTask().desiredBalance)
+                );
                 latest.success(() -> pendingListenersQueue.complete(latest.getTask().desiredBalance.lastConvergedIndex()));
-                return reconciler.apply(initialState, createReconcileAllocationAction(latest.getTask().desiredBalance));
+                return newState;
             }
         }
 

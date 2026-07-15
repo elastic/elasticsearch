@@ -742,7 +742,7 @@ public class SharedBlobCacheWarmingService {
             directory,
             endTargetsToWarm,
             preWarmForIdLookup,
-            timeSearchRecoveryWarming(threadPool.rawRelativeTimeInMillis(), listener)
+            timeSearchRecoveryWarming(threadPool.relativeTimeInMillis(), listener)
         );
     }
 
@@ -753,7 +753,7 @@ public class SharedBlobCacheWarmingService {
     private ActionListener<Void> timeSearchRecoveryWarming(long startedMillis, ActionListener<Void> listener) {
         return ActionListener.runBefore(
             listener,
-            () -> searchRecoveryWarmDurationMetric.record((threadPool.rawRelativeTimeInMillis() - startedMillis) / 1000.0)
+            () -> searchRecoveryWarmDurationMetric.record((threadPool.relativeTimeInMillis() - startedMillis) / 1000.0)
         );
     }
 
@@ -943,7 +943,7 @@ public class SharedBlobCacheWarmingService {
         ActionListener<Void> resumeRecoveryListener
     ) {
         assert timeout.millis() > 0;
-        long startedMillis = threadPool.rawRelativeTimeInMillis();
+        long startedMillis = threadPool.relativeTimeInMillis();
         final SubscribableListener<Void> race = new SubscribableListener<>();
         final var cancellable = threadPool.schedule(() -> {
             logger.warn(
@@ -957,7 +957,7 @@ public class SharedBlobCacheWarmingService {
         race.addListener(ActionListener.runBefore(new ThreadedActionListener<>(threadPool.generic(), resumeRecoveryListener), () -> {
             cancellable.cancel();
             searchRecoveryWaitDurationMetric.record(
-                (threadPool.rawRelativeTimeInMillis() - startedMillis) / 1000.0,
+                (threadPool.relativeTimeInMillis() - startedMillis) / 1000.0,
                 Map.of(
                     SEARCH_RECOVERY_WAIT_OUTCOME_ATTRIBUTE_KEY,
                     (cancellable.isCancelled() ? SearchRecoveryWaitOutcome.WARMING_COMPLETE : SearchRecoveryWaitOutcome.TIMEOUT).name()
@@ -1577,10 +1577,10 @@ public class SharedBlobCacheWarmingService {
         }
 
         private ActionListener<Void> logging(ActionListener<Void> target) {
-            final long started = threadPool.rawRelativeTimeInMillis();
+            final long started = threadPool.relativeTimeInMillis();
             logger.debug("{} {} warming, {}", warmingRun.shardId(), warmingRun.type(), warmingRun.logIdentifier());
             return ActionListener.runBefore(target, () -> {
-                final long duration = threadPool.rawRelativeTimeInMillis() - started;
+                final long duration = threadPool.relativeTimeInMillis() - started;
                 onWarmingSuccess(duration);
             }).delegateResponse((l, e) -> {
                 onWarmingFailed(e);

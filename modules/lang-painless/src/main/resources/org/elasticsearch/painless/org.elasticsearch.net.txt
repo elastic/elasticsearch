@@ -8,12 +8,12 @@
 #
 
 class org.elasticsearch.script.field.IPAddress {
-    (String)
+    (String) @allocates_constant[bytes="64b"]
     boolean isV4()
     boolean isV6()
 }
 
 class org.elasticsearch.painless.api.CIDR {
-    (String)
+    (String) @allocates_constant[bytes="48b"]
     boolean contains(String)
 }

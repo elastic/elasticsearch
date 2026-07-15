@@ -23,29 +23,13 @@ import org.elasticsearch.xcontent.Text;
  * A direct-access view over a single ESCF leaf column, windowed to a contiguous sub-range
  * of the column's backing data. Each kind is a subtype that reads its payload in place from
  * the column's native, possibly-paged {@link BytesReference} (plus {@link IntsRef} offsets /
- * {@link org.apache.lucene.util.BytesRef} type vector / {@link FixedBitSet} metadata).
- *
- * <p>All backing arrays are shared between a parent column and its slices; windowing for
- * array-backed fields is expressed via the {@code offset} and {@code length} of the
- * appropriate Ref. The {@link FixedBitSet}s ({@code absent} and the BOOL {@code values}
- * bitset) do not support an offset, so they are rewritten to a zero-based window on each
- * {@link #slice} call. Fixed-width data payloads are windowed via a zero-copy
- * {@link BytesReference#slice}; variable-width data payloads are kept full and addressed
- * through the windowed offsets.
- *
- * <p>Layout is shared further down via {@link AbstractFixed64Column} (long/double) and
- * {@link AbstractVarColumn} (string/binary). Typed value getters default to throwing; each
- * subtype overrides only what it supports.
+ * {@link BytesRef} type vector / {@link FixedBitSet} metadata).
  */
 abstract class EscfColumn implements SliceableColumn {
 
     final int docCount;
 
-    /**
-     * Absent set (bit set = absent), or {@code null} when every document is present (dense).
-     * Always zero-based and covers {@code [0, docCount)} — either {@code null}, or a
-     * {@link FixedBitSet} of size {@code Math.max(1, docCount)}.
-     */
+    /** Absent set (bit set = absent), or {@code null} when every document is present (dense). */
     final FixedBitSet absent;
 
     EscfColumn(int docCount, FixedBitSet absent) {
@@ -56,13 +40,7 @@ abstract class EscfColumn implements SliceableColumn {
     /** The column kind (see {@link EscfColumnKind}). */
     abstract byte kind();
 
-    /**
-     * Builds the typed column view for {@code col}, dispatching on its kind. The fields are
-     * already in their native (zero-based, full-window) form. Array-backed factors are wrapped
-     * into Refs so slicing can adjust {@code offset}/{@code length} without copying.
-     * The {@code absent} bitset is normalized to {@code null} (no absent documents) or a
-     * {@link FixedBitSet} that covers {@code [0, docCount)}.
-     */
+    /** Builds the typed column view for {@code col}, dispatching on its kind. The fields are already native. */
     static EscfColumn from(EscfColumnData col) {
         int docCount = col.docCount();
         // Normalize the absent bitset to [0, docCount): windowBitSet returns null when no bits
@@ -161,38 +139,15 @@ abstract class EscfColumn implements SliceableColumn {
         return new IllegalStateException("Column kind=" + EscfColumnKind.name(kind()) + " has no " + what + " values");
     }
 
-    /**
-     * Returns a new column of the same subtype sharing this column's backing data, windowed to
-     * the sub-range {@code [from, from + count)} of this column's current window {@code [0, docCount)}.
-     * Array-backed factors (offsets, type vector) are re-windowed via Ref adjustment; the
-     * {@code absent} bitset is rewritten zero-based for the new window.
-     */
     @Override
     public final SliceableColumn slice(int from, int count) {
         return sliceInternal(from, count);
     }
 
-    /**
-     * Returns a new column of the same subtype sharing all backing data, windowed to the
-     * sub-range {@code [from, from + count)} of this column's current window. Package-private:
-     * callers outside this package use {@link #slice} via the {@link SliceableColumn} interface.
-     */
     abstract EscfColumn sliceInternal(int from, int count);
 
-    /**
-     * Materializes this column's current window as a zero-based {@link EscfColumnData} suitable
-     * for serialization via {@link EscfBatchCodec}. Variable-width columns rebase their offset
-     * vectors and slice their data payload; fixed-width and bool columns return their already-windowed
-     * {@code data} / bitsets directly. Package-private.
-     */
     abstract EscfColumnData toColumnData();
 
-    /**
-     * Returns a new {@link FixedBitSet} covering bits {@code [base, base + count)} of {@code src},
-     * rebased to {@code [0, count)}, sized to {@code Math.max(1, count)}. Returns {@code null}
-     * when {@code src} is {@code null} or no bits are set in the range (same semantics as a null
-     * absent/values bitset).
-     */
     static FixedBitSet windowBitSet(FixedBitSet src, int base, int count) {
         if (src == null) {
             return null;
@@ -210,16 +165,6 @@ abstract class EscfColumn implements SliceableColumn {
         return anySet ? out : null;
     }
 
-    /**
-     * Returns a new {@code int[count + 1]} offset array covering entries {@code [ir.offset,
-     * ir.offset + count]} of {@code ir.ints}, rebased so that {@code out[0] == 0}. Used by
-     * variable-width, union, and array columns when materializing a window for serialization.
-     *
-     * @param ir    a windowed ref whose {@code offset} locates the first entry and whose backing
-     *              {@code ints} array holds absolute byte/element offsets
-     * @param count the number of documents in the window (the offset array has {@code count + 1}
-     *              entries)
-     */
     static int[] rebasedOffsets(IntsRef ir, int count) {
         int base = ir.offset;
         int rebase = ir.ints[base];

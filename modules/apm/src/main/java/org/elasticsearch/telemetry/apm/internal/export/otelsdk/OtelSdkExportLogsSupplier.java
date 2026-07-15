@@ -17,8 +17,6 @@ import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.logs.SdkLoggerProvider;
 import io.opentelemetry.sdk.logs.export.BatchLogRecordProcessor;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
@@ -28,6 +26,8 @@ import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.PemTrustConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -90,7 +90,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         if (OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.get(settings) == false) {
             return;
         }
-        LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        LoggerContext ctx = (LoggerContext) org.apache.logging.log4j.LogManager.getContext(false);
         Configuration config = ctx.getConfiguration();
         LoggerConfig auditLoggerConfig = config.getLoggerConfig(AUDIT_LOGGER_NAME);
         if (AUDIT_LOGGER_NAME.equals(auditLoggerConfig.getName()) == false) {
@@ -266,7 +266,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         OpenTelemetryAppender appender = attachedAppender;
         attachedAppender = null;
         try {
-            LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+            LoggerContext ctx = (LoggerContext) org.apache.logging.log4j.LogManager.getContext(false);
             Configuration config = ctx.getConfiguration();
             LoggerConfig auditLoggerConfig = config.getLoggerConfig(AUDIT_LOGGER_NAME);
             if (AUDIT_LOGGER_NAME.equals(auditLoggerConfig.getName())) {

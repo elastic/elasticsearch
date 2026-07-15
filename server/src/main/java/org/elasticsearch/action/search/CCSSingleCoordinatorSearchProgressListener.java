@@ -35,17 +35,15 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
     private SearchResponse.Clusters clusters;
     private TransportSearchAction.SearchTimeProvider timeProvider;
     private boolean fetchPhaseExpected;
-    private boolean allowPartialResults;
     private final Map<Integer, String> clusterAliasByShardIndex = new ConcurrentHashMap<>();
 
     /**
      * Executed when shards are ready to be queried (after can-match)
      *
-     * @param shards The list of shards to query.
+     * @param shards                The list of shards to query.
      * @param skippedByClusterAlias The number of skipped shards per cluster.
-     * @param clusters The statistics for remote clusters included in the search.
-     * @param fetchPhase <code>true</code> if the search needs a fetch phase, <code>false</code> otherwise.
-     * @param allowPartialResults <code>true</code> if the search allows partial results, <code>false</code> otherwise.
+     * @param clusters              The statistics for remote clusters included in the search.
+     * @param fetchPhase            <code>true</code> if the search needs a fetch phase, <code>false</code> otherwise.
      **/
     @Override
     public void onListShards(
@@ -53,15 +51,13 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         Map<String, Integer> skippedByClusterAlias,
         SearchResponse.Clusters clusters,
         boolean fetchPhase,
-        TransportSearchAction.SearchTimeProvider timeProvider,
-        boolean allowPartialResults
+        TransportSearchAction.SearchTimeProvider timeProvider
     ) {
         assert clusters.isCcsMinimizeRoundtrips() == false : "minimize_roundtrips must be false to use this SearchListener";
 
         this.clusters = clusters;
         this.timeProvider = timeProvider;
         this.fetchPhaseExpected = fetchPhase;
-        this.allowPartialResults = allowPartialResults;
 
         // Partition by clusterAlias and get counts
         // the 'shards' list does not include the shards in the 'skipped' list, so combine counts from both to get total
@@ -127,6 +123,11 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         String clusterAlias = clusterAliasOrLocal(shardTarget);
         if (clusters.hasClusterObjects()) {
             clusters.swapCluster(clusterAlias, (k, v) -> {
+                if (v.getStatus() != SearchResponse.Cluster.Status.RUNNING) {
+                    // don't swap in a new Cluster if the final state has already been set as a result of the search being cancelled before
+                    // all results were received
+                    return v;
+                }
                 int numSuccessfulShards = v.getSuccessfulShards() == null ? 1 : v.getSuccessfulShards() + 1;
                 SearchResponse.Cluster.Builder builder = new SearchResponse.Cluster.Builder(v).setSuccessfulShards(numSuccessfulShards);
                 if (queryResult.searchTimedOut()) {
@@ -152,6 +153,11 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         rememberClusterAliasForShardIndex(shardIndex, shardTarget);
         String clusterAlias = clusterAliasOrLocal(shardTarget);
         clusters.swapCluster(clusterAlias, (k, v) -> {
+            if (v.getStatus() != SearchResponse.Cluster.Status.RUNNING) {
+                // don't swap in a new Cluster if the final state has already been set as a result of the search being cancelled before all
+                // results were received
+                return v;
+            }
             TimeValue took;
             SearchResponse.Cluster.Status status;
             int numFailedShards = v.getFailedShards() == null ? 1 : v.getFailedShards() + 1;
@@ -168,13 +174,8 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                 }
             } else if (v.getTotalShards() == numFailedShards + v.getSuccessfulShards()) {
                 // Final shard failed
-                if (v.isSkipUnavailable() || allowPartialResults) {
-                    status = SearchResponse.Cluster.Status.PARTIAL;
-                    took = new TimeValue(timeProvider.buildTookInMillis());
-                } else {
-                    status = SearchResponse.Cluster.Status.FAILED;
-                    took = null;
-                }
+                status = SearchResponse.Cluster.Status.PARTIAL;
+                took = new TimeValue(timeProvider.buildTookInMillis());
             } else {
                 // Still in progress
                 took = null;
@@ -223,12 +224,8 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                     took = new TimeValue(timeProvider.buildTookInMillis());
                 } else if (successfulShards + v.getFailedShards() == v.getTotalShards()) {
                     // Final shard, partial failure
-                    if (v.isSkipUnavailable() || allowPartialResults) {
-                        status = SearchResponse.Cluster.Status.PARTIAL;
-                        took = new TimeValue(timeProvider.buildTookInMillis());
-                    } else {
-                        status = SearchResponse.Cluster.Status.FAILED;
-                    }
+                    status = SearchResponse.Cluster.Status.PARTIAL;
+                    took = new TimeValue(timeProvider.buildTookInMillis());
                 } else if (successfulShards == v.getSuccessfulShards()) {
                     // Successful shard count is up to date, no update needed
                     return v;
@@ -267,7 +264,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                     return v;
                 }
                 SearchResponse.Cluster.Status status;
-                TimeValue took = null;
                 int successfulShards = successfulCount + v.getSkippedShards();
                 assert successfulShards + v.getFailedShards() == v.getTotalShards()
                     : "successfulShards("
@@ -277,23 +273,17 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                         + ") != totalShards ("
                         + v.getTotalShards()
                         + ')';
-                if (v.isTimedOut()) {
+                if (v.isTimedOut() || successfulShards < v.getTotalShards()) {
                     status = SearchResponse.Cluster.Status.PARTIAL;
-                    took = new TimeValue(timeProvider.buildTookInMillis());
-                } else if (successfulShards < v.getTotalShards()) {
-                    if (v.isSkipUnavailable() || allowPartialResults) {
-                        status = SearchResponse.Cluster.Status.PARTIAL;
-                        took = new TimeValue(timeProvider.buildTookInMillis());
-                    } else {
-                        status = SearchResponse.Cluster.Status.FAILED;
-                    }
                 } else {
                     assert successfulShards == v.getTotalShards()
                         : "successful (" + successfulShards + ") should equal total(" + v.getTotalShards() + ") if get here";
                     status = SearchResponse.Cluster.Status.SUCCESSFUL;
-                    took = new TimeValue(timeProvider.buildTookInMillis());
                 }
-                return new SearchResponse.Cluster.Builder(v).setStatus(status).setSuccessfulShards(successfulShards).setTook(took).build();
+                return new SearchResponse.Cluster.Builder(v).setStatus(status)
+                    .setSuccessfulShards(successfulShards)
+                    .setTook(new TimeValue(timeProvider.buildTookInMillis()))
+                    .build();
             });
         }
     }
@@ -372,12 +362,8 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                     }
                 } else {
                     // Partial failure
-                    if (v.isSkipUnavailable() || allowPartialResults) {
-                        status = SearchResponse.Cluster.Status.PARTIAL;
-                        took = new TimeValue(timeProvider.buildTookInMillis());
-                    } else {
-                        status = SearchResponse.Cluster.Status.FAILED;
-                    }
+                    status = SearchResponse.Cluster.Status.PARTIAL;
+                    took = new TimeValue(timeProvider.buildTookInMillis());
                 }
                 // Assume any shards we didn't get a result for failed. This can happen if the search is cancelled during the DfsPhase
                 return new SearchResponse.Cluster.Builder(v).setFailedShards(missingShardCount + v.getFailedShards())

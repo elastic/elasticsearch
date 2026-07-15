@@ -115,8 +115,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
                 Map<String, Integer> skippedByClusterAlias,
                 SearchResponse.Clusters clusters,
                 boolean fetchPhase,
-                TransportSearchAction.SearchTimeProvider timeProvider,
-                boolean allowPartialResults
+                TransportSearchAction.SearchTimeProvider timeProvider
             ) {
                 shardsListener.set(searchShards);
                 assertEquals(fetchPhase, hasFetchPhase);

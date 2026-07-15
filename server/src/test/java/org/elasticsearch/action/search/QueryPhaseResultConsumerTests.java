@@ -142,14 +142,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             timestamp,
             () -> timestamp + 1000
         );
-        searchProgressListener.notifyListShards(
-            searchShards,
-            Collections.emptyMap(),
-            SearchResponse.Clusters.EMPTY,
-            false,
-            timeProvider,
-            randomBoolean()
-        );
+        searchProgressListener.notifyListShards(searchShards, Collections.emptyMap(), SearchResponse.Clusters.EMPTY, false, timeProvider);
 
         SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.setBatchedReduceSize(2);
@@ -440,8 +433,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             Map<String, Integer> skippedByClusterAlias,
             SearchResponse.Clusters clusters,
             boolean fetchPhase,
-            TransportSearchAction.SearchTimeProvider timeProvider,
-            boolean allowPartialResults
+            TransportSearchAction.SearchTimeProvider timeProvider
         ) {
             throw new UnsupportedOperationException();
         }

@@ -620,8 +620,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             Map<String, Integer> skippedByClusterAlias,
             Clusters clusters,
             boolean fetchPhase,
-            TransportSearchAction.SearchTimeProvider timeProvider,
-            boolean allowPartialResults
+            TransportSearchAction.SearchTimeProvider timeProvider
         ) {
             // best effort to cancel expired tasks
             checkCancellation();
@@ -629,7 +628,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
             if (ccsMinimizeRoundtrips == false && clusters.hasClusterObjects()) {
                 delegate = new CCSSingleCoordinatorSearchProgressListener();
-                delegate.onListShards(shards, skippedByClusterAlias, clusters, fetchPhase, timeProvider, allowPartialResults);
+                delegate.onListShards(shards, skippedByClusterAlias, clusters, fetchPhase, timeProvider);
             }
             int numSkipped = CollectionUtils.sumIntValues(skippedByClusterAlias);
             searchResponse.updateShardsAndClusters(shards.size() + numSkipped, numSkipped, clusters);

@@ -35,20 +35,18 @@ public abstract class SearchProgressListener {
     /**
      * Executed when shards are ready to be queried.
      *
-     * @param shards The list of shards to query.
+     * @param shards                The list of shards to query.
      * @param skippedByClusterAlias The number of skipped shards per cluster.
-     * @param clusters The statistics for remote clusters included in the search.
-     * @param fetchPhase <code>true</code> if the search needs a fetch phase, <code>false</code> otherwise.
-     * @param timeProvider absolute and relative time provider for this search
-     * @param allowPartialResults <code>true</code> if the search allows partial results, <code>false</code> otherwise.
+     * @param clusters              The statistics for remote clusters included in the search.
+     * @param fetchPhase            <code>true</code> if the search needs a fetch phase, <code>false</code> otherwise.
+     * @param timeProvider          absolute and relative time provider for this search
      **/
     protected void onListShards(
         List<SearchShard> shards,
         Map<String, Integer> skippedByClusterAlias,
         Clusters clusters,
         boolean fetchPhase,
-        TransportSearchAction.SearchTimeProvider timeProvider,
-        boolean allowPartialResults
+        TransportSearchAction.SearchTimeProvider timeProvider
     ) {}
 
     /**
@@ -122,9 +120,15 @@ public abstract class SearchProgressListener {
     protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
     /**
-     * Executed when a phase fails.
+     * Executed when a phase encounters a fatal error which results in the search being terminated. This is necessary to allow cluster
+     * metadata to be finalized for searches which are cancelled before all shards have returned results.
+     * <p>
+     * This is distinct from {@link #onQueryFailure(int, SearchShardTarget, Exception)} or
+     * {@link #onFetchFailure(int, SearchShardTarget, Exception)}, which are called when a single shard encounters an error but the search
+     * may continue.
      *
      * @param exc The cause of the failure.
+     * @see AbstractSearchAsyncAction#onPhaseFailure(java.lang.String, java.lang.String, java.lang.Throwable)
      */
     protected void onPhaseFailure(Exception exc) {}
 
@@ -142,12 +146,11 @@ public abstract class SearchProgressListener {
         Map<String, Integer> skippedByClusterAlias,
         Clusters clusters,
         boolean fetchPhase,
-        TransportSearchAction.SearchTimeProvider timeProvider,
-        boolean allowPartialResults
+        TransportSearchAction.SearchTimeProvider timeProvider
     ) {
         this.shards = shards;
         try {
-            onListShards(shards, skippedByClusterAlias, clusters, fetchPhase, timeProvider, allowPartialResults);
+            onListShards(shards, skippedByClusterAlias, clusters, fetchPhase, timeProvider);
         } catch (Exception e) {
             logger.warn("Failed to execute progress listener on list shards", e);
         }

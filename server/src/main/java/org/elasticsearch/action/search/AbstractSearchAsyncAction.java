@@ -200,8 +200,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             skippedByClusterAlias,
             clusters,
             sourceBuilder == null || sourceBuilder.size() > 0,
-            timeProvider,
-            searchRequest.allowPartialSearchResults()
+            timeProvider
         );
     }
 

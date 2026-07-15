@@ -62,7 +62,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
 
         AssertionError assertionError = expectThrows(
             AssertionError.class,
-            () -> listener.onListShards(shards, skippedByClusterAlias, clusters, randomBoolean(), timeProvider, randomBoolean())
+            () -> listener.onListShards(shards, skippedByClusterAlias, clusters, randomBoolean(), timeProvider)
         );
         assertThat(assertionError.getMessage(), equalTo("cluster alias [project-stale] not present in clusters map"));
     }
@@ -86,7 +86,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0L);
         CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
 
-        listener.onListShards(shards, skippedByClusterAlias, clusters, randomBoolean(), timeProvider, randomBoolean());
+        listener.onListShards(shards, skippedByClusterAlias, clusters, randomBoolean(), timeProvider);
 
         SearchResponse.Cluster updated = clusters.getCluster(cluster);
         assertThat(updated.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
@@ -117,7 +117,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0L);
         CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
 
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         SearchResponse.Cluster updatedA = clusters.getCluster(clusterA);
         SearchResponse.Cluster updatedB = clusters.getCluster(clusterB);
@@ -127,6 +127,30 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         assertThat(updatedA.getTotalShards(), equalTo(2));
         assertThat(updatedB.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
         assertThat(updatedB.getTotalShards(), equalTo(1));
+    }
+
+    public void testOnQueryResult_DoesNothingWhenStatusIsNotRunning() {
+        var clusterAlias = "project-a";
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
+        var clusters = new SearchResponse.Clusters(clusterMap, false);
+        var indexExpression = "my-index";
+        var indexUUID = "uuid-a";
+        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
+        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
+        var shards = List.of(shard0, shard1);
+
+        var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, TimeValue.timeValueMillis(1)::nanos);
+        var listener = new CCSSingleCoordinatorSearchProgressListener();
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
+
+        // Register phase failure before any of the shards report success and confirm that the state is no longer RUNNING
+        listener.onPhaseFailure(new IllegalArgumentException("unused"));
+        var initialClusterState = clusters.getCluster(clusterAlias);
+        assertThat(initialClusterState.getStatus(), not(SearchResponse.Cluster.Status.RUNNING));
+
+        // Confirm that the cluster state is not modified
+        onQueryResultForShardIndex(listener, shards, 0);
+        assertThat(clusters.getCluster(clusterAlias), sameInstance(initialClusterState));
     }
 
     public void testOnQueryResult_UpdatesClustersMetadata() {
@@ -141,7 +165,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Confirm the initial state
         assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 2, 0, 0, false);
@@ -160,6 +184,30 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 2, 2, 0, true);
     }
 
+    public void testOnQueryFailure_DoesNothingWhenStatusIsNotRunning() {
+        var clusterAlias = "project-a";
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
+        var clusters = new SearchResponse.Clusters(clusterMap, false);
+        var indexExpression = "my-index";
+        var indexUUID = "uuid-a";
+        var shard0 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 0));
+        var shard1 = new SearchShard(clusterAlias, new ShardId(indexExpression, indexUUID, 1));
+        var shards = List.of(shard0, shard1);
+
+        var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, TimeValue.timeValueMillis(1)::nanos);
+        var listener = new CCSSingleCoordinatorSearchProgressListener();
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
+
+        // Register phase failure before any of the shards report failure and confirm that the state is no longer RUNNING
+        listener.onPhaseFailure(new IllegalArgumentException("unused"));
+        var initialClusterState = clusters.getCluster(clusterAlias);
+        assertThat(initialClusterState.getStatus(), not(SearchResponse.Cluster.Status.RUNNING));
+
+        // Confirm that the cluster state is not modified
+        onQueryFailureForShardIndex(listener, shards, 0, new IllegalArgumentException());
+        assertThat(clusters.getCluster(clusterAlias), sameInstance(initialClusterState));
+    }
+
     public void testOnQueryFailure_UpdatesClusterMetadata() {
         var clusterAlias = "project-a";
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
@@ -174,7 +222,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Confirm the initial state
         assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 3, 0, 0, false);
@@ -221,7 +269,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Confirm the initial state
         assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 1, 0, 0, false);
@@ -237,24 +285,9 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         assertThat(failure.getCause(), is(exception));
     }
 
-    public void testOnQueryFailure_UpdatesClusterMetadata_OnlyFinalShardFailed_AllowPartialResultsTrue() {
-        testOnQueryFailure_UpdatesClusterMetadata_OnlyFinalShardFailed(true, randomBoolean());
-    }
-
-    public void testOnQueryFailure_UpdatesClusterMetadata_OnlyFinalShardFailed_SkipUnavailableTrue() {
-        testOnQueryFailure_UpdatesClusterMetadata_OnlyFinalShardFailed(randomBoolean(), true);
-    }
-
-    public void testOnQueryFailure_UpdatesClusterMetadata_OnlyFinalShardFailed_AllowPartialResultsFalse_SkipUnavailableFalse() {
-        testOnQueryFailure_UpdatesClusterMetadata_OnlyFinalShardFailed(false, false);
-    }
-
-    private static void testOnQueryFailure_UpdatesClusterMetadata_OnlyFinalShardFailed(
-        boolean allowPartialResults,
-        boolean skipUnavailable
-    ) {
+    public void testOnQueryFailure_UpdatesClusterMetadata_OnlyFinalShardFailed() {
         var clusterAlias = "project-a";
-        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", skipUnavailable, null));
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
         var indexExpression = "my-index";
         var indexUUID = "uuid-a";
@@ -265,7 +298,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, allowPartialResults);
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Register a successful result for the first shard
         onQueryResultForShardIndex(listener, shards, 0);
@@ -276,16 +309,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var exception = new IllegalArgumentException("test");
         var shardTarget = onQueryFailureForShardIndex(listener, shards, 1, exception);
 
-        SearchResponse.Cluster.Status expectedStatus;
-        TimeValue expectedTook;
-        if (allowPartialResults || skipUnavailable) {
-            expectedStatus = SearchResponse.Cluster.Status.PARTIAL;
-            expectedTook = tookMillis;
-        } else {
-            expectedStatus = SearchResponse.Cluster.Status.FAILED;
-            expectedTook = null;
-        }
-        assertClusterMetadata(clusters.getCluster(clusterAlias), expectedStatus, 2, 1, 1, expectedTook, false);
+        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.PARTIAL, 2, 1, 1, tookMillis, false);
 
         var failure = clusters.getCluster(clusterAlias).getFailures().getLast();
         assertThat(failure.shard(), is(shardTarget));
@@ -302,7 +326,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Confirm the initial state
         assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 2, 0, 0, false);
@@ -341,7 +365,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Register success for the first two shards
         onQueryResultForShardIndex(listener, shards, 0);
@@ -382,7 +406,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Register success for the shards, optionally setting one as timed out, and check the state
         onQueryResultForShardIndex(listener, shards, 0);
@@ -406,18 +430,9 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         assertClusterMetadata(clusters.getCluster(clusterAlias), expectedStatus, 2, 2, 0, tookMillis, timedOut);
     }
 
-    public void testOnPartialReduce_UpdatesStatusWhenFinalShard_PartialFailure_PartialResultsAllowed() throws Exception {
-        testOnPartialReduce_UpdatesStatusWhenFinalShard_PartialFailure(true);
-    }
-
-    public void testOnPartialReduce_UpdatesStatusWhenFinalShard_PartialFailure_PartialResultsDisallowed() throws Exception {
-        testOnPartialReduce_UpdatesStatusWhenFinalShard_PartialFailure(false);
-    }
-
-    private static void testOnPartialReduce_UpdatesStatusWhenFinalShard_PartialFailure(boolean allowPartialResults) throws Exception {
+    public void testOnPartialReduce_UpdatesStatusWhenFinalShard_PartialFailure() throws Exception {
         var clusterAlias = "project-a";
-        var skipUnavailable = randomBoolean();
-        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", skipUnavailable, null));
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
         var indexExpression = "my-index";
         var indexUUID = "uuid-a";
@@ -429,7 +444,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, allowPartialResults);
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Register a failure for the first shard
         var exception = new IllegalArgumentException("test");
@@ -449,11 +464,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         );
 
         // Confirm that the cluster state is modified as expected
-        if (allowPartialResults || skipUnavailable) {
-            assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.PARTIAL, 3, 2, 1, tookMillis, false);
-        } else {
-            assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.FAILED, 3, 2, 1, null, false);
-        }
+        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.PARTIAL, 3, 2, 1, tookMillis, false);
     }
 
     public void testOnFinalReduce_DoesNothingWhenStatusIsNotRunning() throws Exception {
@@ -466,7 +477,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Confirm the initial state
         assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 2, 0, 0, false);
@@ -513,7 +524,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Register success for the shards, optionally setting one as timed out, and check the state
         onQueryResultForShardIndex(listener, shards, 0);
@@ -537,15 +548,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         assertClusterMetadata(clusters.getCluster(clusterAlias), expectedStatus, 2, 2, 0, tookMillis, timedOut);
     }
 
-    public void testOnFinalReduce_UpdatesStatus_PartialFailure_PartialResultsAllowed() throws Exception {
-        testOnFinalReduce_UpdatesStatusWhenFinalShard_PartialFailure(true);
-    }
-
-    public void testOnPartialReduce_UpdatesStatus_PartialFailure_PartialResultsDisallowed() throws Exception {
-        testOnFinalReduce_UpdatesStatusWhenFinalShard_PartialFailure(false);
-    }
-
-    private static void testOnFinalReduce_UpdatesStatusWhenFinalShard_PartialFailure(boolean allowPartialResults) throws Exception {
+    public void testOnFinalReduce_UpdatesStatus_PartialFailure() throws Exception {
         var clusterAlias = "project-a";
         var skipUnavailable = randomBoolean();
         var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", skipUnavailable, null));
@@ -560,7 +563,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, allowPartialResults);
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Register a failure for the first shard
         var exception = new IllegalArgumentException("test");
@@ -580,11 +583,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         );
 
         // Confirm that the cluster state is modified as expected
-        if (allowPartialResults || skipUnavailable) {
-            assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.PARTIAL, 3, 2, 1, tookMillis, false);
-        } else {
-            assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.FAILED, 3, 2, 1, null, false);
-        }
+        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.PARTIAL, 3, 2, 1, tookMillis, false);
     }
 
     public void testOnPhaseFailure_DoesNothingWhenStatusIsNotRunning() {
@@ -597,7 +596,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Confirm the initial state
         assertClusterMetadataRunning(clusters.getCluster(clusterAlias), 2, 0, 0, false);
@@ -638,7 +637,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Register success for the shards, optionally setting one as timed out, and check the state
         onQueryResultForShardIndex(listener, shards, 0);
@@ -656,18 +655,9 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         assertClusterMetadata(clusters.getCluster(clusterAlias), expectedStatus, 2, 2, 0, tookMillis, timedOut);
     }
 
-    public void testOnPhaseFailure_UpdatesStatus_PartialFailure_PartialResultsAllowed() {
-        testOnPhaseFailure_UpdatesStatus_PartialFailure(true);
-    }
-
-    public void testOnPhaseFailure_UpdatesStatus_PartialFailure_PartialResultsDisallowed() {
-        testOnPhaseFailure_UpdatesStatus_PartialFailure(false);
-    }
-
-    private static void testOnPhaseFailure_UpdatesStatus_PartialFailure(boolean allowPartialResults) {
+    public void testOnPhaseFailure_UpdatesStatus_PartialFailure() {
         var clusterAlias = "project-a";
-        var skipUnavailable = randomBoolean();
-        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", skipUnavailable, null));
+        var clusterMap = Map.of(clusterAlias, new SearchResponse.Cluster(clusterAlias, "my-alias", randomBoolean(), null));
         var clusters = new SearchResponse.Clusters(clusterMap, false);
         var indexExpression = "my-index";
         var indexUUID = "uuid-a";
@@ -679,7 +669,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         var tookMillis = TimeValue.timeValueMillis(1);
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, tookMillis::nanos);
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, allowPartialResults);
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Register success for the first and second shards. The third shard should be treated as failed
         onQueryResultForShardIndex(listener, shards, 0);
@@ -688,11 +678,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         listener.onPhaseFailure(new IllegalArgumentException("unused"));
 
         // Confirm that the cluster state is modified as expected
-        if (allowPartialResults || skipUnavailable) {
-            assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.PARTIAL, 3, 2, 1, 0, tookMillis, false);
-        } else {
-            assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.FAILED, 3, 2, 1, 0, null, false);
-        }
+        assertClusterMetadata(clusters.getCluster(clusterAlias), SearchResponse.Cluster.Status.PARTIAL, 3, 2, 1, 0, tookMillis, false);
     }
 
     public void testOnPhaseFailure_UpdatesStatus_NoSuccessfulShards() {
@@ -708,7 +694,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
 
         var timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, () -> TimeValue.timeValueMillis(1).nanos());
         var listener = new CCSSingleCoordinatorSearchProgressListener();
-        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, randomBoolean(), timeProvider);
 
         // Register failure for the first shard only, the second shard should be treated as failed
         onQueryFailureForShardIndex(listener, shards, 0, new IllegalArgumentException("test"));
@@ -734,7 +720,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, nowNanos::get);
         CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
 
-        listener.onListShards(shards, Map.of(), clusters, true, timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, true, timeProvider);
         listener.onFinalReduce(shards, null, null, 1);
         onQueryResultForShardIndex(listener, shards, 0);
 
@@ -761,7 +747,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, nowNanos::get);
         CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
 
-        listener.onListShards(shards, Map.of(), clusters, false, timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, false, timeProvider);
         listener.onFinalReduce(shards, null, null, 1);
         onQueryResultForShardIndex(listener, shards, 0);
         assertThat(clusters.getCluster(cluster).getTook().millis(), equalTo(1L));
@@ -783,7 +769,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, nowNanos::get);
         CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
 
-        listener.onListShards(shards, Map.of(), clusters, true, timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, true, timeProvider);
         onQueryResultForShardIndex(listener, shards, 0);
 
         SearchResponse.Cluster afterQuery = clusters.getCluster(cluster);
@@ -809,7 +795,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, nowNanos::get);
         CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
 
-        listener.onListShards(shards, Map.of(), clusters, true, timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, true, timeProvider);
         listener.onFinalReduce(shards, null, null, 1);
         onQueryResultForShardIndex(listener, shards, 0);
         assertThat(clusters.getCluster(cluster).getTook().millis(), equalTo(1L));
@@ -837,7 +823,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, nowNanos::get);
         CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
 
-        listener.onListShards(shards, Map.of(), clusters, false, timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, false, timeProvider);
         listener.onFinalReduce(shards, null, null, 1);
         onQueryResultForShardIndex(listener, shards, 0);
         assertThat(clusters.getCluster(cluster).getTook().millis(), equalTo(1L));
@@ -869,7 +855,7 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, nowNanos::get);
         CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
 
-        listener.onListShards(shards, Map.of(), clusters, true, timeProvider, randomBoolean());
+        listener.onListShards(shards, Map.of(), clusters, true, timeProvider);
         listener.onFinalReduce(shards, null, null, 1);
         onQueryResultForShardIndex(listener, shards, 0);
         onQueryResultForShardIndex(listener, shards, 1);

@@ -11,6 +11,7 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
@@ -624,11 +625,13 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
     private static Query buildFilterQuery(List<Query> filters) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Query f : filters) {
-            builder.add(f, BooleanClause.Occur.FILTER);
+            // BooleanQuery does not collapse a single MatchAllDocsQuery clause, so we skip it here since it adds nothing to the knn filter.
+            if (f.getClass() != MatchAllDocsQuery.class) {
+                builder.add(f, BooleanClause.Occur.FILTER);
+            }
         }
         BooleanQuery booleanQuery = builder.build();
-        Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
-        return filterQuery;
+        return booleanQuery.clauses().isEmpty() ? null : booleanQuery;
     }
 
     @Override

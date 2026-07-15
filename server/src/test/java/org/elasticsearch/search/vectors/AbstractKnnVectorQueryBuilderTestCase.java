@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -44,6 +45,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
@@ -672,6 +674,25 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             }
             return boolQuery;
         });
+    }
+
+    public void testMatchAllFilterIsDropped() throws IOException {
+        // A filter that resolves to MatchAllDocsQuery conveys no selectivity in a FILTER
+        // conjunction. KnnVectorQueryBuilder caches non-null filter queries, which leads to
+        // materialization of the full index bitset via CachingEnableFilterQuery on every segment.
+        float[] vector = new float[vectorDimensions];
+        Arrays.fill(vector, 1.0f);
+        int k = 3;
+        int numCands = 10;
+        RescoreVectorBuilder rescoreVectorBuilder = isIndextypeBBQ() ? randomBBQRescoreVectorBuilder() : null;
+
+        KnnVectorQueryBuilder withMatchAll = new KnnVectorQueryBuilder(VECTOR_FIELD, vector, k, numCands, null, rescoreVectorBuilder, null);
+        withMatchAll.addFilterQuery(new MatchAllQueryBuilder());
+
+        KnnVectorQueryBuilder withNoFilter = new KnnVectorQueryBuilder(VECTOR_FIELD, vector, k, numCands, null, rescoreVectorBuilder, null);
+
+        SearchExecutionContext context = createSearchExecutionContext();
+        assertThat(withMatchAll.doToQuery(context), equalTo(withNoFilter.doToQuery(context)));
     }
 
     protected String encodeToBase64(float[] vector) {

@@ -10,6 +10,8 @@ package org.elasticsearch.simdvec.internal;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.simdvec.IndexInputUtils;
 
 import java.io.IOException;
@@ -20,6 +22,10 @@ import static org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections.
 /** Native / panamized scorer for 7-bit quantized vectors stored as an {@link IndexInput}. **/
 public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmentES92PanamaInt7VectorsScorer {
 
+    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+        .getVectorSimilarityFunctions()
+        .orElseThrow(AssertionError::new);
+
     public MemorySegmentES92NativeInt7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
         super(in, dimensions, bulkSize);
     }
@@ -29,7 +35,7 @@ public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmen
         assert q.length == dimensions;
         return IndexInputUtils.withSlice(in, dimensions, this::getScratch, segment -> {
             final MemorySegment querySegment = MemorySegment.ofArray(q);
-            return (long) Similarities.dotProductI7u(segment, querySegment, dimensions);
+            return (long) DISTANCE_FUNCS.dotProductI7u(segment, querySegment, dimensions);
         });
     }
 
@@ -39,7 +45,7 @@ public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmen
         IndexInputUtils.withSlice(in, (long) dimensions * count, this::getScratch, segment -> {
             final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
             final MemorySegment querySegment = MemorySegment.ofArray(q);
-            Similarities.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
+            DISTANCE_FUNCS.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
             return null;
         });
     }

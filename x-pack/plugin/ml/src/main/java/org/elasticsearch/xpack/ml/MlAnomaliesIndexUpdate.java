@@ -68,8 +68,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Rollover the various .ml-anomalies result indices updating the read and write aliases.
- * Also detects and heals indices that were rolled over with an incorrect dynamic job_id
- * mapping (the reindexed-ml-anomalies bug introduced in ES 8.18/8.19, including
+ * Also detects and heals indices that were rolled over with incorrect mappings from the
+ * reindexed-ml-anomalies bug introduced in ES 8.18/8.19 (including
  * {@code .reindexed-v7-ml-anomalies-*} and {@code .reindexed-v8-ml-anomalies-*} lineages).
  */
 public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction {
@@ -81,7 +81,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      * the normal rollover loop. Dynamically updatable.
      * <p>
      * Setting key retains {@code reindexed_v7} for backwards compatibility; the heal applies to
-     * all {@code .reindexed-*-ml-anomalies-*} indices with broken {@code job_id} mappings.
+     * all {@code .reindexed-*-ml-anomalies-*} indices with broken results-index mappings.
      */
     public static final Setting<Boolean> HEAL_REINDEXED_V7_ENABLED = Setting.boolSetting(
         "xpack.ml.anomalies.heal_reindexed_v7.enabled",
@@ -93,8 +93,23 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     /**
      * Index pattern used to resolve all reindexed ML anomalies candidates (e.g.
      * {@code .reindexed-v7-ml-anomalies-*}, {@code .reindexed-v8-ml-anomalies-*}).
+     * Broader than the composable template's explicit v7/v8 {@code index_patterns} because
+     * runtime index resolution is not subject to template-overlap validation.
      */
     static final String REINDEXED_ANOMALIES_PATTERN = ".reindexed-*-ml-anomalies-*";
+
+    /**
+     * {@code anomaly_score_explanation} fields that must be typed as {@code double} in the
+     * managed AD results index template. Dynamic mapping may guess {@code float} instead.
+     */
+    static final List<String> ANOMALY_SCORE_EXPLANATION_DOUBLE_FIELDS = List.of(
+        "lower_confidence_bound",
+        "typical_value",
+        "upper_confidence_bound",
+        "by_field_relative_rarity"
+    );
+
+    private static final String ANOMALY_SCORE_EXPLANATION_OBJECT = "anomaly_score_explanation";
 
     /**
      * Strips {@code .reindexed-<version>-} from a concrete index name, leaving {@code ml-anomalies-...}
@@ -165,7 +180,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
 
     /**
      * Executes updates related to ML anomaly indices.
-     * - Heals any <code>.reindexed-*-ml-anomalies-*</code> indices with broken {@code job_id} mappings if necessary.
+     * - Heals any <code>.reindexed-*-ml-anomalies-*</code> indices with broken results mappings if necessary.
      * - Runs the rollover process for ML anomaly indices against a fresh {@link ClusterState} so rollovers see
      *   aliases already moved off reindexed lineages by the heal step.
      * If either task fails, an aggregated {@link ElasticsearchStatusException} is thrown
@@ -355,8 +370,8 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
      *                     same new target index.
      */
     private void healOneBadIndex(String badIndex, ClusterState state, Map<String, String> targetByBase) {
-        // Determine if the mapping is broken (absent or non-keyword job_id)
-        if (hasCorrectJobIdMapping(badIndex, state)) {
+        // Determine if the mapping is broken (e.g. non-keyword job_id or float anomaly_score_explanation fields)
+        if (isIndexMappingHealthy(badIndex, state)) {
             return;
         }
 
@@ -391,7 +406,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         emitAdvisoryNotifications(badIndex, targetIndex, jobIds);
 
         logger.warn(
-            "The ML anomalies index [{}] was missing required keyword mapping for [job_id]. "
+            "The ML anomalies index [{}] had incompatible results-index mappings. "
                 + "Aliases for jobs [{}] have been moved to a compatible anomalies index [{}].",
             badIndex,
             jobIds,
@@ -401,12 +416,35 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     }
 
     /**
+     * Returns {@code true} iff the index carries the managed AD results mappings required for
+     * job open and alias-filtered reads ({@code job_id: keyword} and
+     * {@code anomaly_score_explanation.*: double}).
+     */
+    private boolean isIndexMappingHealthy(String indexName, ClusterState state) {
+        return hasCorrectJobIdMapping(indexName, state) && hasCorrectAnomalyScoreExplanationMapping(indexName, state);
+    }
+
+    /**
      * Returns {@code true} iff the {@code job_id} field in {@code indexName}'s mapping
      * is typed as {@code keyword} (i.e. the ML index template was applied correctly).
      */
     private boolean hasCorrectJobIdMapping(String indexName, ClusterState state) {
         var indexMetadata = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(indexName);
         return MlIndexAndAlias.hasFieldTypedAs(indexMetadata, Job.ID.getPreferredName(), "keyword");
+    }
+
+    /**
+     * Returns {@code true} iff every {@link #ANOMALY_SCORE_EXPLANATION_DOUBLE_FIELDS} entry in
+     * {@code anomaly_score_explanation} is typed as {@code double}.
+     */
+    private boolean hasCorrectAnomalyScoreExplanationMapping(String indexName, ClusterState state) {
+        var indexMetadata = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(indexName);
+        for (String fieldName : ANOMALY_SCORE_EXPLANATION_DOUBLE_FIELDS) {
+            if (MlIndexAndAlias.hasFieldTypedAs(indexMetadata, List.of(ANOMALY_SCORE_EXPLANATION_OBJECT, fieldName), "double") == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -421,7 +459,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
             var latestMeta = state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(latest);
             if (latestMeta != null
                 && MlIndexAndAlias.indexIsReadWriteCompatibleInV9(latestMeta.getCreationVersion())
-                && hasCorrectJobIdMapping(latest, state)) {
+                && isIndexMappingHealthy(latest, state)) {
                 logger.debug("[ml_anomalies_reindexed_v7_heal] reusing existing target index [{}] for base [{}]", latest, targetBase);
                 return latest;
             }
@@ -575,8 +613,8 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         String affectedJobs = String.join(", ", jobIds);
         String clusterMessage = Strings.format(
             "Anomaly detection historical results are stranded in index [%s] because an Elasticsearch upgrade "
-                + "on one of the affected versions (pre-8.18.8, pre-8.19.5, pre-9.0.8, pre-9.1.5, pre-9.2.0) "
-                + "produced a broken dynamic job_id mapping. "
+                + "on one of the affected versions (pre-8.18.8, pre-8.19.19, pre-9.0.8, pre-9.1.5, pre-9.2.0, "
+                + "pre-9.3.8, pre-9.4.4, pre-9.5.1, pre-9.6.0) produced broken ML anomaly results index mappings. "
                 + "New results are now written to [%s] with the correct mappings and will appear in the UI again. "
                 + "Affected jobs: [%s]. "
                 + "To recover the historical results, ensure your user has read and write on .ml-anomalies-* "
@@ -595,7 +633,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         );
 
         String perJobMessage = Strings.format(
-            "Historical anomaly results for this job are stranded in index [%s] due to a broken job_id mapping from "
+            "Historical anomaly results for this job are stranded in index [%s] due to broken results-index mappings from "
                 + "an earlier upgrade. New results are now being written to [%s]. "
                 + "See the cluster-wide ML notification (job type: System) for the recovery procedure. "
                 + "Details: https://github.com/elastic/elasticsearch/issues/147686",

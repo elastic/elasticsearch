@@ -36,6 +36,8 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
     public static final CompletionSuggester INSTANCE = new CompletionSuggester();
 
+    private static final String COLLECTOR_MEMORY_LABEL = "completion-suggest-collector";
+
     private CompletionSuggester() {}
 
     @Override
@@ -56,7 +58,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             long collectorBytes = RamUsageEstimator.alignObjectSize(
                 (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (shardSize + 1L) * RamUsageEstimator.NUM_BYTES_OBJECT_REF
             );
-            searchExecutionContext.addCircuitBreakerMemory(collectorBytes, "completion-suggest-collector");
+            searchExecutionContext.addCircuitBreakerMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
             try {
                 TopSuggestGroupDocsCollector collector = new TopSuggestGroupDocsCollector(shardSize, suggestionContext.isSkipDuplicates());
                 suggest(searcher, suggestionContext.toQuery(), collector);
@@ -84,7 +86,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 }
                 return completionSuggestion;
             } finally {
-                searchExecutionContext.releaseQueryConstructionMemory(collectorBytes);
+                searchExecutionContext.releaseQueryConstructionMemory(collectorBytes, COLLECTOR_MEMORY_LABEL);
             }
         }
         return null;

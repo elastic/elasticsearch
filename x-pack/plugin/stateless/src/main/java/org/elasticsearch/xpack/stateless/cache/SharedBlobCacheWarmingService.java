@@ -232,10 +232,9 @@ public class SharedBlobCacheWarmingService {
     );
 
     public static final String SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME = "stateless.search.offline_warming";
-    private static final boolean DEFAULT_SEARCH_OFFLINE_WARMING_ENABLED = true;
     public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_ENABLED_SETTING = Setting.boolSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".enabled",
-        DEFAULT_SEARCH_OFFLINE_WARMING_ENABLED,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -356,8 +355,7 @@ public class SharedBlobCacheWarmingService {
     private final LongCounter idLookupPrewarmReqsTotalMetric;
     private final long prewarmingRangeMinimizationStep;
     private volatile boolean prefetchCommitsForSearchShardRecovery;
-    // just to make sure that the initial settings update to the default value is logged
-    private volatile boolean searchOfflineWarmingEnabled = !DEFAULT_SEARCH_OFFLINE_WARMING_ENABLED;
+    private volatile boolean searchOfflineWarmingEnabled;
     private volatile boolean prewarmIndexShardForIdLookupsEnabled;
     private volatile double idLookupPrewarmRatio;
     private volatile long maxUploadPrewarmSize;

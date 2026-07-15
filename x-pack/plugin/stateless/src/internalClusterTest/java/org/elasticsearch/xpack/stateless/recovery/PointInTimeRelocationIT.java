@@ -188,6 +188,12 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         .put(disableIndexingDiskAndMemoryControllersNodeSettings())
         .build();
 
+    /**
+     * Stress-tests PIT relocation with a large number of open PITs to verify that the receiving
+     * node does not run out of memory (OOM) when it shares one {@link SearchEngine.SharedPITCommitReader}
+     * per distinct commit across all relocated PITs referencing that commit, rather than opening
+     * a separate {@link org.apache.lucene.index.StandardDirectoryReader} per PIT.
+     */
     public void testPointInTimeRelocationManyPits() throws Exception {
         assumeTrue("Requires pit relocation feature flag", PIT_RELOCATION_FEATURE_FLAG.isEnabled());
         startMasterAndIndexNode(nodeSettings);

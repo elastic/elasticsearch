@@ -389,17 +389,6 @@ public class SearchEngine extends Engine {
     }
 
     /**
-     * Returns the number of distinct {@link DirectoryReader}s currently open on this engine,
-     * including the engine's own current reader and one reader per distinct commit referenced
-     * by open relocated PIT contexts.
-     */
-    public int getOpenReaderCount() {
-        synchronized (openReaders) {
-            return openReaders.size();
-        }
-    }
-
-    /**
      * Returns the number of distinct Lucene commits currently served by a {@link SharedPITCommitReader}.
      * After the SharedPITCommitReader fix, N relocated PITs at the same commit share one entry here,
      * so this value equals the number of distinct commits referenced by open relocated PITs.

@@ -190,7 +190,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
 
     /**
      * Stress-tests PIT relocation with a large number of open PITs to verify that the receiving
-     * node does not run out of memory (OOM) when it shares one {@link SearchEngine.SharedPITCommitReader}
+     * node does not run out of memory (OOM) when it shares one {@code SharedPITCommitReader}
      * per distinct commit across all relocated PITs referencing that commit, rather than opening
      * a separate {@link org.apache.lucene.index.StandardDirectoryReader} per PIT.
      */

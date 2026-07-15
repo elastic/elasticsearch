@@ -786,7 +786,7 @@ final class ParquetPushedExpressions {
         if (relation == null || boundOp == null) {
             return null;
         }
-        return DeclaredTypeCoercions.rawBoundFor(relation, decodedBound, boundOp, false);
+        return DeclaredTypeCoercions.rawBoundFor(relation, decodedBound, boundOp);
     }
 
     /**

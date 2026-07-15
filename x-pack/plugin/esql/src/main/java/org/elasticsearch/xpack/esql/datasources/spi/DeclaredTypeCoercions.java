@@ -759,17 +759,21 @@ public final class DeclaredTypeCoercions {
      * pruned group is never decoded, so nothing downstream can recover it. Every rule below therefore rounds
      * OUTWARD, and declines rather than guess.
      *
+     * <p>{@code EQ} is NOT answered here: a lossy decode makes equality a BAND, which no single raw bound expresses,
+     * so callers route equality through {@link #rawEqualityBand} instead. Passing {@code EQ} is a caller contract
+     * violation and throws.
+     *
      * @param relation how decode relates the raw value to the decoded one
      * @param bound the query literal, in the DECODED domain
-     * @param op the comparison the bound belongs to
-     * @param exactSetOnly {@code true} when the consumer tests set membership rather than a range (dictionary and
-     *                     bloom filters do): a band cannot be expressed as a point, so a {@code ScaleDown} equality
-     *                     must decline rather than push its floor
+     * @param op the comparison the bound belongs to (any {@link BoundOp} except {@link BoundOp#EQ})
      */
     @Nullable
-    public static Long rawBoundFor(RawDecodeRelation relation, long bound, BoundOp op, boolean exactSetOnly) {
+    public static Long rawBoundFor(RawDecodeRelation relation, long bound, BoundOp op) {
         return switch (relation) {
-            case RawDecodeRelation.Identity ignored -> bound;
+            case RawDecodeRelation.Identity ignored -> switch (op) {
+                case GT, GTE, LT, LTE, NOT_EQ -> bound;
+                case EQ -> throw eqRoutesThroughBand();
+            };
             case RawDecodeRelation.ScaleUp up -> {
                 long f = up.factor();
                 // The bound arrives in the DECODED domain, so inverting `decoded == raw * f` DIVIDES it back down.
@@ -784,10 +788,10 @@ public final class DeclaredTypeCoercions {
                     case LT -> Math.ceilDiv(bound, f);
                     // decoded <= bound <=> raw <= floorDiv(bound, f)
                     case LTE -> Math.floorDiv(bound, f);
-                    // Only an exact multiple of f is reachable; any other literal matches no stored value, so
-                    // declining merely forfeits the chance to prune everything — never a row. NOT_EQ inverts the
-                    // same raw point (the caller builds notEq); a non-multiple != is always true, so decline.
-                    case EQ, NOT_EQ -> bound % f == 0 ? bound / f : null;
+                    // NOT_EQ inverts the same raw point the caller builds notEq from: only an exact multiple of f is
+                    // reachable, so a non-multiple != is always true and declines.
+                    case NOT_EQ -> bound % f == 0 ? bound / f : null;
+                    case EQ -> throw eqRoutesThroughBand();
                 };
             }
             case RawDecodeRelation.ScaleDown down -> {
@@ -806,16 +810,19 @@ public final class DeclaredTypeCoercions {
                         // looser gt(base): a loose GT is safe pushed directly but becomes stricter-than-truth once
                         // wrapped in NOT (which the translator admits), pruning matching rows.
                         case GT -> Math.addExact(base, d - 1);
-                        // decoded == bound covers the whole band — not a point. A range consumer could push the band,
-                        // but a set-membership consumer cannot express it, so decline. NOT_EQ is the band's
-                        // complement — also not a single predicate — so decline too.
-                        case EQ, NOT_EQ -> null;
+                        // NOT_EQ is the band's complement — not a single predicate — so decline.
+                        case NOT_EQ -> null;
+                        case EQ -> throw eqRoutesThroughBand();
                     };
                 } catch (ArithmeticException e) {
                     yield null;
                 }
             }
         };
+    }
+
+    private static AssertionError eqRoutesThroughBand() {
+        return new AssertionError("EQ is a band under a lossy decode; callers answer it through rawEqualityBand, not rawBoundFor");
     }
 
     /**

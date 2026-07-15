@@ -1346,6 +1346,9 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         );
         for (DeclaredTypeCoercions.RawDecodeRelation relation : relations) {
             for (DeclaredTypeCoercions.BoundOp op : DeclaredTypeCoercions.BoundOp.values()) {
+                if (op == DeclaredTypeCoercions.BoundOp.EQ) {
+                    continue; // EQ has no single-bound raw form; it routes through rawEqualityBand, tested separately
+                }
                 for (int i = 0; i < 200; i++) {
                     long raw = randomLongBetween(-5_000_000L, 5_000_000L);
                     long decoded = decodeFor(relation, raw);
@@ -1358,7 +1361,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                         case LT -> decoded < bound;
                         case LTE -> decoded <= bound;
                     };
-                    Long rawBound = DeclaredTypeCoercions.rawBoundFor(relation, bound, op, false);
+                    Long rawBound = DeclaredTypeCoercions.rawBoundFor(relation, bound, op);
                     if (rawBound == null) {
                         continue; // declined: no pruning, never a lost row
                     }
@@ -1420,18 +1423,6 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             case DeclaredTypeCoercions.RawDecodeRelation.ScaleUp up -> raw * up.factor();
             case DeclaredTypeCoercions.RawDecodeRelation.ScaleDown down -> Math.floorDiv(raw, down.divisor());
         };
-    }
-
-    /** A set-membership consumer (dictionary/bloom) cannot express a band, so a ScaleDown equality must decline. */
-    public void testExactSetConsumersDeclineABandedEquality() {
-        assertNull(
-            DeclaredTypeCoercions.rawBoundFor(
-                new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1000L),
-                1000L,
-                DeclaredTypeCoercions.BoundOp.EQ,
-                true
-            )
-        );
     }
 
     /**
@@ -1532,7 +1523,7 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
                     if (op == DeclaredTypeCoercions.BoundOp.EQ || op == DeclaredTypeCoercions.BoundOp.NOT_EQ) {
                         continue; // EQ/NOT_EQ are set-membership, not ordered — tested separately
                     }
-                    Long rawBound = DeclaredTypeCoercions.rawBoundFor(rel, bound, op, false);
+                    Long rawBound = DeclaredTypeCoercions.rawBoundFor(rel, bound, op);
                     if (rawBound == null) {
                         continue;
                     }
@@ -1575,13 +1566,9 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
         var up = new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(1000L);
         var down = new DeclaredTypeCoercions.RawDecodeRelation.ScaleDown(1000L);
         var NE = DeclaredTypeCoercions.BoundOp.NOT_EQ;
-        assertEquals("identity passes the bound through", Long.valueOf(5L), DeclaredTypeCoercions.rawBoundFor(identity, 5L, NE, false));
-        assertEquals(
-            "scale-up exact multiple inverts by division",
-            Long.valueOf(5L),
-            DeclaredTypeCoercions.rawBoundFor(up, 5000L, NE, false)
-        );
-        assertNull("scale-up non-multiple matches everything -> decline", DeclaredTypeCoercions.rawBoundFor(up, 5001L, NE, false));
-        assertNull("scale-down != is a band complement -> decline", DeclaredTypeCoercions.rawBoundFor(down, 5L, NE, false));
+        assertEquals("identity passes the bound through", Long.valueOf(5L), DeclaredTypeCoercions.rawBoundFor(identity, 5L, NE));
+        assertEquals("scale-up exact multiple inverts by division", Long.valueOf(5L), DeclaredTypeCoercions.rawBoundFor(up, 5000L, NE));
+        assertNull("scale-up non-multiple matches everything -> decline", DeclaredTypeCoercions.rawBoundFor(up, 5001L, NE));
+        assertNull("scale-down != is a band complement -> decline", DeclaredTypeCoercions.rawBoundFor(down, 5L, NE));
     }
 }

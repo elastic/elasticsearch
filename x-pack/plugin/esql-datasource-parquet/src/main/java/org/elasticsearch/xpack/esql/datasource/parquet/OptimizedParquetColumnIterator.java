@@ -391,12 +391,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.sortColumnDescriptor = sortColumnDescriptor;
         this.sortColumnPath = sortColumnDescriptor == null ? null : String.join(".", sortColumnDescriptor.getPath());
         this.sortColumnPrimitiveType = sortColumnDescriptor == null ? null : sortColumnDescriptor.getPrimitiveType();
-        DataType sortType = sortColumnEsqlType(sortColumnPath, columnInfos);
+        ColumnInfo sortInfo = findSortColumnInfo(sortColumnPath, columnInfos);
+        DataType sortType = sortInfo == null ? null : sortInfo.esqlType();
         this.sortColumnIsTemporal = sortType == DataType.DATETIME || sortType == DataType.DATE_NANOS;
         this.sortColumnAnnotationScales = sortColumnPrimitiveType != null
             && sortColumnPrimitiveType.getLogicalTypeAnnotation() != null
             && ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(sortColumnPrimitiveType.getLogicalTypeAnnotation());
-        this.sortDecodeRelation = resolveSortDecodeRelation(sortColumnPath, sortColumnPrimitiveType, columnInfos);
+        this.sortDecodeRelation = resolveSortDecodeRelation(sortColumnPrimitiveType, sortType, sortInfo);
         this.codecFactory = codecFactory;
         this.counters = counters;
         this.pushedExpressions = pushedExpressions;
@@ -746,57 +747,45 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         return 1;
     }
 
-    @Nullable
-    private static DataType sortColumnEsqlType(String sortColumnPath, ColumnInfo[] columnInfos) {
-        if (sortColumnPath == null) {
-            return null;
-        }
-        for (ColumnInfo info : columnInfos) {
-            if (info.descriptor() != null && String.join(".", info.descriptor().getPath()).equals(sortColumnPath)) {
-                return info.esqlType();
-            }
-        }
-        return null;
-    }
-
-    @Nullable
-    private static DateFormatter sortColumnFormatter(String sortColumnPath, ColumnInfo[] columnInfos) {
-        if (sortColumnPath == null) {
-            return null;
-        }
-        for (ColumnInfo info : columnInfos) {
-            if (info.descriptor() != null && String.join(".", info.descriptor().getPath()).equals(sortColumnPath)) {
-                return info.dateFormatter();
-            }
-        }
-        return null;
-    }
-
     /**
-     * The raw-to-decoded relation for a temporal sort column, or {@code null} when the column is a plain long (its raw
-     * value IS its decoded value) or admits no exact relation (decline the skip). One consultation of the unit rule,
-     * not a per-row-group re-derivation.
+     * The projected {@link ColumnInfo} for the sort column, found in a single scan of {@code columnInfos}, or
+     * {@code null} when there is no sort column. Its {@link ColumnInfo#esqlType() esqlType} and
+     * {@link ColumnInfo#dateFormatter() dateFormatter} are both read from this one lookup — the sort column's ESQL
+     * type and its declared date format are no longer re-scanned independently.
      */
     @Nullable
+    private static ColumnInfo findSortColumnInfo(String sortColumnPath, ColumnInfo[] columnInfos) {
+        if (sortColumnPath == null) {
+            return null;
+        }
+        for (ColumnInfo info : columnInfos) {
+            if (info.descriptor() != null && String.join(".", info.descriptor().getPath()).equals(sortColumnPath)) {
+                return info;
+            }
+        }
+        return null;
+    }
+
     /**
      * The raw-to-decoded relation for a temporal sort column, or {@code null} when the column is a plain long (its
      * raw value IS its decoded value) or admits no exact relation. Consulted once so the per-row-group skip is not a
-     * per-consumer re-derivation of the unit rule.
+     * per-consumer re-derivation of the unit rule. Both the ESQL type and the declared format come from the single
+     * {@link #findSortColumnInfo} lookup the constructor already performed.
      */
+    @Nullable
     private static DeclaredTypeCoercions.RawDecodeRelation resolveSortDecodeRelation(
-        String sortColumnPath,
         PrimitiveType sortColumnPrimitiveType,
-        ColumnInfo[] columnInfos
+        @Nullable DataType sortType,
+        @Nullable ColumnInfo sortInfo
     ) {
-        if (sortColumnPath == null || sortColumnPrimitiveType == null) {
+        if (sortColumnPrimitiveType == null || sortInfo == null) {
             return null;
         }
-        DataType type = sortColumnEsqlType(sortColumnPath, columnInfos);
-        if (type != DataType.DATETIME && type != DataType.DATE_NANOS) {
+        if (sortType != DataType.DATETIME && sortType != DataType.DATE_NANOS) {
             return null;
         }
-        DateFormatter formatter = sortColumnFormatter(sortColumnPath, columnInfos);
-        return ParquetColumnDecoding.rawDecodeRelation(sortColumnPrimitiveType, type, formatter == null ? null : formatter.pattern());
+        DateFormatter formatter = sortInfo.dateFormatter();
+        return ParquetColumnDecoding.rawDecodeRelation(sortColumnPrimitiveType, sortType, formatter == null ? null : formatter.pattern());
     }
 
     private static Set<String> buildProjectedColumnPaths(ColumnInfo[] columnInfos) {

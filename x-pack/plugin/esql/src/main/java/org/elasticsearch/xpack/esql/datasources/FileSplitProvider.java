@@ -310,8 +310,10 @@ public class FileSplitProvider implements SplitProvider {
                     if (mapping != null && mapping.isIdentity() == false) {
                         columnMapping = mappingCache.computeIfAbsent(mapping, k -> k);
                     }
-                    // Pin the reader to the coordinator's per-file inference so it doesn't re-infer
-                    // at runtime and disagree with the planner's view of this file.
+                    // Pin the reader to the coordinator's reconciled per-file read schema so it
+                    // doesn't re-infer at runtime and disagree with the planner's view of this file.
+                    // For text formats this schema already carries each widened column's reconciled
+                    // type (see SchemaReconciliation), so the reader reads at that type directly.
                     readSchema = info.fileSchema().attributes();
                 }
             }

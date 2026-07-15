@@ -350,6 +350,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereFalseBeforeInlineStatsWithMatch() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | WHERE false
@@ -357,11 +361,16 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             | WHERE match(content, "fox")
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
     }
 
     public void testImpossibleFilterBeforeInlineStatsWithMatch() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | EVAL a = 1, b = a + 1, c = b + a
@@ -370,11 +379,16 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             | WHERE match(content, "fox")
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
     }
 
     public void testWhereFalseBeforeInlineStatsWithMatchAndStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | WHERE false
@@ -383,11 +397,18 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             | STATS c = COUNT(*)
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("c"));
+            assertColumnTypes(resp.columns(), List.of("long"));
+            assertValues(resp.values(), List.of(List.of(0L)));
+        }
     }
 
     public void testWhereFalseBeforeGroupedInlineStatsWithMatch() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
         var query = """
             FROM test
             | WHERE false
@@ -395,8 +416,172 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             | WHERE match(content, "fox")
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after INLINE"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    public void testMatchAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testMatchAfterGroupedInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE match(content, "fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testMatchAfterInlineStatsKeepingAggValue() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox")
+            | KEEP id, max_id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "max_id"));
+            assertColumnTypes(resp.columns(), List.of("integer", "integer"));
+            assertValues(resp.values(), List.of(List.of(1, 6), List.of(6, 6)));
+        }
+    }
+
+    public void testNotMatchAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE NOT match(content, "brown fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(5)));
+        }
+    }
+
+    public void testMatchNotPushableAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE match(content, "fox") OR length(content) < 20
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
+        }
+    }
+
+    public void testMatchAfterInlineStatsWithAggExpressionFilter() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        // max_plus = id + 1 per row (grouped BY id); id > 2 lets the second condition pass
+        var query = """
+            FROM test
+            | INLINE STATS max_plus = MAX(id) + 1 BY id
+            | WHERE match(content, "fox") OR max_plus > 3
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(3), List.of(4), List.of(5), List.of(6)));
+        }
+    }
+
+    public void testMatchAfterMultipleInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | INLINE STATS min_id = MIN(id)
+            | WHERE match(content, "fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testMatchAfterInlineStatsWithAggValueFilter() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        // INLINE STATS BY id makes max_id = id per row; only id >= 6 passes the second condition
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE match(content, "fox") AND max_id >= 6
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(6)));
+        }
     }
 
     public void testMatchWithLookupJoinOnMatch() {

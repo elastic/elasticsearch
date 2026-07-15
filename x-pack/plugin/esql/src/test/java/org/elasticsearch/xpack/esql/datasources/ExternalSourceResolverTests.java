@@ -3518,6 +3518,86 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test for elastic/elasticsearch#153780: the Hive-partition shadow-column warning
+     * must reach the client even though the schema reconciliation that detects the collision (and
+     * calls {@code warnOnShadowedColumns}) runs on the resolver's real, forking executor rather than
+     * the calling thread. Every other collision test (e.g. {@link #testPartitionColumnConflictPartitionWins})
+     * uses {@link EsExecutors#DIRECT_EXECUTOR_SERVICE}, which never actually hops threads and so could
+     * not have caught a warning written to the wrong {@link ThreadContext} — exactly the bug this
+     * mirrors {@link #testResolveRestoresCallerThreadContextAcrossAsyncCompletion} by using a dedicated
+     * {@link AsyncStubFormatReader} I/O pool distinct from both the resolver executor and this test thread.
+     * <p>
+     * Like that test, the warning must be observed <em>inside</em> the {@code resolve()} completion
+     * callback rather than after {@code future.actionGet()} returns on this test thread: response
+     * headers accumulated under {@code ContextPreservingActionListener}'s restored context are merged
+     * back onto whichever physical thread is running that callback, not onto this (unrelated) test
+     * thread's own {@link ThreadContext} slot.
+     */
+    public void testShadowWarningReachesCallerAcrossAsyncCompletion() throws Exception {
+        List<Attribute> schema = List.of(attr("year", DataType.KEYWORD), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/year=2024/file1.parquet", schema);
+        schemasByPath.put("s3://bucket/data/year=2023/file2.parquet", schema);
+
+        String glob = "s3://bucket/data/year=*/*.parquet";
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/year=2024/file1.parquet", 100),
+            entry("s3://bucket/data/year=2023/file2.parquet", 200)
+        );
+        Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
+        listingsByPrefix.put(StoragePath.of(glob).patternPrefix().toString(), listing);
+
+        ExecutorService resolverExecutor = Executors.newSingleThreadExecutor();
+        // Distinct from resolverExecutor and this test thread, so the schema reconciliation that
+        // detects the collision and warns genuinely completes off both.
+        ExecutorService ioPool = Executors.newSingleThreadExecutor();
+        AsyncStubFormatReader reader = new AsyncStubFormatReader(schemasByPath, ioPool, null, 0, null);
+        try {
+            ExternalSourceResolver resolver = createResolverWithAsyncReader(
+                schemasByPath,
+                listingsByPrefix,
+                reader,
+                resolverExecutor,
+                ExternalSourceResolver.DEFAULT_METADATA_READ_CONCURRENCY,
+                threadContext
+            );
+
+            AtomicReference<List<String>> observedWarnings = new AtomicReference<>();
+            AtomicReference<Thread> completionThread = new AtomicReference<>();
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            // Drain inside the completion callback itself, for the same reason
+            // testResolveRestoresCallerThreadContextAcrossAsyncCompletion asserts there: the restored
+            // context (and the warnings merged into it) is only visible for the duration of this callback.
+            ActionListener<ExternalSourceResolution> capturingListener = ActionListener.wrap(resolution -> {
+                observedWarnings.set(drainWarnings());
+                completionThread.set(Thread.currentThread());
+                future.onResponse(resolution);
+            }, future::onFailure);
+
+            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), capturingListener);
+            ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
+
+            assertNotNull(resolution.resolvedSource(glob));
+            assertNotEquals(
+                "the completion must run off this test thread to actually exercise cross-thread warning propagation",
+                Thread.currentThread(),
+                completionThread.get()
+            );
+            List<String> warnings = observedWarnings.get();
+            assertEquals("summary + one detail", 2, warnings.size());
+            assertThat(warnings.get(0), containsString("shadowed by same-named Hive partition keys"));
+            assertThat(
+                "the shadow warning must reach the client even though reconciliation ran off the calling thread",
+                warnings.get(1),
+                containsString("physical column [year] is shadowed")
+            );
+        } finally {
+            resolverExecutor.shutdownNow();
+            ioPool.shutdownNow();
+        }
+    }
+
     private ExternalSourceResolution resolveWithAsyncReader(
         String glob,
         Map<String, List<Attribute>> schemasByPath,

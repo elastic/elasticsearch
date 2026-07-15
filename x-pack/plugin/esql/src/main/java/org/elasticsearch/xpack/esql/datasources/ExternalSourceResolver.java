@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -64,10 +65,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -194,6 +197,18 @@ public class ExternalSourceResolver {
      */
     @Nullable
     private final Supplier<ThreadContext.StoredContext> restorableContext;
+
+    /**
+     * Hive-partition shadow-column warning messages collected during one {@link #resolve} call's schema-resolution
+     * chain (see {@link #warnOnShadowedColumns}). That chain runs on {@link #metadataReadExecutor} — a real thread
+     * pool in production, so a direct {@code HeaderWarning.addWarning} call from inside it would land on that
+     * executor thread's {@link ThreadContext} rather than the originating request's, and never reach the client.
+     * Messages are instead buffered here and replayed via {@code HeaderWarning} from {@link #resolve}'s completion
+     * listener, once {@link #restorableContext} has restored the caller's original context. Cleared at the start of
+     * each {@link #resolve} call; safe for concurrent per-file callbacks (see {@link #metadataReadConcurrency}) since
+     * it is append-only until the single flush at completion.
+     */
+    private final List<String> pendingShadowWarnings = new CopyOnWriteArrayList<>();
 
     /**
      * The {@link #executor} decorated so that every task it runs has the query cancellation signal installed as the
@@ -408,6 +423,11 @@ public class ExternalSourceResolver {
             return;
         }
 
+        // Fresh per-call: resolve() is the single entry point for one query's external-source resolution, so
+        // clearing here (rather than after the previous call's flush) also covers a resolver instance reused
+        // across resolve() calls in tests.
+        pendingShadowWarnings.clear();
+
         // Resolution runs on the caller-supplied executor (esql_worker in production, isolated from SEARCH so a wide
         // wildcard cannot starve regular ES searches). The initial dispatch performs the cheap synchronous prep (glob
         // expansion, the FFW anchor / single-file footer read) and then hands the multi-file fan-out to async footer
@@ -420,13 +440,21 @@ public class ExternalSourceResolver {
         // aborts its glob-expansion and anchor/single-file read backoff promptly, matching the per-read wrapping the
         // async fan-out already gets.
         //
+        // Flush any Hive-partition shadow-column warnings buffered in pendingShadowWarnings (see its javadoc) before
+        // delegating to the caller's listener, so HeaderWarning.addWarning is called from here rather than from
+        // whatever executor thread actually ran the schema reconciliation.
+        ActionListener<ExternalSourceResolution> withShadowWarnings = ActionListener.runBefore(
+            listener,
+            () -> pendingShadowWarnings.forEach(HeaderWarning::addWarning)
+        );
         // Wrap the outward listener so that when a factory's async metadata read completes on a non-ES thread (e.g.
         // a Netty I/O thread owned by a native async storage SDK client), the caller's authenticated ThreadContext is
         // restored before the listener's continuation runs — covering the rest of the synchronous chain back through
-        // EsqlSession and into the compute transport send. See the field javadoc on restorableContext for details.
+        // EsqlSession and into the compute transport send, and (per above) the shadow-warning flush itself. See the
+        // field javadoc on restorableContext for details.
         ActionListener<ExternalSourceResolution> resolveListener = restorableContext == null
-            ? listener
-            : new ContextPreservingActionListener<>(restorableContext, listener);
+            ? withShadowWarnings
+            : new ContextPreservingActionListener<>(restorableContext, withShadowWarnings);
         Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
         metadataReadExecutor.execute(
             () -> resolveNextPath(paths, 0, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, resolved, resolveListener)
@@ -907,7 +935,7 @@ public class ExternalSourceResolver {
             // data-only unified schema at ColumnMapping#pruneToPerFileQuery and with queryDataSchema at the
             // SchemaAdaptingIterator guard. enrichSchemaWithPartitionColumns appends the partition column and warns.
             dataOnlySchema = ExternalSchema.dataAttributesOf(physicalSchema, partitionMetadata.partitionColumns().keySet()).attributes();
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
         }
 
         // _file.* columns are request-driven now; no auto-attach to the schema. See
@@ -1345,7 +1373,7 @@ public class ExternalSourceResolver {
                 // does not warn again (the no-double-warning invariant, asserted at that call). Do not reorder.
                 PartitionMetadata partitionMetadata = fileList.partitionMetadata();
                 Set<String> partitionNames = partitionMetadata != null ? partitionMetadata.partitionColumns().keySet() : Set.of();
-                result = shadowPartitionCollisions(result, partitionNames);
+                result = shadowPartitionCollisions(result, partitionNames, pendingShadowWarnings::add);
 
                 List<Attribute> unifiedSchema = result.unifiedSchema().attributes();
                 SourceMetadata firstMeta = allMetadata.get(firstFile);
@@ -1383,7 +1411,7 @@ public class ExternalSourceResolver {
                     assert metaForAssert.schema().stream().noneMatch(a -> partitionNames.contains(a.name()))
                         : "shadowPartitionCollisions must run before enrichSchemaWithPartitionColumns: a physical "
                             + "column still collides with a partition key, which would warn twice";
-                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
+                    extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
                 }
 
                 // _file.* columns are request-driven now; no auto-attach to the schema. See
@@ -1403,12 +1431,14 @@ public class ExternalSourceResolver {
      * schema is preserved so positional readers (e.g. CSV) still parse every column. The partition
      * (path-derived) value wins (Spark/DuckDB semantics); {@link #enrichSchemaWithPartitionColumns}
      * later re-adds the partition column to the coordinator schema. Emits one client-facing warning
-     * per shadowed column (see {@link #warnOnShadowedColumns(List)}). Returns {@code result}
-     * unchanged when {@code partitionColumnNames} is empty or nothing is shadowed.
+     * per shadowed column (see {@link #warnOnShadowedColumns}) through {@code warningSink} — see that
+     * method's javadoc for why a direct-to-{@code HeaderWarning} write is not safe from this call site.
+     * Returns {@code result} unchanged when {@code partitionColumnNames} is empty or nothing is shadowed.
      */
     private static SchemaReconciliation.Result shadowPartitionCollisions(
         SchemaReconciliation.Result result,
-        Set<String> partitionColumnNames
+        Set<String> partitionColumnNames,
+        @Nullable Consumer<String> warningSink
     ) {
         if (partitionColumnNames.isEmpty()) {
             return result;
@@ -1426,7 +1456,7 @@ public class ExternalSourceResolver {
         if (shadowedColumns.isEmpty()) {
             return result;
         }
-        warnOnShadowedColumns(shadowedColumns);
+        warnOnShadowedColumns(shadowedColumns, warningSink);
         // Order is irrelevant: Map.copyOf below discards insertion order and FileSplitProvider looks
         // up per-file info by key (matches reconcileUnionByName's own Map.copyOf pattern).
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> perFileInfo = Maps.newHashMapWithExpectedSize(result.perFileInfo().size());
@@ -2071,6 +2101,19 @@ public class ExternalSourceResolver {
     }
 
     static ExternalSourceMetadata enrichSchemaWithPartitionColumns(ExternalSourceMetadata metadata, PartitionMetadata partitionMetadata) {
+        return enrichSchemaWithPartitionColumns(metadata, partitionMetadata, null);
+    }
+
+    /**
+     * Like {@link #enrichSchemaWithPartitionColumns(ExternalSourceMetadata, PartitionMetadata)}, but routes any
+     * shadowed-column warning through {@code warningSink} instead of writing to {@link HeaderWarning} directly —
+     * see {@link #warnOnShadowedColumns} for why that matters for callers running inside the async resolution chain.
+     */
+    static ExternalSourceMetadata enrichSchemaWithPartitionColumns(
+        ExternalSourceMetadata metadata,
+        PartitionMetadata partitionMetadata,
+        @Nullable Consumer<String> warningSink
+    ) {
         List<Attribute> originalSchema = metadata.schema();
         Map<String, DataType> partitionColumns = partitionMetadata.partitionColumns();
 
@@ -2090,7 +2133,7 @@ public class ExternalSourceResolver {
             }
         }
 
-        warnOnShadowedColumns(shadowedColumns);
+        warnOnShadowedColumns(shadowedColumns, warningSink);
 
         // Per-query nullability: a partition column is non-nullable when no file in the matched
         // fileset has a null value for it. The Hive sentinel __HIVE_DEFAULT_PARTITION__ is decoded
@@ -2129,18 +2172,25 @@ public class ExternalSourceResolver {
      * (path-derived) value wins and the physical column is hidden. The warning lets clients notice
      * silent data substitution and points at the {@code hive_partitioning: false} escape hatch.
      * <p>
-     * Delegates to {@link SkipWarnings}, which emits the summary once on the first detail and
-     * routes through {@link org.elasticsearch.common.logging.HeaderWarning}; when no thread context
-     * is bound (e.g. some unit tests) the writes are silently dropped. A no-op when nothing is
+     * Delegates to {@link SkipWarnings}, which emits the summary once on the first detail. Every
+     * caller reachable from {@link #resolve}'s async schema-resolution chain (which runs on
+     * {@link #metadataReadExecutor}, not the originating request thread) MUST pass a non-null
+     * {@code warningSink} — e.g. {@code pendingShadowWarnings::add} — so the message is buffered and
+     * replayed via {@link org.elasticsearch.common.logging.HeaderWarning} once back on a thread whose
+     * {@code ThreadContext} response headers actually feed the client response (see
+     * {@link #pendingShadowWarnings} and the flush in {@link #resolve}). A direct-to-{@code HeaderWarning}
+     * write (passing {@code null}) is only safe for callers that are themselves already on such a
+     * thread, e.g. tests exercising this method directly on the test thread. A no-op when nothing is
      * shadowed.
      */
-    private static void warnOnShadowedColumns(List<String> shadowedColumns) {
+    private static void warnOnShadowedColumns(List<String> shadowedColumns, @Nullable Consumer<String> warningSink) {
         if (shadowedColumns.isEmpty()) {
             return;
         }
         SkipWarnings warnings = new SkipWarnings(
             "one or more physical columns are shadowed by same-named Hive partition keys; "
-                + "the partition (path-derived) value is used. Set hive_partitioning to false to read the physical column instead."
+                + "the partition (path-derived) value is used. Set hive_partitioning to false to read the physical column instead.",
+            warningSink
         );
         for (String name : shadowedColumns) {
             warnings.add("physical column [" + name + "] is shadowed by a same-named Hive partition key");
@@ -2462,7 +2512,7 @@ public class ExternalSourceResolver {
         );
         extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
-            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata, pendingShadowWarnings::add);
         }
 
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = new HashMap<>();

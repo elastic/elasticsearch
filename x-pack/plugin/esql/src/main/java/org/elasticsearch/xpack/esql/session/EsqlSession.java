@@ -1465,6 +1465,18 @@ public class EsqlSession {
             // any other qualifier is not supported
             default -> throw new AssertionError("Lookup index name should not include remote, but got: " + indexPattern);
         }
+
+        if (lookupIndexScope.isEmpty()) {
+            // The source index returned no contributing clusters (all shards were pruned by the
+            // request-level filter). Skip the lookup field-caps call — sending an empty index
+            // expression would let security expand it to all authorised indices (including
+            // non-lookup ones), causing a spurious error. Return an invalid resolution instead
+            // so that analyzedPlan() throws a VerificationException that analyzeWithRetry can
+            // catch and retry without the filter.
+            listener.onResponse(result.addLookupIndexResolution(indexPattern, IndexResolution.notFound(indexPattern)));
+            return;
+        }
+
         executionInfo.queryProfile().incFieldCapsCalls();
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.

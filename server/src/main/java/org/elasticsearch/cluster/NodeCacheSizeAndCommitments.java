@@ -16,24 +16,20 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 
 /**
- * Current cache size and committed (boosted and total) cache size for a node.
+ * Current cache size and boosted/unboosted cache commitments for a node.
  */
-public record NodeCacheStats(long cacheSizeInBytes, long boostedCacheCommitmentInBytes, long totalCacheCommitmentInBytes)
+public record NodeCacheSizeAndCommitments(long cacheSizeInBytes, long boostedCacheCommitmentInBytes, long unboostedCacheCommitmentInBytes)
     implements
         Writeable {
 
-    public NodeCacheStats {
+    public NodeCacheSizeAndCommitments {
         assert cacheSizeInBytes >= 0 : "cacheSizeInBytes must be non-negative: " + cacheSizeInBytes;
         assert boostedCacheCommitmentInBytes >= 0 : "boostedCacheCommitmentInBytes must be non-negative: " + boostedCacheCommitmentInBytes;
-        assert totalCacheCommitmentInBytes >= 0 : "totalCacheCommitmentInBytes must be non-negative: " + totalCacheCommitmentInBytes;
-        assert totalCacheCommitmentInBytes >= boostedCacheCommitmentInBytes
-            : "totalCacheCommitmentInBytes must be >= boostedCacheCommitmentInBytes: "
-                + totalCacheCommitmentInBytes
-                + " < "
-                + boostedCacheCommitmentInBytes;
+        assert unboostedCacheCommitmentInBytes >= 0
+            : "unboostedCacheCommitmentInBytes must be non-negative: " + unboostedCacheCommitmentInBytes;
     }
 
-    public NodeCacheStats(StreamInput in) throws IOException {
+    public NodeCacheSizeAndCommitments(StreamInput in) throws IOException {
         this(in.readLong(), in.readLong(), in.readLong());
     }
 
@@ -41,6 +37,6 @@ public record NodeCacheStats(long cacheSizeInBytes, long boostedCacheCommitmentI
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(cacheSizeInBytes);
         out.writeLong(boostedCacheCommitmentInBytes);
-        out.writeLong(totalCacheCommitmentInBytes);
+        out.writeLong(unboostedCacheCommitmentInBytes);
     }
 }

@@ -11,7 +11,7 @@ package org.elasticsearch.node;
 
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.CacheUsageAndCommitmentCollector;
+import org.elasticsearch.cluster.CacheSizesAndCommitmentCollector;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -101,9 +101,9 @@ class NodeServiceProvider {
             EstimatedHeapUsageCollector.class,
             () -> EstimatedHeapUsageCollector.EMPTY
         );
-        final CacheUsageAndCommitmentCollector cacheUsageAndCommitmentCollector = pluginsService.loadSingletonServiceProvider(
-            CacheUsageAndCommitmentCollector.class,
-            () -> CacheUsageAndCommitmentCollector.EMPTY
+        final CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector = pluginsService.loadSingletonServiceProvider(
+            CacheSizesAndCommitmentCollector.class,
+            () -> CacheSizesAndCommitmentCollector.EMPTY
         );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
@@ -112,7 +112,7 @@ class NodeServiceProvider {
             threadPool,
             client,
             estimatedHeapUsageCollector,
-            cacheUsageAndCommitmentCollector,
+            cacheSizesAndCommitmentCollector,
             new NodeUsageStatsForThreadPoolsCollector()
         );
         if (DiscoveryNode.isMasterNode(settings)) {

@@ -113,7 +113,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final Object mutex = new Object();
     private final List<ActionListener<ClusterInfo>> nextRefreshListeners = new ArrayList<>();
     private final EstimatedHeapUsageCollector estimatedHeapUsageCollector;
-    private final CacheUsageAndCommitmentCollector cacheUsageAndCommitmentCollector;
+    private final CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector;
     private final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector;
     private final WriteLoadConstraintSettings writeLoadConstraintSettings;
 
@@ -130,13 +130,13 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         ThreadPool threadPool,
         Client client,
         EstimatedHeapUsageCollector estimatedHeapUsageCollector,
-        CacheUsageAndCommitmentCollector cacheUsageAndCommitmentCollector,
+        CacheSizesAndCommitmentCollector cacheSizesAndCommitmentCollector,
         NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector
     ) {
         this.threadPool = threadPool;
         this.client = client;
         this.estimatedHeapUsageCollector = estimatedHeapUsageCollector;
-        this.cacheUsageAndCommitmentCollector = cacheUsageAndCommitmentCollector;
+        this.cacheSizesAndCommitmentCollector = cacheSizesAndCommitmentCollector;
         this.nodeUsageStatsForThreadPoolsCollector = nodeUsageStatsForThreadPoolsCollector;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
@@ -221,8 +221,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<String, Long> estimatedHeapUsagePerNode;
         private volatile ShardHeapUsageEstimates estimatedShardHeapUsageEstimates = ShardHeapUsageEstimates.empty();
         private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
-        private volatile Map<ShardId, BoostedAndUnboostedCacheSizes> shardCacheSizes = Map.of();
-        private volatile Map<String, NodeCacheStats> nodeCacheStats = Map.of();
+        private volatile Map<ShardId, BoostedAndUnboostedCacheCommitments> shardCacheCommitments = Map.of();
+        private volatile Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = Map.of();
         private volatile IndicesStatsSummary indicesStatsSummary;
 
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
@@ -304,31 +304,23 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void fetchCacheUsageAndCommitments() {
             try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
                 final ClusterState clusterState = clusterStateSupplier.get();
-                cacheUsageAndCommitmentCollector.collectShardCacheSizes(clusterState, ActionListener.releaseAfter(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Map<ShardId, BoostedAndUnboostedCacheSizes> cacheSizes) {
-                        shardCacheSizes = cacheSizes;
-                    }
+                cacheSizesAndCommitmentCollector.collectCacheSizesAndCommitmentStats(
+                    clusterState,
+                    ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(CacheSizesAndCommitmentStats cacheSizesAndCommitmentStats) {
+                            shardCacheCommitments = cacheSizesAndCommitmentStats.shardCacheCommitments();
+                            nodeCacheSizeAndCommitments = cacheSizesAndCommitmentStats.nodeCacheSizeAndCommitments();
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn("failed to fetch shard cache sizes", e);
-                        shardCacheSizes = Map.of();
-                    }
-                }, fetchRefs.acquire()));
-
-                cacheUsageAndCommitmentCollector.collectNodeCacheStats(clusterState, ActionListener.releaseAfter(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Map<String, NodeCacheStats> cacheStats) {
-                        nodeCacheStats = cacheStats;
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn("failed to fetch cache stats for nodes", e);
-                        nodeCacheStats = Map.of();
-                    }
-                }, fetchRefs.acquire()));
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn("failed to fetch cache sizes and commitment stats", e);
+                            shardCacheCommitments = Map.of();
+                            nodeCacheSizeAndCommitments = Map.of();
+                        }
+                    }, fetchRefs.acquire())
+                );
             }
         }
 
@@ -557,8 +549,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 indicesStatsSummary.shardWriteLoads(),
                 maxHeapPerNode,
                 nodeIdsWriteLoadHotspotting,
-                nodeCacheStats,
-                shardCacheSizes
+                nodeCacheSizeAndCommitments,
+                shardCacheCommitments
             );
             currentClusterInfo = newClusterInfo;
             return newClusterInfo;

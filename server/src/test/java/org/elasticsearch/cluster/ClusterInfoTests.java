@@ -78,18 +78,21 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
     }
 
     public void testCacheUsageFieldsAreTransportVersionGated() throws Exception {
-        final var shardCacheSizes = Map.of(randomShardId(), new BoostedAndUnboostedCacheSizes(10L, 20L));
-        final var nodeCacheStats = Map.of(randomIdentifier(), new NodeCacheStats(100L, 10L, 30L));
-        final var clusterInfo = ClusterInfo.builder().shardCacheSizes(shardCacheSizes).nodeCacheStats(nodeCacheStats).build();
+        final var shardCacheCommitments = Map.of(randomShardId(), new BoostedAndUnboostedCacheCommitments(10L, 20L));
+        final var nodeCacheSizeAndCommitments = Map.of(randomIdentifier(), new NodeCacheSizeAndCommitments(100L, 10L, 30L));
+        final var clusterInfo = ClusterInfo.builder()
+            .shardCacheCommitments(shardCacheCommitments)
+            .nodeCacheSizeAndCommitments(nodeCacheSizeAndCommitments)
+            .build();
 
         final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
-        assertThat(currentVersionCopy.getShardCacheSizes(), equalTo(shardCacheSizes));
-        assertThat(currentVersionCopy.getNodeCacheStats(), equalTo(nodeCacheStats));
+        assertThat(currentVersionCopy.getShardCacheCommitments(), equalTo(shardCacheCommitments));
+        assertThat(currentVersionCopy.getNodeCacheSizeAndCommitments(), equalTo(nodeCacheSizeAndCommitments));
 
         final var preCacheUsageVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.CACHE_METADATA_IN_CLUSTER_INFO);
         final var preCacheUsageCopy = copyInstance(clusterInfo, preCacheUsageVersion);
-        assertThat(preCacheUsageCopy.getShardCacheSizes(), equalTo(Map.of()));
-        assertThat(preCacheUsageCopy.getNodeCacheStats(), equalTo(Map.of()));
+        assertThat(preCacheUsageCopy.getShardCacheCommitments(), equalTo(Map.of()));
+        assertThat(preCacheUsageCopy.getNodeCacheSizeAndCommitments(), equalTo(Map.of()));
     }
 
     private static double randomWriteLoadProportion() {
@@ -126,27 +129,30 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomShardWriteLoad(),
             randomMaxHeapSizes(),
             randomNodeIdsWriteLoadHotspottingSet(),
-            randomNodeCacheStatsMap(),
-            randomShardCacheSizes()
+            randomNodeCacheSizeAndCommitmentsMap(),
+            randomShardCacheCommitments()
         );
     }
 
-    private static Map<String, NodeCacheStats> randomNodeCacheStatsMap() {
+    private static Map<String, NodeCacheSizeAndCommitments> randomNodeCacheSizeAndCommitmentsMap() {
         int numEntries = randomIntBetween(0, 128);
-        Map<String, NodeCacheStats> nodeCacheStats = new HashMap<>(numEntries);
+        Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            nodeCacheStats.put(randomAlphaOfLength(32), NodeCacheStatsTests.randomNodeCacheStats());
+            nodeCacheSizeAndCommitments.put(randomAlphaOfLength(32), NodeCacheSizeAndCommitmentsTests.randomNodeCacheSizeAndCommitments());
         }
-        return nodeCacheStats;
+        return nodeCacheSizeAndCommitments;
     }
 
-    private static Map<ShardId, BoostedAndUnboostedCacheSizes> randomShardCacheSizes() {
+    private static Map<ShardId, BoostedAndUnboostedCacheCommitments> randomShardCacheCommitments() {
         int numEntries = randomIntBetween(0, 128);
-        Map<ShardId, BoostedAndUnboostedCacheSizes> shardCacheSizes = new HashMap<>(numEntries);
+        Map<ShardId, BoostedAndUnboostedCacheCommitments> shardCacheCommitments = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            shardCacheSizes.put(randomShardId(), new BoostedAndUnboostedCacheSizes(randomNonNegativeLong(), randomNonNegativeLong()));
+            shardCacheCommitments.put(
+                randomShardId(),
+                new BoostedAndUnboostedCacheCommitments(randomNonNegativeLong(), randomNonNegativeLong())
+            );
         }
-        return shardCacheSizes;
+        return shardCacheCommitments;
     }
 
     private static Map<ShardId, Double> randomShardWriteLoad() {

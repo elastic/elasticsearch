@@ -26,6 +26,7 @@ import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandle
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -182,6 +183,9 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .endObject();
         // Two values: "a" is indexed normally, "b" is redirected to ._on_failure. Both must appear in _source.
         assertEqualSource(mappingXContent, Map.of("kw", List.of("a", "b")), randomBoolean());
+        for (String index : List.of("test_synthetic", "test_columnar_stored")) {
+            assertIgnoredContains(index, "kw");
+        }
     }
 
     /**
@@ -203,6 +207,9 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .endObject();
         // field is absent — violation is ignored, field must be omitted from _source in both modes
         assertEqualSource(mappingXContent, Map.of(), randomBoolean());
+        for (String index : List.of("test_synthetic", "test_columnar_stored")) {
+            assertIgnoredContains(index, "kw");
+        }
     }
 
     /**
@@ -237,6 +244,20 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         // "WORLD" violates multi_value=false: goes to ._on_failure AND is pre-captured in _ignored_source (FALLBACK).
         // Both originals must appear exactly once in the reconstructed _source of each mode.
         assertEqualSource(mappingXContent, Map.of("kw", List.of("HELLO", "WORLD")), randomBoolean());
+        for (String index : List.of("test_synthetic", "test_columnar_stored")) {
+            assertIgnoredContains(index, "kw");
+        }
+    }
+
+    private void assertIgnoredContains(String index, String fieldName) {
+        var resp = client().prepareSearch(index).addFetchField(IgnoredFieldMapper.NAME).get();
+        try {
+            var ignoredField = resp.getHits().getAt(0).field(IgnoredFieldMapper.NAME);
+            assertNotNull(index + ": violation must populate _ignored", ignoredField);
+            assertTrue(index + ": _ignored must contain '" + fieldName + "'", ignoredField.getValues().contains(fieldName));
+        } finally {
+            resp.decRef();
+        }
     }
 
     private void runTest(boolean useTimeSeriesDocValuesFormat) throws Exception {

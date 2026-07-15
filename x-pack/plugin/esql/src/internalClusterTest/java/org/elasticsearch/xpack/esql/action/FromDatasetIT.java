@@ -3046,7 +3046,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // download lives outside it. One copy is shared across the three registrations via a per-test cache.
         if (realClickBenchLocal == null) {
             realClickBenchLocal = createTempDir().resolve("hits.parquet");
-            Files.copy(java.nio.file.Path.of(realPath), realClickBenchLocal);
+            Files.copy(org.elasticsearch.core.PathUtils.get(realPath), realClickBenchLocal);
         }
         Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
         DatasetMapping mapping = null;

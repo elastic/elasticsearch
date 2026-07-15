@@ -284,9 +284,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final var unknownRegion = cacheService.get(cacheKey, size(500), 3);
             assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, unknownRegion.timestampMillis());
 
-            // Backfill the range [0, 4] with a single timestamp: regions 3 and 4 are absent and must be skipped silently.
+            // Backfill all present regions of the blob with a single timestamp.
             final long backfill = randomLongBetween(1, Long.MAX_VALUE - 1);
-            cacheService.backfillRegionTimestamps(cacheKey, 0, 4, backfill);
+            cacheService.backfillRegionTimestamps(cacheKey.shardId(), Map.of(cacheKey, backfill));
 
             assertEquals(backfill, region0.timestampMillis());
             assertEquals(realTs, region1.timestampMillis()); // the guard kept the pre-existing real value
@@ -294,10 +294,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, unknownRegion.timestampMillis());
 
             // backfilling an already-resolved region is a no-op (transition only from BACKFILL_IN_PROGRESS)
-            cacheService.backfillRegionTimestamps(cacheKey, 0, 0, backfill + 1);
+            cacheService.backfillRegionTimestamps(cacheKey.shardId(), Map.of(cacheKey, backfill + 1));
             assertEquals(backfill, region0.timestampMillis());
-
-            // TODO: assert region 3,4 were not created
         }
     }
 

@@ -147,10 +147,10 @@ public class SearchShardRecoveryCacheTimestampBackfillIT extends AbstractStatele
                 blob.getValue()
             );
             var compoundCommit = iterator.next();
-            // The timestamp the backfill resolves for the blob (see MetadataReadTimestampBackfill): the commit's midpoint, or
-            // MINIMAL_TIMESTAMP when the commit has no timestamp range. Our docs all carry @timestamp, so this is the commit's value.
+            // The timestamp the backfill resolves for the blob: the most recent referenced CC midpoint, or MINIMAL_TIMESTAMP when none
+            // exist. Our docs all carry @timestamp, so this is the commit's value.
             long midpoint = BlobFileRanges.midpointMillisOrUnknownForCache(compoundCommit.getTimestampFieldValueRange());
-            long dataTimestamp = midpoint != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? midpoint : 1L;
+            long dataTimestamp = midpoint != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? midpoint : SharedBlobCacheService.MINIMAL_TIMESTAMP;
             blobs.add(new BlobInfo(new FileCacheKey(shardId, primaryTerm, blobName), dataTimestamp));
         }
         assertThat("the test needs several referenced blobs to exercise the cross-blob backfill", blobs.size(), greaterThanOrEqualTo(2));

@@ -105,10 +105,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     /// A cache region's data timestamp (epoch millis) is a plain `long` partitioned into three domains:
-    /// - a non-negative epoch-millis value (`>= 0`);
+    /// - a non-negative epoch-millis value (`>= 0`), with [#MINIMAL_TIMESTAMP] (`0`) as the oldest representable instant;
     /// - [#UNKNOWN_TIMESTAMP] (`-1`): the content has no representative timestamp;
     /// - [#BACKFILL_IN_PROGRESS_TIMESTAMP] (`-2`): the timestamp is temporarily unknown, e.g. pending backfill.
     ///
+    /**
+     * Oldest non-negative epoch millis ({@code 0L}) used when no real timestamp is available after folding CCs, or when a computed
+     * midpoint would be negative. Distinct from {@link #UNKNOWN_TIMESTAMP} (no timestamp known yet).
+     */
+    public static final long MINIMAL_TIMESTAMP = 0L;
+
     public static final long UNKNOWN_TIMESTAMP = -1L;
 
     /// Sentinel used when the timestamp of a cache region is temporarily unknown and will be backfilled later.
@@ -364,6 +370,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         int forceEvict(ShardId shard, Predicate<K> cacheKeyPredicate);
 
         int forceEvict(ShardId shard, BiPredicate<K, Integer> regionPredicate);
+
+        void backfillRegionTimestamps(ShardId shard, Map<K, Long> timestampByBlob);
 
         int demoteAll(ShardId shard);
     }
@@ -979,25 +987,23 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     /**
-     * Backfills the timestamps of every region in the inclusive range {@code [firstRegion, lastRegion]} of {@code cacheKey},
-     * transitioning each present region only from {@link #BACKFILL_IN_PROGRESS_TIMESTAMP} to {@code timestampMillis}.
-     * Regions that are absent (never populated or already evicted), carry {@link #UNKNOWN_TIMESTAMP}, or already carry a real
-     * timestamp are left unchanged.
+     * Backfills the timestamps of every present region for each blob in {@code timestampByBlob} on {@code shard},
+     * transitioning each region only from {@link #BACKFILL_IN_PROGRESS_TIMESTAMP} to the blob's timestamp.
+     * Regions that carry {@link #UNKNOWN_TIMESTAMP} or already carry a real timestamp are left unchanged.
      *
-     * @param cacheKey        the cache key whose regions to backfill
-     * @param firstRegion     the first region index to backfill (inclusive)
-     * @param lastRegion      the last region index to backfill (inclusive)
-     * @param timestampMillis the real timestamp (epoch millis, {@code >= 0}) to assign
+     * @param shard            the shard whose cached regions to scan
+     * @param timestampByBlob  map from blob cache key to the real timestamp (epoch millis, {@code >= 0}) to assign
      */
-    public void backfillRegionTimestamps(KeyType cacheKey, int firstRegion, int lastRegion, long timestampMillis) {
-        assert firstRegion >= 0 && lastRegion >= firstRegion : firstRegion + " > " + lastRegion;
-        assert timestampMillis >= 0L : timestampMillis;
-        for (int region = firstRegion; region <= lastRegion; region++) {
-            final CacheEntry<CacheFileRegion<KeyType>> cacheEntry = cache.getIfPresent(cacheKey, region);
-            if (cacheEntry != null) {
-                cacheEntry.chunk.backfillTimestampFromBackfillInProgress(timestampMillis);
+    public void backfillRegionTimestamps(ShardId shard, Map<KeyType, Long> timestampByBlob) {
+        if (timestampByBlob.isEmpty()) {
+            return;
+        }
+        if (Assertions.ENABLED) {
+            for (var timestamp : timestampByBlob.values()) {
+                assert timestamp >= 0L : timestamp;
             }
         }
+        cache.backfillRegionTimestamps(shard, timestampByBlob);
     }
 
     /**
@@ -2431,6 +2437,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             });
             return forceEvictEntries(shard, matchingEntries);
+        }
+
+        @Override
+        public void backfillRegionTimestamps(ShardId shard, Map<KeyType, Long> timestampByBlob) {
+            keyMapping.forEach(shard, (regionKey, entry) -> {
+                Long timestampMillis = timestampByBlob.get(regionKey.file);
+                if (timestampMillis != null) {
+                    entry.chunk.backfillTimestampFromBackfillInProgress(timestampMillis);
+                }
+            });
         }
 
         private int forceEvictEntries(@Nullable final ShardId shardId, final List<LFUCacheEntry> matchingEntries) {

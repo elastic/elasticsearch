@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
@@ -578,10 +579,12 @@ public class SearchEngine extends Engine {
                 }
 
                 ListenableFuture<Map<String, BlobFileRanges>> listenableFuture = new ListenableFuture<>();
+                final Map<BlobFile, Long> backfillTimestampsByBlob;
                 if (prefetcherDynamicSettings.internalFilesReplicatedContentForSearchShardsEnabled()) {
                     var newCommitFiles = new HashMap<>(latestCommit.commitFiles());
                     newCommitFiles.keySet().removeAll(searchDirectory.getKnownFileNames());
                     Map<String, BlobFileRanges> newBlobFileRanges = ConcurrentCollections.newConcurrentMap();
+                    backfillTimestampsByBlob = ConcurrentCollections.newConcurrentMap();
                     ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                         newCommitFiles,
                         null,
@@ -597,10 +600,18 @@ public class SearchEngine extends Engine {
                                     referencedCompoundCommit.referencedInternalFiles()
                                 )
                             );
+                            var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
+                            long ccTimestamp = BlobFileRanges.midpointMillisOrUnknownForCache(
+                                referencedCompoundCommit.statelessCompoundCommitReference()
+                                    .compoundCommit()
+                                    .getTimestampFieldValueRange()
+                            );
+                            backfillTimestampsByBlob.merge(bccBlobFile, ccTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
                         },
                         listenableFuture.map(aVoid -> newBlobFileRanges)
                     );
                 } else {
+                    backfillTimestampsByBlob = Map.of();
                     listenableFuture.onResponse(Map.of());
                 }
                 assert listenableFuture.isDone() : "unexpected sync call not done after invocation";
@@ -614,6 +625,9 @@ public class SearchEngine extends Engine {
                         final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
                         if (commitUpdated) {
                             updateInternalState(notificationToApply, current);
+                        }
+                        if (backfillTimestampsByBlob.isEmpty() == false) {
+                            searchDirectory.backfillMetadataReadTimestamps(backfillTimestampsByBlob);
                         }
                     } finally {
                         store.decRef();

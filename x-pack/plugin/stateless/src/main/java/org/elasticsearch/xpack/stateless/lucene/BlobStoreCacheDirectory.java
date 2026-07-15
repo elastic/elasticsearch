@@ -20,6 +20,7 @@ import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -28,7 +29,6 @@ import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.ImmutableDirectoryException;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.xpack.stateless.cache.MetadataReadTimestampBackfill;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
@@ -173,11 +173,28 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
     }
 
-    public @Nullable MetadataReadTimestampBackfill newMetadataReadTimestampBackfill(String blobName, long primaryTerm) {
-        if (timeBasedCaching == false) {
-            return null;
+    /**
+     * Backfills the timestamps of every present sentinel region for each blob in {@code timestampByBlob}, using a single cache scan.
+     */
+    public void backfillMetadataReadTimestamps(Map<BlobFile, Long> timestampByBlob) {
+        if (timeBasedCaching == false || timestampByBlob.isEmpty()) {
+            return;
         }
-        return new MetadataReadTimestampBackfill(cacheService, new FileCacheKey(shardId, primaryTerm, blobName));
+        var byCacheKey = Maps.<FileCacheKey, Long>newHashMapWithExpectedSize(timestampByBlob.size());
+        for (var entry : timestampByBlob.entrySet()) {
+            // If we don't know the timestamp, then we say region is not as important.
+            // TODO: always come up with timestamp at the caller level
+            long timestampMillis = Math.max(entry.getValue(), SharedBlobCacheService.MINIMAL_TIMESTAMP);
+            byCacheKey.put(new FileCacheKey(shardId, entry.getKey().primaryTerm(), entry.getKey().blobName()), timestampMillis);
+        }
+        cacheService.backfillRegionTimestamps(shardId, byCacheKey);
+    }
+
+    /**
+     * Backfills the timestamps of every present sentinel region of a single blob.
+     */
+    public void backfillMetadataReadTimestamp(BlobFile bccBlobFile, long timestampMillis) {
+        backfillMetadataReadTimestamps(Map.of(bccBlobFile, timestampMillis));
     }
 
     StatelessSharedBlobCacheService getCacheService() {

@@ -23,6 +23,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -38,6 +39,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
@@ -421,6 +423,9 @@ class StatelessIndexEventListener implements IndexEventListener {
             searchDirectory,
             indexShard.getOperationPrimaryTerm()
         );
+        if (batchedCompoundCommit != null) {
+            backfillLatestBccMetadataReadTimestamps(searchDirectory, batchedCompoundCommit);
+        }
         assert batchedCompoundCommit == null || batchedCompoundCommit.shardId().equals(indexShard.shardId())
             : batchedCompoundCommit.shardId() + " != " + indexShard.shardId();
 
@@ -496,7 +501,16 @@ class StatelessIndexEventListener implements IndexEventListener {
                                 );
                                 targetsToWarm.merge(bccBlobFile, new WarmTarget(offset, ccTimestamp), WarmTarget::merge);
                             },
-                            l2.map(aVoid -> new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm))
+                            l2.map(aVoid -> {
+                                if (targetsToWarm.isEmpty() == false) {
+                                    var timestampByBlob = Maps.<BlobFile, Long>newHashMapWithExpectedSize(targetsToWarm.size());
+                                    for (var entry : targetsToWarm.entrySet()) {
+                                        timestampByBlob.put(entry.getKey(), entry.getValue().timestampMillis());
+                                    }
+                                    searchDirectory.backfillMetadataReadTimestamps(timestampByBlob);
+                                }
+                                return new SearchRecoveryWarmingInputs(blobFileRanges, targetsToWarm);
+                            })
                         );
                     } else {
                         l2.onResponse(null);
@@ -532,6 +546,25 @@ class StatelessIndexEventListener implements IndexEventListener {
                 }));
             })
         );
+    }
+
+    private static void backfillLatestBccMetadataReadTimestamps(
+        SearchDirectory searchDirectory,
+        BatchedCompoundCommit batchedCompoundCommit
+    ) {
+        if (searchDirectory.timeBasedCaching() == false) {
+            return;
+        }
+        var termAndGen = batchedCompoundCommit.primaryTermAndGeneration();
+        var blobName = BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation());
+        long timestampMillis = SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+        for (var compoundCommit : batchedCompoundCommit.compoundCommits()) {
+            timestampMillis = BlobFileRanges.mostRecentKnownTimestamp(
+                timestampMillis,
+                BlobFileRanges.midpointMillisOrUnknownForCache(compoundCommit.getTimestampFieldValueRange())
+            );
+        }
+        searchDirectory.backfillMetadataReadTimestamp(new BlobFile(blobName, termAndGen), timestampMillis);
     }
 
     private record SearchRecoveryWarmingInputs(Map<String, BlobFileRanges> blobFileRanges, Map<BlobFile, WarmTarget> targetsToWarm) {

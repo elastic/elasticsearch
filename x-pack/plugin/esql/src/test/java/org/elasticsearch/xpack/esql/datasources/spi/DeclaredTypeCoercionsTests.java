@@ -1492,6 +1492,26 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
     }
 
     /**
+     * The forward stat map must DECLINE (return null) rather than wrap when a raw stat scaled up has no {@code long}
+     * representation — a huge garbage {@code epoch_second} value under a {@code date_nanos} declaration, say. A wrapped
+     * negative would read as a bogus extremum and skip the wrong TopN groups. The monotone property test above never
+     * hits this because it stays within +/-5M; this pins the edge. Relaxing {@code multiplyExact} to {@code *} reds it.
+     */
+    public void testForwardStatMapDeclinesOnScaleUpOverflow() {
+        var scaleUp = new DeclaredTypeCoercions.RawDecodeRelation.ScaleUp(1_000_000_000L); // epoch_second -> nanos
+        long lastSafe = Long.MAX_VALUE / 1_000_000_000L;
+        assertNotNull("the largest raw that still fits must map", DeclaredTypeCoercions.rawStatToDecoded(scaleUp, lastSafe));
+        assertNull(
+            "a raw whose x1e9 overflows Long.MAX must decline, not wrap",
+            DeclaredTypeCoercions.rawStatToDecoded(scaleUp, lastSafe + 1)
+        );
+        assertNull(
+            "negative overflow must decline too",
+            DeclaredTypeCoercions.rawStatToDecoded(scaleUp, Long.MIN_VALUE / 1_000_000_000L - 1)
+        );
+    }
+
+    /**
      * A huge epoch-second literal parses to a valid Instant, then x1000 to millis overflows a long. That overflow
      * must surface as an IllegalArgumentException the reader per-cell error policy can catch and null — not an
      * ArithmeticException that escapes it and hard-fails the whole read. Same contract coerceToUnsignedLong keeps.

@@ -256,10 +256,12 @@ public class OptimizedParquetDynamicThresholdTests extends ESTestCase {
             // Identity cells only. This unit harness reads a bare projection, which cannot faithfully set up a
             // RESCALED sort column: it has no way to declare the ESQL type (only a format), and the descriptor it
             // hands the iterator does not carry the file's timestamp unit the way the production read path does. So
-            // the rescaling cells (TIMESTAMP(MICROS) -> date_nanos, and a declared epoch_second) are proven instead
-            // by FromDatasetIT#testScalingDifferentialAcrossFilterSortAndAggregate, which drives a real declaration
-            // end to end. What this test guards is the other direction: the identity reads must keep pruning exactly
-            // as they do today, since one arm of rawValueFromStats serves every INT64 sort column.
+            // the rescaling cells are proven end to end instead, over a real declaration: the declared-FORMAT rescale
+            // (epoch_second over a bare int64) by FromDatasetIT#testScalingDifferentialAcrossFilterSortAndAggregate,
+            // and the ANNOTATION rescale (TIMESTAMP(MICROS) -> date_nanos / declared date / declared long) by
+            // FromDatasetIT#testScalingDifferentialOverAnnotatedSortColumns. What this test guards is the other
+            // direction: the identity reads must keep pruning exactly as they do today, since one arm of
+            // rawValueFromStats serves every INT64 sort column.
             new Cell("bare INT64, no declaration", REQUIRED_LONG_SCHEMA, null, 1L),
             new Cell("TIMESTAMP(MILLIS) -> datetime", annotatedLong(LogicalTypeAnnotation.TimeUnit.MILLIS), null, 1L),
             new Cell("TIMESTAMP(NANOS) -> date_nanos", annotatedLong(LogicalTypeAnnotation.TimeUnit.NANOS), null, 1L)

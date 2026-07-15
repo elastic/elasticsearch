@@ -2754,67 +2754,149 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testScalingDifferentialAcrossFilterSortAndAggregate() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         // Raw epoch SECONDS across two row groups; the largest instant deliberately lives in the second group so a
-        // unit-blind DESC threshold skips exactly the group holding the right answer.
+        // unit-blind DESC threshold skips exactly the group holding the right answer. Here the rescale is driven by a
+        // declared FORMAT over a bare int64; the annotation-driven twin below drives it from the file's own annotation.
         long[] rawSeconds = new long[2000];
         for (int i = 0; i < rawSeconds.length; i++) {
             rawSeconds[i] = 1704067200L + i * 60L; // ascending, so the LARGEST lives in the LAST row group
         }
         Path file = writeScalingFixture("scale_seconds", rawSeconds);
 
-        record Cell(String dataset, String name, DatasetFieldMapping mapping, DatasetMapping.Dynamic dynamic) {}
         // strict x dynamic is an axis, not a footnote: they take different resolution paths (strict pins the
         // declaration, dynamic overlays it onto inference) and must agree on every other dimension.
-        List<Cell> cells = List.of(
-            new Cell(
-                "scale_diff_a",
-                "dynamic: date + epoch_second",
-                DatasetFieldMapping.withFormat("date", null, "epoch_second"),
-                DatasetMapping.Dynamic.TRUE
+        runScalingDifferential(
+            List.of(
+                new ScalingCell(
+                    "scale_diff_a",
+                    "dynamic: date + epoch_second",
+                    DatasetFieldMapping.withFormat("date", null, "epoch_second"),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "scale_diff_b",
+                    "dynamic: date_nanos + epoch_second",
+                    DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second"),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "scale_diff_c",
+                    "dynamic: date + epoch_millis (identity)",
+                    DatasetFieldMapping.withFormat("date", null, "epoch_millis"),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "scale_diff_d",
+                    "dynamic: long, no declaration (control)",
+                    new DatasetFieldMapping("long", null),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "scale_diff_e",
+                    "STRICT: date + epoch_second",
+                    DatasetFieldMapping.withFormat("date", null, "epoch_second"),
+                    DatasetMapping.Dynamic.FALSE
+                ),
+                new ScalingCell(
+                    "scale_diff_f",
+                    "STRICT: date_nanos + epoch_second",
+                    DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second"),
+                    DatasetMapping.Dynamic.FALSE
+                ),
+                new ScalingCell(
+                    "scale_diff_g",
+                    "STRICT: date + epoch_millis (identity)",
+                    DatasetFieldMapping.withFormat("date", null, "epoch_millis"),
+                    DatasetMapping.Dynamic.FALSE
+                )
             ),
-            new Cell(
-                "scale_diff_b",
-                "dynamic: date_nanos + epoch_second",
-                DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second"),
-                DatasetMapping.Dynamic.TRUE
-            ),
-            new Cell(
-                "scale_diff_c",
-                "dynamic: date + epoch_millis (identity)",
-                DatasetFieldMapping.withFormat("date", null, "epoch_millis"),
-                DatasetMapping.Dynamic.TRUE
-            ),
-            new Cell(
-                "scale_diff_d",
-                "dynamic: long, no declaration (control)",
-                new DatasetFieldMapping("long", null),
-                DatasetMapping.Dynamic.TRUE
-            ),
-            new Cell(
-                "scale_diff_e",
-                "STRICT: date + epoch_second",
-                DatasetFieldMapping.withFormat("date", null, "epoch_second"),
-                DatasetMapping.Dynamic.FALSE
-            ),
-            new Cell(
-                "scale_diff_f",
-                "STRICT: date_nanos + epoch_second",
-                DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second"),
-                DatasetMapping.Dynamic.FALSE
-            ),
-            new Cell(
-                "scale_diff_g",
-                "STRICT: date + epoch_millis (identity)",
-                DatasetFieldMapping.withFormat("date", null, "epoch_millis"),
-                DatasetMapping.Dynamic.FALSE
-            )
+            file,
+            rawSeconds.length
         );
+    }
 
+    /**
+     * Annotation-driven twin of {@link #testScalingDifferentialAcrossFilterSortAndAggregate}: the file itself carries a
+     * {@code TIMESTAMP(MICROS)} annotation (the Spark / pandas / Iceberg default shape), so the decode scales relative
+     * to the raw footer statistics with <b>no declared format at all</b>. Three sub-cells the format-driven twin can
+     * never reach, because its fixture is a bare {@code int64}:
+     * <ul>
+     *   <li><b>inferred {@code date_nanos}</b> — decode is {@code ScaleUp x1000} (raw micros to nanos); the TopN rail
+     *       must map the raw micros stat up before comparing, or DESC skips the group holding the true max;</li>
+     *   <li><b>declared {@code date}</b> — decode is {@code ScaleDown /1000} (raw micros to millis); here ASC is the
+     *       wrong-answer side, the raw stat reading 1000x larger than the decoded bound;</li>
+     *   <li><b>declared {@code long}</b> — the sort type carries no relation, so only {@code sortColumnAnnotationScales}
+     *       stops the raw passthrough; revert it and the wrong extremum returns silently.</li>
+     * </ul>
+     * Exercises both the row-group stats rail and the page-index rail over a rescaled annotation.
+     */
+    public void testScalingDifferentialOverAnnotatedSortColumns() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Raw MICROS across two row groups, ascending so the largest lives in the last group.
+        long[] rawMicros = new long[2000];
+        for (int i = 0; i < rawMicros.length; i++) {
+            rawMicros[i] = 1704067200_000_000L + i * 60_000_000L;
+        }
+        Path file = writeScalingFixture("scale_micros", rawMicros, "TIMESTAMP(MICROS,true)");
+
+        runScalingDifferential(
+            List.of(
+                new ScalingCell(
+                    "ascale_a",
+                    "dynamic: TIMESTAMP(MICROS) -> date_nanos (ScaleUp x1000)",
+                    new DatasetFieldMapping("date_nanos", null),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "ascale_b",
+                    "dynamic: TIMESTAMP(MICROS) declared date (ScaleDown /1000)",
+                    new DatasetFieldMapping("date", null),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "ascale_c",
+                    "dynamic: TIMESTAMP(MICROS) declared long (annotation still scales)",
+                    new DatasetFieldMapping("long", null),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "ascale_d",
+                    "STRICT: TIMESTAMP(MICROS) -> date_nanos",
+                    new DatasetFieldMapping("date_nanos", null),
+                    DatasetMapping.Dynamic.FALSE
+                ),
+                new ScalingCell(
+                    "ascale_e",
+                    "STRICT: TIMESTAMP(MICROS) declared date",
+                    new DatasetFieldMapping("date", null),
+                    DatasetMapping.Dynamic.FALSE
+                ),
+                new ScalingCell(
+                    "ascale_f",
+                    "STRICT: TIMESTAMP(MICROS) declared long",
+                    new DatasetFieldMapping("long", null),
+                    DatasetMapping.Dynamic.FALSE
+                )
+            ),
+            file,
+            rawMicros.length
+        );
+    }
+
+    /** A cell of the scaling differential: one dataset declaration over the shared fixture. */
+    private record ScalingCell(String dataset, String name, DatasetFieldMapping mapping, DatasetMapping.Dynamic dynamic) {}
+
+    /**
+     * Drives every {@link ScalingCell} over {@code file} and asserts the filter / TopN / aggregate paths all agree with
+     * fully-decoded ground truth (a plain {@code KEEP} that engages no pruning). Shared by the format-driven and
+     * annotation-driven differentials so the two cannot drift on what "agree" means.
+     */
+    private void runScalingDifferential(List<ScalingCell> cells, Path file, int rowCount) throws Exception {
         List<String> failures = new ArrayList<>();
-        for (Cell cell : cells) {
+        for (ScalingCell cell : cells) {
             registerScalingDataset(cell.dataset(), file, cell.mapping(), cell.dynamic());
             List<Long> truth = scalingGroundTruth(cell.dataset());
-            assertThat("[" + cell.name() + "] ground truth must see every row", truth, hasSize(rawSeconds.length));
-            assertThat("ground truth is capped by the LIMIT below, keep the fixture under it", rawSeconds.length, lessThan(10000));
+            assertThat("[" + cell.name() + "] ground truth must see every row", truth, hasSize(rowCount));
+            assertThat("ground truth is capped by the LIMIT below, keep the fixture under it", rowCount, lessThan(10000));
             long min = truth.stream().mapToLong(Long::longValue).min().getAsLong();
             long max = truth.stream().mapToLong(Long::longValue).max().getAsLong();
 
@@ -2846,7 +2928,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 ),
                 new Probe("STATS MIN", "FROM " + cell.dataset() + " | STATS m = MIN(ts) | EVAL v = m::long | KEEP v", min),
                 new Probe("STATS MAX", "FROM " + cell.dataset() + " | STATS m = MAX(ts) | EVAL v = m::long | KEEP v", max),
-                new Probe("STATS COUNT", "FROM " + cell.dataset() + " | STATS c = COUNT(ts)", (long) rawSeconds.length)
+                new Probe("STATS COUNT", "FROM " + cell.dataset() + " | STATS c = COUNT(ts)", (long) rowCount)
             );
             for (Probe probe : probes) {
                 try (var response = run(syncEsqlQueryRequest(probe.query()), TIMEOUT)) {
@@ -2965,8 +3047,18 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * later group for a unit-blind threshold to wrongly skip).
      */
     private Path writeScalingFixture(String name, long[] rawTs) throws IOException {
+        return writeScalingFixture(name, rawTs, null);
+    }
+
+    /**
+     * As {@link #writeScalingFixture(String, long[])} but optionally annotates the {@code ts} column with a parquet
+     * logical type (e.g. {@code TIMESTAMP(MICROS,true)}), so the file itself — not a declared format — drives the
+     * decode rescale. The raw values are written as-is; the annotation only changes how the reader interprets them.
+     */
+    private Path writeScalingFixture(String name, long[] rawTs, String tsAnnotation) throws IOException {
+        String tsColumn = tsAnnotation == null ? "required int64 ts" : "required int64 ts (" + tsAnnotation + ")";
         MessageType schema = MessageTypeParser.parseMessageType(
-            "message scaling { required int64 ts; required int64 id; required int32 pri; required binary msg (UTF8); }"
+            "message scaling { " + tsColumn + "; required int64 id; required int32 pri; required binary msg (UTF8); }"
         );
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);

@@ -1164,6 +1164,67 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertNotNull("IS NULL over a non-nulling inferred datetime must still push", fp);
     }
 
+    /**
+     * The IS NULL pushdown gate must track {@link ParquetColumnDecoding#decodeCanNull} across the WHOLE truth table,
+     * not the two cells the pair above pins. A decode that can mint a null from a physically-present value (a rescaling
+     * temporal read at its range edge, or a format parse failure) makes the decoded null-set larger than the physical
+     * one, so {@code eq(col, null)} would prune a row group whose {@code nullCount == 0}. Only the identity reads keep
+     * the push: bare {@code INT64} / {@code TIMESTAMP(MILLIS)} datetime, {@code TIMESTAMP(NANOS)} date_nanos, and the
+     * no-format {@code INT32} date. Mutating {@code decodeCanNull} to {@code declaredFormat != null} reds this.
+     */
+    public void testIsNullPushdownGateMatchesDecodeCanNullTruthTable() {
+        LogicalTypeAnnotation.TimeUnit millis = LogicalTypeAnnotation.TimeUnit.MILLIS;
+        LogicalTypeAnnotation.TimeUnit micros = LogicalTypeAnnotation.TimeUnit.MICROS;
+        LogicalTypeAnnotation.TimeUnit nanos = LogicalTypeAnnotation.TimeUnit.NANOS;
+        record Case(String name, MessageType schema, DataType declared, String format, boolean pushes) {}
+        List<Case> cases = List.of(
+            // DATETIME: identity over bare / MILLIS pushes; the rescaling MICROS / NANOS reads decline.
+            new Case("datetime / bare INT64", int64Ts(null), DataType.DATETIME, null, true),
+            new Case("datetime / TIMESTAMP(MILLIS)", int64Ts(timestampType(true, millis)), DataType.DATETIME, null, true),
+            new Case("datetime / TIMESTAMP(MICROS)", int64Ts(timestampType(true, micros)), DataType.DATETIME, null, false),
+            new Case("datetime / TIMESTAMP(NANOS)", int64Ts(timestampType(true, nanos)), DataType.DATETIME, null, false),
+            new Case("datetime / bare INT64 + epoch_second", int64Ts(null), DataType.DATETIME, "epoch_second", false),
+            // DATE_NANOS: identity only over NANOS; bare / MICROS / MILLIS all rescale and decline.
+            new Case("date_nanos / bare INT64", int64Ts(null), DataType.DATE_NANOS, null, false),
+            new Case("date_nanos / TIMESTAMP(MILLIS)", int64Ts(timestampType(true, millis)), DataType.DATE_NANOS, null, false),
+            new Case("date_nanos / TIMESTAMP(MICROS)", int64Ts(timestampType(true, micros)), DataType.DATE_NANOS, null, false),
+            new Case("date_nanos / TIMESTAMP(NANOS)", int64Ts(timestampType(true, nanos)), DataType.DATE_NANOS, null, true),
+            new Case("date_nanos / bare INT64 + epoch_second", int64Ts(null), DataType.DATE_NANOS, "epoch_second", false),
+            // INT32 inferred DATE (days -> millis) never nulls -> keeps the push.
+            new Case("date / INT32(DATE)", int32DateTs(), DataType.DATETIME, null, true)
+        );
+        for (Case c : cases) {
+            Expression isNull = new IsNull(Source.EMPTY, attr("ts", c.declared()));
+            ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(isNull));
+            FilterPredicate fp = c.format() == null
+                ? pushed.toFilterPredicate(c.schema())
+                : pushed.toFilterPredicate(c.schema(), Map.of("ts", c.format()));
+            if (c.pushes()) {
+                assertNotNull("[" + c.name() + "] identity decode never nulls -> IS NULL must push", fp);
+            } else {
+                assertNull("[" + c.name() + "] decode can null -> IS NULL must decline", fp);
+            }
+        }
+    }
+
+    /** IS NOT NULL is never gated by decodeCanNull: a decode-minted null only grows the null-set, so IS NOT NULL over a
+     * decode-can-null column (here a MICROS datetime, and a formatted INT64) still pushes. */
+    public void testIsNotNullNotGatedByDecodeCanNull() {
+        MessageType annotated = int64Ts(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS));
+        Expression isNotNull = new IsNotNull(Source.EMPTY, attr("ts", DataType.DATETIME));
+        assertNotNull(
+            "IS NOT NULL over a rescaling datetime must still push",
+            new ParquetPushedExpressions(List.of(isNotNull)).toFilterPredicate(annotated)
+        );
+        assertNotNull(
+            "IS NOT NULL over a formatted date_nanos must still push",
+            new ParquetPushedExpressions(List.of(new IsNotNull(Source.EMPTY, attr("ts", DataType.DATE_NANOS)))).toFilterPredicate(
+                int64Ts(null),
+                Map.of("ts", "epoch_second")
+            )
+        );
+    }
+
     // --- the datetime arm's raw-bound decision, through the real entry point ---
 
     /** A millis-annotated column stores exactly what the literal holds: push the bound unchanged. */
@@ -2125,6 +2186,18 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     private static Attribute attr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, name, type);
+    }
+
+    /** A single-column {@code ts} INT64 schema, optionally carrying a parquet logical-type annotation. */
+    private static MessageType int64Ts(LogicalTypeAnnotation annotation) {
+        return annotation == null
+            ? Types.buildMessage().required(INT64).named("ts").named("test")
+            : Types.buildMessage().required(INT64).as(annotation).named("ts").named("test");
+    }
+
+    /** A single-column {@code ts} INT32 schema annotated {@code DATE} — the only INT32 datetime shape (days -> millis). */
+    private static MessageType int32DateTs() {
+        return Types.buildMessage().required(INT32).as(dateType()).named("ts").named("test");
     }
 
     private static Literal lit(Object value, DataType type) {

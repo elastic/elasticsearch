@@ -5853,15 +5853,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                 }
                 Long epoch = parseEpoch(value);
-                if (epoch == null) {
+                if (epoch == null || epoch < 0) {
+                    // date_nanos has no pre-1970: a negative epoch is not a representable instant (parquet rejects it
+                    // per cell), so treat it as a field error rather than emit a negative nanos long.
                     lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                    return null;
                 }
                 return epoch;
             }
             if (looksNumeric(value)) {
                 Long epoch = parseEpoch(value);
-                if (epoch != null) {
+                if (epoch != null && epoch >= 0) {
                     return epoch;
+                }
+                if (epoch != null) {
+                    // A negative epoch is not a representable date_nanos; fail the cell rather than emit it.
+                    lastFieldError = "Failed to parse CSV date_nanos value [" + value + "]";
+                    return null;
                 }
                 // Overflowed a long; fall through to the ISO fallback, which will report the failure.
             }

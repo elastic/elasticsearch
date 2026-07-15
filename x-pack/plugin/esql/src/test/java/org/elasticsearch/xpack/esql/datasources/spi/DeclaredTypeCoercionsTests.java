@@ -1451,4 +1451,19 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             }
         }
     }
+
+    /**
+     * A huge epoch-second literal parses to a valid Instant, then x1000 to millis overflows a long. That overflow
+     * must surface as an IllegalArgumentException the reader per-cell error policy can catch and null — not an
+     * ArithmeticException that escapes it and hard-fails the whole read. Same contract coerceToUnsignedLong keeps.
+     */
+    public void testEpochSecondOverflowFailsPerCellNotAsArithmeticException() {
+        DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
+        long hugeSeconds = 10_000_000_000_000_000L; // parses fine as an Instant; x1000 overflows
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DeclaredTypeCoercions.parseDatetimeMillis(String.valueOf(hugeSeconds), epochSecond)
+        );
+        assertFalse("must not leak ArithmeticException past the per-cell policy", e instanceof ArithmeticException);
+    }
 }

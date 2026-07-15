@@ -505,8 +505,6 @@ spec:
     spec:
       repository: elastic/elasticsearch
       pipeline_file: .buildkite/pipelines/agentic-workflow.yml
-      cancel_intermediate_builds: false
-      skip_intermediate_builds: false
       teams:
         elasticsearch-team: {}
         ml-core: {}

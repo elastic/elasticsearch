@@ -718,4 +718,49 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         Map<String, Object> stats = Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
         assertSame(stats, SourceStatisticsSerializer.overlayPinnedColumnsOnStats(stats, Set.of(), false));
     }
+
+    public void testRemoveColumnStatFamiliesStripsWholeFamilyKeepingRowCountAndOtherColumns() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 3L);
+        stats.put(SourceStatisticsSerializer.STATS_SIZE_BYTES, 512L);
+        stats.put(SourceStatisticsSerializer.columnMinKey("col"), 10L);
+        stats.put(SourceStatisticsSerializer.columnMaxKey("col"), 20L);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey("col"), 3L);
+        stats.put(SourceStatisticsSerializer.columnNullCountKey("col"), 0L);
+        stats.put(SourceStatisticsSerializer.columnSizeBytesKey("col"), 24L);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey("other"), 5L);
+
+        // Commit path under null_field: strip the pinned column's whole family so the shared entry keeps the solo
+        // narrow read's own committed stats. Unlike the serve-side overlay, no unservable markers are written and
+        // size_bytes is removed too, and the row count survives (null_field keeps the row).
+        Map<String, Object> out = SourceStatisticsSerializer.removeColumnStatFamilies(stats, Set.of("col"), false);
+
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("col")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxKey("col")));
+        assertNull(out.get(SourceStatisticsSerializer.columnValueCountKey("col")));
+        assertNull(out.get(SourceStatisticsSerializer.columnNullCountKey("col")));
+        assertNull(out.get(SourceStatisticsSerializer.columnSizeBytesKey("col")));
+        assertNull("strip does not write unservable markers", out.get(SourceStatisticsSerializer.columnMinUnservableKey("col")));
+        assertNull("strip does not write unservable markers", out.get(SourceStatisticsSerializer.columnMaxUnservableKey("col")));
+        assertEquals("null_field keeps the row count", 3L, out.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertEquals("file byte signal is untouched", 512L, out.get(SourceStatisticsSerializer.STATS_SIZE_BYTES));
+        assertEquals("an unpinned column's stats survive", 5L, out.get(SourceStatisticsSerializer.columnValueCountKey("other")));
+    }
+
+    public void testRemoveColumnStatFamiliesDropsRowCountUnderSkipRow() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 3L);
+        stats.put(SourceStatisticsSerializer.columnValueCountKey("col"), 3L);
+
+        // skip_row: the pinned read parsed a row the narrow read drops, so its row count is stale for the shared entry.
+        Map<String, Object> out = SourceStatisticsSerializer.removeColumnStatFamilies(stats, Set.of("col"), true);
+
+        assertNull(out.get(SourceStatisticsSerializer.columnValueCountKey("col")));
+        assertNull("skip_row drops the stale row count", out.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+    }
+
+    public void testRemoveColumnStatFamiliesIdentityReturnsSameInstanceWhenNothingPinned() {
+        Map<String, Object> stats = Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        assertSame(stats, SourceStatisticsSerializer.removeColumnStatFamilies(stats, Set.of(), false));
+    }
 }

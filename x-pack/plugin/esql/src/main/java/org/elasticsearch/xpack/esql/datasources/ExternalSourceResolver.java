@@ -1646,7 +1646,7 @@ public class ExternalSourceResolver {
      * {@link SchemaReconciliation.FileSchemaInfo#inferredTypes()} snapshots the pre-pin types and is populated only when
      * the pin actually retyped a column, so a null (nothing retyped) or type-equal entry yields the empty set.
      */
-    private static Set<String> pinnedColumnsOf(SchemaReconciliation.FileSchemaInfo info) {
+    public static Set<String> pinnedColumnsOf(SchemaReconciliation.FileSchemaInfo info) {
         Map<String, DataType> inferred = info.inferredTypes();
         if (inferred == null) {
             return Set.of();
@@ -1670,7 +1670,7 @@ public class ExternalSourceResolver {
      * SKIP_ROW that a bare {@code max_errors} selects. An invalid policy conservatively drops the row count: it must not
      * fail resolution (the data node rejects it at scan time), and dropping only forces a safe re-scan.
      */
-    private boolean resolvesToSkipRow(String sourceType, Map<String, Object> config) {
+    public boolean resolvesToSkipRow(String sourceType, Map<String, Object> config) {
         FormatReader reader = dataSourceModule.formatReaderRegistry().findByName(sourceType);
         ErrorPolicy defaultPolicy = reader != null ? reader.defaultErrorPolicy() : ErrorPolicy.STRICT;
         try {

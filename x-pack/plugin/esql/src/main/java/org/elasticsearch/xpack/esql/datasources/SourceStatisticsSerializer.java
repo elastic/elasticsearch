@@ -363,6 +363,49 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
+     * The widened-column pin's stats boundary on the COMMIT path: the sibling of {@link #overlayPinnedColumnsOnStats},
+     * which is the serve-side boundary. The two guard opposite directions of the same read-schema-blind cache identity
+     * ({@code (path, mtime, config)}, no read-type component; see
+     * {@link org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey}): a solo narrow read and a widening glob's
+     * pinned wider read of the same file share one cache entry. The serve-side overlay stops a widening query from SERVING
+     * the narrow read's stale stats; this stops a widening read's harvest from COMMITTING (and so polluting) the entry a
+     * solo narrow read serves. A pinned wider read parses an out-of-sample value the narrow read null-filled (or
+     * row-dropped under {@code skip_row}), so its harvested {@code value_count} / {@code null_count} / extrema for a pinned
+     * column are values the narrow read never produces.
+     * <p>
+     * Unlike the serve-side overlay this STRIPS each pinned column's whole stat family rather than poisoning it: the commit
+     * is a last-writer-wins {@code putAll} into the shared entry, so removing the pinned column's keys leaves the solo
+     * narrow read's own correct stats intact and warm. A poison marker would instead persist into the shared entry and make
+     * the narrow read safe-miss too. Under {@code dropRowCount} ({@code skip_row}, where a narrow-read parse failure drops
+     * the whole row) {@code row_count} is stripped as well. {@code size_bytes} and non-column keys are untouched. Returns
+     * the input instance unchanged when there is nothing to do; otherwise a new map (inputs are routinely
+     * {@code Map.copyOf}-immutable).
+     *
+     * @param pinnedColumns columns whose read type was pinned above their inferred type for the harvested read
+     * @param dropRowCount  whether the error policy drops whole rows ({@code skip_row}), making {@code row_count} stale too
+     */
+    public static Map<String, Object> removeColumnStatFamilies(
+        Map<String, Object> statsMap,
+        Set<String> pinnedColumns,
+        boolean dropRowCount
+    ) {
+        if (statsMap == null || statsMap.isEmpty() || pinnedColumns.isEmpty()) {
+            return statsMap;
+        }
+        Map<String, Object> out = new HashMap<>(statsMap);
+        for (String column : pinnedColumns) {
+            String prefix = STATS_COL_PREFIX + column;
+            for (String suffix : COLUMN_STAT_SUFFIXES) {
+                out.remove(prefix + suffix);
+            }
+        }
+        if (dropRowCount) {
+            out.remove(STATS_ROW_COUNT);
+        }
+        return out;
+    }
+
+    /**
      * Compares two keyword/text stat extrema in UTF-8 byte order — the SAME order the runtime keyword MIN/MAX
      * aggregators and comparisons use ({@link BytesRef} unsigned-byte order) — NOT {@link String#compareTo}'s
      * UTF-16 code-unit order, which disagrees for supplementary (astral) chars vs BMP chars in

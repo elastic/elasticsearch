@@ -194,4 +194,39 @@ public class ExternalCsvUnionByNameNumericWideningIT extends AbstractExternalDat
             }
         }
     }
+
+    public void testPinnedReadCommitMustNotPolluteSoloNarrowReadStats() throws Exception {
+        Path dir = createTempDir().resolve("ubn_pinned_commit");
+        Files.createDirectories(dir);
+        // a.csv: schema_sample_size=2 samples (10, 20) -> col inferred INTEGER; 3000000000 is out of
+        // sample and overflows int, so a solo INTEGER read null-fills it under error_mode=null_field.
+        Files.writeString(dir.resolve("a.csv"), "id,col\n1,10\n2,20\n3,3000000000\n", StandardCharsets.UTF_8);
+        // b.csv: long-range values -> col inferred LONG, so the glob's UNION_BY_NAME reconciliation
+        // widens col to LONG and pins a.csv's read to LONG.
+        Files.writeString(dir.resolve("b.csv"), "id,col\n4,-5000000000\n5,-6000000000\n", StandardCharsets.UTF_8);
+
+        Map<String, Object> settings = Map.of("schema_resolution", "union_by_name", "schema_sample_size", 2, "error_mode", "null_field");
+        String dsA = registerDataset("ubn_pinned_commit_a", StoragePath.fileUri(dir) + "/a.csv", settings);
+        String combined = registerDataset("ubn_pinned_commit_all", StoragePath.fileUri(dir) + "/*.csv", settings);
+
+        // Solo a.csv reads col at its inferred INTEGER: 3000000000 null-fills -> COUNT(col)=2. The scan's
+        // harvest commits value_count=2 into a.csv's schema-cache entry, keyed (path, mtime, config) --
+        // an identity with NO read-type component.
+        try (var response = run(syncEsqlQueryRequest("FROM " + dsA + " | STATS c = COUNT(col)"))) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo(2L));
+        }
+
+        // The glob pins a.csv's read to the reconciled LONG: 3000000000 parses, COUNT(col)=5. That read's
+        // harvest carries value_count=3 for a.csv and, uncorrected, commits it into the SAME cache entry
+        // the solo INTEGER read serves from.
+        try (var response = run(syncEsqlQueryRequest("FROM " + combined + " | STATS c = COUNT(col)"))) {
+            assertThat(getValuesList(response).get(0).get(0), equalTo(5L));
+        }
+
+        // The solo dataset still reads a.csv at INTEGER, where 3000000000 null-fills, so COUNT(col) must
+        // still be 2. A warm serve of the pinned read's committed value_count returns 3 instead.
+        try (var response = run(syncEsqlQueryRequest("FROM " + dsA + " | STATS c = COUNT(col)"))) {
+            assertThat("solo COUNT(col) after the pinned glob read", getValuesList(response).get(0).get(0), equalTo(2L));
+        }
+    }
 }

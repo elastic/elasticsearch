@@ -238,9 +238,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testRetainCommitForReadersAfterShardReplicasSetToZero
   issue: https://github.com/elastic/elasticsearch/issues/149740
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecChangePointIT
-  method: test {csv-spec:change_point.values int column with all nulls}
-  issue: https://github.com/elastic/elasticsearch/issues/149763
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148190
@@ -874,9 +871,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessAbortRunningMergesOnRelocationIT
   method: testConcurrentForceMergeIsNotAborted
   issue: https://github.com/elastic/elasticsearch/issues/153854
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecChangePointIT
-  method: test {csv-spec:change_point.values int column with all nulls}
-  issue: https://github.com/elastic/elasticsearch/issues/153871
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testMasterFailoverDuringMarkReadOnly
   issue: https://github.com/elastic/elasticsearch/issues/153882

@@ -589,6 +589,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             testCase.ignoreOrder,
             ignoreValueOrder(),
             enableRoundingDoubleValuesOnAsserting(),
+            testCase.zeroThreshold,
             logger
         );
     }

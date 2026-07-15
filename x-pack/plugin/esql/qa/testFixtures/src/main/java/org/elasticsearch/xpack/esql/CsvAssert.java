@@ -221,17 +221,50 @@ public final class CsvAssert {
         boolean enableRoundingDoubleValuesOnAsserting,
         Logger logger
     ) {
+        assertDataWithValueConverter(
+            expected,
+            actualValues,
+            ignoreOrder,
+            ignoreValueOrder,
+            enableRoundingDoubleValuesOnAsserting,
+            null,
+            logger
+        );
+    }
+
+    public static void assertDataWithValueConverter(
+        ExpectedResults expected,
+        List<List<Object>> actualValues,
+        boolean ignoreOrder,
+        boolean ignoreValueOrder,
+        boolean enableRoundingDoubleValuesOnAsserting,
+        Double zeroThreshold,
+        Logger logger
+    ) {
         assertData(
             expected,
             actualValues,
             ignoreOrder,
             ignoreValueOrder,
             logger,
-            new ValueTransformer(enableRoundingDoubleValuesOnAsserting)
+            new ValueTransformer(enableRoundingDoubleValuesOnAsserting, zeroThreshold)
         );
     }
 
-    private record ValueTransformer(boolean enableRoundingDoubleValuesOnAsserting) implements BiFunction<Type, Object, Object> {
+    /**
+     * Transforms a raw expected/actual value into its comparable form for a given {@link Type},
+     * applied identically to both sides of a comparison so both are normalized the same way.
+     *
+     * @param zeroThreshold when non-null (see {@code CsvSpecReader.ZeroThreshold}), any {@code DOUBLE}
+     *                      value whose absolute value is below this threshold is clamped to {@code 0.0}
+     *                      before rounding/comparison, so two independently-computed vanishingly-small
+     *                      values (e.g. differing p-values from {@code CHANGE_POINT} across node
+     *                      topologies) compare equal instead of failing on an insignificant magnitude
+     *                      difference. {@code null} (the default) leaves comparison unchanged.
+     */
+    private record ValueTransformer(boolean enableRoundingDoubleValuesOnAsserting, Double zeroThreshold)
+        implements
+            BiFunction<Type, Object, Object> {
 
         @Override
         public Object apply(Type type, Object value) {
@@ -266,6 +299,20 @@ public final class CsvAssert {
             }
             if (value instanceof List<?> vs) {
                 return vs.stream().map(v -> apply(type, v)).toList();
+            }
+            if (type == CsvTestUtils.Type.DOUBLE && zeroThreshold != null) {
+                if (value instanceof Double d && Double.isNaN(d) == false && Double.isInfinite(d) == false && Math.abs(d) < zeroThreshold) {
+                    return 0.0;
+                } else if (value instanceof String s && "NaN".equals(s) == false) {
+                    try {
+                        double d = Double.parseDouble(s);
+                        if (Math.abs(d) < zeroThreshold) {
+                            return 0.0;
+                        }
+                    } catch (NumberFormatException ignored) {
+                        // fall through to the regular double handling below
+                    }
+                }
             }
             if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting) {
                 if (value instanceof Double d) {

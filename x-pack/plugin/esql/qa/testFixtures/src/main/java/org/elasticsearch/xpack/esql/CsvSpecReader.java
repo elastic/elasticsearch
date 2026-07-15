@@ -31,6 +31,7 @@ public final class CsvSpecReader {
         ctx.addOptionParser(new IgnoreOrder(ctx));
         ctx.addOptionParser(new DocumentsFound(ctx));
         ctx.addOptionParser(new SkipFlattenedRewrite(ctx));
+        ctx.addOptionParser(new ZeroThreshold(ctx));
         return ctx;
     }
 
@@ -58,6 +59,7 @@ public final class CsvSpecReader {
         String requestTimeRangeGte;
         String requestTimeRangeLte;
         String skipFlattenedRewrite;
+        Double zeroThreshold;
         CsvTestCase testCase;
 
         private ParserContext() {}
@@ -94,6 +96,7 @@ public final class CsvSpecReader {
                 testCase.requestTimeRangeGte = requestTimeRangeGte;
                 testCase.requestTimeRangeLte = requestTimeRangeLte;
                 testCase.skipFlattenedRewrite = skipFlattenedRewrite;
+                testCase.zeroThreshold = zeroThreshold;
                 requiredCapabilities.clear();
                 requiredCapabilitiesLocalCluster.clear();
                 missingCapabilitiesLocalCluster.clear();
@@ -103,6 +106,7 @@ public final class CsvSpecReader {
                 requestTimeRangeGte = null;
                 requestTimeRangeLte = null;
                 skipFlattenedRewrite = null;
+                zeroThreshold = null;
                 query.setLength(0);
             } else {
                 query.append(line).append("\r\n");
@@ -461,6 +465,58 @@ public final class CsvSpecReader {
         }
     }
 
+    /**
+     * Marks a test as expecting a tolerant, non-exact comparison for {@code DOUBLE} columns whose
+     * value is expected to be vanishingly small, of the form {@code zero_threshold: <double>}. This
+     * exists for {@code CHANGE_POINT}: its p-values are computed (see {@code ChangePointDetector},
+     * {@code ChangeDetector} in {@code x-pack/plugin/ml}) from floating-point summations over the
+     * group's values, and floating-point summation is not associative. Row arrival order is not
+     * guaranteed identical across node topologies (single-node vs. multi-node vs. mixed-cluster), so
+     * summary statistics feeding the significance test can differ in their low bits depending on
+     * topology. The underlying random source is a fixed seed ({@code new Random(126832678)} in
+     * {@code ChangeDetector}), so this is not an unseeded-randomness problem: for a *given* input
+     * ordering the result is fully deterministic. What varies is the ordering itself, and because the
+     * significance test reports a tail probability, a tiny, legitimate difference in summation order
+     * can amplify into a multi-order-of-magnitude difference in the final p-value (e.g. {@code 9.7E-24}
+     * vs {@code 4.8E-21}, or {@code 0.0} vs {@code 6.8E-159}), even though both nodes agree on the
+     * qualitative classification (the {@code type} column) and both p-values are, for any practical
+     * purpose, zero: both are many orders of magnitude below the
+     * {@code ChangePointDetector.P_VALUE_THRESHOLD = 0.01} significance threshold used to classify the
+     * change. Comparing such values for near-equality is testing a magnitude that carries no signal;
+     * once a p-value is confidently below threshold, only "is it effectively zero" is meaningful, not
+     * its exact exponent. The existing {@code enableRoundingDoubleValuesOnAsserting} 7-significant-digit
+     * rounding does not help here: it preserves relative precision at any magnitude, so it cannot make
+     * two values differing by several orders of magnitude compare equal.
+     * <p>
+     * When present, both the expected and actual {@code DOUBLE} values are clamped to {@code 0.0}
+     * before comparison whenever their absolute value is below the declared threshold, so e.g.
+     * {@code 9.678892E-24} and {@code 4.762904E-21} both become {@code 0.0} and compare equal. A
+     * moderate p-value (e.g. {@code 0.0019710754505321004}, not near the noise floor) is unaffected
+     * and continues to be compared with full/rounded precision. The directive is opt-in and per-test:
+     * absent (the default), comparison behavior is completely unchanged.
+     */
+    record ZeroThreshold(ParserContext state) implements SpecReader.Parser {
+        @Override
+        public Object parse(String line) {
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("zero_threshold:")) {
+                String value = line.substring("zero_threshold:".length()).trim();
+                double threshold;
+                try {
+                    threshold = Double.parseDouble(value);
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid value for zero_threshold: [" + line + "]", e);
+                }
+                if (Double.isFinite(threshold) == false || threshold <= 0) {
+                    throw new IllegalArgumentException("Invalid value for zero_threshold: [" + line + "], it must be positive and finite");
+                }
+                state.zeroThreshold = threshold;
+                return Boolean.TRUE;
+            }
+            return null;
+        }
+    }
+
     public static class CsvTestCase {
         final List<String> expectedWarnings = new ArrayList<>();
         final List<String> expectedWarningsRegexString = new ArrayList<>();
@@ -513,6 +569,13 @@ public final class CsvSpecReader {
          * driver ignores this field.
          */
         public String skipFlattenedRewrite;
+        /**
+         * When set from a {@code zero_threshold:} preamble line, {@code DOUBLE} values (both expected
+         * and actual) whose absolute value is below this threshold are clamped to {@code 0.0} before
+         * comparison. {@code null} when the test has no such directive, in which case comparison
+         * behavior is unchanged. See {@link ZeroThreshold} for the full rationale.
+         */
+        public Double zeroThreshold;
 
         /**
          * Pragmas that must be sent.

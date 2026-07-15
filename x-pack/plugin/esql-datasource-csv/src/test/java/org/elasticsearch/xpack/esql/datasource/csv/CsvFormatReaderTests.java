@@ -6581,6 +6581,66 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [EventTime] is not present in the source")));
     }
 
+    /** A non-canonical headerless index ({@code col007} — inference names field 7 exactly {@code col7}) reads null. */
+    public void testHeaderlessNonCanonicalIndexReadsNull() throws Exception {
+        StorageObject object = createStorageObject("a,b,c,d,e,f,g,h\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "col007", DataType.KEYWORD));
+        List<String> warnings = new ArrayList<>();
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .informationalWarningSink(warnings::add)
+                    .build()
+            )
+        ) {
+            Page page = it.next();
+            assertTrue("col007 is not the canonical name for field 7, so it reads null", page.getBlock(0).isNull(0));
+            page.releaseBlocks();
+        }
+        assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [col007] is not present in the source")));
+    }
+
+    /** A headerless index beyond the cap ({@code col500000000}) reads null without sizing a huge array or overflowing. */
+    public void testHeaderlessIndexBeyondCapReadsNull() throws Exception {
+        StorageObject object = createStorageObject("42,7\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "col500000000", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertTrue("an out-of-cap column index reads null, not a 2GB allocation", page.getBlock(0).isNull(0));
+            page.releaseBlocks();
+        }
+    }
+
+    /** Duplicate header names make by-name binding ambiguous; a declared read rejects them, as inference does. */
+    public void testDuplicateHeaderNameRejected() {
+        StorageObject object = createStorageObject("id,ts,id\n1,2,3\n");
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat(e.getMessage(), Matchers.containsString("duplicate column name [id]"));
+    }
+
     /**
      * The split gate: a headered path-bound read must declare that it needs the file start, or the coordinators would
      * hand it a chunk with no header and the binding would silently fall back to positional. Headerless stays

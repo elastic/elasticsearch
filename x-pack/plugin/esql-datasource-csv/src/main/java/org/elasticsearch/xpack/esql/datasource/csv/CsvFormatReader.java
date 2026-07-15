@@ -940,6 +940,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /** Sentinel raw field index for a declared column the file does not supply: the slot null-fills (see the emit paths). */
     static final int ABSENT_FIELD = -1;
 
+    /** Largest headerless {@code col<N>} index that binds; a higher one is {@link #ABSENT_FIELD}. Bounds projection sizing. */
+    static final int MAX_HEADERLESS_COLUMN_INDEX = 1_000_000;
+
+    /** Digit-length ceiling for a headerless index — longer names are {@link #ABSENT_FIELD}, which also guards parse overflow. */
+    private static final int MAX_HEADERLESS_INDEX_DIGITS = 7;
+
     /**
      * Emit one client-visible warning per declared column the file did not supply (bound to {@link #ABSENT_FIELD}).
      * The message carries NO file path or split, so a column absent from many files of a glob — or re-bound on every
@@ -958,21 +964,40 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * The raw field index a headerless physical name denotes: {@code <columnPrefix><N>} -> N. No file read. A name that
-     * is not of that form names no physical column of a headerless file, so it is {@link #ABSENT_FIELD} (null + warning),
-     * not an error — the declaration over-claims. A valid {@code col<N>} beyond the row's width null-fills structurally
-     * at read time (the emit paths bound-check the row).
+     * The raw field index a headerless physical name denotes: {@code <columnPrefix><N>} -> N. No file read. A name is
+     * {@link #ABSENT_FIELD} (null + warning) — the file supplies no such column — when it is not of that form, is
+     * NON-CANONICAL ({@code col007} is not how the file names field 7; inference produces exactly {@code col7}), or
+     * names an index beyond {@link #MAX_HEADERLESS_COLUMN_INDEX}. The cap keeps a pathological declaration
+     * ({@code col500000000}) from sizing a multi-gigabyte projection array or overflowing the bound; a real
+     * {@code col<N>} beyond the row's width still null-fills structurally at read time.
      */
     private int headerlessFieldIndex(String physical, StorageObject object) {
         String prefix = options.columnPrefix();
         String digits = physical != null && physical.startsWith(prefix) ? physical.substring(prefix.length()) : null;
-        if (digits == null || digits.isEmpty() || digits.chars().allMatch(c -> c >= '0' && c <= '9') == false) {
+        if (digits == null
+            || digits.isEmpty()
+            || digits.chars().allMatch(c -> c >= '0' && c <= '9') == false
+            || (digits.length() > 1 && digits.charAt(0) == '0') // non-canonical leading zero (col007 != col7)
+            || digits.length() > MAX_HEADERLESS_INDEX_DIGITS) {  // longer than any capped index; also guards parse overflow
             return ABSENT_FIELD;
         }
-        try {
-            return Integer.parseInt(digits);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("declared path [" + physical + "] has an out-of-range column index", e);
+        int index = Integer.parseInt(digits);
+        return index <= MAX_HEADERLESS_COLUMN_INDEX ? index : ABSENT_FIELD;
+    }
+
+    /**
+     * A duplicate header name makes by-name binding ambiguous — a declared name could resolve to either column. The
+     * inference path rejects duplicate header names, so a declared read must too, rather than silently binding the
+     * first. This is a genuine error (a malformed file), not the absent-column null-fill case.
+     */
+    private void rejectDuplicateHeaderNames(String[] headerNames, StorageObject object) {
+        Set<String> seen = new HashSet<>(headerNames.length);
+        for (String name : headerNames) {
+            if (seen.add(name) == false) {
+                throw new IllegalArgumentException(
+                    "the header of [" + object.path() + "] has duplicate column name [" + name + "]; declared columns cannot bind by name"
+                );
+            }
         }
     }
 
@@ -1911,7 +1936,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         String[] fields = splitFieldsForOptions(headerLine, options);
         if (declaredPathBinding) {
-            return declaredPathFieldIndexes(readSchema, headerColumnNames(headerLine, fields), object);
+            String[] headerNames = headerColumnNames(headerLine, fields);
+            rejectDuplicateHeaderNames(headerNames, object);
+            return declaredPathFieldIndexes(readSchema, headerNames, object);
         }
         if (readSchema.size() > fields.length) {
             throw new IllegalArgumentException(

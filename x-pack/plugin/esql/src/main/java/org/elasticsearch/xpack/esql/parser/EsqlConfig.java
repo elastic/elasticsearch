@@ -30,13 +30,13 @@ public class EsqlConfig {
     }
 
     /**
-     * Whether the EXTERNAL command and external data source grammar are enabled. Snapshot test runs may also use
-     * {@link #EsqlConfig(boolean, EsqlFunctionRegistry) EsqlConfig(false, ...)} to simulate production parsing; in that case
-     * EXTERNAL is disabled even in a snapshot build. Non-snapshot (release) builds ignore that simulation and are always
-     * enabled.
+     * Whether the EXTERNAL command and external data source grammar are enabled. Mirrors {@link #isDevVersion()}:
+     * enabled in snapshot builds, disabled in release builds. Snapshot test runs may also use
+     * {@link #EsqlConfig(boolean, EsqlFunctionRegistry) EsqlConfig(false, ...)} to simulate production parsing, in
+     * which case EXTERNAL is disabled regardless of the actual build type.
      */
     public boolean isExternalDataSourcesEnabled() {
-        return isDevVersion || Build.current().isSnapshot() == false;
+        return isDevVersion;
     }
 
     public EsqlFunctionRegistry functionRegistry() {

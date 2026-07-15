@@ -11,8 +11,15 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder<
     EsqlQueryRequest,
@@ -82,6 +89,24 @@ public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.a
     @Override
     public EsqlQueryRequestBuilder projectRouting(String projectRouting) {
         request.set(QuerySettings.PROJECT_ROUTING, projectRouting);
+        return this;
+    }
+
+    @Override
+    public EsqlQueryRequestBuilder params(List<EsqlQueryParam> params) {
+        List<QueryParam> queryParams = new ArrayList<>(params.size());
+        for (EsqlQueryParam param : params) {
+            ParserUtils.ParamClassification classification = switch (param.classification()) {
+                case VALUE -> ParserUtils.ParamClassification.VALUE;
+                case IDENTIFIER -> ParserUtils.ParamClassification.IDENTIFIER;
+                case PATTERN -> ParserUtils.ParamClassification.PATTERN;
+            };
+            DataType dataType = param.classification() == EsqlQueryParam.ParamClassification.VALUE
+                ? DataType.fromJava(param.value())
+                : DataType.NULL;
+            queryParams.add(new QueryParam(param.name(), param.value(), dataType, classification));
+        }
+        request.params(new QueryParams(queryParams));
         return this;
     }
 

@@ -13,6 +13,8 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 
+import java.util.List;
+
 public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, Response extends EsqlQueryResponse> extends
     ActionRequestBuilder<Request, Response> {
 
@@ -44,4 +46,24 @@ public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, 
     public abstract EsqlQueryRequestBuilder<Request, Response> profile(boolean profile);
 
     public abstract EsqlQueryRequestBuilder<Request, Response> projectRouting(String projectRouting);
+
+    public abstract EsqlQueryRequestBuilder<Request, Response> params(List<EsqlQueryParam> params);
+
+    /**
+     * A lightweight representation of a single ES|QL query parameter, used to pass typed values or field-name identifiers
+     * into an ES|QL query without splicing them into the query string. {@code classification} determines how the value is
+     * substituted by the ES|QL parser:
+     * <ul>
+     *   <li>{@link ParamClassification#VALUE} — substituted as a typed literal ({@code ?name})</li>
+     *   <li>{@link ParamClassification#IDENTIFIER} — substituted as a field/column reference ({@code ??name})
+     *   <li>{@link ParamClassification#PATTERN} — substituted as a wildcard field pattern ({@code ??name} containing {@code *})</li>
+     * </ul>
+     */
+    public record EsqlQueryParam(String name, Object value, ParamClassification classification) {
+        public enum ParamClassification {
+            VALUE,
+            IDENTIFIER,
+            PATTERN
+        }
+    }
 }

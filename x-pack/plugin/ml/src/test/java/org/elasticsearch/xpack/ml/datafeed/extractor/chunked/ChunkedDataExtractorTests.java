@@ -557,7 +557,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
     public void testExtractionGivenEsqlQueryAndAutoChunk() throws IOException {
         chunkSpan = null;
-        stubSummary(100_000L, 450_000L, new DataSummary(100_000L, 400_000L, 1_500L));
+        stubSummary(100_000L, 450_000L, new DataSummary(100_000L, 400_000L, 750L));
 
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(100_000L, 450_000L));
 
@@ -667,7 +667,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = null;
         DataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(100_000L, 400_000L));
 
-        stubSummary(100_000L, 400_000L, new DataSummary(100_000L, 400_000L, 3_000L));
+        stubSummary(100_000L, 400_000L, new DataSummary(100_000L, 400_000L, 1_500L));
         InputStream inputStream1 = mock(InputStream.class);
         stubChunk(100_000L, 200_000L, inputStream1);
         stubChunk(200_000L, 300_000L);
@@ -676,7 +676,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
 
         InputStream inputStream2 = mock(InputStream.class);
-        stubChunkWithSummary(300_000L, 400_000L, new DataSummary(300_000L, 400_000L, 1_000L), inputStream2);
+        stubChunkWithSummary(300_000L, 400_000L, new DataSummary(300_000L, 400_000L, 500L), inputStream2);
 
         assertNextStream(extractor, inputStream2);
         assertNoMoreData(extractor);

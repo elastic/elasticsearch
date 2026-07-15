@@ -20,6 +20,7 @@ public interface QueryMetricsListener {
     String PLANNING_NANOS = "planning_nanos";
     String CPU_NANOS = "cpu_nanos";
     String READ_NANOS = "read_nanos";
+    String SPLIT_DISCOVERY_NANOS = "split_discovery_nanos";
     String BYTES_READ = "bytes_read";
 
     void onQueryCompleted(Map<String, Long> metrics);

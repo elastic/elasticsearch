@@ -451,6 +451,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 ci.cpuNanos(),
                 QueryMetricsListener.READ_NANOS,
                 ci.readNanos(),
+                QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
+                qp.splitDiscoveryNanos(),
                 QueryMetricsListener.BYTES_READ,
                 ci.bytesRead()
             )

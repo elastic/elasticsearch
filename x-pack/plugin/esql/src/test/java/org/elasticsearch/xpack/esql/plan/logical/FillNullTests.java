@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -23,11 +24,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 
 /**
  * Direct unit coverage for the {@link FillNull} alias machinery (materialize / resolveDefaultValue / defaultForType /
- * expressionsResolved) against a synthetic child output, pinning behaviors only reachable indirectly through the analyzer.
+ * expressionsResolved / unfillableTargets) against a synthetic child output, pinning behaviors only reachable indirectly
+ * through the analyzer.
  */
 public class FillNullTests extends ESTestCase {
 
@@ -37,6 +40,10 @@ public class FillNullTests extends ESTestCase {
 
     private static FillNull allFields(List<Attribute> childOutput) {
         return new FillNull(Source.EMPTY, childWith(childOutput), null, List.of());
+    }
+
+    private static Literal keyword(String value) {
+        return new Literal(Source.EMPTY, new BytesRef(value), DataType.KEYWORD);
     }
 
     private static Alias aliasFor(FillNull fillNull, String name) {
@@ -56,13 +63,21 @@ public class FillNullTests extends ESTestCase {
         return names;
     }
 
+    private static Set<String> unfillableNames(FillNull fillNull) {
+        Set<String> names = new HashSet<>();
+        for (Attribute a : fillNull.unfillableTargets()) {
+            names.add(a.name());
+        }
+        return names;
+    }
+
     public void testAllFieldsMaterializeFillsSupportedTypesOnly() {
         Attribute i = getFieldAttribute("i", DataType.INTEGER);
         Attribute s = getFieldAttribute("s", DataType.KEYWORD);
         Attribute d = getFieldAttribute("d", DataType.DATETIME); // unsupported default -> skipped
         List<Attribute> output = List.of(i, s, d);
 
-        FillNull materialized = allFields(output).materialize(output);
+        FillNull materialized = allFields(output).materialize(output, TEST_CFG);
 
         assertEquals("only the numeric and string columns should be filled", Set.of("i", "s"), filledNames(materialized));
         assertTrue("the fill alias wraps a COALESCE", aliasFor(materialized, "i").child() instanceof Coalesce);
@@ -75,7 +90,7 @@ public class FillNullTests extends ESTestCase {
         Attribute t = getFieldAttribute("t", DataType.TEXT);
         List<Attribute> firstPass = List.of(i, s, t);
 
-        FillNull first = allFields(firstPass).materialize(firstPass);
+        FillNull first = allFields(firstPass).materialize(firstPass, TEST_CFG);
         NameId iId = aliasFor(first, "i").id();
         NameId sId = aliasFor(first, "s").id();
         NameId tId = aliasFor(first, "t").id();
@@ -83,7 +98,7 @@ public class FillNullTests extends ESTestCase {
         // Simulate unmapped_fields="load" appending a fillable column on a later pass.
         Attribute injected = getFieldAttribute("loaded", DataType.LONG);
         List<Attribute> secondPass = List.of(i, s, t, injected);
-        FillNull second = first.materialize(secondPass);
+        FillNull second = first.materialize(secondPass, TEST_CFG);
 
         assertEquals("re-materialization must cover the newly injected column", 4, second.fields().size());
         assertEquals("already-filled column [i] must keep its attribute id", iId, aliasFor(second, "i").id());
@@ -95,13 +110,13 @@ public class FillNullTests extends ESTestCase {
     public void testReMaterializeRebuildsAliasWhenColumnTypeChanges() {
         Attribute asLong = getFieldAttribute("c", DataType.LONG);
         List<Attribute> firstPass = List.of(asLong);
-        FillNull first = allFields(firstPass).materialize(firstPass);
+        FillNull first = allFields(firstPass).materialize(firstPass, TEST_CFG);
         Alias longAlias = aliasFor(first, "c");
         assertEquals(DataType.LONG, longAlias.dataType());
 
         // The same column name now resolves to a different type: the stale LONG alias must not be reused.
         Attribute asInt = getFieldAttribute("c", DataType.INTEGER);
-        FillNull second = first.materialize(List.of(asInt));
+        FillNull second = first.materialize(List.of(asInt), TEST_CFG);
         Alias intAlias = aliasFor(second, "c");
 
         assertEquals("alias type must follow the current column type", DataType.INTEGER, intAlias.dataType());
@@ -111,7 +126,7 @@ public class FillNullTests extends ESTestCase {
     public void testNullTypedColumnIsSkipped() {
         Attribute nullCol = getFieldAttribute("n", DataType.NULL);
         List<Attribute> output = List.of(nullCol);
-        FillNull materialized = allFields(output).materialize(output);
+        FillNull materialized = allFields(output).materialize(output, TEST_CFG);
         assertTrue("NULL-typed columns cannot be promoted and must be left unchanged", materialized.fields().isEmpty());
     }
 
@@ -119,7 +134,7 @@ public class FillNullTests extends ESTestCase {
         Attribute s = getFieldAttribute("s", DataType.KEYWORD);
         Literal nullFill = new Literal(Source.EMPTY, null, DataType.KEYWORD);
         FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(s)), nullFill, List.of(s));
-        FillNull materialized = fillNull.materialize(List.of(s));
+        FillNull materialized = fillNull.materialize(List.of(s), TEST_CFG);
         assertTrue("FILLNULL WITH null must not rewrite any column", materialized.fields().isEmpty());
     }
 
@@ -127,7 +142,7 @@ public class FillNullTests extends ESTestCase {
         Attribute intCol = getFieldAttribute("i", DataType.INTEGER);
         Literal outOfRange = new Literal(Source.EMPTY, (long) Integer.MAX_VALUE + 1, DataType.LONG);
         FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(intCol)), outOfRange, List.of());
-        FillNull materialized = fillNull.materialize(List.of(intCol));
+        FillNull materialized = fillNull.materialize(List.of(intCol), TEST_CFG);
         assertTrue("an out-of-range fill value must be silently skipped in all-fields mode", materialized.fields().isEmpty());
     }
 
@@ -135,9 +150,90 @@ public class FillNullTests extends ESTestCase {
         Attribute intCol = getFieldAttribute("i", DataType.INTEGER);
         Literal inRange = new Literal(Source.EMPTY, 7L, DataType.LONG);
         FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(intCol)), inRange, List.of());
-        FillNull materialized = fillNull.materialize(List.of(intCol));
+        FillNull materialized = fillNull.materialize(List.of(intCol), TEST_CFG);
         assertEquals(1, materialized.fields().size());
         assertEquals("the fill literal must be converted to the column type", DataType.INTEGER, aliasFor(materialized, "i").dataType());
+    }
+
+    public void testStringFillIsImplicitlyCastToDatetime() {
+        Attribute d = getFieldAttribute("d", DataType.DATETIME);
+        FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(d)), keyword("2025-04-11T00:00:00.000Z"), List.of(d));
+        FillNull materialized = fillNull.materialize(List.of(d), TEST_CFG);
+        assertEquals(1, materialized.fields().size());
+        assertEquals("a string fill must be cast to the DATETIME column type", DataType.DATETIME, aliasFor(materialized, "d").dataType());
+    }
+
+    public void testStringFillIsImplicitlyCastToDateNanos() {
+        Attribute d = getFieldAttribute("d", DataType.DATE_NANOS);
+        FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(d)), keyword("2025-04-11T00:00:00.000Z"), List.of(d));
+        FillNull materialized = fillNull.materialize(List.of(d), TEST_CFG);
+        assertEquals(1, materialized.fields().size());
+        assertEquals(
+            "a string fill must be cast to the DATE_NANOS column type",
+            DataType.DATE_NANOS,
+            aliasFor(materialized, "d").dataType()
+        );
+    }
+
+    public void testStringFillIsImplicitlyCastToBoolean() {
+        Attribute b = getFieldAttribute("b", DataType.BOOLEAN);
+        FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(b)), keyword("true"), List.of(b));
+        FillNull materialized = fillNull.materialize(List.of(b), TEST_CFG);
+        assertEquals(1, materialized.fields().size());
+        assertEquals("a string fill must be cast to the BOOLEAN column type", DataType.BOOLEAN, aliasFor(materialized, "b").dataType());
+    }
+
+    public void testStringFillIsImplicitlyCastToIp() {
+        Attribute ip = getFieldAttribute("addr", DataType.IP);
+        FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(ip)), keyword("1.2.3.4"), List.of(ip));
+        FillNull materialized = fillNull.materialize(List.of(ip), TEST_CFG);
+        assertEquals(1, materialized.fields().size());
+        assertEquals("a string fill must be cast to the IP column type", DataType.IP, aliasFor(materialized, "addr").dataType());
+    }
+
+    public void testStringFillIsImplicitlyCastToVersion() {
+        Attribute v = getFieldAttribute("ver", DataType.VERSION);
+        FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(v)), keyword("1.2.3"), List.of(v));
+        FillNull materialized = fillNull.materialize(List.of(v), TEST_CFG);
+        assertEquals(1, materialized.fields().size());
+        assertEquals("a string fill must be cast to the VERSION column type", DataType.VERSION, aliasFor(materialized, "ver").dataType());
+    }
+
+    public void testUnparsableStringDateFillIsSkipped() {
+        Attribute d = getFieldAttribute("d", DataType.DATETIME);
+        FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(d)), keyword("not-a-date"), List.of(d));
+        FillNull materialized = fillNull.materialize(List.of(d), TEST_CFG);
+        assertTrue("an unparsable date fill must not produce an alias", materialized.fields().isEmpty());
+    }
+
+    public void testUnfillableTargetsForExplicitDateFieldWithoutWith() {
+        Attribute d = getFieldAttribute("d", DataType.DATETIME);
+        FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(d)), null, List.of(d));
+        FillNull materialized = fillNull.materialize(List.of(d), TEST_CFG);
+        assertEquals("a targeted date field without WITH is un-fillable", Set.of("d"), unfillableNames(materialized));
+    }
+
+    public void testUnfillableTargetsForAllFieldsFormListsUnfillableColumns() {
+        Attribute i = getFieldAttribute("i", DataType.INTEGER);
+        Attribute d = getFieldAttribute("d", DataType.DATETIME);
+        Attribute ip = getFieldAttribute("addr", DataType.IP);
+        List<Attribute> output = List.of(i, d, ip);
+        FillNull materialized = allFields(output).materialize(output, TEST_CFG);
+        assertEquals("only the un-fillable columns are reported", Set.of("d", "addr"), unfillableNames(materialized));
+    }
+
+    public void testUnfillableTargetsForNullTypedField() {
+        Attribute n = getFieldAttribute("n", DataType.NULL);
+        FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(n)), null, List.of(n));
+        FillNull materialized = fillNull.materialize(List.of(n), TEST_CFG);
+        assertEquals("a NULL-typed targeted field is un-fillable", Set.of("n"), unfillableNames(materialized));
+    }
+
+    public void testFillableTargetHasNoUnfillableEntry() {
+        Attribute i = getFieldAttribute("i", DataType.INTEGER);
+        FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(i)), null, List.of(i));
+        FillNull materialized = fillNull.materialize(List.of(i), TEST_CFG);
+        assertTrue("a fillable target must not be reported as un-fillable", unfillableNames(materialized).isEmpty());
     }
 
     public void testExpressionsResolvedRequiresMaterializedAliases() {
@@ -145,7 +241,7 @@ public class FillNullTests extends ESTestCase {
         FillNull beforeMaterialize = new FillNull(Source.EMPTY, childWith(List.of(i)), null, List.of(i));
         assertFalse("a non-materialized node must report unresolved so ResolveRefs runs", beforeMaterialize.expressionsResolved());
 
-        FillNull materialized = beforeMaterialize.materialize(List.of(i));
+        FillNull materialized = beforeMaterialize.materialize(List.of(i), TEST_CFG);
         assertTrue("a fully materialized node with resolved aliases is resolved", materialized.expressionsResolved());
     }
 

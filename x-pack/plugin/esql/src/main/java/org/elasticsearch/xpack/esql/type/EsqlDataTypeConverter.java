@@ -265,6 +265,10 @@ public class EsqlDataTypeConverter {
     public static final String INVALID_INTERVAL_ERROR =
         "Invalid interval value in [{}], expected integer followed by one of {} but got [{}]";
 
+    public static boolean isStringImplicitlyCastableTo(DataType type) {
+        return type == DATETIME || type == DATE_NANOS || type == IP || type == VERSION || type == BOOLEAN;
+    }
+
     public static Converter converterFor(DataType from, DataType to, Configuration configuration) {
         // TODO move EXPRESSION_TO_LONG here if there is no regression
         if (isString(from)) {

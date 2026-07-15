@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,6 +44,11 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Replaces nulls in the given fields (or all fields) with a fill value or type-appropriate defaults, expanding into
  * a {@link Project} over an {@link Eval} of {@link Coalesce} aliases that preserves column order. The aliases are
  * materialized during analysis like {@link Eval#fields()}; see #148232.
+ * <p>
+ * A string {@code WITH} value is implicitly cast to the types the language casts string literals to (datetime,
+ * date_nanos, ip, version, boolean), mirroring {@code Analyzer.ImplicitCasting}. A column whose type has no default
+ * fill value and that receives no {@code WITH} value is left unchanged; {@code WarnUnfillableFillNull} then surfaces a
+ * response-header warning for it.
  */
 public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, TelemetryAware {
 
@@ -156,7 +164,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
             filled.add(a.name());
         }
         for (Attribute attr : child().output()) {
-            if (filled.contains(attr.name()) == false && resolveDefaultValue(attr.dataType()) != null) {
+            if (filled.contains(attr.name()) == false && resolveDefaultValue(attr.dataType(), null) != null) {
                 return false;
             }
         }
@@ -177,7 +185,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
      * incremental: for the all-fields form it may re-run (see {@link #expressionsResolved()}) to cover columns that
      * {@code unmapped_fields="load"} injects later, keeping the aliases already built.
      */
-    public FillNull materialize(List<Attribute> childOutput) {
+    public FillNull materialize(List<Attribute> childOutput, Configuration configuration) {
         List<Attribute> fieldsToFill = targetFields.isEmpty() ? childOutput : targetFields;
         Set<String> fillNames = new HashSet<>(fieldsToFill.size());
         for (Attribute a : fieldsToFill) {
@@ -206,7 +214,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
                     built.add(previous);
                     continue;
                 }
-                Expression defaultValue = resolveDefaultValue(field.dataType());
+                Expression defaultValue = resolveDefaultValue(field.dataType(), configuration);
                 if (defaultValue != null) {
                     Coalesce coalesce = new Coalesce(field.source(), field, List.of(defaultValue));
                     built.add(new Alias(field.source(), field.name(), coalesce));
@@ -259,7 +267,10 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
                     continue;
                 }
                 DataType fieldType = field.dataType();
-                if (DataType.areCompatible(fillValue.dataType(), fieldType) == false) {
+                boolean stringImplicitCast = fillValue.dataType() == DataType.KEYWORD
+                    && fillValue instanceof Literal
+                    && EsqlDataTypeConverter.isStringImplicitlyCastableTo(fieldType.noText());
+                if (stringImplicitCast == false && DataType.areCompatible(fillValue.dataType(), fieldType) == false) {
                     failures.add(
                         fail(
                             field,
@@ -271,25 +282,21 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
                     );
                     continue;
                 }
-                // Type-compatible but the literal may not fit the field's type (e.g. a LONG value outside INTEGER range);
-                // a targeted field must report this rather than be silently skipped (mirrors resolveDefaultValue).
+
                 if (fillValue instanceof Literal lit
                     && lit.value() != null
                     && fillValue.dataType() != fieldType
-                    && DataType.isNull(fieldType) == false) {
-                    try {
-                        DataTypeConverter.convert(lit.value(), fieldType.noText());
-                    } catch (InvalidArgumentException e) {
-                        failures.add(
-                            fail(
-                                field,
-                                "[FILLNULL] fill value [{}] does not fit field [{}] of type [{}]",
-                                lit.value(),
-                                field.name(),
-                                fieldType.typeName()
-                            )
-                        );
-                    }
+                    && DataType.isNull(fieldType) == false
+                    && resolveDefaultValue(fieldType, null) == null) {
+                    failures.add(
+                        fail(
+                            field,
+                            "[FILLNULL] fill value [{}] does not fit field [{}] of type [{}]",
+                            BytesRefs.toString(lit.value()),
+                            field.name(),
+                            fieldType.typeName()
+                        )
+                    );
                 }
             }
         }
@@ -312,7 +319,7 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
     }
 
     @Nullable
-    private Expression resolveDefaultValue(DataType type) {
+    private Expression resolveDefaultValue(DataType type, @Nullable Configuration configuration) {
         // NULL-typed columns (unmapped under "nullify", bare ROW nulls) cannot be promoted: every value is already
         // null, so wrapping in Coalesce would be a no-op or change the type. Matches defaultForType(NULL).
         if (DataType.isNull(type)) {
@@ -342,9 +349,59 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
                 }
                 return new Literal(lit.source(), converted, literalType);
             }
+
+            if (fillType == DataType.KEYWORD
+                && fillValue instanceof Literal lit
+                && EsqlDataTypeConverter.isStringImplicitlyCastableTo(type.noText())) {
+                DataType literalType = type.noText();
+                Object converted;
+                try {
+                    converted = castStringLiteral(lit.value(), literalType, configuration);
+                } catch (Exception e) {
+                    // Unparsable value for the target type (e.g. "not-a-date" into datetime). All-fields targets are
+                    // silently skipped here; explicitly targeted fields are rejected by postAnalysisVerification.
+                    return null;
+                }
+                return new Literal(lit.source(), converted, literalType);
+            }
             return null;
         }
         return defaultForType(type);
+    }
+
+    private static Object castStringLiteral(Object value, DataType type, @Nullable Configuration configuration) {
+        if (configuration != null) {
+            return EsqlDataTypeConverter.convert(value, type, configuration);
+        }
+        if (type == DataType.DATETIME) {
+            return EsqlDataTypeConverter.dateTimeToLong(BytesRefs.toString(value));
+        }
+        if (type == DataType.DATE_NANOS) {
+            return EsqlDataTypeConverter.dateNanosToLong(BytesRefs.toString(value));
+        }
+        return EsqlDataTypeConverter.convert(value, type, null);
+    }
+
+    /**
+     * The explicitly-targeted fields (or, in the all-fields form, the child columns) that will not be filled because
+     * their type has no default fill value and no WITH value was provided. Only meaningful once {@link #fields} has been
+     * materialized.
+     */
+    public List<Attribute> unfillableTargets() {
+        Set<String> filled = new HashSet<>();
+        if (fields != null) {
+            for (Alias a : fields) {
+                filled.add(a.name());
+            }
+        }
+        List<Attribute> consider = targetFields.isEmpty() ? child().output() : targetFields;
+        List<Attribute> result = new ArrayList<>();
+        for (Attribute attr : consider) {
+            if (attr.resolved() && filled.contains(attr.name()) == false) {
+                result.add(attr);
+            }
+        }
+        return result;
     }
 
     @Nullable

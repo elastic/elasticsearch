@@ -3431,6 +3431,18 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testFillNullTargetedMultiFieldValueFitsOneNotAnotherRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // With an explicit field list the fill value is validated per field: 9999999999999 fits the LONG column
+        // avg_worked_seconds but overflows the INTEGER emp_no, so only the non-fitting field is reported and the
+        // query is rejected rather than partially filled.
+        defaultAnalyzer().error(
+            "FROM test | FILLNULL WITH 9999999999999 avg_worked_seconds, emp_no",
+            containsString("[FILLNULL] fill value [9999999999999] does not fit field [emp_no] of type [integer]")
+        );
+    }
+
     public void testFillNullAllFieldsModeSkipsIncompatibleSilently() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
@@ -3473,6 +3485,55 @@ public class VerifierTests extends ESTestCase {
         // A NULL-typed column accepts a KEYWORD fill via the NULL escape clause in areCompatible, so the verifier
         // passes; the surrogate separately skips NULL columns (see fillNullOnNullTypedColumnIsSkipped csv-spec).
         defaultAnalyzer().query("ROW a = null, b = 1 | FILLNULL WITH \"x\" a");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToDatePasses() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        defaultAnalyzer().query("ROW d = null | EVAL d = d::datetime | FILLNULL WITH \"2025-04-11T00:00:00.000Z\" d");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToIpPasses() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        defaultAnalyzer().query("ROW a = null | EVAL a = a::ip | FILLNULL WITH \"1.2.3.4\" a");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToVersionPasses() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        defaultAnalyzer().query("ROW a = null | EVAL a = a::version | FILLNULL WITH \"1.2.3\" a");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToBooleanPasses() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        defaultAnalyzer().query("ROW a = null | EVAL a = a::boolean | FILLNULL WITH \"true\" a");
+    }
+
+    public void testFillNullWithStringImplicitlyCastToDateNanosPasses() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        defaultAnalyzer().query("ROW d = null | EVAL d = d::date_nanos | FILLNULL WITH \"2025-04-11T00:00:00.000Z\" d");
+    }
+
+    public void testFillNullWithUnparsableStringIpRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        defaultAnalyzer().error(
+            "ROW a = null | EVAL a = a::ip | FILLNULL WITH \"not-an-ip\" a",
+            containsString("[FILLNULL] fill value [not-an-ip] does not fit field [a] of type [ip]")
+        );
+    }
+
+    public void testFillNullWithUnparsableStringDateRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        defaultAnalyzer().error(
+            "ROW d = null | EVAL d = d::datetime | FILLNULL WITH \"not-a-date\" d",
+            containsString("[FILLNULL] fill value [not-a-date] does not fit field [d] of type [datetime]")
+        );
+    }
+
+    public void testFillNullWithStringIntoNonCastableTypeRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        defaultAnalyzer().error(
+            "ROW i = 1 | FILLNULL WITH \"x\" i",
+            containsString("[FILLNULL] fill value type [keyword] is incompatible with field [i] type [integer]")
+        );
     }
 
     public void testFillNullThenFullTextOnFilledFieldRejected() {

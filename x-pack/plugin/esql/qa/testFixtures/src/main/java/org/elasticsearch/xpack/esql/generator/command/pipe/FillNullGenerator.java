@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
@@ -14,6 +15,8 @@ import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -23,7 +26,9 @@ import java.util.Set;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomIp;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
 /**
@@ -43,6 +48,10 @@ public class FillNullGenerator implements CommandGenerator {
     private static final Set<String> NUMERIC_TYPES = Set.of("integer", "long", "double");
     private static final Set<String> STRING_TYPES = Set.of("keyword", "text");
     private static final Set<String> BOOLEAN_TYPES = Set.of("boolean");
+    // Types that have no dedicated literal syntax and are filled with a string literal that the language implicitly casts
+    private static final Set<String> DATE_TYPES = Set.of("date", "datetime", "date_nanos");
+    private static final Set<String> IP_TYPES = Set.of("ip");
+    private static final Set<String> VERSION_TYPES = Set.of("version");
 
     @Override
     public CommandDescription generate(
@@ -68,7 +77,7 @@ public class FillNullGenerator implements CommandGenerator {
         List<Column> candidates = null;
         if (randomBoolean()) {
             // Targeted FILLNULL WITH <value>: restrict targets to a type family compatible with the value.
-            Set<String> family = randomFrom(NUMERIC_TYPES, STRING_TYPES, BOOLEAN_TYPES);
+            Set<String> family = randomFrom(NUMERIC_TYPES, STRING_TYPES, BOOLEAN_TYPES, DATE_TYPES, IP_TYPES, VERSION_TYPES);
             candidates = previousOutput.stream().filter(EsqlQueryGenerator::fieldCanBeUsed).filter(c -> family.contains(c.type())).toList();
             if (candidates.isEmpty() == false) {
                 fillValue = randomFillValueOfFamily(family);
@@ -125,12 +134,15 @@ public class FillNullGenerator implements CommandGenerator {
     }
 
     private static String randomFillValue() {
-        return switch (randomIntBetween(0, 5)) {
+        return switch (randomIntBetween(0, 8)) {
             case 0 -> Integer.toString(randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE));
             case 1 -> Long.toString(randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE));
             case 2 -> "\"" + randomAlphaOfLength(randomIntBetween(0, 10)) + "\"";
             case 3 -> Boolean.toString(randomBoolean());
             case 4 -> randomIntBetween(0, 1000) + "." + randomIntBetween(0, 999);
+            case 5 -> "\"" + randomValidDateString() + "\"";
+            case 6 -> "\"" + randomValidIpString() + "\"";
+            case 7 -> "\"" + randomValidVersionString() + "\"";
             default -> "null";
         };
     }
@@ -140,8 +152,33 @@ public class FillNullGenerator implements CommandGenerator {
             return "\"" + randomAlphaOfLength(randomIntBetween(0, 10)) + "\"";
         }
         if (family == BOOLEAN_TYPES) {
-            return Boolean.toString(randomBoolean());
+            return randomBoolean() ? Boolean.toString(randomBoolean()) : "\"" + randomBoolean() + "\"";
+        }
+        if (family == DATE_TYPES) {
+            return "\"" + randomValidDateString() + "\"";
+        }
+        if (family == IP_TYPES) {
+            return "\"" + randomValidIpString() + "\"";
+        }
+        if (family == VERSION_TYPES) {
+            return "\"" + randomValidVersionString() + "\"";
         }
         return Integer.toString(randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE));
+    }
+
+    // Kept within [1970, 2262] and truncated to millis so the same string parses for both date and date_nanos.
+    private static final Instant DATE_RANGE_START = Instant.parse("1971-01-01T00:00:00Z");
+    private static final Instant DATE_RANGE_END = Instant.parse("2261-12-31T23:59:59Z");
+
+    private static String randomValidDateString() {
+        return randomInstantBetween(DATE_RANGE_START, DATE_RANGE_END).truncatedTo(ChronoUnit.MILLIS).toString();
+    }
+
+    private static String randomValidIpString() {
+        return NetworkAddress.format(randomIp(randomBoolean()));
+    }
+
+    private static String randomValidVersionString() {
+        return randomIntBetween(0, 99) + "." + randomIntBetween(0, 99) + "." + randomIntBetween(0, 99);
     }
 }

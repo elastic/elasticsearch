@@ -288,21 +288,23 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Whether some column declared a {@code path} rename, so a pinned (strict) schema must be bound to the file BY
-     * NAME rather than by position.
+     * Whether the pinned schema this reader was handed is a DECLARED claim (bind its columns to the file BY NAME) as
+     * opposed to an INFERRED description (bind by position). Keyed on the schema's provenance, not on whether any
+     * column declared a {@code path}: a declaration whose order merely differs from the file, with no {@code path} at
+     * all, must still bind by name.
      * <p>
-     * {@code dynamic} controls only whether a schema is inferred; it must not change what a {@code path} means. Under
-     * {@code dynamic:true} a reader infers the file's own column names and a declared {@code path} binds against them.
-     * Under {@code dynamic:false} the declaration itself is pinned as the schema, and a reader that consumes it
-     * positionally never looks at the physical names it was handed — so the same mapping reads a different column.
-     * This bit is what lets such a reader bind by name instead, making the two modes agree (esql-planning#1307).
+     * {@code dynamic} controls only whether a schema is inferred; it must not leak into how columns bind. Under
+     * {@code dynamic:true} the schema is inferred from the file, so its positions already are the file's — bind by
+     * position. Under {@code dynamic:false} the declaration itself is pinned as the schema; a reader that consumed it
+     * positionally would never look at the physical names it was handed, so the same mapping could read a different
+     * column. This bit makes such a reader bind by name, so the two modes agree (esql-planning#1307).
      * <p>
      * Only the text readers need it: they alone bind a pinned schema positionally. Parquet/ORC bind by footer name and
-     * NDJSON by object key, so they honor a {@code path} under either mode already and keep the no-op default. When no
-     * {@code path} is declared the bit is false everywhere and positional binding stands — the declared-schema contract
-     * (DuckDB {@code columns=} / ClickHouse {@code structure}) is unchanged.
+     * NDJSON by object key, so they bind a declared schema by name under either mode already and keep the no-op default.
+     * A declared name the file does not supply is surfaced (read-time throw today; null + one per-dataset warning once
+     * absent-column handling lands), never a silent positional fallback.
      *
-     * @param declaredPathBinding true when at least one column declared a {@code path}
+     * @param declaredPathBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
      * @return a new reader honoring the binding mode, or {@code this} when it does not apply
      */
     default FormatReader withDeclaredPathBinding(boolean declaredPathBinding) {
@@ -313,9 +315,9 @@ public interface FormatReader extends Closeable {
      * Whether this reader can only bind its declared columns when it sees the start of the file, which makes the file
      * unsplittable: every split past the first would have no way to resolve the binding.
      *
-     * <p>True only for a headered text reader with a declared {@code path}: the binding is resolved against the file's
-     * header line, and only the first split carries it. A headerless file's physical names encode their own positions
-     * ({@code col4} -> field 4), so it binds on any split and stays fully splittable — which is the shape the
+     * <p>True only for a headered text reader binding a DECLARED schema by name: the binding is resolved against the
+     * file's header line, and only the first split carries it. A headerless file's physical names encode their own
+     * positions ({@code col4} -> field 4), so it binds on any split and stays fully splittable — which is the shape the
      * throughput-sensitive reads actually use.
      */
     default boolean declaredNameBindingNeedsFileStart() {

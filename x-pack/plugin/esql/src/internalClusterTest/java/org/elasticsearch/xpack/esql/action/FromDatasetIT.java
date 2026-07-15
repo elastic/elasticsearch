@@ -344,12 +344,14 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testStrictDeclaredSchemaUsesDeclaredNamesAndTypesSkippingInference() throws Exception {
+    public void testStrictDeclaredNamesAbsentFromHeaderThrow() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
         // Strict (dynamic:false) declaration over the CSV fixture whose physical header is emp_no:integer,first_name:keyword.
-        // The declaration relabels the columns and pins emp_no's type to LONG (inference would have produced INTEGER),
-        // proving the declared mapping is used and inference is skipped.
+        // The declaration names id/name — which the file does not have — with no `path`. A DECLARED schema binds by name
+        // (not by declaration position), so id/name are absent from the file. INCREMENT 2 surfaces that as a read-time
+        // throw; increment 3 converts it to null-fill + one per-dataset warning (an all-columns-absent declaration reads
+        // all null). To RENAME emp_no->id the supported mechanism is `path` — see testStrictDeclaredSchemaRenamesColumnsViaSource.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("long", null));
         properties.put("name", new DatasetFieldMapping("keyword", null));
@@ -371,20 +373,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         );
 
-        try (var response = run(syncEsqlQueryRequest("FROM employees_strict | SORT id | LIMIT 10"), TIMEOUT)) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(2));
-            assertThat(columns.get(0).name(), equalTo("id"));
-            assertThat(columns.get(1).name(), equalTo("name"));
-
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            // declared LONG => values are Long, not the Integer inference would have produced
-            assertThat(rows.get(0).get(0), equalTo(1L));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
-            assertThat(rows.get(2).get(0), equalTo(3L));
-            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
-        }
+        Exception e = expectThrows(Exception.class, () -> {
+            try (var response = run(syncEsqlQueryRequest("FROM employees_strict | SORT id | LIMIT 10"), TIMEOUT)) {
+                getValuesList(response);
+            }
+        });
+        assertThat(e.getMessage(), containsString("declared path [id] not found in the header"));
     }
 
     public void testNonStrictDeclaredSchemaOverridesDeclaredColumnsAndKeepsInferredRest() throws Exception {
@@ -891,17 +885,24 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // sourceType from the file name; before the compound-extension fix it last-dotted to "gz" and the query failed
         // with "No operator factory for sourceType: gz". It must now resolve to "csv" (through the compression-unwrapping
         // registry) and read the row. Regression guard for the strict compound-extension read fix.
-        assertStrictGzippedTextReads("logs_csv_gz_strict", ".csv.gz", "some_ts,alpha\n", Map.of("header_row", false));
+        assertStrictGzippedTextReads("logs_csv_gz_strict", ".csv.gz", "some_ts,alpha\n", Map.of("header_row", false), "col0", "col1");
     }
 
     public void testStrictOverGzipTsvReads() throws Exception {
-        assertStrictGzippedTextReads("logs_tsv_gz_strict", ".tsv.gz", "some_ts\talpha\n", Map.of("header_row", false));
+        assertStrictGzippedTextReads("logs_tsv_gz_strict", ".tsv.gz", "some_ts\talpha\n", Map.of("header_row", false), "col0", "col1");
     }
 
     public void testStrictOverGzipNdjsonReads() throws Exception {
         // NDJSON is read by JSON key, so no header_row setting applies; the compound `.ndjson.gz` must still resolve
         // through the compression-unwrapping registry to the "ndjson" reader rather than last-dotting to "gz".
-        assertStrictGzippedTextReads("logs_ndjson_gz_strict", ".ndjson.gz", "{\"ts\":\"some_ts\",\"note\":\"alpha\"}\n", Map.of());
+        assertStrictGzippedTextReads(
+            "logs_ndjson_gz_strict",
+            ".ndjson.gz",
+            "{\"ts\":\"some_ts\",\"note\":\"alpha\"}\n",
+            Map.of(),
+            null,
+            null
+        );
     }
 
     public void testStrictOverGzipCsvGlobReads() throws Exception {
@@ -914,9 +915,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         writeGzip(root.resolve("part2.csv.gz"), "ts_c,gamma\n");
 
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Headerless text binds a DECLARED schema by name against col<N>, so ts/note bind via `path` to col0/col1.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("keyword", null));
-        properties.put("note", new DatasetFieldMapping("keyword", null));
+        properties.put("ts", new DatasetFieldMapping("keyword", "col0"));
+        properties.put("note", new DatasetFieldMapping("keyword", "col1"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
             client().execute(
@@ -951,14 +953,23 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * compound extension and asserts {@code note} reads back as {@code alpha} — i.e. the strict path resolved the
      * reader through the compound extension (not the "gz" codec suffix).
      */
-    private void assertStrictGzippedTextReads(String datasetName, String ext, String content, Map<String, Object> settings)
-        throws Exception {
+    private void assertStrictGzippedTextReads(
+        String datasetName,
+        String ext,
+        String content,
+        Map<String, Object> settings,
+        String tsPath,
+        String notePath
+    ) throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Path gz = createTempFile("dataset-strict-", ext);
         writeGzip(gz, content);
+        // Under a strict (DECLARED) schema, columns bind by name against the file's physical names. A headerless text
+        // file names its columns col<N> by position, so the declaration must bind ts/note to col0/col1 via `path`;
+        // NDJSON binds by JSON key, where the logical names ts/note already match, so it needs no path.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("ts", new DatasetFieldMapping("keyword", null));
-        properties.put("note", new DatasetFieldMapping("keyword", null));
+        properties.put("ts", new DatasetFieldMapping("keyword", tsPath));
+        properties.put("note", new DatasetFieldMapping("keyword", notePath));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
         assertAcked(
@@ -2066,12 +2077,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
     }
 
-    public void testStrictCsvDeclaredWiderThanFileRejected() throws Exception {
-        // Strict (dynamic: false) binds text columns POSITIONALLY — the declared names replace the header's names in
-        // order (DuckDB columns= / ClickHouse structure semantics), so declared-vs-header NAMES are deliberately not
-        // cross-checked (renaming by position is a feature; see testStrictDeclaredSchemaUsesDeclaredNames...). What
-        // IS checked at first read: a declaration WIDER than the file's header — the file can't supply the declared
-        // columns (drifted file, or the wrong file), so it fails loudly instead of null-splicing every row.
+    public void testStrictCsvDeclaredColumnAbsentFromHeaderThrow() throws Exception {
+        // Strict (dynamic: false) binds text columns BY NAME against the file's header. emp_no/first_name are present
+        // and bind; the extra declared `department` is absent from the 2-column file. INCREMENT 2 surfaces the absent
+        // column as a read-time throw; increment 3 converts it to the partial-match case — emp_no/first_name read real
+        // data, `department` reads null with one per-dataset warning.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         Map<String, DatasetFieldMapping> tooWide = new LinkedHashMap<>();
         tooWide.put("emp_no", new DatasetFieldMapping("integer", null));
@@ -2097,8 +2107,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM employees_strict_wrong_order | LIMIT 5"), TIMEOUT).close()
         );
-        assertThat(e.getMessage(), containsString("declared schema has 3 columns"));
-        assertThat(e.getMessage(), containsString("has 2"));
+        assertThat(e.getMessage(), containsString("declared path [department] not found in the header"));
     }
 
     public void testDeclaredTypeConflictingWithPhysicalParquetTypeRejected() throws Exception {
@@ -2370,9 +2379,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         Files.writeString(root.resolve("part2.csv"), "emp_no:integer,first_name:keyword\n3,Carol\n");
 
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Strict declaration RENAMES emp_no/first_name to id/name via `path`, per file, by name (each file carries the
+        // same header). This is the strict multi-file rail: the declared schema is pinned once and bound to every
+        // file's own header without a per-file schema inference read.
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("id", new DatasetFieldMapping("long", null));
-        properties.put("name", new DatasetFieldMapping("keyword", null));
+        properties.put("id", new DatasetFieldMapping("long", "emp_no"));
+        properties.put("name", new DatasetFieldMapping("keyword", "first_name"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         assertAcked(
             client().execute(

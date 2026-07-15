@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -79,5 +80,28 @@ public class DeclaredReadSpecTests extends AbstractWireSerializingTestCase<Decla
         // "bind by name" signal would be silently dropped on the wire.
         assertFalse(DeclaredReadSpec.of(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.DECLARED).isEmpty());
         assertTrue(DeclaredReadSpec.of(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.INFERRED).isEmpty());
+    }
+
+    /**
+     * A peer that predates the provenance transport version reads only the four original fields; the enum is skipped
+     * and defaults INFERRED (= today's positional behaviour), which is the safe mixed-cluster degradation. The other
+     * fields must survive the downlevel round-trip unchanged.
+     */
+    public void testPreProvenanceVersionDegradesToInferred() throws IOException {
+        DeclaredReadSpec declared = DeclaredReadSpec.of(
+            Map.of("id", "emp_no"),
+            "id",
+            Map.of("ts", "epoch_millis"),
+            Set.of("id"),
+            SchemaProvenance.DECLARED
+        );
+        // The version that added DeclaredReadSpec but NOT the provenance field.
+        TransportVersion preProvenance = TransportVersion.fromName("dataset_declared_schema");
+        DeclaredReadSpec downlevel = copyInstance(declared, preProvenance);
+        assertEquals(SchemaProvenance.INFERRED, downlevel.provenance());
+        assertEquals(declared.renames(), downlevel.renames());
+        assertEquals(declared.idPath(), downlevel.idPath());
+        assertEquals(declared.dateFormats(), downlevel.dateFormats());
+        assertEquals(declared.declaredTypeColumns(), downlevel.declaredTypeColumns());
     }
 }

@@ -122,6 +122,12 @@ $if(BytesRef)$
     protected void writeNullValue() {
         values.append(BytesRefBlock.NULL_VALUE);
     }
+
+    @Override
+    public void cancelPositionEntry() {
+        values.truncateTo(firstValueIndexes[positionCount]);
+        super.cancelPositionEntry();
+    }
 $endif$
 
     @Override

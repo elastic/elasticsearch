@@ -316,6 +316,70 @@ public class BytesRefArrayTests extends ESTestCase {
         }
     }
 
+    public void testTruncateThenRead() {
+        int total = randomIntBetween(2, 50);
+        int kept = randomIntBetween(1, total - 1);
+        try (BytesRefArray array = new BytesRefArray(total, mockBigArrays())) {
+            List<BytesRef> values = new ArrayList<>();
+            for (int i = 0; i < total; i++) {
+                BytesRef v = new BytesRef(randomAlphaOfLengthBetween(1, 20));
+                array.append(v);
+                values.add(BytesRef.deepCopyOf(v));
+            }
+            array.truncateTo(kept);
+            assertThat(array.size(), equalTo((long) kept));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < kept; i++) {
+                assertThat(array.get(i, scratch), equalTo(values.get(i)));
+            }
+        }
+    }
+
+    public void testTruncateThenAppend() {
+        int total = randomIntBetween(2, 50);
+        int kept = randomIntBetween(0, total - 1);
+        int extra = randomIntBetween(1, 20);
+        try (BytesRefArray array = new BytesRefArray(total, mockBigArrays())) {
+            List<BytesRef> expected = new ArrayList<>();
+            for (int i = 0; i < total; i++) {
+                BytesRef v = new BytesRef(randomAlphaOfLengthBetween(1, 20));
+                array.append(v);
+                if (i < kept) {
+                    expected.add(BytesRef.deepCopyOf(v));
+                }
+            }
+            array.truncateTo(kept);
+            for (int i = 0; i < extra; i++) {
+                BytesRef v = new BytesRef(randomAlphaOfLengthBetween(1, 20));
+                array.append(v);
+                expected.add(BytesRef.deepCopyOf(v));
+            }
+            assertThat(array.size(), equalTo((long) (kept + extra)));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < expected.size(); i++) {
+                assertThat(array.get(i, scratch), equalTo(expected.get(i)));
+            }
+        }
+    }
+
+    public void testTruncateNoOp() {
+        int size = randomIntBetween(1, 20);
+        try (BytesRefArray array = new BytesRefArray(size, mockBigArrays())) {
+            List<BytesRef> values = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                BytesRef v = new BytesRef(randomAlphaOfLengthBetween(1, 20));
+                array.append(v);
+                values.add(BytesRef.deepCopyOf(v));
+            }
+            array.truncateTo(size);
+            assertThat(array.size(), equalTo((long) size));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < size; i++) {
+                assertThat(array.get(i, scratch), equalTo(values.get(i)));
+            }
+        }
+    }
+
     private static BigArrays mockBigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }

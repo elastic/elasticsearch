@@ -13,12 +13,15 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -26,6 +29,7 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.script.field.SeqNoDocValuesField;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -286,6 +290,50 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    // Doc-values-only long field type: NUMERIC doc values, no indexed dimensions. Used for
+    // _primary_term unconditionally (never indexed, key-value lookup only) and for _seq_no when
+    // seqNoIndexOptions() is DOC_VALUES_ONLY (or sequence numbers are disabled outright).
+    private static final IndexableFieldType DOC_VALUES_ONLY_LONG_COLUMN_FIELD_TYPE = buildLongColumnFieldType(false);
+    // Points + doc values long field type, mirroring SingleValueLongField.FIELD_TYPE. Used for
+    // _seq_no when seqNoIndexOptions() is POINTS_AND_DOC_VALUES.
+    private static final IndexableFieldType POINTS_AND_DOC_VALUES_COLUMN_FIELD_TYPE = buildLongColumnFieldType(true);
+
+    private static IndexableFieldType buildLongColumnFieldType(boolean withPoints) {
+        FieldType ft = new FieldType();
+        if (withPoints) {
+            ft.setDimensions(1, Long.BYTES);
+        }
+        ft.setDocValuesType(DocValuesType.NUMERIC);
+        ft.freeze();
+        return ft;
+    }
+
+    @Override
+    public boolean supportsColumnarParse(IndexSettings indexSettings) {
+        return true;
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) {
+        // Engine-assigned: register array-backed columns over the context's mutable seq-no/primary
+        // term arrays; the engine fills the real per-document values (see InternalEngine) after
+        // mapping, just before requesting the ColumnBatch.
+        final boolean withPoints = context.indexSettings().sequenceNumbersDisabled() == false
+            && context.indexSettings().seqNoIndexOptions() == SeqNoIndexOptions.POINTS_AND_DOC_VALUES;
+        final IndexableFieldType seqNoFieldType = withPoints
+            ? POINTS_AND_DOC_VALUES_COLUMN_FIELD_TYPE
+            : DOC_VALUES_ONLY_LONG_COLUMN_FIELD_TYPE;
+        context.addColumn(MappedColumns.longColumn(context.seqNos(), NAME, seqNoFieldType, LongColumn.NumericKind.LONG));
+        context.addColumn(
+            MappedColumns.longColumn(
+                context.primaryTerms(),
+                PRIMARY_TERM_NAME,
+                DOC_VALUES_ONLY_LONG_COLUMN_FIELD_TYPE,
+                LongColumn.NumericKind.LONG
+            )
+        );
     }
 
     private static Query rangeQueryForSeqNo(boolean withPoints, long lowerValue, long upperValue) {

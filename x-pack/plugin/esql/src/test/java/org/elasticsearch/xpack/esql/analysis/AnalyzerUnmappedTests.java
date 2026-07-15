@@ -1483,7 +1483,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
         var esIndex = partialIndex(Map.of("partial_dense", denseVectorField("partial_dense")), Set.of("partial_dense"));
         var plan = analyzer().addIndex(esIndex)
-            .statement(setUnmappedNullify("FROM idx* | WHERE knn(partial_dense, [1, 2, 3]) | LIMIT 1"));
+            .statement(setUnmappedNullify("FROM idx* | EVAL score = score(knn(partial_dense, [1, 2, 3])) | KEEP score"));
         assertThat(plan, not(nullValue()));
     }
 

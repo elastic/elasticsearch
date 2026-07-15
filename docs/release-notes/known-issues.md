@@ -8,6 +8,11 @@ mapped_pages:
 
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
+:::{changelog} /releases/elasticsearch
+:config: /changelog.yml
+:type: known-issue
+:::
+
 ## 9.3.6 [elasticsearch-9.3.6-known-issues]
 
 * The [create trained model API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-trained-model) enforces overly restrictive input limits that may reject valid requests. Version 9.3.6 introduced caps on `description`, `tags`, `prefix_strings.ingest_prefix`, `prefix_strings.search_prefix`, `input.field_names`, `default_field_map` and `metadata`. These limits are too low for some existing use cases.

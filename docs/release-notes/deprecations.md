@@ -16,6 +16,12 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
+:::{changelog} /releases/elasticsearch
+:config: /changelog.yml
+:type: deprecation
+:subsections:
+:::
+
 ## 9.4.3 [elasticsearch-9.4.3-deprecations]
 
 There are no deprecations associated with this release.

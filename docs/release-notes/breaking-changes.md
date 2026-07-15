@@ -12,6 +12,12 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+:::{changelog} /releases/elasticsearch
+:config: /changelog.yml
+:type: breaking-change
+:subsections:
+:::
+
 ## 9.4.3 [elasticsearch-9.4.3-breaking-changes]
 
 There are no breaking changes associated with this release.

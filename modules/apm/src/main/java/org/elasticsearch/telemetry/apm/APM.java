@@ -98,6 +98,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             OtelSdkSettings.TELEMETRY_RESOURCE_ATTRIBUTES,
             // Shared OTLP export transport (metrics + traces)
             OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT,
+            OtelSdkSettings.TELEMETRY_EXPORT_VERIFY_SERVER_CERT,
             OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL,
             OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT,
             OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT,
@@ -117,7 +118,8 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS,
             // Logs
             OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT,
-            OtelSdkSettings.TELEMETRY_LOGS_ENABLED
+            OtelSdkSettings.TELEMETRY_LOGS_ENABLED,
+            OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE
         );
     }
 }

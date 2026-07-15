@@ -977,6 +977,52 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("1234"));
     }
 
+    /**
+     * A declared {@code date} over a {@code TIMESTAMP(MICROS)} column decodes by TRUNCATING DIVISION
+     * ({@code floorDiv(raw, 1000)}), so one decoded millisecond covers a BAND of 1000 raw micros. A bound converted
+     * by plain multiplication is therefore exact for {@code >=} and {@code <}, but too STRICT for {@code <=} and
+     * {@code ==}: it excludes the residue of the band and prunes row groups holding matching rows.
+     *
+     * <p>Raw {@code 1_000_500} decodes to {@code 1000}ms, so {@code ts <= 1000ms} matches it. Pushing
+     * {@code ltEq(1_000_000)} prunes a group whose min is {@code 1_000_500} — the row is lost, unrecoverably, since a
+     * pruned group is never decoded. The true bound is the TOP of the band: {@code 1_000_999}.
+     *
+     * <p>Reachable only because this PR made {@code date} declarable over {@code TIMESTAMP(MICROS)}.
+     */
+    public void testDatetimeOverTimestampMicrosLteCoversTheResidueBand() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+        Expression expr = new LessThanOrEqual(Source.EMPTY, attr("ts", DataType.DATETIME), lit(1000L, DataType.DATETIME), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull("a <= bound over a truncating decode is pushable — as the top of the band", fp);
+        assertThat(
+            "must push the residue band's top (1_000_999), not its floor (1_000_000), or rows in the band are pruned",
+            fp.toString(),
+            containsString("1000999")
+        );
+    }
+
+    /** The {@code ==} twin: one decoded milli is a 1000-micro band, so a point bound prunes the rest of it. */
+    public void testDatetimeOverTimestampMicrosEqDoesNotPruneTheResidueBand() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test");
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(eq("ts", DataType.DATETIME, 1000L))).toFilterPredicate(schema);
+        // Either decline, or push the whole band — a bare eq(1_000_000) silently drops raw 1_000_500.
+        if (fp != null) {
+            assertThat(
+                "a point eq over a truncating decode prunes the band's residue; push the band or decline",
+                fp.toString(),
+                not(containsString("eq(ts, 1000000)"))
+            );
+        }
+    }
+
     /** A micros-annotated column stores 1000x the literal's unit; the bound must be scaled to match the stats. */
     public void testDatetimeOverTimestampMicrosScalesTheBound() {
         MessageType schema = Types.buildMessage()

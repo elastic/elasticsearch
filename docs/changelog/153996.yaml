@@ -1,0 +1,6 @@
+area: PromQL
+issues:
+ - 146923
+pr: 153996
+summary: Promql support date nanos timestamp
+type: bug

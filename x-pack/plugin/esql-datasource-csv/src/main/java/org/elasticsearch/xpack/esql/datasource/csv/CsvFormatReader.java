@@ -1898,7 +1898,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         String[] fields = splitFieldsForOptions(headerLine, options);
         if (declaredPathBinding) {
-            return declaredPathFieldIndexes(readSchema, fields, object);
+            return declaredPathFieldIndexes(readSchema, headerColumnNames(headerLine, fields), object);
         }
         if (readSchema.size() > fields.length) {
             throw new IllegalArgumentException(
@@ -1912,6 +1912,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
             );
         }
         return null;
+    }
+
+    /**
+     * The header's column NAMES, derived exactly the way the inference path derives them: a typed header
+     * ({@code emp_no:integer}) contributes {@code emp_no}, and a bare header is unquoted per the dialect. Routing both
+     * through the same derivation is what lets a declared {@code path} name the same column that {@code dynamic:true}
+     * would expose — any divergence here would recreate the strict-vs-dynamic split this binding exists to close.
+     *
+     * @param fields the already-split header fields, parallel to the returned names
+     */
+    private String[] headerColumnNames(String headerLine, String[] fields) {
+        List<Attribute> typed = parseSchema(headerLine); // non-null iff the header carries type annotations
+        String[] names = new String[fields.length];
+        for (int i = 0; i < fields.length; i++) {
+            if (typed != null && i < typed.size()) {
+                names[i] = typed.get(i).name();
+            } else {
+                names[i] = options.quoting() ? unquoteHeaderName(fields[i], options.quoteChar()) : fields[i].trim();
+            }
+        }
+        return names;
     }
 
     private List<Attribute> parseSchema(String schemaLine) {

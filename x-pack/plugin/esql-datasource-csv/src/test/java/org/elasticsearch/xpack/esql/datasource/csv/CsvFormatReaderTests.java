@@ -6481,6 +6481,33 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A typed header ({@code emp_no:integer}) names its column {@code emp_no} — the annotation is type syntax, not
+     * part of the name. Binding must strip it exactly as inference does, or a declared path could never match a
+     * typed-header file.
+     */
+    public void testStrictHeaderedPathBindsAgainstTypedHeaderName() throws Exception {
+        StorageObject object = createStorageObject("emp_no:integer,first_name:keyword\n1,Alice\n");
+        List<Attribute> readSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "first_name", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG)
+        );
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredPathBinding(true);
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals("Alice", ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()).utf8ToString());
+            assertEquals(1L, ((LongBlock) page.getBlock(1)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
     /** A narrow declaration may name a column far to the right of a wide file — the classic ClickBench shape. */
     public void testDeclaredPathBindsColumnBeyondDeclarationWidth() throws Exception {
         StorageObject object = createStorageObject("a,b,c,d,e,f,g,h,i,999\n");

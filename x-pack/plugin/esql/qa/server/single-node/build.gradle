@@ -98,11 +98,11 @@ tasks.register('releaseTestCheckCsvSpec') {
   dependsOn csvSpecTests
 }
 
-// The esql-release plugin wires releaseTestCheck -> check, which transitively includes
-// csvSpecTests. For CI splitting, csvSpecTests runs in its own job (via releaseTestCheckCsvSpec),
-// so this task covers only the two REST test variants.
-tasks.named('releaseTestCheck').configure {
-  setDependsOn([])
+// Runs only the two REST test variants — used by the releaseTestCheckEsqlQa3 CI job.
+// csvSpecTests is excluded here; it runs in its own job via releaseTestCheckCsvSpec.
+tasks.register('releaseTestCheckRest') {
+  group = 'Verification'
+  description = 'Runs the REST test suites against a release distribution.'
   dependsOn 'javaRestTest', 'yamlRestTest'
 }
 

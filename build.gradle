@@ -576,7 +576,8 @@ tasks.register("checkBuildLogic").configure {
   releaseTestCheckEsqlQa3: [
     ':x-pack:plugin:esql:qa:action',
     ':x-pack:plugin:esql:qa:server',
-    ':x-pack:plugin:esql:qa:server:single-node',
+    // Explicit task path — runs only the REST variants (csvSpecTests runs in its own Qa1 job).
+    ':x-pack:plugin:esql:qa:server:single-node:releaseTestCheckRest',
     ':x-pack:plugin:esql:qa:server:multi-clusters',
   ],
   releaseTestCheckEsqlDatasourceCore: [

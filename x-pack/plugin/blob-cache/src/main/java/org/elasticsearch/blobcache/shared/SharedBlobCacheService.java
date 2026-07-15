@@ -998,11 +998,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         if (timestampByBlob.isEmpty()) {
             return;
         }
-        if (Assertions.ENABLED) {
-            for (var timestamp : timestampByBlob.values()) {
-                assert timestamp >= 0L : timestamp;
-            }
-        }
         cache.backfillRegionTimestamps(shard, timestampByBlob);
     }
 

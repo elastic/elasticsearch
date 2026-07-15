@@ -799,7 +799,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         long maxBlobLength
     ) throws IOException {
         var blobName = StatelessCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
-        var blobReader = newMetadataReadBlobReader(directory, context, blobTermAndGen, maxBlobLength);
+        var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
         return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, true);
     }
 
@@ -820,11 +820,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         BlobFile blobFile,
         long maxBlobLength
     ) {
-        var blobReader = newMetadataReadBlobReader(directory, context, blobFile.termAndGeneration(), maxBlobLength);
+        var blobReader = getBlobReader(directory, context, blobFile.termAndGeneration(), maxBlobLength);
         return BatchedCompoundCommit.readFromStoreIncrementally(blobFile.blobName(), maxBlobLength, blobReader, false);
     }
 
-    private static BatchedCompoundCommit.BlobReader newMetadataReadBlobReader(
+    private static BatchedCompoundCommit.BlobReader getBlobReader(
         BlobStoreCacheDirectory directory,
         IOContext context,
         PrimaryTermAndGeneration blobTermAndGen,

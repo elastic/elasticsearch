@@ -42,12 +42,14 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -56,6 +58,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -243,7 +246,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "rpn_bare_s",
         "rpn_micros",
         "rp_prune_s",
-        "rpn_prune_s"
+        "rpn_prune_s",
+        "scale_diff_a",
+        "scale_diff_b",
+        "scale_diff_c",
+        "scale_diff_d",
+        "scale_xdecl_seconds",
+        "scale_xdecl_millis"
     );
 
     /**
@@ -2706,6 +2715,188 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         // annotated TIMESTAMP(MICROS) -> infers date_nanos -> native, exact
         assertRealParquetNanos("rpn_micros", "annotated_micros", new DatasetFieldMapping("date_nanos", null), expectedNanos);
+    }
+
+    /**
+     * The differential invariant for every unit/scaling bug on this axis: <b>the engine's answer with its
+     * optimizations enabled must equal the answer computed from fully-decoded data</b>. Filter pushdown, TopN
+     * threshold skipping and stats-answered aggregates each decide what NOT to read by comparing against RAW file
+     * statistics; a declared {@code format} (or a scaling annotation) makes the decoded value a different number
+     * than the raw one, and every such decision then silently drops rows.
+     *
+     * <p>Ground truth is a plain {@code KEEP} with no filter, sort or aggregate — that engages no pruning at all, so
+     * it observes only decode, which is tested separately. Everything else is asserted against it.
+     *
+     * <p>The fixture is deliberately 4 columns wide and multi-row-group: the TopN threshold rail only engages past
+     * {@code InsertExternalFieldExtraction.DEFERRED_COLUMN_MIN} (3) deferred columns, and a skip decision needs a
+     * second row group to skip. A narrow or single-group fixture would go green without executing the bug.
+     */
+    public void testScalingDifferentialAcrossFilterSortAndAggregate() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Raw epoch SECONDS across two row groups; the largest instant deliberately lives in the second group so a
+        // unit-blind DESC threshold skips exactly the group holding the right answer.
+        long[] rawSeconds = { 1704067200L, 1704153600L, 1704240000L, 1704326400L };
+        Path file = writeScalingFixture("scale_seconds", rawSeconds);
+
+        record Cell(String dataset, String name, DatasetFieldMapping mapping) {}
+        List<Cell> cells = List.of(
+            new Cell("scale_diff_a", "date + epoch_second", DatasetFieldMapping.withFormat("date", null, "epoch_second")),
+            new Cell("scale_diff_b", "date_nanos + epoch_second", DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second")),
+            new Cell("scale_diff_c", "date + epoch_millis (identity)", DatasetFieldMapping.withFormat("date", null, "epoch_millis")),
+            new Cell("scale_diff_d", "long, no declaration (control)", new DatasetFieldMapping("long", null))
+        );
+
+        List<String> failures = new ArrayList<>();
+        for (Cell cell : cells) {
+            registerScalingDataset(cell.dataset(), file, cell.mapping());
+            List<Long> truth = scalingGroundTruth(cell.dataset());
+            assertThat("[" + cell.name() + "] ground truth must see every row", truth, hasSize(rawSeconds.length));
+            long min = truth.stream().mapToLong(Long::longValue).min().getAsLong();
+            long max = truth.stream().mapToLong(Long::longValue).max().getAsLong();
+
+            // Filter pushdown: row-group stats, dictionary, bloom and page-index all ride the same predicate.
+            record Probe(String what, String query, Object expected) {}
+            List<Probe> probes = List.of(
+                new Probe(
+                    "WHERE == min",
+                    "FROM " + cell.dataset() + " | WHERE ts == " + literalFor(cell.mapping(), min) + " | STATS c = COUNT(*)",
+                    truth.stream().filter(v -> v == min).count()
+                ),
+                new Probe(
+                    "WHERE >= max",
+                    "FROM " + cell.dataset() + " | WHERE ts >= " + literalFor(cell.mapping(), max) + " | STATS c = COUNT(*)",
+                    truth.stream().filter(v -> v >= max).count()
+                ),
+                new Probe("SORT ASC LIMIT 1", "FROM " + cell.dataset() + " | SORT ts ASC | LIMIT 1 | EVAL v = ts::long | KEEP v", min),
+                new Probe("SORT DESC LIMIT 1", "FROM " + cell.dataset() + " | SORT ts DESC | LIMIT 1 | EVAL v = ts::long | KEEP v", max),
+                new Probe("STATS MIN", "FROM " + cell.dataset() + " | STATS m = MIN(ts) | EVAL v = m::long | KEEP v", min),
+                new Probe("STATS MAX", "FROM " + cell.dataset() + " | STATS m = MAX(ts) | EVAL v = m::long | KEEP v", max),
+                new Probe("STATS COUNT", "FROM " + cell.dataset() + " | STATS c = COUNT(ts)", (long) rawSeconds.length)
+            );
+            for (Probe probe : probes) {
+                try (var response = run(syncEsqlQueryRequest(probe.query()), TIMEOUT)) {
+                    List<List<Object>> rows = getValuesList(response);
+                    Object actual = rows.isEmpty() ? null : rows.get(0).get(0);
+                    if (Objects.equals(probe.expected(), actual) == false) {
+                        failures.add(
+                            "["
+                                + cell.name()
+                                + "] "
+                                + probe.what()
+                                + ": expected "
+                                + probe.expected()
+                                + " but got "
+                                + actual
+                                + "  (query: "
+                                + probe.query()
+                                + ")"
+                        );
+                    }
+                }
+            }
+        }
+        assertTrue("the engine disagreed with fully-decoded ground truth:\n  " + String.join("\n  ", failures), failures.isEmpty());
+    }
+
+    /**
+     * Two datasets over the SAME file with DIFFERENT declarations must each get their own answer. The warm stats
+     * entry is keyed on path+mtime+config and carries no declared-schema component, so an extremum harvested under
+     * one declaration can be served to the other — both are {@code Long}, so nothing downstream notices the x1000.
+     */
+    public void testCrossDeclarationWarmStatsDoNotContaminate() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        long[] rawSeconds = { 1704067200L, 1704153600L };
+        Path file = writeScalingFixture("scale_shared", rawSeconds);
+
+        registerScalingDataset("scale_xdecl_seconds", file, DatasetFieldMapping.withFormat("date", null, "epoch_second"));
+        registerScalingDataset("scale_xdecl_millis", file, new DatasetFieldMapping("long", null));
+
+        // Warm the cache through the declared-format dataset first, then read the undeclared one.
+        List<Long> declared = scalingGroundTruth("scale_xdecl_seconds");
+        assertThat(declared, contains(1704067200000L, 1704153600000L));
+        for (int i = 0; i < 2; i++) { // second pass reads warm
+            try (var response = run(syncEsqlQueryRequest("FROM scale_xdecl_millis | STATS m = MIN(ts) | KEEP m"), TIMEOUT)) {
+                assertThat(
+                    "an undeclared read must see the file's RAW seconds, never the neighbouring dataset's rescaled millis",
+                    getValuesList(response).get(0).get(0),
+                    equalTo(1704067200L)
+                );
+            }
+        }
+    }
+
+    /** The ESQL literal for a value in this declaration's decoded domain. */
+    private static String literalFor(DatasetFieldMapping mapping, long decoded) {
+        return switch (mapping.type()) {
+            case "date" -> "TO_DATETIME(" + decoded + ")";
+            case "date_nanos" -> "TO_DATE_NANOS(" + decoded + ")";
+            default -> String.valueOf(decoded);
+        };
+    }
+
+    /** Decoded values with NO filter, sort or aggregate — the one query shape that engages no pruning. */
+    private List<Long> scalingGroundTruth(String dataset) {
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | EVAL v = ts::long | KEEP v | SORT v | LIMIT 1000"), TIMEOUT)) {
+            List<Long> out = new ArrayList<>();
+            for (List<Object> row : getValuesList(response)) {
+                out.add(((Number) row.get(0)).longValue());
+            }
+            return out;
+        }
+    }
+
+    private void registerScalingDataset(String dataset, Path file, DatasetFieldMapping ts) throws Exception {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("ts", ts);
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    dataset,
+                    "local_ds",
+                    file.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties))
+                )
+            )
+        );
+    }
+
+    /**
+     * 4 columns (so the TopN deferred-extraction threshold engages) and one row group per row (so there is always a
+     * later group for a unit-blind threshold to wrongly skip).
+     */
+    private Path writeScalingFixture(String name, long[] rawTs) throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType(
+            "message scaling { required int64 ts; required int64 id; required int32 pri; required binary msg (UTF8); }"
+        );
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        PlainParquetConfiguration conf = new PlainParquetConfiguration();
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(conf)
+                .withType(schema)
+                .withRowGroupSize(256L)
+                .withPageSize(64)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < rawTs.length; i++) {
+                Group g = factory.newGroup();
+                g.add("ts", rawTs[i]);
+                g.add("id", (long) i);
+                g.add("pri", i);
+                g.add("msg", "m" + i);
+                writer.write(g);
+            }
+        }
+        Path tempFile = createTempDir().resolve(name + ".parquet");
+        Files.write(tempFile, baos.toByteArray());
+        return tempFile;
     }
 
     /**

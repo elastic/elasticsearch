@@ -1230,4 +1230,81 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("is not readable as a declared column"));
         }
     }
+
+    /**
+     * The convert-the-bound pushdown rests entirely on {@code decode(v) == v * declaredEpochFormatScale(...)} being
+     * EXACT — a bound converted with a scale the decode does not actually follow would prune matching row groups.
+     * Pin it over randomized values (including negatives, which pre-date the epoch) rather than assume it.
+     */
+    public void testDeclaredEpochFormatScaleMatchesTheActualDecode() {
+        DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
+        DateFormatter epochMillis = DateFormatter.forPattern("epoch_millis");
+        for (int i = 0; i < 500; i++) {
+            long seconds = randomLongBetween(-62_135_596_800L, 253_402_300_799L); // year 0001..9999
+            assertEquals(
+                "epoch_second -> datetime must be exactly x1000",
+                seconds * 1_000L,
+                DeclaredTypeCoercions.parseDatetimeMillis(String.valueOf(seconds), epochSecond)
+            );
+            assertEquals(
+                "epoch_second scale must describe that decode",
+                Long.valueOf(1_000L),
+                DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second", DataType.DATETIME)
+            );
+
+            long millis = randomLongBetween(-62_135_596_800_000L, 253_402_300_799_000L);
+            assertEquals(
+                "epoch_millis -> datetime must be the exact identity",
+                millis,
+                DeclaredTypeCoercions.parseDatetimeMillis(String.valueOf(millis), epochMillis)
+            );
+            assertEquals(
+                "epoch_millis on datetime is the identity scale",
+                Long.valueOf(1L),
+                DeclaredTypeCoercions.declaredEpochFormatScale("epoch_millis", DataType.DATETIME)
+            );
+        }
+    }
+
+    /** The date_nanos half of the same pin: nanos have no identity format, so every format must rescale exactly. */
+    public void testDeclaredEpochFormatScaleMatchesTheActualDateNanosDecode() {
+        for (int i = 0; i < 500; i++) {
+            // date_nanos spans ~1677..2262; stay inside it so the decode does not legitimately fail.
+            long seconds = randomLongBetween(0L, 9_000_000_000L);
+            assertEquals(
+                "epoch_second -> date_nanos must be exactly x1e9",
+                seconds * 1_000_000_000L,
+                EsqlDataTypeConverter.dateNanosToLong(String.valueOf(seconds), DateFormatter.forPattern("epoch_second"))
+            );
+            assertEquals(Long.valueOf(1_000_000_000L), DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second", DataType.DATE_NANOS));
+
+            long millis = randomLongBetween(0L, 9_000_000_000_000L);
+            assertEquals(
+                "epoch_millis -> date_nanos must be exactly x1e6, NOT the identity",
+                millis * 1_000_000L,
+                EsqlDataTypeConverter.dateNanosToLong(String.valueOf(millis), DateFormatter.forPattern("epoch_millis"))
+            );
+            assertEquals(Long.valueOf(1_000_000L), DeclaredTypeCoercions.declaredEpochFormatScale("epoch_millis", DataType.DATE_NANOS));
+        }
+    }
+
+    /**
+     * A calendar format parses the digit string; a compound format resolves first-match-wins per value. Neither is a
+     * single scale, so both must decline — and the compound case must not be mistaken for the identity by a
+     * substring test, which would push a bound scaled 1000x wrong.
+     */
+    public void testNonEpochFormatsAdmitNoScale() {
+        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("yyyyMMdd", DataType.DATETIME));
+        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("strict_date_optional_time", DataType.DATETIME));
+        assertNull(
+            "a compound format containing epoch_millis is NOT the identity",
+            DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second||epoch_millis", DataType.DATETIME)
+        );
+        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second||epoch_millis", DataType.DATE_NANOS));
+        assertNull(DeclaredTypeCoercions.declaredEpochFormatScale(null, DataType.DATETIME));
+        assertNull(
+            "a non-temporal declared type never carries a format",
+            DeclaredTypeCoercions.declaredEpochFormatScale("epoch_second", DataType.LONG)
+        );
+    }
 }

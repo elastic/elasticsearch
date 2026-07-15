@@ -714,4 +714,65 @@ public final class DeclaredTypeCoercions {
     public static long parseDatetimeMillis(String value, @Nullable DateFormatter format) {
         return EsqlDataTypeConverter.dateTimeToLong(value, format);
     }
+
+    /** Pure epoch dialects: the only declared formats whose whole-number decode is an exact linear scale. */
+    private static final String EPOCH_MILLIS_PATTERN = "epoch_millis";
+    private static final String EPOCH_SECOND_PATTERN = "epoch_second";
+
+    /**
+     * The exact linear scale of a whole-number decode through a declared date {@code format}, in units of the
+     * declared type's storage unit per raw input tick — or {@code null} when the format is not a pure epoch dialect.
+     *
+     * <p>This is the stats-side counterpart of {@link #scalarCoercer}'s declared-format arm: because
+     * {@code decode(v) == v * scale} exactly, a consumer holding a bound in the DECODED unit can convert it back to
+     * the file's RAW unit and keep comparing against raw statistics. Only pure epoch dialects qualify. A calendar
+     * format ({@code yyyyMMdd}) parses the digit string non-linearly — {@code 20240101} decodes to an instant that
+     * bears no scale relation to the raw value — and a compound format ({@code a||b}) resolves per value by
+     * first-matching parser, so neither admits a single scale; both return {@code null} and their consumers must
+     * decline rather than push a bound the raw statistics cannot answer.
+     *
+     * <p>Matched on the EXACT pattern string, never a substring: formats compose with {@code ||} and resolve
+     * first-match-wins, so {@code epoch_second||epoch_millis} is effectively {@code epoch_second} for every integral
+     * token — a {@code contains} test would mistake it for the identity and push a bound scaled 1000x wrong.
+     *
+     * <p>Lives here, beside the decode it summarizes, for the same no-drift reason as
+     * {@code ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats}: whoever changes the coercion must see
+     * the scale that describes it. Format semantics are reader-agnostic (parquet, ORC and the text readers share
+     * this coercion), which is why this lives in the shared SPI while annotation semantics stay parquet-local.
+     *
+     * @param pattern the declared format pattern, exactly as the decode's {@link DateFormatter} was built from
+     * @param declaredType the declared ES|QL type — names the storage unit the scale converts INTO
+     * @return units-per-tick, or {@code null} if the format admits no exact scale (caller must decline)
+     */
+    @Nullable
+    public static Long declaredEpochFormatScale(@Nullable String pattern, DataType declaredType) {
+        if (pattern == null) {
+            return null;
+        }
+        // Explicit branches, not a ?: chain: `cond ? 1L : null` types as primitive long and unboxes the null.
+        if (declaredType == DataType.DATETIME) {
+            // A datetime stores millis, so epoch_millis is the exact identity — worth pushing, not declining.
+            if (EPOCH_MILLIS_PATTERN.equals(pattern)) {
+                return 1L;
+            }
+            if (EPOCH_SECOND_PATTERN.equals(pattern)) {
+                return 1_000L;
+            }
+            return null;
+        }
+        if (declaredType == DataType.DATE_NANOS) {
+            // date_nanos stores nanos and ES has no epoch-nanos pattern, so it has NO identity format: every
+            // declared format rescales, epoch_millis included.
+            if (EPOCH_MILLIS_PATTERN.equals(pattern)) {
+                return 1_000_000L;
+            }
+            if (EPOCH_SECOND_PATTERN.equals(pattern)) {
+                return 1_000_000_000L;
+            }
+            return null;
+        }
+        // A format is only legal on a declared date/date_nanos (DeclaredSchemaValidator.validateFormat), so any
+        // other declared type never reaches a scale question.
+        return null;
+    }
 }

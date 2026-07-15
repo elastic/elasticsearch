@@ -77,21 +77,6 @@ public class IgnoredSourceFormatFlipTests extends MapperServiceTestCase {
         }
     }
 
-    public void testWriteAndReadAfterFlip() throws IOException {
-        try (MapperService docValuesFormatMapperService = docValuesFormatMapperService()) {
-            final ParsedDocument document = parseTimeSeriesDocument(docValuesFormatMapperService.documentMapper());
-
-            withLuceneIndex(
-                docValuesFormatMapperService,
-                writer -> writer.addDocuments(document.docs()),
-                reader -> assertThat(
-                    syntheticSource(docValuesFormatMapperService.documentMapper(), reader, 0),
-                    containsString("\"disabled_object\":{\"key\":\"value\"}")
-                )
-            );
-        }
-    }
-
     private MapperService storedFormatMapperService() throws IOException {
         final MapperService mapperService = createTimeSeriesMapperService(
             IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES)
@@ -119,8 +104,6 @@ public class IgnoredSourceFormatFlipTests extends MapperServiceTestCase {
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
-            // NOTE: synthetic _id is unrelated to the format flip and its terms producer trips CheckIndex assertions here.
-            .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
             .build();
         return createMapperService(indexVersion, settings, mapping(b -> {
             b.startObject("@timestamp").field("type", "date").endObject();

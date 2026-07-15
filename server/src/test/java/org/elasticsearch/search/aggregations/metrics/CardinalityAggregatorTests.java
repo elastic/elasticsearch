@@ -460,7 +460,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, NULL_RETURNING_VALUE_SCRIPT, emptyMap()));
         final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value");
 
-        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("one"))));
             iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("two"))));
             iw.addDocument(singleton(new SortedDocValuesField("str_value", new BytesRef("three"))));
@@ -479,7 +479,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, PARTIAL_NULL_RETURNING_VALUE_SCRIPT, emptyMap()));
         final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
 
-        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             // Mixed doc: "skip" -> null, "one" and "two" survive (partial compaction, j < i)
             iw.addDocument(
                 List.of(

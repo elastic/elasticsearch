@@ -15,9 +15,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.action.shard.FailedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardFailedTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -26,6 +28,8 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellation
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardRecoveryCancellation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,19 +53,24 @@ public class RecoveryDirectCancellationService {
 
     private final TransportService transportService;
     private final ClusterService clusterService;
-    private final ShardStateAction shardStateAction;
+    private final MasterServiceTaskQueue<ShardFailedTaskExecutor.Task> failedShardTaskQueue;
     private final Executor executor;
     private volatile boolean enableDirectRecoveryCancellations;
 
     public RecoveryDirectCancellationService(
         TransportService transportService,
         ClusterService clusterService,
-        ShardStateAction shardStateAction
+        AllocationService allocationService,
+        RerouteService rerouteService
     ) {
         this.transportService = transportService;
         this.clusterService = clusterService;
-        this.shardStateAction = shardStateAction;
         this.executor = transportService.getThreadPool().generic();
+        this.failedShardTaskQueue = clusterService.createTaskQueue(
+            "direct-cancellation-shard-failed",
+            Priority.HIGH,
+            new ShardFailedTaskExecutor(allocationService, rerouteService)
+        );
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(
                 ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
@@ -73,6 +82,15 @@ public class RecoveryDirectCancellationService {
         final ClusterState clusterState = routingAllocation.getClusterState();
         executor.execute(new AbstractRunnable() {
             @Override
+            protected void doRun() {
+                final DirectCancellationsCandidates cancellations = computeDirectCancellationCandidates(desiredBalance, routingAllocation);
+                if (cancellations.isEmpty()) {
+                    return;
+                }
+                sendCancellations(clusterState.term(), clusterState.version(), cancellations);
+            }
+
+            @Override
             public void onFailure(Exception e) {
                 logger.warn(
                     () -> "failed to compute or send direct recovery cancellations for desired balance ["
@@ -82,15 +100,6 @@ public class RecoveryDirectCancellationService {
                         + "]",
                     e
                 );
-            }
-
-            @Override
-            protected void doRun() {
-                final DirectCancellationsCandidates cancellations = computeDirectCancellationCandidates(desiredBalance, routingAllocation);
-                if (cancellations.isEmpty()) {
-                    return;
-                }
-                sendCancellations(clusterState.term(), clusterState.version(), cancellations);
             }
         });
     }
@@ -150,15 +159,18 @@ public class RecoveryDirectCancellationService {
                 continue;
             }
 
-            // TODO: submit to master queue directly, no need for another network round
-            shardStateAction.remoteShardFailed(
+            final var failedShardEntry = new FailedShardEntry(
                 shardId,
                 cancelled.allocationId(),
                 indexMetadata.primaryTerm(shardId.id()),
-                true,
                 "recovery direct cancelled while still queued on the data node",
                 new RecoveryCancelledException(shardId, null, node),
-                ActionListener.noop()
+                true
+            );
+            failedShardTaskQueue.submitTask(
+                "recovery-direct-cancelled-shard-failed " + failedShardEntry.toStringNoFailureStackTrace(),
+                new ShardFailedTaskExecutor.Task(failedShardEntry, ActionListener.noop()),
+                null
             );
         }
     }

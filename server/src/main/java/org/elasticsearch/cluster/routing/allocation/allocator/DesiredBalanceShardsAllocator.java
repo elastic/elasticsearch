@@ -507,7 +507,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
     }
 
-    private final class ReconcileDesiredBalanceTask implements ClusterStateTaskListener {
+    private static final class ReconcileDesiredBalanceTask implements ClusterStateTaskListener {
         private final DesiredBalance desiredBalance;
 
         private ReconcileDesiredBalanceTask(DesiredBalance desiredBalance) {

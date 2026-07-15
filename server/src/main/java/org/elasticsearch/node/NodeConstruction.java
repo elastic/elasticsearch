@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
@@ -1414,6 +1413,14 @@ class NodeConstruction {
                 );
         });
 
+        final RecoveryDirectCancellationService recoveryCancellationService = new RecoveryDirectCancellationService(
+            transportService,
+            clusterService,
+            clusterModule.getAllocationService(),
+            rerouteService
+        );
+        clusterModule.registerRecoveryDirectCancellationAction(recoveryCancellationService::computeAndSubmitCancellations);
+
         modules.add(loadPluginComponents(pluginComponents));
 
         DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
@@ -1490,14 +1497,6 @@ class NodeConstruction {
         }
 
         injector = modules.createInjector();
-
-        final var recoveryDirectCancellationService = new RecoveryDirectCancellationService(
-            transportService,
-            clusterService,
-            // TODO: we are getting rid of this dependency
-            injector.getInstance(ShardStateAction.class)
-        );
-        clusterModule.registerRecoveryDirectCancellationAction(recoveryDirectCancellationService::computeAndSubmitCancellations);
 
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
     }

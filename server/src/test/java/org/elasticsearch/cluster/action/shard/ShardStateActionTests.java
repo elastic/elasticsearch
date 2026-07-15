@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -164,8 +163,8 @@ public class ShardStateActionTests extends ESTestCase {
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertEquals(1, capturedRequests.length);
         // the request is a shard failed request
-        assertThat(capturedRequests[0].request(), is(instanceOf(ShardStateAction.FailedShardEntry.class)));
-        ShardStateAction.FailedShardEntry shardEntry = (ShardStateAction.FailedShardEntry) capturedRequests[0].request();
+        assertThat(capturedRequests[0].request(), is(instanceOf(FailedShardEntry.class)));
+        FailedShardEntry shardEntry = (FailedShardEntry) capturedRequests[0].request();
         // for the right shard
         assertEquals(shardEntry.getShardId(), shardRouting.shardId());
         assertEquals(shardEntry.getAllocationId(), shardRouting.allocationId().getId());

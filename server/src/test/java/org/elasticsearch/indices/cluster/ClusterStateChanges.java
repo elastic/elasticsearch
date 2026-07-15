@@ -42,8 +42,9 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.action.shard.FailedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardFailedTaskExecutor;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -140,7 +141,7 @@ public class ClusterStateChanges {
     private final AllocationService allocationService;
     private final ClusterService clusterService;
     private final FeatureService featureService;
-    private final ShardStateAction.ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
+    private final ShardFailedTaskExecutor shardFailedClusterStateTaskExecutor;
     private final ShardStateAction.ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
 
     // transport actions
@@ -171,7 +172,7 @@ public class ClusterStateChanges {
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
-        shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
+        shardFailedClusterStateTaskExecutor = new ShardFailedTaskExecutor(allocationService, null);
         shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(
             clusterSettings,
             allocationService,
@@ -466,10 +467,10 @@ public class ClusterStateChanges {
     }
 
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
-        List<FailedShardUpdateTask> entries = failedShards.stream()
+        List<ShardFailedTaskExecutor.Task> entries = failedShards.stream()
             .map(
-                failedShard -> new FailedShardUpdateTask(
-                    new ShardStateAction.FailedShardEntry(
+                failedShard -> new ShardFailedTaskExecutor.Task(
+                    new FailedShardEntry(
                         failedShard.routingEntry().shardId(),
                         failedShard.routingEntry().allocationId().getId(),
                         0L,

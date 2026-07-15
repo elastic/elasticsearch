@@ -350,54 +350,24 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
      * Computes the DEFAULT metric block lazily as {@code sum / count} for each value.
      * Multi-value positions are handled by emitting one average per input value.
      * Values whose count is zero are omitted; if all values at a position are zero-count
-     * the position is null.
+     * the position is null. It needs to be consistent with AvgBlockLoader.
      */
     private DoubleBlock computeDefaultBlock() {
         int positionCount = getPositionCount();
-        if (sumBlock.areAllValuesNull() && countBlock.areAllValuesNull()) {
+        if (sumBlock.areAllValuesNull() || countBlock.areAllValuesNull()) {
             return (DoubleBlock) blockFactory().newConstantNullBlock(positionCount);
         }
         try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
-                if (sumBlock.isNull(p) && countBlock.isNull(p)) {
+                if (sumBlock.isNull(p) || countBlock.isNull(p)) {
                     builder.appendNull();
                     continue;
                 }
-                int valueCount = getValueCount(p);
-                int firstValueIndex = getFirstValueIndex(p);
-                if (valueCount == 1) {
-                    int count = countBlock.isNull(p) ? 0 : countBlock.getInt(firstValueIndex);
-                    if (sumBlock.isNull(p) || count == 0) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendDouble(sumBlock.getDouble(firstValueIndex) / count);
-                    }
-                } else {
-                    // Count the non-zero counts to calculate the valid average values
-                    int validCount = 0;
-                    for (int v = 0; v < valueCount; v++) {
-                        if (countBlock.getInt(firstValueIndex + v) != 0) {
-                            validCount++;
-                        }
-                    }
-                    if (validCount == 0) {
-                        builder.appendNull();
-                    } else {
-                        if (validCount > 1) {
-                            builder.beginPositionEntry();
-                        }
-                        for (int v = 0; v < valueCount; v++) {
-                            int vi = firstValueIndex + v;
-                            int count = countBlock.getInt(vi);
-                            if (count != 0) {
-                                builder.appendDouble(sumBlock.getDouble(vi) / count);
-                            }
-                        }
-                        if (validCount > 1) {
-                            builder.endPositionEntry();
-                        }
-                    }
-                }
+                int sumFirstValueIndex = sumBlock.getFirstValueIndex(p);
+                int countFirstValueIndex = countBlock.getFirstValueIndex(p);
+                int count = countBlock.getInt(countFirstValueIndex);
+                double sum = sumBlock.getDouble(sumFirstValueIndex);
+                builder.appendDouble(sum / count);
             }
             return builder.build();
         }

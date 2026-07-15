@@ -656,7 +656,19 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // Parquet page-index bounds use the type's plain encoding; numeric plain values are little-endian.
         ByteBuffer ordered = value.duplicate().order(ByteOrder.LITTLE_ENDIAN);
         return switch (dynamicThreshold.elementType()) {
-            case LONG -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT64 ? ordered.getLong() : null;
+            case LONG -> {
+                if (sortColumnPrimitiveType.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+                    yield null;
+                }
+                long raw = ordered.getLong();
+                // Same mapping as rawValueFromStats: a rescaled temporal column's page bound must reach the decoded
+                // domain the threshold lives in; a plain long is the identity; a temporal column with no exact
+                // relation declines the page skip.
+                if (sortDecodeRelation == null) {
+                    yield sortColumnIsTemporal ? null : raw;
+                }
+                yield DeclaredTypeCoercions.rawStatToDecoded(sortDecodeRelation, raw);
+            }
             case INT -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32
                 ? (long) ordered.getInt()
                 : null;

@@ -455,7 +455,6 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
@@ -545,7 +544,6 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.source.cache.size", "10mb")
             .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
             .put("esql.source.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {

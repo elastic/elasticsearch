@@ -3334,7 +3334,9 @@ public class EsqlCapabilities {
          */
         PROMQL_SUM_ON_HISTOGRAM,
 
-        /** Support for the {@code HIGHLIGHT} command and its {@code analyzer} option. */
+        /**
+         * Support for the {@code HIGHLIGHT} command.
+         */
         HIGHLIGHT_V5(Build.current().isSnapshot()),
 
         /**

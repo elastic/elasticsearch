@@ -9,14 +9,14 @@ applies_to:
 
 With columnar mode enabled, Elasticsearch becomes a full **analytical and search columnar store**. Setting `index.mode` to `columnar` or `logsdb_columnar` activates a set of changes that collectively align Elasticsearch's storage model with dedicated columnar stores:
 
-- Fields are stored **once, as doc values only**. All non-text fields are not indexed by default, eliminating the storage cost of maintaining redundant index structures.
-- For non-indexed fields, [doc values skippers](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-skippers) are enabled by default. Doc values skippers are compact skip lists with metadata (e.g. min and max values) to avoid scanning large blocks of data when executing a query.
+- Fields are stored **once, as doc values only**. Non-text fields are not indexed by default, eliminating the storage cost of maintaining redundant index structures. Text fields remain indexed by default to support full-text search.
+- For non-indexed fields, [doc values skippers](/reference/elasticsearch/mapping-reference/doc-values.md#doc-values-skippers) are enabled by default. Doc values skippers are compact skip lists with metadata (for example, min and max values) to avoid scanning large blocks of data when executing a query.
 - Mappings are always flat, and object and passthrough fields in mappings are always auto-flattened. Nested fields are not auto flattened.
 - The original source is no longer stored. If source is requested at query time, then a flattened or columnar representation of the source is generated on the fly and returned. Optionally, the columnar source can also be generated at index time and stored to disk as doc values.
-- New multi-value semantics: the original ordering of multiple values per field per document (e.g., in arrays) is preserved by default. Optionally, fields in mappings can be configured to only allow one value per document.
+- New multi-value semantics: the original ordering of multiple values per field per document (for example, in arrays) is preserved by default. Optionally, fields in mappings can be configured to only allow one value per document.
 - Fields in mappings can be configured to reject documents that have no value for them.
 - Metadata fields like `_routing` and `_id` are stored using doc values as well.
-- An optimized doc values format is used by default, further reducing storage footprint. especially when combined with index sorting.
+- An optimized doc values format is used by default, further reducing storage footprint, especially when combined with index sorting.
 
 Together with index sorting, columnar mode brings Elasticsearch's storage footprint and columnar access in line with dedicated columnar stores while retaining its full search and aggregation capabilities.
 
@@ -30,7 +30,7 @@ Two columnar index modes are available:
 `logsdb_columnar`
 :   A columnar store with logging-oriented defaults. It inherits all behavior of the `columnar` mode and additionally:
     - Applies a default mapping that includes a `@timestamp` field (and optionally `host.name`).
-    - Enables indexing sorting if `@timestamp` and `host.name` mappings exist.
+    - Enables index sorting if `@timestamp` and `host.name` mappings exist.
 
     Use this mode for log data.
 
@@ -196,6 +196,16 @@ The processed mapping (`GET my-index/_mapping`) shows the object mappers removed
 
 The `attributes` and `labels` object mappers are gone from `properties`; only the flat dotted-path leaf fields remain. The `dynamic: false` from `attributes` is preserved under `prefix_properties.attributes.dynamic`, preventing new fields under `attributes.*` from being auto-mapped at index time. The `priority: 10` from `labels` is preserved under `prefix_properties.labels.passthrough`.
 
+## Columnar `_source` [columnar-source]
+
+Columnar index modes don't store the original JSON `_source` on disk. Two `_source` modes are supported:
+
+**Synthetic columnar `_source`**
+:   Reconstructs a flattened representation of `_source` from doc values at query time. Requires an [Enterprise license](https://www.elastic.co/subscriptions). For more information, see [Synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source).
+
+**Columnar stored `_source`**
+:   Materializes and stores the columnar `_source` representation on disk at index time as doc values. Used automatically when synthetic columnar `_source` is not licensed, and can also be configured explicitly to speed up `_source` retrieval. For more information, see [Columnar source](/reference/elasticsearch/mapping-reference/mapping-source-field.md#columnar-stored).
+
 ## Limitations [columnar-limitations]
 
 The following features are not supported in columnar index modes:
@@ -203,7 +213,8 @@ The following features are not supported in columnar index modes:
 - **nested field type**: The nested field type is supported in a limited fashion in the columnar index modes. Nesting of nested field types is not supported.
 - **Mapping-level runtime fields**: Defining runtime fields in the index mappings is rejected. Runtime fields can still be defined on individual search requests.
 - **Disabling doc values**: Mapped fields cannot disable doc values. Setting `doc_values` to `false` leads to mapping errors. The only exception is multi-fields, where it's often desirable to store doc values for just one and use different index configurations for the rest.
-- **Incompatible field types**: Field types that don't support doc values are not supported in columnar mode (e.g. `search_as_you_type`).
+- **Incompatible field types**: Field types that don't support doc values are not supported in columnar mode (for example, `search_as_you_type`).
 - **Disabling `_source`**: Setting `"_source": {"enabled": false}` is not allowed.
-- **Stored source mode**: The traditional `stored` source mode is not supported; only `synthetic` and `columnar_stored` are available.
+- **Stored source mode**: The traditional `stored` source mode is not supported; only synthetic columnar and columnar stored modes are available. See [Columnar `_source`](#columnar-source).
+- **`dynamic: false` and `enabled: false`** are lossy: Setting `dynamic: false` on an object prevents unmapped sub-fields from being stored; their data is permanently lost. Setting `enabled: false` ignores the entire object subtree; its data is permanently lost.
 - **Default query fields**: The `index.query.default_field` index setting in columnar mode will by default only include fields that are indexed (by default text based fields are indexed).

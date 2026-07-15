@@ -1,7 +1,4 @@
 tests:
-- class: org.elasticsearch.compute.operator.DriverThreadContextWarningLossTests
-  method: testWarningRegisteredOnHoppedThreadIsLostOnCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/153920
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635

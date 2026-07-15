@@ -21,6 +21,7 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -33,48 +34,48 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.stringContainsInOrder;
 
 /**
- * Reproduces ESQL response warnings going missing when a {@link Driver} hops between worker
- * threads mid-execution.
+ * Regression test guarding against ESQL response warnings going missing when a {@link Driver}
+ * hops between worker threads mid-execution.
  * <p>
  *     {@link Warnings#registerWarning} ultimately calls the static
  *     {@link HeaderWarning#addWarning}, which writes into whatever {@link ThreadContext} is
  *     registered for the node, keyed by the <em>calling</em> thread's thread-local slot. {@link
  *     Driver#schedule} re-submits its per-iteration task to the shared executor on every
- *     iteration via a plain {@link org.elasticsearch.common.util.concurrent.AbstractRunnable}
- *     that is <em>not</em> wrapped with {@code threadContext.preserveContext(...)}, so successive
- *     iterations of the same driver can run on different worker threads. Only the final
- *     completion path (the {@code onComplete} handler in {@link Driver#schedule}) restores
- *     context — via {@code ContextPreservingActionListener.wrapPreservingContext(listener,
- *     threadContext)} — and it does so relative to whatever context is active on the
- *     <em>completing</em> thread at that moment, not the (possibly different) thread that ran the
- *     iteration which registered the warning. If that thread never had anything stashed on it
- *     (a fresh worker thread pulled from the pool), the response header written on the earlier
- *     thread is silently dropped.
+ *     iteration, so successive iterations of the same driver can run on different worker
+ *     threads. Before the fix, that resubmission used a plain
+ *     {@link org.elasticsearch.common.util.concurrent.AbstractRunnable} that was <em>not</em>
+ *     wrapped with {@code threadContext.preserveContext(...)}, so only the final completion path
+ *     (the {@code onComplete} handler in {@link Driver#schedule}) restored context — via {@code
+ *     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext)} — and it
+ *     did so relative to whatever context was active on the <em>completing</em> thread at that
+ *     moment, not the (possibly different) thread that ran the iteration which registered the
+ *     warning. If that thread never had anything stashed on it (a fresh worker thread pulled from
+ *     the pool), the response header written on the earlier thread was silently dropped.
  * </p>
  * <p>
- *     To make this reproducible (rather than a rare scheduling race), this test pins each driver
- *     iteration to a specific, dedicated, single-thread executor: the first iteration (where the
- *     warning is registered) always runs on thread "A", and the second iteration (where the
- *     driver finishes and the response headers are collected) always runs on a genuinely
- *     different thread "B" that has never had anything stashed on its {@link ThreadContext}
- *     slot. This relies on {@code maxIterations == 1}, which forces {@link Driver#schedule} to
- *     resubmit to the executor after every single loop iteration, and on the operator chain
- *     needing exactly one iteration per page (one page registers the warning, a second page
- *     drains the source and finishes the driver).
+ *     The fix is {@code threadContext.preserveContext(task)} around every task handed to {@link
+ *     org.elasticsearch.compute.operator.DriverScheduler#scheduleOrRunTask}, so each
+ *     resubmission carries the submitting thread's {@link ThreadContext} state (including any
+ *     warnings just registered) to whatever thread the executor picks next.
  * </p>
  * <p>
- *     This is expected to fail until a later commit replaces this ambient, {@link ThreadContext}
- *     -based warning propagation with an explicit typed field threaded through {@code
- *     DriverCompletionInfo}. Until then, keep this muted (see {@code muted-tests.yml}) — the
- *     failure is the point, it proves the bug exists ahead of the real fix landing in a later
- *     commit of this series.
+ *     To make the thread hop deterministic (rather than a rare scheduling race), this test pins
+ *     each driver iteration to a specific, dedicated, single-thread executor: the first iteration
+ *     (where the warning is registered) always runs on thread "A", and the second iteration
+ *     (where the driver finishes and the response headers are collected) always runs on a
+ *     genuinely different thread "B" that has never had anything stashed on its {@link
+ *     ThreadContext} slot. This relies on {@code maxIterations == 1}, which forces {@link
+ *     Driver#schedule} to resubmit to the executor after every single loop iteration, and on the
+ *     operator chain needing exactly one iteration per page (one page registers the warning, a
+ *     second page drains the source and finishes the driver).
  * </p>
  */
 public class DriverThreadContextWarningLossTests extends ESTestCase {
 
     private static final String WARNING_MESSAGE = "driver-thread-hop warning that must survive completion";
+    private static final String SECOND_WARNING_MESSAGE = "second driver-thread-hop warning, from a later hop";
 
-    public void testWarningRegisteredOnHoppedThreadIsLostOnCompletion() throws Exception {
+    public void testWarningRegisteredOnHoppedThreadSurvivesCompletion() throws Exception {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
         ExecutorService threadA = Executors.newSingleThreadExecutor(r -> new Thread(r, "warning-loss-repro-A"));
@@ -95,7 +96,7 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
             DriverContext driverContext = driverContext();
             List<Page> inPages = List.of(onePositionPage(driverContext), onePositionPage(driverContext));
             AtomicBoolean warned = new AtomicBoolean();
-            WarnOnFirstPageOperator warnOperator = new WarnOnFirstPageOperator(driverContext, warned);
+            WarnOnFirstPageOperator warnOperator = new WarnOnFirstPageOperator(driverContext, warned, WARNING_MESSAGE);
             Driver driver = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(inPages.iterator()),
@@ -139,6 +140,89 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
         }
     }
 
+    /**
+     * Same shape as {@link #testWarningRegisteredOnHoppedThreadSurvivesCompletion}, but with a
+     * third page/executor hop and a second warning registered on that middle hop, to guard
+     * against a fix that only patches the first {@code schedule} resubmission (e.g. one that
+     * special-cases {@link Driver#start} instead of fixing every recursive call).
+     */
+    public void testWarningsRegisteredAcrossMultipleHopsAllSurviveCompletion() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        ExecutorService threadA = Executors.newSingleThreadExecutor(r -> new Thread(r, "warning-loss-repro-A"));
+        ExecutorService threadB = Executors.newSingleThreadExecutor(r -> new Thread(r, "warning-loss-repro-B"));
+        ExecutorService threadC = Executors.newSingleThreadExecutor(r -> new Thread(r, "warning-loss-repro-C"));
+        try {
+            AtomicInteger submissionCount = new AtomicInteger();
+            List<ExecutorService> hops = List.of(threadA, threadB, threadC);
+            java.util.concurrent.Executor threeThreadHoppingExecutor = task -> {
+                int index = Math.min(submissionCount.getAndIncrement(), hops.size() - 1);
+                hops.get(index).execute(task);
+            };
+
+            DriverContext driverContext = driverContext();
+            List<Page> inPages = List.of(onePositionPage(driverContext), onePositionPage(driverContext), onePositionPage(driverContext));
+            AtomicBoolean warnedFirst = new AtomicBoolean();
+            AtomicBoolean warnedSecond = new AtomicBoolean();
+            // Warn on the first page (registers WARNING_MESSAGE on thread A) and again on the second
+            // page (registers SECOND_WARNING_MESSAGE on thread B), so both the first and second hops
+            // must preserve context for either warning to survive to completion on thread C.
+            WarnOnNthPageOperator warnOperator = new WarnOnNthPageOperator(
+                driverContext,
+                Map.of(
+                    0,
+                    new WarnOnNthPageOperator.Warning(warnedFirst, WARNING_MESSAGE),
+                    1,
+                    new WarnOnNthPageOperator.Warning(warnedSecond, SECOND_WARNING_MESSAGE)
+                )
+            );
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                new CannedSourceOperator(inPages.iterator()),
+                List.of(warnOperator),
+                new PageConsumerOperator(page -> {})
+            );
+
+            DriverRunner runner = new DriverRunner(threadContext) {
+                @Override
+                protected void start(Driver driver, ActionListener<Void> driverListener) {
+                    Driver.start(threadContext, threeThreadHoppingExecutor, driver, 1, driverListener);
+                }
+            };
+
+            CountDownLatch completed = new CountDownLatch(1);
+            AtomicReference<List<String>> warningsSeenOnCompletion = new AtomicReference<>();
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            runner.runToCompletion(List.of(driver), ActionListener.wrap(ignored -> {
+                warningsSeenOnCompletion.set(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()));
+                completed.countDown();
+            }, e -> {
+                failure.set(e);
+                completed.countDown();
+            }));
+
+            assertTrue("driver did not complete in time", completed.await(30, TimeUnit.SECONDS));
+            assertNull(failure.get());
+            assertTrue("first warning was never registered", warnedFirst.get());
+            assertTrue("second warning was never registered", warnedSecond.get());
+            assertThat(
+                "warning registered on the first hopped-away thread should still be visible when the driver completes",
+                warningsSeenOnCompletion.get(),
+                hasItem(stringContainsInOrder(WARNING_MESSAGE))
+            );
+            assertThat(
+                "warning registered on the second hopped-away thread should still be visible when the driver completes",
+                warningsSeenOnCompletion.get(),
+                hasItem(stringContainsInOrder(SECOND_WARNING_MESSAGE))
+            );
+        } finally {
+            threadA.shutdownNow();
+            threadB.shutdownNow();
+            threadC.shutdownNow();
+            HeaderWarning.removeThreadContext(threadContext);
+        }
+    }
+
     private static Page onePositionPage(DriverContext driverContext) {
         return new Page(driverContext.blockFactory().newConstantIntBlockWith(1, 1));
     }
@@ -149,23 +233,25 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
     }
 
     /**
-     * Registers {@link #WARNING_MESSAGE} exactly once, on the very first page it processes, and
+     * Registers a given warning message exactly once, on the very first page it processes, and
      * passes every page through unchanged otherwise.
      */
     private static final class WarnOnFirstPageOperator extends AbstractPageMappingOperator {
         private final DriverContext driverContext;
         private final AtomicBoolean warned;
+        private final String warningMessage;
 
-        WarnOnFirstPageOperator(DriverContext driverContext, AtomicBoolean warned) {
+        WarnOnFirstPageOperator(DriverContext driverContext, AtomicBoolean warned, String warningMessage) {
             this.driverContext = driverContext;
             this.warned = warned;
+            this.warningMessage = warningMessage;
         }
 
         @Override
         protected Page process(Page page) {
             if (warned.compareAndSet(false, true)) {
                 Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), TEST_SOURCE_LOCATION);
-                warnings.registerWarning(WARNING_MESSAGE);
+                warnings.registerWarning(warningMessage);
             }
             return page;
         }
@@ -201,5 +287,44 @@ public class DriverThreadContextWarningLossTests extends ESTestCase {
                 return "test";
             }
         };
+    }
+
+    /**
+     * Registers a distinct warning message on each of a set of specific, zero-indexed pages (by
+     * position in the pages the operator sees), and passes every page through unchanged
+     * otherwise. Used to confirm that warnings registered on more than one thread hop all survive
+     * to completion, not just the first one.
+     */
+    private static final class WarnOnNthPageOperator extends AbstractPageMappingOperator {
+        record Warning(AtomicBoolean warned, String message) {}
+
+        private final DriverContext driverContext;
+        private final Map<Integer, Warning> warningsByPageIndex;
+        private final AtomicInteger pageIndex = new AtomicInteger();
+
+        WarnOnNthPageOperator(DriverContext driverContext, Map<Integer, Warning> warningsByPageIndex) {
+            this.driverContext = driverContext;
+            this.warningsByPageIndex = warningsByPageIndex;
+        }
+
+        @Override
+        protected Page process(Page page) {
+            Warning warning = warningsByPageIndex.get(pageIndex.getAndIncrement());
+            if (warning != null && warning.warned().compareAndSet(false, true)) {
+                Warnings warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), WarnOnFirstPageOperator.TEST_SOURCE_LOCATION);
+                warnings.registerWarning(warning.message());
+            }
+            return page;
+        }
+
+        @Override
+        public String toString() {
+            return "WarnOnNthPageOperator";
+        }
+
+        @Override
+        public void close() {
+
+        }
     }
 }

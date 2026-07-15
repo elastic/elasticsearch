@@ -12,6 +12,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
@@ -27,7 +28,9 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -42,6 +45,8 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -53,12 +58,16 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BFLOAT16;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_SETTINGS_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
@@ -139,6 +148,8 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
     /** The concrete field type class produced for this field type */
     protected abstract Class<U> expectedFieldTypeClass();
+
+    protected abstract String contentType();
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -284,10 +295,68 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         return createMapperService(indexVersion, settings, mappings);
     }
 
+    protected MapperService createSemanticMapperServiceWithModelSettings(
+        String fieldName,
+        String inferenceId,
+        MinimalServiceSettings modelSettings
+    ) throws IOException {
+        return createSemanticMapperServiceWithModelSettings(fieldName, inferenceId, null, modelSettings);
+    }
+
+    protected MapperService createSemanticMapperServiceWithModelSettings(
+        String fieldName,
+        String inferenceId,
+        String searchInferenceId,
+        MinimalServiceSettings modelSettings
+    ) throws IOException {
+        return createSemanticMapperService(mapping(b -> {
+            b.startObject(fieldName);
+            b.field("type", contentType());
+            b.field(INFERENCE_ID_FIELD, inferenceId);
+            if (searchInferenceId != null) {
+                b.field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId);
+            }
+            b.field(MODEL_SETTINGS_FIELD, modelSettings.getFilteredXContentObject());
+            b.endObject();
+        }));
+    }
+
     protected T getSemanticFieldMapper(MapperService mapperService, String fieldName) {
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         assertThat(mapper, instanceOf(expectedMapperClass()));
         return expectedMapperClass().cast(mapper);
+    }
+
+    /**
+     * Performs a dynamic mapping update on an existing semantic field by parsing a synthetic
+     * {@link SemanticTextField} document and applying the resulting {@code dynamicMappingsUpdate}.
+     * The mapper service must already have a semantic(_text) mapping for {@code fieldName}.
+     */
+    protected void performDynamicUpdate(
+        MapperService mapperService,
+        String fieldName,
+        String inferenceId,
+        MinimalServiceSettings modelSettings
+    ) throws IOException {
+        SemanticTextField semanticTextField = new SemanticTextField(
+            useLegacyFormat(),
+            fieldName,
+            List.of(),
+            new SemanticTextField.InferenceResult(inferenceId, modelSettings, null, Map.of()),
+            XContentType.JSON
+        );
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        if (useLegacyFormat()) {
+            builder.field(semanticTextField.fieldName());
+            builder.value(semanticTextField);
+        } else {
+            builder.field(InferenceMetadataFieldsMapper.NAME, Map.of(semanticTextField.fieldName(), semanticTextField));
+        }
+        builder.endObject();
+
+        SourceToParse sourceToParse = new SourceToParse("test", BytesReference.bytes(builder), XContentType.JSON);
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
+        mergeDynamicUpdate(mapperService, parsedDocument.dynamicMappingsUpdate());
     }
 
     /**

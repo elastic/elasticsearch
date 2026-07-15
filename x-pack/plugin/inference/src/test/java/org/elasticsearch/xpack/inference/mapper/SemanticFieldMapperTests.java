@@ -389,6 +389,11 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
     }
 
     @Override
+    protected String contentType() {
+        return SemanticFieldMapper.CONTENT_TYPE;
+    }
+
+    @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "semantic");
         b.field("inference_id", INFERENCE_ID);

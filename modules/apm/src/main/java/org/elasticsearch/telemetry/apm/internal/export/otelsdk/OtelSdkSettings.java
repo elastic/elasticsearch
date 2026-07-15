@@ -200,6 +200,17 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
+    /**
+     * Maximum number of log records the {@code BatchLogRecordProcessor} buffers before dropping.
+     * Sized for ~30 MB of in-flight records at ~3 KB/record average.
+     */
+    public static final Setting<Integer> TELEMETRY_LOGS_MAX_QUEUE_SIZE = Setting.intSetting(
+        "telemetry.logs.max_queue_size",
+        10_000,
+        1,
+        NodeScope
+    );
+
     private static final class GreaterThanTimeValueValidator implements Setting.Validator<TimeValue> {
 
         private final String thisSettingKey;

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -254,6 +256,7 @@ public class FileSplitProvider implements SplitProvider {
 
             if (partitionValues.isEmpty() == false && filterHints.isEmpty() == false) {
                 if (matchesPartitionFilters(partitionValues, filterHints) == false) {
+                    // Partition pruning: the path values alone disprove the filter, so the file is skipped unread.
                     continue;
                 }
             }
@@ -1382,13 +1385,19 @@ public class FileSplitProvider implements SplitProvider {
         Object literalValue = extractLiteralValue(right);
         if (columnName != null && literalValue != null && partitionValues.containsKey(columnName)) {
             Object partitionValue = partitionValues.get(columnName);
+            // `column OP literal`
             return partitionValue != null ? comparator.apply(partitionValue, literalValue) : null;
         }
         columnName = extractColumnName(right);
         literalValue = extractLiteralValue(left);
         if (columnName != null && literalValue != null && partitionValues.containsKey(columnName)) {
             Object partitionValue = partitionValues.get(columnName);
-            return partitionValue != null ? comparator.apply(partitionValue, literalValue) : null;
+            // `literal OP column` — the operands keep their sides. Passing the column first would evaluate
+            // `column OP literal`, which for an asymmetric operator is the exact inverse: `2024 > year` would be
+            // tested as `year > 2024` and prune precisely the files that match. LiteralsOnTheRight normalizes this
+            // shape away before we ever see it, so the bug is unreachable today — but the matcher must not depend on
+            // an optimizer rule it has no way to enforce.
+            return partitionValue != null ? comparator.apply(literalValue, partitionValue) : null;
         }
         return null;
     }
@@ -1408,14 +1417,25 @@ public class FileSplitProvider implements SplitProvider {
         };
     }
 
+    /**
+     * String form of a partition value or filter literal. Keyword partition values arrive as Java {@code String}
+     * (from {@code HivePartitionDetector.castValue}) while an ES|QL keyword literal is a Lucene {@code BytesRef}
+     * whose {@code toString()} is a hex dump — so a raw {@code toString()} comparison of the two never matches.
+     * {@link BytesRefs#toString(Object)} UTF8-decodes a {@code BytesRef} and falls back to {@code toString()}
+     * otherwise, so both sides normalize to the same text before any string compare or numeric parse.
+     */
+    private static String stringOf(Object value) {
+        return BytesRefs.toString(value);
+    }
+
     private static boolean compareEquals(Object a, Object b) {
         if (a == null || b == null) {
             return false;
         }
         if (a instanceof Number na && b instanceof Number nb) {
-            return na.doubleValue() == nb.doubleValue();
+            return compareNumbers(na, nb) == 0;
         }
-        return a.toString().equals(b.toString());
+        return stringOf(a).equals(stringOf(b));
     }
 
     private static int compareValues(Object a, Object b) {
@@ -1423,29 +1443,59 @@ public class FileSplitProvider implements SplitProvider {
             throw new IllegalArgumentException("Cannot compare null partition values");
         }
         if (a instanceof Number na && b instanceof Number nb) {
-            return Double.compare(na.doubleValue(), nb.doubleValue());
+            return compareNumbers(na, nb);
         }
-        // Coerce mixed Number/String cases: a partition value may be stored as "2024" (String)
-        // while the literal from the filter is Integer 2024, or vice versa.
-        if (a instanceof Number && b instanceof Number == false) {
+        // Coerce mixed Number/text cases: a partition value may be stored as "2024" (String) while the literal from
+        // the filter is Integer 2024, or vice versa. Only when exactly one side is already a Number — two text values
+        // are compared as text, so a KEYWORD partition never has "0123" and "123" collapse into the same value.
+        if (a instanceof Number na) {
+            Number nb = parseNumber(stringOf(b));
+            return nb != null ? compareNumbers(na, nb) : keywordCompare(a, b);
+        }
+        if (b instanceof Number nb) {
+            Number na = parseNumber(stringOf(a));
+            return na != null ? compareNumbers(na, nb) : keywordCompare(a, b);
+        }
+        return keywordCompare(a, b);
+    }
+
+    /**
+     * Orders two numeric values. Integral types are compared as {@code long}, never as {@code double}: above
+     * 2^53 a {@code double} cannot separate adjacent longs, so an epoch-micros or snowflake-id partition value
+     * would compare <em>equal</em> to its neighbour. That is not a rounding nit — it makes the matcher return a
+     * confident {@code false} for {@code ts != <adjacent>} and prune a file whose every row matches the filter.
+     */
+    private static int compareNumbers(Number a, Number b) {
+        if (isIntegral(a) && isIntegral(b)) {
+            return Long.compare(a.longValue(), b.longValue());
+        }
+        return Double.compare(a.doubleValue(), b.doubleValue());
+    }
+
+    private static boolean isIntegral(Number n) {
+        return n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte;
+    }
+
+    /** The text parsed as a number, or {@code null} if it is not numeric. */
+    private static Number parseNumber(String text) {
+        try {
+            return Long.valueOf(text);
+        } catch (NumberFormatException notALong) {
             try {
-                return Double.compare(((Number) a).doubleValue(), Double.parseDouble(b.toString()));
-            } catch (NumberFormatException e) {
-                return a.toString().compareTo(b.toString());
+                return Double.valueOf(text);
+            } catch (NumberFormatException notANumber) {
+                return null;
             }
         }
-        if (b instanceof Number && a instanceof Number == false) {
-            try {
-                return Double.compare(Double.parseDouble(a.toString()), ((Number) b).doubleValue());
-            } catch (NumberFormatException e) {
-                return a.toString().compareTo(b.toString());
-            }
-        }
-        if (a instanceof Comparable<?> && b instanceof Comparable<?> && a.getClass() == b.getClass()) {
-            @SuppressWarnings("unchecked")
-            Comparable<Object> ca = (Comparable<Object>) a;
-            return ca.compareTo(b);
-        }
-        return a.toString().compareTo(b.toString());
+    }
+
+    /**
+     * Orders two non-numeric values the way ES|QL orders keywords: by UTF-8 bytes, which is code-point order.
+     * {@link String#compareTo} would order by UTF-16 code units instead, and the two disagree whenever one side is a
+     * supplementary-plane character (a folder named {@code region=<emoji>}) and the other sits in {@code U+E000..U+FFFF}
+     * — the surrogate compares low, the engine compares it high, and a range predicate would prune a matching file.
+     */
+    private static int keywordCompare(Object a, Object b) {
+        return new BytesRef(stringOf(a)).compareTo(new BytesRef(stringOf(b)));
     }
 }

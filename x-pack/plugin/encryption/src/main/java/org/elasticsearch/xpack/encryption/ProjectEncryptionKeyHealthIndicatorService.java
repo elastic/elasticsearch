@@ -39,7 +39,7 @@ import static org.elasticsearch.health.HealthStatus.YELLOW;
  */
 class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorService {
 
-    static final String NAME = "cluster_state_encryption";
+    static final String NAME = "cluster_state_encryption_key";
 
     // TODO add URL when available
     private static final String HELP_URL = null;

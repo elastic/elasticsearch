@@ -21,7 +21,7 @@ import java.io.IOException;
  */
 public record EstimatedHeapUsage(String nodeId, long totalBytes, NodeHeapEstimate nodeHeapEstimate) implements Writeable {
 
-    public static final TransportVersion SHARD_HEAP_USAGE_IN_ESTIMATED_HEAP_USAGE = TransportVersion.fromName(
+    private static final TransportVersion SHARD_HEAP_USAGE_IN_ESTIMATED_HEAP_USAGE = TransportVersion.fromName(
         "shard_heap_usage_in_estimated_heap_usage"
     );
 

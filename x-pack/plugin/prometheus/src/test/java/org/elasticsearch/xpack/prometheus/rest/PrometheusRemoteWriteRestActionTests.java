@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpBody;
@@ -101,6 +102,85 @@ public class PrometheusRemoteWriteRestActionTests extends ESTestCase {
             assertThat(response.contentType(), equalTo(RestResponse.TEXT_CONTENT_TYPE));
             assertThat(response.content().utf8ToString(), containsString("request body too large"));
         }
+    }
+
+    public void testFullContentOversizedSnappyBodyReturns413() throws Exception {
+        // The Snappy preamble declares 101 uncompressed bytes, exceeding the 100-byte request limit.
+        var content = new ReleasableBytesReference(new BytesArray(new byte[] { 101 }), () -> {});
+        var httpRequest = new FakeRestRequest.FakeHttpRequest(
+            RestRequest.Method.POST,
+            "/_prometheus/api/v1/write",
+            Map.of("Content-Type", List.of("application/x-protobuf"), "Content-Encoding", List.of("snappy")),
+            new HttpBody.ByteRefHttpBody(content)
+        ) {
+            private boolean released;
+
+            @Override
+            public void release() {
+                if (released == false) {
+                    released = true;
+                    body().close();
+                }
+            }
+        };
+        var request = RestRequest.request(parserConfig(), httpRequest, new FakeRestRequest.FakeHttpChannel(null));
+        var channel = new FakeRestChannel(request, true);
+        var action = new PrometheusRemoteWriteRestAction(indexingPressure, 100, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+
+        action.handleRequest(request, channel, client);
+
+        try (var response = channel.capturedResponse()) {
+            assertNotNull(response);
+            assertThat(response.status(), equalTo(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+        }
+        assertFalse(content.hasReferences());
+    }
+
+    public void testFullContentSuccessfulSnappyWrite() throws Exception {
+        byte[] uncompressed = randomByteArrayOfLength(64);
+        var content = new ReleasableBytesReference(new BytesArray(SnappyBlockDecoderTests.snappyEncode(uncompressed)), () -> {});
+        var httpRequest = new FakeRestRequest.FakeHttpRequest(
+            RestRequest.Method.POST,
+            "/_prometheus/api/v1/write",
+            Map.of("Content-Type", List.of("application/x-protobuf"), "Content-Encoding", List.of("snappy")),
+            new HttpBody.ByteRefHttpBody(content)
+        ) {
+            private boolean released;
+
+            @Override
+            public void release() {
+                if (released == false) {
+                    released = true;
+                    body().close();
+                }
+            }
+        };
+        var request = RestRequest.request(parserConfig(), httpRequest, new FakeRestRequest.FakeHttpChannel(null));
+        var channel = new FakeRestChannel(request, true);
+        var action = new PrometheusRemoteWriteRestAction(indexingPressure, 1024, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        client = new NoOpNodeClient(threadPool) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> actionType,
+                Request req,
+                ActionListener<Response> listener
+            ) {
+                assertThat(actionType, equalTo(PrometheusRemoteWriteTransportAction.TYPE));
+                var remoteWriteRequest = (PrometheusRemoteWriteTransportAction.RemoteWriteRequest) req;
+                assertArrayEquals(uncompressed, BytesReference.toBytes(remoteWriteRequest.remoteWriteRequest));
+                remoteWriteRequest.close();
+                listener.onResponse((Response) new PrometheusRemoteWriteTransportAction.RemoteWriteResponse());
+            }
+        };
+
+        action.handleRequest(request, channel, client);
+
+        try (var response = channel.capturedResponse()) {
+            assertNotNull(response);
+            assertThat(response.status(), equalTo(RestStatus.NO_CONTENT));
+        }
+        assertFalse(content.hasReferences());
     }
 
     public void testSuccessfulWriteWithoutSnappy() {

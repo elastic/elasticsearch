@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -47,7 +49,9 @@ public class ToText extends AbstractConvertFunction implements EvaluatorMapper {
     @FunctionInfo(
         returnType = "text",
         briefSummary = "Converts a value to text.",
-        description = "Converts an input value into a text.",
+        description = "Converts an input value into text.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
+        preview = true,
         examples = { @Example(file = "convert", tag = "to_text") }
     )
     public ToText(

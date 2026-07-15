@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 152938
+summary: Reuse resolved privilege automata in implicit SPI
+type: enhancement

@@ -615,7 +615,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     // ---- COLUMNAR mode ----
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarModeDisabledDocValuesSkipper() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
@@ -637,7 +636,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarMode() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
@@ -657,7 +655,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarModeTimestampDateNanos() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
@@ -681,7 +678,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarModeExplicitTimestampIndexEnabledDocValuesSkipper() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
@@ -702,7 +698,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarModeExplicitTimestampIndexDisabledDocValuesSkipper() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
@@ -724,7 +719,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarModeWithoutDefaultMapping() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
@@ -748,7 +742,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarModeWithoutTimestampSorting() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
@@ -770,7 +763,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     // ---- LOGSDB_COLUMNAR mode ----
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBMode() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
@@ -791,7 +783,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeWithIndex() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
@@ -815,7 +806,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeDisableDocValueSkipper() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
@@ -838,7 +828,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeNoTimestampMapping() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
@@ -855,7 +844,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeTimestampDateNanos() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
@@ -879,7 +867,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeWithoutDefaultMapping() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
@@ -903,7 +890,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     }
 
     public void testFieldTypeWithDocValuesSkipper_ColumnarLogsDBModeWithoutTimestampSorting() throws IOException {
-        assumeTrue("columnar index mode feature flag is not enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)

@@ -576,19 +576,14 @@ public class TransformIT extends TransformRestTestCase {
         });
 
         // waitForCheckpoint: true should make the transform continue until we hit the first checkpoint, then it will stop
-        stopTransform(transformId, false, null, true, false);
+        stopTransform(transformId, true, null, true, false);
 
-        // Wait until the first checkpoint
-        waitUntilCheckpoint(config.getId(), 1L);
         var previousTriggerCount = new AtomicInteger(0);
-
-        // Even though we are continuous, we should be stopped now as we needed to stop at the first checkpoint
-        assertBusy(() -> {
-            var stateAndStats = getBasicTransformStats(transformId);
-            assertThat(stateAndStats.get("state"), equalTo("stopped"));
-            assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), equalTo(1000));
-            previousTriggerCount.set((int) XContentMapValues.extractValue("stats.trigger_count", stateAndStats));
-        }, 30, TimeUnit.SECONDS);
+        var stateAndStatsAfterFirstStop = getBasicTransformStats(transformId);
+        assertThat(stateAndStatsAfterFirstStop.get("state"), equalTo("stopped"));
+        assertThat(getCheckpoint(stateAndStatsAfterFirstStop), equalTo(1L));
+        assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStatsAfterFirstStop), equalTo(1000));
+        previousTriggerCount.set((int) XContentMapValues.extractValue("stats.trigger_count", stateAndStatsAfterFirstStop));
 
         // Create N additional runs of starting and stopping
         int additionalRuns = randomIntBetween(1, 10);
@@ -609,13 +604,10 @@ public class TransformIT extends TransformRestTestCase {
                 assertThat(testFailureMessage, previousTriggerCount.get(), lessThan(currentTriggerCount));
             });
 
-            var waitForCompletion = randomBoolean();
-            stopTransform(transformId, waitForCompletion, null, true, false);
-            assertBusy(() -> {
-                var stateAndStats = getBasicTransformStats(transformId);
-                assertThat(stateAndStats.get("state"), equalTo("stopped"));
-                previousTriggerCount.set((int) XContentMapValues.extractValue("stats.trigger_count", stateAndStats));
-            }, 30, TimeUnit.SECONDS);
+            stopTransform(transformId, true, null, true, false);
+            var stateAndStatsAfterStop = getBasicTransformStats(transformId);
+            assertThat(stateAndStatsAfterStop.get("state"), equalTo("stopped"));
+            previousTriggerCount.set((int) XContentMapValues.extractValue("stats.trigger_count", stateAndStatsAfterStop));
         }
 
         var stateAndStats = getBasicTransformStats(transformId);

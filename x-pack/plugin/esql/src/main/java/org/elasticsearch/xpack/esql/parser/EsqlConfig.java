@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
 public class EsqlConfig {
@@ -31,17 +30,13 @@ public class EsqlConfig {
     }
 
     /**
-     * Whether the EXTERNAL command and external data source grammar are enabled. This respects the
-     * {@code esql_external_datasources} feature flag (on by default in snapshot builds). Snapshot test runs may also use
-     * {@link #EsqlConfig(boolean, EsqlFunctionRegistry) EsqlConfig(false, ...)} to simulate production parsing; in that case
-     * EXTERNAL is disabled even when the feature flag is on. Non-snapshot (release) builds ignore that simulation and rely on
-     * the feature flag alone.
+     * Whether the EXTERNAL command and external data source grammar are enabled. Mirrors {@link #isDevVersion()}:
+     * enabled in snapshot builds, disabled in release builds. Snapshot test runs may also use
+     * {@link #EsqlConfig(boolean, EsqlFunctionRegistry) EsqlConfig(false, ...)} to simulate production parsing, in
+     * which case EXTERNAL is disabled regardless of the actual build type.
      */
     public boolean isExternalDataSourcesEnabled() {
-        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() == false) {
-            return false;
-        }
-        return isDevVersion || Build.current().isSnapshot() == false;
+        return isDevVersion;
     }
 
     public EsqlFunctionRegistry functionRegistry() {

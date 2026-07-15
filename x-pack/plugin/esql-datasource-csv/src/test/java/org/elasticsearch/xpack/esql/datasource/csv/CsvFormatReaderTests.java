@@ -13,14 +13,17 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -34,7 +37,10 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -42,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
@@ -53,14 +60,15 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class CsvFormatReaderTests extends ESTestCase {
 
@@ -113,6 +121,86 @@ public class CsvFormatReaderTests extends ESTestCase {
         for (Attribute attr : schema) {
             assertEquals(Nullability.TRUE, attr.nullable());
         }
+    }
+
+    /**
+     * B1 inference fix: under the no-trim default a padded quote ({@code x, "a,b"}) is ONE quoted field,
+     * so headerless inference over this row synthesizes 3 columns. Jackson's no-trim tokenizer mis-splits
+     * it into 4 (padding before a quote makes the field unquoted, exploding the column count), which is the
+     * bug the house record tokenizer removes on every record-materialized path (here, schema sampling).
+     */
+    public void testHeaderlessInferenceKeepsPaddedQuotedColumnCount() throws IOException {
+        StorageObject object = createStorageObject("x, \"a,b\",z\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+        assertEquals(3, reader.schema(object).size());
+    }
+
+    /**
+     * B1 inference fix: under no-trim the house record tokenizer feeds raw fields to {@link CsvSchemaInferrer},
+     * which classifies only empty / {@code "null"} as null. A configured {@code null_value} marker must be mapped
+     * to null before inference or the raw marker flips the column's inferred type (here {@code score} would become
+     * KEYWORD instead of INTEGER). Pre-B1 Jackson's {@code withNullValue} nulled the marker at tokenization.
+     */
+    public void testCustomNullValueInferenceUnderNoTrim() throws IOException {
+        StorageObject object = createStorageObject("id,score\n1,NA\n2,7\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("null_value", "NA"));
+        List<Attribute> schema = reader.schema(object);
+        assertEquals("score", schema.get(1).name());
+        assertEquals(DataType.INTEGER, schema.get(1).dataType());
+    }
+
+    // --- The header line is parsed with CSV rules (quoting, embedded delimiter, BOM) ---
+
+    /** Quoted header names (pandas/pyarrow/Excel default) resolve without the quote characters. */
+    public void testQuotedHeaderNamesUnquoted() throws IOException {
+        StorageObject object = createStorageObject("\"id\",\"a\",\"b\"\n1,-5,10\n");
+        List<Attribute> schema = new CsvFormatReader(blockFactory).schema(object);
+        assertEquals(List.of("id", "a", "b"), schema.stream().map(Attribute::name).toList());
+    }
+
+    /** A quoted header field containing the delimiter is ONE column, not silently mis-split. */
+    public void testQuotedHeaderEmbeddedDelimiter() throws IOException {
+        StorageObject object = createStorageObject("\"a,b\",\"c\"\n1,2\n");
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        assertEquals(List.of("a,b", "c"), reader.schema(object).stream().map(Attribute::name).toList());
+        try (CloseableIterator<Page> it = reader.read(object, null, 10)) {
+            Page page = it.next();
+            assertEquals(2, page.getBlockCount());
+            assertEquals(1, ((IntBlock) page.getBlock(0)).getInt(0));
+            assertEquals(2, ((IntBlock) page.getBlock(1)).getInt(0));
+        }
+    }
+
+    /** A trailing delimiter in the header adds no spurious empty-named column (matches String.split / the plain path). */
+    public void testQuotedHeaderTrailingDelimiterDropsEmptyColumn() throws IOException {
+        StorageObject object = createStorageObject("\"a\",b,\n1,2\n");
+        assertEquals(List.of("a", "b"), new CsvFormatReader(blockFactory).schema(object).stream().map(Attribute::name).toList());
+    }
+
+    /** RFC 4180 doubled-quote inside a quoted name unescapes to a single quote. */
+    public void testQuotedHeaderEscapedQuoteInName() throws IOException {
+        StorageObject object = createStorageObject("\"i\"\"d\",x\n1,2\n");
+        List<Attribute> schema = new CsvFormatReader(blockFactory).schema(object);
+        assertEquals("i\"d", schema.get(0).name());
+        assertEquals("x", schema.get(1).name());
+    }
+
+    /** A leading UTF-8 BOM (Excel/Windows) is stripped from the first column name. */
+    public void testLeadingBomStrippedFromHeader() throws IOException {
+        StorageObject object = createStorageObject("\uFEFFid,name\n1,alice\n");
+        List<Attribute> schema = new CsvFormatReader(blockFactory).schema(object);
+        assertEquals("id", schema.get(0).name());
+        assertEquals("name", schema.get(1).name());
+    }
+
+    /** The same quote-aware header rules apply for a tab delimiter (TSV with quoting on). */
+    public void testTabDelimitedQuotedHeaderNames() throws IOException {
+        StorageObject object = createStorageObject("\"i\td\"\t\"c\"\n1\t2\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("delimiter", "\t", "mode", "quoted")
+        );
+        // The quoted first name contains a tab; it must stay one column.
+        assertEquals(List.of("i\td", "c"), reader.schema(object).stream().map(Attribute::name).toList());
     }
 
     public void testTypedSchemaTextAndTxtAliasesMapToKeyword() throws IOException {
@@ -337,12 +425,13 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertFalse(page.getBlock(1).isNull(0));
             assertFalse(page.getBlock(2).isNull(0));
 
-            // Second row: name is null
+            // Second row: name is a present empty keyword -> empty string (not null)
             assertFalse(page.getBlock(0).isNull(1));
-            assertTrue(page.getBlock(1).isNull(1));
+            assertFalse(page.getBlock(1).isNull(1));
+            assertEquals(new BytesRef(""), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
             assertFalse(page.getBlock(2).isNull(1));
 
-            // Third row: score is null
+            // Third row: score is a present empty double -> null (no empty representation for numerics)
             assertFalse(page.getBlock(0).isNull(2));
             assertFalse(page.getBlock(1).isNull(2));
             assertTrue(page.getBlock(2).isNull(2));
@@ -403,7 +492,9 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(2, schema.size());
-        assertEquals("\"host:port\"", schema.get(0).name());
+        // The quoted name is unwrapped (its internal colon is NOT a type annotation), so it resolves to
+        // host:port — not the literal "host:port" with quote characters the naive split used to produce.
+        assertEquals("host:port", schema.get(0).name());
         assertEquals(DataType.KEYWORD, schema.get(0).dataType());
         assertEquals("status", schema.get(1).name());
         assertEquals(DataType.INTEGER, schema.get(1).dataType());
@@ -436,6 +527,42 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(2, page.getPositionCount());
             assertEquals(Instant.parse("1953-09-02T00:00:00.000Z").toEpochMilli(), ((LongBlock) page.getBlock(1)).getLong(0));
             assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(1)).getLong(1));
+        }
+    }
+
+    public void testReadDeclaredDateFormatZoneAware() throws IOException {
+        // A per-column declared format parses this column's text with the ES DateFormatter (zone-aware): the -0700 offset
+        // is honored, so 10/Oct/2000:13:55:36 -0700 lands at 2000-10-10T20:55:36Z, NOT 13:55:36Z. A no-declared-format
+        // column keeps today's behavior; here `ts` is the only column and it carries a declared format.
+        String csv = "ts:datetime\n10/Oct/2000:13:55:36 -0700\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDeclaredDateFormats(Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(971211336000L, ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
+    public void testReadDeclaredDateFormatMultiValueBrackets() throws IOException {
+        // A declared format applies per element inside a bracketed multi-value datetime cell: both
+        // `10/Oct/2000:...` and `11/Oct/2000:...` are parsed zone-aware with the declared pattern, one day apart.
+        String csv = "id:integer,ts:datetime\n1,\"[10/Oct/2000:13:55:36 -0700,11/Oct/2000:13:55:36 -0700]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = ((CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets")))
+            .withDeclaredDateFormats(Map.of("ts", "dd/MMM/yyyy:HH:mm:ss Z"));
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            LongBlock ts = (LongBlock) page.getBlock(1);
+            assertEquals(2, ts.getValueCount(0));
+            int idx = ts.getFirstValueIndex(0);
+            assertEquals(971211336000L, ts.getLong(idx));
+            assertEquals(971211336000L + 86_400_000L, ts.getLong(idx + 1)); // one day later
         }
     }
 
@@ -1357,7 +1484,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     // --- Empty and null value handling ---
 
-    public void testEmptyFieldsTreatedAsNull() throws IOException {
+    public void testEmptyFieldsStringVsNumeric() throws IOException {
         String csv = "id:long,name:keyword,score:double\n1,,95.5\n2,Bob,\n";
 
         StorageObject object = createStorageObject(csv);
@@ -1367,13 +1494,17 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
-            assertTrue(page.getBlock(1).isNull(0));
+            // Present empty keyword -> empty string; present empty double -> null.
+            assertFalse(page.getBlock(1).isNull(0));
+            assertEquals(new BytesRef(""), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
             assertTrue(page.getBlock(2).isNull(1));
         }
     }
 
     public void testExplicitNullString() throws IOException {
-        String csv = "id:long,name:keyword\n1,null\n2,Bob\n";
+        // The literal "null" token is a null marker for typed columns (id here is unaffected), but a
+        // declared KEYWORD/TEXT column must be able to hold the string "null" verbatim.
+        String csv = "id:long,name:keyword\n,null\n2,Bob\n";
 
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
@@ -1382,8 +1513,28 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
-            assertTrue(page.getBlock(1).isNull(0));
+            assertTrue(page.getBlock(0).isNull(0));
+            assertFalse(page.getBlock(1).isNull(0));
+            assertEquals(new BytesRef("null"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
             assertFalse(page.getBlock(1).isNull(1));
+        }
+    }
+
+    public void testKeywordColumnHoldsLiteralNullStringAnyCase() throws IOException {
+        String csv = "name:keyword\nnull\nNULL\nNuLl\nBob\n";
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(4, page.getPositionCount());
+            BytesRefBlock nameBlock = (BytesRefBlock) page.getBlock(0);
+            assertEquals(new BytesRef("null"), nameBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("NULL"), nameBlock.getBytesRef(1, new BytesRef()));
+            assertEquals(new BytesRef("NuLl"), nameBlock.getBytesRef(2, new BytesRef()));
+            assertEquals(new BytesRef("Bob"), nameBlock.getBytesRef(3, new BytesRef()));
         }
     }
 
@@ -1406,19 +1557,311 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     // --- Whitespace trimming ---
 
-    public void testWhitespaceTrimming() throws IOException {
+    public void testWhitespacePreservedByDefault() throws IOException {
         String csv = "id:long,name:keyword\n 1 , Alice \n 2 , Bob \n";
 
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
+        // Default is now no-trim (RFC 4180 — spaces are part of a field). Typed columns still tolerate
+        // padding (id → 1, 2); string columns keep their surrounding whitespace verbatim.
+        // (name is the second column; its leading space is preserved. Column 0 here is a typed LONG, so its
+        // padding is tolerated by the numeric parse regardless of whitespace; under no-trim the QUOTED / PLAIN
+        // house grammar now ALSO preserves a string column-0's leading whitespace — pinned by
+        // CsvDirectBlockParityTests.testColumnZeroLeadingWhitespaceCsv / ...TsvPlain on both the direct and
+        // house arms. Only escaped mode retains the col-0 leading-whitespace eating.)
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
             assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(new BytesRef(" Alice "), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef(" Bob "), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    /** trim_spaces:true restores the legacy trim-everything behavior. */
+    public void testTrimSpacesTrueRestoresLegacyTrimming() throws IOException {
+        String csv = "id:long,name:keyword\n 1 , Alice \n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("trim_spaces", "true"));
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
             assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
         }
+    }
+
+    // --- Whitespace-as-value axis: typed-parse leniency. Characterization + fixes. ---
+
+    /**
+     * Characterization: Jackson's TRIM_SPACES trims UNQUOTED values only — a quoted keyword keeps its
+     * interior padding on the default (Jackson) path. This pins the premise the typed-parse fix relies on; if
+     * it ever fails on baseline, the whitespace model is wrong and the typed-guard reasoning must be redone.
+     */
+    public void testQuotedKeywordWhitespacePreservedJacksonPath() throws IOException {
+        String csv = "name:keyword\n\" a \"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(new BytesRef(" a "), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    /** Characterization: an unquoted padded numeric already parses (via Jackson trim today, via the typed guard after). */
+    public void testUnquotedPaddedNumericParses() throws IOException {
+        String csv = "id:integer\n 5 \n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            assertEquals(5, ((IntBlock) page.getBlock(0)).getInt(0));
+        }
+    }
+
+    /**
+     * Headline repro: a quoted, numeric-looking value with interior whitespace (" 5 ") must NOT abort
+     * the whole file. The typed column parses it by trimming before the numeric parse (mirroring inference).
+     */
+    public void testQuotedPaddedIntegerDoesNotAbortRead() throws IOException {
+        String csv = "id:integer,name:keyword\n\" 5 \",a\n6,b\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            IntBlock ids = (IntBlock) page.getBlock(0);
+            assertEquals(5, ids.getInt(0));
+            assertEquals(6, ids.getInt(1));
+            BytesRefBlock names = (BytesRefBlock) page.getBlock(1);
+            assertEquals(new BytesRef("a"), names.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("b"), names.getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    /**
+     * As filed: with NO type annotation, inference (which trims before detection) resolves the column
+     * to INTEGER from quoted padded values, and conversion must agree end-to-end rather than abort.
+     */
+    public void testInferredPaddedQuotedNumericFullRead() throws IOException {
+        String csv = "id\n\" 5 \"\n\" 6 \"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            IntBlock ids = (IntBlock) page.getBlock(0);
+            assertEquals(5, ids.getInt(0));
+            assertEquals(6, ids.getInt(1));
+        }
+    }
+
+    /** A clean and a quoted-padded numeric in the same column both parse to the same value. */
+    public void testMixedCleanAndPaddedNumerics() throws IOException {
+        String csv = "id:integer\n5\n\" 5 \"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            IntBlock ids = (IntBlock) page.getBlock(0);
+            assertEquals(5, ids.getInt(0));
+            assertEquals(5, ids.getInt(1));
+        }
+    }
+
+    /**
+     * The padded-value tolerance is type-agnostic (one trim before the typed switch), so every non-string
+     * arm must tolerate a quoted, whitespace-padded value — not just the numeric ones. Pins evolvability:
+     * a future typed arm that forgets to route through the trim (or is mis-classified as string) fails here.
+     */
+    public void testPaddedQuotedValuesTolerateAcrossTypes() throws IOException {
+        String csv = "l:long,d:double,b:boolean,dt:datetime,ip:ip,v:version\n"
+            + "\" 9 \",\" 3.14 \",\" true \",\" 2021-01-01T00:00:00Z \",\" 127.0.0.1 \",\" 1.2.3 \"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            for (int c = 0; c < page.getBlockCount(); c++) {
+                assertFalse("column " + c + " should tolerate the padded value, not null it", page.getBlock(c).isNull(0));
+            }
+            assertEquals(9L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(3.14, ((DoubleBlock) page.getBlock(1)).getDouble(0), 0.0);
+            assertTrue(((BooleanBlock) page.getBlock(2)).getBoolean(0));
+        }
+    }
+
+    /** A whitespace-only quoted cell on a typed column is null (as the sampler treats it), not a parse error. */
+    public void testWhitespaceOnlyQuotedTypedCellIsNull() throws IOException {
+        String csv = "id:integer\n\"   \"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertTrue(page.getBlock(0).isNull(0));
+        }
+    }
+
+    /**
+     * A custom null_value that reaches a typed column with surrounding whitespace must still be recognised as
+     * null after trimming — not routed into a numeric parse that aborts (guards against the F2 regression).
+     * The keyword twin keeps the padded sentinel verbatim (fidelity is a separate axis).
+     */
+    public void testPaddedCustomNullOnTypedCellIsNull() throws IOException {
+        String csv = "id:integer,name:keyword\n\" NA \",\" NA \"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("null_value", "NA"));
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertTrue("typed NA cell should be null", page.getBlock(0).isNull(0));
+            assertEquals(new BytesRef(" NA "), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    /** A quoted, padded element inside a bracket multi-value parses by type (parseElement sibling of the guard). */
+    public void testBracketQuotedPaddedElementParses() throws IOException {
+        String csv = "vals:integer\n[\" 5 \", 6]\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            IntBlock vals = (IntBlock) page.getBlock(0);
+            assertEquals(2, vals.getValueCount(0));
+            int idx = vals.getFirstValueIndex(0);
+            assertEquals(5, vals.getInt(idx));
+            assertEquals(6, vals.getInt(idx + 1));
+        }
+    }
+
+    /**
+     * Multi-value string elements keep their per-element whitespace under trim_spaces:false, matching the
+     * scalar keyword guarantee — element extraction gates its trim on trim_spaces like emitField does.
+     */
+    public void testMultiValueKeywordPreservesElementWhitespace() throws IOException {
+        String csv = "vals:keyword\n[ a , b ]\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("multi_value_syntax", "brackets", "trim_spaces", "false")
+        );
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            BytesRefBlock vals = (BytesRefBlock) page.getBlock(0);
+            assertEquals(2, vals.getValueCount(0));
+            int idx = vals.getFirstValueIndex(0);
+            assertEquals(new BytesRef(" a "), vals.getBytesRef(idx, new BytesRef()));
+            assertEquals(new BytesRef(" b "), vals.getBytesRef(idx + 1, new BytesRef()));
+        }
+    }
+
+    /** trim_spaces:true trims multi-value string elements (the legacy behavior, still available). */
+    public void testMultiValueKeywordTrimsElementsWhenTrimSpacesTrue() throws IOException {
+        String csv = "vals:keyword\n[ a , b ]\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("multi_value_syntax", "brackets", "trim_spaces", "true")
+        );
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            BytesRefBlock vals = (BytesRefBlock) page.getBlock(0);
+            int idx = vals.getFirstValueIndex(0);
+            assertEquals(new BytesRef("a"), vals.getBytesRef(idx, new BytesRef()));
+            assertEquals(new BytesRef("b"), vals.getBytesRef(idx + 1, new BytesRef()));
+        }
+    }
+
+    /** Under FAIL_FAST, a genuinely unparseable typed cell still aborts with a precise diagnostic (post-trim value shown). */
+    public void testGenuinelyBadPaddedTypedCellStillFailsFast() throws IOException {
+        String csv = "id:integer\n\" 5x \"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            }
+        });
+        assertTrue(e.getMessage().contains("Failed to parse CSV value"));
+        assertTrue("expected trimmed value in message, got: " + e.getMessage(), e.getMessage().contains("[5x]"));
+    }
+
+    /** Under a lenient (skip_row) policy the same bad cell drops its row instead of aborting the read. */
+    public void testGenuinelyBadPaddedTypedCellSkipsRowWhenLenient() throws IOException {
+        String csv = "id:integer\n\" 5x \"\n7\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(10, true);
+        try (
+            CloseableIterator<Page> iterator = reader.read(object, FormatReadContext.builder().batchSize(10).errorPolicy(lenient).build())
+        ) {
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(7, ((IntBlock) page.getBlock(0)).getInt(0));
+        }
+    }
+
+    // --- Whitespace-as-value axis: string fidelity via the trim_spaces option. ---
+    // These pin that the trim_spaces option flows to both the Jackson and the fused/bracket paths, in
+    // both polarities (independent of the no-trim default, which testWhitespacePreservedByDefault covers).
+
+    /** trim_spaces:false preserves an unquoted padded keyword on the default (Jackson) path. */
+    public void testTrimSpacesFalsePreservesUnquotedWhitespace() throws IOException {
+        String csv = "a:keyword,b:keyword\n x , y \n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.<String, Object>of("trim_spaces", "false")
+        );
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            // Trailing whitespace of every column, and leading whitespace of every column past the first,
+            // are preserved once trimming is off.
+            assertEquals(new BytesRef(" y "), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            // The default (direct-block) path preserves surrounding whitespace on every column, incl. the first.
+            assertEquals(new BytesRef(" x "), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    /** trim_spaces:false preserves an unquoted padded keyword on the fused/bracket path (the emitField half of the trimming fix). */
+    public void testTrimSpacesFalsePreservesUnquotedWhitespaceFusedPath() throws IOException {
+        String csv = "val:keyword\n a \n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("multi_value_syntax", "brackets", "trim_spaces", "false")
+        );
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("val"), 10)) {
+            Page page = iterator.next();
+            assertEquals(new BytesRef(" a "), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    /** trim_spaces:true trims an unquoted padded keyword — the explicit opt-in back into trimming. */
+    public void testTrimSpacesTrueTrimsUnquotedWhitespace() throws IOException {
+        String csv = "name:keyword\n a \n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("trim_spaces", "true"));
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            Page page = iterator.next();
+            assertEquals(new BytesRef("a"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    /** emitField preserves whitespace verbatim when trimming is off. */
+    public void testEmitFieldNoTrimPreservesWhitespace() {
+        assertEquals("  hello  ", CsvFormatReader.emitField(new StringBuilder("  hello  "), false));
+        assertEquals("   ", CsvFormatReader.emitField(new StringBuilder("   "), false));
+        assertEquals(" ", CsvFormatReader.emitField(new StringBuilder(" "), false));
+        assertEquals("", CsvFormatReader.emitField(new StringBuilder(), false));
     }
 
     // --- All supported data types ---
@@ -2169,7 +2612,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testCustomDatetimeFormat() throws IOException {
         String csv = "id:long,ts:datetime\n1,2021-01-15 14:30:00\n2,2022-06-20 09:00:00\n";
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
+        DateFormatter formatter = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss");
         CsvFormatOptions options = new CsvFormatOptions(
             ',',
             CsvFormatOptions.DEFAULT.quoteChar(),
@@ -2193,6 +2636,22 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(Instant.parse("2021-01-15T14:30:00Z").toEpochMilli(), ((LongBlock) page.getBlock(1)).getLong(0));
             assertEquals(Instant.parse("2022-06-20T09:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(1)).getLong(1));
         }
+    }
+
+    /**
+     * Config-time acceptance of {@code datetime_format} is the ES {@link DateFormatter} grammar, the same one the
+     * NDJSON reader accepts: custom java-time patterns, ES named formats and {@code a||b} composites all compile;
+     * garbage is still rejected loudly at config time rather than nulling every cell at read time.
+     */
+    public void testDatetimeFormatConfigAcceptance() {
+        for (String pattern : List.of("yyyy-MM-dd HH:mm:ssXXX", "yyyy-MM-dd", "epoch_second", "basic_date", "yyyy-MM-dd||epoch_millis")) {
+            new CsvFormatReader(blockFactory).withConfig(Map.of("datetime_format", pattern));
+        }
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CsvFormatReader(blockFactory).withConfig(Map.of("datetime_format", "not-a-valid-!!format!!"))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("Invalid datetime format [not-a-valid-!!format!!]"));
     }
 
     // --- withConfig() Integration Tests ---
@@ -2824,6 +3283,27 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A quoted {@code "null"} element inside a bracket multi-value cell is stripped to the bare token by
+     * the bracket splitter before element parsing sees it (see #1098); on a KEYWORD column it must survive
+     * as the literal string, not be dropped as a null element.
+     */
+    public void testMultiValueBracketsQuotedNullStringPreserved() throws IOException {
+        String csv = "id:integer,names:keyword\n1,\"[\"\"null\"\",\"\"bar\"\"]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = mvcReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock namesBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(2, namesBlock.getValueCount(0));
+            assertEquals(new BytesRef("null"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0), new BytesRef()));
+            assertEquals(new BytesRef("bar"), namesBlock.getBytesRef(namesBlock.getFirstValueIndex(0) + 1, new BytesRef()));
+        }
+    }
+
+    /**
      * Loads employees.csv from ESQL test fixtures. Verifies 23 columns in header and each row.
      * The file has multi-value fields like {@code [Senior Python Developer,Accountant]}.
      */
@@ -2906,6 +3386,56 @@ public class CsvFormatReaderTests extends ESTestCase {
                 rows += iterator.next().getPositionCount();
             }
             assertEquals(2, rows);
+        }
+    }
+
+    /**
+     * Julian's report: a header {@code "a,b",c} has TWO columns — the first field is quoted and embeds
+     * the delimiter — but a naive comma split counts three. The declared-schema width tripwire and the
+     * inferred-schema column count both go through {@code splitFieldsForOptions}; with the naive split a
+     * 3-column declaration was wrongly admitted over a 2-column file and then null-spliced every row.
+     * The quote-aware split counts two, so the tripwire fires and inference reports two columns.
+     */
+    public void testDeclaredWidthTripwireCountsQuotedHeaderFieldsCorrectly() throws IOException {
+        String csv = "\"a,b\",c\n1,2\n";
+        StorageObject object = createStorageObject(csv);
+
+        // Inferred-schema count (the metadata caller): two columns, not three.
+        assertEquals(2, new CsvFormatReader(blockFactory).metadata(object).schema().size());
+
+        // Width tripwire (the declared caller): a 3-column declaration cannot bind a 2-column file. The
+        // declared positional schema is plumbed through FormatReadContext.readSchema.
+        List<Attribute> tooWide = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "x", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "y", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "z", DataType.KEYWORD)
+        );
+        FormatReader reader = new CsvFormatReader(blockFactory);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(tooWide).build()
+            ).close()
+        );
+        assertThat(e.getMessage(), Matchers.containsString("declared schema has 3 columns"));
+        assertThat(e.getMessage(), Matchers.containsString("] has 2"));
+
+        // A 2-column declaration matches the two real columns and reads.
+        List<Attribute> exact = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "first", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "second", DataType.KEYWORD)
+        );
+        try (
+            CloseableIterator<Page> it = reader.read(
+                object,
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(exact).build()
+            )
+        ) {
+            assertTrue(it.hasNext());
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            page.releaseBlocks();
         }
     }
 
@@ -4011,6 +4541,43 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Same shape as {@link #testWarningsIncludeRowNumber}, but with {@link FormatReadContext#informationalWarningSink()}
+     * supplied: every emitted message must route through the sink instead of {@link HeaderWarning}, since
+     * {@link CsvFormatReader#read} can be invoked from a background reader thread whose thread-local response
+     * headers never reach the client (see {@code SkipWarnings}).
+     */
+    public void testWarningsRouteThroughWarningSinkWhenSupplied() throws IOException {
+        String csv = """
+            id:long,name:keyword
+            1,Alice
+            bad_id,Bob
+            3,Charlie
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        ErrorPolicy lenient = new ErrorPolicy(100, true);
+        List<String> sunk = new ArrayList<>();
+
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().batchSize(10).errorPolicy(lenient).informationalWarningSink(sunk::add).build()
+            )
+        ) {
+            while (iterator.hasNext()) {
+                iterator.next();
+            }
+        }
+
+        // 1 summary + 1 detail
+        assertEquals(2, sunk.size());
+        assertTrue("Summary should mention skip_row, got: " + sunk.get(0), sunk.get(0).contains("policy: skip_row"));
+        assertTrue("Detail should include row number, got: " + sunk.get(1), sunk.get(1).contains("Row [2]"));
+        assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
+    }
+
+    /**
      * Reads the response-header warnings emitted on the test thread and clears them so the
      * {@link ESTestCase#after()} no-warnings post-check passes. Returns the unwrapped warning
      * messages (without the "299 Elasticsearch-... " prefix and surrounding quotes).
@@ -4065,6 +4632,124 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertTrue(((BooleanBlock) page.getBlock(0)).getBoolean(2));
             assertFalse(((BooleanBlock) page.getBlock(0)).getBoolean(3));
         }
+    }
+
+    /**
+     * A declared boolean column accepts only {@code true}/{@code false} (case-insensitively) and rejects every
+     * other token loudly: under {@code fail_fast} the read aborts naming the value, under {@code null_field} the
+     * cell nulls and the reader warns. It must never silently become {@code false} the way {@code ::boolean}
+     * would - that deliberate divergence lives in {@code DeclaredTypeCoercions.strictParseBoolean}, which
+     * {@code tryParseBoolean} delegates to. Pinned here through the reader, not just at the SPI level.
+     */
+    public void testDeclaredBooleanRejectsNonBooleanTokenPerPolicy() throws IOException {
+        for (String badToken : List.of("yes", "1")) {
+            String csv = "active:boolean\n" + badToken + "\n";
+
+            // fail_fast: the read aborts, naming the offending token and the target type.
+            StorageObject strictObject = createStorageObject(csv);
+            CsvFormatReader strictReader = new CsvFormatReader(blockFactory);
+            ParsingException e = expectThrows(ParsingException.class, () -> {
+                try (
+                    CloseableIterator<Page> iterator = strictReader.read(
+                        strictObject,
+                        FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                    )
+                ) {
+                    while (iterator.hasNext()) {
+                        iterator.next();
+                    }
+                }
+            });
+            assertTrue("expected the rejected token in the message, got: " + e.getMessage(), e.getMessage().contains("[" + badToken + "]"));
+            assertTrue("expected the target type in the message, got: " + e.getMessage(), e.getMessage().contains("BOOLEAN"));
+            drainWarnings();
+
+            // null_field: the cell nulls - never reads as false - and the rejection is surfaced as a warning.
+            StorageObject nullFieldObject = createStorageObject(csv);
+            CsvFormatReader nullFieldReader = new CsvFormatReader(blockFactory);
+            ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+            try (
+                CloseableIterator<Page> iterator = nullFieldReader.read(
+                    nullFieldObject,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(nullField).build()
+                )
+            ) {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                assertEquals(1, page.getPositionCount());
+                assertTrue("[" + badToken + "] must null the cell, never read as false", page.getBlock(0).isNull(0));
+            }
+            assertFalse("null_field must warn about the rejected token", drainWarnings().isEmpty());
+        }
+    }
+
+    /**
+     * A declared {@code double} column preserves the non-finite IEEE tokens {@code NaN}/{@code Infinity}/{@code -Infinity}
+     * (matching the columnar read and {@code ::double}, a deliberate divergence from the finite-only mapper rule).
+     */
+    public void testDoubleColumnAcceptsNaNAndInfinityTokens() throws IOException {
+        String csv = "d:double\nNaN\nInfinity\n-Infinity\n3.5\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            DoubleBlock d = (DoubleBlock) iterator.next().getBlock(0);
+            assertTrue("NaN token", Double.isNaN(d.getDouble(0)));
+            assertEquals(Double.POSITIVE_INFINITY, d.getDouble(1), 0.0);
+            assertEquals(Double.NEGATIVE_INFINITY, d.getDouble(2), 0.0);
+            assertEquals(3.5, d.getDouble(3), 0.0);
+        }
+    }
+
+    /** A declared {@code long} token above {@code Long.MAX_VALUE} is an overflow routed through the error policy. */
+    public void testStringToLongOverflowHonorsErrorPolicy() throws IOException {
+        String csv = "n:long\n99999999999999999999\n"; // > Long.MAX_VALUE
+
+        StorageObject strict = createStorageObject(csv);
+        expectThrows(ParsingException.class, () -> {
+            try (
+                CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(
+                    strict,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (it.hasNext()) {
+                    it.next();
+                }
+            }
+        });
+        drainWarnings();
+
+        StorageObject lenient = createStorageObject(csv);
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false);
+        try (
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(
+                lenient,
+                FormatReadContext.builder().batchSize(10).errorPolicy(nullField).build()
+            )
+        ) {
+            assertTrue("overflow nulls the cell under null_field", it.next().getBlock(0).isNull(0));
+        }
+        assertFalse("overflow warns", drainWarnings().isEmpty());
+    }
+
+    /** The TSV preset shares {@link CsvFormatReader}, so the strict declared-boolean rule must hold there too. */
+    public void testTsvDeclaredBooleanRejectsNonBooleanToken() throws IOException {
+        String tsv = "active:boolean\tname:keyword\nyes\tAlice\n";
+        StorageObject object = createStorageObject(tsv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            }
+        });
+        assertTrue("expected the rejected token in the message, got: " + e.getMessage(), e.getMessage().contains("[yes]"));
     }
 
     // --- Date-only and zone-less datetime tests (#323) ---
@@ -5859,35 +6544,35 @@ public class CsvFormatReaderTests extends ESTestCase {
     // --- Phase 1A: emitField ---
 
     public void testEmitFieldCleanValue() {
-        assertEquals("hello", CsvFormatReader.emitField(new StringBuilder("hello")));
+        assertEquals("hello", CsvFormatReader.emitField(new StringBuilder("hello"), true));
     }
 
     public void testEmitFieldEmpty() {
-        assertEquals("", CsvFormatReader.emitField(new StringBuilder()));
+        assertEquals("", CsvFormatReader.emitField(new StringBuilder(), true));
     }
 
     public void testEmitFieldLeadingWhitespace() {
-        assertEquals("hello", CsvFormatReader.emitField(new StringBuilder("  hello")));
+        assertEquals("hello", CsvFormatReader.emitField(new StringBuilder("  hello"), true));
     }
 
     public void testEmitFieldTrailingWhitespace() {
-        assertEquals("hello", CsvFormatReader.emitField(new StringBuilder("hello  ")));
+        assertEquals("hello", CsvFormatReader.emitField(new StringBuilder("hello  "), true));
     }
 
     public void testEmitFieldBothWhitespace() {
-        assertEquals("hello", CsvFormatReader.emitField(new StringBuilder("  hello  ")));
+        assertEquals("hello", CsvFormatReader.emitField(new StringBuilder("  hello  "), true));
     }
 
     public void testEmitFieldWhitespaceOnly() {
-        assertEquals("", CsvFormatReader.emitField(new StringBuilder("   ")));
+        assertEquals("", CsvFormatReader.emitField(new StringBuilder("   "), true));
     }
 
     public void testEmitFieldSingleChar() {
-        assertEquals("x", CsvFormatReader.emitField(new StringBuilder("x")));
+        assertEquals("x", CsvFormatReader.emitField(new StringBuilder("x"), true));
     }
 
     public void testEmitFieldSingleWhitespace() {
-        assertEquals("", CsvFormatReader.emitField(new StringBuilder(" ")));
+        assertEquals("", CsvFormatReader.emitField(new StringBuilder(" "), true));
     }
 
     // --- Phase 2: Fused split+convert via bracket-aware path ---
@@ -5965,11 +6650,451 @@ public class CsvFormatReaderTests extends ESTestCase {
             Page page = iterator.next();
             assertEquals(2, page.getPositionCount());
             assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
-            assertTrue(page.getBlock(1).isNull(0));
+            // Interior empty keyword field reads as the empty string, not null.
+            assertFalse(page.getBlock(1).isNull(0));
+            assertEquals(new BytesRef(""), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
             assertEquals(30, ((IntBlock) page.getBlock(2)).getInt(0));
             assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
             assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            // Trailing empty integer field stays null (no empty representation for numerics).
             assertTrue(page.getBlock(2).isNull(1));
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------------
+    // Empty vs null handling for external CSV/TSV, per situation.
+    //
+    // COUNT(DISTINCT) collapses null, empty string, and the literal "null" into one another, so it
+    // hides which case is actually wrong. Each test below isolates one situation and asserts the exact
+    // block value so a regression in any single case is visible.
+    //
+    // Semantics:
+    // - A PRESENT but empty cell on a KEYWORD/TEXT column reads as the empty string "".
+    // - A PRESENT but empty cell on a non-string column (numeric/date/...) reads as null.
+    // - A MISSING cell (row shorter than the schema) reads as null on every type.
+    // - The literal token "null" maps to null only on non-string columns; a KEYWORD/TEXT column holds it
+    // as the string "null". A custom null_value token maps to null; empty IP/VERSION cells map to null.
+    // A present-but-empty element inside a bracket multi-value cell follows the same per-type rule as a
+    // scalar cell (empty string on KEYWORD/TEXT, kept in the list; null, and dropped from the list,
+    // otherwise).
+    // -----------------------------------------------------------------------------------------------
+
+    /** Reads {@code csv} with the given reader and runs {@code asserts} against the first page (all columns projected). */
+    private void withFirstPage(FormatReader reader, String csv, Consumer<Page> asserts) throws IOException {
+        StorageObject object = createStorageObject(csv);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 100)) {
+            assertTrue("expected at least one page", iterator.hasNext());
+            asserts.accept(iterator.next());
+        }
+    }
+
+    private static void assertKeyword(Page page, int block, int pos, String expected) {
+        BytesRefBlock b = (BytesRefBlock) page.getBlock(block);
+        assertFalse("block " + block + " pos " + pos + " should not be null", b.isNull(pos));
+        assertEquals("block " + block + " pos " + pos, new BytesRef(expected), b.getBytesRef(pos, new BytesRef()));
+    }
+
+    private static void assertBlockNull(Page page, int block, int pos) {
+        assertTrue("block " + block + " pos " + pos + " should be null", page.getBlock(block).isNull(pos));
+    }
+
+    // --- Default path (Jackson bulk iterator: quoted CSV, no bracket multi-values) ---
+
+    public void testEmptyVsNull_interiorEmptyString_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,,20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 0, "apple");
+            assertKeyword(page, 1, 1, ""); // present, interior empty -> empty string
+            assertKeyword(page, 1, 2, "banana");
+        });
+    }
+
+    public void testEmptyVsNull_trailingEmptyString_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,n:integer,phrase:keyword
+            1,10,apple
+            2,20,
+            3,30,banana
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 2, 0, "apple");
+            assertKeyword(page, 2, 1, ""); // present, trailing empty -> empty string
+            assertKeyword(page, 2, 2, "banana");
+        });
+    }
+
+    public void testEmptyVsNull_leadingEmptyString_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            phrase:keyword,id:long
+            apple,1
+            ,2
+            banana,3
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 0, 0, "apple");
+            assertKeyword(page, 0, 1, ""); // present, leading empty -> empty string
+            assertKeyword(page, 0, 2, "banana");
+        });
+    }
+
+    public void testEmptyVsNull_quotedEmptyString_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,"",20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // quoted empty -> empty string
+        });
+    }
+
+    public void testEmptyVsNull_missingStringField_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,n:integer,phrase:keyword
+            1,10,apple
+            2,20
+            3,30,banana
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 2, 0, "apple");
+            assertBlockNull(page, 2, 1); // missing (short row) -> null, NOT empty string
+            assertKeyword(page, 2, 2, "banana");
+        });
+    }
+
+    /**
+     * The unquoted literal token {@code null} on a declared string column stays the string "null": a
+     * KEYWORD/TEXT column must be able to hold the value "null", so the token is not a null marker there.
+     */
+    public void testEmptyVsNull_literalNullUnquoted_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,null,20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, "null"); // literal "null" on a string column -> the string "null"
+        });
+    }
+
+    /**
+     * A QUOTED {@code "null"} on a string column behaves like the unquoted token: the string-type gate runs
+     * after unquoting, so a KEYWORD/TEXT column keeps the literal "null" either way.
+     */
+    public void testEmptyVsNull_literalNullQuoted_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,"null",20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, "null"); // quoted "null" on a string column -> the string "null"
+        });
+    }
+
+    public void testEmptyVsNull_whitespaceOnlyString_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,   ,20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            // Default is no-trim (RFC 4180): a whitespace-only string cell is a present, non-empty value
+            // kept verbatim, not trimmed to the empty string. Trimming a string column is opt-in via trim_spaces.
+            assertKeyword(page, 1, 1, "   ");
+        });
+    }
+
+    public void testEmptyVsNull_interiorEmptyNumeric_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,score:double,phrase:keyword
+            1,1.5,a
+            2,,b
+            3,3.5,c
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertBlockNull(page, 1, 1); // empty numeric -> null
+        });
+    }
+
+    public void testEmptyVsNull_trailingEmptyNumeric_defaultPath() throws IOException {
+        withFirstPage(new CsvFormatReader(blockFactory), """
+            id:long,phrase:keyword,score:double
+            1,a,1.5
+            2,b,
+            3,c,3.5
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertBlockNull(page, 2, 1); // trailing empty numeric -> null
+        });
+    }
+
+    public void testEmptyVsNull_customNullValueToken_defaultPath() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("null_value", "N/A"));
+        withFirstPage(reader, """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,N/A,20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertBlockNull(page, 1, 1); // custom null_value token -> null
+        });
+    }
+
+    public void testEmptyVsNull_emptyUnderCustomNullValue_defaultPath() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("null_value", "N/A"));
+        withFirstPage(reader, """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,,20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // empty cell (not the N/A token) -> empty string
+        });
+    }
+
+    // --- TSV / plain mode (Jackson bulk iterator, tab delimiter, no quoting) ---
+
+    public void testEmptyVsNull_interiorEmptyString_tsvPlain() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        withFirstPage(reader, "id:long\tphrase:keyword\tn:integer\n1\tapple\t10\n2\t\t20\n3\tbanana\t30\n", page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // interior empty -> empty string
+        });
+    }
+
+    public void testEmptyVsNull_trailingEmptyString_tsvPlain() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        withFirstPage(reader, "id:long\tn:integer\tphrase:keyword\n1\t10\tapple\n2\t20\t\n3\t30\tbanana\n", page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 2, 1, ""); // trailing empty -> empty string
+        });
+    }
+
+    // --- Direct-to-block path (multi_value_syntax=none, projected read with per-column stats) ---
+    // These force the optimized direct decoders (emitPlainField / splitAndConvertQuoted) by supplying a
+    // FormatReadContext with a projected, non-ALL stats scope on a direct-block-enabled reader. The
+    // present-empty rule must match the Jackson and bracket paths: empty string on KEYWORD/TEXT, null on
+    // other types, and null only for a genuinely missing (short-row) field.
+
+    /** Reads {@code csv} on the direct-to-block path (all named columns projected) and asserts the first page. */
+    private void withFirstPageDirect(String csv, List<String> projected, Consumer<Page> asserts) throws IOException {
+        StorageObject object = createStorageObject(csv);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projected)
+            .batchSize(100)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDirectBlockEnabled(true);
+        try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
+            assertTrue("expected at least one page", iterator.hasNext());
+            asserts.accept(iterator.next());
+        }
+    }
+
+    public void testEmptyVsNull_interiorEmptyString_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,,20
+            3,banana,30
+            """, List.of("id", "phrase", "n"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 0, "apple");
+            assertKeyword(page, 1, 1, ""); // present, interior empty -> empty string (not null)
+            assertKeyword(page, 1, 2, "banana");
+        });
+    }
+
+    public void testEmptyVsNull_whitespaceOnlyString_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,   ,20
+            3,banana,30
+            """, List.of("id", "phrase", "n"), page -> {
+            assertEquals(3, page.getPositionCount());
+            // Default is no-trim (RFC 4180): a whitespace-only string cell is a present, non-empty value
+            // kept verbatim, not trimmed to the empty string. Trimming a string column is opt-in via trim_spaces.
+            assertKeyword(page, 1, 1, "   ");
+        });
+    }
+
+    public void testEmptyVsNull_quotedEmptyString_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,"",20
+            3,banana,30
+            """, List.of("id", "phrase", "n"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // quoted empty -> empty string (not null)
+        });
+    }
+
+    public void testEmptyVsNull_interiorEmptyNumeric_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,score:double,phrase:keyword
+            1,1.5,a
+            2,,b
+            3,3.5,c
+            """, List.of("id", "score", "phrase"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertBlockNull(page, 1, 1); // empty numeric has no empty representation -> null
+        });
+    }
+
+    public void testEmptyVsNull_missingStringField_directPath() throws IOException {
+        withFirstPageDirect("""
+            id:long,n:integer,phrase:keyword
+            1,10,apple
+            2,20
+            3,30,banana
+            """, List.of("id", "n", "phrase"), page -> {
+            assertEquals(3, page.getPositionCount());
+            assertBlockNull(page, 2, 1); // missing (short row) -> null, NOT empty string
+        });
+    }
+
+    // --- Fused bracket path (multi_value_syntax=brackets, comma delimiter) ---
+
+    public void testEmptyVsNull_interiorEmptyString_fusedBrackets() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        withFirstPage(reader, """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,,20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // interior empty -> empty string
+        });
+    }
+
+    public void testEmptyVsNull_trailingEmptyString_fusedBrackets() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        withFirstPage(reader, """
+            id:long,n:integer,phrase:keyword
+            1,10,apple
+            2,20,
+            3,30,banana
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 2, 1, ""); // trailing empty -> empty string (fused trailing gap fixed)
+        });
+    }
+
+    public void testEmptyVsNull_quotedEmptyString_fusedBrackets() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        withFirstPage(reader, """
+            id:long,phrase:keyword,n:integer
+            1,apple,10
+            2,"",20
+            3,banana,30
+            """, page -> {
+            assertEquals(3, page.getPositionCount());
+            assertKeyword(page, 1, 1, ""); // quoted empty -> empty string
+        });
+    }
+
+    public void testEmptyVsNull_trailingEmptyString_bracketsSplitThenConvertRoute() throws IOException {
+        // With multi_value_syntax=brackets + an inferred (plain) schema, the rows BEYOND the inference
+        // sample are read via the split-then-convert route (splitCommaDelimiterBracketAwareFields ->
+        // convertRowInPlace), not the fused walker. schema_sample_size=2 keeps rows 3 and 4 on that
+        // route. Both bracket routes must agree: an interior empty and a trailing empty keyword cell
+        // read as the empty string, not null.
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
+            Map.of("multi_value_syntax", "brackets", "schema_sample_size", "2")
+        );
+        withFirstPage(reader, """
+            id,phrase,tail
+            1,apple,x
+            2,pear,y
+            3,,z
+            4,banana,
+            """, page -> {
+            assertEquals(4, page.getPositionCount());
+            assertKeyword(page, 1, 2, ""); // interior empty (row beyond sample) -> empty string
+            assertKeyword(page, 2, 3, ""); // trailing empty (row beyond sample) -> empty string
+        });
+    }
+
+    public void testEmptyVsNull_quotedEmptyString_bracketsSplitThenConvertRoute() throws IOException {
+        // Route C (rows beyond the inference sample under brackets + inferred schema, read via
+        // splitCommaDelimiterBracketAwareFields). A quoted empty `""` field yields no text; it must still
+        // read as the empty string, matching the fused walker and the Jackson path rather than collapsing
+        // to a missing field. schema_sample_size=1 pushes row 2 onto the split-then-convert route.
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
+            Map.of("multi_value_syntax", "brackets", "schema_sample_size", "1")
+        );
+        withFirstPage(reader, """
+            phrase
+            apple
+            ""
+            """, page -> {
+            assertEquals(2, page.getPositionCount());
+            assertKeyword(page, 0, 0, "apple");
+            assertKeyword(page, 0, 1, ""); // quoted empty on the split route -> empty string (not null)
+        });
+    }
+
+    /**
+     * A present-but-empty element inside a bracket multi-value cell (e.g. the middle of {@code [a,,c]})
+     * follows the same per-type rule as a scalar present-empty cell: empty string on KEYWORD/TEXT,
+     * kept in the list rather than silently dropped. Dropping it (the pre-fix behavior) shrinks the
+     * multi-value list and loses positional correspondence with other columns — the same
+     * cardinality-corruption bug class this PR fixes for scalar cells, one level deeper.
+     */
+    public void testEmptyVsNull_presentEmptyElement_bracketMultiValue() throws IOException {
+        String csv = "id:integer,phrase:keyword\n1,\"[a,,c]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
+        FormatReader configured = baseReader.withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock phrase = (BytesRefBlock) page.getBlock(1);
+            assertEquals(3, phrase.getValueCount(0));
+            int first = phrase.getFirstValueIndex(0);
+            assertEquals(new BytesRef("a"), phrase.getBytesRef(first, new BytesRef()));
+            assertEquals(new BytesRef(""), phrase.getBytesRef(first + 1, new BytesRef()));
+            assertEquals(new BytesRef("c"), phrase.getBytesRef(first + 2, new BytesRef()));
+        }
+    }
+
+    /**
+     * A present-but-empty element inside a bracket multi-value cell on a non-string column has no
+     * empty representation, so it maps to null and is dropped from the list — same as the pre-fix
+     * behavior and consistent with a scalar present-empty numeric cell.
+     */
+    public void testEmptyVsNull_presentEmptyElement_bracketMultiValueNumeric() throws IOException {
+        String csv = "id:integer,n:integer\n1,\"[10,,30]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader baseReader = new CsvFormatReader(blockFactory);
+        FormatReader configured = baseReader.withConfig(Map.of("multi_value_syntax", "brackets"));
+
+        try (CloseableIterator<Page> iterator = configured.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            IntBlock n = (IntBlock) page.getBlock(1);
+            assertEquals(2, n.getValueCount(0));
+            int first = n.getFirstValueIndex(0);
+            assertEquals(10, n.getInt(first));
+            assertEquals(30, n.getInt(first + 1));
         }
     }
 
@@ -6438,6 +7563,42 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Quoted + escaping dialect (both knobs on) with {@code trim_spaces=true}, so {@code jacksonGrammarApplies()}
+     * holds; projecting {@code _rowPosition} forces the recordReader-backed path, whose {@code recordEscapeAware}
+     * disjunct ({@code rowPositionProjected}) must build an escape-aware {@link CsvLogicalRecordReader}. An
+     * unquoted {@code \}-escaped newline is in-field content, so record 1 spans two physical lines and must NOT
+     * be split in two. Without the escape-aware record reader the boundary scan would end record 1 at the escaped
+     * newline, emitting a spurious extra row position. The two emitted offsets pin the single-record boundary:
+     * the header is 21 bytes and record 1 (bytes {@code 1,a\<nl>b<nl>}) is 7 bytes, so record 2 starts at 28.
+     */
+    public void testRowPositionNotSplitByEscapedNewlineInQuotedEscapingMode() throws IOException {
+        String csv = "id:long,name:keyword\n1,a\\\nb\n2,Bob\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("quote", "\"", "escape", "\\", "trim_spaces", true)
+        );
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(64)
+            .errorPolicy(ErrorPolicy.STRICT)
+            .projectedColumns(List.of("_rowPosition"))
+            .firstSplit(true)
+            .lastSplit(true)
+            .build();
+        List<Long> offsets = new ArrayList<>();
+        try (CloseableIterator<Page> it = reader.read(object, ctx)) {
+            while (it.hasNext()) {
+                Page page = it.next();
+                LongBlock rowPos = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    offsets.add(rowPos.getLong(i));
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals("escaped newline must not split record 1 into two rows", List.of(21L, 28L), offsets);
+    }
+
+    /**
      * Inferred-schema read (un-typed header forces {@code inferSchemaFromBatchReader}) must still
      * emit exact file-global {@code _rowPosition} offsets across the schema-sample boundary. The
      * sample rows are read via the recordReader-backed iterator and replayed with captured offsets;
@@ -6595,7 +7756,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Regression for https://github.com/elastic/esql-planning/issues/894: the Jackson hot data path enforces
+     * Regression: the Jackson hot data path enforces
      * {@code max_record_size} via the upstream {@link CsvRecordCappingInputStream}. An oversized record
      * trips the cap during the {@link java.io.BufferedReader} bulk fill (potentially before any individual
      * row has been emitted), the {@link CsvRecordTooLargeException} propagates as an {@link IOException},
@@ -6606,7 +7767,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         int maxRecordBytes = 32;
         String csv = "id:long,text:keyword\n1,ok\n100," + "x".repeat(maxRecordBytes) + "\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        // Pin the Jackson bulk path explicitly; the analogous direct-to-block behaviour (recoverable
+        // per-row cap) is covered by testDirectPathSkipsOversizedRecordUnderLenientPolicy.
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDirectBlockEnabled(false);
 
         FormatReadContext context = FormatReadContext.builder()
             .batchSize(10)
@@ -6643,7 +7806,14 @@ public class CsvFormatReaderTests extends ESTestCase {
         int maxRecordBytes = 32;
         String csv = "id:long,text:keyword\n1,ok\n100," + "x".repeat(maxRecordBytes) + "\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        // Pin the Jackson bulk path: the direct-to-block paths (and, under the no-trim default, the house
+        // per-record path on CsvLogicalRecordReader) intentionally treat the per-record cap as recoverable
+        // (matching the bracket-aware path), so default CSV would otherwise recover under a lenient policy
+        // instead of aborting. trim_spaces keeps Jackson's grammar applicable so the read stays on the bulk
+        // path (with its stream-fatal CsvRecordCappingInputStream); withDirectBlockEnabled(false) forces the
+        // bulk arm over the direct one. See read() for the rationale.
+        CsvFormatReader reader = ((CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("trim_spaces", true)))
+            .withDirectBlockEnabled(false);
 
         FormatReadContext context = FormatReadContext.builder()
             .batchSize(10)
@@ -6670,18 +7840,112 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Regression for the inferred-schema bulk-path engagement (issue #894 review feedback): when the schema is
-     * inferred at read time, the per-record sampling iterator must be torn down after sampling so the data path
-     * picks up the Jackson bulk iterator. Without this, post-sample reads stay on the slow per-record
-     * {@code CsvLogicalRecordReader} loop and the headline perf fix never engages for ad-hoc CSVs.
-     *
-     * <p>Behavioral assertion: the cap-stream wrap (active on non-bracket-aware reads) trips the cap as a
-     * stream-fatal abort once an oversized data row is reached past the sampling window — which is only
-     * possible if the bulk path is engaged after sampling. If the iterator stayed on
-     * {@code CsvRecordIterator}, the cap would surface per-row and the read would either skip (lenient) or
-     * fail with a different exception shape — neither matching the strict-mode contract asserted below.
+     * No-trim sibling of {@link #testJacksonBulkPathAbortsOnCapTooLargeEvenUnderLenientPolicy}: with the
+     * direct-block kill-switch off ({@code withDirectBlockEnabled(false)}) AND the no-trim default,
+     * {@code jacksonGrammarApplies()} is false, so a non-direct read reroutes onto the house per-record path
+     * ({@code newCsvIterator} on {@link CsvLogicalRecordReader}) rather than the stream-fatal Jackson bulk
+     * path. That path enforces {@code max_record_size} via {@link CsvLogicalRecordReader#addBytes}, an exact
+     * RECOVERABLE per-record check, so under a lenient policy the oversized record is skipped and the
+     * surrounding rows read intact — the opposite of the trim=true bulk arm's destructive abort.
      */
-    public void testInferredSchemaSwitchesToJacksonBulkPathAfterSampling() {
+    public void testNoTrimHousePathSkipsOversizedRecordUnderLenientPolicy() throws IOException {
+        int maxRecordBytes = 32;
+        String csv = "id:long,text:keyword\n" + "1,alpha\n" + "100," + "x".repeat(maxRecordBytes + 8) + "\n" + "2,beta\n" + "3,gamma\n";
+        StorageObject object = createStorageObject(csv);
+        // No trim_spaces (default no-trim) keeps Jackson's grammar inapplicable; the kill-switch forces the
+        // non-direct arm, which reroutes to the house per-record path (see read()'s useRecordReaderPath).
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withDirectBlockEnabled(false);
+
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.LENIENT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        List<Long> ids = new ArrayList<>();
+        List<String> texts = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                try {
+                    LongBlock idBlock = (LongBlock) page.getBlock(0);
+                    BytesRefBlock textBlock = (BytesRefBlock) page.getBlock(1);
+                    BytesRef scratch = new BytesRef();
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        ids.add(idBlock.getLong(idBlock.getFirstValueIndex(p)));
+                        texts.add(textBlock.getBytesRef(textBlock.getFirstValueIndex(p), scratch).utf8ToString());
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        // The oversized row is recoverably dropped; the rows before and after it survive in order.
+        assertEquals(List.of(1L, 2L, 3L), ids);
+        assertEquals(List.of("alpha", "beta", "gamma"), texts);
+    }
+
+    /**
+     * Regression for the bulk-mode over-cap drain: on the direct-to-block path the per-record cap is
+     * recoverable (unlike the Jackson bulk path's stream-fatal cap), so under a lenient policy an
+     * oversized record is skipped and the read continues. The reader uses read-ahead bulk buffering
+     * here, so the over-cap drain must consume the rest of the physical line through the same buffer
+     * (not bypass it via the underlying reader): otherwise the next record resumes mid-line on stale
+     * buffered chars and every following row is corrupted. The trailing rows after the oversized
+     * record pin that the reader resyncs cleanly.
+     */
+    public void testDirectPathSkipsOversizedRecordUnderLenientPolicy() throws IOException {
+        int maxRecordBytes = 32;
+        // The whole fixture fits in one bulk-buffer fill, so during the drain the underlying reader is
+        // already exhausted; only a drain that walks the bulk buffer reaches the oversized line's
+        // newline. Header (20 bytes) and every kept row are under the cap; the middle row is over it.
+        String csv = "id:long,text:keyword\n" + "1,alpha\n" + "100," + "x".repeat(maxRecordBytes + 8) + "\n" + "2,beta\n" + "3,gamma\n";
+        StorageObject object = createStorageObject(csv);
+        // Direct path is on by default (not forced off), so this exercises the bulk reader.
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(ErrorPolicy.LENIENT)
+            .maxRecordBytes(maxRecordBytes)
+            .build();
+
+        List<Long> ids = new ArrayList<>();
+        List<String> texts = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(object, context)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                try {
+                    LongBlock idBlock = (LongBlock) page.getBlock(0);
+                    BytesRefBlock textBlock = (BytesRefBlock) page.getBlock(1);
+                    BytesRef scratch = new BytesRef();
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        ids.add(idBlock.getLong(idBlock.getFirstValueIndex(p)));
+                        texts.add(textBlock.getBytesRef(textBlock.getFirstValueIndex(p), scratch).utf8ToString());
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        // The oversized row is dropped; the rows before and after it are read intact and in order.
+        assertEquals(List.of(1L, 2L, 3L), ids);
+        assertEquals(List.of("alpha", "beta", "gamma"), texts);
+    }
+
+    /**
+     * Regression for the inferred-schema fast-path engagement (issue #894 review feedback): when the schema is
+     * inferred at read time, the per-record sampling iterator must be torn down after sampling so the data path
+     * picks up the direct-to-block iterator (the default fast path). Without this, post-sample reads stay on the
+     * slow per-record {@code CsvLogicalRecordReader} loop and the headline perf improvement never engages for
+     * ad-hoc CSVs.
+     *
+     * <p>Behavioral assertion: an oversized data row past the sampling window causes a
+     * {@link CsvRecordTooLargeException} to surface in the cause chain under STRICT policy, which is only
+     * possible if the direct-to-block path (or Jackson bulk path) is engaged after sampling, because both
+     * enforce the per-record byte cap via {@link CsvLogicalRecordReader#addBytes}.
+     */
+    public void testInferredSchemaSwitchesToDirectPathAfterSampling() {
         int maxRecordBytes = 64;
         StringBuilder csv = new StringBuilder("id,name\n");
         // A handful of small rows to feed schema inference, well below the cap.
@@ -6712,7 +7976,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             rootCause = rootCause.getCause();
         }
         assertTrue(
-            "inferred-schema reads must reach the cap-stream-protected bulk path after sampling, got: " + ex,
+            "inferred-schema reads must engage the fast path after sampling and enforce the per-record cap, got: " + ex,
             rootCause instanceof CsvRecordTooLargeException
         );
         assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
@@ -6749,5 +8013,200 @@ public class CsvFormatReaderTests extends ESTestCase {
             }
         }
         assertEquals("bracket-aware lenient must drop the oversized row and keep the surrounding rows", 2L, total);
+    }
+
+    // --- declared unsigned_long reads ---
+
+    private static List<Attribute> declared(String name, DataType type) {
+        return List.of(new ReferenceAttribute(Source.EMPTY, null, name, type));
+    }
+
+    private static FormatReadContext declaredCtx(List<Attribute> schema) {
+        return FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(schema).build();
+    }
+
+    /** Reads one declared column and returns its block, or fails if the reader produced no page. */
+    private LongBlock readOneUnsignedLongColumn(FormatReader reader, String csv) throws IOException {
+        try (CloseableIterator<Page> it = reader.read(createStorageObject(csv), declaredCtx(declared("v", DataType.UNSIGNED_LONG)))) {
+            assertTrue("reader produced no page", it.hasNext());
+            return (LongBlock) it.next().getBlock(0);
+        }
+    }
+
+    private static long encoded(String magnitude) {
+        return NumericUtils.asLongUnsigned(new BigInteger(magnitude));
+    }
+
+    /**
+     * The bug this fixes: a declared unsigned_long was accepted by DeclaredSchemaValidator and then threw at
+     * block-builder construction, so every FROM over the column failed regardless of error_mode. Values across
+     * the whole [0, 2^64-1] domain — crucially the (2^63, 2^64) range that overflows a signed long — must now
+     * read back at full magnitude, in the sign-flip encoding every downstream unsigned_long surface decodes.
+     */
+    public void testDeclaredUnsignedLongReadsFullDomain() throws IOException {
+        String csv = "v\n0\n12345\n9223372036854775808\n18446744073709551615\n";
+        FormatReader reader = new CsvFormatReader(blockFactory);
+        LongBlock block = readOneUnsignedLongColumn(reader, csv);
+        assertEquals(4, block.getPositionCount());
+        assertEquals(encoded("0"), block.getLong(0));
+        assertEquals(encoded("12345"), block.getLong(1));
+        assertEquals(encoded("9223372036854775808"), block.getLong(2));   // 2^63, overflows signed long
+        assertEquals(encoded("18446744073709551615"), block.getLong(3));  // 2^64-1
+    }
+
+    /** Fractional and scientific tokens truncate toward zero — matching ::unsigned_long, deliberately unlike long's rounding. */
+    public void testDeclaredUnsignedLongTruncatesTowardZero() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory);
+        LongBlock block = readOneUnsignedLongColumn(reader, "v\n42.9\n1e3\n");
+        assertEquals(encoded("42"), block.getLong(0));
+        assertEquals(encoded("1000"), block.getLong(1));
+    }
+
+    /** An absent/empty cell nulls the cell exactly as it does for a declared long — no special arm. */
+    public void testDeclaredUnsignedLongNullsEmptyCell() throws IOException {
+        // Two columns so the empty trailing cell is unambiguous — a blank line would be a skipped row, not a cell.
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "k", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "v", DataType.UNSIGNED_LONG)
+        );
+        FormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> it = reader.read(createStorageObject("k,v\nrow1,\nrow2,7\n"), declaredCtx(schema))) {
+            assertTrue(it.hasNext());
+            LongBlock block = (LongBlock) it.next().getBlock(1);
+            assertTrue("empty cell must be null", block.isNull(0));
+            assertEquals(encoded("7"), block.getLong(1));
+        }
+    }
+
+    /**
+     * A bad VALUE is a data failure the error policy governs — not a schema failure. Before this change every
+     * mode hard-failed at page setup; now fail_fast aborts and null_field nulls just the offending cell.
+     */
+    public void testDeclaredUnsignedLongBadValueHonorsErrorMode() throws IOException {
+        // negative and out-of-range are both outside [0, 2^64-1]
+        String csv = "v\n-1\n18446744073709551616\nabc\n5\n";
+
+        FormatReader failFast = new CsvFormatReader(blockFactory);
+        expectThrows(Exception.class, () -> readOneUnsignedLongColumn(failFast, csv));
+
+        FormatReader lenient = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field", "max_errors", 100));
+        LongBlock block = readOneUnsignedLongColumn(lenient, csv);
+        assertEquals(4, block.getPositionCount());
+        assertTrue("negative must null the cell", block.isNull(0));
+        assertTrue("2^64 must null the cell", block.isNull(1));
+        assertTrue("garbage must null the cell", block.isNull(2));
+        assertEquals("the good cell still reads", encoded("5"), block.getLong(3));
+    }
+
+    /** Multivalue unsigned_long cells parse element-by-element through the same coercer. */
+    public void testDeclaredUnsignedLongMultivalue() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "brackets"));
+        LongBlock block = readOneUnsignedLongColumn(reader, "v\n[1,18446744073709551615]\n");
+        assertEquals(2, block.getValueCount(0));
+        int first = block.getFirstValueIndex(0);
+        assertEquals(encoded("1"), block.getLong(first));
+        assertEquals(encoded("18446744073709551615"), block.getLong(first + 1));
+    }
+
+    /**
+     * A token whose decimal exponent is large enough that materializing the integer would overflow BigInteger --
+     * "1e999999999", and "1e-999999999" which truncates toward 0 but cannot be computed to get there -- makes
+     * BigDecimal.toBigInteger() throw ArithmeticException, which is not an IllegalArgumentException. Unhandled it
+     * escapes the per-field catch and hard-fails the whole read on every error_mode, precisely the failure declared
+     * unsigned_long support exists to remove. It must instead be an ordinary per-cell failure.
+     */
+    public void testDeclaredUnsignedLongExoticExponentIsAPerCellFailure() throws IOException {
+        String csv = "v\n1e999999999\n1e-999999999\n5\n";
+
+        FormatReader lenient = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field", "max_errors", 100));
+        LongBlock block = readOneUnsignedLongColumn(lenient, csv);
+        assertTrue("huge positive exponent nulls the cell", block.isNull(0));
+        assertTrue("huge negative exponent nulls the cell", block.isNull(1));
+        assertEquals("the good cell still reads", encoded("5"), block.getLong(2));
+
+        // fail_fast still fails, but as an ordinary bad-value failure, not an escaped ArithmeticException.
+        FormatReader failFast = new CsvFormatReader(blockFactory);
+        Exception e = expectThrows(Exception.class, () -> readOneUnsignedLongColumn(failFast, csv));
+        assertFalse("ArithmeticException must not escape the coercer", e instanceof ArithmeticException);
+    }
+
+    /**
+     * skip_row drops the whole row carrying a bad unsigned_long cell rather than nulling it — completing the
+     * error_mode matrix (fail_fast and null_field are pinned above). The bad value rides the same per-field policy
+     * channel every other declared type uses, so this confirms unsigned_long is wired into it, not special-cased.
+     */
+    public void testDeclaredUnsignedLongBadValueSkipRowDropsTheRow() throws IOException {
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "v", DataType.UNSIGNED_LONG)
+        );
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "skip_row", "max_errors", 100));
+        try (CloseableIterator<Page> it = reader.read(createStorageObject("id,v\n1,5\n2,-1\n3,7\n"), declaredCtx(schema))) {
+            assertTrue(it.hasNext());
+            Page page = it.next();
+            // Row 2 (v=-1, out of range) is dropped; rows 1 and 3 survive.
+            assertEquals(2, page.getPositionCount());
+            LongBlock v = (LongBlock) page.getBlock(1);
+            assertEquals(encoded("5"), v.getLong(0));
+            assertEquals(encoded("7"), v.getLong(1));
+            page.releaseBlocks();
+        }
+    }
+
+    /** TSV rides the same reader; a declared unsigned_long must read identically there. */
+    public void testDeclaredUnsignedLongReadsFromTsv() throws IOException {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("delimiter", "\t"));
+        LongBlock block = readOneUnsignedLongColumn(reader, "v\n18446744073709551615\n");
+        assertEquals(encoded("18446744073709551615"), block.getLong(0));
+    }
+
+    /** The typed-header intake is the second schema surface; it must know unsigned_long under both spellings. */
+    public void testTypedHeaderAcceptsUnsignedLongAliases() throws IOException {
+        for (String spelling : List.of("unsigned_long", "UNSIGNED_LONG", "ul", "UL")) {
+            CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("typed_header", true));
+            List<Attribute> schema = reader.metadata(createStorageObject("v:" + spelling + "\n18446744073709551615\n")).schema();
+            assertEquals("spelling [" + spelling + "]", DataType.UNSIGNED_LONG, schema.get(0).dataType());
+        }
+    }
+
+    /**
+     * Drift pin. Every type a user may declare must be buildable by this reader with exactly the block shape the
+     * shared authority prescribes. CsvFormatReader used to re-derive that mapping locally and silently omitted
+     * unsigned_long; deriving it from DeclaredTypeCoercions.elementTypeFor is what makes this assertion hold, and
+     * this test is what stops the next declarable type from repeating the bug.
+     */
+    public void testEveryDeclarableTypeBuildsTheAuthorityShape() throws IOException {
+        Map<DataType, String> token = Map.of(
+            DataType.KEYWORD,
+            "abc",
+            DataType.TEXT,
+            "abc",
+            DataType.LONG,
+            "123",
+            DataType.INTEGER,
+            "123",
+            DataType.DOUBLE,
+            "1.5",
+            DataType.BOOLEAN,
+            "true",
+            DataType.DATETIME,
+            "2020-01-01T00:00:00.000Z",
+            DataType.UNSIGNED_LONG,
+            "18446744073709551615",
+            DataType.IP,
+            "192.168.0.1"
+        );
+        for (DataType type : DeclaredSchemaValidator.declarableTypes()) {
+            String cell = token.get(type);
+            assertNotNull("no fixture token for declarable type [" + type + "] — add one", cell);
+            FormatReader reader = new CsvFormatReader(blockFactory);
+            try (CloseableIterator<Page> it = reader.read(createStorageObject("v\n" + cell + "\n"), declaredCtx(declared("v", type)))) {
+                assertTrue("no page for declared [" + type + "]", it.hasNext());
+                Block block = it.next().getBlock(0);
+                ElementType expected = DeclaredTypeCoercions.elementTypeFor(type);
+                assertEquals("shape drift for declared [" + type + "]", expected, block.elementType());
+                assertFalse("declared [" + type + "] produced a null cell — missing tokenization arm?", block.isNull(0));
+            }
+        }
     }
 }

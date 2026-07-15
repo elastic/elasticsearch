@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromLoadGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -98,7 +100,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             "missing references \\[.*\\]",
             // https://github.com/elastic/elasticsearch/issues/142026
             "column \\[.*\\] already resolved",
-            // https://github.com/elastic/elasticsearch/issues/142033, https://github.com/elastic/elasticsearch/issues/142026
+            // Subqueries, views and FORK are now supported with unmapped_fields="load" (#142033); this still matches the remaining
+            // restrictions: PROMQL and partially unmapped non-KEYWORD fields.
             "is not supported with unmapped_fields",
             "does not support full-text search function",
             "type \\[null\\] .* not supported",
@@ -107,8 +110,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // https://github.com/elastic/elasticsearch/issues/146036
             "argument of \\[.*\\] must be \\[unsupported\\], found value",
             // https://github.com/elastic/elasticsearch/issues/146074
-            "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]",
-            "FORK is not supported with unmapped_fields=\\\"load\\\""
+            "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]"
         )
     );
 
@@ -124,7 +126,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
         // Full-text functions and `:` operator are not allowed after FORK
-        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
         "sub-plan execution results too large",  // INLINE STATS limitations
         // this comes from mapping-all-types.json and it gets occasionally picked up by full text functions
         "Inference endpoint not found \\[foo_inference_id\\]",
@@ -156,9 +158,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
-        // https://github.com/elastic/elasticsearch/issues/145570
-        "function cannot operate on \\[.*\\], which is not a field from an index mapping",
-        "\\[:\\] operator cannot operate on \\[.*\\], which is not a field from an index mapping",
+
+        // https://github.com/elastic/elasticsearch/issues/153622
+        "ImmutableCollections\\$ListN cannot be cast to class .*",
+
+        // repeat() returns validation error when the Number parameter is a negative foldable
+        "Number parameter cannot be negative, found \\[",
+
+        // need to refine the MATCH function generation
+        "query value .* does not match the type .* of non-index-mapped field",
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -482,7 +490,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> matchesAllowedErrorPatterns(ctx.normalizedErrorMessage),
         ctx -> isUnmappedFieldError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isScalarTypeMismatchError(ctx.normalizedErrorMessage),
-        ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
+        ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.currentSchema),
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
@@ -696,6 +704,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     /**
+     * Matches "Options are not supported for [MATCH] function call on non-index-mapped field [X]".
+     * This is the error MATCH raises when called with options on a renamed/computed field.
+     */
+    private static final Pattern MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN = Pattern.compile(
+        ".*Options are not supported for \\[MATCH\\] function call on non-index-mapped field \\[([^]]+)\\].*",
+        Pattern.DOTALL
+    );
+
+    /**
      * Captures fields created by GROK patterns, e.g. {@code %{WORD:foo}} or {@code %{NUMBER:bar:int}}.
      */
     private static final Pattern GROK_GENERATED_FIELD_PATTERN = Pattern.compile("%\\{[^:}]+:([^}:]+)(?::[^}]+)?}");
@@ -854,6 +871,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private static List<Column> handleRenameIndexMapped(List<Column> newSchema, Map<String, Boolean> prevMapped, String commandString) {
         Map<String, Boolean> mapped = new HashMap<>(prevMapped);
+        Set<String> renamed = new HashSet<>();
         String body = commandString.replaceFirst("(?i)^\\s*\\|\\s*rename\\s+", "");
         for (String pair : body.split(",")) {
             Matcher m = RENAME_PAIR_PATTERN.matcher(pair);
@@ -863,28 +881,30 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 boolean wasMapped = mapped.getOrDefault(oldName, false);
                 mapped.remove(oldName);
                 mapped.put(newName, wasMapped);
+                renamed.add(newName);
             }
         }
+        // After RENAME, the new name is a ReferenceAttribute, not a FieldAttribute.
+        // ES|QL's Match.isRuntimeSearch() uses fieldAsFieldAttribute() which cannot resolve renamed
+        // fields → options are not allowed on them. Mark renamed targets as non-index-mapped so the
+        // generator won't try to use them in match() with options.
         return newSchema.stream().map(col -> {
-            Boolean isMapped = mapped.get(col.name());
-            return new Column(col.name(), col.type(), col.originalTypes(), isMapped != null && isMapped);
+            boolean isMapped = mapped.getOrDefault(col.name(), false) && renamed.contains(col.name()) == false;
+            return new Column(col.name(), col.type(), col.originalTypes(), isMapped);
         }).toList();
     }
 
     /**
      * Checks if the error is a full-text function/operator rejecting a field that is not from an index mapping.
-     * Uses the {@link Column#indexMapped()} flag from the current schema when available; falls back to
-     * command-history heuristics otherwise.
+     * Uses the {@link Column#indexMapped()} flag from the current schema.
      */
-    static boolean isFieldFullTextError(
-        String errorMessage,
-        String query,
-        List<CommandGenerator.CommandDescription> previousCommands,
-        List<Column> currentSchema
-    ) {
+    static boolean isFieldFullTextError(String errorMessage, List<Column> currentSchema) {
         Matcher m = NOT_A_FIELD_FROM_INDEX_PATTERN.matcher(errorMessage);
         if (m.matches() == false) {
-            return false;
+            m = MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN.matcher(errorMessage);
+            if (m.matches() == false) {
+                return false;
+            }
         }
         String fieldName = unquote(m.group(1));
 
@@ -1167,8 +1187,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     public QueryExecuted execute(String query, int depth) {
         QueryExecuted result;
         try {
+            RestEsqlTestCase.RequestObjectBuilder requestBuilder = new RestEsqlTestCase.RequestObjectBuilder().query(query);
+            // Occasionally cap shard concurrency per node at 1. Combined with the wide index patterns
+            // EsqlQueryGenerator#indexPattern already produces, this increases coverage of per-shard local
+            // planning (e.g. constant_keyword folding) across many shards. See
+            // https://github.com/elastic/elasticsearch/issues/150055
+            if (rarely()) {
+                requestBuilder.pragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build());
+                requestBuilder.pragmasOk();
+            }
             Map<String, Object> json = RestEsqlTestCase.runEsql(
-                new RestEsqlTestCase.RequestObjectBuilder().query(query).build(),
+                requestBuilder.build(),
                 new AssertWarnings.AllowedRegexes(List.of(Pattern.compile(".*"))),// we don't care about warnings
                 profileLogger,
                 RestEsqlTestCase.Mode.SYNC

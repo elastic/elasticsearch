@@ -1,5 +1,17 @@
 area: Data streams
+highlight:
+  title: Data stream lifecycle can move data to the frozen tier
+  body: |-
+    Data stream lifecycle (DLM) now supports the frozen tier. Set a `frozen_after`
+    value in a data stream's lifecycle, and DLM moves aging backing indices to the
+    frozen tier as partially-mounted searchable snapshots once they pass that age,
+    reducing storage cost while keeping the data fully searchable. `frozen_after`
+    sits alongside `data_retention` and `downsampling` in the lifecycle
+    configuration, with no ILM policy required. DLM writes frozen data to a new
+    cluster-level default snapshot repository. This capability requires an
+    Enterprise license and is not available in Elastic Cloud Serverless.
+  notable: true
 issues: []
 pr: 150457
-summary: DLM Frozen Tier - Enable data streams to transition to searchable snapshots after a specific period of time
+summary: Data stream lifecycle (DLM) can move data to the frozen tier
 type: feature

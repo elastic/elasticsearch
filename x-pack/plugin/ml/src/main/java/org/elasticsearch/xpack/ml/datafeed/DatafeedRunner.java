@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolated;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.utils.MlRecoverableErrorClassifier;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -94,7 +96,7 @@ public class DatafeedRunner {
         clusterService.addListener(taskRunner);
     }
 
-    public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> finishHandler) {
+    public void run(TransportStartDatafeedAction.DatafeedTask task, boolean isReassignment, Consumer<Exception> finishHandler) {
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(datafeedJob -> {
             String jobId = datafeedJob.getJobId();
             Holder holder = new Holder(
@@ -108,7 +110,7 @@ public class DatafeedRunner {
                 () -> runningDatafeedsOnThisNode.put(task.getAllocationId(), holder)
             );
             if (stoppedOrIsolated == StoppedOrIsolated.NEITHER) {
-                task.updatePersistentTaskState(DatafeedState.STARTED, new ActionListener<>() {
+                ActionListener<PersistentTask<?>> startedStateListener = new ActionListener<>() {
                     @Override
                     public void onResponse(PersistentTask<?> persistentTask) {
                         taskRunner.runWhenJobIsOpened(task, jobId);
@@ -116,6 +118,16 @@ public class DatafeedRunner {
 
                     @Override
                     public void onFailure(Exception e) {
+                        if (task.getStoppedOrIsolated() != StoppedOrIsolated.NEITHER) {
+                            logger.info(
+                                "[{}] Aborting STARTED state update as datafeed has been {}",
+                                task.getDatafeedId(),
+                                task.getStoppedOrIsolated().toString().toLowerCase(Locale.ROOT)
+                            );
+                            runningDatafeedsOnThisNode.remove(task.getAllocationId());
+                            finishHandler.accept(null);
+                            return;
+                        }
                         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                             // The task was stopped in the meantime, no need to do anything
                             logger.info("[{}] Aborting as datafeed has been stopped", task.getDatafeedId());
@@ -125,7 +137,12 @@ public class DatafeedRunner {
                             finishHandler.accept(e);
                         }
                     }
-                });
+                };
+                if (isReassignment) {
+                    createUpdateDatafeedStateRetryableAction(task, startedStateListener).run();
+                } else {
+                    task.updatePersistentTaskState(DatafeedState.STARTED, startedStateListener);
+                }
             } else {
                 logger.info(
                     "[{}] Datafeed has been {} before running",
@@ -735,6 +752,53 @@ public class DatafeedRunner {
                 }
             }
             tasksToRun.retainAll(remainingTasks);
+        }
+    }
+
+    static boolean shouldRetryDatafeedStateUpdate(TransportStartDatafeedAction.DatafeedTask task, Exception e) {
+        return task.getStoppedOrIsolated() == StoppedOrIsolated.NEITHER && MlRecoverableErrorClassifier.isRecoverable(e);
+    }
+
+    UpdateDatafeedStateRetryableAction createUpdateDatafeedStateRetryableAction(
+        TransportStartDatafeedAction.DatafeedTask task,
+        ActionListener<PersistentTask<?>> listener
+    ) {
+        return new UpdateDatafeedStateRetryableAction(task, listener);
+    }
+
+    /**
+     * Retries the {@link DatafeedState#STARTED} persistent-task state write for system-initiated reassignments.
+     *
+     * Uses exponential backoff with:
+     * - Initial delay: 5 seconds
+     * - Max delay: 5 minutes
+     * - Total timeout: from {@link MachineLearning#JOB_OPEN_RETRY_TIMEOUT} (default 60 minutes)
+     */
+    class UpdateDatafeedStateRetryableAction extends RetryableAction<PersistentTask<?>> {
+
+        private final TransportStartDatafeedAction.DatafeedTask task;
+
+        UpdateDatafeedStateRetryableAction(TransportStartDatafeedAction.DatafeedTask task, ActionListener<PersistentTask<?>> listener) {
+            super(
+                logger,
+                threadPool,
+                TimeValue.timeValueSeconds(5),
+                TimeValue.timeValueMinutes(5),
+                clusterService.getClusterSettings().get(MachineLearning.JOB_OPEN_RETRY_TIMEOUT),
+                listener,
+                threadPool.generic()
+            );
+            this.task = Objects.requireNonNull(task);
+        }
+
+        @Override
+        public void tryAction(ActionListener<PersistentTask<?>> listener) {
+            task.updatePersistentTaskState(DatafeedState.STARTED, listener);
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            return shouldRetryDatafeedStateUpdate(task, e);
         }
     }
 }

@@ -226,7 +226,7 @@ public class BlobFileRanges implements Writeable {
         }
         long midpointMillis = range.midpointMillis();
         // Cache-region timestamps must be non-negative epoch millis or a negative sentinel value.
-        return midpointMillis >= 0L ? midpointMillis : 1L;
+        return midpointMillis >= 0L ? midpointMillis : 0L;
     }
 
     /**

@@ -937,22 +937,37 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return bound;
     }
 
-    /** The raw field index a headerless physical name denotes: {@code <columnPrefix><N>} -> N. No file read. */
+    /** Sentinel raw field index for a declared column the file does not supply: the slot null-fills (see the emit paths). */
+    static final int ABSENT_FIELD = -1;
+
+    /**
+     * Emit one client-visible warning per declared column the file did not supply (bound to {@link #ABSENT_FIELD}).
+     * The message carries NO file path or split, so a column absent from many files of a glob — or re-bound on every
+     * headerless split — collapses to a single response warning through the identical-string dedup of the warning
+     * layer, rather than flooding one per file.
+     */
+    private static void warnAbsentDeclaredColumns(int[] schemaFieldIndex, List<Attribute> readSchema, Consumer<String> warningSink) {
+        if (schemaFieldIndex == null || warningSink == null) {
+            return;
+        }
+        for (int i = 0; i < schemaFieldIndex.length; i++) {
+            if (schemaFieldIndex[i] == ABSENT_FIELD) {
+                warningSink.accept("declared column [" + readSchema.get(i).name() + "] is not present in the source and reads null");
+            }
+        }
+    }
+
+    /**
+     * The raw field index a headerless physical name denotes: {@code <columnPrefix><N>} -> N. No file read. A name that
+     * is not of that form names no physical column of a headerless file, so it is {@link #ABSENT_FIELD} (null + warning),
+     * not an error — the declaration over-claims. A valid {@code col<N>} beyond the row's width null-fills structurally
+     * at read time (the emit paths bound-check the row).
+     */
     private int headerlessFieldIndex(String physical, StorageObject object) {
         String prefix = options.columnPrefix();
         String digits = physical != null && physical.startsWith(prefix) ? physical.substring(prefix.length()) : null;
         if (digits == null || digits.isEmpty() || digits.chars().allMatch(c -> c >= '0' && c <= '9') == false) {
-            throw new IllegalArgumentException(
-                "declared path ["
-                    + physical
-                    + "] does not name a physical column of the headerless ["
-                    + format
-                    + "] file ["
-                    + object.path()
-                    + "]; a headerless file's columns are named ["
-                    + prefix
-                    + "<N>] by position — declare a path of that form, or set header_row=true to bind by header name"
-            );
+            return ABSENT_FIELD;
         }
         try {
             return Integer.parseInt(digits);
@@ -961,21 +976,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    /** The raw field index a headered physical name denotes, looked up in the file's own header line. */
+    /**
+     * The raw field index a headered physical name denotes, looked up in the file's own header line, or
+     * {@link #ABSENT_FIELD} when the header does not carry that name — a declared column the file does not supply, which
+     * reads null with a warning rather than failing.
+     */
     private int headerFieldIndex(String physical, String[] headerFields, StorageObject object) {
         for (int i = 0; i < headerFields.length; i++) {
             if (headerFields[i].equals(physical)) {
                 return i;
             }
         }
-        throw new IllegalArgumentException(
-            "declared path ["
-                + physical
-                + "] not found in the header of ["
-                + object.path()
-                + "]; header columns: "
-                + Arrays.toString(headerFields)
-        );
+        return ABSENT_FIELD;
     }
 
     @Override
@@ -1715,6 +1727,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         + "] reached a non-first split; the declared-name split gate did not hold"
                 );
             }
+            warnAbsentDeclaredColumns(schemaFieldIndex, readSchema, context.informationalWarningSink());
             effectiveSchema = readSchema;
         } else if (context.firstSplit()) {
             // resolvedSchema from withSchema(...) is the projected output, not the file's column
@@ -4081,7 +4094,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     for (String[] row : rows) {
                         for (int slot : byteHintColumns) {
                             int si = projectedIdx[slot];
-                            if (si < row.length && row[si] != null) {
+                            if (si >= 0 && si < row.length && row[si] != null) {
                                 byteHints[slot] += UnicodeUtil.calcUTF16toUTF8Length(row[si], 0, row[si].length());
                             }
                         }
@@ -4145,7 +4158,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     continue;
                 }
                 int si = projectedIdx[i];
-                String value = si < row.length ? row[si] : null;
+                String value = si >= 0 && si < row.length ? row[si] : null;
                 Object result = tryConvertValue(value, projectedTypes[i], i);
                 if (lastFieldError != null) {
                     if (mode == ErrorPolicy.Mode.NULL_FIELD.ordinal()) {
@@ -4205,7 +4218,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // Read the raw field this schema position BINDS (a declared path makes the two differ), so the value
                 // is attributed to the column it belongs to rather than the column sitting at its position.
                 int fi = rawFieldIndex(si);
-                String value = fi < row.length ? row[fi] : null;
+                String value = fi >= 0 && fi < row.length ? row[fi] : null;
                 // Stats-harvest accumulator over the full schema (S4 seam): declaredFormatters is projected-aligned, so
                 // the schema index si would misindex it. Pass -1 so this path uses the default datetime parse (no declared
                 // formatter). Full S4 fix (decline harvesting declared-format/retyped columns outright) lands separately.
@@ -4878,7 +4891,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             // Null-fill projected columns whose source index falls past the row's trailing edge.
             for (int c = 0; c < columnCount; c++) {
-                if (projectedIdx[c] >= totalFields) {
+                if (projectedIdx[c] < 0 || projectedIdx[c] >= totalFields) {
                     stageNullValue(c);
                 }
             }
@@ -5286,7 +5299,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return false;
             }
             for (int c = 0; c < columnCount; c++) {
-                if (projectedIdx[c] >= totalFields) {
+                if (projectedIdx[c] < 0 || projectedIdx[c] >= totalFields) {
                     stageNullValue(c);
                 }
             }

@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * End-to-end integration for {@code FROM <dataset>}: creates a data source and a dataset via the
@@ -344,7 +345,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testStrictDeclaredNamesAbsentFromHeaderThrow() throws Exception {
+    public void testStrictDeclaredNamesAbsentFromHeaderReadNull() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
         // Strict (dynamic:false) declaration over the CSV fixture whose physical header is emp_no:integer,first_name:keyword.
@@ -373,12 +374,19 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         );
 
-        Exception e = expectThrows(Exception.class, () -> {
-            try (var response = run(syncEsqlQueryRequest("FROM employees_strict | SORT id | LIMIT 10"), TIMEOUT)) {
-                getValuesList(response);
+        // Both declared names are absent from the file, so every row reads null — the declaration over-claims the file.
+        try (var response = run(syncEsqlQueryRequest("FROM employees_strict | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("id"));
+            assertThat(columns.get(1).name(), equalTo("name"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat(row.get(0), nullValue());
+                assertThat(row.get(1), nullValue());
             }
-        });
-        assertThat(e.getMessage(), containsString("declared path [id] not found in the header"));
+        }
     }
 
     public void testNonStrictDeclaredSchemaOverridesDeclaredColumnsAndKeepsInferredRest() throws Exception {
@@ -2077,7 +2085,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
     }
 
-    public void testStrictCsvDeclaredColumnAbsentFromHeaderThrow() throws Exception {
+    public void testStrictCsvDeclaredColumnAbsentReadsNullPartialMatch() throws Exception {
         // Strict (dynamic: false) binds text columns BY NAME against the file's header. emp_no/first_name are present
         // and bind; the extra declared `department` is absent from the 2-column file. INCREMENT 2 surfaces the absent
         // column as a read-time throw; increment 3 converts it to the partial-match case — emp_no/first_name read real
@@ -2103,11 +2111,20 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 )
             )
         );
-        Exception e = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM employees_strict_wrong_order | LIMIT 5"), TIMEOUT).close()
-        );
-        assertThat(e.getMessage(), containsString("declared path [department] not found in the header"));
+        // The partial-match case: emp_no/first_name are present and read real data; the extra declared `department`
+        // is absent from the 2-column file, so it reads null (with a per-dataset warning) rather than failing.
+        try (var response = run(syncEsqlQueryRequest("FROM employees_strict_wrong_order | SORT emp_no | LIMIT 5"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(3));
+            assertThat(columns.get(2).name(), equalTo("department"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1)); // emp_no present (declared integer)
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice")); // first_name present
+            for (List<Object> row : rows) {
+                assertThat(row.get(2), nullValue()); // department absent -> null
+            }
+        }
     }
 
     public void testDeclaredTypeConflictingWithPhysicalParquetTypeRejected() throws Exception {

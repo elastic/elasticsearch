@@ -6527,36 +6527,58 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    /** A `path` that names nothing in the header is a declaration error, not a silent null column. */
-    public void testDeclaredPathMissingFromHeaderThrows() {
+    /** A declared name the header does not carry reads null with one warning — the declaration over-claims, it is not an error. */
+    public void testDeclaredNameMissingFromHeaderReadsNullWithWarning() throws Exception {
         StorageObject object = createStorageObject("id,ts\n42,7\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "nope", DataType.LONG));
+        List<String> warnings = new ArrayList<>();
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
             .withDeclaredPathBinding(true);
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> reader.read(
+        try (
+            CloseableIterator<Page> it = reader.read(
                 object,
-                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .informationalWarningSink(warnings::add)
+                    .build()
             )
-        );
-        assertTrue(e.getMessage(), e.getMessage().contains("declared path [nope] not found in the header"));
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertTrue("absent declared column reads null", page.getBlock(0).isNull(0));
+            page.releaseBlocks();
+        }
+        assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [nope] is not present in the source")));
     }
 
-    /** A headerless `path` must name a position; anything else cannot be bound and must not read a wrong column. */
-    public void testHeaderlessDeclaredPathThatIsNotAColumnPositionThrows() {
+    /** A headerless declared name that is not {@code col<N>} names no physical column, so it reads null with a warning. */
+    public void testHeaderlessDeclaredNameNotAColumnPositionReadsNullWithWarning() throws Exception {
         StorageObject object = createStorageObject("42,7\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "EventTime", DataType.LONG));
+        List<String> warnings = new ArrayList<>();
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false))
             .withDeclaredPathBinding(true);
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> reader.read(
+        try (
+            CloseableIterator<Page> it = reader.read(
                 object,
-                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+                FormatReadContext.builder()
+                    .firstSplit(true)
+                    .recordAligned(true)
+                    .batchSize(10)
+                    .readSchema(readSchema)
+                    .informationalWarningSink(warnings::add)
+                    .build()
             )
-        );
-        assertTrue(e.getMessage(), e.getMessage().contains("does not name a physical column of the headerless"));
+        ) {
+            Page page = it.next();
+            assertEquals(1, page.getPositionCount());
+            assertTrue("headerless non-col<N> declared column reads null", page.getBlock(0).isNull(0));
+            page.releaseBlocks();
+        }
+        assertThat(warnings, Matchers.hasItem(Matchers.containsString("declared column [EventTime] is not present in the source")));
     }
 
     /**

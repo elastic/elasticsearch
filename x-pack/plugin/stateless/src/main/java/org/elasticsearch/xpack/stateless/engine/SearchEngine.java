@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSett
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
-import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -1494,7 +1493,7 @@ public class SearchEngine extends Engine {
 
     public void acquireSearcherForCommit(
         String segmentsFileName,
-        Map<String, BlobLocation> metadata,
+        Map<String, BlobFileRanges> metadata,
         Function<Searcher, Searcher> wrapper,
         IndexReshardingMetadata relocatedReshardingMetadata,
         SplitShardCountSummary relocatedSplitShardCountSummary,
@@ -1582,8 +1581,8 @@ public class SearchEngine extends Engine {
                 // anything below throws before the sharedReader is handed off to the tracker.
                 sharedReaderCleanup = sharedReader;
                 Set<PrimaryTermAndGeneration> bccDeps = new HashSet<>();
-                for (BlobLocation blobLocation : metadata.values()) {
-                    bccDeps.add(blobLocation.getBatchedCompoundCommitTermAndGeneration());
+                for (BlobFileRanges blobFileRanges : metadata.values()) {
+                    bccDeps.add(blobFileRanges.getBatchedCompoundCommitTermAndGeneration());
                 }
                 // Account the PIT-relocated reader against the node's reader-heap budget so its segments
                 // participate in reservation tracking and metrics; uses the no-break path because relocation

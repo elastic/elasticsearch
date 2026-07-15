@@ -32,9 +32,9 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.junit.rules.ExternalResource;
 
 import java.io.BufferedReader;
@@ -114,9 +114,11 @@ public class RecordingApmServer extends ExternalResource {
             Files.copy(clientCert.getPemCertificateStream(), mtlsClientCertPath);
             Files.copy(clientCert.getPemPrivateKeyStream(), mtlsClientKeyPath);
 
-            try (InputStream cert = serverCert.getPemCertificateStream();
-                 InputStream key = serverCert.getPemPrivateKeyStream();
-                 InputStream clientTrust = clientCert.getPemCertificateStream()) {
+            try (
+                InputStream cert = serverCert.getPemCertificateStream();
+                InputStream key = serverCert.getPemPrivateKeyStream();
+                InputStream clientTrust = clientCert.getPemCertificateStream()
+            ) {
                 SslContext sslContext = GrpcSslContexts.configure(
                     SslContextBuilder.forServer(cert, key).trustManager(clientTrust).clientAuth(ClientAuth.REQUIRE)
                 ).build();

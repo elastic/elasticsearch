@@ -33,8 +33,11 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -73,6 +76,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChun
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -480,6 +484,35 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             expectedElementType = DenseVectorFieldMapper.ElementType.BFLOAT16;
         }
         return expectedElementType;
+    }
+
+    /**
+     * Asserts that the generated embeddings sub-mapper (sparse or dense) matches the task type and service settings of the
+     * referenced {@link Model}, including dimensions, element type, and similarity for dense models.
+     */
+    protected void assertEmbeddingsFieldMapperMatchesModel(MapperService mapperService, String fieldName, Model model) {
+        Mapper embeddingsFieldMapper = mapperService.mappingLookup().getMapper(getEmbeddingsFieldName(fieldName));
+        switch (model.getTaskType()) {
+            case SPARSE_EMBEDDING -> assertThat(embeddingsFieldMapper, is(instanceOf(SparseVectorFieldMapper.class)));
+            case TEXT_EMBEDDING, EMBEDDING -> {
+                T semanticFieldMapper = getSemanticFieldMapper(mapperService, fieldName);
+                DenseVectorFieldMapper.ElementType expectedElementType = getExpectedElementType(
+                    mapperService.getIndexSettings().getIndexVersionCreated(),
+                    model.getServiceSettings().elementType(),
+                    semanticFieldMapper.fieldType().getIndexOptions()
+                );
+                assertThat(embeddingsFieldMapper, is(instanceOf(DenseVectorFieldMapper.class)));
+                DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) embeddingsFieldMapper;
+                ServiceSettings modelServiceSettings = model.getConfigurations().getServiceSettings();
+                assertThat(denseVectorFieldMapper.fieldType().getVectorDimensions(), equalTo(modelServiceSettings.dimensions()));
+                assertThat(denseVectorFieldMapper.fieldType().getElementType(), equalTo(expectedElementType));
+                assertThat(
+                    denseVectorFieldMapper.fieldType().getSimilarity(),
+                    equalTo(modelServiceSettings.similarity().vectorSimilarity())
+                );
+            }
+            default -> throw new AssertionError("Unexpected task type [" + model.getTaskType() + "]");
+        }
     }
 
     protected static void assertInferenceEndpoints(

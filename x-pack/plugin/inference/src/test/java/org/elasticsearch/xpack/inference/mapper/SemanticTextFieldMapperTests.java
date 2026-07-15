@@ -69,7 +69,6 @@ import org.elasticsearch.inference.EndpointMetadataTests;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
@@ -128,7 +127,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1012,36 +1010,6 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             baseModel.getTaskSettings(),
             baseModel.getSecretSettings()
         );
-    }
-
-    private void assertEmbeddingsFieldMapperMatchesModel(MapperService mapperService, String fieldName, Model model) {
-        Mapper embeddingsFieldMapper = mapperService.mappingLookup().getMapper(getEmbeddingsFieldName(fieldName));
-        switch (model.getTaskType()) {
-            case SPARSE_EMBEDDING -> assertThat(embeddingsFieldMapper, is(instanceOf(SparseVectorFieldMapper.class)));
-            case TEXT_EMBEDDING -> {
-                SemanticTextFieldMapper semanticFieldMapper = getSemanticFieldMapper(mapperService, fieldName);
-                DenseVectorFieldMapper.ElementType expectedElementType = getExpectedElementType(
-                    mapperService.getIndexSettings().getIndexVersionCreated(),
-                    model.getServiceSettings().elementType(),
-                    semanticFieldMapper.fieldType().getIndexOptions()
-                );
-                assertTextEmbeddingsFieldMapperMatchesModel(embeddingsFieldMapper, model, expectedElementType);
-            }
-            default -> throw new AssertionError("Unexpected task type [" + model.getTaskType() + "]");
-        }
-    }
-
-    private static void assertTextEmbeddingsFieldMapperMatchesModel(
-        Mapper embeddingsFieldMapper,
-        Model model,
-        DenseVectorFieldMapper.ElementType expectedElementType
-    ) {
-        assertThat(embeddingsFieldMapper, is(instanceOf(DenseVectorFieldMapper.class)));
-        DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) embeddingsFieldMapper;
-        ServiceSettings modelServiceSettings = model.getConfigurations().getServiceSettings();
-        assertThat(denseVectorFieldMapper.fieldType().getVectorDimensions(), equalTo(modelServiceSettings.dimensions()));
-        assertThat(denseVectorFieldMapper.fieldType().getElementType(), equalTo(expectedElementType));
-        assertThat(denseVectorFieldMapper.fieldType().getSimilarity(), equalTo(modelServiceSettings.similarity().vectorSimilarity()));
     }
 
     public void testDynamicUpdate() throws IOException {

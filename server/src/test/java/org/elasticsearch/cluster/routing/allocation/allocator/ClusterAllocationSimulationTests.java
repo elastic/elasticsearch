@@ -313,7 +313,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                     }
                 }
             }
-        );
+        ).clusterState();
 
         final var startedPrimaries = startInitializingShardsAndReroute(allocationService, initializingPrimaries);
 
@@ -342,7 +342,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                     );
                 }
             }
-        );
+        ).clusterState();
 
         final var startedReplicas = startInitializingShardsAndReroute(allocationService, initializingReplicas);
 

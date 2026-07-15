@@ -122,7 +122,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         for (int i = 0; i < clusterState.routingTable(projectId).index("test").size(); i++) {
             assertThat(clusterState.routingTable(projectId).index("test").shard(i).size(), equalTo(3));
@@ -155,7 +155,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
                 DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3", Version.CURRENT, IndexVersionUtils.getPreviousVersion()))
             )
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         for (int i = 0; i < clusterState.routingTable(projectId).index("test").size(); i++) {
             assertThat(clusterState.routingTable(projectId).index("test").shard(i).size(), equalTo(3));
@@ -165,7 +165,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         }
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         for (int i = 0; i < clusterState.routingTable(projectId).index("test").size(); i++) {
             assertThat(clusterState.routingTable(projectId).index("test").shard(i).size(), equalTo(3));

@@ -53,7 +53,7 @@ public class MasterTriggeredRecoveryCancellationIT extends AbstractIndexRecovery
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DesiredBalanceReconciler.ENABLE_INITIALIZING_SHARD_CANCELLATION_SETTING.getKey(), true)
-            .put(RecoveryCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING.getKey(), true)
+            .put(RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING.getKey(), true)
             .build();
     }
 
@@ -140,7 +140,7 @@ public class MasterTriggeredRecoveryCancellationIT extends AbstractIndexRecovery
         public List<Setting<?>> getSettings() {
             return List.of(
                 DesiredBalanceReconciler.ENABLE_INITIALIZING_SHARD_CANCELLATION_SETTING,
-                RecoveryCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING
+                RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING
             );
         }
 

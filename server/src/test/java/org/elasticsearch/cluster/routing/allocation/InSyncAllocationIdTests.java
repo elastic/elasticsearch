@@ -76,7 +76,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         assertThat(clusterState.metadata().getProject().index("test").inSyncAllocationIds(0).size(), equalTo(0));
         assertThat(clusterState.metadata().getProject().index("test-old").inSyncAllocationIds(0), equalTo(Set.of("x", "y")));
@@ -272,7 +272,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             clusterState = ClusterState.builder(clusterState)
                 .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode(replicaShard.currentNodeId())))
                 .build();
-            clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
+            clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
             logger.info("start replica shards");
             clusterState = startInitializingShardsAndReroute(allocation, clusterState);
@@ -335,7 +335,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         logger.info("add back node 1");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         assertThat(clusterState.routingTable().index("test").shard(0).assignedShards().size(), equalTo(1));
         // in-sync allocation ids should not be updated
@@ -400,7 +400,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         assertThat(clusterState.metadata().getProject().index("test").inSyncAllocationIds(0).size(), equalTo(0));
 

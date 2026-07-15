@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
@@ -154,6 +155,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryDirectCancellationService;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
@@ -844,7 +846,7 @@ class NodeConstruction {
         );
         modules.add(clusterModule);
 
-        RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
+        BatchedRerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
         rerouteServiceReference.set(rerouteService);
 
         clusterInfoService.addListener(
@@ -1488,6 +1490,15 @@ class NodeConstruction {
         }
 
         injector = modules.createInjector();
+
+        final var recoveryDirectCancellationService = new RecoveryDirectCancellationService(
+            transportService,
+            clusterService,
+            // TODO: we are getting rid of this dependency
+            injector.getInstance(ShardStateAction.class)
+        );
+        clusterModule.registerDirectCancellationService(recoveryDirectCancellationService);
+        rerouteService.setRecoveryDirectCancellationService(recoveryDirectCancellationService);
 
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
     }

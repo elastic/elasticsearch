@@ -92,7 +92,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
             discoBuilder = discoBuilder.add(newNode("node" + i));
         }
         this.clusterState = ClusterState.builder(clusterState).nodes(discoBuilder).build();
-        ClusterState rerouteResult = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
+        ClusterState rerouteResult = allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(rerouteResult, not(equalTo(this.clusterState)));
         applyRerouteResult(rerouteResult);
         primaryTermsPerIndex.keySet().forEach(this::incrementPrimaryTerm);
@@ -165,7 +165,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
             nodesBuilder.add(newNode("extra_" + i));
         }
         this.clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
-        applyRerouteResult(allocationService.reroute(this.clusterState, "nodes added", ActionListener.noop()));
+        applyRerouteResult(allocationService.reroute(this.clusterState, "nodes added", ActionListener.noop()).clusterState());
 
     }
 

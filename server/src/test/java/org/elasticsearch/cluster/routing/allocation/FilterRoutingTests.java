@@ -206,7 +206,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
             .build();
 
         logger.info("--> rerouting");
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(2));
 
         logger.info("--> start the shards (primaries)");
@@ -318,7 +318,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
             .build();
 
         logger.info("--> rerouting");
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(2));
 
         logger.info("--> start the shards (primaries)");
@@ -345,7 +345,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
             .build();
 
         clusterState = ClusterState.builder(clusterState).metadata(updatedMetadata).build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED).size(), equalTo(2));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING).size(), equalTo(2));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(2));
@@ -380,7 +380,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         DiscoveryNode node1 = newNode("node1", singletonMap("tag1", "value1"));
         DiscoveryNode node2 = newNode("node2", singletonMap("tag1", "value2"));
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node1).add(node2)).build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(clusterState.getRoutingNodes().node(node1.getId()).numberOfShardsWithState(INITIALIZING), equalTo(2));
         assertThat(clusterState.getRoutingNodes().node(node2.getId()).numberOfShardsWithState(INITIALIZING), equalTo(2));
 
@@ -399,7 +399,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         );
 
         logger.info("--> move shards from node1 to node2");
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         logger.info("--> check that concurrent recoveries only allows 1 shard to move");
         assertThat(clusterState.getRoutingNodes().node(node1.getId()).numberOfShardsWithState(STARTED), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node(node2.getId()).numberOfShardsWithState(INITIALIZING), equalTo(1));
@@ -409,14 +409,14 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logger.info("--> move second shard from node1 to node2");
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(clusterState.getRoutingNodes().node(node2.getId()).numberOfShardsWithState(INITIALIZING), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node(node2.getId()).numberOfShardsWithState(STARTED), equalTo(3));
 
         logger.info("--> start the shards (only primaries)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(clusterState.getRoutingNodes().node(node2.getId()).numberOfShardsWithState(STARTED), equalTo(4));
     }
 }

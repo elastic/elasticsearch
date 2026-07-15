@@ -55,7 +55,7 @@ public class ReshardUpdateNumberOfShardsTests extends ESAllocationTestCase {
         logger.info("Adding one node and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
 
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         logger.info("Start all the primary shards");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -94,7 +94,7 @@ public class ReshardUpdateNumberOfShardsTests extends ESAllocationTestCase {
         assertThat(clusterState.routingTable().index("test").shard(1).size(), equalTo(1));
         assertThat(clusterState.routingTable().index("test").shard(1).primaryShard().state(), equalTo(UNASSIGNED));
 
-        ClusterState newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        ClusterState newState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 

@@ -17,9 +17,9 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RerouteClusterStatePublicationListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteResult;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -36,6 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.indices.recovery.RecoveryDirectCancellationService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -46,7 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -91,9 +91,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final AtomicReference<DesiredBalance> currentDesiredBalanceRef = new AtomicReference<>(DesiredBalance.NOT_MASTER);
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
-
-    private final List<RerouteClusterStatePublicationListener> reroutePublicationListeners = new CopyOnWriteArrayList<>();
-    private volatile DirectCancellationConsumer directCancellationConsumer = DirectCancellationConsumer.NO_OP;
+    private volatile RecoveryDirectCancellationService recoveryDirectCancellationService;
 
     private final NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator;
     private final DesiredBalanceMetrics desiredBalanceMetrics;
@@ -113,7 +111,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     @FunctionalInterface
     public interface DesiredBalanceReconcilerAction {
-        ClusterState apply(ClusterState clusterState, RerouteStrategy rerouteStrategy);
+        RerouteResult apply(ClusterState clusterState, RerouteStrategy rerouteStrategy);
     }
 
     @FunctionalInterface
@@ -121,35 +119,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ShardAllocationDecision explain(ShardRouting shard, RoutingAllocation allocation);
     }
 
-    @FunctionalInterface
-    public interface DirectCancellationConsumer {
-        DirectCancellationConsumer NO_OP = pendingDirectCancellations -> {};
-
-        void pendingDirectCancellationsComputed(PendingDirectCancellations pendingDirectCancellations);
-    }
-
-    public void addListener(RerouteClusterStatePublicationListener listener) {
-        reroutePublicationListeners.add(listener);
-    }
-
-    private void notifySuccessfulPublication(long baseStateTerm, long baseStateVersion) {
-        for (RerouteClusterStatePublicationListener rerouteClusterStateListener : reroutePublicationListeners) {
-            try {
-                rerouteClusterStateListener.onSuccessfulPublication(baseStateTerm, baseStateVersion);
-            } catch (Exception e) {
-                logger.warn("failed to notify reroute cluster state publication listener", e);
-            }
-        }
-    }
-
-    private void notifyAbortedPublication(Exception e) {
-        for (RerouteClusterStatePublicationListener rerouteClusterStateListener : reroutePublicationListeners) {
-            try {
-                rerouteClusterStateListener.onAbortedPublication(e);
-            } catch (Exception ex) {
-                logger.warn("failed to notify reroute cluster state publication listener", ex);
-            }
-        }
+    public void setRecoveryDirectCancellationService(RecoveryDirectCancellationService recoveryDirectCancellationService) {
+        assert this.recoveryDirectCancellationService == null : "recovery direct cancellation service should only be set once";
+        this.recoveryDirectCancellationService = recoveryDirectCancellationService;
     }
 
     public DesiredBalanceShardsAllocator(
@@ -415,10 +387,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
         }
         recordTime(cumulativeReconciliationTime, () -> {
-            final var reconciliationResult = desiredBalanceReconciler.reconcile(desiredBalance, allocation);
-            directCancellationConsumer.pendingDirectCancellationsComputed(reconciliationResult.pendingDirectCancellations());
+            final var allocationStats = desiredBalanceReconciler.reconcile(desiredBalance, allocation);
             final var desiredBalanceStats = getStats();
-            updateDesiredBalanceMetrics(desiredBalance, allocation, reconciliationResult.allocationStats(), desiredBalanceStats);
+            updateDesiredBalanceMetrics(desiredBalance, allocation, allocationStats, desiredBalanceStats);
         });
 
         if (logger.isTraceEnabled()) {
@@ -531,7 +502,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         @Override
         public void onFailure(Exception e) {
             assert MasterService.isPublishFailureException(e) : e;
-            notifyAbortedPublication(e);
         }
 
         @Override
@@ -561,12 +531,19 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ) {
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 final var initialState = batchExecutionContext.initialState();
-                final var newState = reconciler.apply(initialState, createReconcileAllocationAction(latest.getTask().desiredBalance));
+                final var rerouteResult = reconciler.apply(initialState, createReconcileAllocationAction(latest.getTask().desiredBalance));
+                final var newState = rerouteResult.clusterState();
 
                 latest.success(() -> {
                     pendingListenersQueue.complete(latest.getTask().desiredBalance.lastConvergedIndex());
                     if (initialState != newState) {
-                        notifySuccessfulPublication(initialState.term(), initialState.version());
+                        final var recoveryDirectCancellationService = DesiredBalanceShardsAllocator.this.recoveryDirectCancellationService;
+                        if (recoveryDirectCancellationService != null) {
+                            recoveryDirectCancellationService.submitCancellations(
+                                rerouteResult.directCancellationsCandidates(),
+                                initialState.version()
+                            );
+                        }
                     }
                 });
                 return newState;
@@ -608,10 +585,5 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     // Visible for testing
     public DesiredBalanceReconciler getReconciler() {
         return desiredBalanceReconciler;
-    }
-
-    public void setDirectCancellationConsumer(DirectCancellationConsumer cancellationConsumer) {
-        assert directCancellationConsumer == DirectCancellationConsumer.NO_OP : "direct cancellation consumer should only be set once";
-        directCancellationConsumer = cancellationConsumer;
     }
 }

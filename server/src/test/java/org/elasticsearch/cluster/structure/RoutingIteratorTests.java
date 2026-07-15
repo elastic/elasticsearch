@@ -249,7 +249,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             )
             .build();
 
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
@@ -375,7 +375,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1"))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);

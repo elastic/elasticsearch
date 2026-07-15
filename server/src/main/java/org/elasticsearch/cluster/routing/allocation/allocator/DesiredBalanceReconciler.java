@@ -15,7 +15,6 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -118,24 +117,14 @@ public class DesiredBalanceReconciler {
      * @param desiredBalance The new desired cluster shard allocation
      * @param allocation Cluster state information with which to make decisions, contains routing table metadata that will be modified to
      *                   reach the given desired balance.
-     * @return the {@link ReconciliationResult} output for this round of reconciliation changes.
+     * @return the allocation stats for this round of reconciliation changes.
      */
-    public ReconciliationResult reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+    public DesiredBalanceMetrics.AllocationStats reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         var nodeIds = allocation.routingNodes().getAllNodeIds();
         allocationOrdering.retainNodes(nodeIds);
         moveOrdering.retainNodes(nodeIds);
         return new Reconciliation(desiredBalance, allocation).run();
     }
-
-    /**
-     * @param allocationStats stats for this round of reconciliation changes.
-     * @param pendingDirectCancellations in-flight recoveries identified during this round as no longer allocated on
-     *                                   a desired location and that are candidate for direct cancellation.
-     */
-    public record ReconciliationResult(
-        DesiredBalanceMetrics.AllocationStats allocationStats,
-        PendingDirectCancellations pendingDirectCancellations
-    ) {}
 
     public void clear() {
         allocationOrdering.clear();
@@ -165,7 +154,7 @@ public class DesiredBalanceReconciler {
             this.routingNodes = allocation.routingNodes();
         }
 
-        ReconciliationResult run() {
+        DesiredBalanceMetrics.AllocationStats run() {
             undesiredAllocationsTracker.cleanup(routingNodes);
             try (var ignored = allocation.withReconcilingFlag()) {
 
@@ -175,25 +164,26 @@ public class DesiredBalanceReconciler {
                     // no data nodes, so fail allocation to report red health
                     failAllocationOfNewPrimaries(allocation);
                     logger.trace("no nodes available, nothing to reconcile");
-                    return new ReconciliationResult(DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS, PendingDirectCancellations.EMPTY);
+                    return DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS;
                 }
 
                 if (desiredBalance.assignments().isEmpty()) {
                     // no desired state yet but it is on its way and we'll reroute again when it is ready
                     logger.trace("desired balance is empty, nothing to reconcile");
-                    return new ReconciliationResult(DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS, PendingDirectCancellations.EMPTY);
+                    return DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS;
                 }
 
                 // compute next moves towards current desired balance:
 
                 // 1. identify pending direct cancellations.
                 logger.trace("Reconciler#computePendingDirectCancellations");
-                final PendingDirectCancellations pendingDirectCancellations = computePendingDirectCancellations();
+                final DirectCancellationsCandidates directCancellationsCandidates = computePendingDirectCancellations();
+                allocation.setDirectCancellationsCandidates(directCancellationsCandidates);
 
                 // 2. unassign the subset of those candidates that are safe to interrupt via the routing table
                 if (enableInitializingShardCancellation) {
                     logger.trace("Reconciler#unassignInterruptableInitializingShards");
-                    unassignInterruptableInitializingShards(pendingDirectCancellations);
+                    unassignInterruptableInitializingShards(directCancellationsCandidates);
                 }
 
                 // 3. allocate unassigned shards
@@ -212,7 +202,7 @@ public class DesiredBalanceReconciler {
                 DesiredBalanceMetrics.AllocationStats allocationStats = balance();
 
                 logger.debug("Reconciliation is complete");
-                return new ReconciliationResult(allocationStats, pendingDirectCancellations);
+                return allocationStats;
             }
         }
 
@@ -221,8 +211,8 @@ public class DesiredBalanceReconciler {
          * direct cancellation. The master will separately ask the data node to cancel these, since interrupting an
          * in-flight recovery via the routing table isn't safe for every recovery type (e.g. mid-handover primary relocations).
          */
-        private PendingDirectCancellations computePendingDirectCancellations() {
-            final List<PendingDirectCancellations.Candidates> candidates = new ArrayList<>();
+        private DirectCancellationsCandidates computePendingDirectCancellations() {
+            final List<DirectCancellationsCandidates.Candidates> candidates = new ArrayList<>();
             for (RoutingNode routingNode : routingNodes) {
                 List<ShardRecoveryCancellation> nodeCancellations = new ArrayList<>();
                 for (ShardRouting shardRouting : routingNode) {
@@ -246,23 +236,17 @@ public class DesiredBalanceReconciler {
                     );
                 }
                 if (nodeCancellations.isEmpty() == false) {
-                    candidates.add(new PendingDirectCancellations.Candidates(routingNode.node(), nodeCancellations));
+                    candidates.add(new DirectCancellationsCandidates.Candidates(routingNode.node(), nodeCancellations));
                 }
             }
-            final ClusterState currentState = allocation.getClusterState();
-            return new PendingDirectCancellations(
-                currentState.term(),
-                currentState.version(),
-                desiredBalance.lastConvergedIndex(),
-                candidates
-            );
+            return new DirectCancellationsCandidates(candidates);
         }
 
         /**
          * Unassigns the subset of {@code pendingDirectCancellations} that are safe to interrupt via the routing table.
          */
-        private void unassignInterruptableInitializingShards(PendingDirectCancellations directCancellations) {
-            for (PendingDirectCancellations.Candidates nodeCandidates : directCancellations.candidates()) {
+        private void unassignInterruptableInitializingShards(DirectCancellationsCandidates directCancellations) {
+            for (DirectCancellationsCandidates.Candidates nodeCandidates : directCancellations.candidates()) {
                 for (ShardRecoveryCancellation cancellation : nodeCandidates.cancellations()) {
                     if (cancellation.cancelIfStarted() == false) {
                         continue;

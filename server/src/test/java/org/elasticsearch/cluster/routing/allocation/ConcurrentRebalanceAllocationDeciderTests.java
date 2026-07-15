@@ -351,7 +351,7 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
         clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).build();
 
         // set up primaries, and have replicas initializing
-        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
 
         // add a bunch of nodes to create relocation chaos
@@ -363,7 +363,7 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
         clusterState = clusterStateBuilder.nodes(nodeBuilder).build();
 
         // start relocations
-        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
 
         return clusterState;

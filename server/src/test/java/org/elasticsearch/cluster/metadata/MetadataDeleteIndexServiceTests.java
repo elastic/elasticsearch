@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellationsCandidates;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -64,7 +65,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void initService() throws Exception {
         allocationService = mock(AllocationService.class);
         when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).thenAnswer(
-            mockInvocation -> mockInvocation.getArguments()[0]
+            mockInvocation -> new AllocationService.RerouteResult(
+                (ClusterState) mockInvocation.getArguments()[0],
+                DirectCancellationsCandidates.EMPTY
+            )
         );
         service = new MetadataDeleteIndexService(
             Settings.EMPTY,
@@ -124,7 +128,9 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState before = clusterState(projectId, index);
 
         // Mock the built reroute
-        when(allocationService.reroute(any(ClusterState.class), anyString(), any())).then(i -> i.getArguments()[0]);
+        when(allocationService.reroute(any(ClusterState.class), anyString(), any())).thenAnswer(
+            i -> new AllocationService.RerouteResult((ClusterState) i.getArguments()[0], DirectCancellationsCandidates.EMPTY)
+        );
 
         // Remove it
         final ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(

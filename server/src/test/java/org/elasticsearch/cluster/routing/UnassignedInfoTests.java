@@ -245,7 +245,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                     }
                 }
                 throw new AssertionError("no suitable target found");
-            });
+            }).clusterState();
 
         // cluster state 2: index closed and fully unassigned
         final var metadata1 = Metadata.builder(metadata0)
@@ -511,7 +511,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             )
             .build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(index);
@@ -564,7 +564,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
@@ -606,7 +606,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
@@ -833,7 +833,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
@@ -883,7 +883,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
@@ -900,7 +900,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
 
         if (delta > 0) {
             allocation.setNanoTimeOverride(baseTime + delta);
-            clusterState = allocation.reroute(clusterState, "time moved", ActionListener.noop());
+            clusterState = allocation.reroute(clusterState, "time moved", ActionListener.noop()).clusterState();
         }
 
         assertThat(UnassignedInfo.findNextDelayedAllocation(baseTime + delta, clusterState), equalTo(expectMinDelaySettingsNanos - delta));

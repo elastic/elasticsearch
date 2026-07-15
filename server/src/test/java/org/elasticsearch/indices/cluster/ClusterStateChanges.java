@@ -396,7 +396,7 @@ public class ClusterStateChanges {
             blockedIndices,
             blockedIndices.keySet().stream().collect(toMap(Function.identity(), CloseIndexResponse.IndexResult::new))
         );
-        return allocationService.reroute(newState, "indices closed", ActionListener.noop());
+        return allocationService.reroute(newState, "indices closed", ActionListener.noop()).clusterState();
     }
 
     public ClusterState openIndices(ClusterState state, OpenIndexRequest request) {

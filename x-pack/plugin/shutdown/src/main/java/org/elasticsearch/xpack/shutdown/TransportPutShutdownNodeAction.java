@@ -143,7 +143,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             // intermediate state and report that nodes are ready to shut down prematurely. Even if the client were to wait for the
             // put-shutdown API to complete there's a risk that it gets disconnected and retries, but the retry could well be a no-op which
             // short-circuits past the cluster state update and therefore also doesn't wait for the background reroute.
-            return allocationService.reroute(updatedState, "reroute after put-shutdown", rerouteCompletionIsNotRequired());
+            return allocationService.reroute(updatedState, "reroute after put-shutdown", rerouteCompletionIsNotRequired()).clusterState();
         }
     }
 

@@ -51,7 +51,7 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.getProject().index("idx")).build()
             )
             .build();
-        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         Set<String> failedNodeIds = new HashSet<>();
 
         // track the failed nodes if shard is not started

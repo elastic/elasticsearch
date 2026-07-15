@@ -537,7 +537,7 @@ public class MetadataCreateIndexService {
             }
             if (state != batchExecutionContext.initialState()) {
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
-                    state = allocationService.reroute(state, "create-index", allocationActionMultiListener.reroute());
+                    state = allocationService.reroute(state, "create-index", allocationActionMultiListener.reroute()).clusterState();
                 }
             } else {
                 allocationActionMultiListener.noRerouteNeeded();
@@ -805,7 +805,7 @@ public class MetadataCreateIndexService {
                     updated,
                     "index [" + indexMetadata.getIndex().getName() + "] created in project [" + request.projectId() + "]",
                     rerouteListener
-                );
+                ).clusterState();
             }
             return updated;
         });

@@ -61,7 +61,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
 
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         logger.info("Start all the primary shards");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -105,7 +105,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
 
         logger.info("Add another node and start the added replica");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -163,7 +163,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
         );
 
         logger.info("do a reroute, should remain the same");
-        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(newState, equalTo(clusterState));
     }
 }

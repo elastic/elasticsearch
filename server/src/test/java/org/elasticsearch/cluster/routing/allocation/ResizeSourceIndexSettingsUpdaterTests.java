@@ -112,7 +112,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 16)
                 .build()
         );
-        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         {
             IndexRoutingTable sourceRoutingTable = clusterState.routingTable(sourceProject.id()).index(sourceIndex);
@@ -170,7 +170,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
             }
         }
 
-        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         {
             IndexMetadata targetIndexMetadata = clusterState.metadata().getProject(sourceProject.id()).index(targetIndex);

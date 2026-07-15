@@ -180,7 +180,7 @@ public class AllocationBenchmark {
                     .filter(ShardRouting::initializing)
                     .collect(Collectors.toList())
             );
-            clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+            clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         }
         return clusterState;
     }

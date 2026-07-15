@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellationsCandidates;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardRelocationOrder;
@@ -173,7 +174,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                     createShardAllocator(),
                     threadPool,
                     clusterService,
-                    (innerState, strategy) -> innerState,
+                    (innerState, strategy) -> new AllocationService.RerouteResult(innerState, DirectCancellationsCandidates.EMPTY),
                     EMPTY_NODE_ALLOCATION_STATS,
                     TEST_ONLY_EXPLAINER,
                     DesiredBalanceMetrics.NOOP,

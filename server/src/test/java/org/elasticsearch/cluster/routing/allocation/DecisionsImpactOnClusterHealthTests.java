@@ -127,7 +127,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).build();
 
         logger.info("--> do the reroute");
-        routingTable = allocationService.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
+        routingTable = allocationService.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("--> assert cluster health");

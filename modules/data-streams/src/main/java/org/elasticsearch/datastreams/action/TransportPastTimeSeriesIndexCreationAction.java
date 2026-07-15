@@ -341,7 +341,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             }
 
             if (stateChanged) {
-                state = allocationService.reroute(state, "past-tsdb-index-creation", multiListener.reroute());
+                state = allocationService.reroute(state, "past-tsdb-index-creation", multiListener.reroute()).clusterState();
             } else {
                 multiListener.noRerouteNeeded();
             }

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellationsCandidates;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
@@ -69,6 +70,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
 
     // Tracks the sizes of the searchable snapshots that aren't yet registered in ClusterInfo by their cluster node id
     private final Map<String, Long> unaccountedSearchableSnapshotSizes;
+    private DirectCancellationsCandidates directCancellationsCandidates = DirectCancellationsCandidates.EMPTY;
 
     /// Creates a new [RoutingAllocation]
     ///
@@ -351,6 +353,14 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     public abstract Releasable withReconcilingFlag();
 
     public abstract void setSimulatedClusterInfo(ClusterInfo clusterInfo);
+
+    public DirectCancellationsCandidates directCancellationsCandidates() {
+        return directCancellationsCandidates;
+    }
+
+    public void setDirectCancellationsCandidates(DirectCancellationsCandidates directCancellationsCandidates) {
+        this.directCancellationsCandidates = directCancellationsCandidates;
+    }
 
     public RoutingAllocation immutableClone() {
         GlobalRoutingTable routingTable = clusterState.globalRoutingTable();

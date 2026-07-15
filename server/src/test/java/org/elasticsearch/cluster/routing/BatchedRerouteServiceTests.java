@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.DirectCancellationsCandidates;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
@@ -38,7 +40,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -66,7 +67,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
             rerouteCount.incrementAndGet();
             l.onResponse(null);
-            return s;
+            return new AllocationService.RerouteResult(s, DirectCancellationsCandidates.EMPTY);
         });
 
         long rerouteCountBeforeReroute = 0L;
@@ -82,66 +83,6 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         }
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         assertThat(rerouteCountBeforeReroute, lessThan(rerouteCount.get()));
-    }
-
-    public void testNotifiesRerouteClusterStateListenersOnSuccessfulPublication() {
-        final var successfulPublicationNotified = new AtomicBoolean();
-        final var failureNotified = new AtomicBoolean();
-        final var oldStateTermRef = new AtomicReference<Long>();
-        final var oldStateVersionRef = new AtomicReference<Long>();
-        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (state, reason, listener) -> {
-            listener.onResponse(null);
-            return ClusterState.builder(state).build();
-        });
-        batchedRerouteService.addListener(new RerouteClusterStatePublicationListener() {
-            @Override
-            public void onSuccessfulPublication(long baseStateTerm, long baseStateVersion) {
-                successfulPublicationNotified.set(true);
-                oldStateTermRef.set(baseStateTerm);
-                oldStateVersionRef.set(baseStateVersion);
-            }
-
-            @Override
-            public void onAbortedPublication(Exception e) {
-                failureNotified.set(true);
-            }
-        });
-
-        final var initialState = clusterService.state();
-        final var future = new PlainActionFuture<Void>();
-        batchedRerouteService.reroute("test", Priority.NORMAL, future);
-        future.actionGet(10, TimeUnit.SECONDS);
-
-        assertTrue(successfulPublicationNotified.get());
-        assertFalse(failureNotified.get());
-        assertEquals(initialState.term(), oldStateTermRef.get().longValue());
-        assertEquals(initialState.version(), oldStateVersionRef.get().longValue());
-    }
-
-    public void testNotifiesRerouteClusterStateListenersOnAbortedPublication() {
-        final var successfulPublicationNotified = new AtomicBoolean();
-        final var failureNotified = new AtomicBoolean();
-        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (state, reason, listener) -> {
-            throw new ElasticsearchException("simulated");
-        });
-        batchedRerouteService.addListener(new RerouteClusterStatePublicationListener() {
-            @Override
-            public void onSuccessfulPublication(long baseStateTerm, long baseStateVersion) {
-                successfulPublicationNotified.set(true);
-            }
-
-            @Override
-            public void onAbortedPublication(Exception e) {
-                failureNotified.set(true);
-            }
-        });
-
-        final var future = new PlainActionFuture<Void>();
-        batchedRerouteService.reroute("test", Priority.NORMAL, future);
-        expectThrows(ElasticsearchException.class, () -> future.actionGet(10, TimeUnit.SECONDS));
-
-        assertFalse(successfulPublicationNotified.get());
-        assertTrue(failureNotified.get());
     }
 
     public void testBatchesReroutesTogetherAtPriorityOfHighestSubmittedReroute() {
@@ -168,7 +109,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
             assertTrue(rerouteExecuted.compareAndSet(false, true)); // only called once
             l.onResponse(null);
-            return s;
+            return new AllocationService.RerouteResult(s, DirectCancellationsCandidates.EMPTY);
         });
 
         final ThreadContext threadContext = threadPool.getThreadContext();
@@ -261,7 +202,8 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                 throw new ElasticsearchException("simulated");
             }
             l.onResponse(null);
-            return randomBoolean() ? s : ClusterState.builder(s).build();
+            ClusterState resultState = randomBoolean() ? s : ClusterState.builder(s).build();
+            return new AllocationService.RerouteResult(resultState, DirectCancellationsCandidates.EMPTY);
         });
 
         final int iterations = between(1, 100);
@@ -349,7 +291,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
             final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
                 l.onResponse(null);
-                return ClusterState.builder(s).build();
+                return new AllocationService.RerouteResult(ClusterState.builder(s).build(), DirectCancellationsCandidates.EMPTY);
             });
 
             mockLog.addExpectation(

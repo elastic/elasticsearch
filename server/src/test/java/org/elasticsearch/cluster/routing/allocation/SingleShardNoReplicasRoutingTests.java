@@ -68,7 +68,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         logger.info("Adding one node and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(1));
         assertThat(clusterState.routingTable().index("test").shard(0).size(), equalTo(1));
@@ -77,7 +77,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         logger.info("Rerouting again, nothing should change");
         clusterState = ClusterState.builder(clusterState).build();
-        ClusterState newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        ClusterState newState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(newState, equalTo(clusterState));
         clusterState = newState;
 
@@ -94,7 +94,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         logger.info("Starting another node and making sure nothing changed");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
-        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(newState, equalTo(clusterState));
         clusterState = newState;
 
@@ -118,7 +118,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         logger.info("Bring node1 back, and see it's assinged");
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node1"))).build();
-        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -129,7 +129,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         logger.info("Start another node, make sure that things remain the same (shard is in node2 and initializing)");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(newState, equalTo(clusterState));
 
         logger.info("Start the shard on node 1");
@@ -170,7 +170,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         logger.info("Adding one node and rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        ClusterState newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        ClusterState newState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -241,7 +241,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
             nodesBuilder.add(newNode("node" + i));
         }
         clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
-        ClusterState newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        ClusterState newState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -277,7 +277,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
             nodesBuilder.add(newNode("node" + i));
         }
         clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
-        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(newState, equalTo(clusterState));
 
         logger.info("Marking the shard as started");
@@ -346,7 +346,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")))
             .build();
-        ClusterState newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        ClusterState newState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -365,7 +365,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4")).add(newNode("node5")))
             .build();
-        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         assertThat(newState, equalTo(clusterState));
         clusterState = newState;
 

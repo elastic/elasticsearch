@@ -1145,7 +1145,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     .add(newNode("node2_frozen", frozenRole))
             )
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
 
         index = clusterState.routingTable(projectId).index("test");
         assertPrimariesInitializing(index);
@@ -1185,7 +1185,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             )
             .build();
 
-        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState();
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         logger.info("Hot should be able to relocate its max of 3 shards, and frozen its max of 7 shards");

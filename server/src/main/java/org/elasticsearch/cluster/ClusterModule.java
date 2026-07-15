@@ -89,7 +89,7 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.indices.recovery.RecoveryCancellationService;
+import org.elasticsearch.indices.recovery.RecoveryDirectCancellationService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
@@ -264,7 +264,7 @@ public class ClusterModule extends AbstractModule {
         };
     }
 
-    private ClusterState reconcile(ClusterState clusterState, RerouteStrategy rerouteStrategy) {
+    private AllocationService.RerouteResult reconcile(ClusterState clusterState, RerouteStrategy rerouteStrategy) {
         return allocationService.executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", rerouteStrategy);
     }
 
@@ -584,6 +584,12 @@ public class ClusterModule extends AbstractModule {
         return allocationService;
     }
 
+    public void registerDirectCancellationService(RecoveryDirectCancellationService recoveryDirectCancellationService) {
+        if (shardsAllocator instanceof DesiredBalanceShardsAllocator desiredBalanceShardsAllocator) {
+            desiredBalanceShardsAllocator.setRecoveryDirectCancellationService(recoveryDirectCancellationService);
+        }
+    }
+
     @Override
     protected void configure() {
         bind(GatewayAllocator.class).asEagerSingleton();
@@ -597,7 +603,6 @@ public class ClusterModule extends AbstractModule {
         bind(IndexNameExpressionResolver.class).toInstance(indexNameExpressionResolver);
         bind(DelayedAllocationService.class).asEagerSingleton();
         bind(ShardStateAction.class).asEagerSingleton();
-        bind(RecoveryCancellationService.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
         bind(TaskResultsService.class).asEagerSingleton();
         bind(AllocationDeciders.class).toInstance(allocationDeciders);

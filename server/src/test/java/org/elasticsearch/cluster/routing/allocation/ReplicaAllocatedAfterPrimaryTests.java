@@ -61,7 +61,7 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute", ActionListener.noop()).clusterState().routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         final String nodeHoldingPrimary = routingTable.index("test").shard(0).primaryShard().currentNodeId();
 

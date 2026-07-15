@@ -1031,6 +1031,19 @@ c:long | b:date
 ;
 
 
+largeNumberOfBucketsWithTimeZone
+required_capability: date_trunc_timezone_support
+
+SET time_zone = "America/New_York"\;
+ROW ts = TO_DATETIME("2023-06-01T12:34:56.789Z")
+| STATS c = COUNT(*) BY b = BUCKET(ts, 2000000000, "2023-01-01T00:00:00Z", "2025-01-01T00:00:00Z")
+;
+
+c:long | b:datetime
+1      | 2023-06-01T08:34:56.750-04:00
+;
+
+
 maxLongNumberOfBuckets
 required_capability: fix_bucket_large_number_of_buckets
 

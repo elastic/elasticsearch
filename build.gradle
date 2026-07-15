@@ -494,7 +494,7 @@ tasks.register("branchConsistency") {
 }
 
 tasks.named("wrapper").configure {
-  distributionType = 'ALL'
+  distributionType = 'BIN'
   def minimumGradleVersionFile = project.file('build-tools-internal/src/main/resources/minimumGradleVersion')
   doLast {
     // copy wrapper properties file to build-tools-internal to allow seamless idea integration

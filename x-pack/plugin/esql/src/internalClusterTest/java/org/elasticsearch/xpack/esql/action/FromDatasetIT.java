@@ -172,6 +172,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_rename_strict",
         "employees_headerless_strict",
         "employees_headerless_dynamic",
+        "employees_parity_strict",
+        "employees_parity_dynamic",
+        "employees_order_strict",
+        "employees_order_dynamic",
         "employees_rename_nonstrict",
         "employees_rename_keep",
         "employees_ndjson_rename_strict",
@@ -507,6 +511,67 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(strictRows.get(2).get(2).toString(), equalTo("Support"));
 
         assertThat(strictRows, equalTo(dynamicRows));
+    }
+
+    /**
+     * The #1307 invariant in its strongest form: a declaration that covers the whole file IN FILE ORDER reads
+     * IDENTICALLY under strict and dynamic — same column names, same column ORDER, same values — with NO {@code KEEP}
+     * to normalize. This is the case where the two modes must not diverge on any dimension.
+     */
+    public void testStrictAndDynamicFullyAgreeNoKeepInFileOrder() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path headerless = createTempFile("dataset-parity-", ".csv");
+        Files.writeString(headerless, String.join("\n", "1,Alice,Engineering", "2,Bob,Sales", "3,Carol,Support") + "\n");
+
+        // Declared in file order: col0 -> id, col1 -> name, col2 -> dept. Declaration order == file order, so column
+        // order cannot diverge and the two modes must agree on everything.
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("long", "col0"));
+        properties.put("name", new DatasetFieldMapping("keyword", "col1"));
+        properties.put("dept", new DatasetFieldMapping("keyword", "col2"));
+
+        registerHeaderlessCsv("employees_parity_strict", headerless, DatasetMapping.Dynamic.FALSE, properties);
+        registerHeaderlessCsv("employees_parity_dynamic", headerless, DatasetMapping.Dynamic.TRUE, properties);
+
+        try (
+            var strict = run(syncEsqlQueryRequest("FROM employees_parity_strict | SORT id | LIMIT 10"), TIMEOUT);
+            var dynamic = run(syncEsqlQueryRequest("FROM employees_parity_dynamic | SORT id | LIMIT 10"), TIMEOUT)
+        ) {
+            assertThat(columnNames(strict), equalTo(List.of("id", "name", "dept")));
+            assertThat(columnNames(strict), equalTo(columnNames(dynamic)));   // names + ORDER agree, no KEEP
+            assertThat(getValuesList(strict), equalTo(getValuesList(dynamic))); // values agree
+        }
+    }
+
+    /**
+     * Column ORDER is the one dimension strict and dynamic still diverge on for an OUT-of-file-order declaration:
+     * strict emits declaration order, dynamic emits file order. Pinned here as the known divergence tracked by the
+     * column-order convergence follow-up (a dynamic-side change, out of #1307's binding scope).
+     */
+    public void testStrictDynamicColumnOrderDivergesOutOfFileOrder() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path headerless = createTempFile("dataset-order-", ".csv");
+        Files.writeString(headerless, "1,Alice,Engineering\n");
+
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("dept", new DatasetFieldMapping("keyword", "col2"));
+        properties.put("id", new DatasetFieldMapping("long", "col0"));
+        properties.put("name", new DatasetFieldMapping("keyword", "col1"));
+
+        registerHeaderlessCsv("employees_order_strict", headerless, DatasetMapping.Dynamic.FALSE, properties);
+        registerHeaderlessCsv("employees_order_dynamic", headerless, DatasetMapping.Dynamic.TRUE, properties);
+
+        try (
+            var strict = run(syncEsqlQueryRequest("FROM employees_order_strict | LIMIT 1"), TIMEOUT);
+            var dynamic = run(syncEsqlQueryRequest("FROM employees_order_dynamic | LIMIT 1"), TIMEOUT)
+        ) {
+            assertThat(columnNames(strict), equalTo(List.of("dept", "id", "name")));   // declaration order
+            assertThat(columnNames(dynamic), equalTo(List.of("id", "name", "dept")));  // file order
+        }
+    }
+
+    private static List<String> columnNames(EsqlQueryResponse response) {
+        return response.columns().stream().map(ColumnInfo::name).toList();
     }
 
     /** Registers {@code file} as a headerless CSV dataset, so a declared path names a physical column as {@code col<N>}. */
